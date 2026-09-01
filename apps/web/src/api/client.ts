@@ -59,7 +59,7 @@ import type {
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief, RfiRegister, SpecSubmittalLog, PrequalScores,
+    DiligenceReadiness, MasterBuilderBrief, RfiRegister, PrequalScores,
     SpineTraceability } from "./types";
 
 
@@ -100,12 +100,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       applied: boolean; tier_before: string; tier_after: string; error?: string }>(
       "/license/cloud-check", { method: "POST" });
   }
-  // --- model intelligence ----------------------------------------------------
-  /** Ask a plain-English question about the model; grounded in the property-index snapshot. */
-  askModel(pid: string, question: string) {
-    return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
-      `/projects/${pid}/ask`, { method: "POST", body: JSON.stringify({ question }) });
-  }
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -126,12 +120,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
   }
-  // --- assistant · preflight · site context ---------------------------------
-  /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */
-  askProject(pid: string, question: string) {
-    return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
-      `/projects/${pid}/assistant`, { method: "POST", body: JSON.stringify({ question }) });
-  }
+  // --- preflight · site context ---------------------------------------------
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
@@ -156,20 +145,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     const r = await fetch(this.url(`/projects/${pid}/hero`), { method: "PUT", body: fd, headers: this.authHeaders() });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
-  }
-  /** Spec-section submittal register — turnaround, ball-in-court, overdue. */
-  submittalRegister(pid: string) {
-    return this.json<{ submittal_count: number; open_count: number; overdue_count: number;
-      avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/submittals/register`);
-  }
-  /** Change-order log — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
-  coLog(pid: string) {
-    return this.json<{ co_count: number; total_value: number; pending_value: number;
-      approved_value: number; executed_value: number; total_schedule_days: number;
-      change_events_open: number; change_event_rom_exposure: number;
-      by_reason: Record<string, number>; ball_in_court: Record<string, number>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
   }
   /** Meeting & action-item tracker — open/overdue by assignee, completion, meeting log. */
   actionTracker(pid: string) {
@@ -234,16 +209,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   /** RFI register — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
   rfiRegister(pid: string) {
     return this.json<RfiRegister>(`/projects/${pid}/rfi/register`);
-  }
-  /** Spec-driven submittal log — required submittals per spec section vs logged, with missing gaps. */
-  specSubmittalLog(pid: string) {
-    return this.json<SpecSubmittalLog>(`/projects/${pid}/specs/submittal-log`);
-  }
-  /** Extract a typed submittal list from pasted spec text (AI when configured; rules fallback). */
-  extractSubmittals(pid: string, text: string, create = false) {
-    return this.json<{ items: { section_number?: string; title: string; type: string }[];
-      source: string; message?: string; created_submittals?: number }>(
-      `/projects/${pid}/specs/extract-submittals`, { method: "POST", body: JSON.stringify({ text, create }) });
   }
   /** Site feasibility / zoning envelope — max buildable GFA, unit yield, parking, vs. model GFA. */
   feasibility(pid: string, gfa?: number) {

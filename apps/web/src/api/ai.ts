@@ -6,6 +6,10 @@
  *  recipes, draft-rfi next to phasing. `aiReadiness` is `/ai-readiness` and stays.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
+ *
+ *  SCALE-SEAM ❷ adds the two cited-question doors — *what does a cited question return?*
+ *  `askModel` (`/ask`) and `askProject` (`/assistant`). They are not `/ai` routes.
+ *  `uploadVerificationPhoto` and `preflight` stayed.
  */
 import { HttpCore } from "./httpCore";
 
@@ -56,6 +60,17 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
       runs: { ts: string | null; actor: string; tool: string | null; pack: string | null; ok: boolean | null }[];
       run_count: number; failure_count: number;
     }>(`/projects/${pid}/agent-packs`);
+  }
+
+  /** askModel — a plain-English question about the model, grounded in the property-index snapshot. */
+  askModel(pid: string, question: string) {
+    return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
+      `/projects/${pid}/ask`, { method: "POST", body: JSON.stringify({ question }) });
+  }
+  /** askProject — a question about the whole project (modules/schedule/budget/risk). */
+  askProject(pid: string, question: string) {
+    return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
+      `/projects/${pid}/assistant`, { method: "POST", body: JSON.stringify({ question }) });
   }
   };
 }

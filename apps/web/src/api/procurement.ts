@@ -14,8 +14,13 @@
  *
  *  A mixin, so every call site resolves unchanged. The surface ratchet in `api/surface.test.ts` is
  *  what proves it: moving a method is invisible to it, losing one fails it by number.
+ *
+ *  SCALE-SEAM ❸ adds the submittal stack — *are required submittals turning around?*
+ *  Register, spec-section log, extract-from-text. They were **not** contiguous (health,
+ *  closeout, safety, field-log and the RFI register sat between). Those did **not** come.
  */
 import { HttpCore } from "./httpCore";
+import type { SpecSubmittalLog } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -132,6 +137,23 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       unit: string | null; elements: number; guids: string[] }[]; created: string[] }>(
       `/projects/${pid}/procurement/material-request/suggest`,
       { method: "POST", body: JSON.stringify(opts) });
+  }
+
+  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. */
+  submittalRegister(pid: string) {
+    return this.json<{ submittal_count: number; open_count: number; overdue_count: number;
+      avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/submittals/register`);
+  }
+  /** specSubmittalLog — required submittals per spec section vs logged, with missing gaps. */
+  specSubmittalLog(pid: string) {
+    return this.json<SpecSubmittalLog>(`/projects/${pid}/specs/submittal-log`);
+  }
+  /** extractSubmittals — typed submittal list from pasted spec text (AI when configured; rules fallback). */
+  extractSubmittals(pid: string, text: string, create = false) {
+    return this.json<{ items: { section_number?: string; title: string; type: string }[];
+      source: string; message?: string; created_submittals?: number }>(
+      `/projects/${pid}/specs/extract-submittals`, { method: "POST", body: JSON.stringify({ text, create }) });
   }
   };
 }

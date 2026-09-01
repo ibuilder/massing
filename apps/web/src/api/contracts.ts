@@ -27,6 +27,9 @@
  *  SCALE-SEAM ㊹ adds owner selections / allowance vs actual — *what did the owner pick, and does
  *  it trigger a change order?* Share tokens sat immediately below in `client.ts` and did **not**
  *  come (client portal, not the contract).
+ *
+ *  SCALE-SEAM ❹ adds the change-order log — *what is the CO pipeline worth, and who holds the
+ *  ball?* `actionTracker` sat immediately below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 
@@ -130,6 +133,15 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
   pushSelectionChangeEvents(pid: string) {
     return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
       `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
+  }
+
+  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
+  coLog(pid: string) {
+    return this.json<{ co_count: number; total_value: number; pending_value: number;
+      approved_value: number; executed_value: number; total_schedule_days: number;
+      change_events_open: number; change_event_rom_exposure: number;
+      by_reason: Record<string, number>; ball_in_court: Record<string, number>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
   }
   };
 }

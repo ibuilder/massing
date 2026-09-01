@@ -94,6 +94,18 @@ ends at ㊿; **❶ is 51**.
 
 `MARKS` widened to ❷ on the way out. Pin 2,065 → 2,035.
 
+Seventh follow-on on the same version: **SCALE-SEAM ❷ ❸ ❹**. Six methods out of
+`client.ts` (`2,035 → 2,000`) into existing mixins.
+
+- ❷ *what does a cited question return?* — two methods onto `apps/web/src/api/ai.ts`.
+  Photo upload and `preflight` stayed.
+- ❸ *are required submittals turning around?* — three methods onto
+  `apps/web/src/api/procurement.ts`. Not a contiguous run.
+- ❹ *what is the CO pipeline worth?* — one method onto `apps/web/src/api/contracts.ts`.
+  Action tracker stayed.
+
+`MARKS` widened to ❺ on the way out. Pin 2,035 → 2,000.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin
