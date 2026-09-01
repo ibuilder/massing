@@ -17,8 +17,7 @@ import {
 import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag";
 import { parseDynConstraint } from "./dynInput";
 import { mountCadBar } from "./cadBar";
-import { installViewerHook } from "./debugHook";
-import { ModelLoader } from "./loader";
+import { installViewerHook } from "./debugHook"; import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { buildAnnotationSection } from "./tools/annotationSection";
 import { buildContentLibrarySection } from "./tools/contentLibrarySection";
@@ -2502,8 +2501,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
   }
 
-  // Selection hook for Cost/Deal/drawings. Extra preview-eval fields (THREE, loader, openFile)
-  // stay DEV-only — see `debugHook.ts`.
+  // Selection hook: prod is GlobalId only; DEV keeps preview-eval fields (debugHook.ts).
   installViewerHook({ viewer, loader, fitToModels, selectByGuid, selectByGuids, openFile, referenceModels, THREE });
 
   // ---- self-initialise: load the project model + build panels --------------
