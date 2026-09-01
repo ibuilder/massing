@@ -194,7 +194,8 @@ KNOWN_UNCALLED: set[str] = {
     # tool. Its entry is deleted rather than kept, which is this list's own contract working — the
     # freeze recorded "this was looked at", and a frozen route that gains a caller must leave.
     "/projects/{pid}/drawings/sheet.dxf",
-    "/projects/{pid}/energy/export.gbxml", "/projects/{pid}/energy/export.idf",
+    # `/energy/export.{gbxml,idf}` left here in v0.3.1133: `energyExportUrl` is now called from
+    # `exportsSection.ts` with both formats. They moved to `CALLED_VIA_TEMPLATED_EXT`.
     "/projects/{pid}/entitlements/condition-checks", "/projects/{pid}/ffe-bom",
     "/projects/{pid}/golden-thread", "/projects/{pid}/k1-pack",
     "/projects/{pid}/lod/handover-readiness", "/projects/{pid}/mep/pressure-loss",
@@ -285,12 +286,14 @@ def strip_comments(src: str) -> str:
 #:
 #:     model/export.ifcx    `modelExportUrl` is typed "csv" | "jsonld" | "parquet" — no caller passes it
 #:     drawings/sheet.dxf   `sheetPath` accepts "dxf"; its only caller `openSheet` is ("svg" | "pdf")
-#:     energy/export.gbxml  `energyExportUrl` HAS NO CALLER AT ALL — an unwired client method
-#:     energy/export.idf    (same method; both formats it offers are unreachable)
 #:
-#: So the extension case cannot be a pattern in either direction: matching it would call four
-#: unreachable routes reachable, and refusing it leaves two called routes frozen as callerless. A
-#: two-entry list whose evidence is asserted below is the honest instrument.
+#: `energy/export.{gbxml,idf}` LEFT this list in v0.3.1133 — `exportsSection.ts` now passes both
+#: formats through `energyExportUrl`. They sit in the named list below, same instrument as jsonld
+#: / parquet, because an extension pattern would still vouch for `model/export.ifcx`.
+#:
+#: So the extension case cannot be a pattern in either direction: matching it would call remaining
+#: unreachable `export.*` routes reachable, and refusing it leaves called routes frozen as
+#: callerless. A named list whose evidence is asserted below is the honest instrument.
 #:
 #: `model/export.csv` is absent because it is not flagged at all — it shares its leaf with
 #: `/projects/{pid}/modules/{key}/export.csv`, which IS called literally. That is the shared-leaf
@@ -299,6 +302,8 @@ CALLED_VIA_TEMPLATED_EXT: dict[str, str] = {
     #: route -> the call-site text that must still exist for this entry to be true
     "/projects/{pid}/model/export.jsonld": 'modelExportUrl(pid, "jsonld")',
     "/projects/{pid}/model/export.parquet": 'modelExportUrl(pid, "parquet")',
+    "/projects/{pid}/energy/export.gbxml": 'energyExportUrl(projectId, "gbxml")',
+    "/projects/{pid}/energy/export.idf": 'energyExportUrl(projectId, "idf")',
 }
 
 
@@ -455,10 +460,11 @@ _STEM_GAIN = [
     "/projects/{pid}/exports/schedule.xlsx", "/projects/{pid}/exports/spaces.xlsx",
     "/projects/{pid}/schedule/gantt.svg", "/projects/{pid}/schedule/lob.svg",
 ]
-check("the two leniencies together vouch for EXACTLY the eight routes whose callers were read",
+check("the two leniencies together vouch for EXACTLY the ten routes whose callers were read",
       _GAINED == sorted(_STEM_GAIN + list(CALLED_VIA_TEMPLATED_EXT)),
-      f"gained {_GAINED}, expected {sorted(_STEM_GAIN + list(CALLED_VIA_TEMPLATED_EXT))} — a NINTH "
-      f"route is not a smaller number, it is a route nobody has looked at being called reachable")
+      f"gained {_GAINED}, expected {sorted(_STEM_GAIN + list(CALLED_VIA_TEMPLATED_EXT))} — an "
+      f"ELEVENTH route is not a smaller number, it is a route nobody has looked at being called "
+      f"reachable")
 
 #: ATTRIBUTED, because two mechanisms summing to the right total is not the same as each being right.
 #: The pattern must account for the six and the named list for the two; swap them and the aggregate
@@ -466,7 +472,7 @@ check("the two leniencies together vouch for EXACTLY the eight routes whose call
 _BY_PATTERN = sorted(r for r in _GAINED
                      if r not in CALLED_VIA_TEMPLATED_EXT
                      and (_p := _templated_stem(r)) is not None and _p.search(_CODE))
-check("  ...six of them through the STEM pattern, and the other two only through the named list",
+check("  ...six of them through the STEM pattern, and the other four only through the named list",
       _BY_PATTERN == sorted(_STEM_GAIN),
       f"the pattern accounts for {_BY_PATTERN}, expected {sorted(_STEM_GAIN)}")
 

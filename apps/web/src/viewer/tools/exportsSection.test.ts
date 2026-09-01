@@ -37,6 +37,8 @@ function harness(over: Partial<ExportsDeps> = {}) {
       structure: { element_volume_m3: 1450 },
     })),
     takeoff2d: vi.fn(async () => ({})),
+    energyExportUrl: (pid: string, fmt: "gbxml" | "idf") =>
+      `https://api.test/projects/${pid}/energy/export.${fmt}`,
   } as unknown as ApiClient;
 
   const deps: ExportsDeps = {
@@ -73,6 +75,7 @@ describe("R39-DECOMP-VIEWER ① — the Exports section, extracted", () => {
     const { host } = harness();
     const text = labels(host).join("\n");
     for (const expected of ["Quantity takeoff", "COBie", "Space schedule", "4D schedule", "gbXML",
+                            "Energy envelope", "EnergyPlus IDF",
                             "Discipline quantities", "Closeout package", "Export IFC",
                             ".glb", ".gltf", "2D takeoff"]) {
       expect(text, `missing "${expected}"`).toContain(expected);
@@ -125,16 +128,28 @@ describe("R39-DECOMP-VIEWER ① — the Exports section, extracted", () => {
   // section can be built while a project is open and clicked after it closes.
   it("refuses the project-dependent actions when there is no project, at click time", () => {
     const { host, notify } = harness({ projectId: null });
-    for (const needle of ["Discipline quantities", "2D takeoff"]) {
+    for (const needle of ["Discipline quantities", "2D takeoff", "Energy envelope", "EnergyPlus IDF"]) {
       [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(needle))!.click();
     }
-    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledTimes(4);
     expect(notify).toHaveBeenCalledWith("connect a project first", "error");
+  });
+
+  it("opens the energy envelope through energyExportUrl, not a hand-built path", () => {
+    const { host, opened } = harness();
+    for (const needle of ["Energy envelope", "EnergyPlus IDF"]) {
+      [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(needle))!.click();
+    }
+    expect(opened).toEqual([
+      "https://api.test/projects/P-1/energy/export.gbxml",
+      "https://api.test/projects/P-1/energy/export.idf",
+    ]);
   });
 
   it("carries a tooltip on every export whose format is not self-evident", () => {
     const { host } = harness();
-    for (const needle of ["gbXML", "Closeout package", "Export IFC", ".glb", ".gltf", "2D takeoff"]) {
+    for (const needle of ["gbXML", "Energy envelope", "EnergyPlus IDF",
+                          "Closeout package", "Export IFC", ".glb", ".gltf", "2D takeoff"]) {
       const b = [...host.querySelectorAll("button")].find((x) => x.textContent?.includes(needle))!;
       expect(b.title, `"${needle}" has no tooltip`).toBeTruthy();
     }

@@ -64,6 +64,25 @@ export function buildExportsSection(d: ExportsDeps): void {
     + "model (OpenStudio/EnergyPlus/IES). Simplified: building-level envelope, not per-space surfaces.";
   b.appendChild(gbx);
 
+  // ENERGY phase 1 — the thermal-model writers. Distinct from the simplified gbXML above:
+  // these serialize zones / surfaces / constructions from `energy_export`. The client method
+  // existed with no caller; both formats it offers were frozen as deliberately unreachable.
+  const envGbx = toolBtn2("↓ Energy envelope (gbXML)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.energyExportUrl(projectId, "gbxml"), "_blank");
+  });
+  envGbx.title = "Thermal envelope as gbXML — Campus / Building / Space / Surface + Construction "
+    + "from the IFC assemblies. Geometry and constructions only; no HVAC, schedules or loads.";
+  b.appendChild(envGbx);
+
+  const envIdf = toolBtn2("↓ EnergyPlus IDF", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.energyExportUrl(projectId, "idf"), "_blank");
+  });
+  envIdf.title = "EnergyPlus IDF envelope — Building / Zone / Material / Construction / "
+    + "BuildingSurface:Detailed. Add HVAC, schedules and loads in the simulation setup.";
+  b.appendChild(envIdf);
+
   // discipline quantities — reinforcement tonnage, MEP linear runs, structural volume
   b.appendChild(toolBtn2("🔩 Discipline quantities", async () => {
     if (!projectId) { notify("connect a project first", "error"); return; }

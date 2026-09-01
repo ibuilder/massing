@@ -257,31 +257,31 @@ describe("compareRuns — the gate on any change to the shell", () => {
   const rep = (_label: string, panes: Array<[string, "ok" | "empty" | "slow"]>) =>
     summarise(panes.map(([id, verdict]) => ({ id, verdict, chars: 0, controls: 0, detail: "" })));
 
-  it("a pane that renders in classic and not under the spine is a REGRESSION", () => {
-    const d = compareRuns(rep("classic", [["ws:Cost", "ok"]]), rep("spine", [["ws:Cost", "empty"]]));
+  it("a pane that rendered before and not after is a REGRESSION", () => {
+    const d = compareRuns(rep("before", [["ws:Cost", "ok"]]), rep("after", [["ws:Cost", "empty"]]));
     expect(d.regressions).toEqual(["ws:Cost"]);
     expect(d.gains).toEqual([]);
   });
   it("`slow` is a pass on both sides, so a slower-but-rendering pane is not a regression", () => {
-    const d = compareRuns(rep("classic", [["ws:Model", "ok"]]), rep("spine", [["ws:Model", "slow"]]));
+    const d = compareRuns(rep("before", [["ws:Model", "ok"]]), rep("after", [["ws:Model", "slow"]]));
     expect(d.regressions).toEqual([]);
     expect(d.same).toBe(1);
   });
-  it("a pane fixed by the new shell is a gain, not silence", () => {
-    const d = compareRuns(rep("classic", [["ws:Field", "empty"]]), rep("spine", [["ws:Field", "ok"]]));
+  it("a pane fixed by the later run is a gain, not silence", () => {
+    const d = compareRuns(rep("before", [["ws:Field", "empty"]]), rep("after", [["ws:Field", "ok"]]));
     expect(d.gains).toEqual(["ws:Field"]);
   });
   it("a pane present in only one run is INCOMPARABLE, never a regression", () => {
     // The two runs may have walked different tab sets; calling that a defect would block a release
     // on a measurement artifact rather than on a real one.
-    const d = compareRuns(rep("classic", [["ws:Only", "ok"]]), rep("spine", [["ws:Other", "ok"]]));
+    const d = compareRuns(rep("before", [["ws:Only", "ok"]]), rep("after", [["ws:Other", "ok"]]));
     expect(d.regressions).toEqual([]);
     expect(d.incomparable).toEqual(["ws:Only", "ws:Other"]);
     expect(d.same).toBe(0);
   });
   it("identical runs report no regressions and no gains", () => {
-    const d = compareRuns(rep("classic", [["a", "ok"], ["b", "ok"]]),
-                            rep("spine", [["a", "ok"], ["b", "ok"]]));
+    const d = compareRuns(rep("before", [["a", "ok"], ["b", "ok"]]),
+                            rep("after", [["a", "ok"], ["b", "ok"]]));
     expect(d).toMatchObject({ regressions: [], gains: [], incomparable: [], same: 2 });
   });
 });
