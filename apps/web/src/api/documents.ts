@@ -1,11 +1,11 @@
-/** Document-control file manager: tree, folders, health, upload/move/delete, download.
+/** Document-control file manager, plus ISO 19650 CDE / BEP / information requirements.
  *
- *  SCALE-SEAM ⑱. Route-group `/projects/{pid}/documents`, taken out of `client.ts` by the
- *  route each method calls. **Nine methods, one contiguous run** under
- *  `// --- Document control / file manager ---` — this time the section comment and the route
- *  agree. Named `documents.ts` so it does not collide with `api/docqa.ts` (`/review` + `/doctext`).
- *
- *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
+ *  SCALE-SEAM ⑱ took `/projects/{pid}/documents`. SCALE-SEAM ㉛ adds the six methods that answer
+ *  *is the information container (CDE) and its requirement flow in order?* — BEP, CDE status,
+ *  the requirements register / cascade / delivery plan, and ISO 19650-6 exchange acceptance.
+ *  They span `/bep`, `/cde` and `/info-requirements`. `aiReadiness` sat inside that run in
+ *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question.
+ *  Composed through the existing `withDocuments` wrapper — no extra `withX()` on `ApiClient`.
  */
 import { HttpCore } from "./httpCore";
 import type { DocFile, DocFolderNode } from "./types";
@@ -86,6 +86,57 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `file model failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
+  }
+
+  /** bep — BIM Execution Plan generated from the project's live config (always current). */
+  bep(pid: string) {
+    return this.json<{
+      project: { id: string; name: string; has_model: boolean } | null;
+      sections: { id: string; title: string; configured: boolean; summary: string;
+        items: { k: string; v: string }[] }[];
+      completeness: { configured: number; total: number; pct: number }; note: string;
+    }>(`/projects/${pid}/bep`);
+  }
+  /** cdeStatus — CDE container counts by state and suitability. */
+  cdeStatus(pid: string) {
+    return this.json<{ total: number; by_state: Record<string, number>;
+      by_suitability: Record<string, number>;
+      discipline: { revision_control_pct: number | null; approval_status_pct: number | null;
+        metadata_completeness_pct: number | null; published: number; archived: number };
+      note: string }>(`/projects/${pid}/cde/status`);
+  }
+  /** infoRequirementsRegister — OIR/PIR/AIR/EIR coverage of the requirements register. */
+  infoRequirementsRegister(pid: string) {
+    return this.json<{ total: number;
+      by_type: Record<string, { total: number; issued: number; draft: number; superseded: number }>;
+      core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
+      `/projects/${pid}/info-requirements/register`);
+  }
+  /** ISO 19650 requirement flow-down (OIR→PIR/AIR→EIR→MIDP/TIDP) via each record's derives_from,
+   *  with cascade health: orphans that don't trace up + links pointing the wrong way. */
+  infoRequirementsCascade(pid: string) {
+    type Brief = { id: string; ref: string | null; type: string; title: string | null };
+    return this.json<{ total: number; linked: number; coverage_pct: number | null;
+      roots: Brief[]; orphans: Brief[];
+      misdirected: { id: string; ref: string | null; type: string; parent_type: string }[]; note: string }>(
+      `/projects/${pid}/info-requirements/cascade`);
+  }
+  /** MIDP/TIDP delivery plan — requirements vs programme dates, overdue/due-soon, LOIN coverage. */
+  infoRequirementsDeliveryPlan(pid: string) {
+    type Item = { id: string; ref: string | null; title: string | null; type: string;
+      due_date: string | null; status: string; has_loin: boolean };
+    return this.json<{ total: number; overdue: number; due_soon: number; loin_coverage_pct: number | null;
+      next_deliverable: Item | null;
+      by_month: { month: string; total: number; issued: number; overdue: number }[];
+      items: Item[]; note: string }>(
+      `/projects/${pid}/info-requirements/delivery-plan`);
+  }
+  /** ISO 19650-6 exchange acceptance — non-WIP containers vs completeness/suitability/auth/traceability. */
+  cdeExchangeAcceptance(pid: string) {
+    return this.json<{ reviewed: number; accepted: number; nonconforming_count: number; acceptable: boolean;
+      criteria_pct: { completeness: number | null; suitability: number | null; authorization: number | null; traceability: number | null };
+      nonconforming: { id: string; ref: string | null; title: string | null; state: string; failed: string[] }[]; note: string }>(
+      `/projects/${pid}/cde/exchange-acceptance`);
   }
   };
 }

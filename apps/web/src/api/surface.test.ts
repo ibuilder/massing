@@ -158,6 +158,7 @@ describe("the API client's public surface", () => {
       "costDatasets", "costVintage", "unitRates", "costSummary", "gmpBudget", "payAppPdf", "elementCosts5d", "gaebX83Url",
       "codeAmendments", "agentPacks", "modelHistory", "fileModel", "spacePack",
       "compiledPdfUrl", "projectPackagePdfUrl",
+      "bep", "cdeStatus", "infoRequirementsRegister", "cdeExchangeAcceptance",
       "drawingSchedulesCsvUrl", "permitsGeojsonUrl", "moduleLogPdfUrl", "viewTemplateGraphics",
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
