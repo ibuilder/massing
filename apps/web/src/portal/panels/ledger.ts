@@ -50,8 +50,8 @@ export async function renderLedger(ctx: PanelContext) {
     body.append(chart);
   }
   if (!tb.accounts.length) {
-    body.innerHTML = `<div class="meta">No postable transactions yet — add <b>direct costs</b> / <b>sub `
-      + `invoices</b> (cost → AP) and <b>owner invoices</b> (billing) to build the ledger.</div>`;
+    body.insertAdjacentHTML("beforeend", `<div class="meta">No postable transactions yet — add <b>direct costs</b> / <b>sub `
+      + `invoices</b> (cost → AP) and <b>owner invoices</b> (billing) to build the ledger.</div>`);
     return;
   }
 
