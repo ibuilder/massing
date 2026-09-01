@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉜ *(the only open slice; ②–㉛ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉝ *(the only open slice; ②–㉜ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,14 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉜ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉛ have shipped, **㉛ ISO 19650 CDE in v0.3.1141**)*
+- ◧ ⭐ **SCALE-SEAM ㉝ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉜ have shipped, **㉜ appraisal/listing in v0.3.1142**)*
+  **㉜ took the disposition stack out** (nine methods; `client.ts` 2,531 → 2,486) into the existing
+  `apps/web/src/api/proforma.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what is this asset worth, and how does it list?* Appraisal, listing autofill / share /
+  RESO, comparables, MLS syndication. **`reports` / `reportUrl` did NOT come** — those are the
+  document catalog. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉝ in this release.** **The per-file pin moved 2,531 → 2,486.**
+
   **㉛ took the ISO 19650 CDE / BEP / information-requirements stack out** (six methods;
   `client.ts` 2,580 → 2,531) into the existing `apps/web/src/api/documents.ts` mixin — **no extra
   wrapper on `ApiClient`**. Grouped by what they ANSWER: *is the information container and its

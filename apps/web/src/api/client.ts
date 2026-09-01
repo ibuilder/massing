@@ -53,7 +53,7 @@ export * from "./authoring";
 export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
-  Appraisal, AuditEntry, Dashboard,
+  AuditEntry, Dashboard,
   DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
@@ -166,51 +166,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   /** URL of a generated report — fmt = pdf | xlsx. */
   reportUrl(pid: string, report: string, fmt: "pdf" | "xlsx") {
     return this.url(`/projects/${pid}/reports/${report}.${fmt}`);
-  }
-
-  // --- disposition & valuation (real-estate marketing) ----------------------
-  /** Tri-approach valuation for a project (cost + income + sales-comparison + reconciliation). */
-  appraisal(pid: string) {
-    return this.json<Appraisal>(`/projects/${pid}/appraisal`);
-  }
-  /** Persist appraisal overrides (weights, depreciation, land value, …) and recompute. */
-  saveAppraisal(pid: string, overrides: Record<string, unknown>) {
-    return this.json<Appraisal>(`/projects/${pid}/appraisal`, {
-      method: "POST", body: JSON.stringify(overrides) });
-  }
-  /** Re-run the appraisal with the income approach valued off the actual rent roll's in-place income. */
-  appraisalFromRentRoll(pid: string) {
-    return this.json<Appraisal>(`/projects/${pid}/appraisal?rentroll=1`);
-  }
-  /** Listing fields pre-populated from the project's proforma + model (off-plan auto-fill). */
-  listingAutofill(pid: string) {
-    return this.json<{ data: Record<string, unknown> }>(`/projects/${pid}/listings/autofill`);
-  }
-  /** Mint a signed, expiring public link to a listing (for a QR / shared deep link). */
-  shareListing(pid: string, lid: string, ttl?: number) {
-    const q = ttl ? `?ttl=${ttl}` : "";
-    return this.json<{ url: string; sig: string; exp: number; expires_in: number }>(
-      `/projects/${pid}/listings/${lid}/share${q}`, { method: "POST" });
-  }
-  /** Bulk-import comparables from CSV or a RESO array into the `comparable` module (feeds appraisal). */
-  importComparables(pid: string, body: { csv?: string; reso?: Record<string, unknown>[] }) {
-    return this.json<{ imported: number; rows: { id: string; ref: string; address: string }[] }>(
-      `/projects/${pid}/comparables/import`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** The RESO Data Dictionary payload for a listing (the bridge seam to WPRealWise / MLS). */
-  listingReso(pid: string, lid: string) {
-    return this.json<{ reso: Record<string, unknown> }>(`/projects/${pid}/listings/${lid}/reso`);
-  }
-  /** Whether the WPRealWise / MLS syndication bridge is configured (off unless REALWISE_URL+key set). */
-  reSyndicationStatus() {
-    return this.json<{ enabled: boolean; target: string; implemented: boolean;
-      targets_supported: string[]; message: string }>(`/re-syndication/status`);
-  }
-  /** Push a listing (RESO-serialized) to WPRealWise / an MLS. 422 if the bridge isn't configured. */
-  syndicateListing(pid: string, lid: string) {
-    return this.json<{ target: string; remote_id: string | null; url: string | null;
-      fields_pushed: number; status: string }>(
-      `/projects/${pid}/listings/${lid}/syndicate`, { method: "POST" });
   }
 
   // --- model intelligence + field verification ------------------------------

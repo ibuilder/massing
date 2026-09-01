@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
+
+Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin
+(`2,531 → 2,486`). No extra wrapper on `ApiClient`.
+
+What they answer together: *what is this asset worth, and how does it list?*
+Appraisal, listing autofill / share / RESO, comparable import, MLS syndication.
+`reports` / `reportUrl` stayed in `client.ts`.
+
+`MARKS` widened to ㉝ on the way out. Pin lowered with the file.
+
 ## v0.3.1141 (2026-09-01) — SCALE-SEAM ㉛, ISO 19650 CDE onto documents.ts
 
 Six methods out of `client.ts` into the existing `apps/web/src/api/documents.ts` mixin

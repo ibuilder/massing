@@ -148,6 +148,7 @@ describe("the API client's public surface", () => {
       // and the other two still do not. Corrected here rather than left as "were unreachable", which
       // had already stopped being true for one of the three.
       "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
+      "appraisal", "listingAutofill", "shareListing", "syndicateListing",
       "schedule4d", "sequenceClash", "scheduleCpm", "evm",           // 4D + sequence clash + earned value
       "clashMetrics", "clashClearanceRules", "clashMatrix",
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
