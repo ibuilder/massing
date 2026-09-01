@@ -25,6 +25,8 @@
  *  `/audit`, `/admin/errors` and `/client-errors`. ⑦ grouped by route; ⓯ groups by ANSWER.
  *  The banner was never the domain. ⑦ was right for its recipe; this slice uses a later one.
  *
+ *  SCALE-SEAM ⓶ adds the project catalog — *which projects can I open?* List, one, create, delete, import-bundle. `meta` and the discipline tree stayed.
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving
  *  a method is invisible to it, losing one fails it by number.
  */
@@ -178,6 +180,36 @@ export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json", ...this.authHeaders() },
         body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
+  }
+  /** Every project visible to the caller — id, name, and `model_kind` (which tool a project opens
+   *  with). Was documented as "absolute URL for a GET endpoint", a neighbour's comment left behind;
+   *  the gate only caught it once `bundleUrl` moved out from under its 14-line lookahead. */
+  projects() {
+    return this.json<{ id: string; name: string; model_kind?: "frag" | "ifc" | null }[]>(`/projects`);
+  }
+  /** One project's metadata, incl. model_kind + has_source_ifc (used to gate IFC-only tools). */
+  project(pid: string) {
+    return this.json<{ id: string; name: string; model_kind?: string | null; has_source_ifc?: boolean }>(
+      `/projects/${pid}`);
+  }
+  /** Create a blank project (no IFC needed) — GC portal + proforma work immediately. */
+  createProject(name: string) {
+    return this.json<{ id: string; name: string }>("/projects", { method: "POST", body: JSON.stringify({ name }) });
+  }
+  /** Delete a project and everything it owns (rows + geometry + blobs). */
+  deleteProject(pid: string) {
+    return this.json<{ deleted: boolean; id: string; rows: Record<string, number> }>(
+      `/projects/${pid}`, { method: "DELETE" });
+  }
+  /** Open a `.mass` container as a new project (fresh id). Legacy `.mmproj` (v1) still works. */
+  async importBundle(file: File, name?: string) {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (name) fd.append("name", name);
+    const res = await fetch(this.url(`/projects/import-bundle`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`import -> ${res.status}`);
+    return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
   }
   };
 }

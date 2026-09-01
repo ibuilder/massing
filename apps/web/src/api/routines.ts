@@ -22,9 +22,11 @@
  *  SCALE-SEAM ⓲ adds overdue escalation and the digest — *what's overdue, and who
  *  gets told?* Scan, apply, digest email, saved-view alerts, live notification stream.
  *  Clash imports sat below and did **not** come.
+ *
+ *  SCALE-SEAM ⓵ adds the job tray — *what's running in the background?* Enqueue, status, list, artifact URL. The leftover R24-JOB-TRAY banner travelled with them. 5D heatmap sat below and did **not** come.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { DueFeed, EscalationRun, EscalationScan, NotifItem, WorkItem, WorkQueue } from "./types";
+import type { DueFeed, EscalationRun, EscalationScan, Job, NotifItem, WorkItem, WorkQueue } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -93,6 +95,25 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
                            onMessage as (d: unknown) => void, onStatus);
+  }
+  /** Queue a background job. 400 on an unregistered kind (a typo fails at submit, not silently). */
+  enqueueJob(pid: string, kind: string, params?: Record<string, unknown>) {
+    return this.json<Job>(`/projects/${pid}/jobs`,
+      { method: "POST", body: JSON.stringify({ kind, params: params ?? {} }) });
+  }
+  /** One job's state + result/error. 404 when it belongs to another project. */
+  job(pid: string, jobId: string) {
+    return this.json<Job>(`/projects/${pid}/jobs/${jobId}`);
+  }
+  /** The project's jobs, newest first. The server bounds `limit` at 200. */
+  async jobs(pid: string, limit = 50): Promise<Job[]> {
+    const r = await this.json<{ jobs: Job[] }>(`/projects/${pid}/jobs?limit=${limit}`);
+    return r.jobs ?? [];
+  }
+  /** Absolute URL of a finished job's artifact — an href the browser fetches directly, so a big
+   *  compiled set never round-trips through JS memory. 409 while queued/running. */
+  jobArtifactUrl(pid: string, jobId: string): string {
+    return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
   }
   };
 }

@@ -204,6 +204,9 @@ describe("the API client's public surface", () => {
       "workQueue", "myWork", "notifications", "dueFeed",            // 17 inbox
       "escalationsScan", "sendDigest", "notificationStream",        // 18 overdue / digest
       "reviewModelVersion", "modelVersions", "versionDiff",         // 19 publish history
+      "importClashXlsx", "importClashXml",                          // 20 clash import
+      "enqueueJob", "jobs", "jobArtifactUrl",                       // 21 job tray
+      "projects", "createProject", "importBundle",                  // 22 project catalog
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",

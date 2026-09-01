@@ -159,6 +159,18 @@ Twelfth follow-on on the same version: **SCALE-SEAM ⓱ ⓲ ⓳**. Thirteen meth
 
 `MARKS` widened to ⓴ on the way out. Pin 1,814 → 1,740.
 
+Thirteenth follow-on on the same version: **SCALE-SEAM ⓴ ⓵ ⓶**. Eleven methods out of
+`client.ts` (`1,740 → 1,663`) into existing mixins. Also dropped an unused `LiveStream`
+type import that mobile `tsc` (clean cache) rejected after the stream method moved.
+
+- ⓴ *can we bring this clash report in?* — two methods onto `apps/web/src/api/clash.ts`.
+- ⓵ *what's running in the background?* — four methods onto `apps/web/src/api/routines.ts`.
+- ⓶ *which projects can I open?* — five methods onto `apps/web/src/api/auth.ts`.
+  `meta` stayed.
+
+`MARKS` widened to ⓷ on the way out. Pin 1,740 → 1,663.
+
+
 
 
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts

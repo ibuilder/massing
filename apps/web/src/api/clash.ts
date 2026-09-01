@@ -3,6 +3,8 @@
  *  SCALE-SEAM — `/projects/{pid}/clash`. Taken out of `client.ts` because that file is at its
  *  extraction pin: adding `clashClearanceRules` / `clashMatrix` there would have raised it.
  *  Existing `runClash` / `clashFederated` / `clashMetrics` travel with the group.
+ *
+ *  SCALE-SEAM ⓴ adds clash-report ingest — *can we bring this clash report in?* XLSX plus native XML. Routes are `/coordination/import-*`, not `/clash`. Grouped by ANSWER. Attachment URLs stayed.
  */
 import { HttpCore } from "./httpCore";
 import type { Vec3 } from "./types";
@@ -71,6 +73,22 @@ export function withClash<TBase extends Ctor<HttpCore>>(Base: TBase) {
   } = {}) {
     return this.json<ClashMatrix>(
       `/projects/${pid}/clash/matrix`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Import a spreadsheet of clash rows into coordination issues. */
+  async importClashXlsx(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xlsx`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Clash import -> ${res.status}`);
+    return res.json() as Promise<{ imported: number; detected_columns: string[]; sheet: string; rows_parsed: number }>;
+  }
+  /** CLASH-TRIAGE — import a native Navisworks clash-report XML -> coordination_issue records (GUID-anchored). */
+  async importClashXml(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xml`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Clash XML import -> ${res.status}`);
+    return res.json() as Promise<{ imported: number; sheet: string; rows_parsed: number; truncated: boolean }>;
   }
   };
 }

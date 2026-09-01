@@ -30,7 +30,7 @@ import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { withAssetRights } from "./assetRights";
 import { withDocQa } from "./docqa";
-import { HttpCore, type LiveStream } from "./httpCore";
+import { HttpCore } from "./httpCore";
 import { withModel } from "./model";
 import { withEstimate } from "./estimate";
 import { withProcurement } from "./procurement";
@@ -54,7 +54,7 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, IntegrationGroup, Job, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
+  DisciplineTree, EnergyResult, IntegrationGroup, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
   PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
@@ -146,36 +146,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
   }
-  /** Every project visible to the caller — id, name, and `model_kind` (which tool a project opens
-   *  with). Was documented as "absolute URL for a GET endpoint", a neighbour's comment left behind;
-   *  the gate only caught it once `bundleUrl` moved out from under its 14-line lookahead. */
-  projects() {
-    return this.json<{ id: string; name: string; model_kind?: "frag" | "ifc" | null }[]>(`/projects`);
-  }
-  /** One project's metadata, incl. model_kind + has_source_ifc (used to gate IFC-only tools). */
-  project(pid: string) {
-    return this.json<{ id: string; name: string; model_kind?: string | null; has_source_ifc?: boolean }>(
-      `/projects/${pid}`);
-  }
-  /** Create a blank project (no IFC needed) — GC portal + proforma work immediately. */
-  createProject(name: string) {
-    return this.json<{ id: string; name: string }>("/projects", { method: "POST", body: JSON.stringify({ name }) });
-  }
-  /** Delete a project and everything it owns (rows + geometry + blobs). */
-  deleteProject(pid: string) {
-    return this.json<{ deleted: boolean; id: string; rows: Record<string, number> }>(
-      `/projects/${pid}`, { method: "DELETE" });
-  }
-  /** Open a `.mass` container as a new project (fresh id). Legacy `.mmproj` (v1) still works. */
-  async importBundle(file: File, name?: string) {
-    const fd = new FormData();
-    fd.append("file", file);
-    if (name) fd.append("name", name);
-    const res = await fetch(this.url(`/projects/import-bundle`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`import -> ${res.status}`);
-    return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
-  }
   meta(pid: string) {
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(
       `/projects/${pid}/properties/meta`,
@@ -189,38 +159,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return (this._discTree ??= this.json<{ tree: DisciplineTree }>(`/reference/disciplines`).then((r) => r.tree));
   }
 
-  // ── R24-JOB-TRAY — the background queue, finally reachable ──────────────────────────────────────
-  //
-  // `routers/jobs.py` has offered these four endpoints for a long time and nothing in `apps/web` had
-  // ever called one. That is the *what-did-we-build-that-nothing-calls* pattern: every gate measured
-  // the queue, none measured the path to it, so "heavy work has a foreground UI" read as a missing
-  // engine when the engine was already there.
-  //
-  // Deliberately no `cancelJob`: the server has no cancel, and a tray with a dead button is worse
-  // than one without it.
-
-  /** Queue a background job. 400 on an unregistered kind (a typo fails at submit, not silently). */
-  enqueueJob(pid: string, kind: string, params?: Record<string, unknown>) {
-    return this.json<Job>(`/projects/${pid}/jobs`,
-      { method: "POST", body: JSON.stringify({ kind, params: params ?? {} }) });
-  }
-
-  /** One job's state + result/error. 404 when it belongs to another project. */
-  job(pid: string, jobId: string) {
-    return this.json<Job>(`/projects/${pid}/jobs/${jobId}`);
-  }
-
-  /** The project's jobs, newest first. The server bounds `limit` at 200. */
-  async jobs(pid: string, limit = 50): Promise<Job[]> {
-    const r = await this.json<{ jobs: Job[] }>(`/projects/${pid}/jobs?limit=${limit}`);
-    return r.jobs ?? [];
-  }
-
-  /** Absolute URL of a finished job's artifact — an href the browser fetches directly, so a big
-   *  compiled set never round-trips through JS memory. 409 while queued/running. */
-  jobArtifactUrl(pid: string, jobId: string): string {
-    return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
-  }
   /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost
    *  variance (by=cost), for coloring the whole model. */
   elements5dMap(pid: string, by: "progress" | "cost" = "progress") {
@@ -1402,21 +1340,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
   searchAll(pid: string, q: string, limit = 50) {
     return this.json<WorkItem[]>(`/projects/${pid}/search?q=${encodeURIComponent(q)}&limit=${limit}`);
-  }
-  async importClashXlsx(pid: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xlsx`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Clash import -> ${res.status}`);
-    return res.json() as Promise<{ imported: number; detected_columns: string[]; sheet: string; rows_parsed: number }>;
-  }
-  /** CLASH-TRIAGE — import a native Navisworks clash-report XML -> coordination_issue records (GUID-anchored). */
-  async importClashXml(pid: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xml`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Clash XML import -> ${res.status}`);
-    return res.json() as Promise<{ imported: number; sheet: string; rows_parsed: number; truncated: boolean }>;
   }
   attachmentUrl(attId: string) {
     // module-record attachments live in RecordAttachment; this distinct path avoids bim.py's
