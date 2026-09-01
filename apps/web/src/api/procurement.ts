@@ -18,6 +18,9 @@
  *  SCALE-SEAM ❸ adds the submittal stack — *are required submittals turning around?*
  *  Register, spec-section log, extract-from-text. They were **not** contiguous (health,
  *  closeout, safety, field-log and the RFI register sat between). Those did **not** come.
+ *
+ *  SCALE-SEAM ❽ adds bidding coverage — *can we cover the bid?* ITB tracking, model-QTO
+ *  scope-gap, invite list. `e57Status` sat below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 import type { SpecSubmittalLog } from "./types";
@@ -154,6 +157,28 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ items: { section_number?: string; title: string; type: string }[];
       source: string; message?: string; created_submittals?: number }>(
       `/projects/${pid}/specs/extract-submittals`, { method: "POST", body: JSON.stringify({ text, create }) });
+  }
+
+  /** itb — invited vs responded vs bonded per package, plus coverage gaps. */
+  itb(pid: string) {
+    return this.json<{ package_count: number; total_invited: number; total_responses: number;
+      packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
+  }
+  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages. */
+  scopeGap(pid: string) {
+    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
+    return this.json<{
+      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
+      covered: (Disc & { packages: string[] })[];
+      gaps: (Disc & { sample_guids: string[] })[];
+      packages_without_model_scope: string[]; note: string;
+    }>(`/projects/${pid}/bidding/scope-gap`);
+  }
+  /** inviteBidders — record companies invited to bid on a package. */
+  inviteBidders(pid: string, packageId: string, companies: string[]) {
+    return this.json<{ bidders_invited: number; invited_companies: string[] }>(
+      `/projects/${pid}/bidding/packages/${packageId}/invite`,
+      { method: "POST", body: JSON.stringify({ companies }) });
   }
   };
 }

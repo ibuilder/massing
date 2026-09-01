@@ -10,6 +10,9 @@
  *  SCALE-SEAM ㊾ adds the report catalog — *what can we print from this project?* List plus
  *  the generated PDF/XLSX URL. They sat next to licence in `client.ts` and did **not** go
  *  with licence (that is the deployment plan, not a project document).
+ *
+ *  SCALE-SEAM ❿ adds closeout analytics — *is turnover actually closing?* Punchlist,
+ *  commissioning, warranties, O&M. Safety sat below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 import type { DocFile, DocFolderNode } from "./types";
@@ -150,6 +153,21 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** reportUrl — generated report download; fmt = pdf | xlsx. */
   reportUrl(pid: string, report: string, fmt: "pdf" | "xlsx") {
     return this.url(`/projects/${pid}/reports/${report}.${fmt}`);
+  }
+
+  /** closeoutSummary — punchlist, commissioning, warranties, O&M. */
+  closeoutSummary(pid: string) {
+    return this.json<{
+      punchlist: { punch_count: number; verified_count: number; open_count: number;
+        overdue_count: number; complete_pct: number | null; open_cost: number;
+        ball_in_court: Record<string, number>; by_trade: Record<string, number>;
+        rows: Record<string, unknown>[] };
+      commissioning: { cx_count: number; passed: number; failed: number; conditional: number;
+        accepted: number; pass_rate: number | null };
+      certificates: { cert_count: number; by_type: Record<string, number> };
+      warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number };
+      om_manuals: { om_count: number; accepted: number; accepted_pct: number | null };
+    }>(`/projects/${pid}/closeout/summary`);
   }
   };
 }

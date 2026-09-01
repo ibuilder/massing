@@ -116,6 +116,16 @@ Eighth follow-on on the same version: **SCALE-SEAM ❺ ❻ ❼**. Four methods o
 
 `MARKS` widened to ❽ on the way out. Pin 2,000 → 1,966.
 
+Ninth follow-on on the same version: **SCALE-SEAM ❽ ❾ ❿**. Five methods out of
+`client.ts` (`1,966 → 1,916`) into existing mixins.
+
+- ❽ *can we cover the bid?* — three methods onto `apps/web/src/api/procurement.ts`.
+- ❾ *is the installed work passing inspection?* — one method onto `apps/web/src/api/topics.ts`.
+- ❿ *is turnover actually closing?* — one method onto `apps/web/src/api/documents.ts`.
+  Safety stayed.
+
+`MARKS` widened to ⓫ on the way out. Pin 1,966 → 1,916.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

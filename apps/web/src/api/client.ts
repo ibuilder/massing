@@ -160,20 +160,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       attention_items: { domain: string; status: string; issue: string }[];
     }>(`/projects/${pid}/health`);
   }
-  /** Closeout analytics — punchlist completion/ball-in-court, commissioning, warranties, O&M. */
-  closeoutSummary(pid: string) {
-    return this.json<{
-      punchlist: { punch_count: number; verified_count: number; open_count: number;
-        overdue_count: number; complete_pct: number | null; open_cost: number;
-        ball_in_court: Record<string, number>; by_trade: Record<string, number>;
-        rows: Record<string, unknown>[] };
-      commissioning: { cx_count: number; passed: number; failed: number; conditional: number;
-        accepted: number; pass_rate: number | null };
-      certificates: { cert_count: number; by_type: Record<string, number> };
-      warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number };
-      om_manuals: { om_count: number; accepted: number; accepted_pct: number | null };
-    }>(`/projects/${pid}/closeout/summary`);
-  }
   /** Safety analytics — OSHA TRIR/DART/LTIFR, observation mix, toolbox coverage, violations. */
   safetySummary(pid: string, hours?: number) {
     const qs = hours != null ? `?hours=${hours}` : "";
@@ -198,42 +184,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/daily-reports/summary`);
   }
-  /** Quality dashboard — inspection pass-rate KPIs, NCR loop, deficiency ball-in-court. */
-  qualitySummary(pid: string) {
-    return this.json<{
-      inspections: { total: number; passed: number; failed: number; conditional: number;
-        pass_rate: number | null; first_pass_yield: number | null;
-        by_result: Record<string, number>; by_type: Record<string, number> };
-      ncrs: { ncr_count: number; open_count: number; overdue_count: number;
-        avg_days_to_close: number | null; by_disposition: Record<string, number>;
-        by_severity: Record<string, number>; rows: Record<string, unknown>[] };
-      deficiencies: { deficiency_count: number; open_count: number; overdue_count: number;
-        ball_in_court: Record<string, number>; by_trade: Record<string, number>;
-        rows: Record<string, unknown>[] };
-    }>(`/projects/${pid}/quality/summary`);
-  }
-  /** ITB tracking — invited vs responded vs bonded per package + coverage gaps. */
-  itb(pid: string) {
-    return this.json<{ package_count: number; total_invited: number; total_responses: number;
-      packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
-  }
-  /** SCOPE-GAP — model-QTO coverage vs bid packages: covered disciplines, gaps (uncovered quantities), over-scoped packages. */
-  scopeGap(pid: string) {
-    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
-    return this.json<{
-      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
-      covered: (Disc & { packages: string[] })[];
-      gaps: (Disc & { sample_guids: string[] })[];
-      packages_without_model_scope: string[]; note: string;
-    }>(`/projects/${pid}/bidding/scope-gap`);
-  }
-  /** Invite companies to bid on a package (records the invitee list). */
-  inviteBidders(pid: string, packageId: string, companies: string[]) {
-    return this.json<{ bidders_invited: number; invited_companies: string[] }>(
-      `/projects/${pid}/bidding/packages/${packageId}/invite`,
-      { method: "POST", body: JSON.stringify({ companies }) });
-  }
-
   /** Whether server-side E57 → .xyz point-cloud conversion is available (needs optional pye57). */
   e57Status() {
     return this.json<{ available: boolean; max_points: number; message: string }>(`/convert/e57/status`);

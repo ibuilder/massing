@@ -13,6 +13,9 @@
  *  SCALE-SEAM ❻ adds the RFI register — *what is still open, and who holds the ball?*
  *  Feasibility sat immediately below and did **not** come.
  *
+ *  SCALE-SEAM ❾ adds the quality dashboard — *is the installed work passing inspection?*
+ *  Inspections, NCR loop, deficiency ball-in-court. Bidding sat below and did **not** come.
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
@@ -86,6 +89,21 @@ export function withTopics<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** rfiRegister — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
   rfiRegister(pid: string) {
     return this.json<RfiRegister>(`/projects/${pid}/rfi/register`);
+  }
+
+  /** qualitySummary — inspection pass-rate KPIs, NCR loop, deficiency ball-in-court. */
+  qualitySummary(pid: string) {
+    return this.json<{
+      inspections: { total: number; passed: number; failed: number; conditional: number;
+        pass_rate: number | null; first_pass_yield: number | null;
+        by_result: Record<string, number>; by_type: Record<string, number> };
+      ncrs: { ncr_count: number; open_count: number; overdue_count: number;
+        avg_days_to_close: number | null; by_disposition: Record<string, number>;
+        by_severity: Record<string, number>; rows: Record<string, unknown>[] };
+      deficiencies: { deficiency_count: number; open_count: number; overdue_count: number;
+        ball_in_court: Record<string, number>; by_trade: Record<string, number>;
+        rows: Record<string, unknown>[] };
+    }>(`/projects/${pid}/quality/summary`);
   }
   };
 }

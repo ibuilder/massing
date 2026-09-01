@@ -172,6 +172,7 @@ describe("the API client's public surface", () => {
       "submittalRegister", "specSubmittalLog", "extractSubmittals",
       "coLog",
       "actionTracker", "rfiRegister", "feasibility", "feasibilityCompare",
+      "itb", "scopeGap", "inviteBidders", "qualitySummary", "closeoutSummary",
       "clashMetrics", "clashClearanceRules", "clashMatrix",
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",
