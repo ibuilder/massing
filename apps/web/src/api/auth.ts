@@ -27,11 +27,13 @@
  *
  *  SCALE-SEAM ⓶ adds the project catalog — *which projects can I open?* List, one, create, delete, import-bundle. `meta` and the discipline tree stayed.
  *
+ *  SCALE-SEAM ⓷ adds deploy entitlement — *is this deployment entitled and wired?* Integrations, capabilities, licence, cloud-check. Photo upload stayed (PHOTO-PIN).
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving
  *  a method is invisible to it, losing one fails it by number.
  */
 import { HttpCore } from "./httpCore";
-import type { AccountUser, AuditEntry, ProjectMember, ProjectRole } from "./types";
+import type { AccountUser, AuditEntry, IntegrationGroup, ProjectMember, ProjectRole } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -210,6 +212,39 @@ export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
       method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new Error(`import -> ${res.status}`);
     return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
+  }
+  /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
+  integrations() {
+    return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
+  }
+  saveIntegrations(values: Record<string, string>) {
+    return this.json<{ groups: IntegrationGroup[] }>(
+      "/settings/integrations", { method: "PUT", body: JSON.stringify({ values }) });
+  }
+  /** Live "Test connection" for one integration group (by its catalog name) → {ok, message}. */
+  testIntegration(group: string) {
+    return this.json<{ ok: boolean; message: string }>(
+      "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
+  }
+  /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
+  capabilities() {
+    return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
+      license_tier?: string }>("/capabilities");
+  }
+  /** Massing licence state — plan tier, per-tier features, masked key. Drives the Settings licence panel. */
+  license() {
+    return this.json<{ tier: string; tier_label: string; enforced: boolean;
+      features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
+      tiers: { id: string; label: string; features: Record<string, unknown> }[];
+      key_configured: boolean; key_masked: string; key_format_valid: boolean | null;
+      message: string; manage_url: string;
+      cloud?: { online: boolean; url?: string; secret_configured?: boolean; note?: string } }>("/license");
+  }
+  /** CLOUD-BRIDGE: validate the recorded key against massing.cloud + apply the returned plan (admin). */
+  licenseCloudCheck() {
+    return this.json<{ checked_online: boolean; valid?: boolean; tier?: string; reason?: string | null;
+      applied: boolean; tier_before: string; tier_after: string; error?: string }>(
+      "/license/cloud-check", { method: "POST" });
   }
   };
 }

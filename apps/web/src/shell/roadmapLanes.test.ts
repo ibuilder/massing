@@ -78,7 +78,8 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 // Widened to ⓱ on 2026-09-01, in the follow-on that SHIPS ⓮ ⓯ ⓰ without a version bump.
 // Widened to ⓴ on 2026-09-01, in the follow-on that SHIPS ⓱ ⓲ ⓳ without a version bump.
 // Widened to ⓷ on 2026-09-01, in the follow-on that SHIPS ⓴ ⓵ ⓶ without a version bump.
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴⓵⓶⓷";
+// Widened to ⓺ on 2026-09-01, in the follow-on that SHIPS ⓷ ⓸ ⓹ without a version bump.
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴⓵⓶⓷⓸⓹⓺";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.

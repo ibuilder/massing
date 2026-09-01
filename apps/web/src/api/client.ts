@@ -54,11 +54,11 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, IntegrationGroup, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
+  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
   PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
-    SpecManual, Topic, WorkItem, VitalsPayload,
+    SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
 
@@ -66,40 +66,6 @@ import type {
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
 export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))) {
-  /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
-  integrations() {
-    return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
-  }
-  saveIntegrations(values: Record<string, string>) {
-    return this.json<{ groups: IntegrationGroup[] }>(
-      "/settings/integrations", { method: "PUT", body: JSON.stringify({ values }) });
-  }
-  /** Live "Test connection" for one integration group (by its catalog name) → {ok, message}. */
-  testIntegration(group: string) {
-    return this.json<{ ok: boolean; message: string }>(
-      "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
-  }
-
-  /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
-  capabilities() {
-    return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
-      license_tier?: string }>("/capabilities");
-  }
-  /** Massing licence state — plan tier, per-tier features, masked key. Drives the Settings licence panel. */
-  license() {
-    return this.json<{ tier: string; tier_label: string; enforced: boolean;
-      features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
-      tiers: { id: string; label: string; features: Record<string, unknown> }[];
-      key_configured: boolean; key_masked: string; key_format_valid: boolean | null;
-      message: string; manage_url: string;
-      cloud?: { online: boolean; url?: string; secret_configured?: boolean; note?: string } }>("/license");
-  }
-  /** CLOUD-BRIDGE: validate the recorded key against massing.cloud + apply the returned plan (admin). */
-  licenseCloudCheck() {
-    return this.json<{ checked_online: boolean; valid?: boolean; tier?: string; reason?: string | null;
-      applied: boolean; tier_before: string; tier_after: string; error?: string }>(
-      "/license/cloud-check", { method: "POST" });
-  }
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -124,20 +90,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
-  }
-  /** SITE-1: OSM site context (buildings/roads/land-use) as GeoJSON — fetched once server-side,
-   *  cached for offline use afterwards. Omit lat/lon to use the model's IfcSite georeference. */
-  siteContext(pid: string, opts: { lat?: number; lon?: number; radius?: number; refresh?: boolean } = {}) {
-    const q = new URLSearchParams();
-    if (opts.lat !== undefined) q.set("lat", String(opts.lat));
-    if (opts.lon !== undefined) q.set("lon", String(opts.lon));
-    if (opts.radius !== undefined) q.set("radius", String(opts.radius));
-    if (opts.refresh) q.set("refresh", "true");
-    const qs = q.toString();
-    return this.json<{ lat: number; lon: number; radius: number; attribution: string;
-      counts: Record<string, number>; geojson: { features: { properties: Record<string, unknown>;
-      geometry: { type: string; coordinates: unknown } }[] } }>(
-      `/projects/${pid}/site-context${qs ? "?" + qs : ""}`);
   }
   /** 3D-HERO: pin a captured viewer screenshot as the project's hero image (page 2 of the package PDF). */
   async uploadHero(pid: string, image: Blob) {
@@ -482,11 +434,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
 
 
-  // pins / topics (Phase 4)
-  pins(pid: string) {
-    return this.json<Topic[]>(`/projects/${pid}/pins`);
-  }
-
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
@@ -548,19 +495,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     type D = { id: number; item_type: string; item_ref: string; action: string; client_name: string | null;
       note: string | null; created_at: string | null; token: string };
     return this.json<{ decisions: D[] }>(`/projects/${pid}/client-decisions?limit=${encodeURIComponent(limit)}`);
-  }
-  parcelAnalyze(body: {
-    geojson?: unknown; wkt?: string; parcel_id?: string;
-    zoning?: { max_far?: number; max_coverage?: number; max_height_m?: number };
-    proposal?: { gfa_m2?: number; footprint_m2?: number; height_m?: number };
-  }) {
-    type Check = { metric: string; value: number; limit: number | null; ok: boolean | null; slack: number | null; max_gfa_m2?: number | null };
-    return this.json<{
-      parcel_id: string | null; vertices: number; coordinates_were_lonlat: boolean;
-      area_m2: number; area_acres: number; perimeter_m: number;
-      centroid: { x: number; y: number }; bbox: { minx: number; miny: number; maxx: number; maxy: number };
-      compliance?: { checks: Check[]; ok: boolean | null; violations: string[] }; note: string;
-    }>(`/parcels/analyze`, { method: "POST", body: JSON.stringify(body) });
   }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
@@ -936,19 +870,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
       `/projects/${pid}/carbon`);
   }
-  // --- land / parcel screening (Acres) ---------------------------------------
-  parcelsScreen(parcelList: unknown[], criteria: Record<string, unknown>) {
-    return this.json<{ matches: { id: string; acres: number; zoning?: string; flood_zone?: string;
-      price?: number | null; buildable: { acres: number; max_gfa_sf?: number | null;
-      conceptual_cost?: number; land_cost_per_buildable_sf?: number } }[];
-      rejected: { id: string; failed: string[] }[]; match_count: number; screened: number;
-      message?: string | null }>(`/parcels/screen`, { method: "POST",
-      body: JSON.stringify({ parcels: parcelList, criteria }) });
-  }
-  parcelsDataStatus() {
-    return this.json<{ enabled: boolean; provider: string | null; message: string }>(`/parcels/data-status`);
-  }
-
   // --- design lifecycle (RIBA/AIA phases + itemized soft costs) ---------------
   lifecycle(pid: string) {
     return this.json<{ count: number; seeded: boolean;

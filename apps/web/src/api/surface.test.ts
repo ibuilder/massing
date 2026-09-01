@@ -207,6 +207,9 @@ describe("the API client's public surface", () => {
       "importClashXlsx", "importClashXml",                          // 20 clash import
       "enqueueJob", "jobs", "jobArtifactUrl",                       // 21 job tray
       "projects", "createProject", "importBundle",                  // 22 project catalog
+      "integrations", "license", "capabilities",                    // 23 deploy entitle
+      "siteContext", "parcelAnalyze", "parcelsScreen",              // 24 land around site
+      "pins",                                                       // 25 field marks
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",

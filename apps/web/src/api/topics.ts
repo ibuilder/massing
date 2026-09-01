@@ -3,7 +3,11 @@
  *  SCALE-SEAM ⑳. Route-group `/projects/{pid}/topics`, taken out of `client.ts` by the route
  *  each method calls. Seven methods in **three** regions — create/viewpoints next to pins,
  *  the board next to share links, timeline/comments next to model-version review.
- *  `pins()` is `/pins` and stays. Clash `create_topics` query flags stay with `/clash`.
+ *  `pins()` is `/pins` and **stayed with ⑳** (route grouping). Clash `create_topics`
+ *  query flags stay with `/clash`.
+ *
+ *  SCALE-SEAM ⓹ takes `pins` — *where are the field marks?* ⑳ grouped by
+ *  route; this slice groups by ANSWER. Quantity roll-up stayed.
  *
  *  SCALE-SEAM ㉟ adds the three RFI methods that answer *what does this model still need, and
  *  can we ask it a cited question?* — readiness gaps, promoting those gaps to BCF topics, and
@@ -104,6 +108,10 @@ export function withTopics<TBase extends Ctor<HttpCore>>(Base: TBase) {
         ball_in_court: Record<string, number>; by_trade: Record<string, number>;
         rows: Record<string, unknown>[] };
     }>(`/projects/${pid}/quality/summary`);
+  }
+  /** Field pins — BCF topics placed on the model. */
+  pins(pid: string) {
+    return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
   };
 }

@@ -170,6 +170,17 @@ type import that mobile `tsc` (clean cache) rejected after the stream method mov
 
 `MARKS` widened to ⓷ on the way out. Pin 1,740 → 1,663.
 
+Fourteenth follow-on on the same version: **SCALE-SEAM ⓷ ⓸ ⓹**. Eleven methods out of
+`client.ts` (`1,663 → 1,584`) into existing mixins.
+
+- ⓷ *is this deployment entitled and wired?* — six methods onto `apps/web/src/api/auth.ts`.
+- ⓸ *what's on and around this site?* — four methods onto `apps/web/src/api/entitlements.ts`.
+- ⓹ *where are the field marks?* — `pins` onto `apps/web/src/api/topics.ts`.
+  ⑳ left pins behind because they are not `/topics` routes.
+
+`MARKS` widened to ⓺ on the way out. Pin 1,663 → 1,584.
+
+
 
 
 

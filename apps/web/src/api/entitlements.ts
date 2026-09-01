@@ -20,6 +20,8 @@ import type { EntitlementConditions, OpendataPermit, ReviewCycles } from "./type
  *
  * SCALE-SEAM ❼ adds zoning feasibility — *what can we legally build on this site?*
  * Envelope plus scheme compare. `qualitySummary` sat below and did **not** come.
+ *
+ * SCALE-SEAM ⓸ adds land context — *what's on and around this site?* OSM site-context plus parcel analyze / screen / data-status. Preflight stayed.
  */
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -97,6 +99,47 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
         net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;
         delta_units?: number; delta_gfa_sf?: number }[] }>(
       `/projects/${pid}/feasibility/compare`);
+  }
+  /** SITE-1: OSM site context (buildings/roads/land-use) as GeoJSON — fetched once server-side,
+   *  cached for offline use afterwards. Omit lat/lon to use the model's IfcSite georeference. */
+  siteContext(pid: string, opts: { lat?: number; lon?: number; radius?: number; refresh?: boolean } = {}) {
+    const q = new URLSearchParams();
+    if (opts.lat !== undefined) q.set("lat", String(opts.lat));
+    if (opts.lon !== undefined) q.set("lon", String(opts.lon));
+    if (opts.radius !== undefined) q.set("radius", String(opts.radius));
+    if (opts.refresh) q.set("refresh", "true");
+    const qs = q.toString();
+    return this.json<{ lat: number; lon: number; radius: number; attribution: string;
+      counts: Record<string, number>; geojson: { features: { properties: Record<string, unknown>;
+      geometry: { type: string; coordinates: unknown } }[] } }>(
+      `/projects/${pid}/site-context${qs ? "?" + qs : ""}`);
+  }
+  /** Parcel geometry analyze — area, centroid, optional zoning slack. */
+  parcelAnalyze(body: {
+    geojson?: unknown; wkt?: string; parcel_id?: string;
+    zoning?: { max_far?: number; max_coverage?: number; max_height_m?: number };
+    proposal?: { gfa_m2?: number; footprint_m2?: number; height_m?: number };
+  }) {
+    type Check = { metric: string; value: number; limit: number | null; ok: boolean | null; slack: number | null; max_gfa_m2?: number | null };
+    return this.json<{
+      parcel_id: string | null; vertices: number; coordinates_were_lonlat: boolean;
+      area_m2: number; area_acres: number; perimeter_m: number;
+      centroid: { x: number; y: number }; bbox: { minx: number; miny: number; maxx: number; maxy: number };
+      compliance?: { checks: Check[]; ok: boolean | null; violations: string[] }; note: string;
+    }>(`/parcels/analyze`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Parcel screening — match a list against zoning / flood / acres criteria. */
+  parcelsScreen(parcelList: unknown[], criteria: Record<string, unknown>) {
+    return this.json<{ matches: { id: string; acres: number; zoning?: string; flood_zone?: string;
+      price?: number | null; buildable: { acres: number; max_gfa_sf?: number | null;
+      conceptual_cost?: number; land_cost_per_buildable_sf?: number } }[];
+      rejected: { id: string; failed: string[] }[]; match_count: number; screened: number;
+      message?: string | null }>(`/parcels/screen`, { method: "POST",
+      body: JSON.stringify({ parcels: parcelList, criteria }) });
+  }
+  /** Parcel data-source status — whether a provider is wired. */
+  parcelsDataStatus() {
+    return this.json<{ enabled: boolean; provider: string | null; message: string }>(`/parcels/data-status`);
   }
   };
 }
