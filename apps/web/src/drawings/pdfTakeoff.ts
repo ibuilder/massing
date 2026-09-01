@@ -11,6 +11,7 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "../ui/feedback";
 import { askText } from "../ui/prompt";
 import { countOnRgba } from "../ui/symbolCount";
+import { installTakeoffHook } from "../viewer/debugHook";
 import { documentWords, locatePassage, paintCiteBox } from "./citeLocate";
 
 // PDF-ADOPT slice 1 of 3: opening and page access now go through the vendored drawing-review engine
@@ -456,14 +457,14 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   }
   // fit width on first open
   const avail = viewport.clientWidth - 40; if (canvas.width > avail) setScale(scale * (avail / canvas.width));
-  // test hook (mirrors __viewer): drive modes/clicks/commit from preview_eval
-  (window as unknown as Record<string, unknown>).__takeoff = {
+  // Preview-eval driver. Production builds do not attach it — see `installTakeoffHook`.
+  installTakeoffHook({
     setMode, click: async (xPdf: number, yPdf: number) => { draft.push({ x: xPdf, y: yPdf }); if (mode === "count") { await commit(); draft = []; } else if (mode === "calibrate" && draft.length === 2) await calibrate(); else if (mode === "rect" && draft.length === 2) await commit(); else if (mode === "symbol" && draft.length === 2) await matchSymbols(); drawOverlay(); },
     commit, measures, calibrated: () => calOk(), exportPdf, saveSet,
     placeText: (t: string, x: number, y: number) => { measures.push({ id: ++seq, kind: "text", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },
     placeStamp: async (tpl: string, x: number, y: number) => { const t = await resolveStamp(tpl); measures.push({ id: ++seq, kind: "stamp", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },
     close: () => ov.remove(),
-  };
+  });
 }
 
 function pickPdf(): Promise<File | null> {

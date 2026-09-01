@@ -231,7 +231,7 @@ band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.m
 instances:
 
 - ✅ **ROUTE-INTERP — eight routes were frozen as callerless while the UI called them** *(S — Lane C;
-  **CLOSED v0.3.1132**)*
+  **CLOSED v0.3.1132**; energy half **SHIPPED v0.3.1133**)*
 
   `test_route_reachability` flags a route when its last static segment appears nowhere in the web
   source. Its header already knew literal matching is unsound against a client that builds URLs from
@@ -257,13 +257,14 @@ instances:
   the opposite direction. This one is pinned by a differential naming every route it vouches for,
   attributed per mechanism, plus the mirror of `KNOWN_UNCALLED`'s rot check on the named list.
 
-  **TWO THINGS IT LEAVES OPEN, both measured on the way through.** `energyExportUrl`
-  (`apps/web/src/api/client.ts`) **has no caller at all**, so both formats the energy exporter offers
-  are unreachable — an unwired client method of the R37-TESTED-UNWIRED kind. And this band names
-  three remaining items while the gate freezes **75** routes, 38 of them under no category at all and
-  7 explicitly labelled *"genuinely unreached capabilities … worth someone's attention"*. **The band
-  and the gate disagree about the size of the same class by an order of magnitude**, and nothing
-  makes them agree; deriving that population is a bigger item than this was.
+  **TWO THINGS IT LEAVES OPEN, both measured on the way through.** `energyExportUrl` was the
+  first: an unwired client method, both formats unreachable. **Wired v0.3.1133** — Exports now
+  passes `"gbxml"` and `"idf"`; the two routes moved from `KNOWN_UNCALLED` into
+  `CALLED_VIA_TEMPLATED_EXT`. The second remains: this band names three remaining items while the
+  gate freezes **71** routes, 38 of them under no category at all and 7 explicitly labelled
+  *"genuinely unreached capabilities … worth someone's attention"*. **The band and the gate
+  disagree about the size of the same class by an order of magnitude**, and nothing makes them
+  agree; deriving that population is a bigger item than this was.
 
 - ✅ ⭐ **REFUSAL-READERS — a record in a refused state still counts** *(M — Lane C; population
   DERIVED 2026-08-30, **CLOSED v0.3.1124** — 3 releases, 14 readers, one behavioural gate)*

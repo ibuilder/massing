@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1133 (2026-09-01) — the debug hook shipped the renderer, and energy export had no click
+
+Two leftovers from looking at what a user can actually reach.
+
+**The preview-eval hook was a production API.** `window.__viewer` assigned the Fragments
+loader, THREE, `openFile` and the renderer on every session, including shipped builds. The
+Cost/Deal rooms and drawings only need `selectByGuid` / `selectByGuids`. Those two stay;
+everything else is DEV-only. `__takeoff` — a click driver with no product caller — no longer
+attaches in production at all. Gated in `apps/web/src/viewer/debugHook.ts` and asserted both
+ways (prod keys only; DEV keeps the live-verification surface).
+
+**`energyExportUrl` had no caller.** Both `/energy/export.{gbxml,idf}` writers were live, tested,
+and frozen as deliberately unreachable because a client method that accepts a format is not a
+click that passes one. Exports now has those two buttons; the routes moved from
+`KNOWN_UNCALLED` into `CALLED_VIA_TEMPLATED_EXT` with the call-site text as evidence. The
+simplified `/exports/model.gbxml` button is unchanged — different engine, still labelled as
+building-level.
+
+Uncalled by the leaf rule: **73 → 71**. `test_groups` now picks the array by its source
+GlobalId rather than "any array". The live-audit compare fixture dropped the deleted classic
+shell as a run label.
+
 ## v0.3.1132 (2026-08-31) — eight routes frozen as callerless while the UI called them
 
 `ROUTE-INTERP`. `test_route_reachability` flags a route when its **last static segment** appears

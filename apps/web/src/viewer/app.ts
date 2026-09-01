@@ -17,6 +17,7 @@ import {
 import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag";
 import { parseDynConstraint } from "./dynInput";
 import { mountCadBar } from "./cadBar";
+import { installViewerHook } from "./debugHook";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { buildAnnotationSection } from "./tools/annotationSection";
@@ -2501,8 +2502,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
   }
 
-  // debug hook for automated/preview testing
-  (window as unknown as Record<string, unknown>).__viewer = { viewer, loader, fitToModels, selectByGuid, selectByGuids, openFile, referenceModels, THREE };
+  // Selection hook for Cost/Deal/drawings. Extra preview-eval fields (THREE, loader, openFile)
+  // stay DEV-only — see `debugHook.ts`.
+  installViewerHook({ viewer, loader, fitToModels, selectByGuid, selectByGuids, openFile, referenceModels, THREE });
 
   // ---- self-initialise: load the project model + build panels --------------
   void (async () => {
