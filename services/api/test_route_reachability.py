@@ -109,7 +109,7 @@ KNOWN_UNCALLED: set[str] = {
     #: is a UI gap, not an unfinished endpoint.
     "/projects/{pid}/model/load-timings",
     "/bcf/3.0/projects/{pid}/topics/{guid}/document_references",
-    "/benchmarks/unit-rates", "/cost/datasets/import-custom",
+    "/cost/datasets/import-custom",
     # "/portfolio/deal-memory" REMOVED v0.3.1112 — it gained a real caller, `portfolioDealMemory` in
     # apps/web/src/api/dealMemory.ts, behind the "which projects?" disclosure on the proforma's cost
     # budget. Recorded because the route it should have been removed for is NOT the route that flagged
@@ -130,14 +130,16 @@ KNOWN_UNCALLED: set[str] = {
     # uncalled had become a false claim. This gate caught it on the merge, which is the
     # direction that matters: an allowlist entry that outlives its reason reads as a
     # deliberate exemption forever.
-    "/projects/{pid}/5d/element-costs",
-    "/projects/{pid}/agent-packs",
+    # "/projects/{pid}/5d/element-costs" REMOVED v0.3.1137 — Budget reads the live GUID-keyed table.
+    # "/projects/{pid}/agent-packs" REMOVED v0.3.1137 — AI Assist lists packs and run history.
     # "/projects/{pid}/clash/clearance-rules" REMOVED v0.3.1134 — SOFT-CLASH-RULES. The table
     # had a route and no caller; the geometry starter set now derives from it, and Clash rail
     # reads the sourced rules. Leaving it frozen would have claimed it was still unreachable.
-    "/projects/{pid}/code/amendments", "/projects/{pid}/cost-vintage",
+    # "/projects/{pid}/code/amendments" REMOVED v0.3.1137 — Model Analysis shows the local overlay.
+    # "/projects/{pid}/cost-vintage" REMOVED v0.3.1137 — Budget reports the resolved vintage.
     "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",
-    "/projects/{pid}/documents/file-model", "/projects/{pid}/documents/model-history",
+    # "/projects/{pid}/documents/file-model" REMOVED v0.3.1137 — Documents files source.ifc on demand.
+    # "/projects/{pid}/documents/model-history" REMOVED v0.3.1137 — Documents lists filed revisions.
     # --- 2026-08-20: MASKED BY THE GENERATED TYPES, not newly broken -----------------------------
     # `api/schema.d.ts` and `api/openapiTypes.ts` are emitted FROM the OpenAPI spec and list every
     # route by construction, so their presence in the blob vouched for these 29. Excluding them took
@@ -167,7 +169,8 @@ KNOWN_UNCALLED: set[str] = {
     # `/model/export.{jsonld,parquet}` left this list in v0.3.1132 — `standards.ts:488-489` links
     # both. They moved to `CALLED_VIA_TEMPLATED_EXT`, which carries their call-site evidence and
     # asserts it still exists.
-    "/projects/{pid}/estimate/gaeb.x83", "/projects/{pid}/modules/{key}/log.pdf",
+    # `/projects/{pid}/estimate/gaeb.x83` left here in v0.3.1137 — Budget links `gaebX83Url`.
+    "/projects/{pid}/modules/{key}/log.pdf",
     # `/cost/lien-waiver.pdf` left here in v0.3.1135 — Budget now links `lienWaiverPdfUrl`.
     "/projects/{pid}/opendata/permits.geojson",
     # `/schedule/{gantt,lob}.svg` left here in v0.3.1132 for the same reason: `api/schedule.ts:193-4`
@@ -189,11 +192,10 @@ KNOWN_UNCALLED: set[str] = {
     # Frozen rather than wired, per this list's own contract: a ratchet records "this was looked at",
     # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
-    "/cost/datasets",
-    # `/pipeline/funnel` left here in v0.3.1135 — Portfolio now reads the acquisition funnel.
-
+    # `/cost/datasets` left here in v0.3.1137 — Budget reads installed vintages.
     "/projects/{pid}/schedule/eot/sourced",
-    "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
+    # `/drawing-set/compiled.pdf` left here in v0.3.1137 — Exports opens `compiledPdfUrl`.
+    "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
     # `/drawings/sheet-regions` was frozen here and is now WIRED (v0.3.1119): it is the producer for
     # the `layout` that `POST /takeoff/2d` consumes, called via `api.sheetRegions` from the 2D takeoff
@@ -208,10 +210,16 @@ KNOWN_UNCALLED: set[str] = {
     # `/models/{export-qa,footprint.geojson,schema-diag}`, `/quality/turnover-readiness`,
     # `/spec-links`, `/reference/authoring-matrix` left here in v0.3.1136 — each gained a
     # client method on the existing mixin and a panel or export button.
+    # `/cost/datasets`, `/benchmarks/unit-rates`, `/5d/element-costs`, `/cost-vintage`,
+    # `/estimate/gaeb.x83`, `/code/amendments`, `/agent-packs`, `/documents/{model-history,file-model}`,
+    # `/rules/space-pack`, `/project-package.pdf`, `/drawing-set/compiled.pdf` left here in v0.3.1137.
     "/projects/{pid}/modules/backfill-references",
     "/projects/{pid}/procurement/packages/{rid}/send-rfq",
-    "/projects/{pid}/project-package.pdf", "/projects/{pid}/provenance/admissibility",
-    "/projects/{pid}/recipes/replay-plan", "/projects/{pid}/rules/space-pack", "/projects/{pid}/scan/verify-lod500",
+    # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
+    "/projects/{pid}/provenance/admissibility",
+    "/projects/{pid}/recipes/replay-plan",
+    # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
+    "/projects/{pid}/scan/verify-lod500",
     "/projects/{pid}/verified-progress/from-layout", "/projects/{pid}/view-templates/{tid}/graphics",
 }
 

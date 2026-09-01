@@ -595,6 +595,31 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         if (rows.length) am.appendChild(table(["Category", "Recipes"], rows));
     }).catch(fail(am));
 
+    const amend = section("🏛 Local code amendments");
+    void ctx.host.api.codeAmendments(pid).then((a) => {
+        amend.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = a.amendments.length
+          ? `${a.amendments.length} amendment(s) recorded`
+          : "No local overlay — statewide adoptions apply.";
+        amend.appendChild(m);
+        if (a.amendments.length) {
+          amend.appendChild(table(["Family", "Edition", "Section"],
+            a.amendments.slice(0, 20).map((x) => [x.family, x.edition ?? "—", x.section || "—"])));
+        }
+    }).catch(fail(amend));
+
+    const sp = section("📐 Space rule pack");
+    void ctx.host.api.spacePack(pid).then((r) => {
+        sp.textContent = "";
+        const m = el("div", "meta");
+        const keys = r.pack ? Object.keys(r.pack) : [];
+        m.textContent = keys.length
+          ? `${keys.length} space-rule section(s) stored — folded into the same run as element rules`
+          : "Empty until a space pack is saved; dimensional / daylight / wet-wall checks skip.";
+        sp.appendChild(m);
+    }).catch(fail(sp));
+
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {
         env.textContent = "";

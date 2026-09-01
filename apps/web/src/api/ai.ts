@@ -47,5 +47,15 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
       `/projects/${pid}/ai/draft-rfi`, { method: "POST", body: JSON.stringify({ element, note }) });
   }
+  /** Named agent packs over existing tools, plus the per-run audit for this project. */
+  agentPacks(pid: string) {
+    return this.json<{
+      packs: { key: string; label: string; purpose: string; tool_count: number;
+        writes: boolean; write_tools: string[] }[];
+      pack_count: number; read_only_count: number;
+      runs: { ts: string | null; actor: string; tool: string | null; pack: string | null; ok: boolean | null }[];
+      run_count: number; failure_count: number;
+    }>(`/projects/${pid}/agent-packs`);
+  }
   };
 }

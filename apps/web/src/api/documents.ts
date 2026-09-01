@@ -71,5 +71,21 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       sheet: { pattern: string; note: string };
     }>(`/projects/${pid}/naming/conventions`);
   }
+  /** Filed revisions of the authored model (newest first), including superseded ones. */
+  modelHistory(pid: string) {
+    return this.json<{
+      folder: string; count: number; model_present: boolean;
+      revisions: { title?: string; revision?: string; cde_state?: string; id?: string }[];
+    }>(`/projects/${pid}/documents/model-history`);
+  }
+  /** File the current source IFC into `12_Model/IFC` as a revision (explicit act, not on every edit). */
+  async fileModel(pid: string, title = "Federated Model") {
+    const fd = new FormData();
+    fd.append("title", title);
+    const res = await fetch(this.url(`/projects/${pid}/documents/file-model`),
+      { method: "POST", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.text()) || `file model failed (${res.status})`);
+    return res.json() as Promise<Record<string, unknown>>;
+  }
   };
 }

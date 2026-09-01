@@ -118,5 +118,12 @@ export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
       note: string;
     }>(`/projects/${pid}/golden-thread`);
   }
+  /** CODE-4 — local-amendment overlay plus the resolved code context with it applied. */
+  codeAmendments(pid: string) {
+    return this.json<{
+      amendments: { family: string; edition?: number; section?: string }[];
+      context: Record<string, unknown> | null;
+    }>(`/projects/${pid}/code/amendments`);
+  }
   };
 }

@@ -182,5 +182,9 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/estimate/resource-based`);
   }
   /** DXF (2D CAD) quantity takeoff — linear metres, enclosed area and block counts per layer. */
+  /** GAEB DA XML 3.2 Bill of Quantities (X83), coded to din276 / nrm1 / masterformat. */
+  gaebX83Url(pid: string, system = "din276") {
+    return this.url(`/projects/${pid}/estimate/gaeb.x83?system=${encodeURIComponent(system)}`);
+  }
   };
 }

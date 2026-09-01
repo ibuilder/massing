@@ -565,6 +565,41 @@ export async function renderBudget(ctx: PanelContext) {
       ctx.root.appendChild(card);
     }).catch(() => { /* no scenario or cost budget yet */ });
 
+    const vintageCard = document.createElement("div");
+    vintageCard.className = "dash-card"; vintageCard.style.marginBottom = "10px";
+    const vintageHead = document.createElement("div"); vintageHead.className = "section-title";
+    vintageHead.textContent = "Cost vintage & live 5D";
+    vintageCard.appendChild(vintageHead);
+    const vintageBody = document.createElement("div"); vintageBody.className = "meta";
+    vintageBody.textContent = "loading…";
+    vintageCard.appendChild(vintageBody);
+    const gaebRow = document.createElement("div");
+    gaebRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+    const gaeb = document.createElement("a"); gaeb.className = "tool-btn";
+    gaeb.textContent = "⬇ GAEB X83 (DIN 276)";
+    gaeb.href = ctx.host.api.gaebX83Url(pid);
+    gaeb.target = "_blank"; gaeb.rel = "noopener";
+    gaebRow.appendChild(gaeb);
+    vintageCard.appendChild(gaebRow);
+    ctx.root.appendChild(vintageCard);
+    void Promise.all([
+      ctx.host.api.costVintage(pid).catch(() => null),
+      ctx.host.api.costDatasets().catch(() => null),
+      ctx.host.api.elementCosts5d(pid).catch(() => null),
+    ]).then(([v, ds, five]) => {
+      vintageBody.textContent = "";
+      const bits: string[] = [];
+      if (v) {
+        const name = v.resolved?.name || (v.resolved?.vintage != null ? String(v.resolved.vintage) : "none");
+        bits.push(v.pinned_id ? `Pinned vintage: ${name}` : `Following latest vintage: ${name}`);
+      }
+      if (ds) bits.push(`${ds.datasets.length} vintage(s) installed`);
+      if (five) {
+        bits.push(`${five.priced} of ${five.element_count} elements priced · $${Math.round(five.total_cost).toLocaleString()}`);
+      }
+      vintageBody.textContent = bits.join(" · ") || "No cost vintage or 5D table yet.";
+    });
+
     // subcontractor billing — the GC-pays-subs mirror of owner billing
     const subc = document.createElement("div"); subc.className = "dash-card"; subc.style.marginBottom = "10px";
     const sh = document.createElement("div"); sh.className = "section-title";

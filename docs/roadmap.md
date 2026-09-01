@@ -264,14 +264,16 @@ instances:
   **v0.3.1135 wired twelve of those frozen engines** (chart of accounts, naming conventions,
   elements by discipline, two-sided budget, lien waiver JSON+PDF, RFQ status, acquisition funnel,
   entitlement condition-checks, MEP pressure-loss / tray-fill / thermal-loads) into existing
-  mixins and panels. **v0.3.1136 wired fifteen more** (golden thread, K-1 pack, FF&E BOM, LOD 500
+  mixins and panels.   **v0.3.1136 wired fifteen more** (golden thread, K-1 pack, FF&E BOM, LOD 500
   handover work list, equipment budget-lines / starter-requirements / to-submittals, IFC5 `.ifcx`,
   triangle census, export-qa, footprint GeoJSON, schema-diag, quality turnover-readiness, spec
-  links, authoring matrix). `cv-progress/ingest-batch` is the one genuine leftover in that heading.
+  links, authoring matrix). **v0.3.1137 wired twelve more** (cost datasets / vintage, unit rates,
+  5D element-costs, GAEB X83, code amendments, agent packs, model-history / file-model, space pack,
+  project-package PDF, compiled drawing-set PDF). `cv-progress/ingest-batch` is the one genuine leftover in that heading.
   The freeze list still holds other categories (OAuth callbacks, downloads, admin screens).
 
 - ✅ **REACH-UNWIRED — twelve built engines had routes and no product caller** *(S — Lane C;
-  **SHIPPED v0.3.1135**; second pass **SHIPPED v0.3.1136**)* — the `KNOWN_UNCALLED` heading *"genuinely unreached capabilities"*
+  **SHIPPED v0.3.1135**; second pass **SHIPPED v0.3.1136**; third pass **SHIPPED v0.3.1137**)* — the `KNOWN_UNCALLED` heading *"genuinely unreached capabilities"*
   plus the comment-bug cohort that sat next to it. Each already had tests. The work was a
   client method in the existing domain mixin (no extra `withX()` on `ApiClient` — mixin depth
   already cost clash its own wrapper) and a card or button on the panel that already owns the

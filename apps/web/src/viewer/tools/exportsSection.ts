@@ -128,6 +128,20 @@ export function buildExportsSection(d: ExportsDeps): void {
   fp.title = "WGS84 FeatureCollection of the building footprint + site point for a web map";
   b.appendChild(fp);
 
+  const compiled = toolBtn2("⬇ Compiled drawing set (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.compiledPdfUrl(projectId), "_blank");
+  });
+  compiled.title = "Cover, floor plans, and door/window/room schedules in one PDF";
+  b.appendChild(compiled);
+
+  const pkgPdf = toolBtn2("⬇ Project package (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.projectPackagePdfUrl(projectId), "_blank");
+  });
+  pkgPdf.title = "Shareable package: cover, views, drawing set, cost and feasibility summary";
+  b.appendChild(pkgPdf);
+
   const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
   glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
   b.appendChild(glb);

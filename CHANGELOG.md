@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1137 (2026-09-01) — twelve more engines a user can actually open
+
+**Band 2 reach, third pass.** Mixins only (cost, elements, estimate, codecheck, ai, documents,
+drawingSet, authoring — still no extra wrapper on `ApiClient`):
+
+- Budget — resolved cost vintage, installed vintages, live GUID-keyed 5D table, GAEB X83 download
+- Benchmarks — actual unit rates (cost ÷ installed quantity) beside the cost-code distribution
+- Model Analysis — local code amendments and the stored space rule pack
+- AI Assist — named agent packs and per-run history (write packs named as write)
+- Documents — filed model revision list + file-current-model into `12_Model/IFC`
+- Exports — compiled drawing-set PDF and shareable project-package PDF
+
+Uncalled by the leaf rule: **43 → 31**. Shared-leaf `admissibility` and `eot/sourced` stay frozen
+on purpose. `cv-progress/ingest-batch` remains the leftover under the genuine-unreached heading.
+
 ## v0.3.1136 (2026-09-01) — fifteen more engines a user can actually open
 
 **Band 2 reach, second pass.** The freeze list still held working routes with no product caller.

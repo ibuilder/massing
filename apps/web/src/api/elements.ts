@@ -119,5 +119,15 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
       lines: { kind: string; ref: string | null; cost_code: string | null; amount: number }[]; note: string }>(
       `/projects/${pid}/elements/${encodeURIComponent(guid)}/costs`);
   }
+  /** 5D-BIND — GUID-keyed quantity × class rate over the live property index (not per-element costs). */
+  elementCosts5d(pid: string) {
+    return this.json<{
+      element_count: number; priced: number; total_cost: number;
+      carbon_matched: number; total_carbon_kgco2e: number;
+      by_class: Record<string, { cost: number; count: number }>;
+      by_storey: Record<string, number>;
+      top_cost: { guid: string; name: string | null; ifc_class: string; cost: number }[];
+    }>(`/projects/${pid}/5d/element-costs`);
+  }
   };
 }

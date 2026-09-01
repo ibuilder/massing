@@ -198,6 +198,11 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         note: string;
       }>("/reference/authoring-matrix");
     }
+    /** Per-IfcSpace rule pack folded into `/rules/run` (dimensional / daylight / wet-wall). */
+    spacePack(pid: string) {
+      return this.json<{ pack: Record<string, unknown> | null }>(
+        `/projects/${pid}/rules/space-pack`);
+    }
   };
 }
 

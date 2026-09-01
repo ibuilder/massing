@@ -92,5 +92,32 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   lienWaiverPdfUrl(pid: string, kind = "conditional_progress", appNo = 1) {
     return this.url(`/projects/${pid}/cost/lien-waiver.pdf?kind=${encodeURIComponent(kind)}&app_no=${appNo}`);
   }
+  /** Installed cost-database vintages plus what the offline public importer can build. */
+  costDatasets() {
+    return this.json<{
+      datasets: { id: string; name?: string; vintage?: number; quarter?: number | null;
+        origin?: string; is_latest?: boolean }[];
+      available_public: unknown[];
+    }>("/cost/datasets");
+  }
+  /** The vintage this project's estimate resolves through (pinned, else latest). */
+  costVintage(pid: string) {
+    return this.json<{
+      pinned_id: string | null;
+      resolved: { id?: string; name?: string; vintage?: number; quarter?: number | null;
+        origin?: string } | null;
+      adjustment: Record<string, unknown> | null;
+    }>(`/projects/${pid}/cost-vintage`);
+  }
+  /** Actual unit rates per cost code across the caller's projects (cost ÷ installed quantity). */
+  unitRates(minProjects = 3) {
+    return this.json<{
+      cost_codes: { cost_code: string; unit: string; projects: number; below_threshold: boolean;
+        low: number; p25: number; median: number; p75: number; high: number;
+        pooled_rate: number | null; spread_ratio: number | null }[];
+      code_count: number; usable_count: number; min_projects: number;
+      message: string | null;
+    }>(`/benchmarks/unit-rates?min_projects=${minProjects}`);
+  }
   };
 }

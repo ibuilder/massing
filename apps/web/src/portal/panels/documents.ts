@@ -29,6 +29,31 @@ export async function renderDocuments(ctx: PanelContext) {
       + (h.superseded_kept ? ` · <span class="meta">${h.superseded_kept} superseded kept</span>` : "");
   }).catch(() => { health.textContent = ""; });
 
+  const modelStrip = el("div", "dash-card");
+  modelStrip.style.cssText = "margin-bottom:8px;padding:8px";
+  const modelMeta = el("div", "meta"); modelMeta.textContent = "loading filed model revisions…";
+  const fileBtn = el("button", "tool-btn") as HTMLButtonElement;
+  fileBtn.textContent = "File current model";
+  fileBtn.title = "Copy source.ifc into 12_Model/IFC as a revision — not on every edit";
+  fileBtn.onclick = async () => {
+    fileBtn.disabled = true;
+    try {
+      await api.fileModel(pid);
+      toast("Model filed", "success");
+      const hist = await api.modelHistory(pid);
+      modelMeta.textContent = hist.model_present
+        ? `${hist.count} filed revision(s) in ${hist.folder}`
+        : "No source IFC on file yet.";
+    } catch (e) { toast((e as Error).message, "error"); }
+    fileBtn.disabled = false;
+  };
+  modelStrip.append(modelMeta, fileBtn); root.appendChild(modelStrip);
+  void api.modelHistory(pid).then((hist) => {
+    modelMeta.textContent = hist.model_present
+      ? `${hist.count} filed revision(s) in ${hist.folder}`
+      : "No source IFC on file yet.";
+  }).catch(() => { modelMeta.textContent = ""; });
+
   // controls: filter the tree by owner role, or check required-doc gaps for a design phase
   const controls = el("div"); controls.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px";
   const roleSel = el("select", "portal-filter") as HTMLSelectElement;
