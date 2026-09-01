@@ -71,6 +71,23 @@ jobs:
       - name: Run test gate
         run: python services/api/run_tests.py
 
+  chain-tests:
+    name: MassRelease721 contract tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install contract dependencies
+        run: |
+          cd services/chain
+          forge install foundry-rs/forge-std --no-commit
+          forge install OpenZeppelin/openzeppelin-contracts@v5.0.2 --no-commit
+
+      - name: forge test
+        run: cd services/chain && forge test
+
   web-build:
     name: Web typecheck + test + build
     runs-on: ubuntu-latest

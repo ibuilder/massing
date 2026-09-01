@@ -1,27 +1,26 @@
-"""Chain provider abstraction — step 4 of asset-rights / NFT work.
+"""Chain provider abstraction — asset-rights / NFT work (steps 4–5).
 
-Binds a sealed release manifest's `content_hash` to an on-chain (or mock) token record. No RPC,
-no wallet, and no new dependency until a real provider is wired in step 5. See
-`docs/internal/asset-rights-nft-design.md`.
-
-The mock provider generates deterministic, clearly-labelled stand-ins so the API, database, and
-tests can exercise the full mint lifecycle without touching a network.
+Binds a sealed release manifest's `content_hash` to an on-chain (or mock) token record. The mock
+provider is deterministic and needs no network; the evm provider talks to a deployed
+`MassRelease721` contract via JSON-RPC.
 """
 from __future__ import annotations
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 #: Master feature flag. The whole chain capability is OFF unless this is explicitly truthy.
 ENABLED_ENV = "AEC_CHAIN_ENABLED"
-#: Which provider backs minting. Only ``mock`` ships today; ``evm`` is reserved for step 5.
+#: Which provider backs minting: ``mock`` (default) or ``evm``.
 PROVIDER_ENV = "AEC_CHAIN_PROVIDER"
 
 _TRUTHY = {"1", "true", "yes", "on"}
 _MOCK_CONTRACT = "mock:MassRelease721"
 _MOCK_CHAIN_ID = 0
+_CONTENT_HASH_RE = re.compile(r"^sha256:[0-9a-fA-F]{64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,9 +62,25 @@ def configured_provider_name() -> str:
     return raw or "mock"
 
 
+def validate_content_hash(content_hash: str) -> None:
+    if not _CONTENT_HASH_RE.match(content_hash or ""):
+        raise ValueError("content_hash must be sha256:<64 lowercase hex digits>")
+
+
+def validate_asset_urn(asset_urn: str) -> None:
+    if not (asset_urn or "").startswith("urn:massing:asset:"):
+        raise ValueError("asset_urn must be urn:massing:asset:…")
+    if not asset_urn[len("urn:massing:asset:"):]:
+        raise ValueError("asset_urn is empty")
+
+
+def content_hash_to_bytes32(content_hash: str) -> bytes:
+    validate_content_hash(content_hash)
+    return bytes.fromhex(content_hash.removeprefix("sha256:"))
+
+
 def _mock_token_id(content_hash: str) -> str:
-    digest = hashlib.sha256(content_hash.encode("utf-8")).hexdigest()
-    # Fits uint256 and is stable for the same release identity.
+    digest = hashlib.sha256(content_hash.encode()).hexdigest()
     return str(int(digest[:16], 16))
 
 
@@ -75,7 +90,7 @@ def _mock_tx_hash(content_hash: str, recipient: str) -> str:
 
 
 class MockChainProvider:
-    """Deterministic stand-in for step 5. Labels every field so it cannot be mistaken for mainnet."""
+    """Deterministic stand-in. Labels every field so it cannot be mistaken for mainnet."""
 
     name = "mock"
 
@@ -87,10 +102,8 @@ class MockChainProvider:
         metadata_uri: str,
         recipient: str,
     ) -> MintResult:
-        if not content_hash.startswith("sha256:"):
-            raise ValueError("content_hash must be a sha256:… digest")
-        if not asset_urn.startswith("urn:massing:asset:"):
-            raise ValueError("asset_urn must be urn:massing:asset:…")
+        validate_content_hash(content_hash)
+        validate_asset_urn(asset_urn)
         rcpt = (recipient or "").strip() or "mock:0x0000000000000000000000000000000000000000"
         uri = (metadata_uri or "").strip() or f"mock:manifest/{content_hash.removeprefix('sha256:')}"
         return MintResult(
@@ -105,19 +118,53 @@ class MockChainProvider:
 
 
 def get_provider() -> ChainProvider:
-    """Resolve the configured provider. Raises if chain is enabled but the name is unknown."""
+    """Resolve the configured provider."""
     name = configured_provider_name()
     if name == "mock":
         return MockChainProvider()
-    raise RuntimeError(
-        f"unknown chain provider {name!r}: only 'mock' is implemented (step 4). "
-        "Set AEC_CHAIN_PROVIDER=mock or leave unset.")
+    if name == "evm":
+        from . import evm_provider as evm
+
+        if not evm.evm_configured():
+            raise RuntimeError(
+                "evm chain provider selected but not fully configured — set "
+                f"{evm.RPC_ENV}, {evm.CHAIN_ID_ENV}, {evm.CONTRACT_ENV}, and {evm.MINT_KEY_ENV}")
+        return evm.EvmChainProvider()
+    raise RuntimeError(f"unknown chain provider {name!r}: use mock or evm")
 
 
-def status() -> dict:
+def status() -> dict[str, Any]:
     """Deployment-facing chain capability summary for `/asset-rights/status`."""
-    return {
+    from . import evm_provider as evm
+    from . import ipfs_storage as ipfs
+
+    name = configured_provider_name()
+    out: dict[str, Any] = {
         "enabled": enabled(),
-        "provider": configured_provider_name(),
-        "mock": configured_provider_name() == "mock",
+        "provider": name,
+        "mock": name == "mock",
+        "ipfs": ipfs.status(),
     }
+    if name == "evm":
+        out["evm"] = evm.evm_status()
+    return out
+
+
+def verify_binding(content_hash: str) -> dict[str, Any]:
+    """Read on-chain (or mock-stand-in) binding for a release hash."""
+    validate_content_hash(content_hash)
+    name = configured_provider_name()
+    if name == "mock":
+        return {
+            "provider": "mock",
+            "content_hash": content_hash,
+            "minted": None,
+            "note": "mock provider has no on-chain state; use the registry record",
+        }
+    if name == "evm":
+        from . import evm_provider as evm
+
+        rep = evm.verify_on_chain(content_hash)
+        rep["provider"] = "evm"
+        return rep
+    raise RuntimeError(f"unknown chain provider {name!r}")

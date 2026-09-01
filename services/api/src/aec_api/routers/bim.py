@@ -592,12 +592,14 @@ def asset_rights_mint(manifest: dict = Body(..., embed=True),
                       metadata_uri: str | None = Body(default=None, embed=True),
                       public_key: str | None = Body(default=None, embed=True),
                       project_id: str | None = Body(default=None, embed=True),
+                      pin_metadata: bool = Body(default=True, embed=True),
                       db: Session = Depends(get_db),
                       actor: str = Depends(require_identified)) -> dict:
-    """Register a mock (step 4) or future on-chain mint for a sealed release manifest.
+    """Register a mock or on-chain mint for a sealed release manifest.
 
     Requires `AEC_CHAIN_ENABLED`. Validates the manifest the same way as `/asset-rights/verify`
-    before minting. Idempotent on `content_hash`: a second call returns the existing record.
+    before minting. When `pin_metadata` is true and no `metadata_uri` is supplied, ERC-721 JSON
+    is pinned via the configured IPFS provider (mock by default). Idempotent on `content_hash`.
     `project_id` is optional metadata only — provenance keys on `asset_id` + `content_hash`."""
     from .. import release_tokens as rt
     row, result, created = rt.mint_from_manifest(
@@ -607,6 +609,7 @@ def asset_rights_mint(manifest: dict = Body(..., embed=True),
         minted_by=actor,
         project_id=project_id,
         public_key=public_key,
+        pin_metadata=pin_metadata,
     )
     return {"created": created, "mint": rt.row_to_dict(row),
             "chain": {
@@ -617,6 +620,14 @@ def asset_rights_mint(manifest: dict = Body(..., embed=True),
                 "tx_hash": result.tx_hash,
                 "metadata_uri": result.metadata_uri,
             }}
+
+
+@router.get("/asset-rights/mints/verify")
+def asset_rights_mint_verify(content_hash: str, db: Session = Depends(get_db),
+                             _user: str = Depends(require_identified)) -> dict:
+    """Cross-check a mint registry row against the configured chain provider."""
+    from .. import release_tokens as rt
+    return rt.verify_mint(db, content_hash)
 
 
 @router.get("/asset-rights/mints")
