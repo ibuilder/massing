@@ -70,6 +70,17 @@ Fourth follow-on on the same version: **SCALE-SEAM ㊸ ㊹ ㊺**. Eight methods 
 
 `MARKS` widened to ㊻ on the way out. Pin 2,194 → 2,127.
 
+Fifth follow-on on the same version: **SCALE-SEAM ㊻ ㊼ ㊽**. Eight methods out of
+`client.ts` (`2,127 → 2,065`) into existing mixins.
+
+- ㊻ *is this element installed as designed?* — three methods onto `apps/web/src/api/model.ts`.
+  Photo upload stayed (PHOTO-PIN is parked). `askModel` stayed.
+- ㊼ *what is this asset earning today?* — two methods onto `apps/web/src/api/proforma.ts`.
+- ㊽ *which permits exist near this site?* — three methods onto
+  `apps/web/src/api/entitlements.ts`. `permitReadiness` stayed.
+
+`MARKS` widened to ㊾ on the way out. Pin 2,127 → 2,065.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

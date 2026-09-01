@@ -14,6 +14,11 @@
  *
  *  A mixin, so every `api.modelX(...)` call site resolves unchanged; `api/surface.test.ts` is what
  *  makes that checkable rather than hoped for.
+ *
+ *  SCALE-SEAM ㊻ adds field-install verification — *is this element installed as designed?*
+ *  Coverage, status write, deviation log. They were **not** contiguous (`uploadVerificationPhoto`
+ *  sat between set and deviations). **The photo upload did NOT come** (PHOTO-PIN is parked).
+ *  `askModel` stayed — that is NL-Q, not install status.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer } from "./types";
@@ -511,6 +516,23 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ template: string; name: string | null; visible: string[]; visible_count: number;
       hidden_count: number; colors: Record<string, string>; colored_count: number; note: string }>(
       `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/resolve`);
+  }
+
+  /** verificationCoverage — installed/verified % vs the model total, plus deviation count. */
+  verificationCoverage(pid: string) {
+    return this.json<{ total_elements: number; tracked: number; verified: number; installed: number;
+      deviations: number; verified_pct: number; installed_pct: number; by_status: Record<string, number> }>(
+      `/projects/${pid}/verification/coverage`);
+  }
+  /** setVerification — write an element's field-verification status (installed | verified | deviation | pending). */
+  setVerification(pid: string, guid: string, body: { status: string; note?: string }) {
+    return this.json<{ guid: string; status: string; ifc_class?: string }>(
+      `/projects/${pid}/verification/${guid}`, { method: "PUT", body: JSON.stringify(body) });
+  }
+  /** verificationDeviations — elements flagged as not matching design. */
+  verificationDeviations(pid: string) {
+    return this.json<{ guid: string; ifc_class?: string; storey?: string; note?: string }[]>(
+      `/projects/${pid}/verification/deviations`);
   }
   };
 }

@@ -55,7 +55,7 @@ export type { ClashResult } from "./clash";
 import type {
   AuditEntry, Dashboard,
   DisciplineTree, DueFeed, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
-  NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropMapRule, PreflightGate,
+  NotifItem, ProjectMember, ProjectRole, PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
@@ -100,25 +100,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       applied: boolean; tier_before: string; tier_after: string; error?: string }>(
       "/license/cloud-check", { method: "POST" });
   }
-  /** Open-data permit sources: the cities whose permit feeds this deployment can query. */
-  permitCities() {
-    return this.json<{ cities: { id: string; label: string; region: string; authority: string; geo: boolean }[] }>(
-      "/opendata/permit-cities");
-  }
-  /** Query a city's filings near a point / by text. */
-  opendataPermits(pid: string, opts: { city: string; lat?: number; lon?: number; radius?: number; address?: string; q?: string; limit?: number }) {
-    const qs = new URLSearchParams({ city: opts.city });
-    for (const k of ["lat", "lon", "radius", "address", "q", "limit"] as const)
-      if (opts[k] !== undefined && opts[k] !== "") qs.set(k, String(opts[k]));
-    return this.json<{ city: string; count: number; permits: OpendataPermit[] }>(
-      `/projects/${pid}/opendata/permits?${qs}`);
-  }
-  /** Import a city's filings into the GC `permit` module (source-tagged, deduped). */
-  importOpendataPermits(pid: string, body: { city: string; lat?: number; lon?: number; radius?: number; address?: string; q?: string; max?: number }) {
-    return this.json<{ imported: number; skipped: number; found: number; refs: string[] }>(
-      `/projects/${pid}/opendata/permits/import`, { method: "POST", body: JSON.stringify(body) });
-  }
-
   // --- report center ---------------------------------------------------------
   /** Catalog of available reports (id, name, group). */
   reports() {
@@ -129,22 +110,11 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.url(`/projects/${pid}/reports/${report}.${fmt}`);
   }
 
-  // --- model intelligence + field verification ------------------------------
+  // --- model intelligence ----------------------------------------------------
   /** Ask a plain-English question about the model; grounded in the property-index snapshot. */
   askModel(pid: string, question: string) {
     return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
       `/projects/${pid}/ask`, { method: "POST", body: JSON.stringify({ question }) });
-  }
-  /** Install-coverage summary (verified/installed % vs the model total, deviation count). */
-  verificationCoverage(pid: string) {
-    return this.json<{ total_elements: number; tracked: number; verified: number; installed: number;
-      deviations: number; verified_pct: number; installed_pct: number; by_status: Record<string, number> }>(
-      `/projects/${pid}/verification/coverage`);
-  }
-  /** Set an element's field-verification status (installed | verified | deviation | pending). */
-  setVerification(pid: string, guid: string, body: { status: string; note?: string }) {
-    return this.json<{ guid: string; status: string; ifc_class?: string }>(
-      `/projects/${pid}/verification/${guid}`, { method: "PUT", body: JSON.stringify(body) });
   }
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
@@ -166,38 +136,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
   }
-  /** The deviation log (elements flagged as not matching design). */
-  verificationDeviations(pid: string) {
-    return this.json<{ guid: string; ifc_class?: string; storey?: string; note?: string }[]>(
-      `/projects/${pid}/verification/deviations`);
-  }
-
-  // --- operate (rent roll) + capital (investors) ----------------------------
-  /** Operating rent roll — occupancy, WALT, expiration schedule, in-place income. */
-  rentRoll(pid: string) {
-    return this.json<{ occupancy_pct: number; lease_count: number; base_rent_annual: number;
-      in_place_gross_income: number; walt_years: number; expirations_by_year: Record<string, unknown>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/rent-roll`);
-  }
-  /** Lease-management depth — renewal pipeline, rent-escalation schedule, CAM/recovery reconciliation. */
-  leaseManagement(pid: string, years?: number, recoverableOpex?: number) {
-    const q = new URLSearchParams();
-    if (years != null) q.set("years", String(years));
-    if (recoverableOpex != null) q.set("recoverable_opex", String(recoverableOpex));
-    const qs = q.toString() ? `?${q}` : "";
-    return this.json<{
-      lease_count: number;
-      renewals: { holdover_count: number; expired_count: number; options_outstanding: number;
-        at_risk_rent: number; expiring: Record<string, { count: number; rent: number }>;
-        rows: Record<string, unknown>[] };
-      escalations: { years: number; portfolio_by_year: number[]; current_base_rent: number;
-        projected_base_rent: number; rows: Record<string, unknown>[] };
-      cam: { recoverable_income: number; recoverable_sf: number; by_lease_type: Record<string, number>;
-        recovery_ratio?: number | null; over_recovery?: number; under_recovery?: number;
-        rows: Record<string, unknown>[] };
-    }>(`/projects/${pid}/leases/management${qs}`);
-  }
-
   // --- assistant · certified payroll · drawing set · ITB --------------------
   /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */
   askProject(pid: string, question: string) {
