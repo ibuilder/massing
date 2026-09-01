@@ -55,5 +55,22 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+
+  /** Capital-account movement an accountant needs for Schedule K-1 prep — not a tax document. */
+  k1Pack(pid: string, period?: string) {
+    const q = period ? `?period=${encodeURIComponent(period)}` : "";
+    return this.json<{
+      document_type: string; is_tax_document: boolean; project: string; period: string;
+      investor_count: number;
+      totals: { commitment: number; contributions_to_date: number;
+        distributions_to_date: number; unreturned_capital: number };
+      rows: { investor: string; ref: string; investor_class: string; entity_type: string | null;
+        ownership_pct: number; commitment: number; contributions_to_date: number;
+        distributions_to_date: number; net_capital_to_date: number; unreturned_capital: number;
+        status: string | null }[];
+      allocation_check: { ownership_pct_sum: number; residual: number; closes: boolean };
+      not_included: string[]; note: string;
+    }>(`/projects/${pid}/k1-pack${q}`);
+  }
   };
 }

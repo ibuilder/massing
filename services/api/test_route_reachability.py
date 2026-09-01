@@ -203,22 +203,16 @@ KNOWN_UNCALLED: set[str] = {
     # `/energy/export.{gbxml,idf}` left here in v0.3.1133: `energyExportUrl` is now called from
     # `exportsSection.ts` with both formats. They moved to `CALLED_VIA_TEMPLATED_EXT`.
     # `/entitlements/condition-checks` left here in v0.3.1135 — Design home now runs the model check.
-    "/projects/{pid}/ffe-bom",
-    "/projects/{pid}/golden-thread", "/projects/{pid}/k1-pack",
-    "/projects/{pid}/lod/handover-readiness",
-    # `/mep/{pressure-loss,thermal-loads,tray-fill}` left here in v0.3.1135 — MEP systems overlay.
-    "/projects/{pid}/model/equipment/budget-lines",
-    "/projects/{pid}/model/equipment/starter-requirements",
-    "/projects/{pid}/model/equipment/to-submittals", "/projects/{pid}/model/export.ifcx",
-    "/projects/{pid}/model/lod/census", "/projects/{pid}/models/export-qa",
-    "/projects/{pid}/models/footprint.geojson", "/projects/{pid}/models/schema-diag",
+    # `/ffe-bom`, `/golden-thread`, `/k1-pack`, `/lod/handover-readiness`, equipment
+    # `{budget-lines,starter-requirements,to-submittals}`, `/model/export.ifcx`, `/model/lod/census`,
+    # `/models/{export-qa,footprint.geojson,schema-diag}`, `/quality/turnover-readiness`,
+    # `/spec-links`, `/reference/authoring-matrix` left here in v0.3.1136 — each gained a
+    # client method on the existing mixin and a panel or export button.
     "/projects/{pid}/modules/backfill-references",
     "/projects/{pid}/procurement/packages/{rid}/send-rfq",
     "/projects/{pid}/project-package.pdf", "/projects/{pid}/provenance/admissibility",
-    "/projects/{pid}/quality/turnover-readiness", "/projects/{pid}/recipes/replay-plan",
-    "/projects/{pid}/rules/space-pack", "/projects/{pid}/scan/verify-lod500",
-    "/projects/{pid}/spec-links", "/projects/{pid}/verified-progress/from-layout",
-    "/projects/{pid}/view-templates/{tid}/graphics", "/reference/authoring-matrix",
+    "/projects/{pid}/recipes/replay-plan", "/projects/{pid}/rules/space-pack", "/projects/{pid}/scan/verify-lod500",
+    "/projects/{pid}/verified-progress/from-layout", "/projects/{pid}/view-templates/{tid}/graphics",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

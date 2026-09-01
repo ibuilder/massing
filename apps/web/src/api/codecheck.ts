@@ -105,5 +105,18 @@ export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
       stories?: number | null }; source: string; message?: string }>(
       `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
   }
+
+  /** GOLDEN-THREAD — requirement → evidence → sign-off rollup, plus the broken-thread list. */
+  goldenThread(pid: string) {
+    return this.json<{
+      total: number; signed_off: number; evidenced: number;
+      completeness_pct: number; evidenced_pct: number;
+      by_outcome: Record<string, number>; by_category: Record<string, number>;
+      broken_count: number;
+      broken_thread: { ref: string; requirement: string; category: string; outcome: string;
+        state: string; has_evidence: boolean; risk: string }[];
+      note: string;
+    }>(`/projects/${pid}/golden-thread`);
+  }
   };
 }

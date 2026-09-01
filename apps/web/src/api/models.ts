@@ -123,5 +123,37 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   deleteProjectModel(pid: string, mid: string) {
     return this.json<{ deleted: boolean; id: string }>(`/projects/${pid}/models/${mid}`, { method: "DELETE" });
   }
+  /** Write→reopen serialization fidelity (schema / GUIDs / storeys / properties). */
+  exportQa(pid: string) {
+    return this.json<{
+      method: string; comparable: boolean; identical?: boolean; lossless?: boolean;
+      entities?: { before: number; after: number };
+      guids?: { before: number; after: number; removed: number; added: number };
+      properties?: { before: number; after: number; delta: number };
+      note?: string;
+    }>(`/projects/${pid}/models/export-qa`);
+  }
+  /** Structural IFC-schema validity from the STEP text (works even when the file will not load). */
+  schemaDiag(pid: string) {
+    return this.json<{
+      schema: string | null; passed: boolean; instances?: number;
+      summary: { error: number; warning: number; by_code?: Record<string, number>;
+        reported?: number; truncated?: boolean };
+      findings: { code: string; severity: string; instance?: string; entity?: string; message: string }[];
+    }>(`/projects/${pid}/models/schema-diag`);
+  }
+  /** Building footprint + site point as WGS84 GeoJSON (409 with no source IFC). */
+  footprintGeojsonUrl(pid: string) {
+    return this.url(`/projects/${pid}/models/footprint.geojson`);
+  }
+  /** Quality-evidence closeout: unresolved NCRs plus elements nobody inspected. */
+  qualityTurnoverReadiness(pid: string) {
+    return this.json<{
+      ready: boolean; outstanding_count: number; unrecorded_count: number;
+      coverage_pct: number; any_attached: boolean;
+      outstanding_elements: { guid: string; open_items: unknown[] }[];
+      unrecorded_elements: string[]; basis: string; message: string | null;
+    }>(`/projects/${pid}/quality/turnover-readiness`);
+  }
   };
 }

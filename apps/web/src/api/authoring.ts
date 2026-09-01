@@ -190,6 +190,14 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
         `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
     }
+    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list. */
+    authoringMatrix() {
+      return this.json<{
+        recipe_count: number; category_count: number; uncategorized: string[];
+        by_category: Record<string, { count: number; recipes: { recipe: string; category: string; produces: string }[] }>;
+        note: string;
+      }>("/reference/authoring-matrix");
+    }
   };
 }
 

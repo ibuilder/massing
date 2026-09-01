@@ -588,6 +588,18 @@ export async function renderTurnover(ctx: PanelContext) {
         + `<div class="meta">Latest model version: <b>${rd.latest_model_version ?? "—"}</b> · `
         + `${rd.ready_for_substantial_completion ? "<span style=\"color:var(--status-good)\">ready to certify</span>" : "<span style=\"color:var(--status-warn)\">prepare a punch list first</span>"}</div>`;
       body.append(rdiv);
+
+      void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
+        const qdiv = el("div", "dash-card"); qdiv.style.marginBottom = "8px";
+        const qh = el("div"); qh.style.fontWeight = "600";
+        qh.textContent = "Quality evidence vs closeout";
+        const qm = el("div", "meta");
+        qm.textContent = qt.ready
+          ? "Quality evidence exists and is resolved."
+          : `${qt.outstanding_count} outstanding · ${qt.unrecorded_count} never inspected · coverage ${qt.coverage_pct}%`;
+        qdiv.append(qh, qm);
+        body.insertBefore(qdiv, rdiv.nextSibling);
+      }).catch(() => { /* quality registers may be empty */ });
       // substantial-completion certificate(s)
       if (!certs.length) {
         const note = el("div", "meta"); note.textContent = "No substantial-completion certificate yet.";

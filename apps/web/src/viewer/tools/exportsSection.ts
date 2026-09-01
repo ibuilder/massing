@@ -114,6 +114,20 @@ export function buildExportsSection(d: ExportsDeps): void {
   ifcOut.title = "First-class IFC re-export — the current authored source IFC, GUID-stable, round-trips through any openBIM tool";
   b.appendChild(ifcOut);
 
+  const ifcx = toolBtn2("⬇ Export IFC5 JSON (.ifcx)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.modelExportIfcxUrl(projectId), "_blank");
+  });
+  ifcx.title = "IFC5 data layer as ifcJSON — properties and structure, not geometry";
+  b.appendChild(ifcx);
+
+  const fp = toolBtn2("⬇ Footprint (GeoJSON)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.footprintGeojsonUrl(projectId), "_blank");
+  });
+  fp.title = "WGS84 FeatureCollection of the building footprint + site point for a web map";
+  b.appendChild(fp);
+
   const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
   glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
   b.appendChild(glb);

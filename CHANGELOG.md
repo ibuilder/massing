@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1136 (2026-09-01) — fifteen more engines a user can actually open
+
+**Band 2 reach, second pass.** The freeze list still held working routes with no product caller.
+Each gained a typed method on the existing domain mixin (codecheck, finance, model, models,
+authoring — still no extra wrapper on `ApiClient`) and a card or download on the panel that
+already owns the question:
+
+- Standards — LOD 500 handover work list, triangle census, golden thread, spec links,
+  export round-trip, schema diagnostic, authoring coverage matrix
+- Equipment — FF&E bill of materials, starter spec-check properties, budget-suggestion
+  lines, mint product-data submittals
+- Operations / turnover — quality evidence vs closeout (uninspected counts against ready)
+- Investors — K-1 preparation pack (capital movement only; named as not a tax document)
+- Exports — IFC5 JSON (`.ifcx`) and WGS84 footprint GeoJSON
+
+Uncalled by the leaf rule: **58 → 43**.
+
 ## v0.3.1135 (2026-09-01) — twelve built engines a user can actually open
 
 **Band 2 reach.** These routes were live, tested, and frozen as deliberately unreachable because

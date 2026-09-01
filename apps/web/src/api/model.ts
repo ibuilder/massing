@@ -53,6 +53,61 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       lines: Line[]; note: string;
     }>(`/projects/${pid}/model/equipment`);
   }
+  /** Curated starter properties an engineer expects on common equipment classes before buyout. */
+  equipmentStarterRequirements(pid: string) {
+    return this.json<{ requirements: Record<string, Record<string, unknown>>; note: string }>(
+      `/projects/${pid}/model/equipment/starter-requirements`);
+  }
+  /** Mint one product-data submittal per scheduled equipment type (idempotent by title). */
+  equipmentToSubmittals(pid: string) {
+    return this.json<{ created: { id: number; ref: string; title: string; ifc_class: string; count: number }[];
+      created_count: number; skipped_existing: number; note: string }>(
+      `/projects/${pid}/model/equipment/to-submittals`, { method: "POST", body: "{}" });
+  }
+  /** Equipment schedule as budget-suggestion rows, priced from the project's own price ledger. */
+  equipmentBudgetLines(pid: string) {
+    return this.json<{
+      rows: { description: string; ifc_class: string; discipline: string; qty: number;
+        unit: string; unit_cost: number | null; extended: number | null }[];
+      line_count: number; priced_lines: number; priced_total: number; note: string;
+    }>(`/projects/${pid}/model/equipment/budget-lines`);
+  }
+  /** Where the triangle budget goes, and what a coarse proxy would save. */
+  lodCensus(pid: string, maxElements = 5000) {
+    return this.json<{
+      status: string; status_meaning: string; elements_examined: number; total_triangles: number;
+      by_class: { ifc_class: string; elements: number; triangles: number;
+        pct_triangles: number; small_part: boolean }[];
+      unmeshable_count: number; capped: boolean; cap: number | null;
+      plan: { status: string; proxied?: string[]; triangles_saved?: number | null;
+        pct_saved?: number | null; reason?: string };
+    }>(`/projects/${pid}/model/lod/census?max_elements=${maxElements}`);
+  }
+  /** LOD 500 handover as a work list (unverified / out of tolerance / thin information). */
+  lodHandoverReadiness(pid: string) {
+    return this.json<{
+      model_scored: boolean; elements: number; lod500: number; readiness_pct: number;
+      by_reason: Record<string, number>; actions: Record<string, string>;
+      by_discipline: { discipline: string; elements: number; lod500: number; readiness_pct: number }[];
+      gaps: { guid: string; ifc_class: string; discipline: string; reason: string; action: string }[];
+      truncated: number; note: string;
+    }>(`/projects/${pid}/lod/handover-readiness`);
+  }
+  /** FF&E / furnishings bill of materials from placed furniture. */
+  ffeBom(pid: string) {
+    return this.json<{
+      total: number; line_count: number;
+      items: { item: string; ifc_class: string; count: number; storeys: string[] }[];
+      note: string;
+    }>(`/projects/${pid}/ffe-bom`);
+  }
+  /** Spec-section breadcrumbs stamped on the model (`Pset_Massing_SpecLink`). */
+  specLinks(pid: string) {
+    return this.json<{
+      sections: { section: string; title: string | null; count: number; guids: string[] }[];
+      linked: number; unlinked: number; total: number; pset: string;
+    }>(`/projects/${pid}/spec-links`);
+  }
   /** MEP-EQUIP SPEC-CONFLICT — cross-check the scheduled equipment against a specified-requirement set. */
   equipmentSpecCheck(pid: string, requirements: Record<string, Record<string, unknown>>) {
     type Row = { ifc_class: string; type: string; count: number; spec_key: string; expected: unknown; actual: unknown };
@@ -195,6 +250,11 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** Download URL for a first-class IFC re-export — the current authored source IFC (GUID-stable). */
   modelIfcUrl(pid: string) {
     return this.url(`/projects/${pid}/model/export.ifc`);
+  }
+  /** IFC5 JSON data layer (ifcJSON by default, or the IFCX node list). Geometry is out of scope. */
+  modelExportIfcxUrl(pid: string, flavor: "ifcjson" | "ifcx" = "ifcjson") {
+    const q = flavor === "ifcx" ? "?flavor=ifcx" : "";
+    return this.url(`/projects/${pid}/model/export.ifcx${q}`);
   }
   /** Interning/columnar efficiency stats (dedup ratio + estimated RAM saved) — G1. */
   modelColumnarStats(pid: string) {

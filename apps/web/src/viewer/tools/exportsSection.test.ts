@@ -31,6 +31,8 @@ function harness(over: Partial<ExportsDeps> = {}) {
     modelIfcUrl: (pid: string) => `https://api.test/${pid}/model.ifc`,
     modelGlbUrl: (pid: string) => `https://api.test/${pid}/model.glb`,
     modelGltfUrl: (pid: string) => `https://api.test/${pid}/model.gltf`,
+    modelExportIfcxUrl: (pid: string) => `https://api.test/projects/${pid}/model/export.ifcx`,
+    footprintGeojsonUrl: (pid: string) => `https://api.test/projects/${pid}/models/footprint.geojson`,
     disciplineQuantities: vi.fn(async () => ({
       rebar: { estimated: false, tonnes: 12.5, count: 340 },
       mep: { duct_m: 210, pipe_m: 180, cable_m: 95, counts: { duct: 40, pipe: 33, cable: 21, fittings: 77 } },
@@ -77,6 +79,7 @@ describe("R39-DECOMP-VIEWER ① — the Exports section, extracted", () => {
     for (const expected of ["Quantity takeoff", "COBie", "Space schedule", "4D schedule", "gbXML",
                             "Energy envelope", "EnergyPlus IDF",
                             "Discipline quantities", "Closeout package", "Export IFC",
+                            ".ifcx", "GeoJSON",
                             ".glb", ".gltf", "2D takeoff"]) {
       expect(text, `missing "${expected}"`).toContain(expected);
     }
@@ -128,10 +131,11 @@ describe("R39-DECOMP-VIEWER ① — the Exports section, extracted", () => {
   // section can be built while a project is open and clicked after it closes.
   it("refuses the project-dependent actions when there is no project, at click time", () => {
     const { host, notify } = harness({ projectId: null });
-    for (const needle of ["Discipline quantities", "2D takeoff", "Energy envelope", "EnergyPlus IDF"]) {
+    for (const needle of ["Discipline quantities", "2D takeoff", "Energy envelope", "EnergyPlus IDF",
+                          ".ifcx", "GeoJSON"]) {
       [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(needle))!.click();
     }
-    expect(notify).toHaveBeenCalledTimes(4);
+    expect(notify).toHaveBeenCalledTimes(6);
     expect(notify).toHaveBeenCalledWith("connect a project first", "error");
   });
 
@@ -149,7 +153,7 @@ describe("R39-DECOMP-VIEWER ① — the Exports section, extracted", () => {
   it("carries a tooltip on every export whose format is not self-evident", () => {
     const { host } = harness();
     for (const needle of ["gbXML", "Energy envelope", "EnergyPlus IDF",
-                          "Closeout package", "Export IFC", ".glb", ".gltf", "2D takeoff"]) {
+                          "Closeout package", "Export IFC", ".ifcx", "GeoJSON", ".glb", ".gltf", "2D takeoff"]) {
       const b = [...host.querySelectorAll("button")].find((x) => x.textContent?.includes(needle))!;
       expect(b.title, `"${needle}" has no tooltip`).toBeTruthy();
     }
