@@ -31,6 +31,18 @@ Eleven methods out of `client.ts` (`2,440 → 2,323`) into existing mixins, stil
 
 `MARKS` widened to ㊲ on the way out. Pin lowered with the file.
 
+Second follow-on on the same version: **SCALE-SEAM ㊲ ㊳ ㊴**. Twelve methods out of
+`client.ts` (`2,323 → 2,258`) into existing mixins.
+
+- ㊲ *what is related to this element?* — three methods onto `apps/web/src/api/model.ts`
+  (graph stats, neighbors, doc-graph). QUERY-DSL subset export stayed.
+- ㊳ *run this parameterized authoring chain?* — five methods onto
+  `apps/web/src/api/authoring.ts` (`editGraph` plus list/save/expand/run macros). Layers stayed.
+- ㊴ *what non-destructive property composition is in force?* — four methods onto
+  `apps/web/src/api/model.ts` (get/put/resolve/bake layers). Pins stayed.
+
+`MARKS` widened to ㊵ on the way out. Pin lowered with the file.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

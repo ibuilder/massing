@@ -1,5 +1,6 @@
 /** Model: the read side of the IFC model — capabilities, query, assets, exports, roundtrip,
- *  columnar stats, the live edit stream, and the analytical frame (does this structure stand?).
+ *  columnar stats, the live edit stream, the analytical frame, the semantic graph, and
+ *  IFC5-style property-override layers.
  *
  *  SCALE-SEAM ③. Route-group `/model`, the largest of the 219 groups in `client.ts` (29 methods).
  *  Picked by classifying every method by the route it calls — the `// --- section ---` comments label
@@ -15,7 +16,7 @@
  *  makes that checkable rather than hoped for.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { ViewerLoadTiming, ProjectPulse } from "./types";
+import type { ViewerLoadTiming, ProjectPulse, PropLayer } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -407,6 +408,51 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       governing: { system: string; base_shear_kip: number };
       disclaimer: string;
     }>(`/projects/${pid}/structure/lateral${qs ? `?${qs}` : ""}`);
+  }
+
+  /** modelGraphStats — IFC relationship graph: node and edge counts by relation. */
+  modelGraphStats(pid: string) {
+    return this.json<{ nodes: number; edges: number; by_rel: Record<string, number> }>(`/projects/${pid}/graph`);
+  }
+  /** graphNeighbors — multi-hop neighbors of one GlobalId in the IFC relationship graph. */
+  graphNeighbors(pid: string, guid: string, depth = 1) {
+    return this.json<{
+      root: string; found: boolean; depth?: number; neighbor_count?: number;
+      nodes: { guid: string; class: string; name: string | null }[];
+      edges: { from: string; to: string; rel: string }[];
+      paths: { guid: string; class: string; name: string | null; path: { rel: string; dir: string; to: string }[] }[];
+    }>(`/projects/${pid}/graph/neighbors?guid=${encodeURIComponent(guid)}&depth=${depth}`);
+  }
+  /** docGraph — spec-section and document nodes linked to the elements they govern. */
+  docGraph(pid: string) {
+    return this.json<{
+      spec_sections: { system: string | null; code: string; title: string; elements: string[] }[];
+      documents: { name: string; sheet: string; elements: string[] }[];
+      counts: { spec_sections: number; documents: number; edges: number };
+      by_rel: Record<string, number>;
+    }>(`/projects/${pid}/doc-graph`);
+  }
+
+  /** getLayers — IFC5-style property-override layers (non-destructive composition). */
+  getLayers(pid: string) {
+    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`);
+  }
+  /** putLayers — replace the project's property-override layer stack. */
+  putLayers(pid: string, layers: PropLayer[]) {
+    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`, { method: "PUT", body: JSON.stringify({ layers }) });
+  }
+  /** resolveLayers — effective properties after the layer stack, plus conflicts. */
+  resolveLayers(pid: string) {
+    return this.json<{
+      layers: { name: string; enabled: boolean; overrides: number }[];
+      overrides: { guid: string; pset: string; prop: string; base: unknown; effective: unknown; winning_layer: string; setters: string[] }[];
+      conflicts: { guid: string; pset: string; prop: string; winning_layer: string; values: { layer: string; value: unknown }[] }[];
+      effective_count: number; conflict_count: number;
+    }>(`/projects/${pid}/layers/resolve`);
+  }
+  /** bakeLayers — write the winning layer overrides into the IFC and publish. */
+  bakeLayers(pid: string) {
+    return this.json<{ baked: number; publish?: string; message?: string }>(`/projects/${pid}/layers/bake`, { method: "POST", body: JSON.stringify({ publish: true }) });
   }
   };
 }

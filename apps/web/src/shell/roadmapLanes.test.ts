@@ -74,7 +74,8 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 // Widened to ㉞ on 2026-09-01, in the release that SHIPS ㉝. Same rule.
 // Widened to ㊲ on 2026-09-01, in the follow-on that SHIPS ㉞ ㉟ ㊱ without a version bump
 // (tag lag already at the test_release_current bound). Same rule: widen on the way OUT.
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲";
+// Widened to ㊵ on 2026-09-01, in the follow-on that SHIPS ㊲ ㊳ ㊴ without a version bump.
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.

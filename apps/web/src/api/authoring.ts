@@ -1,5 +1,10 @@
-/** Authoring: server-side IFC edit recipes, the family/content shelf, the compute graph and the
- *  massing generator — the endpoints that WRITE to the model rather than read from it.
+/** Authoring: server-side IFC edit recipes, the family/content shelf, the compute graph, the
+ *  massing generator, and saved recipe macros — the endpoints that WRITE to the model rather
+ *  than read from it.
+ *
+ *  SCALE-SEAM ㊳ adds editGraph plus the four macro methods that answer *run this parameterized
+ *  authoring chain?* Property-override layers sat immediately below in `client.ts` and did
+ *  **not** come — those compose properties, they do not write recipes.
  *
  *  First extraction of roadmap SCALE-SEAM. `client.ts` was measured at 4,956 lines with 152 commits
  *  in a fortnight and 631 methods on one class: it had to be opened to add any endpoint, so every
@@ -16,6 +21,7 @@
  *  sibling's private member — that has to move into HttpCore first.
  */
 import { HttpCore } from "./httpCore";
+import type { EditMacro } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -202,6 +208,33 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     spacePack(pid: string) {
       return this.json<{ pack: Record<string, unknown> | null }>(
         `/projects/${pid}/rules/space-pack`);
+    }
+
+    /** editGraph — execute a visual recipe graph as one GUID-stable authoring pass. */
+    editGraph(pid: string, graph: unknown, opts?: { publish?: boolean; baseSource?: string }) {
+      return this.json<{ node_count: number; order: string[]; outputs: Record<string, unknown>; publish?: string }>(
+        `/projects/${pid}/edit/graph`,
+        { method: "POST", body: JSON.stringify({ graph, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
+    }
+    /** listMacros — saved, parameterized chained edit-recipes for this project. */
+    listMacros(pid: string) {
+      return this.json<{ macros: EditMacro[]; seeded: boolean }>(`/projects/${pid}/macros`);
+    }
+    /** saveMacros — replace the project's saved recipe-macro list. */
+    saveMacros(pid: string, macros: EditMacro[]) {
+      return this.json<{ saved: number; macros: EditMacro[] }>(
+        `/projects/${pid}/macros`, { method: "PUT", body: JSON.stringify({ macros }) });
+    }
+    /** expandMacro — expand one macro plus args into GUID-stable recipe steps. */
+    expandMacro(pid: string, macroId: string, args: Record<string, unknown>) {
+      return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
+        `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
+    }
+    /** runMacro — run a saved recipe chain as one GUID-stable version. */
+    runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
+      return this.json<Record<string, unknown>>(
+        `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
+        { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
     }
   };
 }

@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㊲ *(the only open slice; ②–㊱ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㊵ *(the only open slice; ②–㊴ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,26 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㊲ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㊱ have shipped, **㉞–㊱ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM ㊵ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㊴ have shipped, **㊲–㊴ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **㊴ took the IFC5 property-override layers out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what non-destructive property composition is in force?* Get/put/resolve/bake.
+  **Pins did NOT come** — those are BCF topics. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㊵ on the way out.** **The per-file pin moved 2,323 → 2,258**
+  across ㊲+㊳+㊴.
+
+  **㊳ took the recipe-macro stack out** (five methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *run this parameterized authoring chain?* `editGraph` plus list/save/expand/run
+  macros. **Property-override layers did NOT come**, though they sat immediately below — those
+  compose properties, they do not write recipes. *Adjacency in a file is not a relationship.*
+
+  **㊲ took the semantic model graph out** (three methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what is related to this element, including the documents that govern it?* Graph
+  stats, neighbors, doc-graph. **`subsetIfcUrl` did NOT come** (QUERY-DSL export). Collab,
+  carbon, and permit readiness stayed.
+
   **㊱ took the site-logistics stack out** (three methods; part of `client.ts` 2,440 → 2,323) into
   the existing `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped
   by what they ANSWER: *what resources are on site when?* Get/put the resource list and the

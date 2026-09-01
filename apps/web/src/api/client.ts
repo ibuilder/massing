@@ -54,8 +54,8 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   AuditEntry, Dashboard,
-  DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
-  NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate,
+  DisciplineTree, DueFeed, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
+  NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
@@ -823,28 +823,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
     return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
   }
-  // W9-4 semantic model graph (IFC relationships) — multi-hop, cited relational queries
-  modelGraphStats(pid: string) {
-    return this.json<{ nodes: number; edges: number; by_rel: Record<string, number> }>(`/projects/${pid}/graph`);
-  }
-  graphNeighbors(pid: string, guid: string, depth = 1) {
-    return this.json<{
-      root: string; found: boolean; depth?: number; neighbor_count?: number;
-      nodes: { guid: string; class: string; name: string | null }[];
-      edges: { from: string; to: string; rel: string }[];
-      paths: { guid: string; class: string; name: string | null; path: { rel: string; dir: string; to: string }[] }[];
-    }>(`/projects/${pid}/graph/neighbors?guid=${encodeURIComponent(guid)}&depth=${depth}`);
-  }
-
-  // W9-4 (harder half) doc-graph: spec-section + document nodes linked to the elements they govern
-  docGraph(pid: string) {
-    return this.json<{
-      spec_sections: { system: string | null; code: string; title: string; elements: string[] }[];
-      documents: { name: string; sheet: string; elements: string[] }[];
-      counts: { spec_sections: number; documents: number; edges: number };
-      by_rel: Record<string, number>;
-    }>(`/projects/${pid}/doc-graph`);
-  }
   /** SUBSET-EXPORT: download URL for an IFC of just the elements matching a QUERY-DSL selector. */
   subsetIfcUrl(pid: string, query: string) {
     return this.url(`/projects/${pid}/export/subset.ifc?query=${encodeURIComponent(query)}`);
@@ -878,49 +856,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     }>(`/projects/${pid}/permit/readiness`);
   }
 
-
-  editGraph(pid: string, graph: unknown, opts?: { publish?: boolean; baseSource?: string }) {
-    return this.json<{ node_count: number; order: string[]; outputs: Record<string, unknown>; publish?: string }>(
-      `/projects/${pid}/edit/graph`,
-      { method: "POST", body: JSON.stringify({ graph, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
-  }
-
-  // RECIPE-MACROS: saved, parameterized chained edit-recipes runnable as one GUID-stable version
-  listMacros(pid: string) {
-    return this.json<{ macros: EditMacro[]; seeded: boolean }>(`/projects/${pid}/macros`);
-  }
-  saveMacros(pid: string, macros: EditMacro[]) {
-    return this.json<{ saved: number; macros: EditMacro[] }>(
-      `/projects/${pid}/macros`, { method: "PUT", body: JSON.stringify({ macros }) });
-  }
-  expandMacro(pid: string, macroId: string, args: Record<string, unknown>) {
-    return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
-      `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
-  }
-  runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
-    return this.json<Record<string, unknown>>(
-      `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
-      { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
-  }
-
-  // W9-3 IFC5-style property-override layers (non-destructive composition over the model)
-  getLayers(pid: string) {
-    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`);
-  }
-  putLayers(pid: string, layers: PropLayer[]) {
-    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`, { method: "PUT", body: JSON.stringify({ layers }) });
-  }
-  resolveLayers(pid: string) {
-    return this.json<{
-      layers: { name: string; enabled: boolean; overrides: number }[];
-      overrides: { guid: string; pset: string; prop: string; base: unknown; effective: unknown; winning_layer: string; setters: string[] }[];
-      conflicts: { guid: string; pset: string; prop: string; winning_layer: string; values: { layer: string; value: unknown }[] }[];
-      effective_count: number; conflict_count: number;
-    }>(`/projects/${pid}/layers/resolve`);
-  }
-  bakeLayers(pid: string) {
-    return this.json<{ baked: number; publish?: string; message?: string }>(`/projects/${pid}/layers/bake`, { method: "POST", body: JSON.stringify({ publish: true }) });
-  }
 
   // pins / topics (Phase 4)
   pins(pid: string) {
