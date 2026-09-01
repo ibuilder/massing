@@ -8,7 +8,18 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, Upl
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, models, openbim, openbim_quality, soft_clash, standards_expert
+from .. import (
+    bim_kpi,
+    bsdd,
+    cde,
+    ids_authoring,
+    mcp_tools,
+    models,
+    openbim,
+    openbim_quality,
+    soft_clash,
+    standards_expert,
+)
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_identified, require_platform_admin, require_role

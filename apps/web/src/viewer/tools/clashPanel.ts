@@ -86,9 +86,15 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       renderClashes(r.clashes ?? []);
       const discs = r.disciplines ?? [];
       const tested: [string, string][] = [];
-      for (let i = 0; i < discs.length; i++) for (let j = i; j < discs.length; j++) tested.push([discs[i], discs[j]]);
+      for (let i = 0; i < discs.length; i++) {
+        for (let j = i; j < discs.length; j++) {
+          const a = discs[i], b = discs[j];
+          if (a && b) tested.push([a, b]);
+        }
+      }
       lastMatrix = { disciplines: discs, tested_pairs: tested,
-        findings: (r.clashes ?? []).map((c) => ({ discipline_a: c.a_model, discipline_b: c.b_model })) };
+        findings: (r.clashes ?? []).map((c) => ({
+          discipline_a: c.a_model || c.a_class, discipline_b: c.b_model || c.b_class })) };
       await d.refreshIssues(); await d.reloadModelPins();
     } catch (e) {
       if (isJobStillRunning(e)) throw e;
@@ -123,10 +129,10 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       });
     } catch (e) { toast(`metrics: ${(e as Error).message}`, "error"); }
   })()));
-  panel.appendChild(cbtn("📐 Sourced clearance rules", () => void (async () => {
+  panel.appendChild(cbtn("📐 Clearance rules (with basis)", () => void (async () => {
     try {
       const r = await d.api.clashClearanceRules(pid);
-      showResult("Sourced clearance rules", (body) => {
+      showResult("Clearance rules (with basis)", (body) => {
         body.appendChild(resultNote(r.note, "ok"));
         for (const [cls, rule] of Object.entries(r.rules)) {
           body.appendChild(resultNote(

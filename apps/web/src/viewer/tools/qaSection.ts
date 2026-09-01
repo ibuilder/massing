@@ -836,7 +836,7 @@ export function buildQaSection(d: QaDeps): void {
                 body.appendChild(resultNote(`&nbsp;&nbsp;${escapeHtml(v.name || v.guid.slice(0, 8) + "…")} — ${escapeHtml(v.detail)}`, ""));
               }
             }
-            body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven sourced clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
+            body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven table-driven clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
           });
         })));
         b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {

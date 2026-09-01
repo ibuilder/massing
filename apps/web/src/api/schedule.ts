@@ -19,13 +19,16 @@
  *  result types came along because nothing outside `client.ts` imported them.
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
+import { withClash } from "./clash";
 import { HttpCore } from "./httpCore";
 import type { MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
 export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
-  return class Schedule extends Base {
+  // Clash rides here so ApiClient's mixin expression does not grow another
+  // `withX()` — one more wrapper there loses HttpCore on the type (TS mixin depth).
+  return class Schedule extends withClash(Base) {
   scheduleAlerts(pid: string) {
     return this.json<{ alerts: { level: string; type: string; title: string; detail: string; ref?: string }[];
       counts: { high: number; medium: number; low: number } }>(`/projects/${pid}/schedule/alerts`);
