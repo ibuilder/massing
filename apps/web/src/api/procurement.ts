@@ -95,6 +95,11 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
   }
   // --- materials procure-to-pay (FieldMaterials) -----------------------------
+  /** Whether RFQ dispatch to suppliers is configured (quote leveling still works either way). */
+  rfqStatus() {
+    return this.json<{ enabled: boolean; provider: string | null; message: string }>(
+      `/procurement/rfq-status`);
+  }
   procurementThreeWayMatch(pid: string) {
     return this.json<{ pos: { po: string; vendor: string; cost_code: string; po_amount: number;
       deliveries: number; received: number; invoiced: number; invoice_count: number; variance: number;

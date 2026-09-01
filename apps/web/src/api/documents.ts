@@ -64,5 +64,12 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   documentDownloadUrl(pid: string, fid: string) {
     return this.url(`/projects/${pid}/documents/${fid}/download`);
   }
+  /** Filename + sheet-ID patterns the naming audit enforces (ISO 19650 container / NCS sheet). */
+  namingConventions(pid: string) {
+    return this.json<{
+      container: { pattern: string; separator: string; fields: string[]; note: string };
+      sheet: { pattern: string; note: string };
+    }>(`/projects/${pid}/naming/conventions`);
+  }
   };
 }

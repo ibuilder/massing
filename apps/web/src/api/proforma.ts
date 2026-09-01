@@ -146,6 +146,33 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<Record<string, unknown>>(`/projects/${pid}/proforma/rollover`);
   }
 
+  /** Project-level Uses vs Sources — latest saved scenario, else cost budget + debt/equity params. */
+  twoSidedBudget(pid: string) {
+    return this.json<{
+      uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
+      total_uses: number; total_sources: number; balanced: boolean;
+      scenario?: { id: string; name: string };
+    }>(`/projects/${pid}/budget/two-sided`);
+  }
+
+  /** R22-PIPELINE — acquisition funnel across the book. Weighted value is this firm's closed history,
+   *  never a textbook ladder; a stage without enough samples is excluded and counted. */
+  pipelineFunnel() {
+    return this.json<{
+      as_of: string; deal_count: number; stages: string[]; terminal_states: string[];
+      by_stage: Record<string, { count: number; value: number; deals_with_value: number }>;
+      conversion: Record<string, { status: string; closed_samples: number; probability: number | null;
+        needed: number; note: string }>;
+      weighted: { weighted_value: number; deals_weighted: number; deals_in_flight: number;
+        coverage: number | null; excluded_count: number; excluded_value: number; note: string };
+      cycle_time: { closed: { count: number; median_days: number | null; mean_days: number | null };
+        open_age: { count: number; median_days: number | null; mean_days: number | null };
+        blended: null; note: string };
+      warnings: { code: string; note: string }[];
+      min_closed_samples: number;
+    }>(`/pipeline/funnel`);
+  }
+
   /**
    * PF-INCOME-BASIS — which income line each figure derives from, so a reader can TRACE it:
    *

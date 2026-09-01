@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1135 (2026-09-01) — twelve built engines a user can actually open
+
+**Band 2 reach.** These routes were live, tested, and frozen as deliberately unreachable because
+nothing in the web app called them. Each gained a typed method on the existing domain mixin
+(accounting, documents, elements, proforma, mep, cost, procurement, entitlements — not a new
+wrapper on `ApiClient`) and a caller on the panel that already owns the question:
+
+- Ledger — construction chart of accounts beside the trial balance
+- Standards — naming conventions next to the naming audit
+- Discipline Spine — model composition by NCS discipline
+- Portfolio — acquisition funnel (`GET /pipeline/funnel`): derived win rates, weighted value
+  with coverage, closed cycle time beside open age
+- Budget — Uses vs capital plan (`GET /budget/two-sided`) and lien waiver JSON + PDF
+- Analytics — whether RFQ dispatch is configured
+- Design — approval conditions checked against the model (unevaluable stays not-checkable)
+- MEP systems overlay — pressure loss, tray fill, thermal loads
+
+`cv-progress/ingest-batch` is the one leftover in that freeze heading. Uncalled by the leaf
+rule: **71 → 58**.
+
 ## v0.3.1134 (2026-09-01) — seven sourced clearances actually run
 
 **SOFT-CLASH-RULES.** The geometry check the QA rail runs used one clearance — door approach at

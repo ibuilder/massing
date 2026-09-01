@@ -105,5 +105,34 @@ export function withMep<TBase extends Ctor<HttpCore>>(Base: TBase) {
       by_class: { ifc_class: string; label: string; count: number }[] }>(
       `/projects/${pid}/mep/model-extract`);
   }
+  /** Friction-loss screen over authored duct/pipe runs (empirical round-duct + Hazen-Williams). */
+  mepPressureLoss(pid: string) {
+    return this.json<{
+      checked: number; failed: number;
+      budgets: { duct_in_wg_per_100ft: number; pipe_ft_per_100ft: number; hazen_c: number };
+      runs: { guid: string; class: string; kind: string; system: string | null; size_mm: number;
+        flow: number; length_ft: number; friction_rate: number; rate_unit: string; loss: number;
+        budget_rate: number; status: string }[];
+      systems: { system: string; kind: string; runs: number; total_length_ft: number;
+        total_loss: number; loss_unit: string;
+        index_run: { guid: string; loss: number; friction_rate: number };
+        all_within_budget: boolean }[];
+      disclaimer: string;
+    }>(`/projects/${pid}/mep/pressure-loss`);
+  }
+  /** NEC 392.22 cable-tray fill from authored conductors, not a supplied ratio. */
+  mepTrayFill(pid: string) {
+    return this.json<Record<string, unknown>>(`/projects/${pid}/mep/tray-fill`);
+  }
+  /** Space-by-space cooling-load screen vs the single-number block estimate. */
+  mepThermalLoads(pid: string) {
+    return this.json<{
+      spaces: { guid: string; name: string | null; type: string; area_sf: number; people: number;
+        total_btuh: number; tons: number }[];
+      skipped_no_area: number; total_area_sf: number; total_btuh: number; tons: number;
+      sf_per_ton: number | null; block_tons: number; delta_vs_block_pct: number | null;
+      disclaimer?: string;
+    }>(`/projects/${pid}/mep/thermal-loads`);
+  }
   };
 }

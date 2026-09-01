@@ -344,6 +344,51 @@ export function buildMepSection(d: MepDeps): MepButtons {
         });
         sizeBtn.title = "Velocity/fill size check over authored MEP (ASHRAE air, erosion-limit water) — preliminary, not a stamped design";
         body.appendChild(sizeBtn);
+        const lossBtn = d.toolBtn2("📉 Pressure loss", async () => {
+          let pl;
+          try { pl = await d.api.mepPressureLoss(d.pid); }
+          catch (e) { d.notify((e as Error).message, "error"); return; }
+          if (!pl.checked) { body.appendChild(resultNote("No sized runs with flow + length — author those first.", "")); return; }
+          body.appendChild(resultNote(`<b>Friction loss</b> — ${pl.checked} run(s) · <b>${pl.failed} over budget</b>.`,
+            pl.failed ? "bad" : "ok"));
+          body.appendChild(kvTable(pl.systems.slice(0, 12).map((sy) => ({
+            k: `${sy.system} (${sy.kind})`,
+            v: `${sy.total_loss} ${sy.loss_unit} · index ${sy.index_run.guid.slice(0, 8)}`,
+          }))));
+          const bad = pl.runs.filter((r) => r.status === "fail").map((r) => r.guid);
+          if (bad.length) body.appendChild(d.toolBtn2("◎ Isolate over-budget runs in 3D", () => { void d.layerMgr.isolateGuids(bad); }));
+          body.appendChild(resultNote(pl.disclaimer, ""));
+        });
+        lossBtn.title = "Empirical round-duct + Hazen-Williams friction rates — not a hydraulic design";
+        body.appendChild(lossBtn);
+        const trayBtn = d.toolBtn2("📦 Tray fill (NEC 392)", async () => {
+          let tf;
+          try { tf = await d.api.mepTrayFill(d.pid); }
+          catch (e) { d.notify((e as Error).message, "error"); return; }
+          const checked = Number(tf.checked ?? 0);
+          const failed = Number(tf.failed ?? 0);
+          body.appendChild(resultNote(`<b>Tray fill</b> — ${checked} tray(s) · <b>${failed} over fill</b>.`,
+            failed ? "bad" : "ok"));
+          const disc = typeof tf.disclaimer === "string" ? tf.disclaimer : "";
+          if (disc) body.appendChild(resultNote(disc, ""));
+        });
+        trayBtn.title = "NEC 392.22 fill from authored cables, not a supplied ratio";
+        body.appendChild(trayBtn);
+        const loadBtn = d.toolBtn2("🌡 Thermal loads", async () => {
+          let tl;
+          try { tl = await d.api.mepThermalLoads(d.pid); }
+          catch (e) { d.notify((e as Error).message, "error"); return; }
+          const delta = tl.delta_vs_block_pct == null ? "—" : `${tl.delta_vs_block_pct}% vs block`;
+          body.appendChild(resultNote(`<b>Cooling load screen</b> — ${tl.tons} tons · block ${tl.block_tons} · ${delta}`
+            + ` · ${tl.spaces.length} space(s)`
+            + (tl.skipped_no_area ? ` · ${tl.skipped_no_area} skipped (no area)` : "") + ".", ""));
+          body.appendChild(kvTable(tl.spaces.slice(0, 12).map((sp) => ({
+            k: sp.name || sp.guid.slice(0, 8),
+            v: `${sp.tons} t · ${sp.area_sf} sf · ${sp.type}`,
+          }))));
+        });
+        loadBtn.title = "W/sf people+lights+equipment + envelope allowance vs GFA÷350 block";
+        body.appendChild(loadBtn);
         if (s.has_fire_protection) {
           const covBtn = d.toolBtn2("🧯 Sprinkler coverage (NFPA 13)", async () => {
             let cov;

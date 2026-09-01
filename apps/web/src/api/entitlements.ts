@@ -31,5 +31,23 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
   entitlementConditions(pid: string) {
     return this.json<EntitlementConditions>(`/projects/${pid}/entitlements/conditions`);
   }
+
+  /** R22-ENTITLEMENT ② — approval conditions checked against the model (height max, parking min).
+   *  Anything unevaluable is `not_checkable`, never a pass. Refused entitlements are listed, not scored. */
+  entitlementConditionChecks(pid: string) {
+    return this.json<{
+      project_id: string;
+      model_facts: { height_m: number | null; storeys: number | null; parking_spaces: number | null };
+      entitlements: {
+        entitlement_id: string; ref: string | null; workflow_state: string; refused: boolean;
+        exceeds_count: number; not_checkable_count: number; checked_count?: number;
+        exceeds?: { topic: string; note?: string }[];
+        not_checkable?: { topic: string; reason?: string }[];
+      }[];
+      in_force_count: number;
+      refused: { ref: string | null; workflow_state: string }[];
+      total_exceeds: number; total_not_checkable: number; note: string;
+    }>(`/projects/${pid}/entitlements/condition-checks`);
+  }
   };
 }

@@ -168,7 +168,8 @@ KNOWN_UNCALLED: set[str] = {
     # both. They moved to `CALLED_VIA_TEMPLATED_EXT`, which carries their call-site evidence and
     # asserts it still exists.
     "/projects/{pid}/estimate/gaeb.x83", "/projects/{pid}/modules/{key}/log.pdf",
-    "/projects/{pid}/cost/lien-waiver.pdf", "/projects/{pid}/opendata/permits.geojson",
+    # `/cost/lien-waiver.pdf` left here in v0.3.1135 — Budget now links `lienWaiverPdfUrl`.
+    "/projects/{pid}/opendata/permits.geojson",
     # `/schedule/{gantt,lob}.svg` left here in v0.3.1132 for the same reason: `api/schedule.ts:193-4`
     # builds `/projects/${pid}/schedule/${kind}.svg`, and `portal/panels/schedule.ts:731` enumerates
     # both kinds. Two call sites, one blind spot.
@@ -176,11 +177,11 @@ KNOWN_UNCALLED: set[str] = {
     #   GENUINELY UNREACHED CAPABILITIES — these are the ones worth someone's attention, and the
     #   reason this exclusion was worth making. Each is a working engine behind a route the product
     #   never calls:
-    "/procurement/rfq-status", "/projects/{pid}/accounting/chart-of-accounts",
-    "/projects/{pid}/budget/two-sided", 
-    "/projects/{pid}/cost/lien-waiver", "/projects/{pid}/cv-progress/ingest-batch",
-    "/projects/{pid}/elements/by-discipline", "/projects/{pid}/naming/conventions",
-    
+    # `/procurement/rfq-status`, `/accounting/chart-of-accounts`, `/budget/two-sided`,
+    # `/cost/lien-waiver`, `/elements/by-discipline`, `/naming/conventions` left here in v0.3.1135 —
+    # each gained a client method and a panel caller. Leaving them frozen would claim they were still
+    # unreachable.
+    "/projects/{pid}/cv-progress/ingest-batch",
 
     # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
     # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a
@@ -188,7 +189,9 @@ KNOWN_UNCALLED: set[str] = {
     # Frozen rather than wired, per this list's own contract: a ratchet records "this was looked at",
     # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
-    "/cost/datasets", "/pipeline/funnel",
+    "/cost/datasets",
+    # `/pipeline/funnel` left here in v0.3.1135 — Portfolio now reads the acquisition funnel.
+
     "/projects/{pid}/schedule/eot/sourced",
     "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
@@ -199,10 +202,11 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/drawings/sheet.dxf",
     # `/energy/export.{gbxml,idf}` left here in v0.3.1133: `energyExportUrl` is now called from
     # `exportsSection.ts` with both formats. They moved to `CALLED_VIA_TEMPLATED_EXT`.
-    "/projects/{pid}/entitlements/condition-checks", "/projects/{pid}/ffe-bom",
+    # `/entitlements/condition-checks` left here in v0.3.1135 — Design home now runs the model check.
+    "/projects/{pid}/ffe-bom",
     "/projects/{pid}/golden-thread", "/projects/{pid}/k1-pack",
-    "/projects/{pid}/lod/handover-readiness", "/projects/{pid}/mep/pressure-loss",
-    "/projects/{pid}/mep/thermal-loads", "/projects/{pid}/mep/tray-fill",
+    "/projects/{pid}/lod/handover-readiness",
+    # `/mep/{pressure-loss,thermal-loads,tray-fill}` left here in v0.3.1135 — MEP systems overlay.
     "/projects/{pid}/model/equipment/budget-lines",
     "/projects/{pid}/model/equipment/starter-requirements",
     "/projects/{pid}/model/equipment/to-submittals", "/projects/{pid}/model/export.ifcx",

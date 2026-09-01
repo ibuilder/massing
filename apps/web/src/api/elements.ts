@@ -73,6 +73,16 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
       unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
       `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
   }
+  /** Model composition by NCS discipline — element count + class breakdown, in sheet order. */
+  elementsByDiscipline(pid: string) {
+    return this.json<{
+      total: number;
+      disciplines: { discipline: string; code: string; count: number;
+        classes: { ifc_class: string; count: number }[] }[];
+      coverage: { discipline: string; code: string; color: string; present: boolean; count: number }[];
+      disciplines_covered: number; disciplines_total: number; missing: string[];
+    }>(`/projects/${pid}/elements/by-discipline`);
+  }
   /** BIM data-completeness check: per-attribute present/missing + non-compliant guids to highlight. */
   dataQa(pid: string) {
     return this.json<{ total: number; compliant: number; noncompliant: number; compliant_pct: number;

@@ -107,7 +107,7 @@ describe("the API client's public surface", () => {
     // different numbers from two different instruments, neither of them this one. Take the number
     // from the reader that enforces it: raising the floor to force a high estimate green, or leaving
     // it slack under a hand-rolled one, both defeat the gate in the same direction.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(708);
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(720);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -149,7 +149,10 @@ describe("the API client's public surface", () => {
       // had already stopped being true for one of the three.
       "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
       "schedule4d", "sequenceClash", "scheduleCpm", "evm",           // 4D + sequence clash + earned value
-      "clashMetrics", "clashClearanceRules", "clashMatrix",         // 1134 — sourced clearances + matrix
+      "clashMetrics", "clashClearanceRules", "clashMatrix",
+      "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
+      "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",
+      "lienWaiver", "rfqStatus", "entitlementConditionChecks",
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
       "editIfc", "publish", "createBlankModel", "placeFamily",      // authoring

@@ -80,5 +80,17 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       drifted_count: number; largest_drift: number; total_change_orders: number; note: string;
     }>(`/projects/${pid}/commercial-drift`);
   }
+  /** Statutory lien waiver / release fields for a pay application (C1). */
+  lienWaiver(pid: string, kind: "conditional_progress" | "unconditional_progress"
+      | "conditional_final" | "unconditional_final" = "conditional_progress", appNo = 1) {
+    const q = new URLSearchParams({ kind, app_no: String(appNo) });
+    return this.json<{
+      kind: string; title: string; conditional: boolean; final: boolean;
+      amount: number; body: string; notice: string; project_name: string;
+    }>(`/projects/${pid}/cost/lien-waiver?${q.toString()}`);
+  }
+  lienWaiverPdfUrl(pid: string, kind = "conditional_progress", appNo = 1) {
+    return this.url(`/projects/${pid}/cost/lien-waiver.pdf?kind=${encodeURIComponent(kind)}&app_no=${appNo}`);
+  }
   };
 }

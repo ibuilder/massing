@@ -534,8 +534,16 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     }).catch(fail(mep));
 
     const nm = section("🔤 Naming compliance");
-    void ctx.host.api.namingAudit(pid).then((a) => {
+    void Promise.all([
+      ctx.host.api.namingAudit(pid),
+      ctx.host.api.namingConventions(pid).catch(() => null),
+    ]).then(([a, conv]) => {
         nm.textContent = "";
+        if (conv) {
+          const note = el("div", "meta");
+          note.textContent = `Container: ${conv.container.pattern}. Sheet: ${conv.sheet.pattern}`;
+          nm.appendChild(note);
+        }
         nm.appendChild(table(["Register", "Total", "Compliant", "%"], [
             ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
             ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));

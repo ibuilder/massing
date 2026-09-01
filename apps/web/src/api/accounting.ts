@@ -45,6 +45,11 @@ export function withAccounting<TBase extends Ctor<HttpCore>>(Base: TBase) {
       debit_total: number; credit_total: number; balanced: boolean; note: string }>(
       `/projects/${pid}/accounting/journal-entries`);
   }
+  /** The construction chart of accounts the journal posts against (code, name, type, normal balance). */
+  chartOfAccounts(pid: string) {
+    return this.json<{ accounts: { code: string; name: string; type: string; normal: string }[] }>(
+      `/projects/${pid}/accounting/chart-of-accounts`);
+  }
   /** Trial balance — debits and credits per account (must tie). */
   trialBalance(pid: string) {
     return this.json<{ accounts: { code: string; account: string; type: string; debit: number;

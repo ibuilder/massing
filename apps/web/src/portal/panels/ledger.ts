@@ -29,10 +29,26 @@ export async function renderLedger(ctx: PanelContext) {
     dl("⬇ QuickBooks IIF", ctx.host.api.accountingIifUrl(pid)));
   const body = el("div"); body.style.marginTop = "8px"; body.textContent = "loading…"; root.appendChild(body);
 
-  let tb; let je;
-  try { tb = await ctx.host.api.trialBalance(pid); je = await ctx.host.api.journalEntries(pid).catch(() => null); }
+  let tb; let je; let coa;
+  try {
+    tb = await ctx.host.api.trialBalance(pid);
+    je = await ctx.host.api.journalEntries(pid).catch(() => null);
+    coa = await ctx.host.api.chartOfAccounts(pid).catch(() => null);
+  }
   catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
+  if (coa?.accounts.length) {
+    const chart = el("div", "dash-card"); chart.style.marginBottom = "8px";
+    chart.innerHTML = `<b>Chart of accounts</b> <span class="meta">${coa.accounts.length} accounts · construction COA</span>`
+      + `<table class="portal-table" style="width:100%;font-size:12px;margin-top:4px">`
+      + `<thead><tr><th scope="col" style="text-align:left">Code</th><th scope="col" style="text-align:left">Account</th>`
+      + `<th scope="col">Type</th><th scope="col">Normal</th></tr></thead><tbody>`
+      + coa.accounts.map((a) => `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td>`
+        + `<td style="text-align:center">${esc(a.type)}</td>`
+        + `<td style="text-align:center">${esc(a.normal)}</td></tr>`).join("")
+      + `</tbody></table>`;
+    body.append(chart);
+  }
   if (!tb.accounts.length) {
     body.innerHTML = `<div class="meta">No postable transactions yet — add <b>direct costs</b> / <b>sub `
       + `invoices</b> (cost → AP) and <b>owner invoices</b> (billing) to build the ledger.</div>`;

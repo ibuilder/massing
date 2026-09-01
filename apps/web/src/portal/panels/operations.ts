@@ -243,6 +243,27 @@ export async function renderSpine(ctx: PanelContext) {
         dc.appendChild(tb); body.appendChild(dc);
       }
 
+      void ctx.host.api.elementsByDiscipline(pid).then((by) => {
+        const mc = el("div", "dash-card"); mc.style.marginBottom = "10px";
+        mc.innerHTML = `<div class="section-title">Model by discipline</div>`
+          + `<div class="meta">${by.disciplines_covered}/${by.disciplines_total} NCS disciplines present`
+          + ` · ${by.total} elements`
+          + (by.missing.length ? ` · missing ${esc(by.missing.join(", "))}` : "")
+          + `</div>`;
+        if (by.disciplines.length) {
+          const mt = el("table", "portal-table") as HTMLTableElement;
+          mt.style.cssText = "width:100%;font-size:12px";
+          mt.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Discipline</th>`
+            + `<th scope="col">Count</th><th scope="col" style="text-align:left">Top classes</th></tr></thead><tbody>`
+            + by.disciplines.map((d) => `<tr><td>${esc(d.discipline)} <span class="meta">${esc(d.code)}</span></td>`
+              + `<td style="text-align:center">${d.count}</td>`
+              + `<td class="meta">${esc(d.classes.slice(0, 4).map((c) => `${c.ifc_class} ${c.count}`).join(" · "))}</td></tr>`).join("")
+            + `</tbody>`;
+          mc.appendChild(mt);
+        }
+        body.appendChild(mc);
+      }).catch(() => { /* no property index yet */ });
+
       // coverage gaps
       const g = t.gaps;
       const gapCount = g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length + g.sheets_without_spec.length;

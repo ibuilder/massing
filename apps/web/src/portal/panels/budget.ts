@@ -522,9 +522,48 @@ export async function renderBudget(ctx: PanelContext) {
       } catch (e) { ctx.host.setStatus(`close failed: ${(e as Error).message}`); }
     };
     brow.append(seedBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
+    const lwRow = document.createElement("div");
+    lwRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px";
+    const lwBtn = document.createElement("button"); lwBtn.className = "tool-btn";
+    lwBtn.textContent = "Lien waiver (JSON)";
+    lwBtn.onclick = async () => {
+      try {
+        const lw = await ctx.host.api.lienWaiver(pid);
+        ctx.host.setStatus(`${lw.title} — $${Math.round(lw.amount).toLocaleString()}`);
+      } catch (e) { ctx.host.setStatus(`lien waiver failed: ${(e as Error).message}`); }
+    };
+    const lwPdf = document.createElement("a"); lwPdf.className = "tool-btn";
+    lwPdf.textContent = "⬇ Lien waiver (PDF)";
+    lwPdf.href = ctx.host.api.lienWaiverPdfUrl(pid);
+    lwPdf.target = "_blank"; lwPdf.rel = "noopener";
+    lwRow.append(lwBtn, lwPdf);
+    billing.appendChild(lwRow);
     billing.appendChild(Object.assign(document.createElement("div"), { className: "meta",
-      textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values." }));
+      textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values. Lien waiver amount follows current payment due." }));
     ctx.root.appendChild(billing);
+
+    void ctx.host.api.twoSidedBudget(pid).then((su) => {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
+      const head = document.createElement("div"); head.className = "section-title";
+      head.textContent = `Uses vs capital plan ${su.balanced ? "· balanced" : "· out of balance"}`;
+      card.appendChild(head);
+      const grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px";
+      const col = (title: string, lines: { label: string; amount: number }[], tot: number) => {
+        const wrap = document.createElement("div");
+        const n = tot;
+        wrap.innerHTML = `<div class="meta">${esc(title)}</div>`
+          + lines.map((l) => {
+            const amt = l.amount;
+            return `<div style="display:flex;justify-content:space-between"><span>${esc(l.label)}</span><span>${usd(amt)}</span></div>`;
+          }).join("")
+          + `<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:4px"><span>Total</span><span>${usd(n)}</span></div>`;
+        return wrap;
+      };
+      grid.append(col("Uses", su.uses, su.total_uses), col("Capital", su.sources, su.total_sources));
+      card.appendChild(grid);
+      ctx.root.appendChild(card);
+    }).catch(() => { /* no scenario or cost budget yet */ });
 
     // subcontractor billing — the GC-pays-subs mirror of owner billing
     const subc = document.createElement("div"); subc.className = "dash-card"; subc.style.marginBottom = "10px";

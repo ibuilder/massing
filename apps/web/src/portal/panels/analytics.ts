@@ -253,6 +253,11 @@ export async function renderRiskCost(ctx: PanelContext) {
     const ceWrap = el("div");
     root.appendChild(ceWrap);
     section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
+    const rfqNote = el("div", "meta");
+    rfqNote.textContent = "checking RFQ dispatch…";
+    root.appendChild(rfqNote);
+    void api.rfqStatus().then((st) => { rfqNote.textContent = st.message; })
+      .catch(() => { rfqNote.remove(); });
     const matchSlot = slot();
     section("Level material quotes (competing suppliers)");
     const quoteLevelWrap = el("div");

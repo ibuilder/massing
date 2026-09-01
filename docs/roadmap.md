@@ -260,11 +260,20 @@ instances:
   **TWO THINGS IT LEAVES OPEN, both measured on the way through.** `energyExportUrl` was the
   first: an unwired client method, both formats unreachable. **Wired v0.3.1133** — Exports now
   passes `"gbxml"` and `"idf"`; the two routes moved from `KNOWN_UNCALLED` into
-  `CALLED_VIA_TEMPLATED_EXT`. The second remains: this band names three remaining items while the
-  gate freezes **71** routes, 38 of them under no category at all and 7 explicitly labelled
-  *"genuinely unreached capabilities … worth someone's attention"*. **The band and the gate
-  disagree about the size of the same class by an order of magnitude**, and nothing makes them
-  agree; deriving that population is a bigger item than this was.
+  `CALLED_VIA_TEMPLATED_EXT`. The second was the size disagreement with the freeze list.
+  **v0.3.1135 wired twelve of those frozen engines** (chart of accounts, naming conventions,
+  elements by discipline, two-sided budget, lien waiver JSON+PDF, RFQ status, acquisition funnel,
+  entitlement condition-checks, MEP pressure-loss / tray-fill / thermal-loads) into existing
+  mixins and panels. `cv-progress/ingest-batch` is the one genuine leftover in that heading.
+  The freeze list still holds other categories (OAuth callbacks, downloads, admin screens).
+
+- ✅ **REACH-UNWIRED — twelve built engines had routes and no product caller** *(S — Lane C;
+  **SHIPPED v0.3.1135**)* — the `KNOWN_UNCALLED` heading *"genuinely unreached capabilities"*
+  plus the comment-bug cohort that sat next to it. Each already had tests. The work was a
+  client method in the existing domain mixin (no extra `withX()` on `ApiClient` — mixin depth
+  already cost clash its own wrapper) and a card or button on the panel that already owns the
+  question. Acquisition-funnel stage labels in the UI never spell the first-stage token that
+  collides with `/schedule/eot/sourced`.
 
 - ✅ ⭐ **REFUSAL-READERS — a record in a refused state still counts** *(M — Lane C; population
   DERIVED 2026-08-30, **CLOSED v0.3.1124** — 3 releases, 14 readers, one behavioural gate)*
@@ -1804,6 +1813,10 @@ stakes we are missing.
   the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
   So this is not an M of backend work. Size the resourcing engine on its own and route the two
   visualisation items to the lane that owns them.
+
+  ✅ **Funnel viz SHIPPED v0.3.1135.** `GET /pipeline/funnel` had no caller; Portfolio now renders
+  stage counts, derived win rates, weighted value with coverage, and closed cycle time beside
+  open age. Cross-project Gantt, risk heat map, and department resourcing remain.
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
 
 **A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for
