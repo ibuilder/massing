@@ -10,6 +10,9 @@
  *  SCALE-SEAM ㊱ adds the three logistics methods that answer *what resources are on site when?*
  *  They sit on the 4D timeline. The model graph sat immediately below them in `client.ts` and
  *  did **not** come — that is a relational query, not a site resource.
+ *
+ *  SCALE-SEAM ⓬ adds site-daily ops — *what happened on site this week?* OSHA safety
+ *  rollup plus the daily-report field log. E57 sat below and did **not** come.
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
@@ -667,6 +670,31 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
       elements_per_day: number | null; note: string;
     }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /** safetySummary — OSHA TRIR/DART/LTIFR, observation mix, toolbox coverage, violations. */
+  safetySummary(pid: string, hours?: number) {
+    const qs = hours != null ? `?hours=${hours}` : "";
+    return this.json<{
+      hours_estimated: boolean;
+      incidents: { incident_count: number; recordable_count: number; dart_count: number;
+        lost_time_count: number; total_lost_days: number; open_count: number; hours_worked: number;
+        trir: number | null; dart_rate: number | null; ltifr: number | null;
+        severity_rate: number | null; by_classification: Record<string, number>;
+        rows: Record<string, unknown>[] };
+      observations: { observation_count: number; safe_count: number; at_risk_count: number;
+        closed_pct: number | null; safe_to_at_risk: number | null; by_category: Record<string, number> };
+      toolbox_talks: { talk_count: number; total_attendees: number; avg_attendees: number | null };
+      violations: { violation_count: number; open_count: number; overdue_count: number };
+    }>(`/projects/${pid}/safety/summary${qs}`);
+  }
+  /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage. */
+  fieldLogSummary(pid: string) {
+    return this.json<{ report_count: number; submitted_count: number; coverage_pct: number | null;
+      total_manpower: number; avg_manpower: number | null;
+      peak_manpower: { count: number; date: string | null }; weather_lost_days: number;
+      delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/daily-reports/summary`);
   }
   };
 }

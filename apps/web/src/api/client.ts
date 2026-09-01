@@ -146,55 +146,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
   }
-  /** Executive project-health rollup — per-domain status, overall score, ranked attention items. */
-  projectHealth(pid: string) {
-    return this.json<{
-      health_score: number | null; overall_status: string;
-      // the score is a MEAN across domains, the status is WORST-OF — so a high score can carry a red
-      // band, and `governing_domain` names the one that set it
-      score_basis: string; status_basis: string;
-      governing_domain: string | null; governing_detail: string | null;
-      open_items_total: number; overdue_items_total: number;
-      domains: { key: string; label: string; status: string; headline: string;
-        open_count: number; overdue_count: number }[];
-      attention_items: { domain: string; status: string; issue: string }[];
-    }>(`/projects/${pid}/health`);
-  }
-  /** Safety analytics — OSHA TRIR/DART/LTIFR, observation mix, toolbox coverage, violations. */
-  safetySummary(pid: string, hours?: number) {
-    const qs = hours != null ? `?hours=${hours}` : "";
-    return this.json<{
-      hours_estimated: boolean;
-      incidents: { incident_count: number; recordable_count: number; dart_count: number;
-        lost_time_count: number; total_lost_days: number; open_count: number; hours_worked: number;
-        trir: number | null; dart_rate: number | null; ltifr: number | null;
-        severity_rate: number | null; by_classification: Record<string, number>;
-        rows: Record<string, unknown>[] };
-      observations: { observation_count: number; safe_count: number; at_risk_count: number;
-        closed_pct: number | null; safe_to_at_risk: number | null; by_category: Record<string, number> };
-      toolbox_talks: { talk_count: number; total_attendees: number; avg_attendees: number | null };
-      violations: { violation_count: number; open_count: number; overdue_count: number };
-    }>(`/projects/${pid}/safety/summary${qs}`);
-  }
-  /** Field-log rollup — manpower trend, weather-impact lost-days, reporting coverage. */
-  fieldLogSummary(pid: string) {
-    return this.json<{ report_count: number; submitted_count: number; coverage_pct: number | null;
-      total_manpower: number; avg_manpower: number | null;
-      peak_manpower: { count: number; date: string | null }; weather_lost_days: number;
-      delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/daily-reports/summary`);
-  }
-  /** Whether server-side E57 → .xyz point-cloud conversion is available (needs optional pye57). */
-  e57Status() {
-    return this.json<{ available: boolean; max_points: number; message: string }>(`/convert/e57/status`);
-  }
-  /** Convert an uploaded .e57 scan to a decimated .xyz point cloud (server-side). Returns the blob. */
-  async convertE57(file: File): Promise<Blob> {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
-    return res.blob();
-  }
   // --- admin: user management --------------------------------------------
   /** Admin: read the audit trail (newest first), optionally filtered. */
   auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {

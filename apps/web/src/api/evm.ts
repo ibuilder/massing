@@ -12,6 +12,9 @@
  *  `schedule.ts`'s `resourceLoading()`. Eleven methods across the client carried a neighbour's comment,
  *  left behind by earlier slices of this same extraction — fixed in v0.3.1075, with
  *  `api/docComments.test.ts` now standing where that defect got in.*
+ *
+ *  SCALE-SEAM ⓫ adds the executive health rollup — *is the job on track across domains?*
+ *  Score is a mean; status is worst-of. Safety sat below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 
@@ -74,6 +77,19 @@ export function withEvm<TBase extends Ctor<HttpCore>>(Base: TBase) {
   evmCaptureSnapshot(pid: string, body: { data_date?: string; period_label?: string; notes?: string } = {}) {
     return this.json<{ id: string; ref: string }>(`/projects/${pid}/evm/snapshot`,
       { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /** projectHealth — per-domain status, overall score, ranked attention items. */
+  projectHealth(pid: string) {
+    return this.json<{
+      health_score: number | null; overall_status: string;
+      score_basis: string; status_basis: string;
+      governing_domain: string | null; governing_detail: string | null;
+      open_items_total: number; overdue_items_total: number;
+      domains: { key: string; label: string; status: string; headline: string;
+        open_count: number; overdue_count: number }[];
+      attention_items: { domain: string; status: string; issue: string }[];
+    }>(`/projects/${pid}/health`);
   }
   };
 }

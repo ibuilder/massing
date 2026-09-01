@@ -19,6 +19,9 @@
  *  Coverage, status write, deviation log. They were **not** contiguous (`uploadVerificationPhoto`
  *  sat between set and deviations). **The photo upload did NOT come** (PHOTO-PIN is parked).
  *  `askModel` stayed — that is NL-Q, not install status.
+ *
+ *  SCALE-SEAM ⓭ adds E57 scan ingest — *can we bring this scan in?* Status plus convert.
+ *  Admin audit/error stayed.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer } from "./types";
@@ -533,6 +536,18 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   verificationDeviations(pid: string) {
     return this.json<{ guid: string; ifc_class?: string; storey?: string; note?: string }[]>(
       `/projects/${pid}/verification/deviations`);
+  }
+
+  /** e57Status — whether server-side E57 to .xyz conversion is available. */
+  e57Status() {
+    return this.json<{ available: boolean; max_points: number; message: string }>(`/convert/e57/status`);
+  }
+  /** convertE57 — upload an .e57 scan and get a decimated .xyz point cloud back. */
+  async convertE57(file: File): Promise<Blob> {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
+    return res.blob();
   }
   };
 }

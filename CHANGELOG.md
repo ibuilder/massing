@@ -126,6 +126,16 @@ Ninth follow-on on the same version: **SCALE-SEAM ❽ ❾ ❿**. Five methods ou
 
 `MARKS` widened to ⓫ on the way out. Pin 1,966 → 1,916.
 
+Tenth follow-on on the same version: **SCALE-SEAM ⓫ ⓬ ⓭**. Five methods out of
+`client.ts` (`1,916 → 1,867`) into existing mixins.
+
+- ⓫ *is the job on track across domains?* — one method onto `apps/web/src/api/evm.ts`.
+- ⓬ *what happened on site this week?* — two methods onto `apps/web/src/api/schedule.ts`.
+- ⓭ *can we bring this scan in?* — two methods onto `apps/web/src/api/model.ts`.
+  Admin audit stayed.
+
+`MARKS` widened to ⓮ on the way out. Pin 1,916 → 1,867.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin
