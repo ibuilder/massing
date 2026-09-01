@@ -155,7 +155,7 @@ describe("the API client's public surface", () => {
       "lienWaiver", "rfqStatus", "entitlementConditionChecks",
       "goldenThread", "k1Pack", "capTable", "waterfallScenario", "capitalCall", "ffeBom", "specLinks", "authoringMatrix",
       "equipmentBudgetLines", "lodCensus", "exportQa", "qualityTurnoverReadiness",
-      "costDatasets", "costVintage", "unitRates", "elementCosts5d", "gaebX83Url",
+      "costDatasets", "costVintage", "unitRates", "costSummary", "gmpBudget", "payAppPdf", "elementCosts5d", "gaebX83Url",
       "codeAmendments", "agentPacks", "modelHistory", "fileModel", "spacePack",
       "compiledPdfUrl", "projectPackagePdfUrl",
       "drawingSchedulesCsvUrl", "permitsGeojsonUrl", "moduleLogPdfUrl", "viewTemplateGraphics",

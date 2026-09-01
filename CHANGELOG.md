@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1140 (2026-09-01) — SCALE-SEAM ㉚, GMP and the pay-app stack
+
+Eight methods out of `client.ts` into the existing `apps/web/src/api/cost.ts` mixin
+(`2,641 → 2,580`). No extra wrapper on `ApiClient`.
+
+What they answer together: *what does the GC job cost, and how is the GMP billed?*
+`costSummary`, `gmpBudget`, baseline / variance / cashflow, SOV-from-budget, G702 PDF, pay-app
+invoice. `pxSummary` and `costTraceability` stayed in `client.ts`.
+
+`MARKS` widened to ㉛ on the way out. Pin lowered with the file.
+
 ## v0.3.1139 (2026-09-01) — SCALE-SEAM ㉙, the investor capital stack
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/finance.ts` mixin

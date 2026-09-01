@@ -71,9 +71,8 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 // stopping one short and this gate agreeing with a bullet that was wrong, because a code it
 // cannot spell is a code it cannot contradict. Doing it late is how that happened; doing it in
 // the shipping release is how it stops happening.
-// Widened to ㉚ on 2026-09-01, in the release that SHIPS ㉙. Same rule: the next numeral is
-// writable on the way out, so the gate can contradict a stale heading rather than agree with one.
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚";
+// Widened to ㉛ on 2026-09-01, in the release that SHIPS ㉚. Same rule.
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.

@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉚ *(the only open slice; ②–㉙ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉛ *(the only open slice; ②–㉚ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,15 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉚ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉙ have shipped, **㉙ investor capital stack in v0.3.1139**)*
+- ◧ ⭐ **SCALE-SEAM ㉛ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉚ have shipped, **㉚ GMP / pay-app stack in v0.3.1140**)*
+  **㉚ took the GC GMP and pay-app stack out** (eight methods; `client.ts` 2,641 → 2,580) into the
+  existing `apps/web/src/api/cost.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what does the GC job cost, and how is the GMP billed?* `costSummary` sat ~140 lines
+  above `gmpBudget`. **`pxSummary` did NOT come**, though it sat inside the GMP run — it answers
+  whether the job is on track. **`costTraceability` did NOT come** (㉘ already called that a
+  takeoff question). *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉛ in this release.** **The per-file pin moved 2,641 → 2,580.**
+
   **㉙ took the investor capital stack out** (nine methods; `client.ts` 2,696 → 2,641) into the
   existing `apps/web/src/api/finance.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
   what they ANSWER: *what do the investors own and get paid?* Cap table, waterfall, capital calls,

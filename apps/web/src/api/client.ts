@@ -2232,12 +2232,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.url(`/module-attachments/${attId}/download`);
   }
 
-  // cost / financials (GC portal)
-  costSummary(pid: string) {
-    return this.json<{ budget: number; committed: number; actual: number; forecast: number; projected_over_under: number; pct_committed: number; pct_spent: number }>(
-      `/projects/${pid}/cost/summary`);
-  }
-
   // authoring round-trip (Phase 6)
   /** Model version history (one snapshot per publish), WITH its review state. The four review keys
    *  are not new server work — this type declared 4 of the 8 keys `versions.history` has returned
@@ -2373,27 +2367,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         element_count: number; guids: string[] }[];
       note: string }>(`/projects/${pid}/cost/traceability`);
   }
-  /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
-   *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
-  gmpBudget(pid: string) {
-    type Cat = { key: string; name: string; budget: number; committed: number; actual: number;
-      forecast: number; eac: number; etc: number; variance: number; lines: { name: string; budget: number;
-      committed: number; eac?: number; etc?: number; variance: number; is_group?: boolean }[];
-      groups?: { name: string; budget: number }[] };
-    return this.json<{
-      gmp: { contract_value: number; computed: number; reconciliation: number | null; cost_of_work: number;
-        approved_changes?: number; unallocated_changes?: number; revised?: number;
-        markups: { overhead_pct: number; fee_pct: number; contingency_pct: number } };
-      categories: Cat[];
-      totals: { budget: number; committed: number; actual: number; forecast: number; eac: number; etc: number; variance: number };
-      completion: { bac: number; eac: number; etc: number; actual_to_date: number; projected_over_under: number; pct_spent: number };
-      bid_packages: { ref: string; name: string; trade?: string; budget: number; awarded: number;
-        bought_out: boolean; savings: number; submissions: number }[];
-      buyout: { packages: number; bought_out: number; budget: number; awarded: number; savings: number };
-      staffing: { projected: number; headcount_roles: number };
-      proforma: { hard_cost: number; gmp_vs_hard: number } | null;
-    }>(`/projects/${pid}/budget/gmp`);
-  }
   /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
    *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
   pxSummary(pid: string) {
@@ -2405,40 +2378,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         committed_pct: number; spent_pct: number; draw_this_month: number;
         buyout: { packages: number; bought_out: number; savings: number } | null; baseline_movement: number | null };
     }>(`/projects/${pid}/px-summary`);
-  }
-  /** Snapshot the current GMP budget as the baseline (for budget-movement tracking). */
-  setBudgetBaseline(pid: string) {
-    return this.json<{ captured_at: string; gmp_computed: number; lines: number }>(
-      `/projects/${pid}/budget/baseline`, { method: "POST" });
-  }
-  /** Budget movement vs the baseline (per category + line). Rejects if no baseline set. */
-  budgetVariance(pid: string) {
-    return this.json<{ captured_at: string; baseline_gmp: number; current_gmp: number; total_delta: number;
-      categories: { key: string; baseline: number; current: number; delta: number }[];
-      lines: { code: string; baseline: number; current: number; delta: number }[] }>(
-      `/projects/${pid}/budget/variance`);
-  }
-  /** Cost-loaded schedule → monthly cash-flow / draw curve (construction S-curve). */
-  budgetCashflow(pid: string) {
-    return this.json<{ total: number; months: number; loaded_activities: number; peak_month_cost: number;
-      series: { month: string; cost: number; cumulative: number; pct: number }[] }>(
-      `/projects/${pid}/budget/cashflow`);
-  }
-  /** Seed the owner pay-app SOV from the GMP budget lines (idempotent unless replace). */
-  sovFromBudget(pid: string, replace = false) {
-    return this.json<{ created: number; lines?: number; scheduled_value?: number; skipped?: number; note?: string }>(
-      `/projects/${pid}/cost/sov/from-budget?replace=${replace}`, { method: "POST" });
-  }
-  /** The owner pay application (G702 certificate + G703 continuation) as a signable PDF blob. */
-  async payAppPdf(pid: string, appNo = 1) {
-    const res = await fetch(this.url(`/projects/${pid}/cost/g702.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`pay-app PDF -> ${res.status}`);
-    return res.blob();
-  }
-  /** Create an owner-invoice record from the current pay application (amount = current payment due). */
-  payAppInvoice(pid: string, appNo = 1) {
-    return this.json<{ owner_invoice: ModuleRecord; application_no: number; amount: number }>(
-      `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
   }
   materialPalette(pid: string) {
     return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
