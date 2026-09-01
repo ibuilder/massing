@@ -1,6 +1,6 @@
 /** Typed client for the backend API (guide §7). Geometry comes from .frag; all element
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
-import { withAuth } from "./auth";
+import { withClash } from "./clash";
 import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
 import { withDrawingSet } from "./drawingSet";
@@ -51,6 +51,7 @@ export type { LiveStream } from "./httpCore";
 export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
+export type { ClashResult } from "./clash";
 import type {
   Appraisal, AuditEntry, Dashboard,
   DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
@@ -64,7 +65,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withClash(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -1182,35 +1183,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
 
-  // analysis & QA (clash + IDS validation)
-  runClash(pid: string, opts: { a?: string; b?: string; min_volume?: number; create_topics?: boolean } = {}) {
-    const q = new URLSearchParams({ create_topics: "true", ...(opts as Record<string, string>) }).toString();
-    return this.json<ClashResult>(`/projects/${pid}/clash?${q}`, { method: "POST" });
-  }
-  /** Federated (cross-discipline) clash across the project's layered models — primary source IFC +
-   *  any appended discipline models. 409 if fewer than 2 are available. */
-  clashFederated(pid: string, opts: { create_topics?: boolean; coordinate?: boolean; min_volume?: number; limit?: number } = {}) {
-    const q = new URLSearchParams({ create_topics: String(opts.create_topics ?? true),
-      ...(opts.coordinate != null ? { coordinate: String(opts.coordinate) } : {}),
-      ...(opts.min_volume != null ? { min_volume: String(opts.min_volume) } : {}),
-      ...(opts.limit != null ? { limit: String(opts.limit) } : {}) }).toString();
-    return this.json<{ disciplines: string[]; count: number; created_topics: number; truncated: boolean;
-      coordination: { run: string; new: number; active: number; resolved: number; reappeared: number;
-        clash_count: number; group_count: number; reduction: number;
-        by_discipline: Record<string, number>; by_severity: Record<string, number>; note: string } | null;
-      clashes: { a_model: string; a_class: string; a_guid: string; b_model: string; b_class: string;
-        b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[] }>(
-      `/projects/${pid}/clash/federated?${q}`, { method: "POST" });
-  }
-  /** Clash coordination KPIs — status mix, worst discipline pairs, severity, aging, run burn-down. */
-  clashMetrics(pid: string) {
-    return this.json<{ total_issues: number; open: number; closed: number; resolution_rate: number;
-      by_status: Record<string, number>; by_discipline: Record<string, number>;
-      by_severity: Record<string, number>; aging: Record<string, number>; runs: number;
-      reappearance_rate: number;
-      burn_down: { run: string; new: number; resolved: number; reappeared: number; issues: number }[];
-      note: string }>(`/projects/${pid}/clash/metrics`);
-  }
   /** Model → field layout setout points (georeferenced; grids + column/footing/opening/wall). */
   layoutPoints(pid: string, classes?: string) {
     const q = classes ? `?classes=${encodeURIComponent(classes)}` : "";
@@ -2426,8 +2398,8 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
    *  clear-width). Omit `checks` for the server's starter set. */
   rulesGeometryRun(pid: string, checks?: { kind: string; scope: string; [k: string]: unknown }[]) {
     return this.json<{ violation_total: number; by_severity: Record<string, number>;
-      results: { id?: string; kind: string; name: string; severity: string; passed: boolean;
-        checked: number; note?: string;
+        results: { id?: string; kind: string; name: string; severity: string; passed: boolean;
+        checked: number; note?: string; basis?: string;
         violations: { guid: string; name?: string; detail: string; distance_m?: number;
           width_m?: number; blocking?: (string | null)[] }[] }[] }>(
       `/projects/${pid}/rules/geometry/run`,
@@ -2714,13 +2686,6 @@ export interface EgressResult {
   compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;
   occupant_load_per_floor: number; min_exits_required: number;
   exit_separation_m: number; required_separation_m: number;
-}
-
-export interface ClashResult {
-  count: number;
-  created_topics: number;
-  truncated: boolean;
-  clashes: { a_guid: string; a_class: string; b_guid: string; b_class: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[];
 }
 
 export interface ValidationResult {

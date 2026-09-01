@@ -33,13 +33,36 @@ assert sc.rule_for("") is None
 assert sc.rule_for(None) is None
 assert sc.rule_for("ifcvalve") is not None, "class lookup is case-insensitive"
 
-# every rule states a distance, a source to argue with, and why it exists
+# every rule states a distance, a source to argue with, the IFC token, and why it exists
 for cls, r in sc.CLEARANCE_RULES.items():
     assert cls == cls.lower(), cls
     assert 0.1 <= r["distance_m"] <= 3.0, (cls, r["distance_m"])
     assert len(r["basis"]) > 20 and len(r["why"]) > 20, cls
     assert r["label"], cls
+    assert r["ifc_class"].startswith("Ifc") and r["ifc_class"].lower() == cls, (cls, r["ifc_class"])
 assert sc.scoped_classes() == sorted(sc.CLEARANCE_RULES)
+
+# starter geometry checks: all seven classes, doors high, the other six medium
+geo = sc.geometry_clearance_checks()
+assert len(geo) == 7, geo
+assert {c["scope"] for c in geo} == {r["ifc_class"] for r in sc.CLEARANCE_RULES.values()}
+door = next(c for c in geo if c["scope"] == "IfcDoor")
+assert door["severity"] == "high" and door["distance_m"] == 0.9, door
+others = [c for c in geo if c["scope"] != "IfcDoor"]
+assert others and all(c["severity"] == "medium" for c in others), others
+assert all(c["kind"] == "clearance" and c["basis"] for c in geo)
+
+# fill_clearance_check consults the table; an unknown class with no distance is refused
+filled = sc.fill_clearance_check({"kind": "clearance", "scope": "IfcDoor"})
+assert filled["distance_m"] == 0.9 and filled["name"] == door["name"] and filled["basis"] == door["basis"]
+try:
+    sc.fill_clearance_check({"kind": "clearance", "scope": "IfcWall"})
+    raise AssertionError("IfcWall has no stated clearance and must not invent one")
+except ValueError as e:
+    assert "stated rule" in str(e)
+# an explicit distance on an unknown class is allowed (caller owns the number)
+own = sc.fill_clearance_check({"kind": "clearance", "scope": "IfcWall", "distance_m": 1.2})
+assert own["distance_m"] == 1.2 and "basis" not in own
 
 # ---- pair keys are order-independent ------------------------------------------------------------
 assert sc.pair_key("MEP", "Structural") == sc.pair_key("Structural", "MEP")

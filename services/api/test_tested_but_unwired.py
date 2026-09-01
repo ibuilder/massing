@@ -34,8 +34,8 @@ TWO MEASUREMENT DECISIONS, both of which changed the answer by an order of magni
 THE FROZEN LIST IS NOT AN ALLOWLIST OF THINGS TO IGNORE. R37's archived entry is explicit: *"The
 number is not the deliverable and must not be ratcheted before it is read... A population rule that
 looks reasonable is wrong until you read what it selected"* — R37-TRIAGE deleted two candidates
-unread and had to put them back. Every entry below was read on 2026-08-29 and carries why. Three of
-them are open roadmap items, not exemptions.
+unread and had to put them back. Every entry below was read on 2026-08-29 and carries why. Open roadmap items on this list are
+named as such, not as exemptions.
 """
 import ast
 import re
@@ -61,7 +61,7 @@ FROZEN: dict[str, str] = {
     "fetch_parcels": "parcels bridge: 'raises until one is wired (never fabricates data)'",
     "send_payment": "payments bridge: 'raises until a processor is wired (never fabricates a transfer)'",
     # --- OPEN ROADMAP ITEMS, not exemptions --------------------------------------------------
-    "rule_for": "SOFT-CLASH-RULES (Band 2) — six of seven sourced clearances never evaluated",
+    # `rule_for` LEFT v0.3.1134 — SOFT-CLASH-RULES: fill_clearance_check consults the table.
     #: Still unwired, and NOT for want of wiring it — measured 2026-08-31. `ask()` routes only to the
     #: model, the docgraph and doc_text and never reads a module record, so the QA leg has nothing to
     #: cite. Nothing server-side populates `Assumptions.sources`; it is entirely client-supplied, and

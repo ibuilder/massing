@@ -51,6 +51,8 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
   out.className = "meta"; out.style.cssText = "margin:6px 0;font-size:11.5px;line-height:1.45";
   const list = document.createElement("div");
   list.style.cssText = "display:flex;flex-direction:column;gap:2px;max-height:44vh;overflow:auto;margin-top:4px";
+  let lastMatrix: { disciplines: string[]; tested_pairs: [string, string][];
+    findings: { discipline_a: string; discipline_b: string }[] } | null = null;
   const renderClashes = (clashes: ClashHit[]) => {
     list.innerHTML = "";
     if (!clashes.length) {
@@ -82,6 +84,11 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       out.textContent = bits.join(" · ")
         + (co ? ` — ${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
       renderClashes(r.clashes ?? []);
+      const discs = r.disciplines ?? [];
+      const tested: [string, string][] = [];
+      for (let i = 0; i < discs.length; i++) for (let j = i; j < discs.length; j++) tested.push([discs[i], discs[j]]);
+      lastMatrix = { disciplines: discs, tested_pairs: tested,
+        findings: (r.clashes ?? []).map((c) => ({ discipline_a: c.a_model, discipline_b: c.b_model })) };
       await d.refreshIssues(); await d.reloadModelPins();
     } catch (e) {
       if (isJobStillRunning(e)) throw e;
@@ -115,6 +122,32 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
         ]));
       });
     } catch (e) { toast(`metrics: ${(e as Error).message}`, "error"); }
+  })()));
+  panel.appendChild(cbtn("📐 Sourced clearance rules", () => void (async () => {
+    try {
+      const r = await d.api.clashClearanceRules(pid);
+      showResult("Sourced clearance rules", (body) => {
+        body.appendChild(resultNote(r.note, "ok"));
+        for (const [cls, rule] of Object.entries(r.rules)) {
+          body.appendChild(resultNote(
+            `<b>${rule.label}</b> · ${rule.distance_m} m · <code>${rule.ifc_class || cls}</code> — ${rule.basis}`, ""));
+        }
+      });
+    } catch (e) { toast(`clearance rules: ${(e as Error).message}`, "error"); }
+  })()));
+  panel.appendChild(cbtn("▦ Discipline-pair matrix", () => void (async () => {
+    try {
+      const m = await d.api.clashMatrix(pid, lastMatrix ?? {});
+      showResult("Coordination matrix", (body) => {
+        body.appendChild(resultNote(
+          `<b>${m.coverage_pct}%</b> pair coverage · ${m.counts.clashes} clashes · ${m.counts.clean} clean · `
+          + `<b>${m.counts.untested} untested</b> · coordinated: ${m.coordinated ? "yes" : "no"}`,
+          m.counts.untested || m.counts.clashes ? "bad" : "ok"));
+        body.appendChild(resultNote(m.note, ""));
+        body.appendChild(kvTable(m.cells.map((c) => (
+          { k: `${c.a} × ${c.b}`, v: `${c.state}${c.count ? ` (${c.count})` : ""}` }))));
+      });
+    } catch (e) { toast(`matrix: ${(e as Error).message}`, "error"); }
   })()));
   panel.appendChild(cbtn("📌 Open in Issues (BCF)", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
   panel.append(out, list);

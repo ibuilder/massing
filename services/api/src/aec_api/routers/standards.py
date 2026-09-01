@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, Upl
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, models, openbim, openbim_quality, standards_expert
+from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, models, openbim, openbim_quality, soft_clash, standards_expert
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_identified, require_platform_admin, require_role
@@ -582,10 +582,10 @@ def smart_views_run(pid: str, vid: str, db: Session = Depends(get_db),
 
 
 # RULE-LIB-2: the geometric checks a property selector can't express. Starter set when no checks
-# are posted — same seeded-defaults pattern as the property library.
+# are posted — clearance rows are derived from `soft_clash.CLEARANCE_RULES` (doors stay high;
+# the other six enter at medium so existing projects do not light up high).
 _GEO_DEFAULTS = [
-    {"kind": "clearance", "name": "Door approach clearance", "scope": "IfcDoor",
-     "distance_m": 0.9, "severity": "high"},
+    *soft_clash.geometry_clearance_checks(),
     {"kind": "clear_width", "name": "Accessible door clear width", "scope": "IfcDoor",
      "min_m": 0.815, "severity": "medium"},
     {"kind": "escape_distance", "name": "Space within reach of a door", "scope": "IfcSpace",
@@ -624,6 +624,11 @@ def rules_geometry_run(pid: str, payload: dict = Body(default={}), db: Session =
     for c in checks:
         if c.get("kind") not in geometric_rules.KINDS:
             raise HTTPException(422, f"kind must be one of {geometric_rules.KINDS}")
+        if c.get("kind") == "clearance":
+            try:
+                c = soft_clash.fill_clearance_check(c)
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from e
         for p in ("distance_m", "max_m", "min_m"):
             if c.get(p) is not None:
                 try:

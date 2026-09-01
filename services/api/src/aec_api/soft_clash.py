@@ -31,31 +31,38 @@ from typing import Any
 # PASS weaker than a FAIL here: a violation is real, a clean result is "not disproved".
 CLEARANCE_RULES: dict[str, dict[str, Any]] = {
     "ifcelectricdistributionboard": {
+        "ifc_class": "IfcElectricDistributionBoard",
         "distance_m": 0.9, "label": "Electrical working space",
         "basis": "NEC 110.26(A)(1) Condition 1 — 900 mm depth for equipment 0–150 V to ground",
         "why": "The space an electrician must stand in to work the board live."},
     "ifcelectricflowstoragedevice": {
+        "ifc_class": "IfcElectricFlowStorageDevice",
         "distance_m": 0.9, "label": "Electrical working space",
         "basis": "NEC 110.26(A)(1) — working space applies to equipment likely to require "
                  "examination or servicing while energised",
         "why": "Same working space as any other equipment likely to require examination while energised."},
     "ifcairterminalbox": {
+        "ifc_class": "IfcAirTerminalBox",
         "distance_m": 0.6, "label": "VAV box service access",
         "basis": "Manufacturer service clearance — typical 600 mm to the control side",
         "why": "Access to the controller and the reheat coil connections."},
     "ifcunitaryequipment": {
+        "ifc_class": "IfcUnitaryEquipment",
         "distance_m": 1.0, "label": "Coil pull space",
         "basis": "Manufacturer coil-withdrawal clearance — typically the coil's own length",
         "why": "A coil that cannot be withdrawn has to be cut out, taking the casing with it."},
     "ifcvalve": {
+        "ifc_class": "IfcValve",
         "distance_m": 0.45, "label": "Valve access",
         "basis": "Reach clearance for hand-wheel or actuator operation",
         "why": "A valve nobody can turn is a valve that will be left in whatever position it is in."},
     "ifcpump": {
+        "ifc_class": "IfcPump",
         "distance_m": 0.75, "label": "Pump service access",
         "basis": "Manufacturer service clearance for seal / impeller replacement",
         "why": "Seals are a wear item; the space is needed repeatedly over the asset's life."},
     "ifcdoor": {
+        "ifc_class": "IfcDoor",
         "distance_m": 0.9, "label": "Door swing / approach",
         "basis": "Manoeuvring clearance on the approach side",
         "why": "A door that fouls a duct drop is discovered by the person carrying something."},
@@ -76,6 +83,50 @@ def rule_for(ifc_class: str) -> dict[str, Any] | None:
 
 def scoped_classes() -> list[str]:
     return sorted(CLEARANCE_RULES)
+
+
+def fill_clearance_check(check: dict[str, Any]) -> dict[str, Any]:
+    """Copy of a clearance check with ``distance_m`` / ``basis`` / ``name`` filled from the table.
+
+    A missing distance is taken from ``rule_for(scope)`` when the scope is a stated class.
+    There is no numeric fallback: a made-up clearance produces findings nobody can defend.
+    """
+    out = dict(check)
+    rule = rule_for(str(out.get("scope") or ""))
+    if out.get("distance_m") is None:
+        if rule is None:
+            raise ValueError(
+                "clearance checks need distance_m from a stated rule — a made-up "
+                "clearance produces findings nobody can defend")
+        out["distance_m"] = rule["distance_m"]
+    if rule:
+        if not out.get("name"):
+            out["name"] = rule["label"]
+        if not out.get("basis"):
+            out["basis"] = rule["basis"]
+    return out
+
+
+def geometry_clearance_checks(*, other_severity: str = "medium") -> list[dict[str, Any]]:
+    """Starter ``clearance`` checks derived from ``CLEARANCE_RULES``.
+
+    Doors stay ``high`` — they have always run at that severity. The other six enter at
+    ``other_severity`` so existing projects do not light up high the day the sourced
+    MEP/code rules start evaluating.
+    """
+    items = sorted(CLEARANCE_RULES.items(),
+                   key=lambda kv: (0 if kv[0] == "ifcdoor" else 1, kv[0]))
+    out: list[dict[str, Any]] = []
+    for key, rule in items:
+        out.append({
+            "kind": "clearance",
+            "name": rule["label"],
+            "scope": rule["ifc_class"],
+            "distance_m": rule["distance_m"],
+            "severity": "high" if key == "ifcdoor" else other_severity,
+            "basis": rule["basis"],
+        })
+    return out
 
 
 # ── the discipline-pair matrix ───────────────────────────────────────────────────────────────────

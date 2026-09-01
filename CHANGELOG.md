@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1134 (2026-09-01) — seven sourced clearances actually run
+
+**SOFT-CLASH-RULES.** The geometry check the QA rail runs used one clearance — door approach at
+0.9 m, `severity: high` — while `soft_clash.CLEARANCE_RULES` already held seven sourced classes
+(NEC 110.26 working space, coil-pull, valve reach, pump service, VAV access). `rule_for` had no
+production caller. The starter set is now derived from that table. Doors stay high. The other six
+enter at **medium** so existing projects do not light up high the day they start being evaluated.
+`fill_clearance_check` is what consults the table: omit `distance_m` on a stated class and it is
+filled from the basis; omit it on an unknown class and the route 422s rather than inventing 0.9 m.
+The engine itself no longer has that fallback.
+
+Clash rail gained **Sourced clearance rules** (`GET /clash/clearance-rules`) and **Discipline-pair
+matrix** (`POST /clash/matrix`). The clash client methods moved to `apps/web/src/api/clash.ts`
+because `client.ts` is at its extraction pin.
+
 ## v0.3.1133 (2026-09-01) — the debug hook shipped the renderer, and energy export had no click
 
 Two leftovers from looking at what a user can actually reach.

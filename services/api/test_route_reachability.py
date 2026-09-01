@@ -131,7 +131,10 @@ KNOWN_UNCALLED: set[str] = {
     # direction that matters: an allowlist entry that outlives its reason reads as a
     # deliberate exemption forever.
     "/projects/{pid}/5d/element-costs",
-    "/projects/{pid}/agent-packs", "/projects/{pid}/clash/clearance-rules",
+    "/projects/{pid}/agent-packs",
+    # "/projects/{pid}/clash/clearance-rules" REMOVED v0.3.1134 — SOFT-CLASH-RULES. The table
+    # had a route and no caller; the geometry starter set now derives from it, and Clash rail
+    # reads the sourced rules. Leaving it frozen would have claimed it was still unreachable.
     "/projects/{pid}/code/amendments", "/projects/{pid}/cost-vintage",
     "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",
     "/projects/{pid}/documents/file-model", "/projects/{pid}/documents/model-history",

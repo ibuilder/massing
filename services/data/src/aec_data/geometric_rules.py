@@ -120,7 +120,11 @@ def run(boxes: list[dict], checks: list[dict]) -> dict:
         kind = c.get("kind")
         scope = set(c.get("scope") or ())
         if kind == "clearance":
-            r = check_clearance(boxes, scope, float(c.get("distance_m") or 0.9),
+            if c.get("distance_m") is None:
+                raise ValueError(
+                    "clearance check needs distance_m; there is no default — a made-up "
+                    "clearance produces findings nobody can defend")
+            r = check_clearance(boxes, scope, float(c["distance_m"]),
                                 set(c["obstructions"]) if c.get("obstructions") is not None else None)
         elif kind == "escape_distance":
             r = check_escape_distance(boxes, scope, set(c.get("exits") or ()),
@@ -132,6 +136,9 @@ def run(boxes: list[dict], checks: list[dict]) -> dict:
         sev = c.get("severity") or "medium"
         n = len(r["violations"])
         by_sev[sev] = by_sev.get(sev, 0) + n
-        results.append({"id": c.get("id"), "kind": kind, "name": c.get("name") or kind,
-                        "severity": sev, "passed": n == 0, **r})
+        row = {"id": c.get("id"), "kind": kind, "name": c.get("name") or kind,
+               "severity": sev, "passed": n == 0, **r}
+        if c.get("basis"):
+            row["basis"] = c["basis"]
+        results.append(row)
     return {"results": results, "violation_total": sum(by_sev.values()), "by_severity": by_sev}

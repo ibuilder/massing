@@ -1,7 +1,6 @@
 import { type ApiClient, type PropLayer, type PropMapRule } from "../../api/client";
 import { runAlignmentPanel } from "./alignmentPanel";
 import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
-
 import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
 import { confirmModal, promptModal } from "../../ui/modal";
@@ -822,9 +821,9 @@ export function buildQaSection(d: QaDeps): void {
               + (bySev.high ? ` · 🔴 ${bySev.high} high` : "") + (bySev.medium ? ` · 🟡 ${bySev.medium} medium` : "")
               + (bySev.low ? ` · ⚪ ${bySev.low} low` : ""), r!.violation_total ? "" : "ok"));
             for (const chk of r!.results) {
-              const line = resultNote(`${chk.passed ? "✅" : "🔴"} <b>${escapeHtml(chk.name)}</b> — `
+              const line = resultNote(`${chk.passed ? "✅" : chk.severity === "high" ? "🔴" : "🟡"} <b>${escapeHtml(chk.name)}</b> — `
                 + `${chk.checked} checked, ${chk.violations.length} violation(s)`
-                + (chk.note ? ` · ${escapeHtml(chk.note)}` : ""), chk.passed ? "ok" : "");
+                + (chk.basis ? ` · ${escapeHtml(chk.basis)}` : "") + (chk.note ? ` · ${escapeHtml(chk.note)}` : ""), chk.passed ? "ok" : "");
               if (chk.violations.length) {
                 const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " isolate";
                 pick.style.cssText = "font-size:11px;margin-left:6px";
@@ -837,7 +836,7 @@ export function buildQaSection(d: QaDeps): void {
                 body.appendChild(resultNote(`&nbsp;&nbsp;${escapeHtml(v.name || v.guid.slice(0, 8) + "…")} — ${escapeHtml(v.detail)}`, ""));
               }
             }
-            body.appendChild(resultNote("AABB-level checks on the clash geometry path: door/equipment approach clearance, straight-line egress distance, accessible clear width. Property rules live in ✔ Rule check.", ""));
+            body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven sourced clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
           });
         })));
         b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
