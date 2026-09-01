@@ -136,6 +136,19 @@ Tenth follow-on on the same version: **SCALE-SEAM ⓫ ⓬ ⓭**. Five methods ou
 
 `MARKS` widened to ⓮ on the way out. Pin 1,916 → 1,867.
 
+Eleventh follow-on on the same version: **SCALE-SEAM ⓮ ⓯ ⓰**. Nine methods out of
+`client.ts` (`1,867 → 1,814`) into existing mixins.
+
+- ⓮ *who is on this project?* — four methods onto `apps/web/src/api/auth.ts`.
+- ⓯ *what did the system just do, and what broke?* — four methods onto
+  `apps/web/src/api/auth.ts`. ⑦ left these behind because they are not `/auth` routes;
+  this slice groups by ANSWER (ops observability), not by the leftover admin banner.
+- ⓰ *who is looking at the model right now?* — one method onto `apps/web/src/api/sync.ts`.
+  Project CRUD stayed.
+
+`MARKS` widened to ⓱ on the way out. Pin 1,867 → 1,814.
+
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

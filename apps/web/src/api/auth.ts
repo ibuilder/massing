@@ -1,6 +1,6 @@
-/** Authentication, MFA, sessions and admin user management.
+/** Authentication, MFA, sessions, project membership, and ops observability.
  *
- *  SCALE-SEAM ⑦. Route-group `/auth`, 20 methods / 96 lines, taken out of `client.ts` by the
+ *  SCALE-SEAM ⑦. Route-group `/auth`, 20 methods, taken out of `client.ts` by the
  *  route each method calls — the recipe ⑥ established. They sat in **four** separate regions
  *  (`authProviders` at the top of the class, `stepUp` down among the sealing methods, the login/MFA
  *  run, and the user-admin run), which is again the concrete form of "the `// --- section ---`
@@ -15,17 +15,21 @@
  *  blocker that stopped the SSE methods travelling in ③ (`liveStream` was private on `ApiClient`)
  *  has no analogue here. `token` itself stays `private` on `HttpCore` and is not touched.
  *
- *  **What deliberately did NOT move.** `auditLog`, `errorLog`, `clearErrorLog` and
- *  `reportClientError` sit inside the `// --- admin: user management ---` run and read as part of
- *  this group, but they route to `/audit`, `/admin/errors` and `/client-errors`. Grouping by the
- *  section comment rather than by the route would have dragged three unrelated domains across the
- *  seam — which is the whole reason the recipe is "locate by route".
+ *  SCALE-SEAM ⓮ adds the project roster — *who is on this project?* `myRole`, `members`,
+ *  `addMember`, `removeMember`. Routes are `/projects/{pid}/me` and `/members`, not `/auth`.
+ *  Grouped by what they ANSWER, not by first path segment.
+ *
+ *  SCALE-SEAM ⓯ adds ops observability — *what did the system just do, and what broke?*
+ *  `auditLog`, `errorLog`, `clearErrorLog`, `reportClientError`. **⑦ left these behind on
+ *  purpose:** they sit under the `// --- admin: user management ---` banner but route to
+ *  `/audit`, `/admin/errors` and `/client-errors`. ⑦ grouped by route; ⓯ groups by ANSWER.
+ *  The banner was never the domain. ⑦ was right for its recipe; this slice uses a later one.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving
  *  a method is invisible to it, losing one fails it by number.
  */
 import { HttpCore } from "./httpCore";
-import type { AccountUser } from "./types";
+import type { AccountUser, AuditEntry, ProjectMember, ProjectRole } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -126,6 +130,54 @@ export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
   resetWithToken(token: string, next: string) {
     return this.json<{ ok: boolean; username: string }>(
       `/auth/reset`, { method: "POST", body: JSON.stringify({ token, new: next }) });
+  }
+  /** The caller's own effective role on a project (drives UI capability gating). */
+  myRole(pid: string) {
+    return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(
+      `/projects/${pid}/me`);
+  }
+  /** Project members roster — who is on this project, and in what role. */
+  members(pid: string) {
+    return this.json<ProjectMember[]>(`/projects/${pid}/members`);
+  }
+  /** Add a project member (admin). */
+  addMember(pid: string, body: { user: string; role: ProjectRole; party_role?: string | null; company?: string | null }) {
+    return this.json<{ user: string; role: ProjectRole; party_role: string | null }>(
+      `/projects/${pid}/members`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Remove a project member (admin). */
+  removeMember(pid: string, user: string) {
+    return this.json<{ ok: boolean }>(
+      `/projects/${pid}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
+  }
+  /** Admin: read the audit trail (newest first), optionally filtered. */
+  auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
+    return this.json<AuditEntry[]>(`/audit${qs.toString() ? `?${qs}` : ""}`);
+  }
+  /** Admin: the error-log feed (server 500s + reported client errors), newest first. */
+  errorLog(params: { source?: string; level?: string; since_hours?: number; limit?: number } = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
+    return this.json<{ stats: { total: number; by_source: Record<string, number>; [k: string]: unknown };
+      errors: { id: string; ts: string; source: string; level: string; kind: string | null;
+        message: string | null; method: string | null; path: string | null; status: number | null;
+        actor: string | null; project_id: string | null; request_id: string | null;
+        traceback: string | null; detail: Record<string, unknown> | null }[] }>(
+      `/admin/errors${qs.toString() ? `?${qs}` : ""}`);
+  }
+  /** Admin: prune the error log to its retention cap. */
+  clearErrorLog() {
+    return this.json<{ pruned: number }>("/admin/errors", { method: "DELETE" });
+  }
+  /** Report a browser-side error to the server feed. Fire-and-forget: never throws into the app. */
+  reportClientError(e: { message: string; kind?: string; path?: string; level?: string;
+    detail?: Record<string, unknown> }): void {
+    void fetch(this.url("/client-errors"),
+      { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
   }
   };
 }

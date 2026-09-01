@@ -53,12 +53,12 @@ export * from "./authoring";
 export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
-  AuditEntry, Dashboard,
+  Dashboard,
   DisciplineTree, DueFeed, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
-  NotifItem, ProjectMember, ProjectRole, PropMapRule, PreflightGate,
+  NotifItem, PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
-    SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
+    SpecManual, Topic, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
 
@@ -146,37 +146,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
   }
-  // --- admin: user management --------------------------------------------
-  /** Admin: read the audit trail (newest first), optionally filtered. */
-  auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
-    return this.json<AuditEntry[]>(`/audit${qs.toString() ? `?${qs}` : ""}`);
-  }
-  /** Admin: the error-log feed (server 500s + reported client errors), newest first. */
-  errorLog(params: { source?: string; level?: string; since_hours?: number; limit?: number } = {}) {
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
-    return this.json<{ stats: { total: number; by_source: Record<string, number>; [k: string]: unknown };
-      errors: { id: string; ts: string; source: string; level: string; kind: string | null;
-        message: string | null; method: string | null; path: string | null; status: number | null;
-        actor: string | null; project_id: string | null; request_id: string | null;
-        traceback: string | null; detail: Record<string, unknown> | null }[] }>(
-      `/admin/errors${qs.toString() ? `?${qs}` : ""}`);
-  }
-  /** Admin: prune the error log to its retention cap. */
-  clearErrorLog() {
-    return this.json<{ pruned: number }>("/admin/errors", { method: "DELETE" });
-  }
-  /** Report a browser-side error to the server feed. Fire-and-forget: never throws into the app. */
-  reportClientError(e: { message: string; kind?: string; path?: string; level?: string;
-    detail?: Record<string, unknown> }): void {
-    void fetch(this.url("/client-errors"),
-      { method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
-  }
-
   /** Every project visible to the caller — id, name, and `model_kind` (which tool a project opens
    *  with). Was documented as "absolute URL for a GET endpoint", a neighbour's comment left behind;
    *  the gate only caught it once `bundleUrl` moved out from under its 14-line lookahead. */
@@ -206,28 +175,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new Error(`import -> ${res.status}`);
     return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
-  }
-  /** Heartbeat presence (optionally sharing the current camera viewpoint) → live peer roster. */
-  presence(pid: string, viewpoint?: unknown) {
-    return this.json<{ user: string; active: { user: string; seconds_ago: number; viewpoint: { position: Vec3; target: Vec3 } | null }[] }>(
-      `/projects/${pid}/presence`, { method: "POST", body: JSON.stringify({ viewpoint }) });
-  }
-  /** The caller's own effective role on a project (drives UI capability gating). */
-  myRole(pid: string) {
-    return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(
-      `/projects/${pid}/me`);
-  }
-  // --- project members (admin) -------------------------------------------
-  members(pid: string) {
-    return this.json<ProjectMember[]>(`/projects/${pid}/members`);
-  }
-  addMember(pid: string, body: { user: string; role: ProjectRole; party_role?: string | null; company?: string | null }) {
-    return this.json<{ user: string; role: ProjectRole; party_role: string | null }>(
-      `/projects/${pid}/members`, { method: "POST", body: JSON.stringify(body) });
-  }
-  removeMember(pid: string, user: string) {
-    return this.json<{ ok: boolean }>(
-      `/projects/${pid}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
   }
   meta(pid: string) {
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(

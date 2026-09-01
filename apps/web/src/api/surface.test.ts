@@ -198,6 +198,9 @@ describe("the API client's public surface", () => {
       "mfaVerify", "mfaStatus", "mfaEnable",                        // MFA enrolment + challenge
       "stepUp",                                                     // per-action re-auth for seals
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
+      "myRole", "members", "addMember", "removeMember",             // ⓮ project roster
+      "auditLog", "errorLog", "clearErrorLog", "reportClientError", // ⓯ ops observability
+      "presence",                                                   // ⓰ live peers
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",
