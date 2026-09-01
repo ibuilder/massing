@@ -92,12 +92,11 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   lienWaiverPdfUrl(pid: string, kind = "conditional_progress", appNo = 1) {
     return this.url(`/projects/${pid}/cost/lien-waiver.pdf?kind=${encodeURIComponent(kind)}&app_no=${appNo}`);
   }
-  /** Installed cost-database vintages plus what the offline public importer can build. */
+  /** Installed cost-database vintages plus what the offline importer can build. */
   costDatasets() {
     return this.json<{
       datasets: { id: string; name?: string; vintage?: number; quarter?: number | null;
         origin?: string; is_latest?: boolean }[];
-      available_public: unknown[];
     }>("/cost/datasets");
   }
   /** The vintage this project's estimate resolves through (pinned, else latest). */
