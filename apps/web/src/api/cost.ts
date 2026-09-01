@@ -7,6 +7,12 @@
  *  too: ㉘ already recorded it as a takeoff question. *Adjacency in a file is not a relationship.*
  *
  *  Composed through the existing `withCost` wrapper — no extra `withX()` on `ApiClient`.
+ *
+ *  SCALE-SEAM ㊿ adds T&M tickets — *what extra work is unbilled against a change event?*
+ *  Summary plus rollup by linked CO. `submittalRegister` sat below and did **not** come.
+ *
+ *  SCALE-SEAM ❶ adds certified payroll — *what labor was certified this week?* WH-347
+ *  summary plus the PDF URL. `preflight` stayed (issuance gate, not payroll).
  */
 import { HttpCore } from "./httpCore";
 import type { ModuleRecord, ResolveAction } from "./types";
@@ -169,6 +175,28 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   payAppInvoice(pid: string, appNo = 1) {
     return this.json<{ owner_invoice: ModuleRecord; application_no: number; amount: number }>(
       `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
+  }
+
+  /** tmSummary — T&M (eTicket) totals and unbilled remainder. */
+  tmSummary(pid: string) {
+    return this.json<{ ticket_count: number; labor_total: number; material_total: number;
+      equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/tm-summary`);
+  }
+  /** tmByChangeEvent — T&M cost rolled up by linked change event. */
+  tmByChangeEvent(pid: string) {
+    return this.json<{ groups: Record<string, unknown>[]; linked_total: number; unassigned_total: number }>(
+      `/projects/${pid}/tm-by-change-event`);
+  }
+  /** payroll — weekly certified-payroll (WH-347) summary. */
+  payroll(pid: string, weekEnding?: string) {
+    const q = weekEnding ? `?week_ending=${weekEnding}` : "";
+    return this.json<{ week_ending: string; worker_count: number; total_hours: number;
+      total_gross: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/payroll${q}`);
+  }
+  /** wh347Url — the WH-347 certified-payroll PDF for a week. */
+  wh347Url(pid: string, weekEnding?: string) {
+    return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
   };
 }

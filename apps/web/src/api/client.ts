@@ -100,16 +100,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       applied: boolean; tier_before: string; tier_after: string; error?: string }>(
       "/license/cloud-check", { method: "POST" });
   }
-  // --- report center ---------------------------------------------------------
-  /** Catalog of available reports (id, name, group). */
-  reports() {
-    return this.json<{ reports: { id: string; name: string; group: string }[] }>(`/reports`);
-  }
-  /** URL of a generated report — fmt = pdf | xlsx. */
-  reportUrl(pid: string, report: string, fmt: "pdf" | "xlsx") {
-    return this.url(`/projects/${pid}/reports/${report}.${fmt}`);
-  }
-
   // --- model intelligence ----------------------------------------------------
   /** Ask a plain-English question about the model; grounded in the property-index snapshot. */
   askModel(pid: string, question: string) {
@@ -136,21 +126,11 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
   }
-  // --- assistant · certified payroll · drawing set · ITB --------------------
+  // --- assistant · preflight · site context ---------------------------------
   /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */
   askProject(pid: string, question: string) {
     return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
       `/projects/${pid}/assistant`, { method: "POST", body: JSON.stringify({ question }) });
-  }
-  /** Weekly certified-payroll (WH-347) summary. */
-  payroll(pid: string, weekEnding?: string) {
-    const q = weekEnding ? `?week_ending=${weekEnding}` : "";
-    return this.json<{ week_ending: string; worker_count: number; total_hours: number;
-      total_gross: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/payroll${q}`);
-  }
-  /** URL of the WH-347 certified-payroll PDF for a week. */
-  wh347Url(pid: string, weekEnding?: string) {
-    return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
@@ -176,16 +156,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     const r = await fetch(this.url(`/projects/${pid}/hero`), { method: "PUT", body: fd, headers: this.authHeaders() });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
-  }
-  tmSummary(pid: string) {
-    return this.json<{ ticket_count: number; labor_total: number; material_total: number;
-      equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/tm-summary`);
-  }
-  /** T&M (eTicket) cost rolled up by linked change event. */
-  tmByChangeEvent(pid: string) {
-    return this.json<{ groups: Record<string, unknown>[]; linked_total: number; unassigned_total: number }>(
-      `/projects/${pid}/tm-by-change-event`);
   }
   /** Spec-section submittal register — turnaround, ball-in-court, overdue. */
   submittalRegister(pid: string) {

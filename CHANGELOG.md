@@ -81,6 +81,19 @@ Fifth follow-on on the same version: **SCALE-SEAM ㊻ ㊼ ㊽**. Eight methods o
 
 `MARKS` widened to ㊾ on the way out. Pin 2,127 → 2,065.
 
+Sixth follow-on on the same version: **SCALE-SEAM ㊾ ㊿ ❶**. Six methods out of
+`client.ts` (`2,065 → 2,035`) into existing mixins. The CJK enclosed-number block
+ends at ㊿; **❶ is 51**.
+
+- ㊾ *what can we print from this project?* — two methods onto `apps/web/src/api/documents.ts`.
+  Licence stayed.
+- ㊿ *what extra work is unbilled against a change event?* — two methods onto
+  `apps/web/src/api/cost.ts`. Submittals stayed.
+- ❶ *what labor was certified this week?* — two methods onto `apps/web/src/api/cost.ts`.
+  `preflight` stayed.
+
+`MARKS` widened to ❷ on the way out. Pin 2,065 → 2,035.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

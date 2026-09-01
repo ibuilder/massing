@@ -6,6 +6,10 @@
  *  They span `/bep`, `/cde` and `/info-requirements`. `aiReadiness` sat inside that run in
  *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question.
  *  Composed through the existing `withDocuments` wrapper — no extra `withX()` on `ApiClient`.
+ *
+ *  SCALE-SEAM ㊾ adds the report catalog — *what can we print from this project?* List plus
+ *  the generated PDF/XLSX URL. They sat next to licence in `client.ts` and did **not** go
+ *  with licence (that is the deployment plan, not a project document).
  */
 import { HttpCore } from "./httpCore";
 import type { DocFile, DocFolderNode } from "./types";
@@ -137,6 +141,15 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       criteria_pct: { completeness: number | null; suitability: number | null; authorization: number | null; traceability: number | null };
       nonconforming: { id: string; ref: string | null; title: string | null; state: string; failed: string[] }[]; note: string }>(
       `/projects/${pid}/cde/exchange-acceptance`);
+  }
+
+  /** reports — catalog of available reports (id, name, group). */
+  reports() {
+    return this.json<{ reports: { id: string; name: string; group: string }[] }>(`/reports`);
+  }
+  /** reportUrl — generated report download; fmt = pdf | xlsx. */
+  reportUrl(pid: string, report: string, fmt: "pdf" | "xlsx") {
+    return this.url(`/projects/${pid}/reports/${report}.${fmt}`);
   }
   };
 }
