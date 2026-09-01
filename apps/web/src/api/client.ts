@@ -862,15 +862,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
 
-  /** Verified-as-built vs claimed progress per schedule activity + the overall trust gap (③b). */
-  verifiedProgress(pid: string) {
-    return this.json<{ elements_total: number; elements_verified: number; elements_deviated: number;
-      verified_pct: number; claimed_pct: number; trust_gap: number; coverage_pct: number;
-      verification_records: number;
-      activities: { ref: string; activity: string; trade: string | null; elements: number; verified: number;
-        deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
-      `/projects/${pid}/verified-progress`);
-  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
@@ -879,24 +870,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
-  selectionsSummary(pid: string) {
-    type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
-    type Cand = { ref: string; item: string; category: string; allowance: number; actual: number;
-      delta: number; state: string; change_subject: string };
-    return this.json<{
-      count: number; priced: number; approved: number; total_allowance: number; total_actual: number;
-      net_delta: number; direction: "over" | "under" | "on-allowance";
-      over_count: number; under_count: number; on_count: number;
-      by_category: Cat[]; co_candidate_count: number; co_candidates: Cand[]; note: string;
-    }>(`/projects/${pid}/selections/summary`);
-  }
-  /** Push over-allowance selections into change events (reason 'Allowance Reconciliation'); idempotent. */
-  pushSelectionChangeEvents(pid: string) {
-    return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
-      `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
-  }
-  /** CLIENT-PORTAL — read-only share tokens for a public project-readiness digest. */
+  /** CLIENT-PORTAL — read-only share tokens for a project-readiness digest. */
   shareTokens(pid: string) {
     type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
       created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string;
@@ -924,22 +898,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** The public read-only HTML page for a share token (opens with no login — the human share link). */
   sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
-  /** VIEW-TEMPLATES — reusable layered view presets (class visibility + isolate + stacked colors). */
-  viewTemplates(pid: string) {
-    return this.json<{ templates: { id: string; name: string; hide_classes: string[];
-      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
-      `/projects/${pid}/view-templates`);
-  }
-  saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
-    isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
-    return this.json<{ saved: number }>(`/projects/${pid}/view-templates`,
-      { method: "PUT", body: JSON.stringify({ templates }) });
-  }
-  resolveViewTemplate(pid: string, tid: string) {
-    return this.json<{ template: string; name: string | null; visible: string[]; visible_count: number;
-      hidden_count: number; colors: Record<string, string>; colored_count: number; note: string }>(
-      `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/resolve`);
-  }
   /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
   spaceUtilBenchmarks(areaPerPerson = 10) {
     return this.json<{
@@ -986,31 +944,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       centroid: { x: number; y: number }; bbox: { minx: number; miny: number; maxx: number; maxy: number };
       compliance?: { checks: Check[]; ok: boolean | null; violations: string[] }; note: string;
     }>(`/parcels/analyze`, { method: "POST", body: JSON.stringify(body) });
-  }
-  progressRollup(pid: string, installedGuids: string[], elements?: Record<string, unknown>[]) {
-    type Grp = { expected: number; installed: number; pct_complete: number; value_total: number; pct_complete_value: number | null };
-    return this.json<{
-      element_count: number; installed_count: number; pct_complete: number; value_total: number;
-      value_installed: number; pct_complete_value: number | null;
-      by_class: (Grp & { ifc_class: string })[]; by_discipline: (Grp & { discipline: string })[];
-      by_level: (Grp & { level: string })[]; note: string;
-    }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
-  }
-  /** SCAN-4D — the diff between two capture timestamps: newly installed per class/level, disappeared
-   * elements (re-scan/rework flag), progress delta + daily rate. */
-  progressCaptureDiff(pid: string, body: {
-    installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
-    elements?: Record<string, unknown>[];
-  }) {
-    return this.json<{
-      t1: string | null; t2: string | null; days: number | null;
-      installed_t1: number; installed_t2: number; newly_installed: number; disappeared: number;
-      added_guids: string[]; disappeared_guids: string[];
-      added_by_class: { ifc_class: string; count: number }[];
-      added_by_level: { storey: string; count: number }[];
-      pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
-      elements_per_day: number | null; note: string;
-    }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
   }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */

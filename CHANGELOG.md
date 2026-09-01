@@ -59,6 +59,17 @@ on the next method's JSDoc and shares no word with it.
 
 `MARKS` widened to ㊸ on the way out. Pin 2,258 → 2,194.
 
+Fourth follow-on on the same version: **SCALE-SEAM ㊸ ㊹ ㊺**. Eight methods out of
+`client.ts` (`2,194 → 2,127`) into existing mixins.
+
+- ㊸ *what layered view preset is in force?* — three methods onto `apps/web/src/api/model.ts`.
+- ㊹ *what did the owner pick, and does it trigger a change order?* — two methods onto
+  `apps/web/src/api/contracts.ts`. Share tokens stayed.
+- ㊺ *is claimed progress the installed one?* — three methods onto
+  `apps/web/src/api/schedule.ts` (verified, rollup, capture-diff). Not a contiguous run.
+
+`MARKS` widened to ㊻ on the way out. Pin 2,194 → 2,127.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

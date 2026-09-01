@@ -633,6 +633,41 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   logisticsState(pid: string, date?: string) {
     return this.json<{ date: string | null; active: LogisticsResource[]; active_count: number; total: number }>(`/projects/${pid}/logistics/state${date ? `?date=${encodeURIComponent(date)}` : ""}`);
   }
+
+  /** verifiedProgress — as-built vs claimed progress per schedule activity plus the trust gap. */
+  verifiedProgress(pid: string) {
+    return this.json<{ elements_total: number; elements_verified: number; elements_deviated: number;
+      verified_pct: number; claimed_pct: number; trust_gap: number; coverage_pct: number;
+      verification_records: number;
+      activities: { ref: string; activity: string; trade: string | null; elements: number; verified: number;
+        deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
+      `/projects/${pid}/verified-progress`);
+  }
+  /** progressRollup — installed GUIDs rolled up by class, discipline and level. */
+  progressRollup(pid: string, installedGuids: string[], elements?: Record<string, unknown>[]) {
+    type Grp = { expected: number; installed: number; pct_complete: number; value_total: number; pct_complete_value: number | null };
+    return this.json<{
+      element_count: number; installed_count: number; pct_complete: number; value_total: number;
+      value_installed: number; pct_complete_value: number | null;
+      by_class: (Grp & { ifc_class: string })[]; by_discipline: (Grp & { discipline: string })[];
+      by_level: (Grp & { level: string })[]; note: string;
+    }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
+  }
+  /** progressCaptureDiff — newly installed and disappeared between two capture timestamps. */
+  progressCaptureDiff(pid: string, body: {
+    installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
+    elements?: Record<string, unknown>[];
+  }) {
+    return this.json<{
+      t1: string | null; t2: string | null; days: number | null;
+      installed_t1: number; installed_t2: number; newly_installed: number; disappeared: number;
+      added_guids: string[]; disappeared_guids: string[];
+      added_by_class: { ifc_class: string; count: number }[];
+      added_by_level: { storey: string; count: number }[];
+      pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
+      elements_per_day: number | null; note: string;
+    }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
+  }
   };
 }
 

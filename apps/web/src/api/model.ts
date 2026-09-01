@@ -493,5 +493,24 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       combinations: { governing_lrfd: { combo: string; kips: number }; governing_asd: { combo: string; kips: number } };
       disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
   }
+
+  /** viewTemplates — reusable layered view presets (class visibility, isolate, stacked colors). */
+  viewTemplates(pid: string) {
+    return this.json<{ templates: { id: string; name: string; hide_classes: string[];
+      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
+      `/projects/${pid}/view-templates`);
+  }
+  /** saveViewTemplates — replace the project's saved view-template list. */
+  saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
+    isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
+    return this.json<{ saved: number }>(`/projects/${pid}/view-templates`,
+      { method: "PUT", body: JSON.stringify({ templates }) });
+  }
+  /** resolveViewTemplate — visible GUIDs and colors after applying one view template. */
+  resolveViewTemplate(pid: string, tid: string) {
+    return this.json<{ template: string; name: string | null; visible: string[]; visible_count: number;
+      hidden_count: number; colors: Record<string, string>; colored_count: number; note: string }>(
+      `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/resolve`);
+  }
   };
 }
