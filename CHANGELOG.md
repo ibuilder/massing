@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1143 (2026-09-01) — SCALE-SEAM ㉝, Last-Planner onto schedule.ts
+
+Six methods out of `client.ts` into the existing `apps/web/src/api/schedule.ts` mixin
+(`2,486 → 2,440`). No extra wrapper on `ApiClient`. Also deleted a stranded "Developer cost
+budget" comment that had been sitting on the class close with no method under it.
+
+What they answer together: *did this week keep its commitments?* Pull board, printable board,
+PPC/TMR metrics, pull-planning benchmark, lean PPC, live board stream.
+
+`MARKS` widened to ㉞ on the way out. Pin lowered with the file. This bump sits on the
+`test_release_current` bound (10 ahead of tag `v0.3.1133`).
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

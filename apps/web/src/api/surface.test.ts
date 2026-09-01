@@ -150,6 +150,7 @@ describe("the API client's public surface", () => {
       "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
       "appraisal", "listingAutofill", "shareListing", "syndicateListing",
       "schedule4d", "sequenceClash", "scheduleCpm", "evm",           // 4D + sequence clash + earned value
+      "pullPlanBoard", "pullPlanMetrics", "leanPpc", "pullPlanStream",
       "clashMetrics", "clashClearanceRules", "clashMatrix",
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",

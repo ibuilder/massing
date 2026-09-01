@@ -1,26 +1,15 @@
-/** Schedule: CPM, 4D, baselines, resource levelling, earned value, takt and P6/MSP interchange.
+/** Schedule: CPM, 4D, takt, P6/MSP interchange, and the Last-Planner pull board.
  *
- *  SCALE-SEAM ② — the second extraction out of `client.ts`. Chosen by measuring, not by reading the
- *  section comments: those label the START of a run and the file then continues with methods from
- *  other domains, so they no longer delimit anything. Classifying all 669 methods by the route each
- *  one calls gives 219 groups, and `/schedule` is the largest clean one at 26 methods / 194 lines.
- *
- *  Worth recording for whoever does ③: there is **no big cut left**. The largest group is 4.5% of the
- *  file and the top six together are 20% — `client.ts` is a long tail, so this is ~25 releases of one
- *  group each, not a big-bang split. The entry claiming SCALE-SEAM complete was measuring ① (a 112-line
- *  reduction, 2%) and closed the item with the god-file intact.
- *
- *  A **mixin**, so `api.scheduleCpm(...)` resolves exactly as before and no call site changes.
- *  `api/surface.test.ts` is what makes that checkable: it captures the runtime method surface and
- *  fails if an extraction drops one — which a typecheck cannot, since deleting a method and deleting
- *  its last caller both compile clean.
- *
- *  Reaches nothing but HttpCore's `json` / `url` / `authHeaders`, same as `withAuthoring`. The takt
- *  result types came along because nothing outside `client.ts` imported them.
+ *  SCALE-SEAM ② took `/schedule`. SCALE-SEAM ㉝ adds the six Last-Planner methods that answer
+ *  *did this week keep its commitments?* — the pull board, its PDF, PPC/TMR metrics, the
+ *  pull-planning benchmark, lean PPC, and the live board stream. They span `/pull-plan` and
+ *  `/lean/ppc`. License/integrations sat immediately above the cluster in `client.ts` and did
+ *  **not** come (admin, not the board). Permit-city open data sat immediately below and did
+ *  **not** come. Clash already rides this mixin so `ApiClient` does not grow another `withX()`.
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
-import { HttpCore } from "./httpCore";
+import { HttpCore, type LiveStream } from "./httpCore";
 import type { MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -577,7 +566,57 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       duration_working_days: number; cpm_project_duration: number; note: string }>(
       `/projects/${pid}/schedule/from-estimate`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** Developer cost budget (line-item hard/soft/acquisition + contingencies) + computed summary. */
+
+  /** Last-Planner Plan Percent Complete + reasons for non-completion (lean, R4). */
+  pullPlanBoard(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.json<{ total: number; milestones: string[]; milestone_filter: string | null;
+      weeks: string[];
+      swimlanes: { trade: string; tasks: { ref: string; task: string; trade: string; week: string;
+        state: string; responsible: string; duration_days: number | null; constraints: string[];
+        milestone: string }[] }[];
+      handoffs: { from: string; to: string }[];
+      make_ready: { constrained_tasks: number; open_constraints: number;
+        by_constraint: { constraint: string; count: number }[] };
+      readiness: { ready: number; constrained: number; ready_pct: number | null };
+      commitment: { committed: number; done: number; not_done: number; ppc_pct: number | null };
+      note: string }>(`/projects/${pid}/pull-plan/board${qs}`);
+  }
+  /** pullPlanPdfUrl — printable Last-Planner board. */
+  pullPlanPdfUrl(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.url(`/projects/${pid}/pull-plan/board.pdf${qs}`);
+  }
+  /** pullPlanMetrics — TMR, handoff cleanliness, PPC trend, variance Pareto. */
+  pullPlanMetrics(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.json<{ total: number; tasks_made_ready: number; tmr_pct: number | null;
+      make_ready_runway_weeks: number; perfect_handoff_pct: number | null; clean_handoffs: number;
+      handoffs: number; ppc_pct: number | null; committed: number; done: number;
+      ppc_trend: { week: string; committed: number; done: number; ppc_pct: number | null }[];
+      variance_pareto: { reason: string; count: number }[]; note: string }>(
+      `/projects/${pid}/pull-plan/metrics${qs}`);
+  }
+  /** benchmarksPullPlanning — PPC/TMR distribution across the caller's projects. */
+  benchmarksPullPlanning() {
+    return this.json<{ projects: number; target_ppc?: number; message?: string | null;
+      ppc?: { low: number; median: number; high: number; avg: number };
+      tmr?: { low: number; median: number; high: number; avg: number };
+      per_project?: { project_id: string; ppc_pct: number; tmr_pct: number; committed: number }[] }>(
+      `/benchmarks/pull-planning`);
+  }
+  /** leanPpc — Last-Planner percent complete plus missed-commitment reasons. */
+  leanPpc(pid: string) {
+    return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
+      `/projects/${pid}/lean/ppc`);
+  }
+  /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
+   *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
+  pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
+                 onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/pull-plan/stream`,
+                           onMessage as (d: unknown) => void, onStatus);
+  }
   };
 }
 

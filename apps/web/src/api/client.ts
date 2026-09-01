@@ -100,45 +100,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       applied: boolean; tier_before: string; tier_after: string; error?: string }>(
       "/license/cloud-check", { method: "POST" });
   }
-  /** Last-Planner Plan Percent Complete + reasons for non-completion (lean, R4). */
-  pullPlanBoard(pid: string, milestone?: string) {
-    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
-    return this.json<{ total: number; milestones: string[]; milestone_filter: string | null;
-      weeks: string[];
-      swimlanes: { trade: string; tasks: { ref: string; task: string; trade: string; week: string;
-        state: string; responsible: string; duration_days: number | null; constraints: string[];
-        milestone: string }[] }[];
-      handoffs: { from: string; to: string }[];
-      make_ready: { constrained_tasks: number; open_constraints: number;
-        by_constraint: { constraint: string; count: number }[] };
-      readiness: { ready: number; constrained: number; ready_pct: number | null };
-      commitment: { committed: number; done: number; not_done: number; ppc_pct: number | null };
-      note: string }>(`/projects/${pid}/pull-plan/board${qs}`);
-  }
-  pullPlanPdfUrl(pid: string, milestone?: string) {
-    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
-    return this.url(`/projects/${pid}/pull-plan/board.pdf${qs}`);
-  }
-  pullPlanMetrics(pid: string, milestone?: string) {
-    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
-    return this.json<{ total: number; tasks_made_ready: number; tmr_pct: number | null;
-      make_ready_runway_weeks: number; perfect_handoff_pct: number | null; clean_handoffs: number;
-      handoffs: number; ppc_pct: number | null; committed: number; done: number;
-      ppc_trend: { week: string; committed: number; done: number; ppc_pct: number | null }[];
-      variance_pareto: { reason: string; count: number }[]; note: string }>(
-      `/projects/${pid}/pull-plan/metrics${qs}`);
-  }
-  benchmarksPullPlanning() {
-    return this.json<{ projects: number; target_ppc?: number; message?: string | null;
-      ppc?: { low: number; median: number; high: number; avg: number };
-      tmr?: { low: number; median: number; high: number; avg: number };
-      per_project?: { project_id: string; ppc_pct: number; tmr_pct: number; committed: number }[] }>(
-      `/benchmarks/pull-planning`);
-  }
-  leanPpc(pid: string) {
-    return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
-      `/projects/${pid}/lean/ppc`);
-  }
   /** Open-data permit sources: the cities whose permit feeds this deployment can query. */
   permitCities() {
     return this.json<{ cities: { id: string; label: string; region: string; authority: string; geo: boolean }[] }>(
@@ -2105,13 +2066,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
-                           onMessage as (d: unknown) => void, onStatus);
-  }
-  /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
-   *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
-  pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-                 onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
-    return this.liveStream(`/projects/${pid}/pull-plan/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
   searchAll(pid: string, q: string, limit = 50) {
