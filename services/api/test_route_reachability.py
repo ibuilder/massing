@@ -170,9 +170,9 @@ KNOWN_UNCALLED: set[str] = {
     # both. They moved to `CALLED_VIA_TEMPLATED_EXT`, which carries their call-site evidence and
     # asserts it still exists.
     # `/projects/{pid}/estimate/gaeb.x83` left here in v0.3.1137 — Budget links `gaebX83Url`.
-    "/projects/{pid}/modules/{key}/log.pdf",
+    # `/modules/{key}/log.pdf` left here in v0.3.1138 — Exports opens `moduleLogPdfUrl` for the RFI log.
     # `/cost/lien-waiver.pdf` left here in v0.3.1135 — Budget now links `lienWaiverPdfUrl`.
-    "/projects/{pid}/opendata/permits.geojson",
+    # `/opendata/permits.geojson` left here in v0.3.1138 — Exports opens `permitsGeojsonUrl`.
     # `/schedule/{gantt,lob}.svg` left here in v0.3.1132 for the same reason: `api/schedule.ts:193-4`
     # builds `/projects/${pid}/schedule/${kind}.svg`, and `portal/panels/schedule.ts:731` enumerates
     # both kinds. Two call sites, one blind spot.
@@ -196,7 +196,8 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/schedule/eot/sourced",
     # `/drawing-set/compiled.pdf` left here in v0.3.1137 — Exports opens `compiledPdfUrl`.
     "/projects/{pid}/drawing-set/file-drawing-set",
-    "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
+    "/projects/{pid}/drawings/received-regions",
+    # `/drawings/schedule.csv` left here in v0.3.1138 — Drawings rail downloads `drawingSchedulesCsvUrl`.
     # `/drawings/sheet-regions` was frozen here and is now WIRED (v0.3.1119): it is the producer for
     # the `layout` that `POST /takeoff/2d` consumes, called via `api.sheetRegions` from the 2D takeoff
     # tool. Its entry is deleted rather than kept, which is this list's own contract working — the
@@ -213,6 +214,8 @@ KNOWN_UNCALLED: set[str] = {
     # `/cost/datasets`, `/benchmarks/unit-rates`, `/5d/element-costs`, `/cost-vintage`,
     # `/estimate/gaeb.x83`, `/code/amendments`, `/agent-packs`, `/documents/{model-history,file-model}`,
     # `/rules/space-pack`, `/project-package.pdf`, `/drawing-set/compiled.pdf` left here in v0.3.1137.
+    # `/drawings/schedule.csv`, `/opendata/permits.geojson`, `/modules/{key}/log.pdf`,
+    # `/view-templates/{tid}/graphics` left here in v0.3.1138.
     "/projects/{pid}/modules/backfill-references",
     "/projects/{pid}/procurement/packages/{rid}/send-rfq",
     # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
@@ -220,7 +223,8 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/recipes/replay-plan",
     # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
     "/projects/{pid}/scan/verify-lod500",
-    "/projects/{pid}/verified-progress/from-layout", "/projects/{pid}/view-templates/{tid}/graphics",
+    "/projects/{pid}/verified-progress/from-layout",
+    # `/view-templates/{tid}/graphics` left here in v0.3.1138 — Model Analysis reads cut vs projection.
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

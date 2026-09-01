@@ -142,6 +142,25 @@ export function buildExportsSection(d: ExportsDeps): void {
   pkgPdf.title = "Shareable package: cover, views, drawing set, cost and feasibility summary";
   b.appendChild(pkgPdf);
 
+  const permGeo = toolBtn2("⬇ Nearby permits (GeoJSON)", async () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    try {
+      const cat = await api.permitCities();
+      const city = cat.cities[0]?.id;
+      if (!city) { notify("no city catalog", "error"); return; }
+      window.open(api.permitsGeojsonUrl(projectId, city), "_blank");
+    } catch (e) { notify(`permits layer failed: ${(e as Error).message}`, "error"); }
+  });
+  permGeo.title = "Municipal filings as points for a map overlay. Uses the first city in the catalog.";
+  b.appendChild(permGeo);
+
+  const rfiLog = toolBtn2("⬇ RFI log (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.moduleLogPdfUrl(projectId, "rfi"), "_blank");
+  });
+  rfiLog.title = "Printable register of every RFI on the project";
+  b.appendChild(rfiLog);
+
   const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
   glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
   b.appendChild(glb);

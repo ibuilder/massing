@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1138 (2026-09-01) — four more downloads a user can actually open
+
+**Band 2 reach, fourth pass.** Mixins only (drawingSheets, models, modules):
+
+- Drawings rail — door/window/room schedules as CSV
+- Exports — nearby permits as GeoJSON (first city in the catalog) and the printable RFI log
+- Model Analysis — cut vs projection graphic state for the first saved view template
+
+Uncalled by the leaf rule: **31 → 27**.
+
 ## v0.3.1137 (2026-09-01) — twelve more engines a user can actually open
 
 **Band 2 reach, third pass.** Mixins only (cost, elements, estimate, codecheck, ai, documents,

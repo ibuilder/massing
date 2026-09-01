@@ -620,6 +620,19 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         sp.appendChild(m);
     }).catch(fail(sp));
 
+    const vg = section("👁 View-template graphics");
+    void ctx.host.api.viewTemplates(pid).then(async (vt) => {
+        vg.textContent = "";
+        const first = vt.templates[0];
+        const m = el("div", "meta");
+        if (!first) { m.textContent = "No view templates saved."; vg.appendChild(m); return; }
+        const g = await ctx.host.api.viewTemplateGraphics(pid, first.id);
+        const n = g.visible_count;
+        m.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
+          + (n != null ? ` · ${n} visible` : "");
+        vg.appendChild(m);
+    }).catch(fail(vg));
+
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {
         env.textContent = "";

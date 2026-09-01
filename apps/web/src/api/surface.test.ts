@@ -107,7 +107,7 @@ describe("the API client's public surface", () => {
     // different numbers from two different instruments, neither of them this one. Take the number
     // from the reader that enforces it: raising the floor to force a high estimate green, or leaving
     // it slack under a hand-rolled one, both defeat the gate in the same direction.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(747);
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(751);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -158,6 +158,7 @@ describe("the API client's public surface", () => {
       "costDatasets", "costVintage", "unitRates", "elementCosts5d", "gaebX83Url",
       "codeAmendments", "agentPacks", "modelHistory", "fileModel", "spacePack",
       "compiledPdfUrl", "projectPackagePdfUrl",
+      "drawingSchedulesCsvUrl", "permitsGeojsonUrl", "moduleLogPdfUrl", "viewTemplateGraphics",
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
       "editIfc", "publish", "createBlankModel", "placeFamily",      // authoring

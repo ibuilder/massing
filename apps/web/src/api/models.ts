@@ -146,6 +146,18 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   footprintGeojsonUrl(pid: string) {
     return this.url(`/projects/${pid}/models/footprint.geojson`);
   }
+  /** Nearby municipal filings as a GeoJSON FeatureCollection (points). `city` is required. */
+  permitsGeojsonUrl(pid: string, city: string) {
+    return this.url(`/projects/${pid}/opendata/permits.geojson?city=${encodeURIComponent(city)}`);
+  }
+  /** Cut vs projection graphic state for one view template (weight, colour, pattern, halftone). */
+  viewTemplateGraphics(pid: string, tid: string) {
+    return this.json<{
+      visible_count?: number;
+      cut?: Record<string, unknown>;
+      projection?: Record<string, unknown>;
+    }>(`/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics`);
+  }
   /** Quality-evidence closeout: unresolved NCRs plus elements nobody inspected. */
   qualityTurnoverReadiness(pid: string) {
     return this.json<{
