@@ -4,6 +4,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1132 (2026-08-31) — eight routes frozen as callerless while the UI called them
+
+`ROUTE-INTERP`. `test_route_reachability` flags a route when its **last static segment** appears
+nowhere in the web source. The file's header already knew literal matching is unsound against a
+client that builds URLs from template literals — that is *why* the rule is the last segment. **It
+assumes the last segment is written out.** Eight routes are built with that segment templated too, so
+their leaf appears nowhere, and every one was frozen in `KNOWN_UNCALLED` as deliberately callerless:
+
+| route | built at | value passed at |
+|---|---|---|
+| `/exports/{cobie,qto,schedule,spaces}.xlsx` | `viewer/tools/exportsSection.ts:57` | the four-entry list on line 54 |
+| `/schedule/{gantt,lob}.svg` | `api/schedule.ts:193-4` | `portal/panels/schedule.ts:731` |
+| `/model/export.{jsonld,parquet}` | `api/model.ts:185` | `portal/panels/standards.ts:488-489` |
+
+The list's own contract is that *"a frozen route that gains a caller must leave"*. These never lacked
+one — eight entries in the allowlist that records deliberate decisions were false, and four of them
+sat under a heading reading *"a user reaches these by clicking a link the server builds, so no client
+caller is expected"*, which is what made them look considered.
+
+## Two mechanisms, because one shape is decidable and the other is not
+
+* **Templated stem** (`exports/${file}.xlsx`) is a **pattern**: the parent segment and the extension
+  must still match literally. Six routes are accepted. Dropping the parent anchor *would* vouch for
+  six more that nothing calls — measured as a mutation, not shipped behaviour.
+* **Templated extension** (`model/export.${fmt}`) is a **two-entry named list with its call site
+  recorded**, because as a pattern it is wrong in both directions: it vouches for six `export.*`
+  routes of which only two are called. The other four are frozen correctly, and each says the same
+  thing — **a signature that accepts a value is not a call site that passes one**:
+
+  | route | why it stays frozen |
+  |---|---|
+  | `/model/export.ifcx` | `modelExportUrl` is typed `"csv" \| "jsonld" \| "parquet"` |
+  | `/drawings/sheet.dxf` | `sheetPath` accepts `"dxf"`; its only caller `openSheet` is `("svg" \| "pdf")` |
+  | `/energy/export.{gbxml,idf}` | **`energyExportUrl` has no caller at all** — an unwired client method |
+
+That last row is a new finding this release does not fix: both formats the energy exporter offers are
+unreachable, and the client method that would reach them is called by nothing.
+
+## The leniency is pinned, because it moves the number the *rewarded* way
+
+Every previous correction here made the gate stricter. This one makes it more permissive, and the
+file's own generated-types comment says that is the direction nobody investigates. So the change is
+not trusted to be small — it is measured against the pre-change rule and every route it vouches for
+is named, **attributed to its mechanism** (six by pattern, two by list; swapping them keeps the total
+right and fails the attribution), and the named list gets the mirror of `KNOWN_UNCALLED`'s rot check:
+an allowlist asserting *"this IS called"* outlives its caller exactly the way these eight outlived
+nothing. Five mutations, all failing, all restored.
+
+**This is not the matcher-sharpening this file has rejected twice.** That proposal went the other
+way — `/leaf` instead of substring, measured at 81 → 124 frozen, 43 newly unreachable. Opposite
+change to the same rule; the earlier decision does not speak to this one.
+
+Uncalled by the rule: **81 → 73** — the strict baseline is 81 and the two leniencies remove eight.
+
 ## v0.3.1131 (2026-08-31) — nine comments describing something else, and the reason nobody widened the gate
 
 `DOC-STRAND`. A doc comment immediately followed by another doc comment has lost its own

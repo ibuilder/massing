@@ -154,12 +154,21 @@ KNOWN_UNCALLED: set[str] = {
     #   EXPORT / DOWNLOAD ENDPOINTS — a user reaches these by clicking a link the server builds, so
     #   "no client caller" is expected. Listed rather than excluded by pattern: a download nobody
     #   links to is still unreachable, and only a person can tell the two apart.
-    "/projects/{pid}/exports/cobie.xlsx", "/projects/{pid}/exports/qto.xlsx",
-    "/projects/{pid}/exports/schedule.xlsx", "/projects/{pid}/exports/spaces.xlsx",
-    "/projects/{pid}/estimate/gaeb.x83", "/projects/{pid}/model/export.jsonld",
-    "/projects/{pid}/model/export.parquet", "/projects/{pid}/modules/{key}/log.pdf",
+    # `/exports/{cobie,qto,schedule,spaces}.xlsx` were frozen HERE and are now seen as called
+    # (v0.3.1132). They never lacked a caller: `viewer/tools/exportsSection.ts:57` opens
+    # `/projects/${projectId}/exports/${file}.xlsx` over a literal four-entry list. The leaf rule
+    # could not see it because the STEM is templated, which is the one shape the header's
+    # template-literal argument did not cover. Recorded rather than silently deleted: four entries
+    # under a heading that says "no client caller is expected" were four false claims, and the
+    # heading is what made them look considered.
+    # `/model/export.{jsonld,parquet}` left this list in v0.3.1132 — `standards.ts:488-489` links
+    # both. They moved to `CALLED_VIA_TEMPLATED_EXT`, which carries their call-site evidence and
+    # asserts it still exists.
+    "/projects/{pid}/estimate/gaeb.x83", "/projects/{pid}/modules/{key}/log.pdf",
     "/projects/{pid}/cost/lien-waiver.pdf", "/projects/{pid}/opendata/permits.geojson",
-    "/projects/{pid}/schedule/gantt.svg", "/projects/{pid}/schedule/lob.svg",
+    # `/schedule/{gantt,lob}.svg` left here in v0.3.1132 for the same reason: `api/schedule.ts:193-4`
+    # builds `/projects/${pid}/schedule/${kind}.svg`, and `portal/panels/schedule.ts:731` enumerates
+    # both kinds. Two call sites, one blind spot.
     #
     #   GENUINELY UNREACHED CAPABILITIES — these are the ones worth someone's attention, and the
     #   reason this exclusion was worth making. Each is a working engine behind a route the product
@@ -266,14 +275,91 @@ def strip_comments(src: str) -> str:
                       if not (line.lstrip().startswith("//") or line.lstrip().startswith("*")))
 
 
+#: Routes reached through a TEMPLATED EXTENSION — `<dir>/<stem>.${fmt}` — with the value verified at
+#: the call site that passes it. **Named, not matched, and that is the whole point.**
+#:
+#: `api/model.ts:185` builds `/projects/${pid}/model/export.${fmt}`, so a pattern that allowed a
+#: templated extension would vouch for every `model/export.*` route at once. Measured: it vouches for
+#: six, and only two of them are called. The other four are frozen below and each is frozen
+#: CORRECTLY, because **a signature that accepts a value is not a call site that passes one**:
+#:
+#:     model/export.ifcx    `modelExportUrl` is typed "csv" | "jsonld" | "parquet" — no caller passes it
+#:     drawings/sheet.dxf   `sheetPath` accepts "dxf"; its only caller `openSheet` is ("svg" | "pdf")
+#:     energy/export.gbxml  `energyExportUrl` HAS NO CALLER AT ALL — an unwired client method
+#:     energy/export.idf    (same method; both formats it offers are unreachable)
+#:
+#: So the extension case cannot be a pattern in either direction: matching it would call four
+#: unreachable routes reachable, and refusing it leaves two called routes frozen as callerless. A
+#: two-entry list whose evidence is asserted below is the honest instrument.
+#:
+#: `model/export.csv` is absent because it is not flagged at all — it shares its leaf with
+#: `/projects/{pid}/modules/{key}/export.csv`, which IS called literally. That is the shared-leaf
+#: coarseness `MIN_SEGMENT` documents, working in the forgiving direction for once.
+CALLED_VIA_TEMPLATED_EXT: dict[str, str] = {
+    #: route -> the call-site text that must still exist for this entry to be true
+    "/projects/{pid}/model/export.jsonld": 'modelExportUrl(pid, "jsonld")',
+    "/projects/{pid}/model/export.parquet": 'modelExportUrl(pid, "parquet")',
+}
+
+
+def _templated_stem(route: str) -> "re.Pattern[str] | None":
+    """`<parent>/${…}.<ext>` for a route whose leaf is a FILENAME — or None when that shape cannot apply.
+
+    The docstring at the top of this file already knew literal matching is unsound against a client
+    that builds URLs from template literals, and answered it with the last-static-segment rule. That
+    rule assumes the LAST segment is written out. Six routes are built with the last segment templated
+    too, so their leaf appears nowhere and they were frozen as callerless while the UI calls them:
+
+        exportsSection.ts:57   `/projects/${projectId}/exports/${file}.xlsx`   qto · cobie · spaces · schedule
+        api/schedule.ts:193-4  `/projects/${pid}/schedule/${kind}.svg`         gantt · lob
+
+    Both call sites enumerate their values as literals in the line above, so all six are genuinely
+    reachable. Checked by reading the enumeration, not by matching harder.
+
+    **DELIBERATELY THE STEM ONLY, NEVER THE EXTENSION — and there is a live counterexample.**
+    `sheetSpecs.ts:149` builds `/projects/${pid}/drawings/sheet.${fmt}` with `fmt: "svg" | "pdf" |
+    "dxf"`, so an extension-templating rule would vouch for `/projects/{pid}/drawings/sheet.dxf`.
+    Its only caller is `openSheet`, typed `(fmt: "svg" | "pdf")` — **nothing ever passes "dxf"**.
+    That route is correctly frozen, and it is the reason this leniency stops where it does: a
+    signature that ACCEPTS a value is not a call site that PASSES one.
+
+    The parent segment must still match literally, so this cannot drift toward the 40% noise the
+    header rejects: it widens only for a filename leaf, and only inside the route's own directory.
+    Measured: dropping that anchor vouches for **six** further routes, none of which is called.
+
+    **THIS IS NOT THE MATCHER-SHARPENING THIS FILE HAS REJECTED TWICE.** That proposal went the other
+    way — replace the substring test with `/leaf`, which was measured at 81 -> 124 frozen, 43 newly
+    unreachable, and turned down again during ASSET-VERIFY. This is a narrow *widening* on one shape,
+    bounded by a differential below that names every route it vouches for. The two are opposite
+    changes to the same rule and the earlier decision does not speak to this one.
+    """
+    segs = [s for s in route.strip("/").split("/") if not s.startswith("{")]
+    if len(segs) < 2 or "." not in segs[-1]:
+        return None
+    stem, _, ext = segs[-1].rpartition(".")
+    if not stem or not ext:
+        return None
+    return re.compile(rf"{re.escape(segs[-2])}/\$\{{[^}}]*\}}\.{re.escape(ext)}")
+
+
 def uncalled_routes(paths, blob: str) -> set[str]:
-    """Routes whose distinctive last static segment appears nowhere in the web source's CODE."""
+    """Routes whose distinctive last static segment appears nowhere in the web source's CODE.
+
+    A filename leaf may also be reached through a templated stem — see `_templated_stem`, which
+    carries the evidence and the counterexample that bounds it.
+    """
     code = strip_comments(blob)
     out = set()
     for r in paths:
         leaf = _leaf(r)
-        if len(leaf) >= MIN_SEGMENT and leaf not in code:
-            out.add(r)
+        if len(leaf) < MIN_SEGMENT or leaf in code:
+            continue
+        if r in CALLED_VIA_TEMPLATED_EXT:
+            continue
+        pat = _templated_stem(r)
+        if pat is not None and pat.search(code):
+            continue
+        out.add(r)
     return out
 
 
@@ -346,6 +432,67 @@ check("  and the exclusion is LOAD-BEARING: including them would vouch for route
 print(f"  generated-types exclusion worth {len(FOUND) - len(_with_generated)} routes "
       f"({len(FOUND)} uncalled, {len(_with_generated)} if the generated types were counted)")
 print(f"  routes {len(PATHS)} · web source {len(BLOB):,} chars · uncalled by this rule {len(FOUND)}")
+
+# --- the templated-stem leniency is PINNED, because it moves the number the wrong way ------------
+#
+# Every other correction in this file made the gate stricter. This one makes it more permissive, and
+# the block above says why that is the dangerous direction: a change that lowers the uncalled count
+# is rewarded by the ratchet and therefore not investigated. So the leniency is not trusted to be
+# small — it is measured, and the routes it vouches for are named.
+#
+# `_STRICT` is what the rule said before `_templated_stem` existed. The difference must be exactly
+# the six whose call sites were read, one line at a time, in `_templated_stem`'s docstring.
+#: Stripped ONCE. The first draft called `strip_comments(BLOB)` inside the comprehension below, so a
+#: 3.9 MB blob was re-stripped per candidate route — 943 times — and this gate became the slowest in
+#: the suite at 72 s. One variable also guarantees all four checks below compare against the same
+#: text as `uncalled_routes` did, which a repeated call only happens to do.
+_CODE = strip_comments(BLOB)
+_STRICT = {r for r in PATHS
+           if len(_leaf(r)) >= MIN_SEGMENT and _leaf(r) not in _CODE}
+_GAINED = sorted(_STRICT - FOUND)
+_STEM_GAIN = [
+    "/projects/{pid}/exports/cobie.xlsx", "/projects/{pid}/exports/qto.xlsx",
+    "/projects/{pid}/exports/schedule.xlsx", "/projects/{pid}/exports/spaces.xlsx",
+    "/projects/{pid}/schedule/gantt.svg", "/projects/{pid}/schedule/lob.svg",
+]
+check("the two leniencies together vouch for EXACTLY the eight routes whose callers were read",
+      _GAINED == sorted(_STEM_GAIN + list(CALLED_VIA_TEMPLATED_EXT)),
+      f"gained {_GAINED}, expected {sorted(_STEM_GAIN + list(CALLED_VIA_TEMPLATED_EXT))} — a NINTH "
+      f"route is not a smaller number, it is a route nobody has looked at being called reachable")
+
+#: ATTRIBUTED, because two mechanisms summing to the right total is not the same as each being right.
+#: The pattern must account for the six and the named list for the two; swap them and the aggregate
+#: above still passes while both instruments are wrong.
+_BY_PATTERN = sorted(r for r in _GAINED
+                     if r not in CALLED_VIA_TEMPLATED_EXT
+                     and (_p := _templated_stem(r)) is not None and _p.search(_CODE))
+check("  ...six of them through the STEM pattern, and the other two only through the named list",
+      _BY_PATTERN == sorted(_STEM_GAIN),
+      f"the pattern accounts for {_BY_PATTERN}, expected {sorted(_STEM_GAIN)}")
+
+#: THE NAMED LIST'S OWN ROT CHECK. `KNOWN_UNCALLED` has one (a frozen route must still exist);
+#: an allowlist asserting the OPPOSITE polarity — "this IS called" — needs the mirror of it, or it
+#: outlives its caller exactly the way the six frozen entries outlived theirs. Each entry names the
+#: call-site text that makes it true, and that text must still be in the source.
+_stale = sorted(r for r, ev in CALLED_VIA_TEMPLATED_EXT.items() if ev not in _CODE)
+check("  ...and every named entry's CALL SITE is still there — this list can rot too",
+      not _stale,
+      f"no longer called: {_stale} — the evidence string is gone, so either the caller moved (update "
+      f"the evidence) or the route is genuinely uncalled now (move it to KNOWN_UNCALLED)")
+
+#: THE COUNTEREXAMPLE, AS AN ASSERTION RATHER THAN A SENTENCE.
+#: `sheetSpecs.ts:149` builds `/projects/${pid}/drawings/sheet.${fmt}` and its type admits "dxf", so
+#: a leniency that also allowed a templated EXTENSION would call this route reachable. Its only
+#: caller `openSheet` is typed `(fmt: "svg" | "pdf")` and never passes "dxf". **A signature that
+#: accepts a value is not a call site that passes one** — which is exactly the confusion the six
+#: above were the other half of, and the reason this rule stops at the stem.
+check("  ...and NOT for sheet.dxf, whose EXTENSION is templated but whose caller never passes 'dxf'",
+      "/projects/{pid}/drawings/sheet.dxf" in FOUND,
+      "sheet.dxf is being read as called — the leniency has reached the extension, and the route it "
+      "now vouches for has no caller. Narrow it back to the stem.")
+print(f"  templated-URL leniencies worth {len(_STRICT) - len(FOUND)} routes "
+      f"({len(_BY_PATTERN)} by the stem pattern, {len(CALLED_VIA_TEMPLATED_EXT)} named; "
+      f"{len(_STRICT)} uncalled under the literal-leaf rule alone)")
 
 new = sorted(FOUND - KNOWN_UNCALLED)
 check("NO NEW UNREACHABLE ROUTE — a route the product cannot call is a feature nobody can use",
