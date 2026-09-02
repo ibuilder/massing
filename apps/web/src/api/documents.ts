@@ -13,9 +13,11 @@
  *
  *  SCALE-SEAM ❿ adds closeout analytics — *is turnover actually closing?* Punchlist,
  *  commissioning, warranties, O&M. Safety sat below and did **not** come.
+ *
+ *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore } from "./httpCore";
-import type { DocFile, DocFolderNode } from "./types";
+import type { DocFile, DocFolderNode, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -168,6 +170,10 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number };
       om_manuals: { om_count: number; accepted: number; accepted_pct: number | null };
     }>(`/projects/${pid}/closeout/summary`);
+  }
+  /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
+  preflight(pid: string) {
+    return this.json<PreflightGate>(`/projects/${pid}/preflight`);
   }
   };
 }

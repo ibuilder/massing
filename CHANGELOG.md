@@ -180,6 +180,18 @@ Fourteenth follow-on on the same version: **SCALE-SEAM ⓷ ⓸ ⓹**. Eleven met
 
 `MARKS` widened to ⓺ on the way out. Pin 1,663 → 1,584.
 
+Fifteenth follow-on on the same version: **SCALE-SEAM ⓺ ⓻ ⓼**. Eleven methods out of
+`client.ts` (`1,584 → 1,512`) into existing mixins. TypeRow / TypeDetail / GroupRow /
+AssemblyRow moved to `apps/web/src/api/types.ts` with the family/group methods.
+
+- ⓺ *can this package go out?* — `preflight` onto `apps/web/src/api/documents.ts`.
+- ⓻ *what families can I place?* — five methods onto `apps/web/src/api/authoring.ts`.
+- ⓼ *how are these elements grouped?* — five methods onto `apps/web/src/api/authoring.ts`.
+  Detailing stayed.
+
+`MARKS` widened to ⓽ on the way out. Pin 1,584 → 1,512.
+
+
 
 
 

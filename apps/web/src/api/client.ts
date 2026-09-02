@@ -55,7 +55,7 @@ export type { ClashResult } from "./clash";
 import type {
   Dashboard,
   DisciplineTree, EnergyResult, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
-  PropMapRule, PreflightGate,
+  PropMapRule,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, WorkItem, VitalsPayload,
@@ -86,11 +86,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
   }
-  // --- preflight · site context ---------------------------------------------
-  /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
-  preflight(pid: string) {
-    return this.json<PreflightGate>(`/projects/${pid}/preflight`);
-  }
   /** 3D-HERO: pin a captured viewer screenshot as the project's hero image (page 2 of the package PDF). */
   async uploadHero(pid: string, image: Blob) {
     const fd = new FormData(); fd.append("file", image, "hero.png");
@@ -116,55 +111,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   elements5dMap(pid: string, by: "progress" | "cost" = "progress") {
     return this.json<{ by: string; buckets: Record<string, string[]>; counts: Record<string, number>; element_count: number }>(
       `/projects/${pid}/5d/heatmap?by=${by}`);
-  }
-  /** Placeable types ("families") in the project's source IFC, for the place-family picker and the
-   *  type browser. Carries PredefinedType + how many occurrences reference each type. */
-  types(pid: string) {
-    return this.json<{ types: TypeRow[] }>(`/projects/${pid}/types`);
-  }
-  /** W10-1 type inspector: class, predefined, box dims, type Psets, material layers, occurrences. */
-  typeDetail(pid: string, typeGuid: string) {
-    return this.json<TypeDetail>(`/projects/${pid}/types/${encodeURIComponent(typeGuid)}`);
-  }
-  /** W10-1: author a custom family type (class + optional [w,d,h] box + PredefinedType + type Psets).
-   *  Returns the new type GUID in `changed`. Versioned + GUID-stable via the /edit recipe path. */
-  createType(pid: string, ifc_class: string, name: string, dims?: [number, number, number] | null,
-             predefined?: string | null, psets?: Record<string, Record<string, unknown>> | null,
-             publish = true) {
-    return this.editIfc(pid, "create_type", { ifc_class, name, dims, predefined, psets }, publish);
-  }
-  /** W10-1: edit a type's params. Changing `dims` propagates to EVERY placed occurrence at once
-   *  (shared RepresentationMap), GUID-stable — no re-placement. */
-  editType(pid: string, type_guid: string, patch: { name?: string; dims?: [number, number, number];
-             predefined?: string; psets?: Record<string, Record<string, unknown>> }, publish = true) {
-    return this.editIfc(pid, "edit_type_params", { type_guid, ...patch }, publish);
-  }
-  /** W10-1: give a type an ordered IfcMaterialLayerSet ([{material, thickness(m)}]); occurrences inherit. */
-  assignMaterialSet(pid: string, type_guid: string,
-                    layers: { material: string; thickness: number }[], publish = true) {
-    return this.editIfc(pid, "assign_material_set", { type_guid, layers }, publish);
-  }
-  /** W10-3: every IfcGroup (named set) and IfcElementAssembly (part-of whole) with member counts. */
-  groups(pid: string) {
-    return this.json<{ groups: GroupRow[]; assemblies: AssemblyRow[] }>(`/projects/${pid}/groups`);
-  }
-  /** W10-3 inspector: the members/parts of one group or assembly. */
-  groupDetail(pid: string, guid: string) {
-    return this.json<{ guid: string; kind: "group" | "assembly"; name: string; member_count: number;
-      members: { guid: string; name: string; ifc_class: string }[] }>(
-      `/projects/${pid}/groups/${encodeURIComponent(guid)}`);
-  }
-  /** W10-3: author an IfcGroup (named set) over the given element GUIDs (re-using a name adds to it). */
-  createGroup(pid: string, name: string, guids: string[], publish = true) {
-    return this.editIfc(pid, "create_group", { name, guids }, publish);
-  }
-  /** W10-3: aggregate the given elements into an IfcElementAssembly (a real part-of whole). */
-  createAssembly(pid: string, name: string, guids: string[], predefined?: string | null, publish = true) {
-    return this.editIfc(pid, "create_assembly", { name, guids, predefined }, publish);
-  }
-  /** W10-3: rectangular parametric array — nx×ny copies at pitch (dx,dy) m (dz per column). */
-  arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
-    return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
   }
   /** W11 Track D: one element's attached carriers — classification codes + documents (details/instructions). */
   elementDetailing(pid: string, guid: string) {
@@ -1551,24 +1497,6 @@ export interface MaterialPaletteResult {
   default: Record<string, MaterialEntry>;
   overrides: Record<string, MaterialEntry>;
   effective: Record<string, MaterialEntry>;
-}
-/** A family type row (W10-1 type browser) — placeable IfcTypeProduct with its occurrence count. */
-export interface TypeRow {
-  guid: string; name: string; ifc_class: string; predefined: string | null;
-  has_geometry: boolean; occurrence_count: number;
-}
-/** A named set of elements (W10-3) — IfcGroup with its member count. */
-export interface GroupRow { guid: string; name: string; kind: string; members: number; }
-/** A part-of whole (W10-3) — IfcElementAssembly with its part count. */
-export interface AssemblyRow { guid: string; name: string; predefined: string | null; parts: number; }
-/** Full type inspector (W10-1) — dims, type Psets, material layers, and placed occurrences. */
-export interface TypeDetail {
-  guid: string; name: string; ifc_class: string; predefined: string | null;
-  dims: [number, number, number] | null; has_geometry: boolean;
-  psets: Record<string, Record<string, unknown>>;
-  materials: { material: string | null; thickness: number | null }[];
-  occurrence_count: number;
-  occurrences: { guid: string; name: string; ifc_class: string }[];
 }
 export interface EgressResult {
   compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;
