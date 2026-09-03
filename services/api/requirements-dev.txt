@@ -13,9 +13,24 @@ ruff>=0.16.3         # static-analysis gate (config in ruff.toml): dead code + r
                      # a new major flags code that has been fine for a year, and this file
                      # is covered by NO lock, so nothing would have caught it. Validated by
                      # running it: 0.16.3 installed to a temp dir (never the shared venv)
-                     # and pointed at the exact scope ci.yml lints, `src/ ../data/src/` from
-                     # services/api. Both 0.15.20 and 0.16.3 report `All checks passed`.
+                     # and pointed at the exact scope ci.yml lints. Both 0.15.20 and 0.16.3
+                     # reported `All checks passed`.
+                     # THAT SCOPE CHANGED on 2026-09-03: this line said `src/ ../data/src/`, and
+                     # ci.yml now runs `ruff check ../..` — the whole tree, 1,280 files rather than
+                     # 612. The validation above was therefore performed against less than half of
+                     # what a version bump now touches. Re-validate against the real scope, and let
+                     # `test_ruff_scope.py` tell you what that is rather than this comment.
 bandit>=1.9.4          # security static analysis (report-only in CI; run before shipping)
+pyyaml>=6.0.3        # `test_ruff_scope.py` parses .github/workflows/*.yml to find the ONE enforcing
+                     # `ruff check` step and read its `continue-on-error` — structure a regex cannot
+                     # see. It arrives in requirements.lock anyway (`# via` fastapi, uvicorn, pyHanko,
+                     # bandit, starlette, markdown-it-py), and that is exactly why it is declared HERE:
+                     # transitive availability is a fact about someone else's metadata, and a package
+                     # our own source imports is a DIRECT dependency however else it happens to arrive.
+                     # (`test_declared_imports.py` would normally catch this and did NOT — it walks
+                     #  services/api/src and services/data/src only, so a gate sitting in services/api
+                     #  is outside its reach. Same scope hole as the one this release fixed for ruff,
+                     #  one directory over. Recorded in docs/roadmap.md; not fixed here.)
 # Optional glTF Draco compression (gltf_export.export_*(draco=True)) — here rather than in
 # requirements.in so the CI gate exercises the encoder without the runtime image carrying a 5 MB
 # native wheel for an opt-in export. `gltf_export` imports it lazily and raises DracoUnavailable with

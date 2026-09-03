@@ -3022,6 +3022,17 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
      Whatever remains in the 139 findings is symbol-level: exports defined and never called, which
      ruff does not look for.
 
+     *(**OPEN, found by RUFF-SCOPE and NOT fixed there:** `services/api/test_declared_imports.py`
+     has the same shape of hole. It walks `services/api/src` and `services/data/src` only, so any
+     import in a gate that sits in `services/api/` itself — which is where all ~30 of them live — is
+     invisible to it. Demonstrated rather than argued: `test_ruff_scope.py` added `import yaml`,
+     pyyaml was declared in neither `requirements.in` nor `requirements-dev.txt` and reached the lock
+     only `# via` fastapi/uvicorn/pyHanko/bandit/starlette/markdown-it-py, and the gate stayed green.
+     Declared explicitly in `requirements-dev.txt` as a point fix. **The class is not closed**: widen
+     the walk to the gate files, then re-derive which of their imports are undeclared. Low severity —
+     the gates' imports are stdlib plus well-anchored runtime packages — but it is the exact defect
+     that file exists to catch, one directory outside its reach.)*
+
      *(RUFF-SCOPE, 2026-09-03: that sentence named its scope correctly and I still read a tree-wide
      conclusion out of it. `src/` and `../data/src/` were the ONLY things ruff saw — 612 of 1,338
      tracked `.py` files — so "already gated" was true of 46% of the tree. Widening the CI command to

@@ -593,6 +593,37 @@ Mutation-checked: CI narrowed back to `src/ ../data/src/` → exit 1 naming 726 
 prefix renamed → exit 1 naming the stale entry. Restored → exit 0. *Read the exit code directly, not
 through a pipe.*
 
+#### The first version of that gate was bypassable, and CodeRabbit found it
+
+It used `re.search` over `ci.yml` — which returns the **first** match. Add a harmless earlier line
+(`ruff check ../.. --show-files`), narrow the real one below it, and the gate measures the decoy and
+passes while the enforcing lint is back to two directories. I had asked for review on exactly this
+question and the answer was yes.
+
+The extraction now parses **every** workflow with PyYAML, collects **every** `run:` step mentioning
+`ruff check`, and requires **exactly one** — two is ambiguous, and ambiguity resolved by picking one
+is how the bypass worked. A step that cannot fail the build is rejected outright: `--exit-zero`,
+`--show-files`, `--statistics`, `--show-settings`, a trailing `|| true`, or `continue-on-error` on
+either the step or its job. Five mutations, all red, restored green: decoy-then-narrow · `--exit-zero`
+· `|| true` · `continue-on-error` · narrowed single invocation.
+
+*A gate derived from a config is only as good as its derivation. "Parses the workflow" sounded like a
+guarantee and was a substring search.*
+
+#### And the same hole exists one directory over, in `test_declared_imports.py`
+
+That gate walks `services/api/src` and `services/data/src` only — so an import in a gate sitting in
+`services/api/` itself, which is where all ~30 of them live, is invisible to it. Demonstrated rather
+than argued: `test_ruff_scope.py` added `import yaml`; pyyaml was declared in neither
+`requirements.in` nor `requirements-dev.txt`, reached the lock only `# via` fastapi/uvicorn/pyHanko/
+bandit/starlette/markdown-it-py, and the gate stayed green. pyyaml is now declared explicitly in
+`requirements-dev.txt` as a point fix; **the class is open** and recorded in `docs/roadmap.md`.
+
+`requirements-dev.txt`'s `ruff>=0.16.3` comment also said the floor had been validated "against the
+exact scope ci.yml lints, `src/ ../data/src/`". That scope is now the whole tree — so the validation
+behind that pin covered less than half of what a future bump touches. Corrected in place, pointing at
+the gate rather than restating a number.
+
 
 
 

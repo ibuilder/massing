@@ -24,10 +24,25 @@ WHY THIS EXISTS
 
 THE FAILURE THIS GATE IS SHAPED AROUND
     A scope gate that measures a command NOBODY RUNS is the same bug one level up. So this test does
-    not carry its own copy of the ruff arguments: it PARSES `.github/workflows/ci.yml`, extracts the
-    `ruff check` line, and measures THAT. Narrow the CI command and this test goes red; edit this
-    test's idea of the command and it no longer matches CI, which it also checks. The two have to
-    agree because only one of them exists.
+    not carry its own copy of the ruff arguments: it reads every workflow under `.github/workflows/`,
+    finds the step that runs `ruff check`, and measures THAT. Narrow the CI command and this test
+    goes red. The two have to agree because only one of them exists.
+
+    THE FIRST VERSION OF THIS WAS BYPASSABLE, and CodeRabbit found it on the PR that introduced it.
+    It used `re.search` over `ci.yml` — which takes the FIRST match. Adding an earlier, harmless
+    line (`ruff check ../.. --show-files`) and narrowing the real one below it would have left this
+    gate measuring the decoy and passing, with the enforcing lint reduced to two directories again.
+    A gate that reads the workflow instead of restating it is the right shape; reading only the
+    first thing that matches is not reading the workflow.
+
+    So the extraction is now: EVERY workflow file, EVERY `run:` step, and there must be EXACTLY ONE
+    `ruff check` in the whole set. Two is ambiguous — this test cannot know which one enforces — and
+    ambiguity resolved by picking one is how the bypass worked. A step that cannot fail the build is
+    rejected outright: `--exit-zero`, `--show-files` and `--statistics` all report without enforcing,
+    and `|| true` or `continue-on-error` neutralise any command at all.
+
+    *A gate derived from a config is only as good as its derivation. "Parses the workflow" sounded
+    like a guarantee and was a substring search.*
 
 THE VENDOR CARVE-OUT IS A LIST, NOT A PATTERN
     Five trees are vendored verbatim from upstream and excluded in `ruff.toml` — judging someone
@@ -51,6 +66,8 @@ import re
 import subprocess
 import sys
 
+import yaml
+
 FAILED = []
 
 
@@ -62,7 +79,12 @@ def check(label, ok, detail=""):
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-CI = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+WORKFLOWS = os.path.join(ROOT, ".github", "workflows")
+
+#: Flags and shell suffixes that make a `ruff check` REPORT rather than ENFORCE. A step carrying any
+#: of these cannot fail the build, so it cannot be the lint gate — and treating it as one is exactly
+#: the bypass this list exists to close. Listed explicitly; never inferred.
+NON_ENFORCING = ("--exit-zero", "--show-files", "--statistics", "--show-settings", "|| true")
 
 #: Vendored verbatim from upstream; excluded in `ruff.toml` for the reason recorded there. Named as
 #: exact repository-relative directory prefixes — never as a glob or a heuristic, because an inferred
@@ -76,14 +98,71 @@ VENDORED = (
 )
 
 # ---------------------------------------------------------------- the command CI actually runs
-with open(CI, encoding="utf-8") as fh:
-    ci_text = fh.read()
+def _steps(doc):
+    """Every step mapping in a parsed workflow, with the job that owns it."""
+    for job_name, job in (doc.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if isinstance(step, dict):
+                yield job_name, job, step
 
-# `run: cd services/api && python -m ruff check <paths>` — captured from the workflow, not retyped.
-m = re.search(r"^\s*run:\s*cd\s+(\S+)\s*&&\s*python -m ruff check\s+(.+)$", ci_text, re.M)
-check("ci.yml still has a `cd <dir> && ruff check` step this gate can read", m is not None,
-      "" if m else "no `run: cd ... && python -m ruff check ...` line found — if the step was "
-                   "restructured, update the pattern here rather than deleting the gate")
+
+#: (workflow, job, step, run-text) for every step whose shell command mentions `ruff check`. ALL
+#: workflows, ALL steps — not the first regex hit in one file.
+invocations = []
+_wf_files = sorted(
+    f for f in os.listdir(WORKFLOWS) if f.endswith((".yml", ".yaml"))
+) if os.path.isdir(WORKFLOWS) else []
+check("there are workflow files to scan", bool(_wf_files), f"{len(_wf_files)} under .github/workflows")
+
+for wf in _wf_files:
+    with open(os.path.join(WORKFLOWS, wf), encoding="utf-8") as fh:
+        try:
+            doc = yaml.safe_load(fh)
+        except yaml.YAMLError as exc:                       # a workflow we cannot parse is a FAILURE:
+            check(f"{wf} parses as YAML", False, str(exc)[:200])   # skipping it is how one hides a
+            continue                                        # second ruff invocation from this gate.
+    if not isinstance(doc, dict):
+        continue
+    for job_name, job, step in _steps(doc):
+        run = step.get("run")
+        if isinstance(run, str) and "ruff check" in run:
+            invocations.append((wf, job_name, job, step, run))
+
+# EXACTLY one. Two invocations means this gate has to guess which one enforces, and a gate that
+# guesses is a gate that can be pointed at a decoy — which is precisely the bypass CodeRabbit found
+# in the first version of this file.
+check(
+    "exactly one `ruff check` invocation exists across all workflows",
+    len(invocations) == 1,
+    "; ".join(f"{w}:{j}" for w, j, _job, _s, _r in invocations) or "none found",
+)
+if len(invocations) != 1:
+    print(
+        "\n  If a second ruff invocation is genuinely wanted, this gate must be taught WHICH one is\n"
+        "  the enforcing lint — by step name, not by position. Do not relax the count and let it\n"
+        "  pick the first."
+    )
+    print("FAILED:", ", ".join(FAILED))
+    sys.exit(1)
+
+wf, job_name, job, step, run = invocations[0]
+
+# A step that cannot fail the build is not a gate, whatever it prints.
+_neutered = [tok for tok in NON_ENFORCING if tok in run]
+if job.get("continue-on-error") is True:
+    _neutered.append("continue-on-error (job)")
+if step.get("continue-on-error") is True:
+    _neutered.append("continue-on-error (step)")
+check("the ruff step can actually fail the build", not _neutered,
+      f"{wf}: {', '.join(_neutered)}" if _neutered else run.strip())
+
+m = re.search(r"cd\s+(\S+)\s*&&\s*python -m ruff check\s+(.+?)\s*$", run.strip(), re.S)
+check(f"the ruff step in {wf} has the `cd <dir> && ruff check <paths>` shape this gate reads",
+      m is not None,
+      "" if m else f"got: {run.strip()[:160]} — if the step was restructured, teach this pattern "
+                   "the new shape rather than deleting the gate")
 if not m:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
