@@ -3067,10 +3067,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,374 lines**; 9 labelled sections remain. The two biggest are also the two
-  worst-labelled: `RACI / DACI` carries 13 methods (including `standardsCheck`, `mcpTools`) and
-  `CX-1 commissioning loop` carries 49 (including `rebarBbs`, `rebarCheckCage`). Those two hold
-  roughly a third of what is left.
+  **`client.ts` is 1,339 lines.** The RACI banner is dealt with — it covered 13 methods and
+  described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
+  `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
+  (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
+  naming them. **The big one left is `// --- CX-1 commissioning loop ---` at 49 methods**,
+  among them `rebarBbs` and `rebarCheckCage` — roughly a quarter of the file under a banner
+  for something else.
 
   **⓽ took the AI-drafting banner apart** — and it is the clearest case yet for grouping by
   what methods ANSWER. One `// --- AI drafting ---` section held **three** questions: the

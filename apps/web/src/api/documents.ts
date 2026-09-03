@@ -201,5 +201,15 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   g704Url(pid: string, certRid: string) {
     return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }
+
+  // SCALE-SEAM (82) — *how well does this project follow its own naming rules?* The pair of
+  // `namingConventions` above: that one states the container and sheet patterns, this one
+  // reports compliance against the same two subjects. Splitting them would have been the
+  // mistake — it was on its way to `model.ts` until the return shapes were compared.
+  namingAudit(pid: string) {
+    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
+      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
+      `/projects/${pid}/naming/audit`);
+  }
   };
 }

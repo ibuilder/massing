@@ -270,6 +270,30 @@ and `mcpTools`, and `// --- CX-1 commissioning loop ---` carries **49**, among t
 
 Pin 1,436 → 1,374.
 
+Nineteenth follow-on on the same version: **SCALE-SEAM (82)**. Six methods out of `client.ts`
+(`1,374 → 1,339`), and the banner that held them was the worst yet: `// --- Responsibility matrix
+(RACI / DACI) ---` covered **thirteen** methods and described **four**.
+
+- *how good is this model, measured against a standard?* — `standardsCheck`, `bimKpiScorecard`,
+  `openbimQuality`, `lodAssessment`, `envelopeAudit` onto `apps/web/src/api/model.ts`.
+  `lodAssessment` joins `lodCensus` and `lodHandoverReadiness`, already there.
+- *how well does this project follow its own naming rules?* — `namingAudit` onto
+  `apps/web/src/api/documents.ts`.
+
+**`namingAudit` was on its way to `model.ts`** — "audit" reads like model quality — **until the
+return shapes were compared.** It reports compliance for `containers` and `sheets`;
+`documents.ts`'s `namingConventions` states the pattern for `container` and `sheet`. Same two
+subjects: one says what the rule is, the other how well it is followed. Splitting that pair would
+have been the mistake, and only reading both return types found it.
+
+**The banner is now split rather than left over-claiming.** The RACI header names its four
+`/responsibility` methods, and the three that are not RACI — `mcpTools` (`/mcp/tools`, global),
+`handoverAcceptance`, `inspectVim` (`/convert/vim/inspect`) — sit under an explicit *UNFILED*
+header that names them and says each needs a home decided by what it answers. Naming them is the
+point: an over-claiming banner is how the previous three slices each lost a method.
+
+Pin 1,374 → 1,339.
+
 
 
 

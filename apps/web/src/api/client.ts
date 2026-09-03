@@ -883,7 +883,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       note: string }>(`/projects/${pid}/program/summary`);
   }
 
-  // --- Responsibility matrix (RACI / DACI) ----------------------------------
+  // --- Responsibility matrix (RACI / DACI) — the four `/responsibility` methods only ------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
   }
@@ -900,38 +900,19 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       `/projects/${pid}/responsibility/apply-template`, {
         method: "POST", body: JSON.stringify({ key, mode }) });
   }
-  standardsCheck(pid: string, standard: "iso19650" | "cobie" | "ids" | "uniclass") {
-    return this.json<{ standard: string; label?: string; score?: number;
-      findings?: { level: string; text: string; reference: string }[];
-      recommendations?: string[]; error?: string; note?: string }>(
-      `/projects/${pid}/standards/check?standard=${standard}`);
-  }
+
+  // --- UNFILED: three methods that the RACI banner above used to cover -----------------
+  // Named rather than left implicit, because a banner that over-claims is how the previous
+  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `handoverAcceptance`
+  // is `/handover/acceptance`; `inspectVim` is `/convert/vim/inspect`. None is RACI, and each
+  // needs its home decided by what it ANSWERS rather than by what it sits next to.
   mcpTools() {
     return this.json<{ tools: { name: string; description: string }[]; server: string; note: string }>(
       `/mcp/tools`);
   }
-  bimKpiScorecard(pid: string) {
-    return this.json<{
-      categories: { key: string; label: string; grade: string; headline: string;
-        metrics: Record<string, number | null> }[];
-      summary: { scored: number; good: number; warn: number; poor: number; na: number; health_pct: number | null };
-      model_scored: boolean; note: string }>(`/projects/${pid}/bim-kpi/scorecard`);
-  }
   handoverAcceptance(pid: string) {
     return this.json<{ accepted: boolean; checks: { key: string; label: string; ok: boolean }[];
       metrics: Record<string, number>; note: string }>(`/projects/${pid}/handover/acceptance`);
-  }
-  openbimQuality(pid: string, useCase?: string) {
-    const qs = useCase ? `?use_case=${encodeURIComponent(useCase)}` : "";
-    return this.json<{
-      loin: { total: number; max_score: number; avg_score: number; coordinated_pct: number | null;
-        distribution: Record<string, number>; facet_coverage_pct: Record<string, number | null> };
-      export_health: { total: number; proxy_count: number; overall: string;
-        checks: { key: string; label: string; pct: number | null; grade: string }[] };
-      bsdd: { total: number; classified: number; alignment_pct: number | null };
-      ids?: { compliance_pct: number | null; applicable_total: number; passing_total: number;
-        specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
-      use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
 
   async inspectVim(file: File) {
@@ -940,22 +921,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
-  }
-  lodAssessment(pid: string) {
-    return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
-      distribution: Record<string, number>;
-      by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
-      `/projects/${pid}/lod/assessment`);
-  }
-  envelopeAudit(pid: string) {
-    return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
-      results: { name: string; element_type: string; compliant: boolean | null }[] }>(
-      `/projects/${pid}/envelope/audit`);
-  }
-  namingAudit(pid: string) {
-    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
-      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
-      `/projects/${pid}/naming/audit`);
   }
 
   // --- hold-phase asset management: reserve study + CAM reconciliation ----------
