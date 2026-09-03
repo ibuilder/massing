@@ -295,6 +295,42 @@ point: an over-claiming banner is how the previous three slices each lost a meth
 
 Pin 1,374 → 1,339.
 
+Twentieth follow-on on the same version: **SCALE-SEAM (83)** — the banner that ran to the end of
+the file. `// --- CX-1 commissioning loop ---` covered **44 methods**, of which **three** were
+commissioning. Nine methods out of `client.ts` (`1,339 → 1,292`) into three existing mixins:
+
+- *is commissioning closing, and in detail?* — `cxSeed`, `cxMatrix`, `cxDossier` onto
+  `apps/web/src/api/documents.ts`, beside `closeoutSummary`, which ❿ brought in and which already
+  returns a `commissioning` **rollup** (`cx_count` / `passed` / `failed` / `conditional`). These
+  three are the detail behind that number — the same rollup-and-detail pair as `procurementLevel`
+  and `bidLevelingDetail` at ⓽.
+- *does this model pass its checks?* — `ciRun`, `ciLatest`, `rulesRun`, `rulesGeometryRun` and
+  `rebarCheckCage` onto `apps/web/src/api/model.ts`, beside `envelopeAudit` and `standardsCheck`.
+  `ModelCiReport` moved with them into that file's type imports and out of `client.ts`'s.
+- *what does this model cost, by storey and discipline?* — `qtoByFloor` onto
+  `apps/web/src/api/estimate.ts`, beside `estimateFromModel`.
+
+**Two placements were decided by return shape, against what the route said.** `qtoByFloor` reads
+as a quantity method and its route is `/qto/by-floor` — but every line carries `rate` and `amount`
+and the payload has a `grand_total`. It is priced takeoff, so it went to estimating, not to the
+model reads. And `rebarCheckCage` came to `model.ts` while **its two `/rebar/` siblings did not**:
+`rebarBbs` and `rebarBbsCsvUrl` share a route prefix and a `REBAR-RULES` doc tag with it, and
+answer a different question — a bar bending schedule is a quantity, an ACI cage check is the same
+question `envelopeAudit` asks. Route-and-tag kinship is exactly the reason ⓽ nearly filed
+`bidLevelingDetail` in `ai.ts`.
+
+**The banner was replaced, not narrowed.** With the three `/cx/*` methods gone it named *nothing*
+— the worst state a label can be left in, one step past the over-claiming that cost ⓽, ⓾, (81) and
+(82) a method each. In its place is an `UNFILED` map of the 35 that remain, grouped by what each
+cluster answers: reinforcement quantities, development budget and draws, portfolio, saved views,
+material palette, site and test fit, four unrelated singles, and five that are genuinely
+client-level (`enumOptions`, `searchAll`, `attachmentUrl`, `templates`, `rvtBridgeStatus`) and
+should **stay**. Those five are the first methods in this whole sequence marked as *not* to be
+extracted — a decomposition that never says "this one is already home" will eventually move
+something that should not move.
+
+Pin 1,339 → 1,292.
+
 
 
 
