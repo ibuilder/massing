@@ -1,5 +1,16 @@
-/** Authoring: server-side IFC edit recipes, the family/content shelf, the compute graph and the
- *  massing generator — the endpoints that WRITE to the model rather than read from it.
+/** Authoring: server-side IFC edit recipes, the family/content shelf, the compute graph, the
+ *  massing generator, and saved recipe macros — the endpoints that WRITE to the model rather
+ *  than read from it.
+ *
+ *  SCALE-SEAM ㊳ adds editGraph plus the four macro methods that answer *run this parameterized
+ *  authoring chain?* Property-override layers sat immediately below in `client.ts` and did
+ *  **not** come — those compose properties, they do not write recipes.
+ *
+ *  SCALE-SEAM ⓻ adds family types — *what families can I place?* List, inspector,
+ *  create, edit, material-layer set. Groups sat below and did **not** come with that slice.
+ *
+ *  SCALE-SEAM ⓼ adds groups and assemblies — *how are these elements grouped?*
+ *  List, inspector, create group/assembly, parametric array. Detailing stayed.
  *
  *  First extraction of roadmap SCALE-SEAM. `client.ts` was measured at 4,956 lines with 152 commits
  *  in a fortnight and 631 methods on one class: it had to be opened to add any endpoint, so every
@@ -16,6 +27,7 @@
  *  sibling's private member — that has to move into HttpCore first.
  */
 import { HttpCore } from "./httpCore";
+import type { AssemblyRow, EditMacro, GroupRow, TypeDetail, TypeRow } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -184,11 +196,124 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<MassingResult & { source_ifc: string; publish: string }>(
         `/projects/${pid}/generate/massing`, { method: "POST", body: JSON.stringify(params) });
     }
+    /** massingOptioneer — ranked envelope options over a lever sweep (yield, GFA, units). */
+    massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+      type Opt = { id: string; levers: Record<string, number>; floors: number; height_m: number;
+        gfa_m2: number; gfa_sf: number; net_sellable_m2: number; units: number; far_achieved: number;
+        binding_constraint: string; on_frontier: boolean;
+        proforma: { total_cost: number; noi: number; stabilized_value: number; profit: number;
+          yield_on_cost: number; profit_margin: number } };
+      return this.json<{
+        scenarios: Opt[]; frontier: string[]; best: string | null; objective: string;
+        count: number; shown: number; levers_swept: Record<string, number[]>; note: string;
+      }>(`/massing/optioneer`, { method: "POST", body: JSON.stringify({ envelope, levers: opts?.levers ?? null, objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+    }
+    /** massingOptionRecipes — emit a ranked option as the blank-model bootstrap plus edit-recipe steps. */
+    massingOptionRecipes(envelope: Record<string, unknown>, option?: string,
+                         opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+      return this.json<{
+        option: string; floors: number; floor_to_floor: number; plate_m2: number; plate_side_m: number;
+        core_side_m: number;
+        bootstrap: { name: string; storeys: number; storey_height: number; ground_size: number };
+        steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number; note: string;
+      }>(`/massing/optioneer/recipes`, { method: "POST", body: JSON.stringify({
+        envelope, option: option ?? "", levers: opts?.levers ?? null,
+        objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+    }
     /** Create a blank authoring model (base IFC + levels + ground datum) — the from-scratch start for
      *  the in-browser modeler; sets it as the project's source IFC + publishes. */
     createBlankModel(pid: string, opts?: { name?: string; storeys?: number; storey_height?: number }) {
       return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
         `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
+    }
+    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list. */
+    authoringMatrix() {
+      return this.json<{
+        recipe_count: number; category_count: number; uncategorized: string[];
+        by_category: Record<string, { count: number; recipes: { recipe: string; category: string; produces: string }[] }>;
+        note: string;
+      }>("/reference/authoring-matrix");
+    }
+    /** Per-IfcSpace rule pack folded into `/rules/run` (dimensional / daylight / wet-wall). */
+    spacePack(pid: string) {
+      return this.json<{ pack: Record<string, unknown> | null }>(
+        `/projects/${pid}/rules/space-pack`);
+    }
+
+    /** editGraph — execute a visual recipe graph as one GUID-stable authoring pass. */
+    editGraph(pid: string, graph: unknown, opts?: { publish?: boolean; baseSource?: string }) {
+      return this.json<{ node_count: number; order: string[]; outputs: Record<string, unknown>; publish?: string }>(
+        `/projects/${pid}/edit/graph`,
+        { method: "POST", body: JSON.stringify({ graph, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
+    }
+    /** listMacros — saved, parameterized chained edit-recipes for this project. */
+    listMacros(pid: string) {
+      return this.json<{ macros: EditMacro[]; seeded: boolean }>(`/projects/${pid}/macros`);
+    }
+    /** saveMacros — replace the project's saved recipe-macro list. */
+    saveMacros(pid: string, macros: EditMacro[]) {
+      return this.json<{ saved: number; macros: EditMacro[] }>(
+        `/projects/${pid}/macros`, { method: "PUT", body: JSON.stringify({ macros }) });
+    }
+    /** expandMacro — expand one macro plus args into GUID-stable recipe steps. */
+    expandMacro(pid: string, macroId: string, args: Record<string, unknown>) {
+      return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
+        `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
+    }
+    /** runMacro — run a saved recipe chain as one GUID-stable version. */
+    runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
+      return this.json<Record<string, unknown>>(
+        `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
+        { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
+    }
+    /** Placeable types ("families") in the project's source IFC, for the place-family picker and the
+     *  type browser. Carries PredefinedType + how many occurrences reference each type. */
+    types(pid: string) {
+      return this.json<{ types: TypeRow[] }>(`/projects/${pid}/types`);
+    }
+    /** W10-1 type inspector: class, predefined, box dims, type Psets, material layers, occurrences. */
+    typeDetail(pid: string, typeGuid: string) {
+      return this.json<TypeDetail>(`/projects/${pid}/types/${encodeURIComponent(typeGuid)}`);
+    }
+    /** W10-1: author a custom family type (class + optional [w,d,h] box + PredefinedType + type Psets).
+     *  Returns the new type GUID in `changed`. Versioned + GUID-stable via the /edit recipe path. */
+    createType(pid: string, ifc_class: string, name: string, dims?: [number, number, number] | null,
+               predefined?: string | null, psets?: Record<string, Record<string, unknown>> | null,
+               publish = true) {
+      return this.editIfc(pid, "create_type", { ifc_class, name, dims, predefined, psets }, publish);
+    }
+    /** W10-1: edit a type's params. Changing `dims` propagates to EVERY placed occurrence at once
+     *  (shared RepresentationMap), GUID-stable — no re-placement. */
+    editType(pid: string, type_guid: string, patch: { name?: string; dims?: [number, number, number];
+               predefined?: string; psets?: Record<string, Record<string, unknown>> }, publish = true) {
+      return this.editIfc(pid, "edit_type_params", { type_guid, ...patch }, publish);
+    }
+    /** W10-1: give a type an ordered IfcMaterialLayerSet ([{material, thickness(m)}]); occurrences inherit. */
+    assignMaterialSet(pid: string, type_guid: string,
+                      layers: { material: string; thickness: number }[], publish = true) {
+      return this.editIfc(pid, "assign_material_set", { type_guid, layers }, publish);
+    }
+    /** W10-3: every IfcGroup (named set) and IfcElementAssembly (part-of whole) with member counts. */
+    groups(pid: string) {
+      return this.json<{ groups: GroupRow[]; assemblies: AssemblyRow[] }>(`/projects/${pid}/groups`);
+    }
+    /** W10-3 inspector: the members/parts of one group or assembly. */
+    groupDetail(pid: string, guid: string) {
+      return this.json<{ guid: string; kind: "group" | "assembly"; name: string; member_count: number;
+        members: { guid: string; name: string; ifc_class: string }[] }>(
+        `/projects/${pid}/groups/${encodeURIComponent(guid)}`);
+    }
+    /** W10-3: author an IfcGroup (named set) over the given element GUIDs (re-using a name adds to it). */
+    createGroup(pid: string, name: string, guids: string[], publish = true) {
+      return this.editIfc(pid, "create_group", { name, guids }, publish);
+    }
+    /** W10-3: aggregate the given elements into an IfcElementAssembly (a real part-of whole). */
+    createAssembly(pid: string, name: string, guids: string[], predefined?: string | null, publish = true) {
+      return this.editIfc(pid, "create_assembly", { name, guids, predefined }, publish);
+    }
+    /** W10-3: rectangular parametric array — nx×ny copies at pitch (dx,dy) m (dz per column). */
+    arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
+      return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
     }
   };
 }

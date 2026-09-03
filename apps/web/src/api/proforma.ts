@@ -1,27 +1,19 @@
-/** Development pro-forma: solve, scenarios, sensitivity, portfolio and the model-linked metrics.
+/** Development pro-forma, plus disposition: appraisal, listings, comparables, MLS syndication.
  *
- *  SCALE-SEAM ⑧. Route-group `/proforma`, taken out of `client.ts` by the route each method calls.
+ *  SCALE-SEAM ⑧ took `/proforma`. SCALE-SEAM ㉜ adds the nine methods that answer *what is this
+ *  asset worth, and how does it list?* — tri-approach appraisal, listing autofill / share /
+ *  RESO, comparable import, and the MLS syndication bridge. They sit on `/appraisal`,
+ *  `/listings`, `/comparables` and `/re-syndication`, so a prefix split would scatter them.
+ *  Reports (`reports` / `reportUrl`) sat immediately above the cluster and did **not** come —
+ *  those are the document catalog, not valuation. Composed through the existing `withProforma`
+ *  wrapper — no extra `withX()` on `ApiClient`.
  *
- *  **The group was four times the size the hand-off estimated.** It was scoped as "~3 methods
- *  (`solve`, `live`, `model-metrics`)"; locating by route rather than by eye found **15**, sitting in
- *  four separate regions — a run of twelve, then `portfolioCompare`, `proformaLive` and
- *  `proformaModelMetrics` each alone, ~1,200 and ~1,500 lines further down. That is the same finding
- *  ⑥ and ⑦ recorded in their own words: the `// --- section ---` comments label where a run *starts*
- *  and stop meaning anything after it.
- *
- *  **Three methods here are new, not moved**, and they exist because the endpoints were unreachable:
- *  `/proforma/renovation`, `/proforma/rollover` and `/proforma/income-basis` are built, tested and
- *  had no client caller at all — `test_reachable` passes on them because the *route* exists, which is
- *  the gap `test_route_reachability` now ratchets. `renovation` carries the load-bearing negative:
- *  `nothing_renovated` says a pace renovates NOTHING across the whole hold, and a finding like that
- *  should be loud rather than a `false` in a payload nobody fetches.
- *
- *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving a
- *  method is invisible to it, losing one fails it by number. The floor moves 699 -> 702 because of
- *  the three NEW methods, not because anything moved.
+ *  SCALE-SEAM ㊼ adds in-place operations — *what is this asset earning today?* Rent roll and
+ *  lease-management depth. They sat above the investor stack in `client.ts` and did **not** go
+ *  with ㉙ (capital is ownership, this is occupancy). `askProject` stayed.
  */
 import { HttpCore } from "./httpCore";
-import type { FinancialStatements, MonteCarloResult, ProformaForecast, ProformaResult } from "./types";
+import type { Appraisal, FinancialStatements, MonteCarloResult, ProformaForecast, ProformaResult } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -146,6 +138,33 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<Record<string, unknown>>(`/projects/${pid}/proforma/rollover`);
   }
 
+  /** Project-level Uses vs Sources — latest saved scenario, else cost budget + debt/equity params. */
+  twoSidedBudget(pid: string) {
+    return this.json<{
+      uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
+      total_uses: number; total_sources: number; balanced: boolean;
+      scenario?: { id: string; name: string };
+    }>(`/projects/${pid}/budget/two-sided`);
+  }
+
+  /** R22-PIPELINE — acquisition funnel across the book. Weighted value is this firm's closed history,
+   *  never a textbook ladder; a stage without enough samples is excluded and counted. */
+  pipelineFunnel() {
+    return this.json<{
+      as_of: string; deal_count: number; stages: string[]; terminal_states: string[];
+      by_stage: Record<string, { count: number; value: number; deals_with_value: number }>;
+      conversion: Record<string, { status: string; closed_samples: number; probability: number | null;
+        needed: number; note: string }>;
+      weighted: { weighted_value: number; deals_weighted: number; deals_in_flight: number;
+        coverage: number | null; excluded_count: number; excluded_value: number; note: string };
+      cycle_time: { closed: { count: number; median_days: number | null; mean_days: number | null };
+        open_age: { count: number; median_days: number | null; mean_days: number | null };
+        blended: null; note: string };
+      warnings: { code: string; note: string }[];
+      min_closed_samples: number;
+    }>(`/pipeline/funnel`);
+  }
+
   /**
    * PF-INCOME-BASIS — which income line each figure derives from, so a reader can TRACE it:
    *
@@ -165,6 +184,75 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       reason?: string; derived_unavailable_reason?: string;
       declared_annual: number | null; derived: number | null;
     }>(`/projects/${pid}/proforma/income-basis${q}`);
+  }
+
+  /** Tri-approach valuation for a project (cost + income + sales-comparison + reconciliation). */
+  appraisal(pid: string) {
+    return this.json<Appraisal>(`/projects/${pid}/appraisal`);
+  }
+  /** Persist appraisal overrides (weights, depreciation, land value, …) and recompute. */
+  saveAppraisal(pid: string, overrides: Record<string, unknown>) {
+    return this.json<Appraisal>(`/projects/${pid}/appraisal`, {
+      method: "POST", body: JSON.stringify(overrides) });
+  }
+  /** Re-run the appraisal with the income approach valued off the actual rent roll's in-place income. */
+  appraisalFromRentRoll(pid: string) {
+    return this.json<Appraisal>(`/projects/${pid}/appraisal?rentroll=1`);
+  }
+  /** Listing fields pre-populated from the project's proforma + model (off-plan auto-fill). */
+  listingAutofill(pid: string) {
+    return this.json<{ data: Record<string, unknown> }>(`/projects/${pid}/listings/autofill`);
+  }
+  /** Mint a signed, expiring listing share (QR / deep link). */
+  shareListing(pid: string, lid: string, ttl?: number) {
+    const q = ttl ? `?ttl=${ttl}` : "";
+    return this.json<{ url: string; sig: string; exp: number; expires_in: number }>(
+      `/projects/${pid}/listings/${lid}/share${q}`, { method: "POST" });
+  }
+  /** Bulk-import comparables from CSV or a RESO array into the comparable module (feeds appraisal). */
+  importComparables(pid: string, body: { csv?: string; reso?: Record<string, unknown>[] }) {
+    return this.json<{ imported: number; rows: { id: string; ref: string; address: string }[] }>(
+      `/projects/${pid}/comparables/import`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** The RESO Data Dictionary payload for a listing (the bridge seam to an MLS). */
+  listingReso(pid: string, lid: string) {
+    return this.json<{ reso: Record<string, unknown> }>(`/projects/${pid}/listings/${lid}/reso`);
+  }
+  /** Whether the listing syndication bridge is configured. */
+  reSyndicationStatus() {
+    return this.json<{ enabled: boolean; target: string; implemented: boolean;
+      targets_supported: string[]; message: string }>(`/re-syndication/status`);
+  }
+  /** Push a listing (RESO-serialized) to the configured MLS bridge. 422 if it isn't configured. */
+  syndicateListing(pid: string, lid: string) {
+    return this.json<{ target: string; remote_id: string | null; url: string | null;
+      fields_pushed: number; status: string }>(
+      `/projects/${pid}/listings/${lid}/syndicate`, { method: "POST" });
+  }
+
+  /** rentRoll — occupancy, WALT, expiration schedule, in-place income. */
+  rentRoll(pid: string) {
+    return this.json<{ occupancy_pct: number; lease_count: number; base_rent_annual: number;
+      in_place_gross_income: number; walt_years: number; expirations_by_year: Record<string, unknown>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/rent-roll`);
+  }
+  /** leaseManagement — renewal pipeline, rent-escalation schedule, CAM/recovery reconciliation. */
+  leaseManagement(pid: string, years?: number, recoverableOpex?: number) {
+    const q = new URLSearchParams();
+    if (years != null) q.set("years", String(years));
+    if (recoverableOpex != null) q.set("recoverable_opex", String(recoverableOpex));
+    const qs = q.toString() ? `?${q}` : "";
+    return this.json<{
+      lease_count: number;
+      renewals: { holdover_count: number; expired_count: number; options_outstanding: number;
+        at_risk_rent: number; expiring: Record<string, { count: number; rent: number }>;
+        rows: Record<string, unknown>[] };
+      escalations: { years: number; portfolio_by_year: number[]; current_base_rent: number;
+        projected_base_rent: number; rows: Record<string, unknown>[] };
+      cam: { recoverable_income: number; recoverable_sf: number; by_lease_type: Record<string, number>;
+        recovery_ratio?: number | null; over_recovery?: number; under_recovery?: number;
+        rows: Record<string, unknown>[] };
+    }>(`/projects/${pid}/leases/management${qs}`);
   }
   };
 }

@@ -115,6 +115,31 @@ export async function renderAiAssist(ctx: PanelContext) {
     rout.append(runBtn, routOut);
     root.appendChild(rout);
 
+    const packs = el("div", "dash-card"); packs.style.cssText = "margin-bottom:8px";
+    const packsH = el("div"); packsH.style.fontWeight = "600"; packsH.textContent = "Agent packs";
+    const packsOut = el("div", "meta"); packsOut.textContent = "loading…";
+    packs.append(packsH, packsOut); root.appendChild(packs);
+    void ctx.host.api.agentPacks(pid).then((p) => {
+      packsOut.textContent = `${p.pack_count} pack(s) · ${p.read_only_count} read-only · ${p.run_count} run(s) on this project`
+        + (p.failure_count ? ` · ${p.failure_count} failed` : "");
+      if (p.packs.length) {
+        const t = el("table", "portal-table") as HTMLTableElement;
+        t.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+        t.innerHTML = "<thead><tr><th scope=\"col\" style=\"text-align:left\">Pack</th>"
+          + "<th scope=\"col\">Tools</th><th scope=\"col\">Writes</th></tr></thead>";
+        const tb = el("tbody");
+        for (const pack of p.packs) {
+          const tr = el("tr");
+          const n = el("td"); n.textContent = pack.label;
+          const tools = el("td"); tools.style.textAlign = "center"; tools.textContent = String(pack.tool_count);
+          const w = el("td"); w.style.textAlign = "center";
+          w.textContent = pack.writes ? pack.write_tools.join(", ") : "read-only";
+          tr.append(n, tools, w); tb.appendChild(tr);
+        }
+        t.appendChild(tb); packs.appendChild(t);
+      }
+    }).catch((e) => { packsOut.textContent = `packs failed: ${(e as Error).message}`; });
+
     // A DESCRIBED SCOPE, PRICED. `aiEstimate` turns a plain-language scope note into estimate lines.
     // It is a STARTING POINT and is labelled as one: an AI-priced line has no source, no quote ref
     // and no basis date — precisely what the basis-of-estimate ledger flags as undefendable.

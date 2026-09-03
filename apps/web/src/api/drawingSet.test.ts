@@ -7,7 +7,8 @@ const api = new ApiClient("http://localhost:0");
 describe("the drawing-set client", () => {
   it("exposes the register, issue, and transmittal calls", () => {
     for (const k of ["drawingSet", "drawingSetPlan", "generateDrawingSet", "issueDrawingSet",
-                     "drawingIssuances", "drawingRevisions", "drawingTransmittalUrl"]) {
+                     "drawingIssuances", "drawingRevisions", "drawingTransmittalUrl",
+                     "compiledPdfUrl", "projectPackagePdfUrl"]) {
       expect(typeof (api as unknown as Record<string, unknown>)[k], k).toBe("function");
     }
   });

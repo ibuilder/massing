@@ -80,5 +80,13 @@ export function withDrawingSet<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();
     return this.url(`/projects/${pid}/drawing-set/transmittal.pdf${q ? "?" + q : ""}`);
   }
+  /** Whole drawing set as one multi-page PDF (cover, plans, schedules). */
+  compiledPdfUrl(pid: string, maxSheets = 16) {
+    return this.url(`/projects/${pid}/drawing-set/compiled.pdf?max_sheets=${maxSheets}`);
+  }
+  /** Shareable project package PDF (cover, views, drawing set, cost summary). */
+  projectPackagePdfUrl(pid: string, maxSheets = 8) {
+    return this.url(`/projects/${pid}/project-package.pdf?max_sheets=${maxSheets}`);
+  }
   };
 }

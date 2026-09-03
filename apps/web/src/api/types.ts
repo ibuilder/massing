@@ -1059,3 +1059,22 @@ export interface SpineTraceability {
     cost_code_value: string | null; linked: boolean }[];
   note: string;
 }
+
+/** A family type row (W10-1 type browser) — placeable IfcTypeProduct with its occurrence count. */
+export interface TypeRow {
+  guid: string; name: string; ifc_class: string; predefined: string | null;
+  has_geometry: boolean; occurrence_count: number;
+}
+/** A named set of elements (W10-3) — IfcGroup with its member count. */
+export interface GroupRow { guid: string; name: string; kind: string; members: number; }
+/** A part-of whole (W10-3) — IfcElementAssembly with its part count. */
+export interface AssemblyRow { guid: string; name: string; predefined: string | null; parts: number; }
+/** Full type inspector (W10-1) — dims, type Psets, material layers, and placed occurrences. */
+export interface TypeDetail {
+  guid: string; name: string; ifc_class: string; predefined: string | null;
+  dims: [number, number, number] | null; has_geometry: boolean;
+  psets: Record<string, Record<string, unknown>>;
+  materials: { material: string | null; thickness: number | null }[];
+  occurrence_count: number;
+  occurrences: { guid: string; name: string; ifc_class: string }[];
+}

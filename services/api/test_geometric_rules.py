@@ -73,6 +73,11 @@ try:
     raise AssertionError("unknown kind must raise")
 except ValueError:
     pass
+try:
+    gr.run([], [{"kind": "clearance", "scope": ["door"]}])
+    raise AssertionError("clearance without distance_m must raise")
+except ValueError as e:
+    assert "distance_m" in str(e)
 
 # --- bake_boxes over a real generated IFC (same iterator as the clash broad phase) -----------------
 import tempfile  # noqa: E402
@@ -107,8 +112,17 @@ with TestClient(app) as c:
                   json={"checks": [{"kind": "clearance", "scope": "IfcDoor", "distance_m": -3}]})
     assert bad2.status_code == 422 and "distance_m" in bad2.json()["detail"], bad2.text
     bad3 = c.post(f"/projects/{pid}/rules/geometry/run",
-                  json={"checks": [{"kind": "clearance"}]})     # no scope → empty selector → 422
-    assert bad3.status_code == 422 and "bad selector" in bad3.json()["detail"], bad3.text
+                  json={"checks": [{"kind": "clearance"}]})     # no scope, no distance → no stated rule
+    assert bad3.status_code == 422 and "stated rule" in bad3.json()["detail"], bad3.text
+    # a class with no stated rule and no distance must 422 — never invent 0.9 m
+    nowall = c.post(f"/projects/{pid}/rules/geometry/run",
+                    json={"checks": [{"kind": "clearance", "scope": "IfcWall"}]})
+    assert nowall.status_code == 422 and "stated rule" in nowall.json()["detail"], nowall.text
+    from aec_api.routers.standards import _GEO_DEFAULTS
+    assert sum(1 for x in _GEO_DEFAULTS if x["kind"] == "clearance") == 7, _GEO_DEFAULTS
+    assert next(x for x in _GEO_DEFAULTS if x["scope"] == "IfcDoor")["severity"] == "high"
+    assert all(x["severity"] == "medium" for x in _GEO_DEFAULTS
+               if x["kind"] == "clearance" and x["scope"] != "IfcDoor")
     # a valid request on a model-less project fails cleanly at source-IFC resolution, not a 500
     nosrc = c.post(f"/projects/{pid}/rules/geometry/run", json={})
     assert 400 <= nosrc.status_code < 500 and "source" in nosrc.json()["detail"].lower(), nosrc.text

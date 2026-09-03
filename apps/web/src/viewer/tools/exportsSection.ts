@@ -114,6 +114,53 @@ export function buildExportsSection(d: ExportsDeps): void {
   ifcOut.title = "First-class IFC re-export — the current authored source IFC, GUID-stable, round-trips through any openBIM tool";
   b.appendChild(ifcOut);
 
+  const ifcx = toolBtn2("⬇ Export IFC5 JSON (.ifcx)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.modelExportIfcxUrl(projectId), "_blank");
+  });
+  ifcx.title = "IFC5 data layer as ifcJSON — properties and structure, not geometry";
+  b.appendChild(ifcx);
+
+  const fp = toolBtn2("⬇ Footprint (GeoJSON)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.footprintGeojsonUrl(projectId), "_blank");
+  });
+  fp.title = "WGS84 FeatureCollection of the building footprint + site point for a web map";
+  b.appendChild(fp);
+
+  const compiled = toolBtn2("⬇ Compiled drawing set (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.compiledPdfUrl(projectId), "_blank");
+  });
+  compiled.title = "Cover, floor plans, and door/window/room schedules in one PDF";
+  b.appendChild(compiled);
+
+  const pkgPdf = toolBtn2("⬇ Project package (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.projectPackagePdfUrl(projectId), "_blank");
+  });
+  pkgPdf.title = "Shareable package: cover, views, drawing set, cost and feasibility summary";
+  b.appendChild(pkgPdf);
+
+  const permGeo = toolBtn2("⬇ Nearby permits (GeoJSON)", async () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    try {
+      const cat = await api.permitCities();
+      const city = cat.cities[0]?.id;
+      if (!city) { notify("no city catalog", "error"); return; }
+      window.open(api.permitsGeojsonUrl(projectId, city), "_blank");
+    } catch (e) { notify(`permits layer failed: ${(e as Error).message}`, "error"); }
+  });
+  permGeo.title = "Municipal filings as points for a map overlay. Uses the first city in the catalog.";
+  b.appendChild(permGeo);
+
+  const rfiLog = toolBtn2("⬇ RFI log (PDF)", () => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    window.open(api.moduleLogPdfUrl(projectId, "rfi"), "_blank");
+  });
+  rfiLog.title = "Printable register of every RFI on the project";
+  b.appendChild(rfiLog);
+
   const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
   glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
   b.appendChild(glb);

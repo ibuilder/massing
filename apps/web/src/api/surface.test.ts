@@ -107,7 +107,7 @@ describe("the API client's public surface", () => {
     // different numbers from two different instruments, neither of them this one. Take the number
     // from the reader that enforces it: raising the floor to force a high estimate green, or leaving
     // it slack under a hand-rolled one, both defeat the gate in the same direction.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(706);
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(751);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -148,7 +148,43 @@ describe("the API client's public surface", () => {
       // and the other two still do not. Corrected here rather than left as "were unreachable", which
       // had already stopped being true for one of the three.
       "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
+      "appraisal", "listingAutofill", "shareListing", "syndicateListing",
       "schedule4d", "sequenceClash", "scheduleCpm", "evm",           // 4D + sequence clash + earned value
+      "pullPlanBoard", "pullPlanMetrics", "leanPpc", "pullPlanStream",
+      "analyticalSummary", "structureSolve", "structureLateral",
+      "rfiReadiness", "rfiReadinessBcf", "rfiQa",
+      "getLogistics", "putLogistics", "logisticsState",
+      "modelGraphStats", "graphNeighbors", "docGraph",
+      "editGraph", "listMacros", "runMacro",
+      "getLayers", "resolveLayers", "bakeLayers",
+      "layoutPoints", "layoutVerify", "loadsTakedown",
+      "massingOptioneer", "massingOptionRecipes",
+      "viewTemplates", "saveViewTemplates", "resolveViewTemplate",
+      "selectionsSummary", "pushSelectionChangeEvents",
+      "verifiedProgress", "progressRollup", "progressCaptureDiff",
+      "verificationCoverage", "setVerification", "verificationDeviations",
+      "rentRoll", "leaseManagement",
+      "permitCities", "opendataPermits", "importOpendataPermits",
+      "reports", "reportUrl",
+      "tmSummary", "tmByChangeEvent",
+      "payroll", "wh347Url",
+      "askModel", "askProject",
+      "submittalRegister", "specSubmittalLog", "extractSubmittals",
+      "coLog",
+      "actionTracker", "rfiRegister", "feasibility", "feasibilityCompare",
+      "itb", "scopeGap", "inviteBidders", "qualitySummary", "closeoutSummary",
+      "projectHealth", "safetySummary", "fieldLogSummary", "e57Status", "convertE57",
+      "clashMetrics", "clashClearanceRules", "clashMatrix",
+      "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
+      "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",
+      "lienWaiver", "rfqStatus", "entitlementConditionChecks",
+      "goldenThread", "k1Pack", "capTable", "waterfallScenario", "capitalCall", "ffeBom", "specLinks", "authoringMatrix",
+      "equipmentBudgetLines", "lodCensus", "exportQa", "qualityTurnoverReadiness",
+      "costDatasets", "costVintage", "unitRates", "costSummary", "gmpBudget", "payAppPdf", "elementCosts5d", "gaebX83Url",
+      "codeAmendments", "agentPacks", "modelHistory", "fileModel", "spacePack",
+      "compiledPdfUrl", "projectPackagePdfUrl",
+      "bep", "cdeStatus", "infoRequirementsRegister", "cdeExchangeAcceptance",
+      "drawingSchedulesCsvUrl", "permitsGeojsonUrl", "moduleLogPdfUrl", "viewTemplateGraphics",
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
       "editIfc", "publish", "createBlankModel", "placeFamily",      // authoring
@@ -162,6 +198,21 @@ describe("the API client's public surface", () => {
       "mfaVerify", "mfaStatus", "mfaEnable",                        // MFA enrolment + challenge
       "stepUp",                                                     // per-action re-auth for seals
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
+      "myRole", "members", "addMember", "removeMember",             // ⓮ project roster
+      "auditLog", "errorLog", "clearErrorLog", "reportClientError", // ⓯ ops observability
+      "presence",                                                   // 16 live peers
+      "workQueue", "myWork", "notifications", "dueFeed",            // 17 inbox
+      "escalationsScan", "sendDigest", "notificationStream",        // 18 overdue / digest
+      "reviewModelVersion", "modelVersions", "versionDiff",         // 19 publish history
+      "importClashXlsx", "importClashXml",                          // 20 clash import
+      "enqueueJob", "jobs", "jobArtifactUrl",                       // 21 job tray
+      "projects", "createProject", "importBundle",                  // 22 project catalog
+      "integrations", "license", "capabilities",                    // 23 deploy entitle
+      "siteContext", "parcelAnalyze", "parcelsScreen",              // 24 land around site
+      "pins",                                                       // 25 field marks
+      "preflight",                                                   // 26 issuance gate
+      "types", "typeDetail", "createType", "editType",               // 27 families
+      "groups", "createGroup", "createAssembly", "arrayElement",     // 28 groups
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",

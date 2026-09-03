@@ -522,9 +522,83 @@ export async function renderBudget(ctx: PanelContext) {
       } catch (e) { ctx.host.setStatus(`close failed: ${(e as Error).message}`); }
     };
     brow.append(seedBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
+    const lwRow = document.createElement("div");
+    lwRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px";
+    const lwBtn = document.createElement("button"); lwBtn.className = "tool-btn";
+    lwBtn.textContent = "Lien waiver (JSON)";
+    lwBtn.onclick = async () => {
+      try {
+        const lw = await ctx.host.api.lienWaiver(pid);
+        ctx.host.setStatus(`${lw.title} — $${Math.round(lw.amount).toLocaleString()}`);
+      } catch (e) { ctx.host.setStatus(`lien waiver failed: ${(e as Error).message}`); }
+    };
+    const lwPdf = document.createElement("a"); lwPdf.className = "tool-btn";
+    lwPdf.textContent = "⬇ Lien waiver (PDF)";
+    lwPdf.href = ctx.host.api.lienWaiverPdfUrl(pid);
+    lwPdf.target = "_blank"; lwPdf.rel = "noopener";
+    lwRow.append(lwBtn, lwPdf);
+    billing.appendChild(lwRow);
     billing.appendChild(Object.assign(document.createElement("div"), { className: "meta",
-      textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values." }));
+      textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values. Lien waiver amount follows current payment due." }));
     ctx.root.appendChild(billing);
+
+    void ctx.host.api.twoSidedBudget(pid).then((su) => {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
+      const head = document.createElement("div"); head.className = "section-title";
+      head.textContent = `Uses vs capital plan ${su.balanced ? "· balanced" : "· out of balance"}`;
+      card.appendChild(head);
+      const grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px";
+      const col = (title: string, lines: { label: string; amount: number }[], tot: number) => {
+        const wrap = document.createElement("div");
+        const n = tot;
+        wrap.innerHTML = `<div class="meta">${esc(title)}</div>`
+          + lines.map((l) => {
+            const amt = l.amount;
+            return `<div style="display:flex;justify-content:space-between"><span>${esc(l.label)}</span><span>${usd(amt)}</span></div>`;
+          }).join("")
+          + `<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:4px"><span>Total</span><span>${usd(n)}</span></div>`;
+        return wrap;
+      };
+      grid.append(col("Uses", su.uses, su.total_uses), col("Capital", su.sources, su.total_sources));
+      card.appendChild(grid);
+      ctx.root.appendChild(card);
+    }).catch(() => { /* no scenario or cost budget yet */ });
+
+    const vintageCard = document.createElement("div");
+    vintageCard.className = "dash-card"; vintageCard.style.marginBottom = "10px";
+    const vintageHead = document.createElement("div"); vintageHead.className = "section-title";
+    vintageHead.textContent = "Cost vintage & live 5D";
+    vintageCard.appendChild(vintageHead);
+    const vintageBody = document.createElement("div"); vintageBody.className = "meta";
+    vintageBody.textContent = "loading…";
+    vintageCard.appendChild(vintageBody);
+    const gaebRow = document.createElement("div");
+    gaebRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+    const gaeb = document.createElement("a"); gaeb.className = "tool-btn";
+    gaeb.textContent = "⬇ GAEB X83 (DIN 276)";
+    gaeb.href = ctx.host.api.gaebX83Url(pid);
+    gaeb.target = "_blank"; gaeb.rel = "noopener";
+    gaebRow.appendChild(gaeb);
+    vintageCard.appendChild(gaebRow);
+    ctx.root.appendChild(vintageCard);
+    void Promise.all([
+      ctx.host.api.costVintage(pid).catch(() => null),
+      ctx.host.api.costDatasets().catch(() => null),
+      ctx.host.api.elementCosts5d(pid).catch(() => null),
+    ]).then(([v, ds, five]) => {
+      vintageBody.textContent = "";
+      const bits: string[] = [];
+      if (v) {
+        const name = v.resolved?.name || (v.resolved?.vintage != null ? String(v.resolved.vintage) : "none");
+        bits.push(v.pinned_id ? `Pinned vintage: ${name}` : `Following latest vintage: ${name}`);
+      }
+      if (ds) bits.push(`${ds.datasets.length} vintage(s) installed`);
+      if (five) {
+        bits.push(`${five.priced} of ${five.element_count} elements priced · $${Math.round(five.total_cost).toLocaleString()}`);
+      }
+      vintageBody.textContent = bits.join(" · ") || "No cost vintage or 5D table yet.";
+    });
 
     // subcontractor billing — the GC-pays-subs mirror of owner billing
     const subc = document.createElement("div"); subc.className = "dash-card"; subc.style.marginBottom = "10px";

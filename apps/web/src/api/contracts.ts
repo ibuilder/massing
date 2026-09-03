@@ -23,6 +23,13 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving a
  *  method is invisible to it, losing one fails it by number.
+ *
+ *  SCALE-SEAM ㊹ adds owner selections / allowance vs actual — *what did the owner pick, and does
+ *  it trigger a change order?* Share tokens sat immediately below in `client.ts` and did **not**
+ *  come (client portal, not the contract).
+ *
+ *  SCALE-SEAM ❹ adds the change-order log — *what is the CO pipeline worth, and who holds the
+ *  ball?* `actionTracker` sat immediately below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 
@@ -108,6 +115,33 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
       signers: { email: string; role: string; url: string | null }[]; status: string }>(
       `/projects/${pid}/contracts/${key}/${rid}/send-for-signature`,
       { method: "POST", body: JSON.stringify({ signers }) });
+  }
+
+  /** selectionsSummary — owner selections and allowances vs actual (change-order candidates). */
+  selectionsSummary(pid: string) {
+    type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
+    type Cand = { ref: string; item: string; category: string; allowance: number; actual: number;
+      delta: number; state: string; change_subject: string };
+    return this.json<{
+      count: number; priced: number; approved: number; total_allowance: number; total_actual: number;
+      net_delta: number; direction: "over" | "under" | "on-allowance";
+      over_count: number; under_count: number; on_count: number;
+      by_category: Cat[]; co_candidate_count: number; co_candidates: Cand[]; note: string;
+    }>(`/projects/${pid}/selections/summary`);
+  }
+  /** pushSelectionChangeEvents — push over-allowance selections into change events (idempotent). */
+  pushSelectionChangeEvents(pid: string) {
+    return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
+      `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
+  }
+
+  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
+  coLog(pid: string) {
+    return this.json<{ co_count: number; total_value: number; pending_value: number;
+      approved_value: number; executed_value: number; total_schedule_days: number;
+      change_events_open: number; change_event_rom_exposure: number;
+      by_reason: Record<string, number>; ball_in_court: Record<string, number>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
   }
   };
 }

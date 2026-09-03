@@ -4,6 +4,320 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1143 (2026-09-01) — SCALE-SEAM ㉝, Last-Planner onto schedule.ts
+
+Six methods out of `client.ts` into the existing `apps/web/src/api/schedule.ts` mixin
+(`2,486 → 2,440`). No extra wrapper on `ApiClient`. Also deleted a stranded "Developer cost
+budget" comment that had been sitting on the class close with no method under it.
+
+What they answer together: *did this week keep its commitments?* Pull board, printable board,
+PPC/TMR metrics, pull-planning benchmark, lean PPC, live board stream.
+
+`MARKS` widened to ㉞ on the way out. Pin lowered with the file. This bump sits on the
+`test_release_current` bound (10 ahead of tag `v0.3.1133`).
+
+Follow-on on the same version (no bump — the bound is already tight): **SCALE-SEAM ㉞ ㉟ ㊱**.
+Eleven methods out of `client.ts` (`2,440 → 2,323`) into existing mixins, still no extra
+`withX()` on `ApiClient`.
+
+- ㉞ *does this frame stand?* — five methods onto `apps/web/src/api/model.ts` (analytical
+  summary, gravity solve, OpenSees Tcl, Code_Aster mesh, ASCE 7 lateral). `subsetIfcUrl`,
+  collab, carbon compliance, and permit readiness stayed. Two stranded comments on `model.ts`
+  deleted.
+- ㉟ *what does this model still need, and can we ask it?* — three methods onto
+  `apps/web/src/api/topics.ts` (readiness, promote-to-BCF, NL-QA). Not a contiguous run.
+- ㊱ *what resources are on site when?* — three methods onto `apps/web/src/api/schedule.ts`
+  (get/put logistics, date state). The model graph stayed.
+
+`MARKS` widened to ㊲ on the way out. Pin lowered with the file.
+
+Second follow-on on the same version: **SCALE-SEAM ㊲ ㊳ ㊴**. Twelve methods out of
+`client.ts` (`2,323 → 2,258`) into existing mixins.
+
+- ㊲ *what is related to this element?* — three methods onto `apps/web/src/api/model.ts`
+  (graph stats, neighbors, doc-graph). QUERY-DSL subset export stayed.
+- ㊳ *run this parameterized authoring chain?* — five methods onto
+  `apps/web/src/api/authoring.ts` (`editGraph` plus list/save/expand/run macros). Layers stayed.
+- ㊴ *what non-destructive property composition is in force?* — four methods onto
+  `apps/web/src/api/model.ts` (get/put/resolve/bake layers). Pins stayed.
+
+`MARKS` widened to ㊵ on the way out. Pin lowered with the file.
+
+Third follow-on on the same version: **SCALE-SEAM ㊵ ㊶ ㊷**, plus a harden of leftover `//`
+banners. Eight methods out of `client.ts` into existing mixins.
+
+- ㊵ *where do we set out in the field?* — four methods onto `apps/web/src/api/model.ts`
+  (points, CSV, DXF, as-installed verify). Pins stayed.
+- ㊶ *what axial load per column?* — two methods onto `apps/web/src/api/model.ts`
+  (defaults, gravity takedown). Verified progress stayed.
+- ㊷ *which envelope ranks, and how do we author the winner?* — two methods onto
+  `apps/web/src/api/authoring.ts` (optioneer + recipe chain). Selections stayed.
+
+Deleted the leftover `AUTH-VS` comment on `modelAssets` and the municipal-permit banner on
+`scheduleOptioneer`. `apps/web/src/api/docComments.test.ts` now fails a `//` line that sits
+on the next method's JSDoc and shares no word with it.
+
+`MARKS` widened to ㊸ on the way out. Pin 2,258 → 2,194.
+
+Fourth follow-on on the same version: **SCALE-SEAM ㊸ ㊹ ㊺**. Eight methods out of
+`client.ts` (`2,194 → 2,127`) into existing mixins.
+
+- ㊸ *what layered view preset is in force?* — three methods onto `apps/web/src/api/model.ts`.
+- ㊹ *what did the owner pick, and does it trigger a change order?* — two methods onto
+  `apps/web/src/api/contracts.ts`. Share tokens stayed.
+- ㊺ *is claimed progress the installed one?* — three methods onto
+  `apps/web/src/api/schedule.ts` (verified, rollup, capture-diff). Not a contiguous run.
+
+`MARKS` widened to ㊻ on the way out. Pin 2,194 → 2,127.
+
+Fifth follow-on on the same version: **SCALE-SEAM ㊻ ㊼ ㊽**. Eight methods out of
+`client.ts` (`2,127 → 2,065`) into existing mixins.
+
+- ㊻ *is this element installed as designed?* — three methods onto `apps/web/src/api/model.ts`.
+  Photo upload stayed (PHOTO-PIN is parked). `askModel` stayed.
+- ㊼ *what is this asset earning today?* — two methods onto `apps/web/src/api/proforma.ts`.
+- ㊽ *which permits exist near this site?* — three methods onto
+  `apps/web/src/api/entitlements.ts`. `permitReadiness` stayed.
+
+`MARKS` widened to ㊾ on the way out. Pin 2,127 → 2,065.
+
+Sixth follow-on on the same version: **SCALE-SEAM ㊾ ㊿ ❶**. Six methods out of
+`client.ts` (`2,065 → 2,035`) into existing mixins. The CJK enclosed-number block
+ends at ㊿; **❶ is 51**.
+
+- ㊾ *what can we print from this project?* — two methods onto `apps/web/src/api/documents.ts`.
+  Licence stayed.
+- ㊿ *what extra work is unbilled against a change event?* — two methods onto
+  `apps/web/src/api/cost.ts`. Submittals stayed.
+- ❶ *what labor was certified this week?* — two methods onto `apps/web/src/api/cost.ts`.
+  `preflight` stayed.
+
+`MARKS` widened to ❷ on the way out. Pin 2,065 → 2,035.
+
+Seventh follow-on on the same version: **SCALE-SEAM ❷ ❸ ❹**. Six methods out of
+`client.ts` (`2,035 → 2,000`) into existing mixins.
+
+- ❷ *what does a cited question return?* — two methods onto `apps/web/src/api/ai.ts`.
+  Photo upload and `preflight` stayed.
+- ❸ *are required submittals turning around?* — three methods onto
+  `apps/web/src/api/procurement.ts`. Not a contiguous run.
+- ❹ *what is the CO pipeline worth?* — one method onto `apps/web/src/api/contracts.ts`.
+  Action tracker stayed.
+
+`MARKS` widened to ❺ on the way out. Pin 2,035 → 2,000.
+
+Eighth follow-on on the same version: **SCALE-SEAM ❺ ❻ ❼**. Four methods out of
+`client.ts` (`2,000 → 1,966`) into existing mixins.
+
+- ❺ *are meeting actions closing?* — one method onto `apps/web/src/api/routines.ts`.
+- ❻ *what RFIs are still open?* — one method onto `apps/web/src/api/topics.ts`.
+- ❼ *what can we legally build on this site?* — two methods onto
+  `apps/web/src/api/entitlements.ts`. Quality stayed.
+
+`MARKS` widened to ❽ on the way out. Pin 2,000 → 1,966.
+
+Ninth follow-on on the same version: **SCALE-SEAM ❽ ❾ ❿**. Five methods out of
+`client.ts` (`1,966 → 1,916`) into existing mixins.
+
+- ❽ *can we cover the bid?* — three methods onto `apps/web/src/api/procurement.ts`.
+- ❾ *is the installed work passing inspection?* — one method onto `apps/web/src/api/topics.ts`.
+- ❿ *is turnover actually closing?* — one method onto `apps/web/src/api/documents.ts`.
+  Safety stayed.
+
+`MARKS` widened to ⓫ on the way out. Pin 1,966 → 1,916.
+
+Tenth follow-on on the same version: **SCALE-SEAM ⓫ ⓬ ⓭**. Five methods out of
+`client.ts` (`1,916 → 1,867`) into existing mixins.
+
+- ⓫ *is the job on track across domains?* — one method onto `apps/web/src/api/evm.ts`.
+- ⓬ *what happened on site this week?* — two methods onto `apps/web/src/api/schedule.ts`.
+- ⓭ *can we bring this scan in?* — two methods onto `apps/web/src/api/model.ts`.
+  Admin audit stayed.
+
+`MARKS` widened to ⓮ on the way out. Pin 1,916 → 1,867.
+
+Eleventh follow-on on the same version: **SCALE-SEAM ⓮ ⓯ ⓰**. Nine methods out of
+`client.ts` (`1,867 → 1,814`) into existing mixins.
+
+- ⓮ *who is on this project?* — four methods onto `apps/web/src/api/auth.ts`.
+- ⓯ *what did the system just do, and what broke?* — four methods onto
+  `apps/web/src/api/auth.ts`. ⑦ left these behind because they are not `/auth` routes;
+  this slice groups by ANSWER (ops observability), not by the leftover admin banner.
+- ⓰ *who is looking at the model right now?* — one method onto `apps/web/src/api/sync.ts`.
+  Project CRUD stayed.
+
+`MARKS` widened to ⓱ on the way out. Pin 1,867 → 1,814.
+
+Twelfth follow-on on the same version: **SCALE-SEAM ⓱ ⓲ ⓳**. Thirteen methods out of
+`client.ts` (`1,814 → 1,740`) into existing mixins.
+
+- ⓱ *what needs my attention?* — four methods onto `apps/web/src/api/routines.ts`.
+- ⓲ *what's overdue, and who gets told?* — five methods onto
+  `apps/web/src/api/routines.ts`. Clash imports stayed.
+- ⓳ *what changed between publishes?* — four methods onto `apps/web/src/api/model.ts`.
+  Review gate was not contiguous with the version list.
+
+`MARKS` widened to ⓴ on the way out. Pin 1,814 → 1,740.
+
+Thirteenth follow-on on the same version: **SCALE-SEAM ⓴ ⓵ ⓶**. Eleven methods out of
+`client.ts` (`1,740 → 1,663`) into existing mixins. Also dropped an unused `LiveStream`
+type import that mobile `tsc` (clean cache) rejected after the stream method moved.
+
+- ⓴ *can we bring this clash report in?* — two methods onto `apps/web/src/api/clash.ts`.
+- ⓵ *what's running in the background?* — four methods onto `apps/web/src/api/routines.ts`.
+- ⓶ *which projects can I open?* — five methods onto `apps/web/src/api/auth.ts`.
+  `meta` stayed.
+
+`MARKS` widened to ⓷ on the way out. Pin 1,740 → 1,663.
+
+Fourteenth follow-on on the same version: **SCALE-SEAM ⓷ ⓸ ⓹**. Eleven methods out of
+`client.ts` (`1,663 → 1,584`) into existing mixins.
+
+- ⓷ *is this deployment entitled and wired?* — six methods onto `apps/web/src/api/auth.ts`.
+- ⓸ *what's on and around this site?* — four methods onto `apps/web/src/api/entitlements.ts`.
+- ⓹ *where are the field marks?* — `pins` onto `apps/web/src/api/topics.ts`.
+  ⑳ left pins behind because they are not `/topics` routes.
+
+`MARKS` widened to ⓺ on the way out. Pin 1,663 → 1,584.
+
+Fifteenth follow-on on the same version: **SCALE-SEAM ⓺ ⓻ ⓼**. Eleven methods out of
+`client.ts` (`1,584 → 1,512`) into existing mixins. TypeRow / TypeDetail / GroupRow /
+AssemblyRow moved to `apps/web/src/api/types.ts` with the family/group methods.
+
+- ⓺ *can this package go out?* — `preflight` onto `apps/web/src/api/documents.ts`.
+- ⓻ *what families can I place?* — five methods onto `apps/web/src/api/authoring.ts`.
+- ⓼ *how are these elements grouped?* — five methods onto `apps/web/src/api/authoring.ts`.
+  Detailing stayed.
+
+`MARKS` widened to ⓽ on the way out. Pin 1,584 → 1,512.
+
+
+
+
+
+
+## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
+
+Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin
+(`2,531 → 2,486`). No extra wrapper on `ApiClient`.
+
+What they answer together: *what is this asset worth, and how does it list?*
+Appraisal, listing autofill / share / RESO, comparable import, MLS syndication.
+`reports` / `reportUrl` stayed in `client.ts`.
+
+`MARKS` widened to ㉝ on the way out. Pin lowered with the file.
+
+## v0.3.1141 (2026-09-01) — SCALE-SEAM ㉛, ISO 19650 CDE onto documents.ts
+
+Six methods out of `client.ts` into the existing `apps/web/src/api/documents.ts` mixin
+(`2,580 → 2,531`). No extra wrapper on `ApiClient`.
+
+What they answer together: *is the information container and its requirement flow in order?*
+BEP, CDE status, info-requirements register / cascade / delivery plan, exchange acceptance.
+`aiReadiness` stayed in `client.ts`.
+
+`MARKS` widened to ㉜ on the way out. Pin lowered with the file.
+
+## v0.3.1140 (2026-09-01) — SCALE-SEAM ㉚, GMP and the pay-app stack
+
+Eight methods out of `client.ts` into the existing `apps/web/src/api/cost.ts` mixin
+(`2,641 → 2,580`). No extra wrapper on `ApiClient`.
+
+What they answer together: *what does the GC job cost, and how is the GMP billed?*
+`costSummary`, `gmpBudget`, baseline / variance / cashflow, SOV-from-budget, G702 PDF, pay-app
+invoice. `pxSummary` and `costTraceability` stayed in `client.ts`.
+
+`MARKS` widened to ㉛ on the way out. Pin lowered with the file.
+
+## v0.3.1139 (2026-09-01) — SCALE-SEAM ㉙, the investor capital stack
+
+Nine methods out of `client.ts` into the existing `apps/web/src/api/finance.ts` mixin
+(`2,696 → 2,641`). No extra wrapper on `ApiClient`.
+
+What they answer together: *what do the investors own and get paid?* Cap table, waterfall,
+capital call, distribution, investor statements, securities package / syndication. `k1Pack` was
+already on that mixin. Rent-roll and lease management stayed in `client.ts` — adjacency is not a
+relationship.
+
+`MARKS` widened to ㉚ on the way out. Pin lowered with the file.
+
+## v0.3.1138 (2026-09-01) — four more downloads a user can actually open
+
+**Band 2 reach, fourth pass.** Mixins only (drawingSheets, models, modules):
+
+- Drawings rail — door/window/room schedules as CSV
+- Exports — nearby permits as GeoJSON (first city in the catalog) and the printable RFI log
+- Model Analysis — cut vs projection graphic state for the first saved view template
+
+Uncalled by the leaf rule: **31 → 27**.
+
+## v0.3.1137 (2026-09-01) — twelve more engines a user can actually open
+
+**Band 2 reach, third pass.** Mixins only (cost, elements, estimate, codecheck, ai, documents,
+drawingSet, authoring — still no extra wrapper on `ApiClient`):
+
+- Budget — resolved cost vintage, installed vintages, live GUID-keyed 5D table, GAEB X83 download
+- Benchmarks — actual unit rates (cost ÷ installed quantity) beside the cost-code distribution
+- Model Analysis — local code amendments and the stored space rule pack
+- AI Assist — named agent packs and per-run history (write packs named as write)
+- Documents — filed model revision list + file-current-model into `12_Model/IFC`
+- Exports — compiled drawing-set PDF and shareable project-package PDF
+
+Uncalled by the leaf rule: **43 → 31**. Shared-leaf `admissibility` and `eot/sourced` stay frozen
+on purpose. `cv-progress/ingest-batch` remains the leftover under the genuine-unreached heading.
+
+## v0.3.1136 (2026-09-01) — fifteen more engines a user can actually open
+
+**Band 2 reach, second pass.** The freeze list still held working routes with no product caller.
+Each gained a typed method on the existing domain mixin (codecheck, finance, model, models,
+authoring — still no extra wrapper on `ApiClient`) and a card or download on the panel that
+already owns the question:
+
+- Standards — LOD 500 handover work list, triangle census, golden thread, spec links,
+  export round-trip, schema diagnostic, authoring coverage matrix
+- Equipment — FF&E bill of materials, starter spec-check properties, budget-suggestion
+  lines, mint product-data submittals
+- Operations / turnover — quality evidence vs closeout (uninspected counts against ready)
+- Investors — K-1 preparation pack (capital movement only; named as not a tax document)
+- Exports — IFC5 JSON (`.ifcx`) and WGS84 footprint GeoJSON
+
+Uncalled by the leaf rule: **58 → 43**.
+
+## v0.3.1135 (2026-09-01) — twelve built engines a user can actually open
+
+**Band 2 reach.** These routes were live, tested, and frozen as deliberately unreachable because
+nothing in the web app called them. Each gained a typed method on the existing domain mixin
+(accounting, documents, elements, proforma, mep, cost, procurement, entitlements — not a new
+wrapper on `ApiClient`) and a caller on the panel that already owns the question:
+
+- Ledger — construction chart of accounts beside the trial balance
+- Standards — naming conventions next to the naming audit
+- Discipline Spine — model composition by NCS discipline
+- Portfolio — acquisition funnel (`GET /pipeline/funnel`): derived win rates, weighted value
+  with coverage, closed cycle time beside open age
+- Budget — Uses vs capital plan (`GET /budget/two-sided`) and lien waiver JSON + PDF
+- Analytics — whether RFQ dispatch is configured
+- Design — approval conditions checked against the model (unevaluable stays not-checkable)
+- MEP systems overlay — pressure loss, tray fill, thermal loads
+
+`cv-progress/ingest-batch` is the one leftover in that freeze heading. Uncalled by the leaf
+rule: **71 → 58**.
+
+## v0.3.1134 (2026-09-01) — seven sourced clearances actually run
+
+**SOFT-CLASH-RULES.** The geometry check the QA rail runs used one clearance — door approach at
+0.9 m, `severity: high` — while `soft_clash.CLEARANCE_RULES` already held seven sourced classes
+(NEC 110.26 working space, coil-pull, valve reach, pump service, VAV access). `rule_for` had no
+production caller. The starter set is now derived from that table. Doors stay high. The other six
+enter at **medium** so existing projects do not light up high the day they start being evaluated.
+`fill_clearance_check` is what consults the table: omit `distance_m` on a stated class and it is
+filled from the basis; omit it on an unknown class and the route 422s rather than inventing 0.9 m.
+The engine itself no longer has that fallback.
+
+Clash rail gained **Sourced clearance rules** (`GET /clash/clearance-rules`) and **Discipline-pair
+matrix** (`POST /clash/matrix`). The clash client methods moved to `apps/web/src/api/clash.ts`
+because `client.ts` is at its extraction pin.
+
 ## v0.3.1133 (2026-09-01) — the debug hook shipped the renderer, and energy export had no click
 
 Two leftovers from looking at what a user can actually reach.

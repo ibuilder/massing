@@ -1,4 +1,4 @@
-/** Project auto-sync — Procore pull/push and the schedule that runs it.
+/** Project auto-sync — Procore pull/push, the schedule that runs it, and live presence.
  *
  *  SCALE-SEAM ⑬. Route-group `/projects/{pid}/sync/…`, taken out of `client.ts` by the route
  *  each method calls. They sat immediately under the `/connections` run ⑫ moved; grouping by
@@ -8,10 +8,14 @@
  *  Named `withSync` rather than anything involving "schedule": `withSchedule` is already the
  *  CPM / 4D mixin. The collision is the point of locating by route rather than by English.
  *
+ *  SCALE-SEAM ⓰ adds presence — *who is looking at the model right now?* Heartbeat plus
+ *  optional camera viewpoint. Route is `/projects/{pid}/presence`, not `/sync`. Grouped by
+ *  what it ANSWERS (live peers on the model), not by first path segment. Project CRUD stayed.
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
-import type { SyncScheduleItem } from "./types";
+import type { SyncScheduleItem, Vec3 } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -43,6 +47,11 @@ export function withSync<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   runSyncSchedule(pid: string, sid: string) {
     return this.json<{ imported_total?: number; error?: string }>(`/projects/${pid}/sync/schedules/${sid}/run-now`, { method: "POST" });
+  }
+  /** Heartbeat presence (optionally sharing the current camera viewpoint) → live peer roster. */
+  presence(pid: string, viewpoint?: unknown) {
+    return this.json<{ user: string; active: { user: string; seconds_ago: number; viewpoint: { position: Vec3; target: Vec3 } | null }[] }>(
+      `/projects/${pid}/presence`, { method: "POST", body: JSON.stringify({ viewpoint }) });
   }
   };
 }

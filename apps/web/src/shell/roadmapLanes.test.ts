@@ -71,7 +71,16 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 // stopping one short and this gate agreeing with a bullet that was wrong, because a code it
 // cannot spell is a code it cannot contradict. Doing it late is how that happened; doing it in
 // the shipping release is how it stops happening.
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙";
+// Widened to ㉞ on 2026-09-01, in the release that SHIPS ㉝. Same rule.
+// Widened to ㊲ on 2026-09-01, in the follow-on that SHIPS ㉞ ㉟ ㊱ without a version bump
+// (tag lag already at the test_release_current bound). Same rule: widen on the way OUT.
+// Widened to ㊵ on 2026-09-01, in the follow-on that SHIPS ㊲ ㊳ ㊴ without a version bump.
+// Widened to ⓱ on 2026-09-01, in the follow-on that SHIPS ⓮ ⓯ ⓰ without a version bump.
+// Widened to ⓴ on 2026-09-01, in the follow-on that SHIPS ⓱ ⓲ ⓳ without a version bump.
+// Widened to ⓷ on 2026-09-01, in the follow-on that SHIPS ⓴ ⓵ ⓶ without a version bump.
+// Widened to ⓺ on 2026-09-01, in the follow-on that SHIPS ⓷ ⓸ ⓹ without a version bump.
+// Widened to ⓽ on 2026-09-02, in the follow-on that SHIPS ⓺ ⓻ ⓼ without a version bump.
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴⓵⓶⓷⓸⓹⓺⓻⓼⓽";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
