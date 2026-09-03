@@ -3,7 +3,12 @@
  *  SCALE-SEAM ㉑. Route-group `/projects/{pid}/ai`, taken out of `client.ts` by the route
  *  each method calls. Six methods in **five** regions — risk-summary next to licence,
  *  ask next to pull-plan, triage/estimate next to convert, author next to fabrication
- *  recipes, draft-rfi next to phasing. `aiReadiness` is `/ai-readiness` and stays.
+ *  recipes, draft-rfi next to phasing. `aiReadiness` stayed at ㉑ because it is
+ *  `/ai-readiness` and not an `/ai` route — a ROUTE reason, under the rule this file was
+ *  split by at the time. SCALE-SEAM ⓾ brings it in: `documents.ts` had already declined it
+ *  at ㉛ with the semantic characterisation that settles it — *"it is an AI scorecard, not a
+ *  CDE question"*. Two headers disagreed about one method; the one that asked what it
+ *  ANSWERS was right.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  *
@@ -103,6 +108,35 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
       clarifications: string[]; spec_sections?: string[];
       citations?: { page: number }[]; source: string; message?: string }>(
       pid, "scope", { trade, file: opts.file, text: opts.text });
+  }
+
+  // SCALE-SEAM ⓾ — two AI-facing questions. *Can I generate a concept image from this
+  // project, and store the result?* (the three feature-flagged `/concept-render` doors), and
+  // *is this project's data ready for AI to work on?* (`aiReadiness`).
+  conceptRenderStatus(pid: string) {
+    return this.json<{ feature: string; enabled: boolean; note: string;
+      request_contract: Record<string, string>; ingest_contract: Record<string, string>;
+      reference_adapter: string }>(`/projects/${pid}/concept-render/status`);
+  }
+  conceptRenderRequest(pid: string, payload: { prompt?: string; style?: string; variations?: number;
+      program?: unknown; massing?: unknown } = {}) {
+    return this.json<{ accepted: boolean; reason?: string; prompt?: string; style?: string;
+      variations?: number; note?: string }>(`/projects/${pid}/concept-render/request`,
+      { method: 'POST', body: JSON.stringify(payload) });
+  }
+  conceptRenderIngest(pid: string, payload: { title?: string; prompt?: string; style?: string;
+      image_url: string; source?: string }) {
+    return this.json<{ accepted: boolean; reason?: string; stored?: boolean; record_id?: string;
+      image_url?: string }>(`/projects/${pid}/concept-render/ingest`,
+      { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  /** AI / data-readiness scorecard — single-source / completeness / model-integrity / governance 0-100. */
+  aiReadiness(pid: string) {
+    type Dim = { score: number; advice: string; [k: string]: unknown };
+    return this.json<{ overall: number; verdict: "ready" | "partial" | "not_ready"; note: string;
+      dimensions: { single_source_of_truth: Dim; information_completeness: Dim; governance: Dim;
+        model_integrity?: Dim } }>(`/projects/${pid}/ai-readiness`);
   }
   };
 }

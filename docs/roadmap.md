@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓽ have shipped. **Deliberately carries NO mark**: ⓽ was the last glyph in `MARKS` and the next slice cannot be numbered until that range is widened — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ have shipped. **Deliberately carries NO mark**: ⓽ was the last glyph in `MARKS` and the next slice cannot be numbered until that range is widened — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,13 +3061,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓽ have shipped, **⓺–⓽ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
-  **THE NEXT SLICE CANNOT BE NUMBERED YET.** ⓽ is the last glyph in `MARKS`
+- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ have shipped, **⓺–⓾ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **THE NEXT SLICE NEEDS A NEW GLYPH SCHEME.** ⓾ (U+24FE) was the last glyph in `MARKS`
   (`apps/web/src/shell/roadmapLanes.test.ts`), which runs ①–⑳, ㉑–㊿, ❶–❿, ⓫–⓴, ⓵–⓽. The
-  vocabulary must be widened with a new range before a ⓾ can exist, and the item code here
+  double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,462 lines and 193 methods**; 13 labelled sections remain.
+  **`client.ts` is 1,436 lines**; 12 labelled sections remain.
 
   **⓽ took the AI-drafting banner apart** — and it is the clearest case yet for grouping by
   what methods ANSWER. One `// --- AI drafting ---` section held **three** questions: the

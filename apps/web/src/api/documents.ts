@@ -4,7 +4,10 @@
  *  *is the information container (CDE) and its requirement flow in order?* — BEP, CDE status,
  *  the requirements register / cascade / delivery plan, and ISO 19650-6 exchange acceptance.
  *  They span `/bep`, `/cde` and `/info-requirements`. `aiReadiness` sat inside that run in
- *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question.
+ *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question. **That
+ *  characterisation is what moved it**: SCALE-SEAM ⓾ took it to `apps/web/src/api/ai.ts`,
+ *  where `ai.ts`'s own header had declined it on route grounds. It is no longer in
+ *  `client.ts`.
  *  Composed through the existing `withDocuments` wrapper — no extra `withX()` on `ApiClient`.
  *
  *  SCALE-SEAM ㊾ adds the report catalog — *what can we print from this project?* List plus

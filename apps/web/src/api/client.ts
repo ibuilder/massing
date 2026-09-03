@@ -917,32 +917,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       escalated_amount: number; note: string }>(`/projects/${pid}/market/escalate?${p.toString()}`);
   }
 
-  // --- AI concept-render bridge (Track V; feature-flagged) -----------------------
-  conceptRenderStatus(pid: string) {
-    return this.json<{ feature: string; enabled: boolean; note: string;
-      request_contract: Record<string, string>; ingest_contract: Record<string, string>;
-      reference_adapter: string }>(`/projects/${pid}/concept-render/status`);
-  }
-  conceptRenderRequest(pid: string, payload: { prompt?: string; style?: string; variations?: number;
-      program?: unknown; massing?: unknown } = {}) {
-    return this.json<{ accepted: boolean; reason?: string; prompt?: string; style?: string;
-      variations?: number; note?: string }>(`/projects/${pid}/concept-render/request`,
-      { method: 'POST', body: JSON.stringify(payload) });
-  }
-  conceptRenderIngest(pid: string, payload: { title?: string; prompt?: string; style?: string;
-      image_url: string; source?: string }) {
-    return this.json<{ accepted: boolean; reason?: string; stored?: boolean; record_id?: string;
-      image_url?: string }>(`/projects/${pid}/concept-render/ingest`,
-      { method: 'POST', body: JSON.stringify(payload) });
-  }
-
-  /** AI / data-readiness scorecard — single-source / completeness / model-integrity / governance 0-100. */
-  aiReadiness(pid: string) {
-    type Dim = { score: number; advice: string; [k: string]: unknown };
-    return this.json<{ overall: number; verdict: "ready" | "partial" | "not_ready"; note: string;
-      dimensions: { single_source_of_truth: Dim; information_completeness: Dim; governance: Dim;
-        model_integrity?: Dim } }>(`/projects/${pid}/ai-readiness`);
-  }
   // --- Responsibility matrix (RACI / DACI) ----------------------------------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);

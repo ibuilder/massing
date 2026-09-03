@@ -219,6 +219,27 @@ ANSWERS separates them.
 Pin 1,512 → 1,462. `MARKS` unchanged — ⓽ is the last glyph in the vocabulary, so the next
 slice needs the range widened before it can be numbered.
 
+Seventeenth follow-on on the same version: **SCALE-SEAM ⓾**. Four methods out of `client.ts`
+(`1,462 → 1,436`) onto `apps/web/src/api/ai.ts` — two AI-facing questions:
+
+- *can I generate a concept image from this project, and store the result?* — the three
+  feature-flagged `/concept-render` doors (status, request, ingest).
+- *is this project's data ready for AI to work on?* — `aiReadiness`, the single-source /
+  completeness / governance / model-integrity scorecard.
+
+**`aiReadiness` had been declined twice, and the two refusals disagreed with each other.**
+`ai.ts` passed on it at ㉑ because *"it is `/ai-readiness`"* — a ROUTE reason, under the rule
+that file was split by at the time. `documents.ts` passed on it at ㉛ on semantic grounds:
+*"it is an AI scorecard, not a CDE question."* That second sentence is a characterisation of
+where it belongs, and it is what moved it. Both headers now say so; `documents.ts`'s note no
+longer claims the method is in `client.ts`, because it is not.
+
+Same lesson as ⓽ one file over: a split by route prefix leaves things misfiled, and the
+misfiling survives precisely because the route reason reads like a decision.
+
+`MARKS` widened to **⓾** (U+24FE) — the last glyph of the double-circled range ⓵–⓾. Pin
+1,462 → 1,436.
+
 
 
 
