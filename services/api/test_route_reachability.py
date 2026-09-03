@@ -293,9 +293,16 @@ def strip_comments(src: str) -> str:
 #: the call site that passes it. **Named, not matched, and that is the whole point.**
 #:
 #: `api/model.ts:185` builds `/projects/${pid}/model/export.${fmt}`, so a pattern that allowed a
-#: templated extension would vouch for every `model/export.*` route at once. Measured: it vouches for
-#: six, and only two of them are called. The other four are frozen below and each is frozen
-#: CORRECTLY, because **a signature that accepts a value is not a call site that passes one**:
+#: templated extension would vouch for every `model/export.*` route at once — which is why this is a
+#: list and not a pattern.
+#:
+#: **THE COUNTS HERE ARE NOT WRITTEN DOWN, THEY ARE ASSERTED.** This sentence used to read "it
+#: vouches for six, and only two of them are called. The other four are frozen below" — and by
+#: v0.3.1143 that had inverted: four are called (the dict below) and two are frozen (the table
+#: below). Nothing caught it, because a count in a comment is not checked by anything. The route
+#: lists are pinned by the differential further down, so the numbers live there; the two entries
+#: below are named because they are the ones a reader needs, and each is frozen CORRECTLY, because
+#: **a signature that accepts a value is not a call site that passes one**:
 #:
 #:     model/export.ifcx    `modelExportUrl` is typed "csv" | "jsonld" | "parquet" — no caller passes it
 #:     drawings/sheet.dxf   `sheetPath` accepts "dxf"; its only caller `openSheet` is ("svg" | "pdf")
@@ -493,6 +500,17 @@ check("  ...six of them through the STEM pattern, and the other four only throug
 #: an allowlist asserting the OPPOSITE polarity — "this IS called" — needs the mirror of it, or it
 #: outlives its caller exactly the way the six frozen entries outlived theirs. Each entry names the
 #: call-site text that makes it true, and that text must still be in the source.
+#: The named list is a POPULATION, so its size is asserted rather than described. The comment above
+#: it carried a count for one release after that count stopped being true; this is the check that
+#: sentence should have been. It is a ratchet with a stated direction: the list may grow as more
+#: templated-extension routes gain callers, and each addition must bring its own evidence string,
+#: which the staleness check below then holds to.
+check("the templated-extension list is exactly the four routes measured at their call sites",
+      len(CALLED_VIA_TEMPLATED_EXT) == 4,
+      f"{len(CALLED_VIA_TEMPLATED_EXT)} entries — THIS LINE is where the count lives, so change the "
+      f"4 here as part of adding or removing a route, and check the block comment above the dict "
+      f"still reads true. Editing only the comment cannot satisfy this assertion")
+
 _stale = sorted(r for r, ev in CALLED_VIA_TEMPLATED_EXT.items() if ev not in _CODE)
 check("  ...and every named entry's CALL SITE is still there — this list can rot too",
       not _stale,
