@@ -35,10 +35,25 @@ def upgrade() -> None:
         sa.Column("status", sa.String(), nullable=False, server_default="minted"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("content_hash", name="uq_release_tokens_content_hash"),
     )
     op.create_index("ix_release_tokens_asset_id", "release_tokens", ["asset_id"])
-    op.create_index("ix_release_tokens_content_hash", "release_tokens", ["content_hash"])
+    #: UNIQUE ON THE INDEX, NOT A SEPARATE CONSTRAINT — the model is the spec.
+    #:
+    #: `models.py` declares `content_hash: Mapped[str] = mapped_column(String, unique=True,
+    #: index=True)`, which SQLAlchemy renders as ONE unique index named
+    #: `ix_release_tokens_content_hash`. The first draft of this migration wrote a named
+    #: `UniqueConstraint("content_hash", name="uq_release_tokens_content_hash")` AND a non-unique
+    #: index, so the database had a constraint the model does not declare and lacked the uniqueness
+    #: the model does. `alembic check` caught it as three pending operations — remove the
+    #: constraint, drop the index, re-add it unique — which is CI failing on a real divergence, not
+    #: a style preference.
+    #:
+    #: The guarantee is identical either way (Postgres enforces a unique index exactly as it
+    #: enforces a unique constraint); what differs is whether the schema matches the mapping, and a
+    #: schema that has drifted from its model is how the next autogenerate produces a migration
+    #: nobody meant to write.
+    op.create_index("ix_release_tokens_content_hash", "release_tokens", ["content_hash"],
+                    unique=True)
     op.create_index("ix_release_tokens_project_id", "release_tokens", ["project_id"])
     op.create_index("ix_release_tokens_asset_created", "release_tokens", ["asset_id", "created_at"])
 
