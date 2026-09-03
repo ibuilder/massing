@@ -613,6 +613,7 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       recommendations?: string[]; error?: string; note?: string }>(
       `/projects/${pid}/standards/check?standard=${standard}`);
   }
+  /** BIM KPI scorecard — per-category grade plus a scored/good/warn/poor/na summary and health percentage. */
   bimKpiScorecard(pid: string) {
     return this.json<{
       categories: { key: string; label: string; grade: string; headline: string;
@@ -620,6 +621,7 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       summary: { scored: number; good: number; warn: number; poor: number; na: number; health_pct: number | null };
       model_scored: boolean; note: string }>(`/projects/${pid}/bim-kpi/scorecard`);
   }
+  /** openBIM quality: LOIN scoring (coverage, coordination) and export health, optionally scoped to one use case. */
   openbimQuality(pid: string, useCase?: string) {
     const qs = useCase ? `?use_case=${encodeURIComponent(useCase)}` : "";
     return this.json<{
@@ -632,12 +634,14 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
         specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
       use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
+  /** LOD assessment — element distribution and average LOD per discipline. `using_default` marks a model scored against the fallback rules. */
   lodAssessment(pid: string) {
     return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
       distribution: Record<string, number>;
       by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
       `/projects/${pid}/lod/assessment`);
   }
+  /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict. */
   envelopeAudit(pid: string) {
     return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
       results: { name: string; element_type: string; compliant: boolean | null }[] }>(

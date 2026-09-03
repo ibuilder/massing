@@ -209,6 +209,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       market_signal: { hot: string[]; warm_or_hot: string[]; cold: string[]; headline: string };
       source: string }>(`/market/snapshot`);
   }
+  /** Market context for one project — regional escalation, labour rate and location index over a period. */
   marketContext(pid: string, q: { region?: string; sector?: string; start_year?: number; duration_months?: number } = {}) {
     const p = new URLSearchParams();
     if (q.region) p.set('region', q.region);
@@ -222,6 +223,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       escalation_factor: number; escalation_basis: string; midpoint_year: number;
       from_assumption: boolean; source: string }>(`/projects/${pid}/market/context${qs ? '?' + qs : ''}`);
   }
+  /** Escalate an amount to a target year using the regional rate (or an explicit `rate_pct`). */
   marketEscalate(pid: string, amount: number, q: { region?: string; start_year?: number;
       duration_months?: number; to_year?: number; rate_pct?: number } = {}) {
     const p = new URLSearchParams({ amount: String(amount) });

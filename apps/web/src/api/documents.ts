@@ -188,16 +188,19 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       punch_list_prepared: boolean; latest_model_version: number | null;
       ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
   }
+  /** Turnover status — readiness, the substantial-completion record if one exists, and whether the record model is locked. */
   turnoverStatus(pid: string) {
     return this.json<{ readiness: { ready_for_substantial_completion: boolean };
       substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
       record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
   }
+  /** Issue the substantial-completion certificate (architect / owner / contractor signatories, occupancy date). */
   turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
     return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
       `/projects/${pid}/turnover/certify`, { method: "POST",
       body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
   }
+  /** URL of the AIA G704 substantial-completion certificate PDF for one certificate record. */
   g704Url(pid: string, certRid: string) {
     return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }

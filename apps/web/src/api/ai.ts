@@ -118,12 +118,14 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
       request_contract: Record<string, string>; ingest_contract: Record<string, string>;
       reference_adapter: string }>(`/projects/${pid}/concept-render/status`);
   }
+  /** Ask for a concept render (prompt / style / variations). Returns whether the request was accepted, not an image — generation is asynchronous and feature-flagged. */
   conceptRenderRequest(pid: string, payload: { prompt?: string; style?: string; variations?: number;
       program?: unknown; massing?: unknown } = {}) {
     return this.json<{ accepted: boolean; reason?: string; prompt?: string; style?: string;
       variations?: number; note?: string }>(`/projects/${pid}/concept-render/request`,
       { method: 'POST', body: JSON.stringify(payload) });
   }
+  /** Store an externally generated concept image against the project; returns the stored record id. */
   conceptRenderIngest(pid: string, payload: { title?: string; prompt?: string; style?: string;
       image_url: string; source?: string }) {
     return this.json<{ accepted: boolean; reason?: string; stored?: boolean; record_id?: string;
