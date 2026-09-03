@@ -83,21 +83,35 @@ DONE_WHEN = {
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug
 #: that made every predicate return False would leave this file green and useless.
+def _client_methods_beyond_stayers() -> int:
+    """How many methods in `client.ts` are NOT on its declared keep-list.
+
+    SCALE-SEAM's claim is "domain methods still sit on ApiClient that belong in a mixin". This
+    counts exactly that: every method the class declares, minus the ones the file itself names as
+    deliberately client-level. It reaches 0 only when the split is actually done, and it cannot
+    decay, because both halves are read from the file rather than written down.
+    """
+    src = (ROOT / "apps/web/src/api/client.ts").read_text(encoding="utf-8")
+    #: `async` included. Leaving it out is what made SCALE-SEAM (85) under-count by five.
+    methods = set(re.findall(r"^ {2}(?:async )?([a-zA-Z_]\w*)\(", src, re.M))
+    #: The keep-list is declared in the STAYING banner, one line, comma-separated.
+    stay_line = re.search(r"^ *// *the four that stay\s+(.+)$", src, re.M)
+    stayers = {n.strip() for n in stay_line.group(1).split(",")} if stay_line else set()
+    return len(methods - stayers)
+
+
 OPEN_WHEN = {
-    #: Was `client.ts` line count > 1200 until SCALE-SEAM (85). That is a PROXY for "the split is
-    #: unfinished", and a proxy with a threshold decays: every slice moves the file down, and (85)
-    #: took it to 1,173 and broke this control without anything being wrong. Lowering the number
-    #: each time would be adjusting the check until it passes — the move this whole item exists to
-    #: distrust — and it would need doing again within two slices.
+    #: Was `client.ts` line count > 1200 until (85), then `"--- UNFILED —" in client.ts` until (87).
+    #: BOTH were proxies. The line count decayed with every slice and broke on a normal extraction.
+    #: The banner string was worse in a subtler way: it flipped when the CX-1 RESIDUE was placed,
+    #: while 126 unrelated methods were still on the class — so it would have declared SCALE-SEAM
+    #: finished with the great majority of the work outstanding. It was introduced in the same slice
+    #: that argued for "a predicate that measures the claim itself", which is the whole point: a
+    #: proxy can be replaced by another proxy and read as an improvement.
     #:
-    #: The direct measurement is whether anything is still UNFILED. `client.ts` carries a map of
-    #: the methods that have no home yet, derived and checked by
-    #: `apps/web/src/api/unfiledMap.test.ts`. While that banner exists, the split is unfinished by
-    #: definition; when the last cluster is placed the banner is deleted, and at that moment this
-    #: predicate goes False and correctly demands the roadmap close SCALE-SEAM. So it is both the
-    #: negative control this file needs AND a real staleness check, rather than a number to chase.
-    "SCALE-SEAM": (lambda: "--- UNFILED —" in (ROOT / "apps/web/src/api/client.ts").read_text(),
-                   "client.ts still carries an UNFILED map, so the split is unfinished"),
+    #: This one counts the thing the item is about, and both of its inputs come from the file.
+    "SCALE-SEAM": (lambda: _client_methods_beyond_stayers() > 0,
+                   "client.ts still holds domain methods beyond its declared keep-list"),
 }
 
 check("the roadmap parsed and the codes are findable — else every check below is vacuous",

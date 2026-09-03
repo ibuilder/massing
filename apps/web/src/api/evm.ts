@@ -108,6 +108,20 @@ export function withEvm<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/health`);
   }
 
+  // --- One project's executive scorecard: on schedule next to on budget ---
+  /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
+   *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
+  pxSummary(pid: string) {
+    return this.json<{
+      status: "on_track" | "at_risk" | "behind";
+      schedule: { spi: number | null; pct_complete: number; activities: number; critical_path_days: number;
+        critical_activities: number; lookahead_3wk: number; milestones: { late: number; due_soon: number; upcoming: number } };
+      budget: { gmp: number; revised_gmp: number; eac: number; variance_at_completion: number; committed: number;
+        committed_pct: number; spent_pct: number; draw_this_month: number;
+        buyout: { packages: number; bought_out: number; savings: number } | null; baseline_movement: number | null };
+    }>(`/projects/${pid}/px-summary`);
+  }
+
   // --- The same health question across every project, not one ---
   /** Cross-project executive roll-up: each project's on-schedule + on-budget status + portfolio totals. */
   executivePortfolio() {

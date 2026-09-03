@@ -1,5 +1,5 @@
 /**
- * The UNFILED map in `client.ts` must agree with the file it describes.
+ * The keep-list in `client.ts` must agree with the file it describes.
  *
  * WHY THIS EXISTS
  *     SCALE-SEAM (83) replaced a banner that named nothing with a map of the methods still
@@ -30,7 +30,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CLIENT = join(__dirname, "client.ts");
-const BANNER = /^\s*\/\/ --- UNFILED — (\d+) methods/;
+//: Was `--- UNFILED — N methods` until SCALE-SEAM (87). The CX-1 residue is placed, and the four
+//: methods left below it are DECIDED to stay, not pending — so calling them unfiled was the very
+//: thing this file exists to stop: a label that does not describe what is under it.
+const BANNER = /^\s*\/\/ --- STAYING — (\d+) client-level methods/;
 
 /** Method declarations in `client.ts`, which indents its class body by two. `async` included —
  *  that is the variant (83) missed, and the reason its count was five short. */
@@ -47,7 +50,7 @@ const METHOD_ANY_INDENT = /^ {2,4}(?:async )?([a-zA-Z_]\w*)\(/;
 function readMap() {
   const lines = readFileSync(CLIENT, "utf8").split("\n");
   const start = lines.findIndex((l) => BANNER.test(l));
-  expect(start, "the UNFILED banner is gone from client.ts — if the map was deliberately "
+  expect(start, "the STAYING banner is gone from client.ts — if the keep-list was deliberately "
     + "retired, delete this test in the same commit rather than leaving it asserting nothing")
     .toBeGreaterThan(-1);
 
@@ -86,8 +89,8 @@ function readMap() {
   // Only the cluster list carries names. The prose above it discusses methods that have already
   // MOVED (that is the point of the note), so scanning the whole block would flag them as stale.
   const listAt = lines.findIndex((l, i) => i > start && i < bodyAt
-    && (l ?? "").includes("What is actually below"));
-  expect(listAt, "the UNFILED map no longer has its 'What is actually below' marker — this test "
+    && (l ?? "").includes("the four that stay"));
+  expect(listAt, "the keep-list no longer has its 'the four that stay' marker — this test "
     + "locates the name list by it, and without it the name checks would scan the prose instead")
     .toBeGreaterThan(-1);
 
@@ -95,7 +98,7 @@ function readMap() {
   // column and can itself contain a method name ("how is the portfolio doing?" — `portfolio` is
   // a method on `withProforma`), so everything up to the last `?` on the line is discarded.
   const named = new Set<string>();
-  for (const l of lines.slice(listAt + 1, bodyAt)) {
+  for (const l of lines.slice(listAt, bodyAt)) {
     const tail = l.includes("?") ? l.slice(l.lastIndexOf("?") + 1) : l;
     for (const m of tail.matchAll(/\b([a-zA-Z_]\w*)\b/g)) {
       if (m[1] && vocabulary.has(m[1])) named.add(m[1]);
@@ -110,10 +113,10 @@ function readMap() {
   return { declared, actual, named };
 }
 
-describe("the UNFILED map in client.ts", () => {
+describe("the keep-list in client.ts", () => {
   it("declares the number of methods that are actually below it", () => {
     const { declared, actual } = readMap();
-    expect(actual.length, `the UNFILED banner says ${declared} methods but ${actual.length} `
+    expect(actual.length, `the STAYING banner says ${declared} methods but ${actual.length} `
       + `follow it. Count from the file, never from a hand-run query — the count this replaces `
       + `was produced by a regex that skipped every 'async' method. Methods found: `
       + actual.join(", "))
@@ -123,7 +126,7 @@ describe("the UNFILED map in client.ts", () => {
   it("names every method it covers, so none is unfiled-and-unmentioned", () => {
     const { actual, named } = readMap();
     const missing = actual.filter((m) => !named.has(m));
-    expect(missing, `these methods sit under the UNFILED banner but the map does not name them: `
+    expect(missing, `these methods sit under the STAYING banner but the keep-list does not name them: `
       + `${missing.join(", ")}. A map that omits a method is how a method gets left behind — `
       + `add it to the cluster whose question it answers, or give it its own line.`)
       .toEqual([]);

@@ -188,5 +188,12 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   bidLevelingDetail(pid: string, packageId: string) {
     return this.json<BidLevelingDetail>(`/projects/${pid}/bids/leveling/${packageId}`);
   }
+
+  // --- The levelling SUMMARY its detail belongs to ---
+  /** Bid leveling — submissions tabulated by package with low/high/avg/spread. */
+  bidLeveling(pid: string) {
+    return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(
+      `/projects/${pid}/bids/leveling`);
+  }
   };
 }

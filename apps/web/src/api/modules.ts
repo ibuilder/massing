@@ -110,7 +110,18 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/link`, {
       method: "POST", body: JSON.stringify({ module, id }) });
   }
-  // compliance expiry: COI + permit certs expiring soon / already expired
+  // --- Compliance expiry: COI + permit certs expiring soon / already expired ---
+  // This banner arrived at SCALE-SEAM ④ (v0.3.803) and its method did not: `complianceExpiring`
+  // stayed in `client.ts` for two years while the LABEL for it sat here, above `addEnumOption`,
+  // which has nothing to do with compliance. (87) reunites them. `docComments.test.ts` could not
+  // see it — its stranded-comment check looks for a `/** */` doc above another `/** */`, and this
+  // is a `//` banner above a method with no doc at all.
+  complianceExpiring(pid: string, withinDays = 30) {
+    return this.json<{ within_days: number; count: number;
+      expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
+      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[]; }>(
+      `/projects/${pid}/compliance/expiring?within_days=${withinDays}`);
+  }
   addEnumOption(pid: string, key: string, field: string, value: string) {
     return this.json<{ module: string; field: string; value: string; options: string[] }>(
       `/projects/${pid}/modules/${key}/enum/${field}`, { method: "POST", body: JSON.stringify({ value }) });

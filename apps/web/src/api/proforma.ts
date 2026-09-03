@@ -275,6 +275,17 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   appraisal(pid: string) {
     return this.json<Appraisal>(`/projects/${pid}/appraisal`);
   }
+
+  // --- The property itself: tax assumptions and the acquisition delta ---
+  /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
+  property(pid: string) {
+    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; price_per_building_sf: number; tax_per_building_sf: number; far_existing: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
+      `/projects/${pid}/property`);
+  }
+  saveProperty(pid: string, body: Record<string, unknown>) {
+    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
+      `/projects/${pid}/property`, { method: "PUT", body: JSON.stringify(body) });
+  }
   /** Persist appraisal overrides (weights, depreciation, land value, …) and recompute. */
   saveAppraisal(pid: string, overrides: Record<string, unknown>) {
     return this.json<Appraisal>(`/projects/${pid}/appraisal`, {

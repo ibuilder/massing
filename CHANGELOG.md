@@ -480,6 +480,71 @@ operations and 3D geometry, the same word reliably means three things.
 
 Pin 1,173 → 1,131. Seventeen methods left under the banner, and the count is checked.
 
+Twenty-fourth follow-on on the same version: **SCALE-SEAM (87)** — *the map described the tail, not
+the file*.
+
+Thirteen methods out of `client.ts` (`1,131 → 1,015`), into eight existing mixins:
+
+- *what does the model look like?* — `materialPalette`, `saveMaterialPalette`, `applyMaterialPalette`
+  onto `apps/web/src/api/elements.ts`, beside `colorBy`.
+- *does a scheme fit the site?* — `testFitCompare`, `testFitOptimize` onto
+  `apps/web/src/api/entitlements.ts`, beside `feasibility` and `feasibilityCompare`.
+- *what is the asset's record?* — `property`, `saveProperty` onto `apps/web/src/api/proforma.ts`.
+- *what does it cost to build?* — `rebarBbs`, `rebarBbsCsvUrl` onto `apps/web/src/api/estimate.ts`.
+- *what is expiring?* — `complianceExpiring` onto `apps/web/src/api/modules.ts`.
+- *how did the bids compare?* — `bidLeveling` onto `apps/web/src/api/procurement.ts`.
+- *is the job safe?* — `safetyMetrics` onto `apps/web/src/api/schedule.ts`.
+- *how is the programme performing?* — `pxSummary` onto `apps/web/src/api/evm.ts`.
+
+`OptScheme`, `DepthPoint`, `MaterialEntry`, `MaterialPaletteResult` and `EgressResult` moved to
+`apps/web/src/api/types.ts` with them.
+
+### The finding: the map covered the tail of the file, not the file
+
+Deriving the whole population instead of trusting the banner: **130 methods in `client.ts`, 4 below
+the banner, 126 above it.** Those 126 — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+`energyModel`, `rentRollScrub`, `esgSummary` and the rest — were never inside the CX-1 banner, so no
+map has ever covered them. The UNFILED map described the TAIL of this file, and every completeness
+statement made against it was scoped to a list the same slices had authored.
+
+So the banner is renamed UNFILED → **STAYING** and reduced to what it actually decides: four
+global/cross-cutting methods (`enumOptions`, `searchAll`, `attachmentUrl`, `templates`) recorded as
+DECIDED. It no longer implies anything about the file above it, and it says so in the text.
+
+### Two corrections to my own earlier slices
+
+`evm.ts` at ⓽ split a rollup from its detail; `pxSummary` is the programme-level rollup that belonged
+on the same side of that cut and did not move with it. And `modules.ts` carried a doc comment
+orphaned from `complianceExpiring` — the comment had been swept into the mixin in an earlier slice
+while the method it documented stayed behind. Reunited here.
+
+### The predicate that was replaced twice
+
+`test_roadmap_status.py`'s SCALE-SEAM gate was `client.ts > 1200` — a threshold proxy that decayed
+and went red at (85). It was replaced with a check for the banner string, and **that replacement was
+also a proxy**: it would have declared SCALE-SEAM DONE with 126 methods outstanding, and it was
+described as a fix in a commit message, a PR body and to the user before that was noticed. It now
+counts methods not on the declared keep-list — the thing the claim is about — and was
+mutation-checked four ways: baseline 126 → OPEN, banner renamed → still OPEN, keep-list deleted → 130
+(fails safe), simulated completion → 0 → DONE. *A proxy can be replaced by another proxy and read as
+a fix.*
+
+### The ratchet now checks its own history chain
+
+`test_file_sizes.py` records each slice as `(before -> after)` in the narrative beside the pin, and at
+(86) CodeRabbit caught `(1173 -> 1132)` sitting beside a pin of `1131`. The chain is now asserted:
+consecutive pairs must link, and an unrecorded SHRINK fails (growth does not — files legitimately
+grow between slices). It took four tries to get right, and all four failures were found by running
+it, not by reading it: `\d+` skipped underscore-separated numbers; requiring a closing paren skipped
+an entry and invented a false break; strict equality flagged legitimate growth; and the finished
+checks **printed FAIL but exited 0**, because they had been appended below the `if FAILED:` block.
+`apps/web/src/viewer/app.ts` carries a named exemption — its 2,571/2,570 gap is documented in the
+file as deliberate slack, and calling it a defect (as a draft of this entry did) would have meant
+falsifying a slice's measurement to satisfy a gate.
+
+Pin 1,131 → 1,015. Four methods left under the banner, 126 above it and now counted.
+
+
 
 
 

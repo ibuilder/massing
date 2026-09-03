@@ -1098,3 +1098,34 @@ export interface DevBudgetResponse {
   budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
   summary: DevBudgetSummary;
 }
+
+/** Test-fit schemes and the material palette, moved here from `client.ts` by SCALE-SEAM (87)
+ *  when `withEntitlements` took test fit and `withElements` took the palette: a type used by a
+ *  mixin cannot live in the class that mixin is a base of. */
+export interface OptScheme {
+  name: string; mix_preset: string; parking_ratio: number; total_units: number;
+  efficiency: number; total_nsf: number; parking_stalls: number; yield_on_cost: number;
+  plate_d?: number; daylight_efficiency?: number; core_efficiency?: number;
+  daylight_limited?: boolean; dev_spread_bps?: number;
+}
+
+export interface DepthPoint {
+  plate_d: number; yield_on_cost: number; daylight_efficiency: number;
+  core_efficiency: number; total_units: number; dev_spread_bps: number;
+}
+
+export interface MaterialEntry {
+  name: string; category: string; color: [number, number, number]; transparency: number;
+}
+
+export interface MaterialPaletteResult {
+  default: Record<string, MaterialEntry>;
+  overrides: Record<string, MaterialEntry>;
+  effective: Record<string, MaterialEntry>;
+}
+
+export interface EgressResult {
+  compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;
+  occupant_load_per_floor: number; min_exits_required: number;
+  exit_separation_m: number; required_separation_m: number;
+}
