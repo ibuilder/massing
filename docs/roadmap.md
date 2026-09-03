@@ -260,11 +260,26 @@ instances:
   **TWO THINGS IT LEAVES OPEN, both measured on the way through.** `energyExportUrl` was the
   first: an unwired client method, both formats unreachable. **Wired v0.3.1133** — Exports now
   passes `"gbxml"` and `"idf"`; the two routes moved from `KNOWN_UNCALLED` into
-  `CALLED_VIA_TEMPLATED_EXT`. The second remains: this band names three remaining items while the
-  gate freezes **71** routes, 38 of them under no category at all and 7 explicitly labelled
-  *"genuinely unreached capabilities … worth someone's attention"*. **The band and the gate
-  disagree about the size of the same class by an order of magnitude**, and nothing makes them
-  agree; deriving that population is a bigger item than this was.
+  `CALLED_VIA_TEMPLATED_EXT`. The second was the size disagreement with the freeze list.
+  **v0.3.1135 wired twelve of those frozen engines** (chart of accounts, naming conventions,
+  elements by discipline, two-sided budget, lien waiver JSON+PDF, RFQ status, acquisition funnel,
+  entitlement condition-checks, MEP pressure-loss / tray-fill / thermal-loads) into existing
+  mixins and panels.   **v0.3.1136 wired fifteen more** (golden thread, K-1 pack, FF&E BOM, LOD 500
+  handover work list, equipment budget-lines / starter-requirements / to-submittals, IFC5 `.ifcx`,
+  triangle census, export-qa, footprint GeoJSON, schema-diag, quality turnover-readiness, spec
+  links, authoring matrix).   **v0.3.1137 wired twelve more** (cost datasets / vintage, unit rates,
+  5D element-costs, GAEB X83, code amendments, agent packs, model-history / file-model, space pack,
+  project-package PDF, compiled drawing-set PDF). **v0.3.1138 wired four more** (schedule CSV,
+  permits GeoJSON, RFI log PDF, view-template graphics). `cv-progress/ingest-batch` is the one genuine leftover in that heading.
+  The freeze list still holds other categories (OAuth callbacks, downloads, admin screens).
+
+- ✅ **REACH-UNWIRED — twelve built engines had routes and no product caller** *(S — Lane C;
+  **SHIPPED v0.3.1135**; second pass **SHIPPED v0.3.1136**; third pass **SHIPPED v0.3.1137**; fourth pass **SHIPPED v0.3.1138**)* — the `KNOWN_UNCALLED` heading *"genuinely unreached capabilities"*
+  plus the comment-bug cohort that sat next to it. Each already had tests. The work was a
+  client method in the existing domain mixin (no extra `withX()` on `ApiClient` — mixin depth
+  already cost clash its own wrapper) and a card or button on the panel that already owns the
+  question. Acquisition-funnel stage labels in the UI never spell the first-stage token that
+  collides with `/schedule/eot/sourced`.
 
 - ✅ ⭐ **REFUSAL-READERS — a record in a refused state still counts** *(M — Lane C; population
   DERIVED 2026-08-30, **CLOSED v0.3.1124** — 3 releases, 14 readers, one behavioural gate)*
@@ -542,8 +557,13 @@ instances:
   rule id and a document id have no canonical shape, and a positive control asserts they still pass —
   otherwise tightening everything would look identical to tightening the two kinds that have a format.
 
-- ◧ **SOFT-CLASH-RULES — six of seven sourced clearances are never checked** *(S — Lane C;
-  measured 2026-08-29)*
+- ✅ **SOFT-CLASH-RULES — six of seven sourced clearances are never checked** *(S — Lane C;
+  measured 2026-08-29, **SHIPPED v0.3.1134** — doors stay `high`; the other six enter at `medium`)*
+
+  The geometry starter set is now derived from `soft_clash.CLEARANCE_RULES` via
+  `geometry_clearance_checks`. `fill_clearance_check` is the production caller of `rule_for`.
+  Omitting `distance_m` no longer invents 0.9 m. Clash rail reads `/clash/clearance-rules` and
+  `/clash/matrix`. The diagnosis below is the record of what was wrong.
 
   `soft_clash.CLEARANCE_RULES` is a curated table of seven classes, each carrying a **`basis`** — NEC
   110.26(A)(1) electrical working space, manufacturer coil-withdrawal and seal-service clearances,
@@ -1162,13 +1182,13 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉙ *(the only open slice; ②–㉘ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⓽ *(the only open slice; ②–⓼ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -1799,6 +1819,10 @@ stakes we are missing.
   the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
   So this is not an M of backend work. Size the resourcing engine on its own and route the two
   visualisation items to the lane that owns them.
+
+  ✅ **Funnel viz SHIPPED v0.3.1135.** `GET /pipeline/funnel` had no caller; Portfolio now renders
+  stage counts, derived win rates, weighted value with coverage, and closed cycle time beside
+  open age. Cross-project Gantt, risk heat map, and department resourcing remain.
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
 
 **A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for
@@ -3037,7 +3061,296 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉙ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉘ have shipped, **㉘ construction accounting in v0.3.1120**)*
+- ◧ ⭐ **SCALE-SEAM ⓽ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓼ have shipped, **⓺–⓼ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **⓼ took groups and assemblies out** (five methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *how are these elements grouped?* **Detailing did NOT come.**
+
+  **⓻ took family types out** (five methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what families can I place?* **Groups did NOT come with ⓻.**
+
+  **⓺ took the issuance gate out** (one method) into the existing
+  `apps/web/src/api/documents.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *can this package go out?* **Hero upload did NOT come.**
+  **`MARKS` was widened to ⓽ on the way out.** **The per-file pin moved 1,584 → 1,512**
+  across ⓺+⓻+⓼.
+
+  **⓹ took field pins out** (one method) into the existing
+  `apps/web/src/api/topics.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *where are the field marks?* **⑳ left pins behind (not `/topics`).**
+
+  **⓸ took land context out** (four methods) into the existing
+  `apps/web/src/api/entitlements.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what's on and around this site?* **Preflight did NOT come.**
+
+  **⓷ took deploy entitlement out** (six methods) into the existing
+  `apps/web/src/api/auth.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *is this deployment entitled and wired?* **Photo upload did NOT come.**
+  **`MARKS` was widened to ⓺ on the way out.** **The per-file pin moved 1,663 → 1,584**
+  across ⓷+⓸+⓹.
+
+  **⓶ took the project catalog out** (five methods) into the existing
+  `apps/web/src/api/auth.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *which projects can I open?* **`meta` did NOT come.**
+
+  **⓵ took the job tray out** (four methods) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what's running in the background?* **5D heatmap did NOT come.**
+
+  **⓴ took clash-report ingest out** (two methods) into the existing
+  `apps/web/src/api/clash.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *can we bring this clash report in?* Routes are `/coordination`.
+  **`MARKS` was widened to ⓷ on the way out.** **The per-file pin moved 1,740 → 1,663**
+  across ⓴+⓵+⓶.
+
+  **⓳ took publish history out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what changed between publishes?* **Clash imports did NOT come.**
+
+  **⓲ took overdue escalation and the digest out** (five methods) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what's overdue, and who gets told?* **Clash imports did NOT come.**
+
+  **⓱ took the inbox out** (four methods) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what needs my attention?* **Escalations did NOT come with ⓱.**
+  **`MARKS` was widened to ⓴ on the way out.** **The per-file pin moved 1,814 → 1,740**
+  across ⓱+⓲+⓳.
+
+  **⓰ took live presence out** (one method) into the existing
+  `apps/web/src/api/sync.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *who is looking at the model right now?* **Project CRUD did NOT come.**
+
+  **⓯ took ops observability out** (four methods) into the existing
+  `apps/web/src/api/auth.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what did the system just do, and what broke?* Audit + error feed.
+  **⑦ left these behind because they are not `/auth` routes.** ⑦ grouped by route;
+  this slice groups by ANSWER. The leftover admin banner was never the domain.
+
+  **⓮ took the project roster out** (four methods) into the existing
+  `apps/web/src/api/auth.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *who is on this project?* **Audit did NOT come with ⓮.**
+  **`MARKS` was widened to ⓱ on the way out.** **The per-file pin moved 1,867 → 1,814**
+  across ⓮+⓯+⓰.
+
+  **⓭ took E57 scan ingest out** (two methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *can we bring this scan in?* **Admin audit did NOT come.**
+
+  **⓬ took site-daily ops out** (two methods) into the existing
+  `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what happened on site this week?* Safety plus field log. **E57 did NOT come.**
+
+  **⓫ took the executive health rollup out** (one method) into the existing
+  `apps/web/src/api/evm.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *is the job on track across domains?* **Safety did NOT come.**
+  **`MARKS` was widened to ⓮ on the way out.** **The per-file pin moved 1,916 → 1,867**
+  across ⓫+⓬+⓭.
+
+  **❿ took closeout analytics out** (one method) into the existing
+  `apps/web/src/api/documents.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *is turnover actually closing?* **Safety did NOT come.**
+
+  **❾ took the quality dashboard out** (one method) into the existing
+  `apps/web/src/api/topics.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *is the installed work passing inspection?* **Bidding did NOT come.**
+
+  **❽ took bidding coverage out** (three methods) into the existing
+  `apps/web/src/api/procurement.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *can we cover the bid?* ITB, scope-gap, invite. **E57 did NOT come.**
+  **`MARKS` was widened to ⓫ on the way out.** **The per-file pin moved 1,966 → 1,916**
+  across ❽+❾+❿.
+
+  **❼ took zoning feasibility out** (two methods) into the existing
+  `apps/web/src/api/entitlements.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what can we legally build on this site?* Envelope plus scheme compare.
+  **Quality did NOT come.**
+
+  **❻ took the RFI register out** (one method) into the existing
+  `apps/web/src/api/topics.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what RFIs are still open, and who holds the ball?* **Feasibility did NOT come.**
+
+  **❺ took the meeting action tracker out** (one method) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *are meeting actions closing?* **Project health did NOT come.**
+  **`MARKS` was widened to ❽ on the way out.** **The per-file pin moved 2,000 → 1,966**
+  across ❺+❻+❼.
+
+  **❹ took the change-order log out** (one method) into the existing
+  `apps/web/src/api/contracts.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what is the CO pipeline worth, and who holds the ball?* **Action tracker did
+  NOT come.**
+
+  **❸ took the submittal stack out** (three methods) into the existing
+  `apps/web/src/api/procurement.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *are required submittals turning around?* Register, spec log, extract.
+  They were **not** contiguous. **Health / closeout / safety / field-log / RFI register did
+  NOT come.**
+
+  **❷ took the cited-question doors out** (two methods) into the existing
+  `apps/web/src/api/ai.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what does a cited question return?* `/ask` and `/assistant`. **Photo upload and
+  preflight did NOT come.**
+  **`MARKS` was widened to ❺ on the way out.** **The per-file pin moved 2,035 → 2,000**
+  across ❷+❸+❹.
+
+  **❶ took certified payroll out** (two methods) into the existing
+  `apps/web/src/api/cost.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what labor was certified this week?* WH-347 summary plus the PDF.
+  **`preflight` did NOT come.** The CJK enclosed-number block ends at ㊿; **❶ is 51**.
+
+  **㊿ took T&M tickets out** (two methods) into the existing
+  `apps/web/src/api/cost.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what extra work is unbilled against a change event?* **Submittals did NOT come.**
+
+  **㊾ took the report catalog out** (two methods) into the existing
+  `apps/web/src/api/documents.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what can we print from this project?* **Licence did NOT come.**
+  **`MARKS` was widened to ❷ on the way out.** **The per-file pin moved 2,065 → 2,035**
+  across ㊾+㊿+❶.
+
+  **㊽ took open-data municipal filings out** (three methods) into the existing
+  `apps/web/src/api/entitlements.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *which permits exist near this site?* Cities catalog, query, import.
+  **`permitReadiness` did NOT come** — that is a model-submission checklist.
+
+  **㊼ took in-place operations out** (two methods) into the existing
+  `apps/web/src/api/proforma.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what is this asset earning today?* Rent roll and lease-management depth.
+  They sat above the investor stack and did **not** go with ㉙. **`askProject` did NOT come.**
+
+  **㊻ took field-install verification out** (three methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *is this element installed as designed?* Coverage, status write, deviation log.
+  They were **not** contiguous. **The photo upload did NOT come** (PHOTO-PIN is parked).
+  **`askModel` did NOT come.**
+  **`MARKS` was widened to ㊾ on the way out.** **The per-file pin moved 2,127 → 2,065**
+  across ㊻+㊼+㊽.
+
+  **㊺ took the progress / as-built stack out** (three methods) into the existing
+  `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *is claimed progress the installed one?* Verified vs claimed, GUID rollup, capture
+  diff. They were **not contiguous** (`disciplineQuantities` and the share-token run sat
+  between verified-progress and the rollup). **Discipline quantities did NOT come.**
+  **`MARKS` was widened to ㊻ on the way out.** **The per-file pin moved 2,194 → 2,127**
+  across ㊸+㊹+㊺.
+
+  **㊹ took owner selections / allowances out** (two methods) into the existing
+  `apps/web/src/api/contracts.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what did the owner pick, and does it trigger a change order?* **Share tokens
+  did NOT come** — those are the client portal. *Adjacency in a file is not a relationship.*
+
+  **㊸ took view templates out** (three methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what layered view preset is in force?* List/save/resolve. **Space-utilization
+  benchmarks did NOT come.**
+
+  **㊷ took the massing optioneer out** (two methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *which envelope ranks, and how do we author the winner?* Ranked lever sweep plus
+  the recipe chain for a chosen option. They sit next to `previewMassing` / `generateMassing`.
+  **Selections and the master-builder brief did NOT come.** *Adjacency in a file is not a
+  relationship.*
+  **`MARKS` was widened to ㊸ on the way out.**
+
+  **㊶ took the gravity load-takedown out** (two methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what axial load per column?* Defaults plus the ASCE 7 takedown. **Verified progress
+  did NOT come** — that is a schedule trust-gap. *Adjacency in a file is not a relationship.*
+
+  **㊵ took the field-layout setout out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *where do we set out in the field?* Points, CSV, DXF, as-installed verify. **Pins did
+  NOT come** — those are BCF topics.
+
+  **This follow-on also deleted leftover `//` banners (`AUTH-VS` on `modelAssets`, municipal
+  permit-open-data on `scheduleOptioneer`, authoring-round-trip on `modelVersions`, a stranded
+  GEN-SCORE comment in `estimate.ts`) and added a gate so the next leftover fails
+  `apps/web/src/api/docComments.test.ts`.
+  **The per-file pin moved 2,258 → 2,194** across ㊵+㊶+㊷.
+
+  **㊴ took the IFC5 property-override layers out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what non-destructive property composition is in force?* Get/put/resolve/bake.
+  **Pins did NOT come** — those are BCF topics. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㊵ on the way out.** **The per-file pin moved 2,323 → 2,258**
+  across ㊲+㊳+㊴.
+
+  **㊳ took the recipe-macro stack out** (five methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *run this parameterized authoring chain?* `editGraph` plus list/save/expand/run
+  macros. **Property-override layers did NOT come**, though they sat immediately below — those
+  compose properties, they do not write recipes. *Adjacency in a file is not a relationship.*
+
+  **㊲ took the semantic model graph out** (three methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what is related to this element, including the documents that govern it?* Graph
+  stats, neighbors, doc-graph. **`subsetIfcUrl` did NOT come** (QUERY-DSL export). Collab,
+  carbon, and permit readiness stayed.
+
+  **㊱ took the site-logistics stack out** (three methods; part of `client.ts` 2,440 → 2,323) into
+  the existing `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped
+  by what they ANSWER: *what resources are on site when?* Get/put the resource list and the
+  date-sliced active set. **The model graph did NOT come**, though it sat immediately below —
+  that is a relational query. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㊲ on the way out.**
+
+  **㉟ took the RFI readiness / NL-QA stack out** (three methods) into the existing
+  `apps/web/src/api/topics.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what does this model still need, and can we ask it a cited question?* Readiness gaps,
+  promoting those gaps to BCF topics, NL-QA. They were **not contiguous** in `client.ts` (logistics
+  and the model graph sat between readiness and QA). **Logistics and the graph did NOT come**
+  with this slice. *Adjacency in a file is not a relationship.*
+
+  **㉞ took the structural analysis stack out** (five methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *does this frame stand?* Analytical summary, gravity solve, OpenSees Tcl, Code_Aster
+  mesh, ASCE 7 lateral. **`subsetIfcUrl` did NOT come** (QUERY-DSL export). **Collab snapshot,
+  carbon compliance, and permit readiness did NOT come.** Also deleted two stranded comments on
+  `model.ts` (`FIN-PORTFOLIO` above `modelCapabilities`, `SMART-VIEWS` on the class close).
+  **The per-file pin moved 2,440 → 2,323** across ㉞+㉟+㊱.
+
+  **㉝ took the Last-Planner stack out** (six methods; `client.ts` 2,486 → 2,440) into the existing
+  `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`** (clash already rides
+  here). Grouped by what they ANSWER: *did this week keep its commitments?* Pull board, PDF, PPC/TMR
+  metrics, pull-planning benchmark, lean PPC, live board stream. **License/integrations and
+  permit-city open data did NOT come.** *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉞ in this release.** **The per-file pin moved 2,486 → 2,440.**
+
+  **㉜ took the disposition stack out** (nine methods; `client.ts` 2,531 → 2,486) into the existing
+  `apps/web/src/api/proforma.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what is this asset worth, and how does it list?* Appraisal, listing autofill / share /
+  RESO, comparables, MLS syndication. **`reports` / `reportUrl` did NOT come** — those are the
+  document catalog. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉝ in this release.** **The per-file pin moved 2,531 → 2,486.**
+
+  **㉛ took the ISO 19650 CDE / BEP / information-requirements stack out** (six methods;
+  `client.ts` 2,580 → 2,531) into the existing `apps/web/src/api/documents.ts` mixin — **no extra
+  wrapper on `ApiClient`**. Grouped by what they ANSWER: *is the information container and its
+  requirement flow in order?* **`aiReadiness` did NOT come**, though it sat inside the run — it is
+  an AI scorecard. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉜ in this release.** **The per-file pin moved 2,580 → 2,531.**
+
+  **㉚ took the GC GMP and pay-app stack out** (eight methods; `client.ts` 2,641 → 2,580) into the
+  existing `apps/web/src/api/cost.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what does the GC job cost, and how is the GMP billed?* `costSummary` sat ~140 lines
+  above `gmpBudget`. **`pxSummary` did NOT come**, though it sat inside the GMP run — it answers
+  whether the job is on track. **`costTraceability` did NOT come** (㉘ already called that a
+  takeoff question). *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㉛ in this release.** **The per-file pin moved 2,641 → 2,580.**
+
+  **㉙ took the investor capital stack out** (nine methods; `client.ts` 2,696 → 2,641) into the
+  existing `apps/web/src/api/finance.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what do the investors own and get paid?* Cap table, waterfall, capital calls,
+  distributions, investor statements, and the securities syndication package. `k1Pack` was already
+  in that file. They span `/cap-table`, `/waterfall`, `/capital-call`, `/distribution`,
+  `/investors` and `/securities`, so a prefix split would have scattered them.
+  **Rent-roll and lease management did NOT come**, though they sat immediately above the cluster —
+  those are property operations. *Adjacency in a file is not a relationship* (㉕, ㉗, ㉘, ㉙).
+  **`MARKS` was widened to ㉚ in this release** on the way OUT of ㉙. **The per-file pin moved
+  2,696 → 2,641.**
+
   **㉘ took the double-entry books and WIP out** (ten methods; `client.ts` 2,816 → 2,752) as
   `apps/web/src/api/accounting.ts`. **The strongest case yet for grouping by what the methods
   ANSWER**, because the group was in TWO non-contiguous clusters ~700 lines apart, with prequal,

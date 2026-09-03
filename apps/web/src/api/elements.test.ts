@@ -7,7 +7,9 @@ const api = new ApiClient("http://localhost:0");
 describe("the elements client", () => {
   it("exposes inspector, list, colour, QA, and reverse deep-link", () => {
     for (const k of ["element", "elementLifecycle", "element5d", "elements", "colorFacets", "colorBy",
-                     "dataQa", "codeCheck", "elementSources", "elementRecords", "elementCosts"]) {
+                     "elementsByDiscipline",
+                     "dataQa", "codeCheck", "elementSources", "elementRecords", "elementCosts",
+                     "elementCosts5d"]) {
       expect(typeof (api as unknown as Record<string, unknown>)[k], k).toBe("function");
     }
   });

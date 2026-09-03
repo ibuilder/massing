@@ -35,6 +35,11 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
       `/projects/${pid}/drawings/schedules`);
   }
+  /** Door / window / room schedules as a CSV download (`kind` omits for all three). */
+  drawingSchedulesCsvUrl(pid: string, kind?: "doors" | "windows" | "rooms") {
+    const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+    return this.url(`/projects/${pid}/drawings/schedule.csv${q}`);
+  }
   drawingSchedulesCalc(pid: string, calcs: { doors?: { name: string; expr: string }[];
     windows?: { name: string; expr: string }[]; rooms?: { name: string; expr: string }[] }) {
     type Table = { columns: string[]; rows: (string | number | null)[][]; calculated?: string[] };

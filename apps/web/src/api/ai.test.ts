@@ -6,7 +6,8 @@ const api = new ApiClient("http://localhost:0");
 
 describe("the ai client", () => {
   it("exposes risk summary, ask, triage, estimate, author, and draft-rfi", () => {
-    for (const k of ["riskSummary", "aiAsk", "triageRfi", "aiEstimate", "aiAuthor", "draftRfi"]) {
+    for (const k of ["riskSummary", "aiAsk", "triageRfi", "aiEstimate", "aiAuthor", "draftRfi",
+                     "agentPacks"]) {
       expect(typeof (api as unknown as Record<string, unknown>)[k], k).toBe("function");
     }
   });

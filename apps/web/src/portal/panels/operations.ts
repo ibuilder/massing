@@ -243,6 +243,27 @@ export async function renderSpine(ctx: PanelContext) {
         dc.appendChild(tb); body.appendChild(dc);
       }
 
+      void ctx.host.api.elementsByDiscipline(pid).then((by) => {
+        const mc = el("div", "dash-card"); mc.style.marginBottom = "10px";
+        mc.innerHTML = `<div class="section-title">Model by discipline</div>`
+          + `<div class="meta">${by.disciplines_covered}/${by.disciplines_total} NCS disciplines present`
+          + ` · ${by.total} elements`
+          + (by.missing.length ? ` · missing ${esc(by.missing.join(", "))}` : "")
+          + `</div>`;
+        if (by.disciplines.length) {
+          const mt = el("table", "portal-table") as HTMLTableElement;
+          mt.style.cssText = "width:100%;font-size:12px";
+          mt.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Discipline</th>`
+            + `<th scope="col">Count</th><th scope="col" style="text-align:left">Top classes</th></tr></thead><tbody>`
+            + by.disciplines.map((d) => `<tr><td>${esc(d.discipline)} <span class="meta">${esc(d.code)}</span></td>`
+              + `<td style="text-align:center">${d.count}</td>`
+              + `<td class="meta">${esc(d.classes.slice(0, 4).map((c) => `${c.ifc_class} ${c.count}`).join(" · "))}</td></tr>`).join("")
+            + `</tbody>`;
+          mc.appendChild(mt);
+        }
+        body.appendChild(mc);
+      }).catch(() => { /* no property index yet */ });
+
       // coverage gaps
       const g = t.gaps;
       const gapCount = g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length + g.sheets_without_spec.length;
@@ -567,6 +588,18 @@ export async function renderTurnover(ctx: PanelContext) {
         + `<div class="meta">Latest model version: <b>${rd.latest_model_version ?? "—"}</b> · `
         + `${rd.ready_for_substantial_completion ? "<span style=\"color:var(--status-good)\">ready to certify</span>" : "<span style=\"color:var(--status-warn)\">prepare a punch list first</span>"}</div>`;
       body.append(rdiv);
+
+      void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
+        const qdiv = el("div", "dash-card"); qdiv.style.marginBottom = "8px";
+        const qh = el("div"); qh.style.fontWeight = "600";
+        qh.textContent = "Quality evidence vs closeout";
+        const qm = el("div", "meta");
+        qm.textContent = qt.ready
+          ? "Quality evidence exists and is resolved."
+          : `${qt.outstanding_count} outstanding · ${qt.unrecorded_count} never inspected · coverage ${qt.coverage_pct}%`;
+        qdiv.append(qh, qm);
+        body.insertBefore(qdiv, rdiv.nextSibling);
+      }).catch(() => { /* quality registers may be empty */ });
       // substantial-completion certificate(s)
       if (!certs.length) {
         const note = el("div", "meta"); note.textContent = "No substantial-completion certificate yet.";

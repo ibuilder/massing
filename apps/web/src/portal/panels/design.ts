@@ -261,6 +261,29 @@ export async function renderDiligence(ctx: PanelContext) {
       body.appendChild(card);
     }).catch(() => { /* the entitlement register may not be installed in this deployment */ });
 
+    void ctx.host.api.entitlementConditionChecks(pid).then((ck) => {
+      if (!ck.entitlements.length && !ck.total_not_checkable && !ck.total_exceeds) return;
+      const card = el("div", "dash-card"); card.style.marginBottom = "8px";
+      const head = el("div"); head.style.fontWeight = "600";
+      head.textContent = "Conditions vs the model";
+      card.appendChild(head);
+      const line = el("div", "meta"); line.style.marginTop = "2px";
+      line.textContent = `${ck.in_force_count} in force · ${ck.total_exceeds} exceed · ${ck.total_not_checkable} not checkable`
+        + (ck.refused.length ? ` · ${ck.refused.length} refused (listed, not scored)` : "");
+      card.appendChild(line);
+      if (ck.total_not_checkable) {
+        const warn = el("div", "meta");
+        warn.style.color = "var(--status-warn)";
+        warn.textContent = "Unevaluable conditions are not checkable — never treated as met.";
+        card.appendChild(warn);
+      }
+      const facts = ck.model_facts;
+      const fm = el("div", "meta");
+      fm.textContent = `Model facts: height ${facts.height_m ?? "—"} m · storeys ${facts.storeys ?? "—"} · parking ${facts.parking_spaces ?? "—"}`;
+      card.appendChild(fm);
+      body.appendChild(card);
+    }).catch(() => { /* no model or no entitlement register */ });
+
     // AUTHORITY OF THE FACTS THE GO/NO-GO RESTS ON. The banner above says whether diligence cleared;
     // this says whether the documents it cleared against are still current. A GO computed from a
     // superseded title report or a survey two years stale is a confident answer to the wrong

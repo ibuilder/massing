@@ -73,6 +73,16 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
       unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
       `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
   }
+  /** Model composition by NCS discipline — element count + class breakdown, in sheet order. */
+  elementsByDiscipline(pid: string) {
+    return this.json<{
+      total: number;
+      disciplines: { discipline: string; code: string; count: number;
+        classes: { ifc_class: string; count: number }[] }[];
+      coverage: { discipline: string; code: string; color: string; present: boolean; count: number }[];
+      disciplines_covered: number; disciplines_total: number; missing: string[];
+    }>(`/projects/${pid}/elements/by-discipline`);
+  }
   /** BIM data-completeness check: per-attribute present/missing + non-compliant guids to highlight. */
   dataQa(pid: string) {
     return this.json<{ total: number; compliant: number; noncompliant: number; compliant_pct: number;
@@ -108,6 +118,16 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ guid: string; total: number; count: number; by_kind: Record<string, number>;
       lines: { kind: string; ref: string | null; cost_code: string | null; amount: number }[]; note: string }>(
       `/projects/${pid}/elements/${encodeURIComponent(guid)}/costs`);
+  }
+  /** 5D-BIND — GUID-keyed quantity × class rate over the live property index (not per-element costs). */
+  elementCosts5d(pid: string) {
+    return this.json<{
+      element_count: number; priced: number; total_cost: number;
+      carbon_matched: number; total_carbon_kgco2e: number;
+      by_class: Record<string, { cost: number; count: number }>;
+      by_storey: Record<string, number>;
+      top_cost: { guid: string; name: string | null; ifc_class: string; cost: number }[];
+    }>(`/projects/${pid}/5d/element-costs`);
   }
   };
 }

@@ -1,6 +1,6 @@
-/** Authentication, MFA, sessions and admin user management.
+/** Authentication, MFA, sessions, project membership, and ops observability.
  *
- *  SCALE-SEAM ⑦. Route-group `/auth`, 20 methods / 96 lines, taken out of `client.ts` by the
+ *  SCALE-SEAM ⑦. Route-group `/auth`, 20 methods, taken out of `client.ts` by the
  *  route each method calls — the recipe ⑥ established. They sat in **four** separate regions
  *  (`authProviders` at the top of the class, `stepUp` down among the sealing methods, the login/MFA
  *  run, and the user-admin run), which is again the concrete form of "the `// --- section ---`
@@ -15,17 +15,25 @@
  *  blocker that stopped the SSE methods travelling in ③ (`liveStream` was private on `ApiClient`)
  *  has no analogue here. `token` itself stays `private` on `HttpCore` and is not touched.
  *
- *  **What deliberately did NOT move.** `auditLog`, `errorLog`, `clearErrorLog` and
- *  `reportClientError` sit inside the `// --- admin: user management ---` run and read as part of
- *  this group, but they route to `/audit`, `/admin/errors` and `/client-errors`. Grouping by the
- *  section comment rather than by the route would have dragged three unrelated domains across the
- *  seam — which is the whole reason the recipe is "locate by route".
+ *  SCALE-SEAM ⓮ adds the project roster — *who is on this project?* `myRole`, `members`,
+ *  `addMember`, `removeMember`. Routes are `/projects/{pid}/me` and `/members`, not `/auth`.
+ *  Grouped by what they ANSWER, not by first path segment.
+ *
+ *  SCALE-SEAM ⓯ adds ops observability — *what did the system just do, and what broke?*
+ *  `auditLog`, `errorLog`, `clearErrorLog`, `reportClientError`. **⑦ left these behind on
+ *  purpose:** they sit under the `// --- admin: user management ---` banner but route to
+ *  `/audit`, `/admin/errors` and `/client-errors`. ⑦ grouped by route; ⓯ groups by ANSWER.
+ *  The banner was never the domain. ⑦ was right for its recipe; this slice uses a later one.
+ *
+ *  SCALE-SEAM ⓶ adds the project catalog — *which projects can I open?* List, one, create, delete, import-bundle. `meta` and the discipline tree stayed.
+ *
+ *  SCALE-SEAM ⓷ adds deploy entitlement — *is this deployment entitled and wired?* Integrations, capabilities, licence, cloud-check. Photo upload stayed (PHOTO-PIN).
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving
  *  a method is invisible to it, losing one fails it by number.
  */
 import { HttpCore } from "./httpCore";
-import type { AccountUser } from "./types";
+import type { AccountUser, AuditEntry, IntegrationGroup, ProjectMember, ProjectRole } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -126,6 +134,117 @@ export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
   resetWithToken(token: string, next: string) {
     return this.json<{ ok: boolean; username: string }>(
       `/auth/reset`, { method: "POST", body: JSON.stringify({ token, new: next }) });
+  }
+  /** The caller's own effective role on a project (drives UI capability gating). */
+  myRole(pid: string) {
+    return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(
+      `/projects/${pid}/me`);
+  }
+  /** Project members roster — who is on this project, and in what role. */
+  members(pid: string) {
+    return this.json<ProjectMember[]>(`/projects/${pid}/members`);
+  }
+  /** Add a project member (admin). */
+  addMember(pid: string, body: { user: string; role: ProjectRole; party_role?: string | null; company?: string | null }) {
+    return this.json<{ user: string; role: ProjectRole; party_role: string | null }>(
+      `/projects/${pid}/members`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Remove a project member (admin). */
+  removeMember(pid: string, user: string) {
+    return this.json<{ ok: boolean }>(
+      `/projects/${pid}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
+  }
+  /** Admin: read the audit trail (newest first), optionally filtered. */
+  auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
+    return this.json<AuditEntry[]>(`/audit${qs.toString() ? `?${qs}` : ""}`);
+  }
+  /** Admin: the error-log feed (server 500s + reported client errors), newest first. */
+  errorLog(params: { source?: string; level?: string; since_hours?: number; limit?: number } = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
+    return this.json<{ stats: { total: number; by_source: Record<string, number>; [k: string]: unknown };
+      errors: { id: string; ts: string; source: string; level: string; kind: string | null;
+        message: string | null; method: string | null; path: string | null; status: number | null;
+        actor: string | null; project_id: string | null; request_id: string | null;
+        traceback: string | null; detail: Record<string, unknown> | null }[] }>(
+      `/admin/errors${qs.toString() ? `?${qs}` : ""}`);
+  }
+  /** Admin: prune the error log to its retention cap. */
+  clearErrorLog() {
+    return this.json<{ pruned: number }>("/admin/errors", { method: "DELETE" });
+  }
+  /** Report a browser-side error to the server feed. Fire-and-forget: never throws into the app. */
+  reportClientError(e: { message: string; kind?: string; path?: string; level?: string;
+    detail?: Record<string, unknown> }): void {
+    void fetch(this.url("/client-errors"),
+      { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
+  }
+  /** Every project visible to the caller — id, name, and `model_kind` (which tool a project opens
+   *  with). Was documented as "absolute URL for a GET endpoint", a neighbour's comment left behind;
+   *  the gate only caught it once `bundleUrl` moved out from under its 14-line lookahead. */
+  projects() {
+    return this.json<{ id: string; name: string; model_kind?: "frag" | "ifc" | null }[]>(`/projects`);
+  }
+  /** One project's metadata, incl. model_kind + has_source_ifc (used to gate IFC-only tools). */
+  project(pid: string) {
+    return this.json<{ id: string; name: string; model_kind?: string | null; has_source_ifc?: boolean }>(
+      `/projects/${pid}`);
+  }
+  /** Create a blank project (no IFC needed) — GC portal + proforma work immediately. */
+  createProject(name: string) {
+    return this.json<{ id: string; name: string }>("/projects", { method: "POST", body: JSON.stringify({ name }) });
+  }
+  /** Delete a project and everything it owns (rows + geometry + blobs). */
+  deleteProject(pid: string) {
+    return this.json<{ deleted: boolean; id: string; rows: Record<string, number> }>(
+      `/projects/${pid}`, { method: "DELETE" });
+  }
+  /** Open a `.mass` container as a new project (fresh id). Legacy `.mmproj` (v1) still works. */
+  async importBundle(file: File, name?: string) {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (name) fd.append("name", name);
+    const res = await fetch(this.url(`/projects/import-bundle`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`import -> ${res.status}`);
+    return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
+  }
+  /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
+  integrations() {
+    return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
+  }
+  saveIntegrations(values: Record<string, string>) {
+    return this.json<{ groups: IntegrationGroup[] }>(
+      "/settings/integrations", { method: "PUT", body: JSON.stringify({ values }) });
+  }
+  /** Live "Test connection" for one integration group (by its catalog name) → {ok, message}. */
+  testIntegration(group: string) {
+    return this.json<{ ok: boolean; message: string }>(
+      "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
+  }
+  /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
+  capabilities() {
+    return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
+      license_tier?: string }>("/capabilities");
+  }
+  /** Massing licence state — plan tier, per-tier features, masked key. Drives the Settings licence panel. */
+  license() {
+    return this.json<{ tier: string; tier_label: string; enforced: boolean;
+      features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
+      tiers: { id: string; label: string; features: Record<string, unknown> }[];
+      key_configured: boolean; key_masked: string; key_format_valid: boolean | null;
+      message: string; manage_url: string;
+      cloud?: { online: boolean; url?: string; secret_configured?: boolean; note?: string } }>("/license");
+  }
+  /** CLOUD-BRIDGE: validate the recorded key against massing.cloud + apply the returned plan (admin). */
+  licenseCloudCheck() {
+    return this.json<{ checked_online: boolean; valid?: boolean; tier?: string; reason?: string | null;
+      applied: boolean; tier_before: string; tier_after: string; error?: string }>(
+      "/license/cloud-check", { method: "POST" });
   }
   };
 }

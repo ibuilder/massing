@@ -253,7 +253,10 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
     return this.json<ModuleGraph>(`/modules/graph${qs}`);
   }
-  /** M1 material palette: default table + saved per-project overrides + the effective (merged) palette. */
+  /** Printable register PDF (RFI log, submittal log) from the same module engine. */
+  moduleLogPdfUrl(pid: string, key: string) {
+    return this.url(`/projects/${pid}/modules/${encodeURIComponent(key)}/log.pdf`);
+  }
   };
 }
 

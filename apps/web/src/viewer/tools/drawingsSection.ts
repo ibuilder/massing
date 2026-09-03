@@ -150,6 +150,10 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
   });
   schedPdfBtn.title = "Lay the door / window / room schedules on an ARCH-D titleblock sheet and download "
     + "as a submittable PDF — the tabular half of the CD set as an issuable sheet.";
+  const schedCsvBtn = d.toolBtn2("⤓ Schedules (CSV)", () => {
+    window.open(d.api.drawingSchedulesCsvUrl(d.pid), "_blank");
+  });
+  schedCsvBtn.title = "Door, window and room schedules as a spreadsheet download.";
 
   // W11 D6: the 3-part MasterFormat project manual (the spec book), seeded from classifications.
   const manualBtn = d.toolBtn2("📖 Project manual (spec book)", () => withLoading(d.container, "Assembling the project manual", async () => {
@@ -222,5 +226,5 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
     + "linework from the model geometry, the other half of the drawing set alongside plans.";
   // Returned in rail order. Picker first so Issue/PDF/Place all read the same stored size.
   // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the occasional one.
-  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn];
+  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, schedCsvBtn, manualBtn, sectBtn];
 }

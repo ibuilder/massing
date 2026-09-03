@@ -49,6 +49,36 @@ export async function renderBenchmarks(ctx: PanelContext) {
         costs.append(h, tbl);
       }
     } catch (e) { costs.textContent = `cost benchmarks failed: ${(e as Error).message}`; }
+    const ratesSlot = el("div"); ratesSlot.style.marginTop = "10px"; ratesSlot.textContent = "loading unit rates…";
+    root.appendChild(ratesSlot);
+    try {
+      const ur = await ctx.host.api.unitRates();
+      ratesSlot.textContent = "";
+      const h = el("div", "meta"); h.style.margin = "10px 0 4px";
+      h.textContent = ur.usable_count
+        ? `Unit rates by code (${ur.usable_count} usable of ${ur.code_count}, ≥${ur.min_projects} projects)`
+        : (ur.message || "No unit-rate history yet.");
+      ratesSlot.appendChild(h);
+      const usable = ur.cost_codes.filter((c) => !c.below_threshold);
+      if (usable.length) {
+        const tbl = el("table", "portal-table") as HTMLTableElement;
+        tbl.style.cssText = "width:100%;font-size:12px";
+        const thead = el("thead");
+        thead.innerHTML = "<tr><th scope=\"col\" style=\"text-align:left\">Cost code</th><th scope=\"col\">Unit</th>"
+          + "<th scope=\"col\">n</th><th scope=\"col\">median</th><th scope=\"col\">p25</th><th scope=\"col\">p75</th></tr>";
+        const tb = el("tbody");
+        for (const c of usable.slice(0, 20)) {
+          const tr = el("tr");
+          const td = (t: string, align = "right") => {
+            const d = el("td"); d.style.textAlign = align; d.textContent = t; return d;
+          };
+          tr.append(td(c.cost_code, "left"), td(c.unit, "center"), td(String(c.projects), "center"),
+            td(cmoney(c.median)), td(cmoney(c.p25)), td(cmoney(c.p75)));
+          tb.appendChild(tr);
+        }
+        tbl.append(thead, tb); ratesSlot.appendChild(tbl);
+      }
+    } catch (e) { ratesSlot.textContent = `unit rates failed: ${(e as Error).message}`; }
   }
 
   // --- Market Intelligence: regional escalation / labour / location + warm-cold sectors ----------
@@ -253,6 +283,11 @@ export async function renderRiskCost(ctx: PanelContext) {
     const ceWrap = el("div");
     root.appendChild(ceWrap);
     section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
+    const rfqNote = el("div", "meta");
+    rfqNote.textContent = "checking RFQ dispatch…";
+    root.appendChild(rfqNote);
+    void api.rfqStatus().then((st) => { rfqNote.textContent = st.message; })
+      .catch(() => { rfqNote.remove(); });
     const matchSlot = slot();
     section("Level material quotes (competing suppliers)");
     const quoteLevelWrap = el("div");

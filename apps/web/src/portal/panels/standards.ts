@@ -513,6 +513,126 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         lod.appendChild(table(["LOD band", "Elements"], Object.entries(a.distribution).map(([k, val]) => [k, val])));
     }).catch(fail(lod));
 
+    const hand = section("📋 LOD 500 handover work list");
+    void ctx.host.api.lodHandoverReadiness(pid).then((h) => {
+        hand.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = h.model_scored
+          ? `${h.lod500} of ${h.elements} at LOD 500 (${h.readiness_pct}%) · ${Object.keys(h.by_reason).length} gap reason(s)`
+          : "Load a model to list what still needs field verification.";
+        hand.appendChild(m);
+        const rows = Object.entries(h.by_reason);
+        if (rows.length) hand.appendChild(table(["Reason", "Count"], rows.map(([k, n]) => [k, n])));
+    }).catch(fail(hand));
+
+    const cen = section("📐 Triangle census");
+    void ctx.host.api.lodCensus(pid).then((c) => {
+        cen.textContent = "";
+        const m = el("div", "meta");
+        const nTri = c.total_triangles;
+        const nEl = c.elements_examined;
+        m.textContent = `${nTri} triangles across ${nEl} elements`
+          + (c.plan.pct_saved != null ? ` · proxy would save ${c.plan.pct_saved}%` : "");
+        cen.appendChild(m);
+        if (c.by_class.length) {
+          cen.appendChild(table(["Class", "Elements", "Triangles", "%"],
+            c.by_class.slice(0, 12).map((r) => [r.ifc_class, r.elements, r.triangles, r.pct_triangles])));
+        }
+    }).catch(fail(cen));
+
+    const gt = section("🧵 Golden thread");
+    void ctx.host.api.goldenThread(pid).then((g) => {
+        gt.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = `${g.signed_off} of ${g.total} signed off (${g.completeness_pct}%) · ${g.broken_count} broken`;
+        gt.appendChild(m);
+        if (g.broken_thread.length) {
+          gt.appendChild(table(["Requirement", "Risk", "State"],
+            g.broken_thread.slice(0, 15).map((b) => [b.requirement || b.ref, b.risk, b.state])));
+        }
+    }).catch(fail(gt));
+
+    const spec = section("📑 Spec links on the model");
+    void ctx.host.api.specLinks(pid).then((s) => {
+        spec.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = `${s.linked} linked · ${s.unlinked} unlinked of ${s.total}`;
+        spec.appendChild(m);
+        if (s.sections.length) {
+          spec.appendChild(table(["Section", "Title", "Elements"],
+            s.sections.slice(0, 20).map((x) => [x.section, x.title || "—", x.count])));
+        }
+    }).catch(fail(spec));
+
+    const qa = section("🔁 Export round-trip");
+    void ctx.host.api.exportQa(pid).then((r) => {
+        qa.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = r.comparable
+          ? (r.identical ? "Exact match on write→reopen" : (r.lossless ? "Lossless (superset preserved)" : "Export loss — see deltas"))
+          : (r.note || "could not compare");
+        qa.appendChild(m);
+    }).catch(fail(qa));
+
+    const diag = section("🧪 Schema diagnostic");
+    void ctx.host.api.schemaDiag(pid).then((d) => {
+        diag.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = d.passed
+          ? `Passed · ${d.instances ?? 0} instances`
+          : `${d.summary.error} error(s) · ${d.summary.warning} warning(s)`;
+        diag.appendChild(m);
+    }).catch(fail(diag));
+
+    const am = section("🛠 Authoring coverage");
+    void ctx.host.api.authoringMatrix().then((mx) => {
+        am.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = `${mx.recipe_count} recipes across ${mx.category_count} categories`
+          + (mx.uncategorized.length ? ` · ${mx.uncategorized.length} uncategorized` : "");
+        am.appendChild(m);
+        const rows = Object.entries(mx.by_category).map(([cat, v]) => [cat, v.count]);
+        if (rows.length) am.appendChild(table(["Category", "Recipes"], rows));
+    }).catch(fail(am));
+
+    const amend = section("🏛 Local code amendments");
+    void ctx.host.api.codeAmendments(pid).then((a) => {
+        amend.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = a.amendments.length
+          ? `${a.amendments.length} amendment(s) recorded`
+          : "No local overlay — statewide adoptions apply.";
+        amend.appendChild(m);
+        if (a.amendments.length) {
+          amend.appendChild(table(["Family", "Edition", "Section"],
+            a.amendments.slice(0, 20).map((x) => [x.family, x.edition ?? "—", x.section || "—"])));
+        }
+    }).catch(fail(amend));
+
+    const sp = section("📐 Space rule pack");
+    void ctx.host.api.spacePack(pid).then((r) => {
+        sp.textContent = "";
+        const m = el("div", "meta");
+        const keys = r.pack ? Object.keys(r.pack) : [];
+        m.textContent = keys.length
+          ? `${keys.length} space-rule section(s) stored — folded into the same run as element rules`
+          : "Empty until a space pack is saved; dimensional / daylight / wet-wall checks skip.";
+        sp.appendChild(m);
+    }).catch(fail(sp));
+
+    const vg = section("👁 View-template graphics");
+    void ctx.host.api.viewTemplates(pid).then(async (vt) => {
+        vg.textContent = "";
+        const first = vt.templates[0];
+        const m = el("div", "meta");
+        if (!first) { m.textContent = "No view templates saved."; vg.appendChild(m); return; }
+        const g = await ctx.host.api.viewTemplateGraphics(pid, first.id);
+        const n = g.visible_count;
+        m.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
+          + (n != null ? ` · ${n} visible` : "");
+        vg.appendChild(m);
+    }).catch(fail(vg));
+
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {
         env.textContent = "";
@@ -534,8 +654,16 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     }).catch(fail(mep));
 
     const nm = section("🔤 Naming compliance");
-    void ctx.host.api.namingAudit(pid).then((a) => {
+    void Promise.all([
+      ctx.host.api.namingAudit(pid),
+      ctx.host.api.namingConventions(pid).catch(() => null),
+    ]).then(([a, conv]) => {
         nm.textContent = "";
+        if (conv) {
+          const note = el("div", "meta");
+          note.textContent = `Container: ${conv.container.pattern}. Sheet: ${conv.sheet.pattern}`;
+          nm.appendChild(note);
+        }
         nm.appendChild(table(["Register", "Total", "Compliant", "%"], [
             ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
             ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));

@@ -8,7 +8,7 @@ describe("the documents client", () => {
   it("exposes tree, folder, health, upload, and download", () => {
     for (const k of ["documentsTree", "documentsFolder", "documentsByRole", "documentsHealth",
                      "documentsPhaseGaps", "uploadDocument", "moveDocument", "deleteDocument",
-                     "documentDownloadUrl"]) {
+                     "documentDownloadUrl", "namingConventions", "modelHistory", "fileModel"]) {
       expect(typeof (api as unknown as Record<string, unknown>)[k], k).toBe("function");
     }
   });

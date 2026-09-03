@@ -141,6 +141,55 @@ export async function renderPortfolio(ctx: PanelContext) {
       card.appendChild(ct);
       ctx.root.appendChild(card);
     }).catch(() => { /* returns spread is best-effort; the roll-up above stands on its own */ });
+
+    // Acquisition funnel sits ABOVE the construction book: executive KPIs answer deals we already
+    // won; this answers what is in the book, how much of it historically closes, and how long it
+    // takes. Weighted value uses this firm's closed history — a stage without enough samples is
+    // excluded and counted, never multiplied by a textbook ladder.
+    void ctx.host.api.pipelineFunnel().then((fn) => {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const w = fn.weighted;
+      const cov = w.coverage == null ? "—" : `${Math.round(w.coverage * 100)}% of in-flight`;
+      const head = document.createElement("div");
+      head.innerHTML = `<b>Acquisition funnel</b> <span class="meta">${fn.deal_count} deal(s)`
+        + ` · weighted ${usd(w.weighted_value)} (${cov})`
+        + (w.excluded_count ? ` · ${w.excluded_count} excluded from the weight` : "")
+        + `</span>`;
+      card.appendChild(head);
+      const labels = ["intake", "screening", "underwriting", "LOI", "due diligence", "closing"];
+      const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
+      tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Stage</th>`
+        + `<th scope="col" style="text-align:right">Deals</th>`
+        + `<th scope="col" style="text-align:right">Value</th>`
+        + `<th scope="col" style="text-align:right">Win rate</th></tr></thead>`;
+      const tb = document.createElement("tbody");
+      fn.stages.forEach((st, i) => {
+        const row = fn.by_stage[st];
+        const conv = fn.conversion[st];
+        const tr = document.createElement("tr");
+        const rate = conv?.probability == null ? "need more closed" : `${(conv.probability * 100).toFixed(0)}%`;
+        const n = row?.count ?? 0;
+        const amt = row?.value ?? 0;
+        tr.innerHTML = `<td>${esc(labels[i] ?? st.replace(/_/g, " "))}</td>`
+          + `<td style="text-align:right">${n}</td>`
+          + `<td style="text-align:right">${usd(amt)}</td>`
+          + `<td style="text-align:right">${esc(rate)}</td>`;
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); card.appendChild(tbl);
+      const ct = fn.cycle_time;
+      const note = document.createElement("div"); note.className = "meta";
+      note.textContent = `Closed cycle median ${ct.closed.median_days ?? "—"}d · open age median ${ct.open_age.median_days ?? "—"}d. `
+        + ct.note;
+      card.appendChild(note);
+      for (const warn of fn.warnings) {
+        const wdiv = document.createElement("div"); wdiv.className = "meta";
+        wdiv.style.color = "var(--status-warn)";
+        wdiv.textContent = warn.note;
+        card.appendChild(wdiv);
+      }
+      ctx.root.appendChild(card);
+    }).catch(() => { /* funnel is best-effort — no deal register in this deployment */ });
   }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
 
 }

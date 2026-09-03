@@ -668,8 +668,21 @@ export class ProformaUI {
     host.innerHTML = `<div class="meta">Loading cap table…</div>`;
     try {
       const ct = await this.api.capTable(pid);
+      const pack = await this.api.k1Pack(pid).catch(() => null);
       host.innerHTML = "";
-      if (ct.investor_count === 0) { host.innerHTML = `<div class="meta">No investors yet — add them under Construction ▸ Capital ▸ Investors.</div>`; return; }
+      if (pack) {
+        const k1 = document.createElement("div"); k1.className = "fin-card";
+        const k1h = document.createElement("div"); k1h.className = "section-title";
+        k1h.textContent = "K-1 preparation pack (not a tax document)";
+        const k1m = document.createElement("div"); k1m.className = "meta";
+        const nInv = pack.investor_count;
+        const closes = pack.allocation_check.closes ? "ownership closes" : "ownership residual";
+        k1m.textContent = `${nInv} investor(s) · period ${pack.period} · ${closes}. `
+          + `${pack.not_included.length} items this pack does not include (income allocation, basis, state).`;
+        k1.append(k1h, k1m);
+        host.appendChild(k1);
+      }
+      if (ct.investor_count === 0) { host.insertAdjacentHTML("beforeend", `<div class="meta">No investors yet — add them under Construction ▸ Capital ▸ Investors.</div>`); return; }
       const cc = document.createElement("div"); cc.className = "fin-card";
       const rows = ct.rows.map((r: any) => `<tr><td>${escapeHtml(String(r.investor ?? ""))}</td>`
         + `<td class="num">${money(r.commitment)}</td><td class="num">${r.ownership_pct}%</td>`

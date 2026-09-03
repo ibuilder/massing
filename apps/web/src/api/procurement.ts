@@ -14,8 +14,16 @@
  *
  *  A mixin, so every call site resolves unchanged. The surface ratchet in `api/surface.test.ts` is
  *  what proves it: moving a method is invisible to it, losing one fails it by number.
+ *
+ *  SCALE-SEAM ❸ adds the submittal stack — *are required submittals turning around?*
+ *  Register, spec-section log, extract-from-text. They were **not** contiguous (health,
+ *  closeout, safety, field-log and the RFI register sat between). Those did **not** come.
+ *
+ *  SCALE-SEAM ❽ adds bidding coverage — *can we cover the bid?* ITB tracking, model-QTO
+ *  scope-gap, invite list. `e57Status` sat below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
+import type { SpecSubmittalLog } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -95,6 +103,11 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
   }
   // --- materials procure-to-pay (FieldMaterials) -----------------------------
+  /** Whether RFQ dispatch to suppliers is configured (quote leveling still works either way). */
+  rfqStatus() {
+    return this.json<{ enabled: boolean; provider: string | null; message: string }>(
+      `/procurement/rfq-status`);
+  }
   procurementThreeWayMatch(pid: string) {
     return this.json<{ pos: { po: string; vendor: string; cost_code: string; po_amount: number;
       deliveries: number; received: number; invoiced: number; invoice_count: number; variance: number;
@@ -127,6 +140,45 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       unit: string | null; elements: number; guids: string[] }[]; created: string[] }>(
       `/projects/${pid}/procurement/material-request/suggest`,
       { method: "POST", body: JSON.stringify(opts) });
+  }
+
+  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. */
+  submittalRegister(pid: string) {
+    return this.json<{ submittal_count: number; open_count: number; overdue_count: number;
+      avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/submittals/register`);
+  }
+  /** specSubmittalLog — required submittals per spec section vs logged, with missing gaps. */
+  specSubmittalLog(pid: string) {
+    return this.json<SpecSubmittalLog>(`/projects/${pid}/specs/submittal-log`);
+  }
+  /** extractSubmittals — typed submittal list from pasted spec text (AI when configured; rules fallback). */
+  extractSubmittals(pid: string, text: string, create = false) {
+    return this.json<{ items: { section_number?: string; title: string; type: string }[];
+      source: string; message?: string; created_submittals?: number }>(
+      `/projects/${pid}/specs/extract-submittals`, { method: "POST", body: JSON.stringify({ text, create }) });
+  }
+
+  /** itb — invited vs responded vs bonded per package, plus coverage gaps. */
+  itb(pid: string) {
+    return this.json<{ package_count: number; total_invited: number; total_responses: number;
+      packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
+  }
+  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages. */
+  scopeGap(pid: string) {
+    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
+    return this.json<{
+      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
+      covered: (Disc & { packages: string[] })[];
+      gaps: (Disc & { sample_guids: string[] })[];
+      packages_without_model_scope: string[]; note: string;
+    }>(`/projects/${pid}/bidding/scope-gap`);
+  }
+  /** inviteBidders — record companies invited to bid on a package. */
+  inviteBidders(pid: string, packageId: string, companies: string[]) {
+    return this.json<{ bidders_invited: number; invited_companies: string[] }>(
+      `/projects/${pid}/bidding/packages/${packageId}/invite`,
+      { method: "POST", body: JSON.stringify({ companies }) });
   }
   };
 }

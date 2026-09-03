@@ -156,6 +156,49 @@ describe("API client doc comments describe the method they sit above", () => {
       .toEqual([]);
   });
 
+  /**
+   * A `//` line sitting immediately above a `/**` method comment is the leftover from a method
+   * that moved while the next method's JSDoc stayed. The `/**`-above-`/**` check cannot see it.
+   * Found as `AUTH-VS` (editGraph) still sitting on `modelAssets` after SCALE-SEAM ㊳, and as a
+   * "municipal permit open data" banner on `scheduleOptioneer`.
+   *
+   * The line comment must share a substantial word with the method it now appears to document.
+   * Section banners that do (`// pins / topics` above `pins`) pass; ones that name a neighbour fail.
+   */
+  it("a leftover // line does not document the next JSDoc method", () => {
+    const wrong: string[] = [];
+    for (const f of readdirSync(API).filter((n) => n.endsWith(".ts"))) {
+      if (f.endsWith(".test.ts") || f === "schema.d.ts") continue;
+      const lines = readFileSync(join(API, f), "utf8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const l = (lines[i] ?? "").trim();
+        if (!l.startsWith("//") || l.startsWith("///")) continue;
+        const prev = (lines[i - 1] ?? "").trim();
+        if (prev.startsWith("//")) continue; // continuation of a block, not a leftover banner
+        if (/^\/\/ ---/.test(l)) continue; // remaining-cluster delimiter, not a moved method
+        let j = i + 1;
+        while (j < lines.length && !(lines[j] ?? "").trim()) j++;
+        if (!(lines[j] ?? "").trim().startsWith("/**")) continue;
+        while (j < lines.length && !(lines[j] ?? "").trim().startsWith("*/")
+          && !(lines[j] ?? "").trim().endsWith("*/")) j++;
+        j++;
+        while (j < lines.length && !(lines[j] ?? "").trim()) j++;
+        const sig = /^\s*(?:async )?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/.exec(lines[j] ?? "");
+        if (!sig?.[1]) continue;
+        const words = (l.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !STOP.has(w));
+        if (!words.length) continue;
+        const ctx = `${sig[1]}\n${lines.slice(j, j + 8).join("\n")}`.toLowerCase();
+        if (!words.some((w) => ctx.includes(w.slice(0, 6)))) {
+          wrong.push(`${f}:${i + 1} // leftover above ${sig[1]}(): "${l.slice(0, 64)}"`);
+        }
+      }
+    }
+    expect(wrong,
+      "a // comment directly above a JSDoc method is usually the neighbour that moved. "
+      + "Delete it, or make it name THIS method.")
+      .toEqual([]);
+  });
+
   // The exemptions are a ratchet, not a dustbin: each names a comment that is CORRECT and merely
   // unreadable to the rule. Growing the set is how a real defect would get waved through.
   it("the frozen exemptions still exist, and there are still only two", () => {
