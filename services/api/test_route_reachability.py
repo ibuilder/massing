@@ -505,10 +505,11 @@ check("  ...six of them through the STEM pattern, and the other four only throug
 #: sentence should have been. It is a ratchet with a stated direction: the list may grow as more
 #: templated-extension routes gain callers, and each addition must bring its own evidence string,
 #: which the staleness check below then holds to.
-check("the templated-extension list is the size its own documentation claims",
+check("the templated-extension list is exactly the four routes measured at their call sites",
       len(CALLED_VIA_TEMPLATED_EXT) == 4,
-      f"{len(CALLED_VIA_TEMPLATED_EXT)} entries — if a route gained a caller, update the block "
-      f"comment above the dict in the same commit rather than leaving it to be discovered")
+      f"{len(CALLED_VIA_TEMPLATED_EXT)} entries — THIS LINE is where the count lives, so change the "
+      f"4 here as part of adding or removing a route, and check the block comment above the dict "
+      f"still reads true. Editing only the comment cannot satisfy this assertion")
 
 _stale = sorted(r for r, ev in CALLED_VIA_TEMPLATED_EXT.items() if ev not in _CODE)
 check("  ...and every named entry's CALL SITE is still there — this list can rot too",
