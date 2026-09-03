@@ -120,47 +120,117 @@ DATA_SRC = os.path.join(ROOT, "services", "data", "src")
 FIRST_PARTY = {d for root in (API_SRC, DATA_SRC) if os.path.isdir(root) for d in os.listdir(root)
                if os.path.isdir(os.path.join(root, d))}
 
+#: LOCAL MODULES the gate files import as bare names. Widening the scan to the gate files (2026-09-03)
+#: immediately produced five "not installed" failures — `run_tests`, `mcp_server`, `vendor_drift`,
+#: `massing_api`, `massing_export` — none of which is a package at all. They are sibling `.py` files,
+#: and the pyRevit bridge library that `test_revit_bridge.py` puts on `sys.path`. A first-party set
+#: derived from `src/` package DIRECTORIES cannot see a module that is a bare file.
+#:
+#: Enumerated from disk rather than listed, for the same reason FIRST_PARTY is: a hand-list goes stale
+#: the first time someone adds a gate. Scoped to the directories that actually get imported from, not
+#: to every `.py` in the repository — a repo-wide basename sweep would silently forgive a real
+#: third-party import that happened to share a name with one of our files, and forgiving is the
+#: failure mode this whole test exists to prevent.
+_LOCAL_ROOTS = [os.path.join(ROOT, "services", "api"), os.path.join(ROOT, "services", "data")] + [
+    os.path.join(ROOT, "integrations", "pyrevit", "Massing.extension", "lib"),
+]
+LOCAL_MODULES = {
+    f[:-3]
+    for root in _LOCAL_ROOTS if os.path.isdir(root)
+    for f in os.listdir(root)
+    if f.endswith(".py") and os.path.isfile(os.path.join(root, f))
+}
+FIRST_PARTY |= LOCAL_MODULES
+
 # One lock covers both services -- requirements.in says so in its own header ("the data service's
 # runtime deps are a strict subset"). So both trees are measured against that one file, which also
 # keeps the header's claim honest rather than merely written down.
 DECLARED = declared_in(os.path.join(ROOT, "services", "api", "requirements.in"))
+#: Test-only declarations. A GATE may import from either file; a SHIPPED module may import only from
+#: `requirements.in`, because that is what compiles into the runtime image — a runtime import backed
+#: solely by a dev pin is a module that works in CI and ImportErrors in production. The two scopes
+#: below encode exactly that difference, and it is the reason this widening needed two sets rather
+#: than one bigger one.
+DECLARED_DEV = DECLARED | declared_in(os.path.join(ROOT, "services", "api", "requirements-dev.txt"))
 PKG2DIST = packages_distributions()
+
+#: The GATE FILES — everything directly under a service root that is not inside `src/`. Added
+#: 2026-09-03, and it was NOT a hypothetical gap: `test_ruff_scope.py` landed with `import yaml`
+#: declared in NEITHER requirements file, reaching the lock only `# via` fastapi/uvicorn/pyHanko/
+#: bandit/starlette/markdown-it-py — and this test stayed green, because it walked `src/` only.
+#: The gate written to catch "a package our own source imports is a DIRECT dependency however else
+#: it happens to arrive" could not see the ~30 files that live beside it. Same scope hole RUFF-SCOPE
+#: fixed for the linter that same day, one directory over: *the checker was real, its reach was the
+#: fiction.* Non-recursive on purpose — `migrations/`, `_models/` and `scripts/` are separate
+#: populations with their own answers, and sweeping them in silently would repeat the mistake of
+#: widening a scope without reading what it caught.
+GATE_DIRS = (os.path.join(ROOT, "services", "api"), os.path.join(ROOT, "services", "data"))
+
+
+def _walk_py(root, recursive=True):
+    if recursive:
+        for dirpath, _, files in os.walk(root):
+            for fname in files:
+                if fname.endswith(".py"):
+                    yield os.path.join(dirpath, fname)
+    else:
+        for fname in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+            full = os.path.join(root, fname)
+            if fname.endswith(".py") and os.path.isfile(full):
+                yield full
+
+
+def _scan(paths):
+    """{module: {relative path, ...}} for every module-scope third-party import in `paths`."""
+    found = {}
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            try:
+                parsed = ast.parse(fh.read())
+            except SyntaxError:
+                continue
+        for mod in module_scope_imports(parsed):
+            if mod and mod not in FIRST_PARTY and mod not in sys.stdlib_module_names:
+                found.setdefault(mod, set()).add(os.path.relpath(path, ROOT).replace("\\", "/"))
+    return found
+
 
 print(f"first-party packages (derived from src roots): {', '.join(sorted(FIRST_PARTY))}")
 print(f"declared in services/api/requirements.in: {len(DECLARED)}")
+print(f"          + requirements-dev.txt (gates only): {len(DECLARED_DEV)}")
 
-sites = {}
-for tree_root in (API_SRC, DATA_SRC):
-    for dirpath, _, files in os.walk(tree_root):
-        for fname in files:
-            if not fname.endswith(".py"):
-                continue
-            path = os.path.join(dirpath, fname)
-            with open(path, encoding="utf-8") as fh:
-                try:
-                    parsed = ast.parse(fh.read())
-                except SyntaxError:
-                    continue
-            for mod in module_scope_imports(parsed):
-                if mod and mod not in FIRST_PARTY and mod not in sys.stdlib_module_names:
-                    sites.setdefault(mod, set()).add(os.path.relpath(path, ROOT).replace("\\", "/"))
+shipped = _scan(p for root in (API_SRC, DATA_SRC) for p in _walk_py(root))
+gates = _scan(p for root in GATE_DIRS for p in _walk_py(root, recursive=False))
 
-print(f"distinct third-party module-scope imports: {len(sites)}\n")
+# A gate importing something a shipped module also imports is already covered by the stricter scope;
+# reporting it twice would just make a failure read as two problems.
+gates = {m: w for m, w in gates.items() if m not in shipped}
 
-for mod in sorted(sites):
-    where = sorted(sites[mod])
-    extra = f" (+{len(where) - 1} more)" if len(where) > 1 else ""
-    dists = PKG2DIST.get(mod, [])
-    if not dists:
-        check(f"`import {mod}` resolves to an installed distribution", False,
-              f"not installed, yet imported at module scope by {where[0]}{extra}")
-        continue
-    provider = "/".join(dists)
-    check(f"`import {mod}` is declared ({provider})",
-          any(norm(d) in DECLARED for d in dists),
-          f"provided by {provider}, which requirements.in does not declare -- imported at module "
-          f"scope by {where[0]}{extra}. Add it to requirements.in, or make the import "
-          f"function-local if it is genuinely optional")
+print(f"distinct third-party module-scope imports: {len(shipped)} shipped, {len(gates)} gate-only")
+_gate_files = sum(1 for root in GATE_DIRS for _ in _walk_py(root, recursive=False))
+check("the gate-file scan actually reached the files beside this one", _gate_files >= 20,
+      f"{_gate_files} .py directly under {len(GATE_DIRS)} service root(s) — a scan that reaches "
+      f"nothing passes vacuously, which is the failure this widening exists to correct")
+print()
+
+for label, sites, allowed, where_to_add in (
+    ("shipped", shipped, DECLARED, "requirements.in"),
+    ("gate", gates, DECLARED_DEV, "requirements-dev.txt (or requirements.in if it also ships)"),
+):
+    for mod in sorted(sites):
+        where = sorted(sites[mod])
+        extra = f" (+{len(where) - 1} more)" if len(where) > 1 else ""
+        dists = PKG2DIST.get(mod, [])
+        if not dists:
+            check(f"[{label}] `import {mod}` resolves to an installed distribution", False,
+                  f"not installed, yet imported at module scope by {where[0]}{extra}")
+            continue
+        provider = "/".join(dists)
+        check(f"[{label}] `import {mod}` is declared ({provider})",
+              any(norm(d) in allowed for d in dists),
+              f"provided by {provider}, declared nowhere -- imported at module scope by "
+              f"{where[0]}{extra}. Add it to {where_to_add}, or make the import function-local "
+              f"if it is genuinely optional")
 
 print()
 if FAILED:

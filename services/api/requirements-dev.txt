@@ -21,6 +21,15 @@ ruff>=0.16.3         # static-analysis gate (config in ruff.toml): dead code + r
                      # what a version bump now touches. Re-validate against the real scope, and let
                      # `test_ruff_scope.py` tell you what that is rather than this comment.
 bandit>=1.9.4          # security static analysis (report-only in CI; run before shipping)
+lxml>=5.4.0          # `test_saml.py` builds signed SAML assertions with `from lxml import etree`.
+                     # Test-only: no shipped module imports lxml at module scope — `saml.py` reaches
+                     # it through signxml. It arrives in requirements.lock anyway (`# via` pyHanko,
+                     # signxml, python-docx), and that is exactly why it is declared: transitive
+                     # availability is a fact about someone else's metadata. signxml's own pin is
+                     # `lxml<7,>=5.2.1`, so a signxml release that swapped XML libraries would delete
+                     # a package this suite imports directly, and nothing would go red until the SAML
+                     # tests ImportError. Found on 2026-09-03 by widening this gate to the gate files;
+                     # it had been undeclared for as long as test_saml.py has existed.
 pyyaml>=6.0.3        # `test_ruff_scope.py` parses .github/workflows/*.yml to find the ONE enforcing
                      # `ruff check` step and read its `continue-on-error` — structure a regex cannot
                      # see. It arrives in requirements.lock anyway (`# via` fastapi, uvicorn, pyHanko,
