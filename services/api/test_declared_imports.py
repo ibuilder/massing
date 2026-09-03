@@ -166,6 +166,44 @@ PKG2DIST = packages_distributions()
 #: widening a scope without reading what it caught.
 GATE_DIRS = (os.path.join(ROOT, "services", "api"), os.path.join(ROOT, "services", "data"))
 
+#: PACKAGING MANIFESTS — the files that decide what actually leaves this repository. Anything they
+#: name is SHIPPED and must clear the stricter scope, wherever it happens to sit on disk.
+#:
+#: CodeRabbit found this on the PR that introduced the two-scope split, and it is worth stating
+#: plainly: the first version swept every direct `.py` under `services/api` into the DEV scope, and
+#: two of those files ship. `desktop_entry.py` is the executable in `desktop.spec` and
+#: `sidecar.spec`; `seed_demo.py` is COPYed into the runtime image by `Dockerfile` and run by
+#: `docker-compose.yml`'s seed profile. A dev-only import in either would have passed this gate and
+#: failed in the packaged artifact — which is the EXACT failure the split exists to prevent, so the
+#: split had reintroduced its own defect by assuming "directly under services/api" means "test".
+#:
+#: DERIVED, not listed. Naming those two files would fix today and leave the next packaged entry
+#: point to land in the loose bucket silently — the same "a hand-list goes stale" argument as
+#: FIRST_PARTY and LOCAL_MODULES, and the reason this whole sequence keeps deriving populations
+#: instead of enumerating them.
+PACKAGING = [
+    os.path.join(ROOT, "services", "api", "desktop.spec"),
+    os.path.join(ROOT, "services", "api", "sidecar.spec"),
+    os.path.join(ROOT, "services", "api", "Dockerfile"),
+    os.path.join(ROOT, "services", "data", "Dockerfile"),
+    os.path.join(ROOT, "docker-compose.yml"),
+]
+
+
+def _packaged_filenames():
+    """`{'seed_demo.py', ...}` — every .py basename any packaging manifest mentions."""
+    named = set()
+    for path in PACKAGING:
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        named |= set(re.findall(r"([A-Za-z0-9_]+\.py)", text))
+    return named
+
+
+PACKAGED = _packaged_filenames()
+
 
 def _walk_py(root, recursive=True):
     if recursive:
@@ -199,8 +237,17 @@ print(f"first-party packages (derived from src roots): {', '.join(sorted(FIRST_P
 print(f"declared in services/api/requirements.in: {len(DECLARED)}")
 print(f"          + requirements-dev.txt (gates only): {len(DECLARED_DEV)}")
 
-shipped = _scan(p for root in (API_SRC, DATA_SRC) for p in _walk_py(root))
-gates = _scan(p for root in GATE_DIRS for p in _walk_py(root, recursive=False))
+_direct = [p for root in GATE_DIRS for p in _walk_py(root, recursive=False)]
+_ships = [p for p in _direct if os.path.basename(p) in PACKAGED]
+_gate_only = [p for p in _direct if os.path.basename(p) not in PACKAGED]
+
+shipped = _scan(list(_walk_py(API_SRC)) + list(_walk_py(DATA_SRC)) + _ships)
+gates = _scan(_gate_only)
+
+check("a packaging manifest still names at least one direct entry point", bool(_ships),
+      ", ".join(sorted(os.path.relpath(p, ROOT).replace("\\", "/") for p in _ships))
+      or "none — if the specs/Dockerfile/compose stopped naming any direct .py, PACKAGING is stale "
+         "and every entry point has silently dropped into the looser dev scope")
 
 # A gate importing something a shipped module also imports is already covered by the stricter scope;
 # reporting it twice would just make a failure read as two problems.

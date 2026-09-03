@@ -715,6 +715,33 @@ the sixth had been true for months.
 Mutation-checked: lxml undeclared → exit 1 · gate dirs pointed at an empty path → exit 1 on the
 vacuity guard · a dev-only import in a shipped module → exit 1. Restored → exit 0.
 
+### And the split had reintroduced its own defect — CodeRabbit found it
+
+The first version put **every** direct `.py` under `services/api` in the DEV scope. Two of those files
+**ship**: `desktop_entry.py` is the executable in `desktop.spec` and `sidecar.spec`, and
+`seed_demo.py` is `COPY`ed into the runtime image by `Dockerfile` and run by `docker-compose.yml`'s
+seed profile. A dev-only import in either would have passed this gate and failed in the packaged
+artifact — **exactly the failure the two-scope split exists to prevent**, reintroduced by assuming
+"directly under `services/api`" means "test".
+
+Fixed by DERIVING the shipped set from the packaging manifests themselves — the specs, both
+Dockerfiles and the compose file — rather than naming the two files. Naming them would fix today and
+leave the next packaged entry point to land in the loose bucket silently, which is the same
+"a hand-list goes stale" argument as `FIRST_PARTY` and `LOCAL_MODULES`. An independent sweep of every
+direct `.py` against those manifests returns exactly those two, so the derivation and the finding
+agree.
+
+A vacuity guard comes with it: if the manifests ever stop naming any direct `.py`, the gate fails
+rather than quietly moving every entry point into the looser scope.
+
+Mutation-checked: a dev-only import in `desktop_entry.py` → **exit 1 as `[shipped]`** (it passed as
+`[gate]` before the fix) · the same import in a genuine test file → **exit 0** · `PACKAGING` pointed
+at files naming no `.py` → **exit 1** on the vacuity guard.
+
+*Three scope defects in one day — the linter's, this gate's, and then this gate's own fix — and the
+third was introduced while correcting the second. **Widening a scope is itself a scoping decision,
+and it deserves the same suspicion as the one it replaces.***
+
 
 
 
