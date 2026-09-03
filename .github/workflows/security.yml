@@ -1,8 +1,19 @@
 name: Dependency scan
 
-# Report-only supply-chain scan (pip-audit + npm audit). Non-blocking by design — it surfaces
-# known CVEs in the job summary without failing the merge gate (ci.yml stays the hard gate).
-# Runs weekly and on dependency-manifest changes.
+# Supply-chain scan (pip-audit + npm audit + bandit + gitleaks). Each tool appears TWICE: a
+# report-only step that surfaces everything into the job summary, and a BLOCKING gate over the
+# subset that is unambiguously actionable. `scripts/audit_lock_gate.py` and
+# `scripts/audit_npm_gate.py` fail the build on an advisory that HAS a published fix.
+#
+# THIS HEADER USED TO SAY "Non-blocking by design ... ci.yml stays the hard gate", and it was
+# false from the moment those gates were added — which is very likely WHY this workflow had no
+# `pull_request:` trigger for as long as it didn't. A reader who believed the header had no reason
+# to wire an advisory-only scan into PRs. On 2026-09-03 that gap let FOUR merges (#393-#396) land
+# over a red scan carrying three pypdf CVEs and two HIGH browserslist advisories, every one of them
+# already fixed upstream. A stale comment is not a documentation problem when it is the reason a
+# gate was left unable to fire.
+#
+# Runs on dependency-manifest changes (push AND pull_request — see below), plus weekly.
 
 on:
   schedule:
@@ -22,6 +33,30 @@ on:
       - "**/package.json"
       - "**/package-lock.json"
       - ".github/workflows/security.yml"
+
+  # THE BLOCKING GATES ABOVE COULD NOT BLOCK A MERGE UNTIL THIS EXISTED. With only `push:`, they
+  # fire AFTER a PR lands — they report a merge that already happened. Same shape as
+  # R39-CONTAINER-PR ("a skipped job is not a passed job"), one level up: there a JOB could not run
+  # on the event that would let a human see the break first; here the whole WORKFLOW could not.
+  #
+  # Deliberately scoped to the SAME globs as `push:`, not left open:
+  #   * a PR that touches a manifest is the one that can introduce an advisory, and it gets audited;
+  #   * a PR that touches no manifest cannot, and is not slowed by ~2 minutes of scanning.
+  # An advisory published upstream against an UNCHANGED manifest is still caught by the weekly
+  # schedule and by `push:` — this trigger narrows nothing that was previously covered.
+  #
+  # The two glob lists must stay identical, and GitHub Actions does not honour YAML anchors, so the
+  # duplication is real and `test_lock_advisories.py` asserts the two lists are equal rather than
+  # trusting either to remember the other.
+  pull_request:
+    paths:
+      - "**/requirements*.txt"
+      - "**/requirements*.lock"
+      - "**/requirements*.in"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - ".github/workflows/security.yml"
+
   workflow_dispatch:
 
 permissions:
