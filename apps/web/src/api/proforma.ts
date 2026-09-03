@@ -8,6 +8,13 @@
  *  those are the document catalog, not valuation. Composed through the existing `withProforma`
  *  wrapper — no extra `withX()` on `ApiClient`.
  *
+ *  SCALE-SEAM (86) adds `portfolioPrioritization` — *which projects should we prioritise?* It
+ *  scores every project on return, budget, schedule and risk, ranks them by a weighted composite
+ *  and names a best and worst, carrying `equity_irr` and `gmp`. It belongs beside `portfolio`,
+ *  `portfolioCompare` and `pipelineFunnel`, which are the rest of the deal pipeline. Its two
+ *  `/portfolio/*` neighbours in `client.ts` did **not** come — they REPORT status and went to
+ *  `evm.ts` with `projectHealth`; this one DECIDES.
+ *
  *  SCALE-SEAM (84) adds the development budget and the draws against it — *what is this
  *  development costing, and how is it being funded?* Budget read/write, its cost lines, Sources
  *  & Uses, the GMP reconciliation pair, and both draw schedules, plus the lender draw-request
@@ -160,6 +167,17 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       total_uses: number | null }[];
       spread: Record<string, { best: string | null; worst: string | null;
         min: number | null; max: number | null }> }>(`/proforma/portfolio/compare`);
+  }
+
+  // --- Which projects should we prioritise? ---
+  /** Portfolio prioritization — projects ranked 0-100 on return / budget / schedule / risk. */
+  portfolioPrioritization() {
+    type Scores = { return: number; budget: number; schedule: number; risk: number };
+    return this.json<{ weights: Scores; criteria: string[];
+      projects: { id: string; name: string; status: string; rank: number; composite: number;
+        scores: Scores; equity_irr: number | null; gmp: number }[];
+      top: { name: string } | null; bottom: { name: string } | null; note: string }>(
+      `/portfolio/prioritization`);
   }
 
   /** PROFORMA-LIVE: the model's takeoff-priced cost + GFA + budget delta — refresh on each publish. */

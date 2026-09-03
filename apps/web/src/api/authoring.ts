@@ -2,6 +2,11 @@
  *  massing generator, and saved recipe macros — the endpoints that WRITE to the model rather
  *  than read from it.
  *
+ *  SCALE-SEAM (85) adds `raisePlan` — *turn this 2D plan into authored walls?* It is a multipart
+ *  upload and sat among four other uploads in `client.ts`, but it is here for what it DOES: it
+ *  takes a wall height and thickness and returns `wall_count` and total wall length. It writes to
+ *  the model, which is what this file is for. The other four uploads went elsewhere.
+ *
  *  SCALE-SEAM ㊳ adds editGraph plus the four macro methods that answer *run this parameterized
  *  authoring chain?* Property-override layers sat immediately below in `client.ts` and did
  *  **not** come — those compose properties, they do not write recipes.
@@ -44,6 +49,23 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         // caller relies on.
         { method: "POST", body: JSON.stringify(wantGuid ? { recipe, params, publish, want_guid: wantGuid }
                                                         : { recipe, params, publish }) });
+    }
+
+    // --- Raise a 2D plan into authored walls ---
+    /** 2D -> BIM raise: turn an uploaded DXF floor plan into an IFC model (walls + spaces). `preview`
+     *  just parses (returns wall/room counts); otherwise registers a "2D Raise" discipline model. */
+    async raisePlan(pid: string, file: File, opts: { wallHeight?: number; wallThickness?: number; preview?: boolean } = {}) {
+      const fd = new FormData(); fd.append("file", file);
+      if (opts.wallHeight != null) fd.append("wall_height", String(opts.wallHeight));
+      if (opts.wallThickness != null) fd.append("wall_thickness", String(opts.wallThickness));
+      if (opts.preview) fd.append("preview", "true");
+      const res = await fetch(this.url(`/projects/${pid}/raise-plan`), {
+        method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `raise failed (${res.status})`);
+      return res.json() as Promise<{ id?: string; discipline?: string; units: string;
+        wall_count: number; space_count?: number; room_count?: number;
+        total_wall_length_m: number; total_floor_area_m2: number;
+        wall_height_m?: number; wall_thickness_m?: number }>;
     }
     /**
      * R38-SOLVER-LOCKS — solve a dimensional-lock system. Pure computation: the route neither reads

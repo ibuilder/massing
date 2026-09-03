@@ -56,7 +56,7 @@ import type {
   Dashboard,
   DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
   PropMapRule,
-  ResponsibilityMatrix, SmartView,
+  ResponsibilityMatrix,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
@@ -971,33 +971,35 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
 
-  // --- UNFILED — 28 methods, no shared question --------------------------------
+  // --- UNFILED — 17 methods, no shared question --------------------------------
   // This banner said `CX-1 commissioning loop` until SCALE-SEAM (83) took the three `/cx/*`
   // methods to `documents.ts`. It never described the run: it labelled where commissioning
   // STARTED and the file then carried on to the end through a dozen unrelated domains. With the
   // commissioning methods gone it named nothing at all, so it is replaced rather than narrowed —
   // an over-claiming banner is how ⓽, ⓾, (81) and (82) each lost a method to the wrong mixin.
   //
-  // **This map is itself a list, and (83) wrote it from a query that under-counted.** The regex
-  // it used did not match `async` methods, so five were invisible: `importRvt`,
-  // `loanDrawRequestPdf`, `raisePlan`, `takeoffDxf`, `uploadSourceIfc`. The banner really held
-  // 49, not the 44 (83) recorded. It is now DERIVED rather than proofread — see
-  // `apps/web/src/api/unfiledMap.test.ts`, which fails if this count or these names drift from
-  // the methods below.
+  // The count and the names below are DERIVED, not proofread — `apps/web/src/api/unfiledMap.test.ts`
+  // fails if either drifts from the methods underneath. It exists because (83) wrote this map from
+  // a regex that did not match `async` methods and under-counted the banner by five.
+  //
+  // **Do not group by the HTTP mechanism either.** (85) proved that: the five methods this map
+  // used to list as *how do I get a file into this project?* were grouped by being multipart
+  // uploads, which is a HOW, not a question. Read for what they answer and they split four ways —
+  // `takeoffDxf` is a 2D quantity takeoff (it went to `estimate.ts`, beside `takeoff2d`),
+  // `raisePlan` writes walls (`authoring.ts`), `uploadSourceIfc` and `importRvt` both set the
+  // project's source model, and `rvtBridgeStatus` is the precondition for the second — those three
+  // to `model.ts`. Mechanism is as misleading a seam as route prefix.
+  //
+  // **A shared WORD is not a shared domain** — (86) hit that for the third time in three slices.
+  // `modules.ts` already owns a saved-views family (`SavedViewDef`, `/modules/{key}/views`) and the
+  // name matched exactly, but that is a DATA-GRID view (`{q, state, sort}`); the smart views that
+  // used to sit below are `{selector, mode: isolate|color|hide}` and resolve to GUIDs, so they went
+  // to `elements.ts` beside `colorBy`. Earlier instances: `rvtBridgeStatus` vs LAND-USE
+  // `entitlements.ts`, and grouping five methods because they were all multipart uploads.
   //
   // What is actually below, by what each cluster ANSWERS — decide a home from that, not from the
   // route prefix and not from position:
   //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl
-  //                                (quantities, not the ACI check (83) moved to `model.ts`)
-  //   how do I get a file into     takeoffDxf, raisePlan, uploadSourceIfc, importRvt,
-  //   this project?                rvtBridgeStatus
-  //                                (all multipart uploads; (84) found this cluster, which (83)
-  //                                 missed entirely for the async reason above. `rvtBridgeStatus`
-  //                                 is the bridge `importRvt` drives — (83) wrongly listed it as
-  //                                 a stayer, before the four uploads beside it were visible.)
-  //   how is the portfolio doing?  executivePortfolio, portfolioPrioritization,
-  //                                constructionPortfolio
-  //   what saved views are there?  smartViews, smartViewsSave, smartViewRun
   //   how does the model look?     materialPalette, saveMaterialPalette, applyMaterialPalette
   //   what is on this site?        property, saveProperty, testFitCompare, testFitOptimize
   //   four singles, four           complianceExpiring, safetyMetrics, bidLeveling, pxSummary
@@ -1038,10 +1040,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);
   }
-  constructionPortfolio() {
-    return this.json<{ project_count: number; totals: { projected_over_under: number; over_budget_count: number; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }; projects: { id: string; name: string; projected_over_under: number; over_budget: boolean; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }[] }>(
-      "/portfolio/construction");
-  }
   /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
   safetyMetrics(pid: string) {
     return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
@@ -1051,45 +1049,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   bidLeveling(pid: string) {
     return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(
       `/projects/${pid}/bids/leveling`);
-  }
-  async takeoffDxf(pid: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/takeoff/dxf`), {
-      method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `takeoff failed (${res.status})`);
-    return res.json() as Promise<{ units: string; unitless: boolean; layer_count: number; entity_count: number;
-      total_length_m: number; total_area_m2: number;
-      layers: { layer: string; entities: number; length_m: number; area_m2: number; inserts: number }[];
-      blocks: { block: string; count: number }[] }>;
-  }
-  /** 2D -> BIM raise: turn an uploaded DXF floor plan into an IFC model (walls + spaces). `preview`
-   *  just parses (returns wall/room counts); otherwise registers a "2D Raise" discipline model. */
-  async raisePlan(pid: string, file: File, opts: { wallHeight?: number; wallThickness?: number; preview?: boolean } = {}) {
-    const fd = new FormData(); fd.append("file", file);
-    if (opts.wallHeight != null) fd.append("wall_height", String(opts.wallHeight));
-    if (opts.wallThickness != null) fd.append("wall_thickness", String(opts.wallThickness));
-    if (opts.preview) fd.append("preview", "true");
-    const res = await fetch(this.url(`/projects/${pid}/raise-plan`), {
-      method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `raise failed (${res.status})`);
-    return res.json() as Promise<{ id?: string; discipline?: string; units: string;
-      wall_count: number; space_count?: number; room_count?: number;
-      total_wall_length_m: number; total_floor_area_m2: number;
-      wall_height_m?: number; wall_thickness_m?: number }>;
-  }
-  smartViews(pid: string) {
-    return this.json<{ views: SmartView[]; count: number }>(`/projects/${pid}/smart-views`);
-  }
-  /** Replace the saved smart views (editor). Selectors are validated server-side → 422 on a bad one. */
-  smartViewsSave(pid: string, views: SmartView[]) {
-    return this.json<{ saved: number; views: SmartView[] }>(
-      `/projects/${pid}/smart-views`, { method: "PUT", body: JSON.stringify({ views }) });
-  }
-  /** Resolve a saved view's selector to the matching GUIDs (to isolate / colour / hide in 3D). */
-  smartViewRun(pid: string, vid: string) {
-    return this.json<{ id: string; name: string; mode: string; color: string | null;
-      selector: string; matched: number; truncated: boolean; guids: string[]; error?: string }>(
-      `/projects/${pid}/smart-views/${encodeURIComponent(vid)}/run`);
   }
   /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
    *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
@@ -1103,6 +1062,8 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         buyout: { packages: number; bought_out: number; savings: number } | null; baseline_movement: number | null };
     }>(`/projects/${pid}/px-summary`);
   }
+  /** The project's saved material overrides, keyed for the viewer. Read side of the pair whose
+   *  write is `saveMaterialPalette`; `applyMaterialPalette` pushes the result onto the model. */
   materialPalette(pid: string) {
     return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
   }
@@ -1113,26 +1074,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   applyMaterialPalette(pid: string) {
     return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
       `/projects/${pid}/materials/apply`, { method: "POST" });
-  }
-  /** Cross-project executive roll-up: each project's on-schedule + on-budget status + portfolio totals. */
-  executivePortfolio() {
-    return this.json<{
-      projects: { id: string; name: string; status: "on_track" | "at_risk" | "behind"; spi: number | null;
-        cpi: number | null;
-        pct_complete: number; lookahead_3wk: number; milestones_late: number; gmp: number; eac: number;
-        variance_at_completion: number; committed_pct: number; equity_irr: number | null; equity_multiple: number | null }[];
-      totals: { gmp: number; eac: number; variance_at_completion: number; committed: number; equity: number; blended_equity_irr: number | null };
-      status_tally: { on_track: number; at_risk: number; behind: number }; project_count: number }>(
-      `/portfolio/executive`);
-  }
-  /** Portfolio prioritization — projects ranked 0-100 on return / budget / schedule / risk. */
-  portfolioPrioritization() {
-    type Scores = { return: number; budget: number; schedule: number; risk: number };
-    return this.json<{ weights: Scores; criteria: string[];
-      projects: { id: string; name: string; status: string; rank: number; composite: number;
-        scores: Scores; equity_irr: number | null; gmp: number }[];
-      top: { name: string } | null; bottom: { name: string } | null; note: string }>(
-      `/portfolio/prioritization`);
   }
   /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
   property(pid: string) {
@@ -1155,28 +1096,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null;
       ranked: OptScheme[]; swept_depths: number[]; depth_curve: DepthPoint[]; best_depth_m: number | null }>(
       "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
-  }
-  /** Upload an IFC as the project's source model (sets source_ifc + publishes) — what lights up
-   *  drawings, clash/IDS, energy, exports, and authoring for the project. */
-  async uploadSourceIfc(pid: string, file: File, publish = true) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/source-ifc?publish=${publish}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `upload -> ${res.status}`); }
-    return res.json() as Promise<{ source_ifc: string; publish?: string }>;
-  }
-  /** Is the optional paid Revit→IFC bridge configured? (+ cost warning / free alternative text). */
-  rvtBridgeStatus() {
-    return this.json<{ enabled: boolean; activity_configured: boolean; cost_warning: string;
-      free_alternative: string; message: string }>(`/bridge/rvt/status`);
-  }
-  /** Import a native .rvt via the paid APS bridge (must confirm cost). 501 off · 402 unconfirmed. */
-  async importRvt(pid: string, file: File, confirmCost: boolean) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/import/rvt?confirm_cost=${confirmCost}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `rvt import -> ${res.status}`); }
-    return res.json() as Promise<{ source_ifc: string; size: number; source: string; publish?: string }>;
   }
 }
 

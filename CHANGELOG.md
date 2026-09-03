@@ -389,6 +389,97 @@ four uploads beside it could not be seen. Four stayers remain: `enumOptions`, `s
 
 Pin 1,292 → 1,212. Twenty-eight methods left under the banner, and that number is now checked.
 
+Twenty-second follow-on on the same version: **SCALE-SEAM (85)** — *mechanism is not a question*,
+and **the new gate had the old bug**.
+
+Five methods out of `client.ts` (`1,212 → 1,173`), into three existing mixins:
+
+- *how does this project get its source model?* — `uploadSourceIfc`, `importRvt` and
+  `rvtBridgeStatus` onto `apps/web/src/api/model.ts`. The first two both return `source_ifc` and
+  both set it; the third is the precondition for the second, reporting whether the paid Autodesk
+  bridge is enabled and what it costs.
+- *turn this 2D plan into authored walls?* — `raisePlan` onto `apps/web/src/api/authoring.ts`.
+- *what quantities are on this drawing?* — `takeoffDxf` onto `apps/web/src/api/estimate.ts`,
+  beside `takeoff2d`.
+
+**(84) had grouped all five as *how do I get a file into this project?*, and that was wrong for a
+new reason.** They are all multipart uploads — but "multipart upload" is a HOW, not a question.
+Grouping by mechanism is the same error as grouping by route prefix, one level further from the
+domain. Read for what each answers and they split four ways: a quantity takeoff, a model write, two
+that set the source model, and a feature-availability check.
+
+**`rvtBridgeStatus` did not go to `entitlements.ts`, and the near-miss is worth recording.** The
+name fits perfectly — a paid feature, enabled or not, with a cost warning. But that mixin is the
+**land-use** entitlements route group (`/projects/{pid}/entitlements/…`): planning approvals,
+review cycles, permit conditions. Same word, different domain. Filing on it would have been the
+route-prefix mistake wearing a vocabulary disguise.
+
+### The gate written to prevent the count bug had the count bug
+
+`unfiledMap.test.ts`, added one slice earlier, derives which words in the map are method names by
+scanning `api/` for method declarations. Its pattern required **exactly two spaces** of indent.
+But five files indent by four — `authoring.ts` alone has **37 methods** — so roughly 47 names were
+missing from that vocabulary, and a map entry naming any of them could never be reported stale.
+
+*That is the `async` bug again, in the test written to stop it.* Both are a pattern whose scope
+silently excludes part of its population, and both return a smaller set rather than an error. The
+fix is not a wider regex alone: it now also **asserts that every file declaring a mixin contributes
+at least one name**, so a whole file's convention cannot drop out silently again. Mutation-checked
+by having the map name `editIfc`, a four-space method — previously invisible, now caught.
+
+The gate also earned its keep the ordinary way: mid-slice it failed with *"the banner says 28
+methods but 23 follow it"* and *"the map names these, but they are no longer under the banner"*,
+naming all five moved methods. First time it caught live drift rather than a deliberate mutation.
+
+`constructionPortfolio` and `materialPalette` got the doc comments they had never had. The first is
+global (`/portfolio/construction`, no project id) and carries no investment figure — which is what
+separates it from `executivePortfolio`, and why the portfolio trio still under the banner is
+flagged there as likely to split rather than move as one.
+
+Pin 1,212 → 1,173. Twenty-three methods left under the banner.
+
+Twenty-third follow-on on the same version: **SCALE-SEAM (86)** — *a shared word is not a shared
+domain*, for the third slice running.
+
+Six methods out of `client.ts` (`1,173 → 1,131`), into three existing mixins:
+
+- *is every job on track?* — `executivePortfolio`, `constructionPortfolio` onto
+  `apps/web/src/api/evm.ts`, beside `projectHealth`.
+- *which projects should we prioritise?* — `portfolioPrioritization` onto
+  `apps/web/src/api/proforma.ts`, beside `portfolio`, `portfolioCompare` and `pipelineFunnel`.
+- *save a selection rule and run it* — `smartViews`, `smartViewsSave`, `smartViewRun` onto
+  `apps/web/src/api/elements.ts`, beside `colorBy` and `colorFacets`. `SmartView` moved with them
+  out of `client.ts`'s type imports.
+
+**The portfolio trio split 2/1, and only the shapes said so.** All three are `/portfolio/*` global
+rollups, so any route-based cut moves them together. But `evm.ts` recorded at ⓫ that `projectHealth`
+answers *"is the job on track across domains?"* for one project — and `executivePortfolio` is that
+same question over the whole portfolio, `constructionPortfolio` the same one domain narrower. Those
+two REPORT. `portfolioPrioritization` ranks projects by a weighted composite of return, budget,
+schedule and risk and names a best and worst: it DECIDES, which is a pipeline question, not a status
+one.
+
+⓫ also recorded that *"safety sat below and did not come"*, and `constructionPortfolio` does carry
+`recordables`. It came anyway — it is a cross-project execution rollup that happens to include a
+safety count, not the safety module. Naming the tension in the header is the point; a slice that
+quietly contradicts an earlier one's stated reason is how the next reader stops trusting either.
+
+### The third homonym in three slices
+
+`smartViews` nearly went to `modules.ts`, and the reason is worth recording because the name
+matched **exactly**: that mixin already owns a saved-views family — `SavedViewDef`, at
+`/projects/{pid}/modules/{key}/views`. Comparing the two types separated them in one line. A
+`SavedViewDef` is `{q, state, sort}` — a data-grid filter over a register. A `SmartView` is
+`{selector, mode: isolate|color|hide, color}`, and `smartViewRun` returns matched **GUIDs**. Same
+word, unrelated things.
+
+That is three in three slices: `rvtBridgeStatus` versus the LAND-USE `entitlements.ts` at (85),
+"they are all multipart uploads" as a question at (85), and now "view". **A name is evidence about
+vocabulary, not about domain** — and in a codebase spanning development finance, construction
+operations and 3D geometry, the same word reliably means three things.
+
+Pin 1,173 → 1,131. Seventeen methods left under the banner, and the count is checked.
+
 
 
 
