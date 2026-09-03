@@ -57,7 +57,6 @@ import type {
   DisciplineTree, EnergyResult, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
   PropMapRule,
   ResponsibilityMatrix, SmartView,
-    BidLevelingDetail,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
@@ -730,55 +729,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   dashboard(pid: string, party?: string) {
     const q = party ? `?party=${encodeURIComponent(party)}` : "";
     return this.json<Dashboard>(`/projects/${pid}/dashboard${q}`);
-  }
-
-  // --- AI drafting (RFI / submittal summary / scope of work) -----------------
-  private async draftPost<T>(pid: string, kind: string, fields: Record<string, string | File | undefined>) {
-    const fd = new FormData();
-    for (const [k, v] of Object.entries(fields)) if (v != null) fd.append(k, v);
-    const res = await fetch(this.url(`/projects/${pid}/draft/${kind}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Draft ${kind} -> ${res.status}`);
-    return res.json() as Promise<T>;
-  }
-  /** Draft an RFI from a short note (+ optional source PDF/text) — editable before you create it. */
-  aiDraftRfi(pid: string, opts: { note?: string; file?: File; text?: string }) {
-    return this.draftPost<{ subject: string; question: string; discipline: string; spec_section?: string;
-      priority: string; suggested_assignee?: string; background?: string;
-      citations?: { page: number; snippet?: string }[]; source: string; message?: string }>(
-      pid, "rfi", { note: opts.note, file: opts.file, text: opts.text });
-  }
-  /** Summarize an uploaded submittal package (title / spec / type / key + missing items). */
-  draftSubmittalSummary(pid: string, opts: { file?: File; text?: string }) {
-    return this.draftPost<{ title: string; spec_section?: string; type?: string; summary: string;
-      key_items?: string[]; missing_or_review?: string[];
-      citations?: { page: number }[]; source: string; message?: string }>(
-      pid, "submittal-summary", { file: opts.file, text: opts.text });
-  }
-  /** Draft a trade scope of work (inclusions / exclusions / clarifications) from a plan/spec set. */
-  draftScope(pid: string, trade: string, opts: { file?: File; text?: string }) {
-    return this.draftPost<{ trade: string; inclusions: string[]; exclusions: string[];
-      clarifications: string[]; spec_sections?: string[];
-      citations?: { page: number }[]; source: string; message?: string }>(
-      pid, "scope", { trade, file: opts.file, text: opts.text });
-  }
-
-  /** Extract a drawing-sheet index (number/title/discipline) from a PDF or pasted list; optionally create drawing records. */
-  async extractSheets(pid: string, opts: { file?: File; text?: string; create?: boolean }) {
-    const fd = new FormData();
-    if (opts.file) fd.append("file", opts.file);
-    if (opts.text) fd.append("text", opts.text);
-    fd.append("create", opts.create ? "true" : "false");
-    const res = await fetch(this.url(`/projects/${pid}/extract/sheets`),
-      { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Extract sheets -> ${res.status}`);
-    return res.json() as Promise<{ sheets: { number: string; title: string; discipline: string }[];
-      method: string; has_text_layer?: boolean; note?: string; created?: string[] }>;
-  }
-
-  /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
-  bidLevelingDetail(pid: string, packageId: string) {
-    return this.json<BidLevelingDetail>(`/projects/${pid}/bids/leveling/${packageId}`);
   }
 
   // --- portfolio benchmarking (cross-project) --------------------------------

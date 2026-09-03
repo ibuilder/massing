@@ -72,5 +72,37 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ answer?: string; snapshot?: unknown; source: string }>(
       `/projects/${pid}/assistant`, { method: "POST", body: JSON.stringify({ question }) });
   }
+
+  // SCALE-SEAM ⓽ — *draft this document for me from a file or some text?* The three
+  // `/projects/{pid}/draft/{kind}` doors and their shared multipart helper.
+  private async draftPost<T>(pid: string, kind: string, fields: Record<string, string | File | undefined>) {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v != null) fd.append(k, v);
+    const res = await fetch(this.url(`/projects/${pid}/draft/${kind}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Draft ${kind} -> ${res.status}`);
+    return res.json() as Promise<T>;
+  }
+  /** Draft an RFI from a short note (+ optional source PDF/text) — editable before you create it. */
+  aiDraftRfi(pid: string, opts: { note?: string; file?: File; text?: string }) {
+    return this.draftPost<{ subject: string; question: string; discipline: string; spec_section?: string;
+      priority: string; suggested_assignee?: string; background?: string;
+      citations?: { page: number; snippet?: string }[]; source: string; message?: string }>(
+      pid, "rfi", { note: opts.note, file: opts.file, text: opts.text });
+  }
+  /** Summarize an uploaded submittal package (title / spec / type / key + missing items). */
+  draftSubmittalSummary(pid: string, opts: { file?: File; text?: string }) {
+    return this.draftPost<{ title: string; spec_section?: string; type?: string; summary: string;
+      key_items?: string[]; missing_or_review?: string[];
+      citations?: { page: number }[]; source: string; message?: string }>(
+      pid, "submittal-summary", { file: opts.file, text: opts.text });
+  }
+  /** Draft a trade scope of work (inclusions / exclusions / clarifications) from a plan/spec set. */
+  draftScope(pid: string, trade: string, opts: { file?: File; text?: string }) {
+    return this.draftPost<{ trade: string; inclusions: string[]; exclusions: string[];
+      clarifications: string[]; spec_sections?: string[];
+      citations?: { page: number }[]; source: string; message?: string }>(
+      pid, "scope", { trade, file: opts.file, text: opts.text });
+  }
   };
 }

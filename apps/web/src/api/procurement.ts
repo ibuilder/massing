@@ -23,7 +23,7 @@
  *  scope-gap, invite list. `e57Status` sat below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
-import type { SpecSubmittalLog } from "./types";
+import type { BidLevelingDetail, SpecSubmittalLog } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -179,6 +179,14 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ bidders_invited: number; invited_companies: string[] }>(
       `/projects/${pid}/bidding/packages/${packageId}/invite`,
       { method: "POST", body: JSON.stringify({ companies }) });
+  }
+
+  // SCALE-SEAM ⓽ — *how do these bids compare, in detail?* The detail view of the levelling
+  // `procurementLevel` and `procurementLevelQuotes` already answer; this file's own header has
+  // claimed "bid levelling" since ⑥ while the method sat in `client.ts` under an AI banner.
+  /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
+  bidLevelingDetail(pid: string, packageId: string) {
+    return this.json<BidLevelingDetail>(`/projects/${pid}/bids/leveling/${packageId}`);
   }
   };
 }

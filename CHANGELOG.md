@@ -191,6 +191,34 @@ AssemblyRow moved to `apps/web/src/api/types.ts` with the family/group methods.
 
 `MARKS` widened to ⓽ on the way out. Pin 1,584 → 1,512.
 
+Sixteenth follow-on on the same version: **SCALE-SEAM ⓽**. Five methods out of `client.ts`
+(`1,512 → 1,462`) into three existing mixins — and the slice is one cluster, not three,
+because **one banner was covering three different questions**.
+
+The `// --- AI drafting (RFI / submittal summary / scope of work) ---` section held six
+methods. Only four of them draft anything:
+
+- ⓽ *draft this document for me from a file or some text?* — `aiDraftRfi`,
+  `draftSubmittalSummary`, `draftScope` and their shared multipart helper `draftPost` onto
+  `apps/web/src/api/ai.ts`. All three are `/projects/{pid}/draft/{kind}` doors.
+- *what sheets are in this PDF, and make the records?* — `extractSheets` onto
+  `apps/web/src/api/drawingSheets.ts`. It is `/extract/sheets`, not `/draft/`, and with
+  `create: true` it creates DRAWING records — a drawings question wearing an AI label.
+- *how do these bids compare, in detail?* — `bidLevelingDetail` onto
+  `apps/web/src/api/procurement.ts`, whose own header has claimed "bid levelling" since ⑥
+  while this method sat in `client.ts` under a banner about RFIs. It is the detail view of
+  the levelling `procurementLevel` and `procurementLevelQuotes` already answer.
+
+**This is the failure `procurement.ts`'s header recorded at ⑥, met again**: *"the
+`// --- section ---` comments label where a run starts and the file then carries on into
+other domains, so they have not delimited anything for a long time."* A split by route
+prefix or by banner would have moved all six to `ai.ts`; only asking what each method
+ANSWERS separates them.
+
+`BidLevelingDetail` dropped from `client.ts`'s type imports and added to `procurement.ts`.
+Pin 1,512 → 1,462. `MARKS` unchanged — ⓽ is the last glyph in the vocabulary, so the next
+slice needs the range widened before it can be numbered.
+
 
 
 

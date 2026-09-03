@@ -86,5 +86,20 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
+
+  // SCALE-SEAM ⓽ — *what sheets are in this PDF, and make the records?* Filed here rather
+  // than with the AI drafting it sat next to: with `create: true` it creates DRAWING records.
+  /** Extract a drawing-sheet index (number/title/discipline) from a PDF or pasted list; optionally create drawing records. */
+  async extractSheets(pid: string, opts: { file?: File; text?: string; create?: boolean }) {
+    const fd = new FormData();
+    if (opts.file) fd.append("file", opts.file);
+    if (opts.text) fd.append("text", opts.text);
+    fd.append("create", opts.create ? "true" : "false");
+    const res = await fetch(this.url(`/projects/${pid}/extract/sheets`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Extract sheets -> ${res.status}`);
+    return res.json() as Promise<{ sheets: { number: string; title: string; discipline: string }[];
+      method: string; has_text_layer?: boolean; note?: string; created?: string[] }>;
+  }
   };
 }
