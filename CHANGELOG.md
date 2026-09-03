@@ -753,12 +753,23 @@ below it), the CIVIL DESIGN (`resilienceStormwater` — runoff coefficient, peak
 and the PROGRAMME (`resilienceWeather` — weather-sensitive activities by trade, open site risks, delay
 days). `resilienceClimateRisk` is the composite over all three.
 
-*The tension is named rather than smoothed over:* `resilienceWeather` reads activities with trade,
-start, finish and percent complete — `schedule.ts` vocabulary, and a subject-matter split would send
-it there. It stays because the question is not "how is the programme going" but "what is the weather
-doing to it", and because `resilienceClimateRisk` folds its `weather_delay_days` into the same
-composite as the flood and runoff figures. Separating an input from the rollup that consumes it is
-the split ⓽ made and (87) had to undo.
+*The tension is named rather than smoothed over*, and then the reason for resolving it was narrowed
+after checking the source. `resilienceWeather` reads activities with trade, start, finish and percent
+complete — `schedule.ts` vocabulary, and a subject-matter split would send it there.
+
+**The first draft of that argument claimed a dependency the backend does not support.**
+`resilience.climate_risk()` does score `high_severity_open`, `open_risk_count` and
+`weather_delay_days` alongside the flood and runoff figures — but it reaches them through
+`_weather_exposure()`, commented in the source as *"site-risk + delay only — skips the
+schedule_activity scan"*. The composite never reads `weather_sensitive_activities`. So the rollup
+binds the half of that method which is **not** schedule-shaped, and the schedule-shaped half has no
+claim from it: a shared input, not a call dependency, and weaker than "separating an input from its
+rollup" implies.
+
+The placement stands on a **boundary rule** instead: `schedule.ts` holds programme-state queries, it
+is not the home of every query that happens to read a `schedule_activity` record. That reason was
+CodeRabbit's, arrived at independently while confirming the narrowing. *An argument that reads well
+is not the same as one that holds, and a header is where the difference gets inherited.*
 
 **`apps/web/src/api/responsibility.ts` — who is accountable for what?** The backend agrees exactly:
 `aec_api/routers/responsibility.py` holds those four routes **and nothing else**. A 1:1 router

@@ -12,11 +12,22 @@
  *  ### The tension, named rather than smoothed over
  *
  *  `resilienceWeather` reads ACTIVITIES — trade, start, finish, percent complete, delay reports —
- *  which is `schedule.ts`'s vocabulary, and a split on subject matter would send it there. It stays
- *  because the question is not "how is the programme going" but "what is the weather doing to it",
- *  and because `resilienceClimateRisk` folds its `weather_delay_days` and `high_severity_open` into
- *  the same composite as the flood and runoff numbers. Separating the input from the rollup that
- *  consumes it is the rollup/detail split ⓽ made and (87) had to undo.
+ *  which is `schedule.ts`'s vocabulary, and a split on subject matter would send it there.
+ *
+ *  **The reason it stays is a boundary rule, not a dependency**, and the difference matters because
+ *  the first draft of this header claimed the dependency and the source does not support it.
+ *  `schedule.ts` holds PROGRAMME-STATE queries; it is not the home of every query that happens to
+ *  read a `schedule_activity` record. `resilienceWeather` asks what the weather is doing to the
+ *  job, and that is this file's question asked of the programme.
+ *
+ *  *The dependency argument, checked and then narrowed:* `resilience.climate_risk()` does score
+ *  `high_severity_open`, `open_risk_count` and `weather_delay_days` alongside the flood and runoff
+ *  figures — so the two share source metrics. But it reaches them through `_weather_exposure()`,
+ *  commented in the backend as *"site-risk + delay only — skips the schedule_activity scan"*. The
+ *  composite never reads `weather_sensitive_activities` at all. So the rollup binds the half of this
+ *  method that is NOT schedule-shaped, and the schedule-shaped half has no claim from it. That is a
+ *  shared input, not a call dependency, and it is a weaker fact than "separating an input from its
+ *  rollup" implies. Recorded at its real strength rather than the one that reads better.
  *
  *  *A slice that quietly contradicts an earlier one's stated reason is how the next reader stops
  *  trusting either — so: this is the opposite call from (86)'s portfolio trio, where two methods
