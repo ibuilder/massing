@@ -14,6 +14,8 @@ import { withTopics } from "./topics";
 import { withAi } from "./ai";
 import { withEvm } from "./evm";
 import { withOperations } from "./operations";
+import { withResilience } from "./resilience";
+import { withResponsibility } from "./responsibility";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
 import { withPdfTools } from "./pdfTools";
 import { withIds } from "./ids";
@@ -57,7 +59,6 @@ import type {
   Dashboard,
   DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
   PropMapRule,
-  ResponsibilityMatrix,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
@@ -65,7 +66,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -788,42 +789,6 @@ export class ApiClient extends withOperations(withAccounting(withDealMemory(with
 
 
 
-  // --- climate & water resilience (flood + stormwater) --------------------------
-  resilienceFlood(pid: string) {
-    return this.json<{ count: number; in_special_flood_hazard_area: boolean;
-      design_flood_elevation_ft: number | null; assets_checked: number; at_risk_count: number;
-      compliant: boolean; note: string;
-      assessments: { ref: string; name: string; flood_zone: string; in_sfha: boolean; bfe_ft: number | null;
-        flood_design_class: string; freeboard_ft: number; dfe_ft: number | null }[];
-      assets_at_risk: { ref: string; asset: string; elevation_ft: number; below_dfe_by_ft: number }[] }>(
-      `/projects/${pid}/resilience/flood`);
-  }
-  resilienceStormwater(pid: string) {
-    return this.json<{ count: number; total_area_acres: number; composite_runoff_coefficient: number | null;
-      peak_runoff_cfs: number; detention_volume_cf: number; detention_volume_gal: number; note: string;
-      catchments: { ref: string; name: string; surface: string; area_sf: number; c: number; i_in_hr: number;
-        return_period_years: string; peak_cfs: number }[];
-      by_surface: { surface: string; area_sf: number; peak_cfs: number }[] }>(
-      `/projects/${pid}/resilience/stormwater`);
-  }
-  resilienceWeather(pid: string) {
-    return this.json<{ sensitive_count: number; by_sensitivity: Record<string, number>;
-      site_risk_count: number; open_risk_count: number; high_severity_open: number; risk_score: number;
-      weather_delay_days: number; delay_report_count: number;
-      by_season: Record<string, number>; by_hazard: Record<string, number>; note: string;
-      weather_sensitive_activities: { ref: string; name: string; trade: string; sensitivity: string;
-        start: string; finish: string; percent: number }[];
-      site_risks: { ref: string; name: string; hazard_type: string; season: string; severity: string;
-        location: string; activity_ref: string; open: boolean; state: string }[];
-      delay_reports: { ref: string; date: string; weather: string; impact: string; days: number }[] }>(
-      `/projects/${pid}/resilience/weather`);
-  }
-  resilienceClimateRisk(pid: string) {
-    return this.json<{ rating: string; score: number; in_special_flood_hazard_area: boolean;
-      design_flood_elevation_ft: number | null; assets_at_risk: number; peak_runoff_cfs: number;
-      open_site_risks: number; high_severity_open: number; weather_delay_days: number;
-      factors: string[]; note: string }>(`/projects/${pid}/resilience/climate-risk`);
-  }
   /** Discipline Spine traceability: discipline → sheets → specs → bid packages → cost codes → budget. */
   spineTraceability(pid: string) {
     return this.json<SpineTraceability>(`/projects/${pid}/spine/traceability`);
@@ -841,23 +806,6 @@ export class ApiClient extends withOperations(withAccounting(withDealMemory(with
       note: string }>(`/projects/${pid}/program/summary`);
   }
 
-  // --- Responsibility matrix (RACI / DACI) — the four `/responsibility` methods only ------
-  responsibilityMatrix(pid: string) {
-    return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
-  }
-  responsibilityTemplates(pid: string) {
-    return this.json<{ templates: { key: string; name: string; description: string; rows: number }[] }>(
-      `/projects/${pid}/responsibility/templates`);
-  }
-  setResponsibilityConfig(pid: string, roles: string[], mode: "RACI" | "DACI") {
-    return this.json<{ roles: string[]; mode: string }>(`/projects/${pid}/responsibility/config`, {
-      method: "PUT", body: JSON.stringify({ roles, mode }) });
-  }
-  applyResponsibilityTemplate(pid: string, key: string, mode: "RACI" | "DACI") {
-    return this.json<{ applied: string; created: number; mode: string }>(
-      `/projects/${pid}/responsibility/apply-template`, {
-        method: "POST", body: JSON.stringify({ key, mode }) });
-  }
 
   // --- UNFILED: three methods that the RACI banner above used to cover -----------------
   // Named rather than left implicit, because a banner that over-claims is how the previous
@@ -909,7 +857,7 @@ export class ApiClient extends withOperations(withAccounting(withDealMemory(with
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 117 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 109 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `rentRollScrub`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -924,6 +872,11 @@ export class ApiClient extends withOperations(withAccounting(withDealMemory(with
   // work, a method that had left. Re-derive the number and the names from the file; do not read
   // them here. The count above is checked by `services/api/test_roadmap_status.py`, which counts
   // methods absent from the keep-list below rather than trusting any prose.
+  //
+  // (89) took eight more — the four `/resilience/*` to `resilience.ts` and the four
+  // `/responsibility/*` to `responsibility.ts` — leaving 109. The seven names above were checked
+  // against the file this time and none of them had moved; that check is the point, not the
+  // result. There is still no map for the 109.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

@@ -3133,7 +3133,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88) took the first nine of those 126 — 117 remain, and there is STILL no map.** A new
+  **(88) and (89) took seventeen of those 126 — 109 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3147,6 +3147,15 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **And (87)'s own banner had already drifted**: it cited `esgSummary` as an example of work still
   above the line, which (88) moved. Corrected, and it now instructs the reader to re-derive rather
   than to read it.
+
+  **(89) added two more mixins**: `apps/web/src/api/resilience.ts` (*what could the environment do
+  to this project?* — site flood risk, civil stormwater sizing, weather delay to the programme, and
+  the composite over all three) and `apps/web/src/api/responsibility.ts` (*who is accountable for
+  what?* — corroborated by `services/api/src/aec_api/routers/responsibility.py`, which holds those
+  four routes and nothing else). *The responsibility four nearly went to `modules.ts`, because the
+  rows ARE module records and that CRUD lives there — but storage is a HOW, the same trap as (85)'s
+  "they are all multipart uploads".* And the resilience banner named two of the four beneath it, the
+  sixth over-claiming banner in this sequence.
 
   **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
   open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the
