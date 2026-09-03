@@ -13,6 +13,22 @@
  *  left behind by earlier slices of this same extraction — fixed in v0.3.1075, with
  *  `api/docComments.test.ts` now standing where that defect got in.*
  *
+ *  SCALE-SEAM (86) adds the CROSS-PROJECT versions of that same rollup — *is every job on track?*
+ *  `executivePortfolio` is `projectHealth` asked over the whole portfolio: per-project status with
+ *  SPI/CPI and milestones, GMP/EAC and variance at completion, plus equity return, and a status
+ *  tally. `constructionPortfolio` is the same shape one domain narrower — projected over/under,
+ *  open risks and exposure, recordables, open RFIs — and carries no investment figure at all; it
+ *  is global (`/portfolio/construction`, no project id).
+ *
+ *  **⓫ recorded that "safety sat below and did not come", and `constructionPortfolio` does carry
+ *  recordables.** It comes anyway: it is a cross-project EXECUTION rollup that happens to include a
+ *  safety count, not the safety module. The single-project and all-project forms of one question
+ *  belong together — the pairing that decided (83)'s commissioning trio.
+ *
+ *  `portfolioPrioritization` sat with these two in `client.ts` and did **not** come: it RANKS deals
+ *  by a composite of return/budget/schedule/risk and returns a best and worst. That is an
+ *  investment decision, not a status report, so it went to `proforma.ts`.
+ *
  *  SCALE-SEAM ⓫ adds the executive health rollup — *is the job on track across domains?*
  *  Score is a mean; status is worst-of. Safety sat below and did **not** come.
  */
@@ -90,6 +106,26 @@ export function withEvm<TBase extends Ctor<HttpCore>>(Base: TBase) {
         open_count: number; overdue_count: number }[];
       attention_items: { domain: string; status: string; issue: string }[];
     }>(`/projects/${pid}/health`);
+  }
+
+  // --- The same health question across every project, not one ---
+  /** Cross-project executive roll-up: each project's on-schedule + on-budget status + portfolio totals. */
+  executivePortfolio() {
+    return this.json<{
+      projects: { id: string; name: string; status: "on_track" | "at_risk" | "behind"; spi: number | null;
+        cpi: number | null;
+        pct_complete: number; lookahead_3wk: number; milestones_late: number; gmp: number; eac: number;
+        variance_at_completion: number; committed_pct: number; equity_irr: number | null; equity_multiple: number | null }[];
+      totals: { gmp: number; eac: number; variance_at_completion: number; committed: number; equity: number; blended_equity_irr: number | null };
+      status_tally: { on_track: number; at_risk: number; behind: number }; project_count: number }>(
+      `/portfolio/executive`);
+  }
+  /** Cross-project CONSTRUCTION health — projected over/under, open risks and exposure,
+   *  recordables, open RFIs, per project and as totals. Global (`/portfolio/construction`, no
+   *  project id), and unlike `executivePortfolio` it carries no investment figure at all. */
+  constructionPortfolio() {
+    return this.json<{ project_count: number; totals: { projected_over_under: number; over_budget_count: number; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }; projects: { id: string; name: string; projected_over_under: number; over_budget: boolean; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }[] }>(
+      "/portfolio/construction");
   }
   };
 }

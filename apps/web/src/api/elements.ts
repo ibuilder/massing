@@ -5,10 +5,20 @@
  *  list/colour/QA next to Speckle, sources next to the doc-graph, records next to model health,
  *  costs next to the cost-spine. `elements5dMap` is `/5d/heatmap` and stays.
  *
+ *  SCALE-SEAM (86) adds smart views — *save a selection rule and run it.* A `SmartView` is
+ *  `{selector, mode: isolate|color|hide, color}` and `smartViewRun` returns the matched GUIDs, so
+ *  these are saved SELECTIONS over the model and sit with `colorBy` / `colorFacets` above.
+ *
+ *  **They nearly went to `modules.ts`, and the word is why.** That mixin already owns a saved-views
+ *  family — `SavedViewDef`, `/projects/{pid}/modules/{key}/views` — an exact name match. But a
+ *  `SavedViewDef` is `{q, state, sort}`: a DATA-GRID filter over a register. Same word, unrelated
+ *  thing. Comparing the two shapes is what separated them, the same move that kept `namingAudit`
+ *  with `namingConventions` at (82).
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
-import type { ElementProps, LifecycleStrip, SpatialNode } from "./types";
+import type { ElementProps, LifecycleStrip, SmartView, SpatialNode } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -72,6 +82,22 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ prop: string; kind: "numeric" | "categorical"; total: number; colored: number;
       unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
       `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
+  }
+
+  // --- Saved SELECTION rules: a selector resolved to GUIDs, isolated/coloured/hidden ---
+  smartViews(pid: string) {
+    return this.json<{ views: SmartView[]; count: number }>(`/projects/${pid}/smart-views`);
+  }
+  /** Replace the saved smart views (editor). Selectors are validated server-side → 422 on a bad one. */
+  smartViewsSave(pid: string, views: SmartView[]) {
+    return this.json<{ saved: number; views: SmartView[] }>(
+      `/projects/${pid}/smart-views`, { method: "PUT", body: JSON.stringify({ views }) });
+  }
+  /** Resolve a saved view's selector to the matching GUIDs (to isolate / colour / hide in 3D). */
+  smartViewRun(pid: string, vid: string) {
+    return this.json<{ id: string; name: string; mode: string; color: string | null;
+      selector: string; matched: number; truncated: boolean; guids: string[]; error?: string }>(
+      `/projects/${pid}/smart-views/${encodeURIComponent(vid)}/run`);
   }
   /** Model composition by NCS discipline — element count + class breakdown, in sheet order. */
   elementsByDiscipline(pid: string) {

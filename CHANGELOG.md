@@ -438,6 +438,48 @@ flagged there as likely to split rather than move as one.
 
 Pin 1,212 → 1,173. Twenty-three methods left under the banner.
 
+Twenty-third follow-on on the same version: **SCALE-SEAM (86)** — *a shared word is not a shared
+domain*, for the third slice running.
+
+Six methods out of `client.ts` (`1,173 → 1,131`), into three existing mixins:
+
+- *is every job on track?* — `executivePortfolio`, `constructionPortfolio` onto
+  `apps/web/src/api/evm.ts`, beside `projectHealth`.
+- *which projects should we prioritise?* — `portfolioPrioritization` onto
+  `apps/web/src/api/proforma.ts`, beside `portfolio`, `portfolioCompare` and `pipelineFunnel`.
+- *save a selection rule and run it* — `smartViews`, `smartViewsSave`, `smartViewRun` onto
+  `apps/web/src/api/elements.ts`, beside `colorBy` and `colorFacets`. `SmartView` moved with them
+  out of `client.ts`'s type imports.
+
+**The portfolio trio split 2/1, and only the shapes said so.** All three are `/portfolio/*` global
+rollups, so any route-based cut moves them together. But `evm.ts` recorded at ⓫ that `projectHealth`
+answers *"is the job on track across domains?"* for one project — and `executivePortfolio` is that
+same question over the whole portfolio, `constructionPortfolio` the same one domain narrower. Those
+two REPORT. `portfolioPrioritization` ranks projects by a weighted composite of return, budget,
+schedule and risk and names a best and worst: it DECIDES, which is a pipeline question, not a status
+one.
+
+⓫ also recorded that *"safety sat below and did not come"*, and `constructionPortfolio` does carry
+`recordables`. It came anyway — it is a cross-project execution rollup that happens to include a
+safety count, not the safety module. Naming the tension in the header is the point; a slice that
+quietly contradicts an earlier one's stated reason is how the next reader stops trusting either.
+
+### The third homonym in three slices
+
+`smartViews` nearly went to `modules.ts`, and the reason is worth recording because the name
+matched **exactly**: that mixin already owns a saved-views family — `SavedViewDef`, at
+`/projects/{pid}/modules/{key}/views`. Comparing the two types separated them in one line. A
+`SavedViewDef` is `{q, state, sort}` — a data-grid filter over a register. A `SmartView` is
+`{selector, mode: isolate|color|hide, color}`, and `smartViewRun` returns matched **GUIDs**. Same
+word, unrelated things.
+
+That is three in three slices: `rvtBridgeStatus` versus the LAND-USE `entitlements.ts` at (85),
+"they are all multipart uploads" as a question at (85), and now "view". **A name is evidence about
+vocabulary, not about domain** — and in a codebase spanning development finance, construction
+operations and 3D geometry, the same word reliably means three things.
+
+Pin 1,173 → 1,131. Seventeen methods left under the banner, and the count is checked.
+
 
 
 

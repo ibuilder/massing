@@ -3067,7 +3067,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,173 lines.** The RACI banner is dealt with — it covered 13 methods and
+  **`client.ts` is 1,131 lines.** The RACI banner is dealt with — it covered 13 methods and
   described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
   `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
   (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
@@ -3088,10 +3088,11 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   hand-run query again.)*
 
   **What is left is that map, and it is now CHECKED** — `apps/web/src/api/unfiledMap.test.ts`
-  fails if its count or its names drift from the file. Twenty-three remain: reinforcement
-  quantities (2, deliberately split from the ACI check, a different question); portfolio (3,
-  and the shapes say it splits — two carry `equity_irr`, `constructionPortfolio` carries none);
-  saved views (3); material palette (3); site and test fit (4); four unrelated singles. Four are
+  fails if its count or its names drift from the file. Seventeen remain: reinforcement
+  quantities (2, deliberately split from the ACI check, a different question); material palette
+  (3); site and test fit (4); four unrelated singles. *(Portfolio and saved views went at (86) —
+  the portfolio trio split 2/1 on report-versus-decide, and smart views turned out to be saved
+  SELECTIONS, not the data-grid views `modules.ts` owns under the same name.)* Four are
   marked as **staying**: `enumOptions`, `searchAll`, `attachmentUrl`, `templates`.
   *(`rvtBridgeStatus` was listed as a fifth stayer until (85) — it is the precondition for
   `importRvt` and went with it to `model.ts`. It looked client-level only because the four

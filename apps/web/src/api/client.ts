@@ -56,7 +56,7 @@ import type {
   Dashboard,
   DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
   PropMapRule,
-  ResponsibilityMatrix, SmartView,
+  ResponsibilityMatrix,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
@@ -971,7 +971,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
 
-  // --- UNFILED — 23 methods, no shared question --------------------------------
+  // --- UNFILED — 17 methods, no shared question --------------------------------
   // This banner said `CX-1 commissioning loop` until SCALE-SEAM (83) took the three `/cx/*`
   // methods to `documents.ts`. It never described the run: it labelled where commissioning
   // STARTED and the file then carried on to the end through a dozen unrelated domains. With the
@@ -990,17 +990,16 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   // project's source model, and `rvtBridgeStatus` is the precondition for the second — those three
   // to `model.ts`. Mechanism is as misleading a seam as route prefix.
   //
-  // The portfolio trio below LIKELY SPLITS too, and the shapes say so: two of them carry
-  // `equity_irr` and `equity_multiple` and sit near what `withProforma` already answers, while
-  // `constructionPortfolio` carries recordables, open RFIs and risk exposure and no investment
-  // field at all. Read the return types before moving them as one.
+  // **A shared WORD is not a shared domain** — (86) hit that for the third time in three slices.
+  // `modules.ts` already owns a saved-views family (`SavedViewDef`, `/modules/{key}/views`) and the
+  // name matched exactly, but that is a DATA-GRID view (`{q, state, sort}`); the smart views that
+  // used to sit below are `{selector, mode: isolate|color|hide}` and resolve to GUIDs, so they went
+  // to `elements.ts` beside `colorBy`. Earlier instances: `rvtBridgeStatus` vs LAND-USE
+  // `entitlements.ts`, and grouping five methods because they were all multipart uploads.
   //
   // What is actually below, by what each cluster ANSWERS — decide a home from that, not from the
   // route prefix and not from position:
   //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl
-  //   how is the portfolio doing?  executivePortfolio, portfolioPrioritization,
-  //                                constructionPortfolio
-  //   what saved views are there?  smartViews, smartViewsSave, smartViewRun
   //   how does the model look?     materialPalette, saveMaterialPalette, applyMaterialPalette
   //   what is on this site?        property, saveProperty, testFitCompare, testFitOptimize
   //   four singles, four           complianceExpiring, safetyMetrics, bidLeveling, pxSummary
@@ -1041,13 +1040,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);
   }
-  /** Cross-project CONSTRUCTION health — projected over/under, open risks and exposure,
-   *  recordables, open RFIs, per project and as totals. Global (`/portfolio/construction`, no
-   *  project id), and unlike `executivePortfolio` it carries no investment figure at all. */
-  constructionPortfolio() {
-    return this.json<{ project_count: number; totals: { projected_over_under: number; over_budget_count: number; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }; projects: { id: string; name: string; projected_over_under: number; over_budget: boolean; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }[] }>(
-      "/portfolio/construction");
-  }
   /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
   safetyMetrics(pid: string) {
     return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
@@ -1057,20 +1049,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   bidLeveling(pid: string) {
     return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(
       `/projects/${pid}/bids/leveling`);
-  }
-  smartViews(pid: string) {
-    return this.json<{ views: SmartView[]; count: number }>(`/projects/${pid}/smart-views`);
-  }
-  /** Replace the saved smart views (editor). Selectors are validated server-side → 422 on a bad one. */
-  smartViewsSave(pid: string, views: SmartView[]) {
-    return this.json<{ saved: number; views: SmartView[] }>(
-      `/projects/${pid}/smart-views`, { method: "PUT", body: JSON.stringify({ views }) });
-  }
-  /** Resolve a saved view's selector to the matching GUIDs (to isolate / colour / hide in 3D). */
-  smartViewRun(pid: string, vid: string) {
-    return this.json<{ id: string; name: string; mode: string; color: string | null;
-      selector: string; matched: number; truncated: boolean; guids: string[]; error?: string }>(
-      `/projects/${pid}/smart-views/${encodeURIComponent(vid)}/run`);
   }
   /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
    *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
@@ -1096,26 +1074,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   applyMaterialPalette(pid: string) {
     return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
       `/projects/${pid}/materials/apply`, { method: "POST" });
-  }
-  /** Cross-project executive roll-up: each project's on-schedule + on-budget status + portfolio totals. */
-  executivePortfolio() {
-    return this.json<{
-      projects: { id: string; name: string; status: "on_track" | "at_risk" | "behind"; spi: number | null;
-        cpi: number | null;
-        pct_complete: number; lookahead_3wk: number; milestones_late: number; gmp: number; eac: number;
-        variance_at_completion: number; committed_pct: number; equity_irr: number | null; equity_multiple: number | null }[];
-      totals: { gmp: number; eac: number; variance_at_completion: number; committed: number; equity: number; blended_equity_irr: number | null };
-      status_tally: { on_track: number; at_risk: number; behind: number }; project_count: number }>(
-      `/portfolio/executive`);
-  }
-  /** Portfolio prioritization — projects ranked 0-100 on return / budget / schedule / risk. */
-  portfolioPrioritization() {
-    type Scores = { return: number; budget: number; schedule: number; risk: number };
-    return this.json<{ weights: Scores; criteria: string[];
-      projects: { id: string; name: string; status: string; rank: number; composite: number;
-        scores: Scores; equity_irr: number | null; gmp: number }[];
-      top: { name: string } | null; bottom: { name: string } | null; note: string }>(
-      `/portfolio/prioritization`);
   }
   /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
   property(pid: string) {
