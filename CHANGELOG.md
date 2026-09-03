@@ -624,6 +624,58 @@ exact scope ci.yml lints, `src/ ../data/src/`". That scope is now the whole tree
 behind that pin covered less than half of what a future bump touches. Corrected in place, pointing at
 the gate rather than restating a number.
 
+Twenty-sixth follow-on on the same version: **SCALE-SEAM (88)** — *the first slice out of the 126 that
+were never in any map*.
+
+Nine methods out of `client.ts` (`1,015 → 953`) into a new `apps/web/src/api/operations.ts`.
+
+What they answer together: **the building is built and running.** Three halves of one question — is it
+being MAINTAINED (`cmmsGeneratePm`, `cmmsKpis`: PM work orders, compliance, MTTR), what is it
+CONSUMING (`energyActual`, `energyBenchmarkStatus`, `esgSummary`: metered EUI, GHG from actuals, water,
+POE actual-vs-design), and what CONDITION is it in (`fcaIndex`, `fcaPortfolio`, `reserveStudy`: FCI,
+deferred-maintenance backlog, and whether the reserve fund clears the replacement schedule).
+`twinReadiness` asks whether the asset data is good enough to operate from at all, which is the
+precondition for the other three.
+
+**Checked against the backend rather than assumed:** all nine are served by
+`services/api/src/aec_api/routers/operations.py`, whose own docstring names the same cluster. That is
+corroboration from a source this extraction did not write — the opposite of the self-authored list
+(87) was about.
+
+### Three did not come, and the words say otherwise on every one
+
+**`lifecycle` / `lifecycleSeed` are not asset lifecycle.** Their banner reads *"design lifecycle
+(RIBA/AIA phases + itemized soft costs)"* and the payload is `design_fee_pct`, `deliverables`,
+`iso_status`, `soft_costs` — design stage gates and what the design costs, years before anything
+operates. **Fourth shared-word trap in this sequence**, after entitlements (land-use vs licence), view
+(grid filter vs 3D selection) and now carbon.
+
+**`projectCarbon` is EMBODIED carbon** — what building it emits, a design-phase estimate. The GHG in
+`esgSummary` comes from metered utility data. Same molecule, opposite ends of the asset's life.
+
+**`camReconciliation` shared `reserveStudy`'s banner AND its backend router, and still stayed.** It
+reconciles budget against actual operating expense, then allocates the recoverable pool **across
+tenants** by share and returns `balance_due` per suite: a lease-revenue answer, not a building-condition
+one. It waits for a rent-roll slice with `rentRollScrub`, `netEffectiveRent` and `normalizeT12`. Moving
+it along to empty a banner would have been the route-and-neighbour reasoning this sequence keeps
+rejecting — and the banner it was left under is **rewritten** rather than left naming a method that has
+gone.
+
+### The banner (87) wrote cited a method this slice moved
+
+The STAYING banner listed `esgSummary` among its examples of work still above the line. (88) moved it —
+so a banner offering evidence of what is *unfinished* was naming something finished, nine days'
+equivalent of drift in about two hours. Corrected to 117, re-pointed at `camReconciliation`, and it now
+says to **re-derive the number and the names from the file rather than read them there**, with the count
+itself asserted by `services/api/test_roadmap_status.py`.
+
+*The instance is small and the class is the one this whole sequence is about: every example list in a
+comment is a claim with a shelf life.*
+
+Pin 1,015 → 953. **117 above the banner, and still no map for them** — this was one cluster read out of
+the file, not a plan for the rest.
+
+
 
 
 

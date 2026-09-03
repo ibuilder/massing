@@ -13,6 +13,7 @@ import { withMep } from "./mep";
 import { withTopics } from "./topics";
 import { withAi } from "./ai";
 import { withEvm } from "./evm";
+import { withOperations } from "./operations";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
 import { withPdfTools } from "./pdfTools";
 import { withIds } from "./ids";
@@ -64,7 +65,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -785,50 +786,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<DiligenceReadiness>(`/projects/${pid}/diligence/readiness`);
   }
 
-  // --- operations: CMMS + metered energy ----------------------------------------
-  cmmsGeneratePm(pid: string) {
-    return this.json<{ generated: number; work_orders: { work_order: string; schedule: string }[];
-      as_of: string }>(`/projects/${pid}/cmms/generate-pm`, { method: "POST" });
-  }
-  cmmsKpis(pid: string) {
-    return this.json<{ total: number; open: number; completed: number; overdue: number;
-      open_by_priority: Record<string, number>; by_type: Record<string, number>;
-      pm_compliance_pct: number | null; mttr_days: number | null }>(`/projects/${pid}/cmms/kpis`);
-  }
-  energyActual(pid: string, gfaSf?: number) {
-    const qs = gfaSf ? `?gfa_sf=${gfaSf}` : "";
-    return this.json<{ total_kbtu: number; total_cost: number; water_gallons: number;
-      by_utility: Record<string, { consumption: number; unit: string; kbtu: number; cost: number }>;
-      monthly: { month: string; kbtu: number }[]; months_covered: number;
-      gfa_sf: number | null; eui_kbtu_sf_yr: number | null; note: string }>(
-      `/projects/${pid}/energy/actual${qs}`);
-  }
-  energyBenchmarkStatus() {
-    return this.json<{ enabled: boolean; provider: string | null; message: string }>(
-      `/energy/benchmark-status`);
-  }
-  twinReadiness(pid: string) {
-    return this.json<{ assets: number; systems: number; systems_by_type: Record<string, number>;
-      system_linked_pct: number | null; sensor_mapped_pct: number | null; bms_integrated_systems: number;
-      dpp: { complete_pct: number | null; partial: number; complete: number; fields: string[]; note: string };
-      twin_readiness_pct: number | null; note: string }>(`/projects/${pid}/twin/readiness`);
-  }
 
-  // --- facility condition assessment (FCI) --------------------------------------
-  fcaIndex(pid: string) {
-    return this.json<{ elements: number; open_deficiencies: number; crv: number; crv_source: string;
-      deferred_maintenance: number; capital_renewal: number; fci_pct: number; band: string;
-      by_uniformat: { group: string; count: number; deferred: number; renewal: number; crv: number; fci_pct: number | null }[];
-      by_condition: Record<string, number>;
-      worst_elements: { ref: string; element: string; uniformat: string; condition: string; cost: number }[];
-      recommended_by_year: { year: number; cost: number }[];
-      bands: Record<string, string>; note: string }>(`/projects/${pid}/fca/index`);
-  }
-  fcaPortfolio() {
-    return this.json<{ count: number; note: string;
-      projects: { project_id: string; project: string; fci_pct: number; band: string; crv: number;
-        backlog: number; open_deficiencies: number }[] }>(`/fca/portfolio`);
-  }
 
   // --- climate & water resilience (flood + stormwater) --------------------------
   resilienceFlood(pid: string) {
@@ -923,23 +881,12 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return res.json() as Promise<Record<string, unknown>>;
   }
 
-  // --- hold-phase asset management: reserve study + CAM reconciliation ----------
-  reserveStudy(pid: string, opts: { horizonYears?: number; openingBalance?: number;
-      annualContribution?: number; inflationPct?: number } = {}) {
-    const q = new URLSearchParams();
-    if (opts.horizonYears) q.set("horizon_years", String(opts.horizonYears));
-    if (opts.openingBalance) q.set("opening_balance", String(opts.openingBalance));
-    if (opts.annualContribution) q.set("annual_contribution", String(opts.annualContribution));
-    if (opts.inflationPct) q.set("inflation_pct", String(opts.inflationPct));
-    const qs = q.toString();
-    return this.json<{ horizon: { from: number; to: number }; components: number;
-      components_missing_data: number;
-      events: { year: number; item: string; cost: number; cost_escalated: number; source: string; ref: string }[];
-      schedule: { year: number; outflows: number; contribution: number; balance: number }[];
-      total_outflows: number; first_underfunded_year: number | null; adequately_funded: boolean;
-      suggested_level_contribution: number; suggestion_clears_horizon?: boolean; note: string }>(
-      `/projects/${pid}/reserves/study${qs ? `?${qs}` : ""}`);
-  }
+  // --- lease revenue: what share of operating expense is recoverable from tenants? -----------
+  // Shared a banner with `reserveStudy` ("hold-phase asset management") until SCALE-SEAM (88).
+  // That slice took the condition-and-capital half to `operations.ts` and left this behind: it
+  // allocates the recoverable pool ACROSS TENANTS by share and returns `balance_due` per suite,
+  // which is a lease answer, not a building-condition one. It goes with `rentRollScrub`,
+  // `netEffectiveRent` and `normalizeT12`, still below, when a rent-roll slice takes them.
   camReconciliation(pid: string, opts: { year?: number; grossUpToPct?: number; buildingSf?: number } = {}) {
     const q = new URLSearchParams();
     if (opts.year) q.set("year", String(opts.year));
@@ -955,21 +902,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         share_pct: number; share_of_expenses: number; estimated_paid: number; balance_due: number }[];
       note: string }>(`/projects/${pid}/cam/reconciliation${qs ? `?${qs}` : ""}`);
   }
-  esgSummary(pid: string, gfaSf?: number) {
-    const qs = gfaSf ? `?gfa_sf=${gfaSf}` : "";
-    return this.json<{
-      performance: {
-        energy: { total_kbtu: number; eui_kbtu_sf_yr: number | null; months_covered: number; gfa_sf: number | null };
-        ghg: { scope1_tco2e: number; scope2_tco2e: number; total_tco2e: number;
-          intensity_kgco2e_sf: number | null; grid_factor_kgco2e_kwh: number; note: string };
-        water: { gallons: number; intensity_gal_sf: number | null };
-      };
-      certifications: { credits_tracked: number; points_targeted: number; points_achieved: number };
-      poe: { count: number; reported: number; latest: { ref: string; level: string | null; state: string;
-        survey_date: string | null; satisfaction_score: number | null; design_eui: number | null;
-        actual_eui: number | null; eui_gap_pct: number | null } | null };
-      data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
-  }
 
   // --- STAYING — 4 client-level methods, deliberately not extracted -------------
   // These four are global or cross-cutting, not domain: an enum lookup, a project-wide search, an
@@ -977,15 +909,21 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 126 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
-  // `energyModel`, `rentRollScrub`, `esgSummary` and the rest. They were never inside the CX-1
-  // banner, so no map has ever covered them. The UNFILED map described the TAIL of this file, not
-  // the file.
+  // 117 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // `energyModel`, `rentRollScrub`, `camReconciliation` and the rest. They were never inside the
+  // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
+  // not the file.
   //
   // (87) found that by deriving the whole population instead of trusting the map: 130 methods
   // total, 4 below, 126 above. The lesson is the one this sequence keeps re-learning — **a
   // completeness claim computed over a self-authored list is confident and unfounded**, and the
   // list here was authored by the same slices it was meant to audit.
+  //
+  // (88) took the first nine of those 126 to `operations.ts`, leaving 117. **This example list
+  // named `esgSummary` until that slice moved it** — a banner citing, as evidence of unfinished
+  // work, a method that had left. Re-derive the number and the names from the file; do not read
+  // them here. The count above is checked by `services/api/test_roadmap_status.py`, which counts
+  // methods absent from the keep-list below rather than trusting any prose.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

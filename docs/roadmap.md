@@ -3087,7 +3087,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,015 lines.** The RACI banner is dealt with — it covered 13 methods and
+  **`client.ts` is 953 lines.** The RACI banner is dealt with — it covered 13 methods and
   described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
   `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
   (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
@@ -3128,6 +3128,21 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **A completeness claim computed over a self-authored list is confident and unfounded.** The
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
+
+  **(88) took the first nine of those 126 — 117 remain, and there is STILL no map.** A new
+  `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
+  running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
+  `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
+  `reserveStudy`), plus `twinReadiness` as the data precondition for all three. Corroborated
+  against `services/api/src/aec_api/routers/operations.py`, which groups the same nine — a source
+  this extraction did not author, which is the point after (87).
+  *Three declined on the words: `lifecycle`/`lifecycleSeed` are DESIGN lifecycle (RIBA/AIA stage
+  gates and soft costs), `projectCarbon` is EMBODIED carbon against `esgSummary`'s metered GHG, and
+  `camReconciliation` shared `reserveStudy`'s banner and backend router but allocates recoverable
+  opex across TENANTS — a lease answer, held for a rent-roll slice.*
+  **And (87)'s own banner had already drifted**: it cited `esgSummary` as an example of work still
+  above the line, which (88) moved. Corrected, and it now instructs the reader to re-derive rather
+  than to read it.
 
   **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
   open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the
