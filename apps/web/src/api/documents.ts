@@ -20,7 +20,7 @@
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore } from "./httpCore";
-import type { DocFile, DocFolderNode, PreflightGate } from "./types";
+import type { DocFile, DocFolderNode, ModuleRecord, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -177,6 +177,29 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
+  }
+
+  // SCALE-SEAM (81) — *is this project ready for substantial completion, and certify it?*
+  // Sits with `closeoutSummary`, which ❿ brought in under *is turnover actually closing?*
+  // Readiness and the G704 certificate are the same question one step further on.
+  turnoverReadiness(pid: string) {
+    return this.json<{ punch: { count: number; verified: number; open: number;
+      complete_pct: number | null; overdue: number; open_cost: number };
+      punch_list_prepared: boolean; latest_model_version: number | null;
+      ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
+  }
+  turnoverStatus(pid: string) {
+    return this.json<{ readiness: { ready_for_substantial_completion: boolean };
+      substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
+      record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
+  }
+  turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
+    return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
+      `/projects/${pid}/turnover/certify`, { method: "POST",
+      body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
+  }
+  g704Url(pid: string, certRid: string) {
+    return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }
   };
 }

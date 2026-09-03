@@ -592,5 +592,15 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       note: string;
     }>(`/projects/${pid}/versions/cost-delta?a=${a}&b=${b}`);
   }
+
+  // SCALE-SEAM (81) — *what IFC class should these generic elements be?* It sat under the
+  // turnover/G704 banner in `client.ts`, separated by a blank line, with nothing to do with
+  // substantial completion. A model question filed wherever the nearest banner happened to be.
+  ifcClassify(pid: string) {
+    return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
+      suggested_class: string; confidence: string; reason: string }[]; count: number;
+      generic_elements: number; by_target_class: Record<string, number>; message?: string | null }>(
+      `/projects/${pid}/ifc/classify`, { method: "POST", body: JSON.stringify({}) });
+  }
   };
 }

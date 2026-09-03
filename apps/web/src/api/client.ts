@@ -54,7 +54,7 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
+  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, RoomAllocation,
   PropMapRule,
   ResponsibilityMatrix, SmartView,
     SpecManual, WorkItem, VitalsPayload,
@@ -883,40 +883,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       note: string }>(`/projects/${pid}/program/summary`);
   }
 
-  // --- market intelligence & cost escalation (Track M) --------------------------
-  marketSnapshot() {
-    return this.json<{ base_year: number;
-      regions: { key: string; escalation_pct: number; labour_usd_hr: number; location_index: number; label: string }[];
-      sectors: { sector: string; temperature: string }[];
-      market_signal: { hot: string[]; warm_or_hot: string[]; cold: string[]; headline: string };
-      source: string }>(`/market/snapshot`);
-  }
-  marketContext(pid: string, q: { region?: string; sector?: string; start_year?: number; duration_months?: number } = {}) {
-    const p = new URLSearchParams();
-    if (q.region) p.set('region', q.region);
-    if (q.sector) p.set('sector', q.sector);
-    if (q.start_year != null) p.set('start_year', String(q.start_year));
-    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
-    const qs = p.toString();
-    return this.json<{ region: { region: string; escalation_pct: number; labour_usd_hr: number;
-        location_index: number; label: string };
-      sector: { sector: string; temperature: string; note: string };
-      escalation_factor: number; escalation_basis: string; midpoint_year: number;
-      from_assumption: boolean; source: string }>(`/projects/${pid}/market/context${qs ? '?' + qs : ''}`);
-  }
-  marketEscalate(pid: string, amount: number, q: { region?: string; start_year?: number;
-      duration_months?: number; to_year?: number; rate_pct?: number } = {}) {
-    const p = new URLSearchParams({ amount: String(amount) });
-    if (q.region) p.set('region', q.region);
-    if (q.start_year != null) p.set('start_year', String(q.start_year));
-    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
-    if (q.to_year != null) p.set('to_year', String(q.to_year));
-    if (q.rate_pct != null) p.set('rate_pct', String(q.rate_pct));
-    return this.json<{ base_year: number; region: string; annual_rate_pct: number; escalation_basis: string;
-      midpoint_year: number; years: number; escalation_factor: number; base_amount: number;
-      escalated_amount: number; note: string }>(`/projects/${pid}/market/escalate?${p.toString()}`);
-  }
-
   // --- Responsibility matrix (RACI / DACI) ----------------------------------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
@@ -1038,34 +1004,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         survey_date: string | null; satisfaction_score: number | null; design_eui: number | null;
         actual_eui: number | null; eui_gap_pct: number | null } | null };
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
-  }
-
-  // --- turnover: substantial completion (G704) + record model ------------------
-  turnoverReadiness(pid: string) {
-    return this.json<{ punch: { count: number; verified: number; open: number;
-      complete_pct: number | null; overdue: number; open_cost: number };
-      punch_list_prepared: boolean; latest_model_version: number | null;
-      ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
-  }
-  turnoverStatus(pid: string) {
-    return this.json<{ readiness: { ready_for_substantial_completion: boolean };
-      substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
-      record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
-  }
-  turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
-    return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
-      `/projects/${pid}/turnover/certify`, { method: "POST",
-      body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
-  }
-  g704Url(pid: string, certRid: string) {
-    return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
-  }
-
-  ifcClassify(pid: string) {
-    return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
-      suggested_class: string; confidence: string; reason: string }[]; count: number;
-      generic_elements: number; by_target_class: Record<string, number>; message?: string | null }>(
-      `/projects/${pid}/ifc/classify`, { method: "POST", body: JSON.stringify({}) });
   }
 
   // --- CX-1 commissioning loop ----------------------------------------------

@@ -198,5 +198,41 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   wh347Url(pid: string, weekEnding?: string) {
     return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
+
+  // SCALE-SEAM (81) — *what is the market doing to my costs?* Regional escalation, labour
+  // rates and location index. `marketSnapshot` is global (`/market/snapshot`, no project id);
+  // the other two apply that snapshot to one project's schedule.
+  marketSnapshot() {
+    return this.json<{ base_year: number;
+      regions: { key: string; escalation_pct: number; labour_usd_hr: number; location_index: number; label: string }[];
+      sectors: { sector: string; temperature: string }[];
+      market_signal: { hot: string[]; warm_or_hot: string[]; cold: string[]; headline: string };
+      source: string }>(`/market/snapshot`);
+  }
+  marketContext(pid: string, q: { region?: string; sector?: string; start_year?: number; duration_months?: number } = {}) {
+    const p = new URLSearchParams();
+    if (q.region) p.set('region', q.region);
+    if (q.sector) p.set('sector', q.sector);
+    if (q.start_year != null) p.set('start_year', String(q.start_year));
+    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
+    const qs = p.toString();
+    return this.json<{ region: { region: string; escalation_pct: number; labour_usd_hr: number;
+        location_index: number; label: string };
+      sector: { sector: string; temperature: string; note: string };
+      escalation_factor: number; escalation_basis: string; midpoint_year: number;
+      from_assumption: boolean; source: string }>(`/projects/${pid}/market/context${qs ? '?' + qs : ''}`);
+  }
+  marketEscalate(pid: string, amount: number, q: { region?: string; start_year?: number;
+      duration_months?: number; to_year?: number; rate_pct?: number } = {}) {
+    const p = new URLSearchParams({ amount: String(amount) });
+    if (q.region) p.set('region', q.region);
+    if (q.start_year != null) p.set('start_year', String(q.start_year));
+    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
+    if (q.to_year != null) p.set('to_year', String(q.to_year));
+    if (q.rate_pct != null) p.set('rate_pct', String(q.rate_pct));
+    return this.json<{ base_year: number; region: string; annual_rate_pct: number; escalation_basis: string;
+      midpoint_year: number; years: number; escalation_factor: number; base_amount: number;
+      escalated_amount: number; note: string }>(`/projects/${pid}/market/escalate?${p.toString()}`);
+  }
   };
 }

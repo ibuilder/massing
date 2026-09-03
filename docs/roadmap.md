@@ -3061,13 +3061,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ have shipped, **⓺–⓾ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ plus one unnumbered slice have shipped, **⓺ onward in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
   **THE NEXT SLICE NEEDS A NEW GLYPH SCHEME.** ⓾ (U+24FE) was the last glyph in `MARKS`
   (`apps/web/src/shell/roadmapLanes.test.ts`), which runs ①–⑳, ㉑–㊿, ❶–❿, ⓫–⓴, ⓵–⓽. The
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,436 lines**; 12 labelled sections remain.
+  **`client.ts` is 1,374 lines**; 9 labelled sections remain. The two biggest are also the two
+  worst-labelled: `RACI / DACI` carries 13 methods (including `standardsCheck`, `mcpTools`) and
+  `CX-1 commissioning loop` carries 49 (including `rebarBbs`, `rebarCheckCage`). Those two hold
+  roughly a third of what is left.
 
   **⓽ took the AI-drafting banner apart** — and it is the clearest case yet for grouping by
   what methods ANSWER. One `// --- AI drafting ---` section held **three** questions: the

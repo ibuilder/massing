@@ -240,6 +240,36 @@ misfiling survives precisely because the route reason reads like a decision.
 `MARKS` widened to **⓾** (U+24FE) — the last glyph of the double-circled range ⓵–⓾. Pin
 1,462 → 1,436.
 
+Eighteenth follow-on on the same version: **SCALE-SEAM (81)** — the first slice with **no mark**.
+The ⓵–⓾ glyph range is exhausted and there is no natural successor, so the numbering stops here
+rather than starting a fourth visual scheme. Nothing depended on it: the mark is optional in
+`roadmapLanes.test.ts`'s item regex, and the roadmap item and lane cell already carry none.
+
+Nine methods out of `client.ts` (`1,436 → 1,374`) into three existing mixins:
+
+- *is this project ready for substantial completion, and certify it?* — `turnoverReadiness`,
+  `turnoverStatus`, `turnoverCertify`, `g704Url` onto `apps/web/src/api/documents.ts`, beside
+  `closeoutSummary`, which ❿ brought in under *is turnover actually closing?* `ModuleRecord`
+  moved with them into that file's type imports and out of `client.ts`'s.
+- *what IFC class should these generic elements be?* — `ifcClassify` onto
+  `apps/web/src/api/model.ts`.
+- *what is the market doing to my costs?* — `marketSnapshot`, `marketContext`, `marketEscalate`
+  onto `apps/web/src/api/cost.ts`. `marketSnapshot` is global (`/market/snapshot`, no project id);
+  the other two apply that snapshot to one project.
+
+**Third banner in three slices that over-claimed.** `ifcClassify` sat under
+`// --- turnover: substantial completion (G704) + record model ---`, separated from `g704Url` by a
+blank line, with nothing to do with substantial completion — a model question filed at whatever
+banner happened to be nearest. ⓽ found the same thing in "AI drafting" (three questions), ⓾ found
+it in two headers that had declined one method for contradicting reasons.
+
+The two remaining banners are the largest instance yet and are what the next slices are for:
+`// --- Responsibility matrix (RACI / DACI) ---` carries **13** methods including `standardsCheck`
+and `mcpTools`, and `// --- CX-1 commissioning loop ---` carries **49**, among them `rebarBbs` and
+`rebarCheckCage`. Neither is what its banner says.
+
+Pin 1,436 → 1,374.
+
 
 
 
