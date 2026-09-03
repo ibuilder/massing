@@ -4,6 +4,10 @@
  *  SCALE-SEAM ⑤. Route-group `/estimate`, 12 methods. Reaches only `json` on HttpCore — no shared
  *  private helper crosses this boundary, which is why it is a smaller job than ④ was.
  *
+ *  SCALE-SEAM (85) adds `takeoffDxf` — the same question `takeoff2d` answers, from an uploaded
+ *  DXF instead of regions drawn on a sheet. It returns layers, entity counts, lengths and areas
+ *  and no price, so it is takeoff rather than pricing, and it belongs beside its 2D twin.
+ *
  *  SCALE-SEAM (83) adds `qtoByFloor` — *what does this model cost, by storey and discipline?*
  *  It reads as a quantity method and its route is `/qto/by-floor`, but the shape settles it: every
  *  line carries `rate` and `amount` and the payload has a `grand_total`. It is priced takeoff, so
@@ -49,6 +53,18 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
         ...(opts.annotations ? { annotations: opts.annotations } : {}),
       }),
     });
+  }
+
+  // --- The same takeoff question, from a DXF instead of drawn regions ---
+  async takeoffDxf(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/takeoff/dxf`), {
+      method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `takeoff failed (${res.status})`);
+    return res.json() as Promise<{ units: string; unitless: boolean; layer_count: number; entity_count: number;
+      total_length_m: number; total_area_m2: number;
+      layers: { layer: string; entities: number; length_m: number; area_m2: number; inserts: number }[];
+      blocks: { block: string; count: number }[] }>;
   }
 
   /** EST-1: rough cost + duration estimate from the model's quantities (productivity rates). With

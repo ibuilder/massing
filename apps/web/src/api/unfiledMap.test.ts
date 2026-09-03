@@ -32,8 +32,17 @@ import { join } from "node:path";
 const CLIENT = join(__dirname, "client.ts");
 const BANNER = /^\s*\/\/ --- UNFILED — (\d+) methods/;
 
-/** Method declarations at class-body indent, `async` included — the variant (83) missed. */
+/** Method declarations in `client.ts`, which indents its class body by two. `async` included —
+ *  that is the variant (83) missed, and the reason its count was five short. */
 const METHOD = /^ {2}(?:async )?([a-zA-Z_]\w*)\(/;
+
+/** The same, across `api/` — where the indent is NOT uniform. `authoring.ts` (37 methods),
+ *  `assetRights.ts`, `docqa.ts` and `library.ts` indent by four, and a handful of files mix both.
+ *  (85) found this file matching only two, so ~47 names — every method on `withAuthoring` among
+ *  them — were missing from the vocabulary, and a map entry naming one of them could never be
+ *  reported stale. **That is the async bug again, in the test written to prevent it**: a pattern
+ *  whose scope silently excludes part of its population returns a smaller set, not an error. */
+const METHOD_ANY_INDENT = /^ {2,4}(?:async )?([a-zA-Z_]\w*)\(/;
 
 function readMap() {
   const lines = readFileSync(CLIENT, "utf8").split("\n");
@@ -57,9 +66,18 @@ function readMap() {
   const vocabulary = new Set<string>();
   for (const f of readdirSync(__dirname)) {
     if (!f.endsWith(".ts") || f.endsWith(".test.ts") || f === "schema.d.ts") continue;
-    for (const l of readFileSync(join(__dirname, f), "utf8").split("\n")) {
-      const m = METHOD.exec(l);
-      if (m?.[1]) vocabulary.add(m[1]);
+    const body = readFileSync(join(__dirname, f), "utf8");
+    let found = 0;
+    for (const l of body.split("\n")) {
+      const m = METHOD_ANY_INDENT.exec(l);
+      if (m?.[1]) { vocabulary.add(m[1]); found++; }
+    }
+    // A mixin that contributes NOTHING means its indentation fell outside the pattern, which is
+    // exactly how authoring.ts's 37 methods went missing. Fail loudly rather than shrink quietly.
+    if (body.includes("return class ")) {
+      expect(found, `${f} declares a mixin class but contributed no method names to the `
+        + `vocabulary — its indentation is outside METHOD_ANY_INDENT, so every name it declares `
+        + `is invisible to the stale check below`).toBeGreaterThan(0);
     }
   }
   expect(vocabulary.size, "no method declarations found anywhere in api/ — the vocabulary is "

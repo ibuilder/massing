@@ -3067,7 +3067,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,292 lines.** The RACI banner is dealt with — it covered 13 methods and
+  **`client.ts` is 1,173 lines.** The RACI banner is dealt with — it covered 13 methods and
   described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
   `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
   (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
@@ -3087,12 +3087,19 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   count to `apps/web/src/api/unfiledMap.test.ts` so no future slice can assert one from a
   hand-run query again.)*
 
-  **What is left is that map, and it is now the work list.** Reinforcement quantities
-  (`rebarBbs`, `rebarBbsCsvUrl` — deliberately split from the ACI check, which is a different
-  question); development budget, draws and billing (11); portfolio (3); saved views (3);
-  material palette (3); site and test fit (4); four unrelated singles. Five are marked as
-  **staying** — `enumOptions`, `searchAll`, `attachmentUrl`, `templates`, `rvtBridgeStatus` are
-  client-level, not domain.
+  **What is left is that map, and it is now CHECKED** — `apps/web/src/api/unfiledMap.test.ts`
+  fails if its count or its names drift from the file. Twenty-three remain: reinforcement
+  quantities (2, deliberately split from the ACI check, a different question); portfolio (3,
+  and the shapes say it splits — two carry `equity_irr`, `constructionPortfolio` carries none);
+  saved views (3); material palette (3); site and test fit (4); four unrelated singles. Four are
+  marked as **staying**: `enumOptions`, `searchAll`, `attachmentUrl`, `templates`.
+  *(`rvtBridgeStatus` was listed as a fifth stayer until (85) — it is the precondition for
+  `importRvt` and went with it to `model.ts`. It looked client-level only because the four
+  uploads beside it were invisible to (83)'s `async`-blind query.)*
+
+  **(85) also found that grouping by HTTP MECHANISM is its own trap.** (84) had listed five
+  methods as *how do I get a file into this project?*; they were simply all multipart uploads,
+  which is a how, not a question. They split four ways on what they answer.
 
   **⓽ took the AI-drafting banner apart** — and it is the clearest case yet for grouping by
   what methods ANSWER. One `// --- AI drafting ---` section held **three** questions: the

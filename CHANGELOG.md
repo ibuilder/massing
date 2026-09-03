@@ -389,6 +389,55 @@ four uploads beside it could not be seen. Four stayers remain: `enumOptions`, `s
 
 Pin 1,292 → 1,212. Twenty-eight methods left under the banner, and that number is now checked.
 
+Twenty-second follow-on on the same version: **SCALE-SEAM (85)** — *mechanism is not a question*,
+and **the new gate had the old bug**.
+
+Five methods out of `client.ts` (`1,212 → 1,173`), into three existing mixins:
+
+- *how does this project get its source model?* — `uploadSourceIfc`, `importRvt` and
+  `rvtBridgeStatus` onto `apps/web/src/api/model.ts`. The first two both return `source_ifc` and
+  both set it; the third is the precondition for the second, reporting whether the paid Autodesk
+  bridge is enabled and what it costs.
+- *turn this 2D plan into authored walls?* — `raisePlan` onto `apps/web/src/api/authoring.ts`.
+- *what quantities are on this drawing?* — `takeoffDxf` onto `apps/web/src/api/estimate.ts`,
+  beside `takeoff2d`.
+
+**(84) had grouped all five as *how do I get a file into this project?*, and that was wrong for a
+new reason.** They are all multipart uploads — but "multipart upload" is a HOW, not a question.
+Grouping by mechanism is the same error as grouping by route prefix, one level further from the
+domain. Read for what each answers and they split four ways: a quantity takeoff, a model write, two
+that set the source model, and a feature-availability check.
+
+**`rvtBridgeStatus` did not go to `entitlements.ts`, and the near-miss is worth recording.** The
+name fits perfectly — a paid feature, enabled or not, with a cost warning. But that mixin is the
+**land-use** entitlements route group (`/projects/{pid}/entitlements/…`): planning approvals,
+review cycles, permit conditions. Same word, different domain. Filing on it would have been the
+route-prefix mistake wearing a vocabulary disguise.
+
+### The gate written to prevent the count bug had the count bug
+
+`unfiledMap.test.ts`, added one slice earlier, derives which words in the map are method names by
+scanning `api/` for method declarations. Its pattern required **exactly two spaces** of indent.
+But five files indent by four — `authoring.ts` alone has **37 methods** — so roughly 47 names were
+missing from that vocabulary, and a map entry naming any of them could never be reported stale.
+
+*That is the `async` bug again, in the test written to stop it.* Both are a pattern whose scope
+silently excludes part of its population, and both return a smaller set rather than an error. The
+fix is not a wider regex alone: it now also **asserts that every file declaring a mixin contributes
+at least one name**, so a whole file's convention cannot drop out silently again. Mutation-checked
+by having the map name `editIfc`, a four-space method — previously invisible, now caught.
+
+The gate also earned its keep the ordinary way: mid-slice it failed with *"the banner says 28
+methods but 23 follow it"* and *"the map names these, but they are no longer under the banner"*,
+naming all five moved methods. First time it caught live drift rather than a deliberate mutation.
+
+`constructionPortfolio` and `materialPalette` got the doc comments they had never had. The first is
+global (`/portfolio/construction`, no project id) and carries no investment figure — which is what
+separates it from `executivePortfolio`, and why the portfolio trio still under the banner is
+flagged there as likely to split rather than move as one.
+
+Pin 1,212 → 1,173. Twenty-three methods left under the banner.
+
 
 
 

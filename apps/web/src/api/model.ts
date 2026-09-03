@@ -15,6 +15,14 @@
  *  A mixin, so every `api.modelX(...)` call site resolves unchanged; `api/surface.test.ts` is what
  *  makes that checkable rather than hoped for.
  *
+ *  SCALE-SEAM (85) adds model INGEST — *how does this project get its source model?*
+ *  `uploadSourceIfc` and `importRvt` both return `source_ifc` and both set it; `rvtBridgeStatus`
+ *  is the precondition for the second, reporting whether the paid Autodesk bridge is enabled and
+ *  what it costs. That third one came here rather than to `entitlements.ts`: THAT mixin is the
+ *  LAND-USE entitlements route group (`/projects/{pid}/entitlements/…`, planning approvals), not
+ *  software licensing. Filing on the shared word would have been the same mistake as filing on a
+ *  shared route prefix.
+ *
  *  SCALE-SEAM (83) adds the check side — *does this model pass its checks?* The MODEL-CI check
  *  pack (run + latest badge source), the RULE-LIB rule library, RULE-LIB-2 geometric rules, and
  *  `rebarCheckCage`. The rebar method came on what it ANSWERS, not on its route: it verifies an
@@ -655,6 +663,30 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
       results: { name: string; element_type: string; compliant: boolean | null }[] }>(
       `/projects/${pid}/envelope/audit`);
+  }
+
+  // --- How does this project get its source model? Upload, the paid RVT bridge, and whether that bridge is available ---
+  /** Upload an IFC as the project's source model (sets source_ifc + publishes) — what lights up
+   *  drawings, clash/IDS, energy, exports, and authoring for the project. */
+  async uploadSourceIfc(pid: string, file: File, publish = true) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/source-ifc?publish=${publish}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `upload -> ${res.status}`); }
+    return res.json() as Promise<{ source_ifc: string; publish?: string }>;
+  }
+  /** Import a native .rvt via the paid APS bridge (must confirm cost). 501 off · 402 unconfirmed. */
+  async importRvt(pid: string, file: File, confirmCost: boolean) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/import/rvt?confirm_cost=${confirmCost}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `rvt import -> ${res.status}`); }
+    return res.json() as Promise<{ source_ifc: string; size: number; source: string; publish?: string }>;
+  }
+  /** Is the optional paid Revit→IFC bridge configured? (+ cost warning / free alternative text). */
+  rvtBridgeStatus() {
+    return this.json<{ enabled: boolean; activity_configured: boolean; cost_warning: string;
+      free_alternative: string; message: string }>(`/bridge/rvt/status`);
   }
 
   // --- Does this model pass its checks? Check pack, rule library, geometric rules, rebar cage ---
