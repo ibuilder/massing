@@ -25,7 +25,8 @@ import sys
 from datetime import date
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-_GATE = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "audit_lock_gate.py")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+_GATE = os.path.join(ROOT, "scripts", "audit_lock_gate.py")
 
 
 def _load():
@@ -210,6 +211,60 @@ def test_the_push_and_pull_request_globs_stay_identical() -> None:
     print(f"PASS  push and pull_request audit the same manifests   {len(push)} glob(s), identical")
 
 
+def _matches_a_glob(path: str, globs: list[str]) -> bool:
+    """Does `path` match any of the workflow's `paths:` globs?
+
+    Shared by both coverage checks below so they cannot drift into disagreeing about what
+    "covered" means — two matchers for one question is the same defect this file keeps finding.
+    """
+    import fnmatch
+    return any(fnmatch.fnmatch(path, g)
+               or fnmatch.fnmatch(path, g.replace("**/", "*"))
+               or fnmatch.fnmatch(os.path.basename(path), g.removeprefix("**/"))
+               for g in globs)
+
+
+def test_the_npm_manifests_can_trigger_the_workflow_too() -> None:
+    """The npm half of the same question, which the Python half could not see.
+
+    RAISED IN REVIEW ON #398 and it was right. The check below iterates `audit_lock_gate.LOCKS`,
+    which contains ONLY `services/api/requirements.lock`. So deleting `**/package.json` and
+    `**/package-lock.json` from BOTH trigger lists left every assertion in this file green: the two
+    lists still matched each other, and the one audited path they knew about still matched. The
+    blocking npm gate would simply stop firing on manifest changes, silently.
+
+    That is mutation 4's failure mode -- both lists identical and both wrong -- on the ecosystem the
+    population did not cover. A coverage check is only as wide as the population it derives, and
+    this one had derived half the subject.
+
+    `audit_npm_gate.py` declares no path list to compare against (it shells out to `npm audit`,
+    whose subject is implicit), so the population comes from `git ls-files` rather than from a
+    constant: every TRACKED npm manifest must be able to start the workflow that audits it. Adding a
+    workspace tomorrow puts it in scope automatically; listing them here would not.
+    """
+    out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True)
+    manifests = [p for p in out.stdout.split("\n")
+                 if os.path.basename(p) in ("package.json", "package-lock.json")]
+
+    # Vacuity guard: an empty population passes every assertion below while measuring nothing, and
+    # `git ls-files` returns empty from a non-repo. The lockfile is what `npm audit` actually reads,
+    # so its absence means the population is wrong rather than that the repo has no npm.
+    assert manifests, "no tracked npm manifests found — this check would pass by measuring nothing"
+    assert any(os.path.basename(p) == "package-lock.json" for p in manifests), (
+        "no package-lock.json in the derived population, but that is the file `npm audit` reads")
+
+    on = _triggers()
+    for event in ("push", "pull_request"):
+        globs = list((on.get(event) or {}).get("paths") or [])
+        assert globs, f"no `{event}: paths:` globs parsed"
+        missing = [m for m in manifests if not _matches_a_glob(m, globs)]
+        assert not missing, (
+            f"these tracked npm manifests match none of security.yml's `{event}` globs {globs}: "
+            f"{missing} — changing one would not run the blocking npm gate that audits it")
+    print(f"PASS  every tracked npm manifest can trigger the workflow on both events   "
+          f"{len(manifests)} manifest(s)")
+
+
 def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
     """A gate that its own subject cannot trigger is not a smaller gate — it is no gate.
 
@@ -227,18 +282,13 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
     between them, quietly measuring a merged list of twelve. It would still have passed. This file
     already carries the lesson one function up: a gate that greps prose measures the wrong text.
     """
-    import fnmatch
-
     gate = _load()
     on = _triggers()
     for event in ("push", "pull_request"):
         globs = list((on.get(event) or {}).get("paths") or [])
         assert globs, f"no `{event}: paths:` globs parsed"
         for lock in gate.LOCKS:
-            matched = [g for g in globs
-                       if fnmatch.fnmatch(lock, g) or fnmatch.fnmatch(lock, g.replace("**/", "*"))
-                       or fnmatch.fnmatch(os.path.basename(lock), g.removeprefix("**/"))]
-            assert matched, (
+            assert _matches_a_glob(lock, globs), (
                 f"{lock} is audited by the gate but matches none of security.yml's `{event}` "
                 f"globs {globs} — a change to it would not run the workflow that audits it")
     print(f"PASS  every audited lock can trigger the workflow on push AND pull_request   "
@@ -253,5 +303,6 @@ if __name__ == "__main__":
     test_the_workflow_actually_calls_the_gate_and_can_fail()
     test_the_blocking_gates_can_actually_block_a_merge()
     test_the_push_and_pull_request_globs_stay_identical()
+    test_the_npm_manifests_can_trigger_the_workflow_too()
     test_every_audited_path_can_actually_trigger_the_workflow()
     print("test_lock_advisories OK")
