@@ -191,7 +191,8 @@ AssemblyRow moved to `apps/web/src/api/types.ts` with the family/group methods.
 
 `MARKS` widened to ⓽ on the way out. Pin 1,584 → 1,512.
 
-Sixteenth follow-on on the same version: **SCALE-SEAM ⓽**. Five methods out of `client.ts`
+Sixteenth follow-on on the same version: **SCALE-SEAM ⓽**. Five public methods — plus the
+private helper three of them share — out of `client.ts`
 (`1,512 → 1,462`) into three existing mixins — and the slice is one cluster, not three,
 because **one banner was covering three different questions**.
 
@@ -245,7 +246,7 @@ The ⓵–⓾ glyph range is exhausted and there is no natural successor, so the
 rather than starting a fourth visual scheme. Nothing depended on it: the mark is optional in
 `roadmapLanes.test.ts`'s item regex, and the roadmap item and lane cell already carry none.
 
-Nine methods out of `client.ts` (`1,436 → 1,374`) into three existing mixins:
+Eight methods out of `client.ts` (`1,436 → 1,374`) into three existing mixins:
 
 - *is this project ready for substantial completion, and certify it?* — `turnoverReadiness`,
   `turnoverStatus`, `turnoverCertify`, `g704Url` onto `apps/web/src/api/documents.ts`, beside
