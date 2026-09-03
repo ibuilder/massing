@@ -296,7 +296,7 @@ point: an over-claiming banner is how the previous three slices each lost a meth
 Pin 1,374 → 1,339.
 
 Twentieth follow-on on the same version: **SCALE-SEAM (83)** — the banner that ran to the end of
-the file. `// --- CX-1 commissioning loop ---` covered **44 methods**, of which **three** were
+the file. `// --- CX-1 commissioning loop ---` covered **49 methods**, of which **three** were
 commissioning. Nine methods out of `client.ts` (`1,339 → 1,292`) into three existing mixins:
 
 - *is commissioning closing, and in detail?* — `cxSeed`, `cxMatrix`, `cxDossier` onto
@@ -321,7 +321,7 @@ question `envelopeAudit` asks. Route-and-tag kinship is exactly the reason ⓽ n
 
 **The banner was replaced, not narrowed.** With the three `/cx/*` methods gone it named *nothing*
 — the worst state a label can be left in, one step past the over-claiming that cost ⓽, ⓾, (81) and
-(82) a method each. In its place is an `UNFILED` map of the 35 that remain, grouped by what each
+(82) a method each. In its place is an `UNFILED` map of the 40 that remain, grouped by what each
 cluster answers: reinforcement quantities, development budget and draws, portfolio, saved views,
 material palette, site and test fit, four unrelated singles, and five that are genuinely
 client-level (`enumOptions`, `searchAll`, `attachmentUrl`, `templates`, `rvtBridgeStatus`) and
@@ -330,6 +330,64 @@ extracted — a decomposition that never says "this one is already home" will ev
 something that should not move.
 
 Pin 1,339 → 1,292.
+
+Twenty-first follow-on on the same version: **SCALE-SEAM (84)** — the cluster that split three
+ways, and **the slice that found (83) had corrected a right number to a wrong one**.
+
+Twelve methods out of `client.ts` (`1,292 → 1,212`), plus the `DevBudget*` interfaces from
+`client.ts` into `apps/web/src/api/types.ts`, where a mixin can import them:
+
+- *what is this development costing, and how is it funded?* — `devBudget`, `saveDevBudget`,
+  `devBudgetCostLines`, `sourcesUses`, `gmpReconciliation`, `syncGmpToHard`, `constructionDraws`,
+  `loanDraws`, `loanDrawRequestPdf` onto `apps/web/src/api/proforma.ts`, beside `drawPackage` and
+  `twoSidedBudget`.
+- *are we priced right, and does cost tie back to the model?* — `pricingReconcile`,
+  `costTraceability` onto `apps/web/src/api/cost.ts`.
+- *what has each subcontract billed?* — `subcontractorBilling` onto
+  `apps/web/src/api/accounting.ts`, beside `contractorStatements` and `wip`.
+
+**The types decided the hardest placement.** `gmpReconciliation` and `syncGmpToHard` look like
+`cost.ts` work — ㉚ put the GMP/pay-app stack there, and both routes are GMP-flavoured. But
+`cost.ts`'s `gmpBudget` is the **GC's own** GMP (contract value, categories, EAC/ETC), while these
+two are the **developer** comparing their hard cost against it, and both return `DevBudgetLine` /
+`DevBudgetSummary`. Filing them in `cost.ts` would have forced the `DevBudget` type family into
+two mixins. *A split that duplicates a type family across mixins is almost always the wrong seam*
+— a sharper rule than "group by what they answer", because it is mechanical.
+
+### (83) reported 44 where the answer was 49, and 49 was already written down
+
+The `// --- CX-1 commissioning loop ---` banner really held **49** methods. (83) counted them with
+
+    /^  ([a-zA-Z_]\w*)\(/
+
+which does not match `async` methods, so five were invisible — `importRvt`, `loanDrawRequestPdf`,
+`raisePlan`, `takeoffDxf`, `uploadSourceIfc`. The roadmap had said 49. **(83) "corrected" the
+correct number to an incorrect one** and shipped 44 into this changelog, the roadmap and its own
+merge commit — in a slice whose subject was counts that disagree with the lists beside them.
+
+The failure is not carelessness with a number. **A regex that silently drops a syntactic variant
+returns a smaller number, not an error, and a smaller number looks exactly like a right one.**
+That is the same shape as the inverted count #396 pinned, the two totals #399 fixed, and a `&&`
+chained off `head` that printed "TYPECHECK CLEAN" over a failing `tsc`. Four instances in one day,
+every one of them a check whose output did not measure what it claimed.
+
+So the map is no longer proofread — it is **derived**, by `apps/web/src/api/unfiledMap.test.ts`:
+the declared count must equal the methods actually below the banner, every such method must be
+named, and no name may survive after its method has moved. Its method regex matches `async`. Which
+tokens count as method names is itself derived — a word qualifies only if some file in `api/`
+declares a method by it — because a hand-kept word list would either miss `property` and
+`templates` (no capital letter) or swallow prose like "check" and "stay". All three assertions were
+mutation-checked: a wrong count, a dropped name, and a name left behind after its method moved.
+
+**The gate found two more things immediately.** The map had never listed `takeoffDxf`, `raisePlan`,
+`uploadSourceIfc` or `importRvt` — all `async`, all invisible to (83)'s query — and they form a
+cluster the map had no line for at all: *how do I get a file into this project?* They are four
+multipart uploads, and `rvtBridgeStatus` is the bridge `importRvt` drives, so **(83)'s claim that
+`rvtBridgeStatus` was a client-level "stayer" was wrong** — it was only ever plausible because the
+four uploads beside it could not be seen. Four stayers remain: `enumOptions`, `searchAll`,
+`attachmentUrl`, `templates`.
+
+Pin 1,292 → 1,212. Twenty-eight methods left under the banner, and that number is now checked.
 
 
 

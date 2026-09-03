@@ -1212,7 +1212,7 @@ export class ProformaUI {
       const save = () => { clearTimeout(timer); timer = window.setTimeout(() => void this.api.saveDevBudget(pid, { lines, contingency }).then(paint), 500); };
       const num = (v: string) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
-      const paint = (r?: import("../api/client").DevBudgetResponse) => {
+      const paint = (r?: import("../api/types").DevBudgetResponse) => {
         const sum = r?.summary;
         body.innerHTML = "";
         for (const [cat, label] of CATS) {

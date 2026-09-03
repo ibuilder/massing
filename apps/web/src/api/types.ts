@@ -1078,3 +1078,23 @@ export interface TypeDetail {
   occurrence_count: number;
   occurrences: { guid: string; name: string; ifc_class: string }[];
 }
+
+/** The development budget: author-editable lines plus the server-computed category rollup.
+ *  Moved here from `client.ts` by SCALE-SEAM (84), when `withProforma` took the dev-budget
+ *  methods: a type used by a mixin cannot live in the class that mixin is a base of. */
+export interface DevBudgetLine {
+  category: "acquisition" | "hard" | "soft";
+  description: string; unit_cost: number; quantity: number; cost_code?: string | null;
+}
+export interface DevBudgetCategory {
+  subtotal: number; contingency: number; contingency_pct: number; total: number;
+  lines: { description: string; unit_cost: number; quantity: number; total: number; cost_code?: string | null }[];
+}
+export interface DevBudgetSummary {
+  categories: Record<string, DevBudgetCategory>;
+  grand_total: number; hard_pct: number; soft_pct: number; line_count: number;
+}
+export interface DevBudgetResponse {
+  budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
+  summary: DevBudgetSummary;
+}

@@ -971,20 +971,30 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
 
-  // --- UNFILED — 35 methods, no shared question --------------------------------
+  // --- UNFILED — 28 methods, no shared question --------------------------------
   // This banner said `CX-1 commissioning loop` until SCALE-SEAM (83) took the three `/cx/*`
   // methods to `documents.ts`. It never described the run: it labelled where commissioning
   // STARTED and the file then carried on to the end through a dozen unrelated domains. With the
   // commissioning methods gone it named nothing at all, so it is replaced rather than narrowed —
   // an over-claiming banner is how ⓽, ⓾, (81) and (82) each lost a method to the wrong mixin.
   //
+  // **This map is itself a list, and (83) wrote it from a query that under-counted.** The regex
+  // it used did not match `async` methods, so five were invisible: `importRvt`,
+  // `loanDrawRequestPdf`, `raisePlan`, `takeoffDxf`, `uploadSourceIfc`. The banner really held
+  // 49, not the 44 (83) recorded. It is now DERIVED rather than proofread — see
+  // `apps/web/src/api/unfiledMap.test.ts`, which fails if this count or these names drift from
+  // the methods below.
+  //
   // What is actually below, by what each cluster ANSWERS — decide a home from that, not from the
   // route prefix and not from position:
-  //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl        (quantities, not the ACI check
-  //                                                                 (83) moved to `model.ts`)
-  //   what is this development     devBudget, saveDevBudget, gmpReconciliation, syncGmpToHard,
-  //   costing, and who is paid?    devBudgetCostLines, sourcesUses, constructionDraws, loanDraws,
-  //                                subcontractorBilling, pricingReconcile, costTraceability
+  //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl
+  //                                (quantities, not the ACI check (83) moved to `model.ts`)
+  //   how do I get a file into     takeoffDxf, raisePlan, uploadSourceIfc, importRvt,
+  //   this project?                rvtBridgeStatus
+  //                                (all multipart uploads; (84) found this cluster, which (83)
+  //                                 missed entirely for the async reason above. `rvtBridgeStatus`
+  //                                 is the bridge `importRvt` drives — (83) wrongly listed it as
+  //                                 a stayer, before the four uploads beside it were visible.)
   //   how is the portfolio doing?  executivePortfolio, portfolioPrioritization,
   //                                constructionPortfolio
   //   what saved views are there?  smartViews, smartViewsSave, smartViewRun
@@ -992,8 +1002,8 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   //   what is on this site?        property, saveProperty, testFitCompare, testFitOptimize
   //   four singles, four           complianceExpiring, safetyMetrics, bidLeveling, pxSummary
   //   separate questions
-  //   genuinely client-level —     enumOptions, searchAll, attachmentUrl, templates,
-  //   NOT domain, these stay       rvtBridgeStatus
+  //   genuinely client-level —     enumOptions, searchAll, attachmentUrl, templates
+  //   NOT domain, these stay
   /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
   rebarBbs(pid: string) {
     return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;
@@ -1005,13 +1015,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   rebarBbsCsvUrl(pid: string) { return this.url(`/projects/${pid}/rebar/bbs.csv`); }
 
 
-  pricingReconcile(pid: string) {
-    return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
-      unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
-      variance_pct?: number | null; note?: string }[]; matched: number; priced_total: number;
-      estimated_total: number; variance_total: number | null; pricing_source: string }>(
-      `/projects/${pid}/pricing/reconcile`);
-  }
   complianceExpiring(pid: string, withinDays = 30) {
     return this.json<{ within_days: number; count: number;
       expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
@@ -1088,15 +1091,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       selector: string; matched: number; truncated: boolean; guids: string[]; error?: string }>(
       `/projects/${pid}/smart-views/${encodeURIComponent(vid)}/run`);
   }
-  costTraceability(pid: string) {
-    return this.json<{ total_cost: number; traceable_cost: number; untraceable_cost: number;
-      coverage_pct: number; elements_referenced: number; line_count: number;
-      // `element_count` is the exact total; `guids` is a capped sample (200) — enough to select in
-      // the viewer without turning a panel fetch into a megabyte on a large cost code.
-      by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
-        element_count: number; guids: string[] }[];
-      note: string }>(`/projects/${pid}/cost/traceability`);
-  }
   /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
    *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
   pxSummary(pid: string) {
@@ -1120,41 +1114,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
       `/projects/${pid}/materials/apply`, { method: "POST" });
   }
-  /** The development budget: line items and contingency, as saved for this project. */
-  devBudget(pid: string) {
-    return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);
-  }
-  saveDevBudget(pid: string, budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }) {
-    return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`, { method: "PUT", body: JSON.stringify(budget) });
-  }
-  /** Reconcile the developer's construction hard cost against the GC's live GMP. */
-  gmpReconciliation(pid: string) {
-    return this.json<{ dev_hard_cost: number; gc_gmp: number; delta: number; in_sync: boolean;
-      gmp_committed: number; gmp_eac: number; gmp_variance_at_completion: number }>(
-      `/projects/${pid}/dev-budget/gmp-reconciliation`);
-  }
-  /** Developer construction draw schedule sourced from the GC cost-loaded schedule + actual billed. */
-  constructionDraws(pid: string) {
-    return this.json<{ projected_total: number; months: number; peak_month_cost: number;
-      series: { month: string; cost: number; cumulative: number; pct: number }[];
-      actual_billed: number; invoice_count: number; pct_billed: number;
-      by_cost_code: { code: string; description: string | null; division: string | null; billed: number }[] }>(
-      `/projects/${pid}/construction-draws`);
-  }
-  /** Construction-loan draw status: owner invoices funded equity-first then debt vs the sized stack. */
-  loanDraws(pid: string) {
-    return this.json<{ loan_amount: number; equity: number; drawn_to_date: number; equity_drawn: number;
-      loan_drawn: number; loan_available: number; loan_balance: number; pct_capital_drawn: number;
-      interest_rate: number; accrued_interest: number; loan_start: string | null; outstanding_with_interest: number;
-      budgeted_interest_reserve: number; forecast_interest: number; interest_variance: number;
-      invoice_count: number }>(`/projects/${pid}/loan-draws`);
-  }
-  /** Lender draw-request PDF (the bank-facing submission) as an auth'd blob. */
-  async loanDrawRequestPdf(pid: string, appNo = 1) {
-    const res = await fetch(this.url(`/projects/${pid}/loan-draws/request.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`draw request PDF -> ${res.status}`);
-    return res.blob();
-  }
   /** Cross-project executive roll-up: each project's on-schedule + on-budget status + portfolio totals. */
   executivePortfolio() {
     return this.json<{
@@ -1174,23 +1133,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         scores: Scores; equity_irr: number | null; gmp: number }[];
       top: { name: string } | null; bottom: { name: string } | null; note: string }>(
       `/portfolio/prioritization`);
-  }
-  /** Subcontractor billing rollup — each subcontract's pay apps vs contract value (GC-pays-subs). */
-  subcontractorBilling(pid: string) {
-    return this.json<{ subs: { subcontract_ref: string | null; vendor: string | null; trade: string | null;
-      cost_code: string | null; contract_value: number; billed: number; retainage: number; paid: number;
-      remaining: number; applications: number }[];
-      totals: { contract_value: number; billed: number; retainage: number; paid: number; remaining: number };
-      subcontract_count: number; invoice_count: number }>(`/projects/${pid}/subcontractor-billing`);
-  }
-  /** Set the developer hard cost to the GC's GMP (replaces hard lines with one synced line). */
-  syncGmpToHard(pid: string) {
-    return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(
-      `/projects/${pid}/dev-budget/sync-gmp`, { method: "POST" });
-  }
-  devBudgetCostLines(pid: string) {
-    return this.json<{ cost_lines: { category: string; name: string; amount: number; curve: string }[]; summary: DevBudgetSummary }>(
-      `/projects/${pid}/dev-budget/cost-lines`);
   }
   /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
   property(pid: string) {
@@ -1213,12 +1155,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null;
       ranked: OptScheme[]; swept_depths: number[]; depth_curve: DepthPoint[]; best_depth_m: number | null }>(
       "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
-  }
-  /** Sources & Uses built from the project's cost budget (grouped uses vs sized debt + equity). */
-  sourcesUses(pid: string) {
-    return this.json<{ uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
-      total_uses: number; total_sources: number; ltc: number; debt: number; equity: number;
-      binding_constraint: string; balanced: boolean }>(`/projects/${pid}/sources-uses`);
   }
   /** Upload an IFC as the project's source model (sets source_ifc + publishes) — what lights up
    *  drawings, clash/IDS, energy, exports, and authoring for the project. */
@@ -1244,22 +1180,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
 }
 
-export interface DevBudgetLine {
-  category: "acquisition" | "hard" | "soft";
-  description: string; unit_cost: number; quantity: number; cost_code?: string | null;
-}
-export interface DevBudgetCategory {
-  subtotal: number; contingency: number; contingency_pct: number; total: number;
-  lines: { description: string; unit_cost: number; quantity: number; total: number; cost_code?: string | null }[];
-}
-export interface DevBudgetSummary {
-  categories: Record<string, DevBudgetCategory>;
-  grand_total: number; hard_pct: number; soft_pct: number; line_count: number;
-}
-export interface DevBudgetResponse {
-  budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
-  summary: DevBudgetSummary;
-}
 export interface OptScheme {
   name: string; mix_preset: string; parking_ratio: number; total_units: number;
   efficiency: number; total_nsf: number; parking_stalls: number; yield_on_cost: number;

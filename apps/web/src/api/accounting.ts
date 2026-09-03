@@ -1,5 +1,10 @@
 /** Construction accounting: the double-entry books, the approval-gated journal batch, and WIP.
  *
+ *  SCALE-SEAM (84) adds `subcontractorBilling` — *what has each subcontract billed, and what is
+ *  retained?* It sits with `contractorStatements` and `wip`: all three read pay applications
+ *  against a contract value. It arrived inside a development-budget run in `client.ts` and is
+ *  the one method of that run that is not a developer-side question.
+ *
  *  SCALE-SEAM ㉘. **Grouped by what the methods ANSWER, and this slice is the strongest case yet for
  *  that rule** — because the group was in TWO non-contiguous places in `client.ts`. The GL/IIF export
  *  URLs and `createJournalBatch` sat ~700 lines above `journalEntries`, `trialBalance` and
@@ -65,6 +70,16 @@ export function withAccounting<TBase extends Ctor<HttpCore>>(Base: TBase) {
       contract_position: { contract_asset_underbillings: number; contract_liability_overbillings: number;
         retainage_receivable: number; accounts_payable: number; net_contract_working_capital: number } }>(
       `/projects/${pid}/contractor-statements`);
+  }
+
+  // --- Subcontract billing rollup ---
+  /** Subcontractor billing rollup — each subcontract's pay apps vs contract value (GC-pays-subs). */
+  subcontractorBilling(pid: string) {
+    return this.json<{ subs: { subcontract_ref: string | null; vendor: string | null; trade: string | null;
+      cost_code: string | null; contract_value: number; billed: number; retainage: number; paid: number;
+      remaining: number; applications: number }[];
+      totals: { contract_value: number; billed: number; retainage: number; paid: number; remaining: number };
+      subcontract_count: number; invoice_count: number }>(`/projects/${pid}/subcontractor-billing`);
   }
   /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog.
    *  `method`: "cost-to-cost" (default) or "units-installed" (physical model progress by GlobalId). */
