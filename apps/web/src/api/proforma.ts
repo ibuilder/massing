@@ -8,12 +8,27 @@
  *  those are the document catalog, not valuation. Composed through the existing `withProforma`
  *  wrapper — no extra `withX()` on `ApiClient`.
  *
+ *  SCALE-SEAM (84) adds the development budget and the draws against it — *what is this
+ *  development costing, and how is it being funded?* Budget read/write, its cost lines, Sources
+ *  & Uses, the GMP reconciliation pair, and both draw schedules, plus the lender draw-request
+ *  PDF that `client.ts`'s own unfiled map had missed (it is `async`, and the query that built
+ *  that map did not match `async` methods).
+ *
+ *  **`gmpReconciliation` and `syncGmpToHard` came HERE, not to `cost.ts`, and the TYPES decided
+ *  it.** ㉚ put the GMP/pay-app stack in `cost.ts`, so route-and-history reasoning pointed there.
+ *  But `cost.ts`'s `gmpBudget` is the GC's OWN GMP — contract value, categories, EAC/ETC — while
+ *  these two are the DEVELOPER comparing their hard cost against it, and both return
+ *  `DevBudgetLine` / `DevBudgetSummary`. Filing them in `cost.ts` would have forced the
+ *  `DevBudget` type family into two mixins, and a split that duplicates a type family across
+ *  mixins is almost always the wrong seam.
+ *
  *  SCALE-SEAM ㊼ adds in-place operations — *what is this asset earning today?* Rent roll and
  *  lease-management depth. They sat above the investor stack in `client.ts` and did **not** go
  *  with ㉙ (capital is ownership, this is occupancy). `askProject` stayed.
  */
 import { HttpCore } from "./httpCore";
-import type { Appraisal, FinancialStatements, MonteCarloResult, ProformaForecast, ProformaResult } from "./types";
+import type { Appraisal, DevBudgetLine, DevBudgetResponse, DevBudgetSummary, FinancialStatements,
+  MonteCarloResult, ProformaForecast, ProformaResult } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -69,6 +84,58 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   drawPackage(sid: string, body: unknown) {
     return this.json<{ sov_lines_created: number; g702: Record<string, number>; g702_pdf: string }>(
       `/proforma/scenarios/${sid}/draw-package`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  // --- The development budget, its GMP reconciliation, and the draws against it ---
+  /** The development budget: line items and contingency, as saved for this project. */
+  devBudget(pid: string) {
+    return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);
+  }
+  saveDevBudget(pid: string, budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }) {
+    return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`, { method: "PUT", body: JSON.stringify(budget) });
+  }
+  devBudgetCostLines(pid: string) {
+    return this.json<{ cost_lines: { category: string; name: string; amount: number; curve: string }[]; summary: DevBudgetSummary }>(
+      `/projects/${pid}/dev-budget/cost-lines`);
+  }
+  /** Sources & Uses built from the project's cost budget (grouped uses vs sized debt + equity). */
+  sourcesUses(pid: string) {
+    return this.json<{ uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
+      total_uses: number; total_sources: number; ltc: number; debt: number; equity: number;
+      binding_constraint: string; balanced: boolean }>(`/projects/${pid}/sources-uses`);
+  }
+  /** Reconcile the developer's construction hard cost against the GC's live GMP. */
+  gmpReconciliation(pid: string) {
+    return this.json<{ dev_hard_cost: number; gc_gmp: number; delta: number; in_sync: boolean;
+      gmp_committed: number; gmp_eac: number; gmp_variance_at_completion: number }>(
+      `/projects/${pid}/dev-budget/gmp-reconciliation`);
+  }
+  /** Set the developer hard cost to the GC's GMP (replaces hard lines with one synced line). */
+  syncGmpToHard(pid: string) {
+    return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(
+      `/projects/${pid}/dev-budget/sync-gmp`, { method: "POST" });
+  }
+  /** Developer construction draw schedule sourced from the GC cost-loaded schedule + actual billed. */
+  constructionDraws(pid: string) {
+    return this.json<{ projected_total: number; months: number; peak_month_cost: number;
+      series: { month: string; cost: number; cumulative: number; pct: number }[];
+      actual_billed: number; invoice_count: number; pct_billed: number;
+      by_cost_code: { code: string; description: string | null; division: string | null; billed: number }[] }>(
+      `/projects/${pid}/construction-draws`);
+  }
+  /** Construction-loan draw status: owner invoices funded equity-first then debt vs the sized stack. */
+  loanDraws(pid: string) {
+    return this.json<{ loan_amount: number; equity: number; drawn_to_date: number; equity_drawn: number;
+      loan_drawn: number; loan_available: number; loan_balance: number; pct_capital_drawn: number;
+      interest_rate: number; accrued_interest: number; loan_start: string | null; outstanding_with_interest: number;
+      budgeted_interest_reserve: number; forecast_interest: number; interest_variance: number;
+      invoice_count: number }>(`/projects/${pid}/loan-draws`);
+  }
+  /** Lender draw-request PDF (the bank-facing submission) as an auth'd blob. */
+  async loanDrawRequestPdf(pid: string, appNo = 1) {
+    const res = await fetch(this.url(`/projects/${pid}/loan-draws/request.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`draw request PDF -> ${res.status}`);
+    return res.blob();
   }
 
   /** FIN-GOV — move a scenario through draft → in_review → approved → published (reject/reopen → draft). */

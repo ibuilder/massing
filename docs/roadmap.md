@@ -3074,12 +3074,18 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   naming them.
 
   **The CX-1 banner is dealt with too, and it was the largest instance of the class.**
-  `// --- CX-1 commissioning loop ---` ran to the END of the file over **44** methods — this
-  entry said 49 until (83) counted them — of which **three** were commissioning. (83) took
-  those three to `documents.ts` (they detail the `commissioning` rollup `closeoutSummary`
-  already returns), the model-check quartet plus `rebarCheckCage` to `model.ts`, and
-  `qtoByFloor` to `estimate.ts`. With the `/cx/*` methods gone the banner named **nothing**, so
-  it was replaced by an UNFILED map of the 35 that remain rather than narrowed.
+  `// --- CX-1 commissioning loop ---` ran to the END of the file over **49** methods, of which
+  **three** were commissioning. (83) took those three to `documents.ts` (they detail the
+  `commissioning` rollup `closeoutSummary` already returns), the model-check quartet plus
+  `rebarCheckCage` to `model.ts`, and `qtoByFloor` to `estimate.ts`. With the `/cx/*` methods
+  gone the banner named **nothing**, so it was replaced by an UNFILED map of the 40 that remain
+  rather than narrowed.
+
+  *(This entry read 49, and (83) "corrected" it to 44 with a regex that did not match `async`
+  methods — so it silently skipped five, `importRvt`, `loanDrawRequestPdf`, `raisePlan`,
+  `takeoffDxf` and `uploadSourceIfc`. 49 was right all along. (84) restored it and bound the
+  count to `apps/web/src/api/unfiledMap.test.ts` so no future slice can assert one from a
+  hand-run query again.)*
 
   **What is left is that map, and it is now the work list.** Reinforcement quantities
   (`rebarBbs`, `rebarBbsCsvUrl` — deliberately split from the ACI check, which is a different

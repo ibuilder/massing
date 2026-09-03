@@ -8,6 +8,12 @@
  *
  *  Composed through the existing `withCost` wrapper — no extra `withX()` on `ApiClient`.
  *
+ *  SCALE-SEAM (84) adds `pricingReconcile` and `costTraceability` — *are we priced right, and
+ *  does the cost tie back to the model?* `pricingReconcile` returns a `pricing_source`, which is
+ *  what `costDatasets` / `costVintage` / `unitRates` supply; `costTraceability` reports coverage
+ *  per cost code, beside `marginByCostCode`. The dev-budget methods they sat among in
+ *  `client.ts` did **not** come — those went to `proforma.ts` with the `DevBudget` types.
+ *
  *  SCALE-SEAM ㊿ adds T&M tickets — *what extra work is unbilled against a change event?*
  *  Summary plus rollup by linked CO. `submittalRegister` sat below and did **not** come.
  *
@@ -43,6 +49,24 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       pct_committed: number | null; pct_spent: number | null;
       over_committed_codes: number; over_budget_codes: number; rows: Row[]; note: string;
     }>(`/projects/${pid}/margin/by-costcode`);
+  }
+
+  // --- Priced-vs-estimated variance, and how much cost traces to model elements ---
+  pricingReconcile(pid: string) {
+    return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
+      unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
+      variance_pct?: number | null; note?: string }[]; matched: number; priced_total: number;
+      estimated_total: number; variance_total: number | null; pricing_source: string }>(
+      `/projects/${pid}/pricing/reconcile`);
+  }
+  costTraceability(pid: string) {
+    return this.json<{ total_cost: number; traceable_cost: number; untraceable_cost: number;
+      coverage_pct: number; elements_referenced: number; line_count: number;
+      // `element_count` is the exact total; `guids` is a capped sample (200) — enough to select in
+      // the viewer without turning a panel fetch into a megabyte on a large cost code.
+      by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
+        element_count: number; guids: string[] }[];
+      note: string }>(`/projects/${pid}/cost/traceability`);
   }
   /** COST-SPINE — does one cost code carry the same scope across budget → commitment → actual →
    *  invoice? Reports presence, not just amounts; `traceability_pct` is the share of committed+actual
