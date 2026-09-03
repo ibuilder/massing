@@ -675,6 +675,74 @@ comment is a claim with a shelf life.*
 Pin 1,015 → 953. **117 above the banner, and still no map for them** — this was one cluster read out of
 the file, not a plan for the rest.
 
+Twenty-seventh follow-on on the same version: **DECLARED-SCOPE** — *the same hole, one directory
+over, and it was hiding a real one*.
+
+`test_declared_imports.py` exists because `httpx` was declared in no requirements file and reached the
+lock only `# via anthropic`, so an SDK bump would have deleted a package two shipped modules import.
+It walked `services/api/src` and `services/data/src` — **and every one of the ~30 gate files lives in
+`services/api/` itself, outside that walk.** RUFF-SCOPE's defect exactly, in the checker written to
+catch this class: *the check was real, its reach was the fiction.*
+
+**Widening it found one true instance immediately.** `test_saml.py` does `from lxml import etree` at
+module scope. `lxml` is declared in neither requirements file and arrives in the lock only `# via`
+pyHanko / signxml / python-docx. signxml's own pin is `lxml<7,>=5.2.1`, so a signxml release that
+changed XML libraries would remove a package this suite imports directly — and nothing would go red
+until the SAML tests hit an ImportError. Undeclared for as long as `test_saml.py` has existed. Now in
+`requirements-dev.txt`, with the provenance written next to it.
+
+### Two scopes, because a dev pin does not ship
+
+A gate may import from `requirements.in` **or** `requirements-dev.txt`; a shipped module may import
+only from `requirements.in`, because that is what compiles into the runtime image. A runtime import
+backed solely by a dev pin passes CI and `ImportError`s in production. Proven rather than asserted: a
+module-scope `import yaml` added to `src/aec_api/__init__.py` **fails** (`yaml` is a dev-only pin),
+while the same import in `test_ruff_scope.py` passes.
+
+### The widening's own first output was five false positives
+
+`run_tests`, `mcp_server`, `vendor_drift`, `massing_api`, `massing_export` all reported as *"not
+installed"*. None is a package: they are sibling `.py` files, plus the pyRevit bridge library that
+`test_revit_bridge.py` puts on `sys.path`. The first-party set was derived from `src/` package
+**directories**, which cannot see a module that is a bare file. Now enumerated from the importable
+directories — scoped to those, deliberately, since a repository-wide basename sweep would forgive a
+real third-party import that happened to share a name with one of our files, and forgiving is the
+failure this test exists to prevent.
+
+*A widened scope's first run is data, not a verdict.* Five of the six findings were the gate's fault;
+the sixth had been true for months.
+
+Mutation-checked: lxml undeclared → exit 1 · gate dirs pointed at an empty path → exit 1 on the
+vacuity guard · a dev-only import in a shipped module → exit 1. Restored → exit 0.
+
+### And the split had reintroduced its own defect — CodeRabbit found it
+
+The first version put **every** direct `.py` under `services/api` in the DEV scope. Two of those files
+**ship**: `desktop_entry.py` is the executable in `desktop.spec` and `sidecar.spec`, and
+`seed_demo.py` is `COPY`ed into the runtime image by `Dockerfile` and run by `docker-compose.yml`'s
+seed profile. A dev-only import in either would have passed this gate and failed in the packaged
+artifact — **exactly the failure the two-scope split exists to prevent**, reintroduced by assuming
+"directly under `services/api`" means "test".
+
+Fixed by DERIVING the shipped set from the packaging manifests themselves — the specs, both
+Dockerfiles and the compose file — rather than naming the two files. Naming them would fix today and
+leave the next packaged entry point to land in the loose bucket silently, which is the same
+"a hand-list goes stale" argument as `FIRST_PARTY` and `LOCAL_MODULES`. An independent sweep of every
+direct `.py` against those manifests returns exactly those two, so the derivation and the finding
+agree.
+
+A vacuity guard comes with it: if the manifests ever stop naming any direct `.py`, the gate fails
+rather than quietly moving every entry point into the looser scope.
+
+Mutation-checked: a dev-only import in `desktop_entry.py` → **exit 1 as `[shipped]`** (it passed as
+`[gate]` before the fix) · the same import in a genuine test file → **exit 0** · `PACKAGING` pointed
+at files naming no `.py` → **exit 1** on the vacuity guard.
+
+*Three scope defects in one day — the linter's, this gate's, and then this gate's own fix — and the
+third was introduced while correcting the second. **Widening a scope is itself a scoping decision,
+and it deserves the same suspicion as the one it replaces.***
+
+
 
 
 
