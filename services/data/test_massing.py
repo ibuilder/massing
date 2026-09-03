@@ -72,7 +72,7 @@ print(f"PARK-PACK OK - {len(stalls)} stalls in a 60x60 parcel around a 20x20 bui
 # bad input is rejected
 try:
     massing.compute_massing({"far": 2.0})
-    assert False, "expected ValueError for missing lot"
+    raise AssertionError("expected ValueError for missing lot")
 except ValueError:
     pass
 
@@ -181,7 +181,7 @@ if _have_ifc:
             massing.generate_ifc(m, upath, name="Unitized", units=True)
             um = open_model(upath)
             upf = max(1, round(m["units"] / m["floors"]))
-            uspaces = [s for s in um.by_type("IfcSpace")]
+            uspaces = list(um.by_type("IfcSpace"))
             assert len(uspaces) == upf * m["floors"], (len(uspaces), upf * m["floors"])
             # every unit space carries a real area
             import ifcopenshell.util.element as _ue
@@ -230,7 +230,7 @@ if _have_ifc:
         try:
             massing.generate_ifc(m, lpath, name="Corridor", units=True, unit_layout="corridor")
             lm = open_model(lpath)
-            spaces = [s for s in lm.by_type("IfcSpace")]
+            spaces = list(lm.by_type("IfcSpace"))
             corridors = [s for s in spaces if (s.LongName or "") == "Corridor"]
             assert len(corridors) == m["floors"], "one corridor per floor"
             assert len(spaces) > len(corridors), "units placed alongside corridors"

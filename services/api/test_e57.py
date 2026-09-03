@@ -9,9 +9,10 @@ for f in ("./test_e57.db",):
     if os.path.exists(f):
         os.remove(f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
-from aec_api import e57                     # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import e57  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 st = e57.status()
 assert set(st) == {"available", "max_points", "message"}, st

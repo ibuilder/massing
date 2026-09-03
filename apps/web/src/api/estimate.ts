@@ -67,6 +67,17 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
       blocks: { block: string; count: number }[] }>;
   }
 
+  // --- The bar bending schedule: a reinforcement quantity off the authored geometry ---
+  /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
+  rebarBbs(pid: string) {
+    return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;
+      cut_length_m: number; count: number; unit_mass_kg_m: number; total_length_m: number;
+      total_kg: number; guids: string[] }[]; marks: number; bars: number; skipped: number;
+      total_length_m: number; total_kg: number; total_tonnes: number }>(
+      `/projects/${pid}/rebar/bbs`);
+  }
+  rebarBbsCsvUrl(pid: string) { return this.url(`/projects/${pid}/rebar/bbs.csv`); }
+
   /** EST-1: rough cost + duration estimate from the model's quantities (productivity rates). With
    * `full`, adds material + equipment cost lines (labour + material + equipment total). */
   laborEstimate(pid: string, loading = "commercial", rate = 25, full = false) {

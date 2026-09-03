@@ -74,7 +74,7 @@ if _have_ifc:
         families.add_family(model, "desk", position=[8.0, 8.0], dims=[2.0, 0.8, 0.75])
         assert len(model.by_type("IfcTypeProduct")) == before_types + 6, "same-size variant reused"
         try:
-            families.add_family(model, "desk", dims=[0, 1, 1]); assert False, "expected ValueError"
+            families.add_family(model, "desk", dims=[0, 1, 1]); raise AssertionError("expected ValueError")
         except ValueError:
             pass
 

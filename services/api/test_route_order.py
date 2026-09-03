@@ -17,8 +17,9 @@ for _f in ("./test_route_order.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.routing import APIRoute                         # noqa: E402
-from aec_api.main import app                                 # noqa: E402
+from fastapi.routing import APIRoute  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 _PARAM = re.compile(r"\{[^}]+\}")
 
@@ -69,7 +70,8 @@ def find_shadows(routes: list[APIRoute]) -> list[tuple[list[str], str, str]]:
 
 
 # Self-test: prove the detector actually fires on a known shadow (guard against a vacuous check).
-from fastapi import APIRouter as _APIRouter                   # noqa: E402
+from fastapi import APIRouter as _APIRouter  # noqa: E402
+
 _probe = _APIRouter()
 _probe.add_api_route("/elements/{guid}", lambda: None, methods=["GET"])   # generic FIRST -> shadows
 _probe.add_api_route("/elements/color-by", lambda: None, methods=["GET"])

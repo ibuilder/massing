@@ -10,9 +10,10 @@ for f in ("./test_reports.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import openpyxl                                              # noqa: E402
-from fastapi.testclient import TestClient                   # noqa: E402
-from aec_api.main import app                                # noqa: E402
+import openpyxl  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def mk(c, pid, key, data):
@@ -60,7 +61,7 @@ with TestClient(app) as c:
 
     # the cost report carries a bar chart (budget vs committed vs actual vs EAC) into the PDF
     from aec_api import reports as _rep
-    from aec_api import reports_render as _rr           # renderers now live in reports_render
+    from aec_api import reports_render as _rr  # renderers now live in reports_render
     cost_rep = _rep.build(__import__("aec_api.db", fromlist=["SessionLocal"]).SessionLocal(), pid, "cost")
     assert cost_rep.charts and cost_rep.charts[0]["kind"] == "bar", cost_rep.charts
     assert _rr._chart_drawing(cost_rep.charts[0]) is not None    # renders without error

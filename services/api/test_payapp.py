@@ -10,9 +10,10 @@ for _f in ("./test_payapp.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import payments_bridge                   # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import payments_bridge  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- payments bridge: off by default, never fabricates a transfer, enforces the waiver gate ---
 assert payments_bridge.is_enabled() is False

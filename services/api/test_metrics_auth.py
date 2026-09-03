@@ -13,8 +13,9 @@ for _f in ("./test_metrics_auth.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 BEARER = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
 

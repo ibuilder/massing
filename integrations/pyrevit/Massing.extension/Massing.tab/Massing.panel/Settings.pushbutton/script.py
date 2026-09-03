@@ -5,8 +5,8 @@ Get a key + URLs from Settings -> Massing licence in the Massing web app (Commer
 includes REST API access). Stored per-user in pyRevit config."""
 __author__ = "Massing (massing.build)"
 
-from pyrevit import forms, script
 import massing_config as mc
+from pyrevit import forms, script
 
 cur = mc.read()
 

@@ -10,8 +10,9 @@ for _f in ("./test_pull_realtime.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient            # noqa: E402
-from aec_api.main import app                         # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _mk(c, pid, key, data):
@@ -33,8 +34,8 @@ with TestClient(app) as c:
     rid = t1["id"]
 
     # the board change-signature (drives the SSE stream) reflects the two notes + a latest timestamp
-    from aec_api import pull_plan                     # noqa: E402
-    from aec_api.db import SessionLocal               # noqa: E402
+    from aec_api import pull_plan  # noqa: E402
+    from aec_api.db import SessionLocal  # noqa: E402
     with SessionLocal() as db:
         sig = pull_plan.signature(db, pid)
     assert sig["count"] == 2 and sig["latest"], sig

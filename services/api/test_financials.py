@@ -9,8 +9,8 @@ for _f in ("./test_financials.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from aec_api import financials as fin                  # noqa: E402
-from aec_api.proforma.solve import solve               # noqa: E402
+from aec_api import financials as fin  # noqa: E402
+from aec_api.proforma.solve import solve  # noqa: E402
 
 ASSUMPTIONS = {
     "timing": {"construction_months": 18, "leaseup_months": 6, "hold_years": 7, "start_date": "2026-01-01"},
@@ -96,7 +96,8 @@ assert tb["balanced"] and abs(tb["total_uses"] - tb["total_sources"]) < 1.0, tb
 assert abs(tb["total_sources"] - (s["sources_uses"]["loan_amount"] + s["sources_uses"]["equity"])) < 2.0, tb
 
 # --- a thin-rent deal stays in a loss → suspended losses release at sale -------
-import copy                                                    # noqa: E402
+import copy  # noqa: E402
+
 thin = copy.deepcopy(ASSUMPTIONS)
 thin["operations"]["potential_rent_annual"] = 3_000_000        # NOI < interest+depr (loss) yet a sale gain
 f2 = fin.statements(solve(thin), thin)
@@ -112,8 +113,9 @@ no_rel = fin.sale_tax(s2["sale_price"], s2["selling_costs"], f2["assumptions"]["
 assert s2["total_sale_tax"] < no_rel["total_sale_tax"], (s2["total_sale_tax"], no_rel["total_sale_tax"])
 
 # --- endpoints + Report Center ------------------------------------------------
-from fastapi.testclient import TestClient                     # noqa: E402
-from aec_api.main import app                                  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     # stateless financials

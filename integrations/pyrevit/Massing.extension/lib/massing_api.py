@@ -11,10 +11,10 @@ import time
 import uuid
 
 try:                                   # CPython 3 (pyRevit 4.8+/5)
-    from urllib.request import Request, urlopen
     from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
 except ImportError:                    # IronPython 2.7 (legacy pyRevit)
-    from urllib2 import Request, urlopen, HTTPError, URLError  # type: ignore
+    from urllib2 import HTTPError, Request, URLError, urlopen  # type: ignore
 
 
 class MassingError(Exception):

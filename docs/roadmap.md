@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(83) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(87) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -1483,7 +1483,8 @@ PRs**, every one reporting `"CodeFlow was not able to perform analysis"` — the
 * Its 2,350 issues are dominated by **TSLint-era rules**: `max-line-length` 960 · `CodeDuplication` 526
   · `jsdoc-format` 402 · `one-variable-per-declaration` 200 · `no-shadowed-variable` 78 · `no-bitwise`
   18 · `variable-name` 7 · `max-classes-per-file` 5. **TSLint was deprecated in 2019.** This repo lints
-  with **ESLint 9.39.5** and **ruff**, both configured, both **clean**. So CodeFlow is not measuring our
+  with **ESLint 9.39.5** and **ruff**, both configured, both **clean** *(ruff over the whole tree only
+  since RUFF-SCOPE on 2026-09-03; it had been clean over two source trees out of the repository)*. So CodeFlow is not measuring our
   standards — it is measuring its defaults, and disagreeing with the linters we actually chose.
 * Its one structural finding is **wrong**: *"Avoid storing generated files in GIT
   (apps/web/src-tauri/Cargo.lock)"*. Rust's own guidance is to **commit `Cargo.lock` for binaries**, and
@@ -3020,6 +3021,25 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
      unused locals) passes clean across `services/api/src` and `services/data/src` on every push.
      Whatever remains in the 139 findings is symbol-level: exports defined and never called, which
      ruff does not look for.
+
+     *(**OPEN, found by RUFF-SCOPE and NOT fixed there:** `services/api/test_declared_imports.py`
+     has the same shape of hole. It walks `services/api/src` and `services/data/src` only, so any
+     import in a gate that sits in `services/api/` itself — which is where all ~30 of them live — is
+     invisible to it. Demonstrated rather than argued: `test_ruff_scope.py` added `import yaml`,
+     pyyaml was declared in neither `requirements.in` nor `requirements-dev.txt` and reached the lock
+     only `# via` fastapi/uvicorn/pyHanko/bandit/starlette/markdown-it-py, and the gate stayed green.
+     Declared explicitly in `requirements-dev.txt` as a point fix. **The class is not closed**: widen
+     the walk to the gate files, then re-derive which of their imports are undeclared. Low severity —
+     the gates' imports are stdlib plus well-anchored runtime packages — but it is the exact defect
+     that file exists to catch, one directory outside its reach.)*
+
+     *(RUFF-SCOPE, 2026-09-03: that sentence named its scope correctly and I still read a tree-wide
+     conclusion out of it. `src/` and `../data/src/` were the ONLY things ruff saw — 612 of 1,338
+     tracked `.py` files — so "already gated" was true of 46% of the tree. Widening the CI command to
+     `../..` found five F401 and one F841 outside it, plus five `assert False`. The bullet's argument
+     survives; its reach did not. **A correctly scoped sentence is still how an over-broad belief
+     gets formed**, which is why the scope is now asserted in `services/api/test_ruff_scope.py`
+     rather than described here.)*
    * Finding those needs a tool this repo does not have (`vulture` is not installed), and **adding
      one is a new dependency — the user's call, not a triage step.**
 
@@ -3061,13 +3081,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ plus three unnumbered slices — (81), (82), (83) — have shipped, **⓺ onward in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ plus seven unnumbered slices — (81)–(87) — have shipped, **⓺ onward in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
   **THE NEXT SLICE NEEDS A NEW GLYPH SCHEME.** ⓾ (U+24FE) is the last glyph in `MARKS`
   (`apps/web/src/shell/roadmapLanes.test.ts`), which runs ①–⑳, ㉑–㊿, ❶–❿, ⓫–⓴, ⓵–⓾. The
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 1,131 lines.** The RACI banner is dealt with — it covered 13 methods and
+  **`client.ts` is 1,015 lines.** The RACI banner is dealt with — it covered 13 methods and
   described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
   `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
   (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
@@ -3087,16 +3107,36 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   count to `apps/web/src/api/unfiledMap.test.ts` so no future slice can assert one from a
   hand-run query again.)*
 
-  **What is left is that map, and it is now CHECKED** — `apps/web/src/api/unfiledMap.test.ts`
-  fails if its count or its names drift from the file. Seventeen remain: reinforcement
-  quantities (2, deliberately split from the ACI check, a different question); material palette
-  (3); site and test fit (4); four unrelated singles. *(Portfolio and saved views went at (86) —
-  the portfolio trio split 2/1 on report-versus-decide, and smart views turned out to be saved
-  SELECTIONS, not the data-grid views `modules.ts` owns under the same name.)* Four are
-  marked as **staying**: `enumOptions`, `searchAll`, `attachmentUrl`, `templates`.
+  **That map is now EMPTY, and (87) found that it had been measuring the wrong thing.** The
+  last thirteen went out across eight mixins: material palette to `elements.ts`, test fit to
+  `entitlements.ts` beside `feasibility`, property to `proforma.ts`, rebar BBS to
+  `estimate.ts`, and five singles to `modules.ts`, `procurement.ts`, `schedule.ts` and
+  `evm.ts`. *(Portfolio and saved views went at (86) — the portfolio trio split 2/1 on
+  report-versus-decide, and smart views turned out to be saved SELECTIONS, not the data-grid
+  views `modules.ts` owns under the same name.)* Four are recorded as **staying**:
+  `enumOptions`, `searchAll`, `attachmentUrl`, `templates`.
   *(`rvtBridgeStatus` was listed as a fifth stayer until (85) — it is the precondition for
   `importRvt` and went with it to `model.ts`. It looked client-level only because the four
   uploads beside it were invisible to (83)'s `async`-blind query.)*
+
+  **BUT THE FILE IS NOT DONE, AND THE MAP NEVER SAID IT WOULD BE.** Deriving the whole
+  population rather than reading the banner: **130 methods, 4 below the STAYING line, 126
+  ABOVE it** — `disciplineTree`, `classify`, `specManual`, `editUndo`, `energyModel`,
+  `rentRollScrub`, `esgSummary` and the rest. None were ever inside the RACI or CX-1 banners,
+  so no map has ever covered them; the UNFILED map described the TAIL of this file, not the
+  file. Every "N remain" in this entry was scoped to a list the slices themselves had authored.
+  **A completeness claim computed over a self-authored list is confident and unfounded.** The
+  banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
+  and there is no map for them yet.
+
+  **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
+  open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the
+  file shrank past it with the work unfinished. Its replacement checked for the banner STRING,
+  and that was **also a proxy**: it would have declared SCALE-SEAM done with 126 methods
+  outstanding, and it was described as a fix in a commit, a PR body and to the user before that
+  was caught. It now counts methods not on the declared keep-list — the claim itself — and is
+  mutation-checked in both directions. *A proxy can be replaced by another proxy and read as a
+  fix.*
 
   **(85) also found that grouping by HTTP MECHANISM is its own trap.** (84) had listed five
   methods as *how do I get a file into this project?*; they were simply all multipart uploads,

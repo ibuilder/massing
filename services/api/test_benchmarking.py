@@ -10,8 +10,9 @@ for _f in ("./test_benchmarking.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     # two projects, direct costs under the same cost code -> cross-project distribution

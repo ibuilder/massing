@@ -8,8 +8,9 @@ for f in ("./serve_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api.main import app  # noqa: E402
+
 from aec_api import storage  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Tiles"}).json()["id"]

@@ -76,7 +76,7 @@ db = SessionLocal()
 try:
     # ---- two records, created at instants we can straddle ------------------------------------------
     old = datetime.now(timezone.utc) - timedelta(days=2)
-    for i, disc in enumerate(("Structural", "Mechanical")):
+    for _i, disc in enumerate(("Structural", "Mechanical")):
         mod.create_record(db, KEY, PID,
                           {"data": {"subject": f"{disc} RFI", "question": "q?", "discipline": disc}},
                           ALICE, None)

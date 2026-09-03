@@ -252,9 +252,10 @@ with TestClient(app) as c:
 
     # CONVERSE: the two readers share ONE rule (specs.SPEC_SECTION_WITHDRAWN), so they cannot drift
     # apart — asserted by identity, not by both happening to agree today.
+    import inspect
+
     from aec_api import specs as specs_engine
     from aec_api import spine as spine_engine  # noqa: F401  (import proves the module loads)
-    import inspect
     assert "SPEC_SECTION_WITHDRAWN" in inspect.getsource(spine_engine.traceability), \
         "spine.traceability must use the shared spec-section rule, not its own copy"
     assert specs_engine.SPEC_SECTION_WITHDRAWN == ("void",), specs_engine.SPEC_SECTION_WITHDRAWN

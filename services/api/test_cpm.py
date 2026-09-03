@@ -2,6 +2,7 @@
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_cpm.py"""
 from aec_api import schedule_cpm
 
+
 # Classic network:  A(3)->C, B(2)->C, C(4)->D, D(2).  Critical path A->C->D = 9 days; B has 1 day float.
 def act(ref, dur, preds=""):
     return {"id": ref, "ref": ref, "title": ref, "data": {"name": ref, "duration": dur, "predecessors": preds}}

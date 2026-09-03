@@ -12,9 +12,10 @@ for _f in ("./test_search_alerts.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from aec_api import modules as me            # noqa: E402
-from fastapi.testclient import TestClient    # noqa: E402
-from aec_api.main import app                 # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import modules as me  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- pure: safe prefix tsquery builder --------------------------------------
 assert me._pg_tsquery("concrete") == "concrete:*"

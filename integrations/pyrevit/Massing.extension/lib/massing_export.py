@@ -52,10 +52,10 @@ _OPTIONS = [
 ]
 
 #: Named options applied to every export, as ``{name: value}``.
-OPTIONS = dict((name, value) for name, value, _why in _OPTIONS)
+OPTIONS = {name: value for name, value, _why in _OPTIONS}
 
 #: Why each option is set, keyed the same way — surfaced in the UI so the choice is auditable.
-RATIONALE = dict((name, why) for name, _value, why in _OPTIONS)
+RATIONALE = {name: why for name, _value, why in _OPTIONS}
 
 #: The single option whose absence breaks the GUID non-negotiable.
 GUID_OPTION = "StoreIFCGUID"

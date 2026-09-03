@@ -11,8 +11,9 @@ for _f in ("./test_empty.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Empty"}).json()["id"]

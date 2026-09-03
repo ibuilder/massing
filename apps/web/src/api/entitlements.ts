@@ -1,5 +1,12 @@
 import { HttpCore } from "./httpCore";
-import type { EntitlementConditions, OpendataPermit, ReviewCycles } from "./types";
+import type {
+  DepthPoint,
+  EgressResult,
+  EntitlementConditions,
+  OpendataPermit,
+  OptScheme,
+  ReviewCycles,
+} from "./types";
 
 /**
  * Entitlements — the `/projects/{pid}/entitlements/…` route group.
@@ -99,6 +106,21 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
         net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;
         delta_units?: number; delta_gfa_sf?: number }[] }>(
       `/projects/${pid}/feasibility/compare`);
+  }
+
+  // --- Test fit: what fits on this plate, and what is the best scheme? ---
+  /** Test-fit: compare unit-mix schemes on a floor plate (yield + parking, ranked). */
+  testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[]; with_defaults?: boolean }) {
+    return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[]; egress?: EgressResult }>(
+      "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
+  }
+  /** Generative design: sweep schemes (× optional plate depths), filter by targets, rank by yield-on-cost.
+   * Pass `depths` or `targets.sweep_depth` to make daylight-limited plate depth an optimize dimension. */
+  testFitOptimize(params: { plate_w: number; plate_d: number; floors: number;
+    targets?: Record<string, number | string | boolean>; econ?: Record<string, number>; depths?: number[] }) {
+    return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null;
+      ranked: OptScheme[]; swept_depths: number[]; depth_curve: DepthPoint[]; best_depth_m: number | null }>(
+      "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
   }
   /** SITE-1: OSM site context (buildings/roads/land-use) as GeoJSON — fetched once server-side,
    *  cached for offline use afterwards. Omit lat/lon to use the model's IfcSite georeference. */

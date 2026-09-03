@@ -72,7 +72,7 @@ def test_the_provider_ids_are_stable_identifiers():
     assert set(oauth.PROVIDERS) == {"google", "microsoft", "procore", "autodesk"}
 
 
-for _n, _f in sorted(list(globals().items())):
+for _n, _f in sorted(globals().items()):
     if _n.startswith("test_") and callable(_f):
         _f()
 

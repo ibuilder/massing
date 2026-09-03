@@ -12,14 +12,16 @@ for f in ("./test_classif.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import sys                                                  # noqa: E402
-from pathlib import Path                                    # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from fastapi.testclient import TestClient                   # noqa: E402
-from aec_api.main import app                                # noqa: E402
-from aec_api import classification as cls                   # noqa: E402
-from aec_data import massing                                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import classification as cls  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_data import massing  # noqa: E402
 
 # --- unit: classify + GAEB rendering (no IFC needed) -------------------------
 assert {s["id"] for s in cls.systems()} == {"masterformat", "din276", "nrm1"}
@@ -29,7 +31,8 @@ assert cls.classify("IfcSlab", "masterformat")[0].startswith("03")
 assert cls.classify("IfcMadeUp", "din276") == cls.CLASSIFICATIONS["din276"]["default"]   # fallback
 
 # --- unit: the unified discipline tree (colors + IFC-class coverage) ---------
-from aec_data import disciplines as _disc                               # noqa: E402  (canonical color source)
+from aec_data import disciplines as _disc  # noqa: E402  (canonical color source)
+
 assert cls.discipline_color("F") == _disc.DISCIPLINE_COLORS["F"]        # fire = red family
 assert cls.discipline_color("FA") == _disc.SERIES_COLORS["FA"]          # fire alarm reads apart
 assert cls.discipline_color("Ad") == _disc.DISCIPLINE_COLORS["A"]       # 2-letter designator folds to level-1

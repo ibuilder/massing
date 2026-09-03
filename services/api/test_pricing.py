@@ -10,9 +10,10 @@ for _f in ("./test_pricing.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import pricing, pricing_bridge           # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import pricing, pricing_bridge  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 assert pricing_bridge.is_enabled() is False and pricing_bridge.unit_price("concrete", "cy") is None
 

@@ -20,7 +20,8 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./_scale.db")
 os.environ.setdefault("AEC_TRUST_XUSER", "1")
 
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api.main import app               # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 HDR = {"X-User": "loadtest"}
 GUARD_S = 45  # per-call wall-clock guard

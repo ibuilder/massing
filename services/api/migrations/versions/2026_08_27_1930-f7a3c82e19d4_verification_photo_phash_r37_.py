@@ -23,8 +23,8 @@ Revision ID: f7a3c82e19d4
 Revises: e5f2a91c73d8
 Create Date: 2026-08-27 19:30:00.000000
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "f7a3c82e19d4"
 down_revision = "e5f2a91c73d8"

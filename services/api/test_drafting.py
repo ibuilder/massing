@@ -11,9 +11,10 @@ for _f in ("./test_drafting.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import drafting                          # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import drafting  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- engine (offline) ---
 r = drafting.draft_rfi("The structural beam at grid B4 conflicts with the HVAC duct per detail 5/S-201.")

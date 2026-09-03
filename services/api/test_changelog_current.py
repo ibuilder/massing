@@ -164,7 +164,7 @@ check("no release entry appears twice", not repeats,
 _versions = [v for _i, _h, v, _t in HEADERS]
 reused = sorted({v for v in _versions if _versions.count(v) > 1}, reverse=True)
 check("version reuse stays at the one known historical collision", reused == [(0, 3, 1019)],
-      f"reused={['v%d.%d.%d' % v for v in reused]}; expected exactly ['v0.3.1019']. If you removed "
+      f"reused={[f'v{a}.{b}.{c}' for a, b, c in reused]}; expected exactly ['v0.3.1019']. If you removed "
       "the collision, tighten this to [] rather than widening it.")
 
 if FAILED:

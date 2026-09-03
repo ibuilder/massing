@@ -10,6 +10,7 @@ for f in ("./test_cg.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import compute_graph as cg  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
@@ -52,13 +53,13 @@ assert big["results"]["c"]["total_cost"] > res["c"]["total_cost"], "more GFA sho
 
 # --- guards: unknown node + cycle --------------------------------------------
 try:
-    cg.run_graph({"nodes": [{"id": "x", "type": "nope"}], "edges": []}); assert False
+    cg.run_graph({"nodes": [{"id": "x", "type": "nope"}], "edges": []}); raise AssertionError()
 except ValueError:
     pass
 try:
     cg.run_graph({"nodes": [{"id": "a", "type": "cost_from_gfa"}, {"id": "b", "type": "cost_from_gfa"}],
                   "edges": [{"from": "a", "from_port": "total_cost", "to": "b", "to_port": "land"},
-                            {"from": "b", "from_port": "total_cost", "to": "a", "to_port": "land"}]}); assert False
+                            {"from": "b", "from_port": "total_cost", "to": "a", "to_port": "land"}]}); raise AssertionError()
 except ValueError:
     pass
 

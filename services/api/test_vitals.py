@@ -30,14 +30,14 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         FAILED.append(name)
 
 
-FULL = dict(
-    lod_counts={"total": 23, "counts": {"300": 20, "400": 3}},
-    scorecard={"summary": {"scored": 10, "health_pct": 84.2}},
-    cpm={"activities": [{"total_float": 4}, {"total_float": 0}, {"total_float": 9}]},
-    spaces={"total_area_sf": 12500},
-    budget=22_524_592.09,
-    irr=0.184,
-)
+FULL = {
+    "lod_counts": {"total": 23, "counts": {"300": 20, "400": 3}},
+    "scorecard": {"summary": {"scored": 10, "health_pct": 84.2}},
+    "cpm": {"activities": [{"total_float": 4}, {"total_float": 0}, {"total_float": 9}]},
+    "spaces": {"total_area_sf": 12500},
+    "budget": 22_524_592.09,
+    "irr": 0.184,
+}
 
 v = vitals.vitals(None, "p", **FULL)
 

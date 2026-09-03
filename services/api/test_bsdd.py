@@ -122,6 +122,7 @@ assert bsdd.parse_uri("nope")["code"] is None            # non-bSDD string → a
 
 # alignment separates "has any classification" from "is a real bSDD URI"
 from aec_api import model_query, openbim_quality  # noqa: E402
+
 _IDX = {
     "g1": {"guid": "g1", "ifc_class": "IfcWall", "type_name": "WT1", "name": "W1",
            "classification": WALL_URI},                  # bSDD-linked

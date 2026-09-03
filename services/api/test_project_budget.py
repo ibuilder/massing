@@ -211,7 +211,8 @@ with TestClient(app) as c:
     assert ld["accrued_interest"] == 0, "no loan-funded draws yet → no interest"   # $950k < equity
 
     # push past equity with a back-dated draw → loan balance accrues interest from its draw date
-    from datetime import date as _date, timedelta as _td
+    from datetime import date as _date
+    from datetime import timedelta as _td
     backdated = (_date.today() - _td(days=180)).isoformat()
     c.post(f"/projects/{pid}/modules/owner_invoice",
            json={"data": {"number": "App 3", "amount": 2_000_000, "period": backdated, "status": "submitted"}})
@@ -291,6 +292,7 @@ with TestClient(app) as c:
     memo = c.get(f"/projects/{pid}/investment-memo.pdf")
     assert memo.status_code == 200 and memo.content[:4] == b"%PDF", memo.status_code
     import io as _mio
+
     import pypdf  # ships in the venv
     text = "".join(pg.extract_text() or "" for pg in pypdf.PdfReader(_mio.BytesIO(memo.content)).pages)
     assert "Construction Status" in text and "GC GMP" in text, "memo includes the construction-status section"

@@ -143,10 +143,6 @@ for _f in ("./test_provenance_report.db",):
     if _os.path.exists(_f):
         _os.remove(_f)
 
-from aec_api import provenance_report as _pr  # noqa: E402
-from aec_api.db import Base as _Base, SessionLocal as _SL, engine as _eng  # noqa: E402
-from aec_api.models import Project as _P, Scenario as _S  # noqa: E402
-
 # The module registry is NOT loaded on import — `me.TABLES` is empty until something calls
 # `load_registry()`, which the running app does when routes are mounted. `from_project` gates
 # the estimate and answers legs on membership in TABLES, so a test that skips this is asserting
@@ -154,6 +150,13 @@ from aec_api.models import Project as _P, Scenario as _S  # noqa: E402
 # reason, and the answers assertions below would pass on a defect.
 from aec_api import modules as _me  # noqa: E402
 from aec_api import modules_registry as _mr  # noqa: E402
+from aec_api import provenance_report as _pr  # noqa: E402
+from aec_api.db import Base as _Base  # noqa: E402
+from aec_api.db import SessionLocal as _SL
+from aec_api.db import engine as _eng
+from aec_api.models import Project as _P  # noqa: E402
+from aec_api.models import Scenario as _S
+
 _mr.load_registry()
 _Base.metadata.create_all(_eng)
 with _SL() as _db:

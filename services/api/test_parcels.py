@@ -10,9 +10,10 @@ for _f in ("./test_parcels.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import parcels, parcels_bridge           # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import parcels, parcels_bridge  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- data connector off; never fabricates parcels ---
 assert parcels_bridge.is_enabled() is False

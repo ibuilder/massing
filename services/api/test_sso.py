@@ -23,6 +23,7 @@ for f in ("./sso_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import auth, oauth  # noqa: E402
 from aec_api.main import app  # noqa: E402
 

@@ -12,12 +12,12 @@ for _f in ("./test_pdfops.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient        # noqa: E402
-from pypdf import PdfReader                       # noqa: E402
-from reportlab.pdfgen import canvas               # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from pypdf import PdfReader  # noqa: E402
+from reportlab.pdfgen import canvas  # noqa: E402
 
-from aec_api import pdfops                         # noqa: E402
-from aec_api.main import app                       # noqa: E402
+from aec_api import pdfops  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 HDR = {"X-User": "drafter"}
 

@@ -480,6 +480,152 @@ operations and 3D geometry, the same word reliably means three things.
 
 Pin 1,173 → 1,131. Seventeen methods left under the banner, and the count is checked.
 
+Twenty-fourth follow-on on the same version: **SCALE-SEAM (87)** — *the map described the tail, not
+the file*.
+
+Thirteen methods out of `client.ts` (`1,131 → 1,015`), into eight existing mixins:
+
+- *what does the model look like?* — `materialPalette`, `saveMaterialPalette`, `applyMaterialPalette`
+  onto `apps/web/src/api/elements.ts`, beside `colorBy`.
+- *does a scheme fit the site?* — `testFitCompare`, `testFitOptimize` onto
+  `apps/web/src/api/entitlements.ts`, beside `feasibility` and `feasibilityCompare`.
+- *what is the asset's record?* — `property`, `saveProperty` onto `apps/web/src/api/proforma.ts`.
+- *what does it cost to build?* — `rebarBbs`, `rebarBbsCsvUrl` onto `apps/web/src/api/estimate.ts`.
+- *what is expiring?* — `complianceExpiring` onto `apps/web/src/api/modules.ts`.
+- *how did the bids compare?* — `bidLeveling` onto `apps/web/src/api/procurement.ts`.
+- *is the job safe?* — `safetyMetrics` onto `apps/web/src/api/schedule.ts`.
+- *how is the programme performing?* — `pxSummary` onto `apps/web/src/api/evm.ts`.
+
+`OptScheme`, `DepthPoint`, `MaterialEntry`, `MaterialPaletteResult` and `EgressResult` moved to
+`apps/web/src/api/types.ts` with them.
+
+### The finding: the map covered the tail of the file, not the file
+
+Deriving the whole population instead of trusting the banner: **130 methods in `client.ts`, 4 below
+the banner, 126 above it.** Those 126 — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+`energyModel`, `rentRollScrub`, `esgSummary` and the rest — were never inside the CX-1 banner, so no
+map has ever covered them. The UNFILED map described the TAIL of this file, and every completeness
+statement made against it was scoped to a list the same slices had authored.
+
+So the banner is renamed UNFILED → **STAYING** and reduced to what it actually decides: four
+global/cross-cutting methods (`enumOptions`, `searchAll`, `attachmentUrl`, `templates`) recorded as
+DECIDED. It no longer implies anything about the file above it, and it says so in the text.
+
+### Two corrections to my own earlier slices
+
+`evm.ts` at ⓽ split a rollup from its detail; `pxSummary` is the programme-level rollup that belonged
+on the same side of that cut and did not move with it. And `modules.ts` carried a doc comment
+orphaned from `complianceExpiring` — the comment had been swept into the mixin in an earlier slice
+while the method it documented stayed behind. Reunited here.
+
+### The predicate that was replaced twice
+
+`test_roadmap_status.py`'s SCALE-SEAM gate was `client.ts > 1200` — a threshold proxy that decayed
+and went red at (85). It was replaced with a check for the banner string, and **that replacement was
+also a proxy**: it would have declared SCALE-SEAM DONE with 126 methods outstanding, and it was
+described as a fix in a commit message, a PR body and to the user before that was noticed. It now
+counts methods not on the declared keep-list — the thing the claim is about — and was
+mutation-checked four ways: baseline 126 → OPEN, banner renamed → still OPEN, keep-list deleted → 130
+(fails safe), simulated completion → 0 → DONE. *A proxy can be replaced by another proxy and read as
+a fix.*
+
+### The ratchet now checks its own history chain
+
+`test_file_sizes.py` records each slice as `(before -> after)` in the narrative beside the pin, and at
+(86) CodeRabbit caught `(1173 -> 1132)` sitting beside a pin of `1131`. The chain is now asserted:
+consecutive pairs must link, and an unrecorded SHRINK fails (growth does not — files legitimately
+grow between slices). It took four tries to get right, and all four failures were found by running
+it, not by reading it: `\d+` skipped underscore-separated numbers; requiring a closing paren skipped
+an entry and invented a false break; strict equality flagged legitimate growth; and the finished
+checks **printed FAIL but exited 0**, because they had been appended below the `if FAILED:` block.
+`apps/web/src/viewer/app.ts` carries a named exemption — its 2,571/2,570 gap is documented in the
+file as deliberate slack, and calling it a defect (as a draft of this entry did) would have meant
+falsifying a slice's measurement to satisfy a gate.
+
+Pin 1,131 → 1,015. Four methods left under the banner, 126 above it and now counted.
+
+Twenty-fifth follow-on on the same version: **RUFF-SCOPE** — *the lint was real; the scope was the
+fiction*.
+
+`ci.yml` ran `cd services/api && ruff check src/ ../data/src/`. That is two source trees. The
+repository tracks **1,338 `.py` files**; those two trees hold 612. **The other 726 were never linted
+at all** — the entire backend test suite (672), every alembic revision (27), the repo scripts, the
+pyRevit bridge, the Blender bridge, the plugin example and the Claude hooks. The step exited 0 and
+printed *"All checks passed!"* on every push, which is exactly what made it invisible.
+
+The command is now `cd services/api && ruff check ../..` — one path, the whole repository, no list of
+directories to fall out of date. The `cd` is load-bearing: `services/api/ruff.toml` is the only ruff
+config in the tree, and ruff resolves it *and its `extend-exclude` paths* from the working directory.
+Running from the root with `--config services/api/ruff.toml` finds the config but resolves the
+excludes against the wrong root, which silently un-excludes all five vendored trees — measured at 161
+findings in code we copy verbatim and must not edit.
+
+**230 findings, now zero.** 166 auto-fixed (import ordering, unused imports, f-strings), 40 more with
+`--unsafe-fixes` reviewed hunk by hunk, and the last six hand-written. The substantive ones: **five
+`assert False`** (B011), one of them guarding path-traversal rejection in `test_security.py`. Nothing
+here runs `python -O`, so those were **latent, not live** — but they are precisely what ruff exists to
+catch, and it had never been asked.
+
+### Widening the scope broke something, and only reading the diff caught it
+
+`--fix` over the new scope stripped `# -*- coding: utf-8 -*-` from four files under
+`integrations/pyrevit/` — three of which contain non-ASCII source. That tree runs **inside Revit on
+pyRevit's IronPython 2.7 engine** (`massing_api.py` says so in its first docstring line and proves it
+by try/excepting `urllib.request` against `urllib2`). Python 2 defaults to ASCII source encoding, so
+removing that line is `SyntaxError: Non-ASCII character` **at import** — the Revit bridge would not
+load, and no CI here runs IronPython to notice.
+
+`target-version` is a single global setting and cannot be narrowed per directory, so `ruff.toml` now
+carries a `per-file-ignores` entry disabling `UP` for that tree, with the reason written next to it.
+`F`, `E9`, `B` and `C4` stay on there — all four are 2.7-compatible findings worth catching.
+**Scope and rule set are different questions, and widening one can break the other.**
+
+### The gate reads the workflow rather than restating it
+
+`services/api/test_ruff_scope.py` asserts every tracked `.py` is either in ruff's file set or under
+one of five explicitly named vendored prefixes. It gets that file set by **parsing the `ruff check`
+line out of `ci.yml`** and running `--show-files` on it — because a scope gate that measures a command
+nobody runs is the same bug one level up. Narrow the CI command and the gate goes red; it cannot drift
+from CI, because it reads CI. Each vendored prefix must also still match a tracked file, so a renamed
+tree cannot quietly take a carve-out with it.
+
+Mutation-checked: CI narrowed back to `src/ ../data/src/` → exit 1 naming 726 unlinted files; a vendor
+prefix renamed → exit 1 naming the stale entry. Restored → exit 0. *Read the exit code directly, not
+through a pipe.*
+
+#### The first version of that gate was bypassable, and CodeRabbit found it
+
+It used `re.search` over `ci.yml` — which returns the **first** match. Add a harmless earlier line
+(`ruff check ../.. --show-files`), narrow the real one below it, and the gate measures the decoy and
+passes while the enforcing lint is back to two directories. I had asked for review on exactly this
+question and the answer was yes.
+
+The extraction now parses **every** workflow with PyYAML, collects **every** `run:` step mentioning
+`ruff check`, and requires **exactly one** — two is ambiguous, and ambiguity resolved by picking one
+is how the bypass worked. A step that cannot fail the build is rejected outright: `--exit-zero`,
+`--show-files`, `--statistics`, `--show-settings`, a trailing `|| true`, or `continue-on-error` on
+either the step or its job. Five mutations, all red, restored green: decoy-then-narrow · `--exit-zero`
+· `|| true` · `continue-on-error` · narrowed single invocation.
+
+*A gate derived from a config is only as good as its derivation. "Parses the workflow" sounded like a
+guarantee and was a substring search.*
+
+#### And the same hole exists one directory over, in `test_declared_imports.py`
+
+That gate walks `services/api/src` and `services/data/src` only — so an import in a gate sitting in
+`services/api/` itself, which is where all ~30 of them live, is invisible to it. Demonstrated rather
+than argued: `test_ruff_scope.py` added `import yaml`; pyyaml was declared in neither
+`requirements.in` nor `requirements-dev.txt`, reached the lock only `# via` fastapi/uvicorn/pyHanko/
+bandit/starlette/markdown-it-py, and the gate stayed green. pyyaml is now declared explicitly in
+`requirements-dev.txt` as a point fix; **the class is open** and recorded in `docs/roadmap.md`.
+
+`requirements-dev.txt`'s `ruff>=0.16.3` comment also said the floor had been validated "against the
+exact scope ci.yml lints, `src/ ../data/src/`". That scope is now the whole tree — so the validation
+behind that pin covered less than half of what a future bump touches. Corrected in place, pointing at
+the gate rather than restating a number.
+
+
+
 
 
 

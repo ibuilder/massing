@@ -8,11 +8,12 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
-import ifcopenshell                                    # noqa: E402
-import ifcopenshell.api                                # noqa: E402
-import numpy as np                                     # noqa: E402
-from aec_data import edit, grid                        # noqa: E402
-from aec_data.ifc_loader import open_model             # noqa: E402
+import ifcopenshell  # noqa: E402
+import ifcopenshell.api  # noqa: E402
+import numpy as np  # noqa: E402
+
+from aec_data import edit, grid  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 TMP = os.path.join(os.path.dirname(__file__), "_grid_test.ifc")
 OUT = os.path.join(os.path.dirname(__file__), "_grid_test_out.ifc")
@@ -71,6 +72,7 @@ assert abs(lv2[1]["elevation"] - 4.0) < 1e-6, lv2[1]     # metres
 
 # storey_elevations exposes a GUID per level (the key the web level-manager targets recipes with)
 from aec_data import drawings as _dwg  # noqa: E402
+
 se = _dwg.storey_elevations(m2)
 assert all(s.get("guid") for s in se), se
 assert m2.by_guid(se[0]["guid"]).is_a("IfcBuildingStorey"), se[0]

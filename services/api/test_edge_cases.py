@@ -11,8 +11,9 @@ for f in ("./test_edge.db",):
     if os.path.exists(f):
         os.remove(f)
 
-from fastapi.testclient import TestClient                      # noqa: E402
-from aec_api.main import app                                   # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def mk(c, pid, key, data):

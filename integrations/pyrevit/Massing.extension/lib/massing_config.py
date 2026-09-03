@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """Shared config + client factory for the Massing pyRevit buttons. Stores the API URL, web (app)
 URL and API key in pyRevit's per-user config (Massing > Settings writes it). Revit-side only."""
-from pyrevit import script, forms
-
 from massing_api import MassingClient, MassingError  # noqa: F401 (re-exported)
+from pyrevit import forms, script
 
 _SECTION = "massing"
 

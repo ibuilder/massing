@@ -10,9 +10,10 @@ for _f in ("./test_prequal.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import prequalification as pq            # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import prequalification as pq  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- engine: a strong sub scores high/low-risk; a weak one scores low/high-risk ---
 strong = {"data": {"company": "Ace", "trade": "Concrete", "emr": 0.7, "annual_revenue": 50_000_000,

@@ -10,10 +10,9 @@ __author__ = "Massing (massing.build)"
 
 import os
 
-from pyrevit import forms, script
-
 import massing_config as mc
 from massing_api import MassingError
+from pyrevit import forms, script
 
 doc = __revit__.ActiveUIDocument.Document  # noqa: F821
 

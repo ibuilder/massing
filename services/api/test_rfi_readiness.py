@@ -24,6 +24,7 @@ rw = edit.add_wall(m, [0, 0], [6, 0], 3.0, 0.2, st)
 edit.set_element_pset(m, rw, "Pset_WallCommon", "FireRating", "2HR")
 # a door authored with no overall width/height → missing-dimension gap (a builder can't order it)
 import ifcopenshell.api  # noqa: E402
+
 ifcopenshell.api.run("root.create_entity", m, ifc_class="IfcDoor", name="Bare door")
 
 r = rfi_prevention.decision_readiness(None, "no-project", m)   # db=None → clash lens just skips

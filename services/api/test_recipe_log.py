@@ -298,7 +298,7 @@ except rl.ReplayError:
 
 # 8c. The cap has to be total. Elision replaces VALUES, so an entry whose bulk is in its KEY NAMES
 # runs the loop out of candidates while still far over.
-keyheavy = rl.entry("x", {("k%04d" % i) + "y" * 200: 1 for i in range(4000)},
+keyheavy = rl.entry("x", {f"k{i:04d}" + "y" * 200: 1 for i in range(4000)},
                     actor="a", source_in="a", source_out="b")
 ksize = len(json.dumps(keyheavy).encode("utf-8"))
 check("an entry whose bulk is KEY NAMES is still capped", ksize <= rl._MAX_ENTRY, f"{ksize:,}")

@@ -14,6 +14,7 @@ for f in ("./auth_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 BEARER = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
@@ -149,7 +150,8 @@ with TestClient(app) as c:
     assert c.patch("/auth/users/admin", json={"role": "user"}, headers=BEARER(admin_tok)).status_code == 200
 
     # --- SSO / OAuth (Google/Microsoft/Procore) --------------------------------
-    from aec_api import auth as _auth, oauth  # noqa: E402
+    from aec_api import auth as _auth  # noqa: E402
+    from aec_api import oauth
     assert c.get("/auth/providers").json()["providers"] == []          # none configured
     assert c.get("/auth/oauth/google/login", follow_redirects=False).status_code == 404
     os.environ["AEC_OAUTH_GOOGLE_CLIENT_ID"] = "cid"

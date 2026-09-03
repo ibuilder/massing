@@ -18,7 +18,14 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
-import type { ElementProps, LifecycleStrip, SmartView, SpatialNode } from "./types";
+import type {
+  ElementProps,
+  LifecycleStrip,
+  MaterialEntry,
+  MaterialPaletteResult,
+  SmartView,
+  SpatialNode,
+} from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -76,6 +83,21 @@ export function withElements<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ attributes: { prop: string; label: string; distinct: number }[];
       properties: { prop: string; label: string; distinct: number }[] }>(
       `/projects/${pid}/elements/facets-list`);
+  }
+
+  // --- The material palette: per-category colour and transparency, and applying it ---
+  /** The project's saved material overrides, keyed for the viewer. Read side of the pair whose
+   *  write is `saveMaterialPalette`; `applyMaterialPalette` pushes the result onto the model. */
+  materialPalette(pid: string) {
+    return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
+  }
+  saveMaterialPalette(pid: string, overrides: Record<string, MaterialEntry>) {
+    return this.json<{ overrides: Record<string, MaterialEntry>; effective: Record<string, MaterialEntry> }>(
+      `/projects/${pid}/materials/palette`, { method: "PUT", body: JSON.stringify({ overrides }) });
+  }
+  applyMaterialPalette(pid: string) {
+    return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
+      `/projects/${pid}/materials/apply`, { method: "POST" });
   }
   /** Bucket every element by a property → colour buckets (numeric binned, categorical grouped). */
   colorBy(pid: string, prop: string, bins = 6) {

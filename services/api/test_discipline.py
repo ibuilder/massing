@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from aec_data import qto   # noqa: E402
+from aec_data import qto  # noqa: E402
 
 
 class FakeModel:

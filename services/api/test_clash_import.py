@@ -11,10 +11,11 @@ for _f in ("./test_clash_import.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from openpyxl import Workbook                 # noqa: E402
-from aec_api import clash_import              # noqa: E402
-from fastapi.testclient import TestClient     # noqa: E402
-from aec_api.main import app                  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from openpyxl import Workbook  # noqa: E402
+
+from aec_api import clash_import  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 G1 = "0abcdEFGHij12345KLmnoP"   # 22-char base64-ish IFC GlobalIds
 G2 = "1ZYXwvuTSRqp98765kjihg"

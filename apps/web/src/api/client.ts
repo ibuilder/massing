@@ -971,59 +971,23 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
 
-  // --- UNFILED — 17 methods, no shared question --------------------------------
-  // This banner said `CX-1 commissioning loop` until SCALE-SEAM (83) took the three `/cx/*`
-  // methods to `documents.ts`. It never described the run: it labelled where commissioning
-  // STARTED and the file then carried on to the end through a dozen unrelated domains. With the
-  // commissioning methods gone it named nothing at all, so it is replaced rather than narrowed —
-  // an over-claiming banner is how ⓽, ⓾, (81) and (82) each lost a method to the wrong mixin.
+  // --- STAYING — 4 client-level methods, deliberately not extracted -------------
+  // These four are global or cross-cutting, not domain: an enum lookup, a project-wide search, an
+  // attachment URL builder and a template list. They are the END of the CX-1 residue that (83)
+  // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
-  // The count and the names below are DERIVED, not proofread — `apps/web/src/api/unfiledMap.test.ts`
-  // fails if either drifts from the methods underneath. It exists because (83) wrote this map from
-  // a regex that did not match `async` methods and under-counted the banner by five.
+  // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
+  // 126 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // `energyModel`, `rentRollScrub`, `esgSummary` and the rest. They were never inside the CX-1
+  // banner, so no map has ever covered them. The UNFILED map described the TAIL of this file, not
+  // the file.
   //
-  // **Do not group by the HTTP mechanism either.** (85) proved that: the five methods this map
-  // used to list as *how do I get a file into this project?* were grouped by being multipart
-  // uploads, which is a HOW, not a question. Read for what they answer and they split four ways —
-  // `takeoffDxf` is a 2D quantity takeoff (it went to `estimate.ts`, beside `takeoff2d`),
-  // `raisePlan` writes walls (`authoring.ts`), `uploadSourceIfc` and `importRvt` both set the
-  // project's source model, and `rvtBridgeStatus` is the precondition for the second — those three
-  // to `model.ts`. Mechanism is as misleading a seam as route prefix.
+  // (87) found that by deriving the whole population instead of trusting the map: 130 methods
+  // total, 4 below, 126 above. The lesson is the one this sequence keeps re-learning — **a
+  // completeness claim computed over a self-authored list is confident and unfounded**, and the
+  // list here was authored by the same slices it was meant to audit.
   //
-  // **A shared WORD is not a shared domain** — (86) hit that for the third time in three slices.
-  // `modules.ts` already owns a saved-views family (`SavedViewDef`, `/modules/{key}/views`) and the
-  // name matched exactly, but that is a DATA-GRID view (`{q, state, sort}`); the smart views that
-  // used to sit below are `{selector, mode: isolate|color|hide}` and resolve to GUIDs, so they went
-  // to `elements.ts` beside `colorBy`. Earlier instances: `rvtBridgeStatus` vs LAND-USE
-  // `entitlements.ts`, and grouping five methods because they were all multipart uploads.
-  //
-  // What is actually below, by what each cluster ANSWERS — decide a home from that, not from the
-  // route prefix and not from position:
-  //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl
-  //   how does the model look?     materialPalette, saveMaterialPalette, applyMaterialPalette
-  //   what is on this site?        property, saveProperty, testFitCompare, testFitOptimize
-  //   four singles, four           complianceExpiring, safetyMetrics, bidLeveling, pxSummary
-  //   separate questions
-  //   genuinely client-level —     enumOptions, searchAll, attachmentUrl, templates
-  //   NOT domain, these stay
-  /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
-  rebarBbs(pid: string) {
-    return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;
-      cut_length_m: number; count: number; unit_mass_kg_m: number; total_length_m: number;
-      total_kg: number; guids: string[] }[]; marks: number; bars: number; skipped: number;
-      total_length_m: number; total_kg: number; total_tonnes: number }>(
-      `/projects/${pid}/rebar/bbs`);
-  }
-  rebarBbsCsvUrl(pid: string) { return this.url(`/projects/${pid}/rebar/bbs.csv`); }
-
-
-  complianceExpiring(pid: string, withinDays = 30) {
-    return this.json<{ within_days: number; count: number;
-      expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
-      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[]; }>(
-      `/projects/${pid}/compliance/expiring?within_days=${withinDays}`);
-  }
-  // E1 — project-level custom select options, nested {module: {field: [values]}}
+  //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {
     return this.json<Record<string, Record<string, string[]>>>(`/projects/${pid}/enum-options`);
   }
@@ -1040,88 +1004,8 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);
   }
-  /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
-  safetyMetrics(pid: string) {
-    return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
-      `/projects/${pid}/safety/metrics`);
-  }
-  /** Bid leveling — submissions tabulated by package with low/high/avg/spread. */
-  bidLeveling(pid: string) {
-    return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(
-      `/projects/${pid}/bids/leveling`);
-  }
-  /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
-   *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
-  pxSummary(pid: string) {
-    return this.json<{
-      status: "on_track" | "at_risk" | "behind";
-      schedule: { spi: number | null; pct_complete: number; activities: number; critical_path_days: number;
-        critical_activities: number; lookahead_3wk: number; milestones: { late: number; due_soon: number; upcoming: number } };
-      budget: { gmp: number; revised_gmp: number; eac: number; variance_at_completion: number; committed: number;
-        committed_pct: number; spent_pct: number; draw_this_month: number;
-        buyout: { packages: number; bought_out: number; savings: number } | null; baseline_movement: number | null };
-    }>(`/projects/${pid}/px-summary`);
-  }
-  /** The project's saved material overrides, keyed for the viewer. Read side of the pair whose
-   *  write is `saveMaterialPalette`; `applyMaterialPalette` pushes the result onto the model. */
-  materialPalette(pid: string) {
-    return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
-  }
-  saveMaterialPalette(pid: string, overrides: Record<string, MaterialEntry>) {
-    return this.json<{ overrides: Record<string, MaterialEntry>; effective: Record<string, MaterialEntry> }>(
-      `/projects/${pid}/materials/palette`, { method: "PUT", body: JSON.stringify({ overrides }) });
-  }
-  applyMaterialPalette(pid: string) {
-    return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
-      `/projects/${pid}/materials/apply`, { method: "POST" });
-  }
-  /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
-  property(pid: string) {
-    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; price_per_building_sf: number; tax_per_building_sf: number; far_existing: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
-      `/projects/${pid}/property`);
-  }
-  saveProperty(pid: string, body: Record<string, unknown>) {
-    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
-      `/projects/${pid}/property`, { method: "PUT", body: JSON.stringify(body) });
-  }
-  /** Test-fit: compare unit-mix schemes on a floor plate (yield + parking, ranked). */
-  testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[]; with_defaults?: boolean }) {
-    return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[]; egress?: EgressResult }>(
-      "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
-  }
-  /** Generative design: sweep schemes (× optional plate depths), filter by targets, rank by yield-on-cost.
-   * Pass `depths` or `targets.sweep_depth` to make daylight-limited plate depth an optimize dimension. */
-  testFitOptimize(params: { plate_w: number; plate_d: number; floors: number;
-    targets?: Record<string, number | string | boolean>; econ?: Record<string, number>; depths?: number[] }) {
-    return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null;
-      ranked: OptScheme[]; swept_depths: number[]; depth_curve: DepthPoint[]; best_depth_m: number | null }>(
-      "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
-  }
 }
 
-export interface OptScheme {
-  name: string; mix_preset: string; parking_ratio: number; total_units: number;
-  efficiency: number; total_nsf: number; parking_stalls: number; yield_on_cost: number;
-  plate_d?: number; daylight_efficiency?: number; core_efficiency?: number;
-  daylight_limited?: boolean; dev_spread_bps?: number;
-}
-export interface DepthPoint {
-  plate_d: number; yield_on_cost: number; daylight_efficiency: number;
-  core_efficiency: number; total_units: number; dev_spread_bps: number;
-}
-export interface MaterialEntry {
-  name: string; category: string; color: [number, number, number]; transparency: number;
-}
-export interface MaterialPaletteResult {
-  default: Record<string, MaterialEntry>;
-  overrides: Record<string, MaterialEntry>;
-  effective: Record<string, MaterialEntry>;
-}
-export interface EgressResult {
-  compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;
-  occupant_load_per_floor: number; min_exits_required: number;
-  exit_separation_m: number; required_separation_m: number;
-}
 
 export interface ValidationResult {
   title: string;

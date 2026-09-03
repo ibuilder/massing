@@ -688,6 +688,13 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       violations: { violation_count: number; open_count: number; overdue_count: number };
     }>(`/projects/${pid}/safety/summary${qs}`);
   }
+
+  // --- The recordable-rate metrics behind that summary ---
+  /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
+  safetyMetrics(pid: string) {
+    return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
+      `/projects/${pid}/safety/metrics`);
+  }
   /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage. */
   fieldLogSummary(pid: string) {
     return this.json<{ report_count: number; submitted_count: number; coverage_pct: number | null;

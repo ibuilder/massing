@@ -9,8 +9,9 @@ for f in ("./pres_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api.main import app  # noqa: E402
+
 from aec_api import presence  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 H = lambda u: {"X-User": u}  # noqa: E731
 

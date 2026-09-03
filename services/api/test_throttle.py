@@ -9,9 +9,10 @@ for _f in ("./test_throttle.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi import Depends, FastAPI, Request                # noqa: E402
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api import throttle                                 # noqa: E402
+from fastapi import Depends, FastAPI, Request  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import throttle  # noqa: E402
 
 # The dependency factory: at most N/min per caller; 429 with Retry-After when exceeded.
 app = FastAPI()

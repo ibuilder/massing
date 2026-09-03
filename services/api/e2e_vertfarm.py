@@ -66,7 +66,6 @@ def act(mod, rid, action):
 
 
 def upload(mod, rid, fname, content):
-    import io
     boundary = "----e2evf"
     body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{fname}\"\r\n"
             f"Content-Type: text/plain\r\n\r\n").encode() + content + f"\r\n--{boundary}--\r\n".encode()

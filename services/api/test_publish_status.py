@@ -12,10 +12,11 @@ for f in ("./test_pubstatus.db",):
     if os.path.exists(f):
         os.remove(f)
 
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_api import storage                                  # noqa: E402
-from aec_api.routers.authoring import run_publish            # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import storage  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_api.routers.authoring import run_publish  # noqa: E402
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Publish"}).json()["id"]

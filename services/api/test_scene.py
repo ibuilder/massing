@@ -45,6 +45,7 @@ assert d["prose"].endswith("."), d["prose"]
 
 # --- degrades gracefully on an empty IFC4 model ---------------------------------------------------
 import ifcopenshell as _ios  # noqa: E402
+
 d0 = scene.digest(_ios.file(schema="IFC4"))
 assert d0["totals"]["elements"] == 0 and d0["prose"], d0
 

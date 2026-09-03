@@ -98,7 +98,7 @@ with TestClient(app) as c:
     # path-traversal: the storage layer rejects keys that escape the root (defense for upload keys)
     from aec_api import storage as _storage
     try:
-        _storage.put("../../escape.txt", b"x"); assert False, "traversal key must be rejected"
+        _storage.put("../../escape.txt", b"x"); raise AssertionError("traversal key must be rejected")
     except ValueError:
         pass
     assert _storage.put("ok/inside.txt", b"x") == "ok/inside.txt"   # normal keys still work
