@@ -54,7 +54,7 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, RoomAllocation,
+  DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
   PropMapRule,
   ResponsibilityMatrix, SmartView,
     SpecManual, WorkItem, VitalsPayload,
@@ -971,32 +971,29 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
 
-  // --- CX-1 commissioning loop ----------------------------------------------
-  /** Seed asset_register from the model's equipment classes (GUID-deduped) + phase-typed
-   *  commissioning checklists with MEP FPT expected values. */
-  cxSeed(pid: string, checklists = true) {
-    return this.json<{ model_scored: boolean; created: number; skipped_existing: number;
-      capped?: boolean; note?: string;
-      checklists?: { created: number; capped?: boolean } }>(
-      `/projects/${pid}/cx/seed${checklists ? "" : "?checklists=false"}`, { method: "POST" });
-  }
-  /** The system × phase completion matrix. */
-  cxMatrix(pid: string) {
-    return this.json<{ systems: { system: string; assets: number; tests: number; accepted: number;
-      complete_pct: number; phases: Record<string, { total: number; tested: number; accepted: number;
-        pass: number; fail: number } | null> }[]; phases: string[]; system_count: number }>(
-      `/projects/${pid}/cx/matrix`);
-  }
-  /** The per-system turnover dossier. */
-  cxDossier(pid: string, system: string) {
-    return this.json<{ system: string; asset_count: number; test_count: number; accepted: number;
-      complete_pct: number; open_punch_mentions: number;
-      assets: { ref?: string; name?: string; tag?: string; location?: string; guid?: string }[];
-      tests: Record<string, { ref?: string; asset?: string; state?: string; result?: string;
-        date?: string; cx_agent?: string; deficiencies?: string }[]>;
-      expected_values: Record<string, unknown>; note?: string }>(
-      `/projects/${pid}/cx/dossier?system=${encodeURIComponent(system)}`);
-  }
+  // --- UNFILED — 35 methods, no shared question --------------------------------
+  // This banner said `CX-1 commissioning loop` until SCALE-SEAM (83) took the three `/cx/*`
+  // methods to `documents.ts`. It never described the run: it labelled where commissioning
+  // STARTED and the file then carried on to the end through a dozen unrelated domains. With the
+  // commissioning methods gone it named nothing at all, so it is replaced rather than narrowed —
+  // an over-claiming banner is how ⓽, ⓾, (81) and (82) each lost a method to the wrong mixin.
+  //
+  // What is actually below, by what each cluster ANSWERS — decide a home from that, not from the
+  // route prefix and not from position:
+  //   how much reinforcement?      rebarBbs, rebarBbsCsvUrl        (quantities, not the ACI check
+  //                                                                 (83) moved to `model.ts`)
+  //   what is this development     devBudget, saveDevBudget, gmpReconciliation, syncGmpToHard,
+  //   costing, and who is paid?    devBudgetCostLines, sourcesUses, constructionDraws, loanDraws,
+  //                                subcontractorBilling, pricingReconcile, costTraceability
+  //   how is the portfolio doing?  executivePortfolio, portfolioPrioritization,
+  //                                constructionPortfolio
+  //   what saved views are there?  smartViews, smartViewsSave, smartViewRun
+  //   how does the model look?     materialPalette, saveMaterialPalette, applyMaterialPalette
+  //   what is on this site?        property, saveProperty, testFitCompare, testFitOptimize
+  //   four singles, four           complianceExpiring, safetyMetrics, bidLeveling, pxSummary
+  //   separate questions
+  //   genuinely client-level —     enumOptions, searchAll, attachmentUrl, templates,
+  //   NOT domain, these stay       rvtBridgeStatus
   /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
   rebarBbs(pid: string) {
     return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;
@@ -1006,13 +1003,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       `/projects/${pid}/rebar/bbs`);
   }
   rebarBbsCsvUrl(pid: string) { return this.url(`/projects/${pid}/rebar/bbs.csv`); }
-  /** REBAR-RULES — verify a column's authored cage against the ACI envelope (bar count, tie spacing). */
-  rebarCheckCage(pid: string, column: string) {
-    return this.json<{ checked: boolean; longitudinal_bars?: number; ties?: number;
-      violations: string[]; params: { bar_size: string; tie_size: string; tie_spacing: number;
-        governing: string; rule: string; min_longitudinal_bars: number } }>(
-      `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
-  }
 
 
   pricingReconcile(pid: string) {
@@ -1083,43 +1073,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       wall_count: number; space_count?: number; room_count?: number;
       total_wall_length_m: number; total_floor_area_m2: number;
       wall_height_m?: number; wall_thickness_m?: number }>;
-  }
-  /** QTO + cost by floor (storey) and discipline (IFC class) — quantities mapped to where they are. */
-  qtoByFloor(pid: string) {
-    type Line = { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number };
-    return this.json<{ grand_total: number; element_count: number;
-      storeys: { storey: string; total: number; element_count: number; lines: Line[] }[];
-      by_discipline: Line[] }>(`/projects/${pid}/qto/by-floor`);
-  }
-  /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). With
-   *  `createTopics`, each failing check becomes an open coordination Topic (BCF-model). */
-  ciRun(pid: string, createTopics = false) {
-    return this.json<ModelCiReport>(
-      `/projects/${pid}/ci/run${createTopics ? "?create_topics=true" : ""}`, { method: "POST" });
-  }
-  /** MODEL-CI — the project's latest check-pack report (the badge source). */
-  ciLatest(pid: string) {
-    return this.json<ModelCiReport>(`/projects/${pid}/ci/latest`);
-  }
-  /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
-   *  + offending GUIDs + a by-severity rollup. */
-  rulesRun(pid: string) {
-    return this.json<{ model_scored: boolean; total_rules: number; failing_rules?: number;
-      total_violations?: number; by_severity?: Record<string, number>; note?: string;
-      rules: { id: string; name: string; severity: string; scope: string; require: string;
-        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
-      `/projects/${pid}/rules/run`);
-  }
-  /** RULE-LIB-2 — geometric rule checks over the model's baked AABBs (clearance / escape-distance /
-   *  clear-width). Omit `checks` for the server's starter set. */
-  rulesGeometryRun(pid: string, checks?: { kind: string; scope: string; [k: string]: unknown }[]) {
-    return this.json<{ violation_total: number; by_severity: Record<string, number>;
-        results: { id?: string; kind: string; name: string; severity: string; passed: boolean;
-        checked: number; note?: string; basis?: string;
-        violations: { guid: string; name?: string; detail: string; distance_m?: number;
-          width_m?: number; blocking?: (string | null)[] }[] }[] }>(
-      `/projects/${pid}/rules/geometry/run`,
-      { method: "POST", body: JSON.stringify(checks?.length ? { checks } : {}) });
   }
   smartViews(pid: string) {
     return this.json<{ views: SmartView[]; count: number }>(`/projects/${pid}/smart-views`);

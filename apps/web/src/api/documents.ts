@@ -17,6 +17,15 @@
  *  SCALE-SEAM ❿ adds closeout analytics — *is turnover actually closing?* Punchlist,
  *  commissioning, warranties, O&M. Safety sat below and did **not** come.
  *
+ *  SCALE-SEAM (83) adds the commissioning loop — *is commissioning closing, and in detail?*
+ *  Seed, the system × phase matrix, the per-system turnover dossier. They belong here because
+ *  `closeoutSummary`, which ❿ brought in, already returns a `commissioning` ROLLUP
+ *  (`cx_count` / `passed` / `failed` / `conditional`) — these three are the detail behind that
+ *  number, the same rollup-and-detail pair as `procurementLevel` / `bidLevelingDetail` at ⓽.
+ *  `cxSeed` is a POST that creates records; it came anyway, because separating a seeder from the
+ *  only two readers of what it seeds is the split (82) refused when it kept `namingAudit` with
+ *  `namingConventions`.
+ *
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore } from "./httpCore";
@@ -173,6 +182,33 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number };
       om_manuals: { om_count: number; accepted: number; accepted_pct: number | null };
     }>(`/projects/${pid}/closeout/summary`);
+  }
+
+  // --- Commissioning (CX-1): the detail behind closeoutSummary's `commissioning` rollup ---
+  /** Seed asset_register from the model's equipment classes (GUID-deduped) + phase-typed
+   *  commissioning checklists with MEP FPT expected values. */
+  cxSeed(pid: string, checklists = true) {
+    return this.json<{ model_scored: boolean; created: number; skipped_existing: number;
+      capped?: boolean; note?: string;
+      checklists?: { created: number; capped?: boolean } }>(
+      `/projects/${pid}/cx/seed${checklists ? "" : "?checklists=false"}`, { method: "POST" });
+  }
+  /** The system × phase completion matrix. */
+  cxMatrix(pid: string) {
+    return this.json<{ systems: { system: string; assets: number; tests: number; accepted: number;
+      complete_pct: number; phases: Record<string, { total: number; tested: number; accepted: number;
+        pass: number; fail: number } | null> }[]; phases: string[]; system_count: number }>(
+      `/projects/${pid}/cx/matrix`);
+  }
+  /** The per-system turnover dossier. */
+  cxDossier(pid: string, system: string) {
+    return this.json<{ system: string; asset_count: number; test_count: number; accepted: number;
+      complete_pct: number; open_punch_mentions: number;
+      assets: { ref?: string; name?: string; tag?: string; location?: string; guid?: string }[];
+      tests: Record<string, { ref?: string; asset?: string; state?: string; result?: string;
+        date?: string; cx_agent?: string; deficiencies?: string }[]>;
+      expected_values: Record<string, unknown>; note?: string }>(
+      `/projects/${pid}/cx/dossier?system=${encodeURIComponent(system)}`);
   }
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {

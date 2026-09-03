@@ -15,6 +15,15 @@
  *  A mixin, so every `api.modelX(...)` call site resolves unchanged; `api/surface.test.ts` is what
  *  makes that checkable rather than hoped for.
  *
+ *  SCALE-SEAM (83) adds the check side — *does this model pass its checks?* The MODEL-CI check
+ *  pack (run + latest badge source), the RULE-LIB rule library, RULE-LIB-2 geometric rules, and
+ *  `rebarCheckCage`. The rebar method came on what it ANSWERS, not on its route: it verifies an
+ *  authored cage against the ACI envelope, which is the same question `envelopeAudit` and
+ *  `standardsCheck` above it ask. **Its two `/rebar/` siblings did NOT come** — `rebarBbs` and
+ *  `rebarBbsCsvUrl` are a bar bending SCHEDULE, a quantity, and share only a route prefix and a
+ *  `REBAR-RULES` doc tag with the check. Route kinship is precisely the reason ⓽ nearly filed
+ *  `bidLevelingDetail` in `ai.ts`.
+ *
  *  SCALE-SEAM ㊻ adds field-install verification — *is this element installed as designed?*
  *  Coverage, status write, deviation log. They were **not** contiguous (`uploadVerificationPhoto`
  *  sat between set and deviations). **The photo upload did NOT come** (PHOTO-PIN is parked).
@@ -28,7 +37,7 @@
  *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { ViewerLoadTiming, ProjectPulse, PropLayer } from "./types";
+import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -646,6 +655,45 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
       results: { name: string; element_type: string; compliant: boolean | null }[] }>(
       `/projects/${pid}/envelope/audit`);
+  }
+
+  // --- Does this model pass its checks? Check pack, rule library, geometric rules, rebar cage ---
+  /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). With
+   *  `createTopics`, each failing check becomes an open coordination Topic (BCF-model). */
+  ciRun(pid: string, createTopics = false) {
+    return this.json<ModelCiReport>(
+      `/projects/${pid}/ci/run${createTopics ? "?create_topics=true" : ""}`, { method: "POST" });
+  }
+  /** MODEL-CI — the project's latest check-pack report (the badge source). */
+  ciLatest(pid: string) {
+    return this.json<ModelCiReport>(`/projects/${pid}/ci/latest`);
+  }
+  /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
+   *  + offending GUIDs + a by-severity rollup. */
+  rulesRun(pid: string) {
+    return this.json<{ model_scored: boolean; total_rules: number; failing_rules?: number;
+      total_violations?: number; by_severity?: Record<string, number>; note?: string;
+      rules: { id: string; name: string; severity: string; scope: string; require: string;
+        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
+      `/projects/${pid}/rules/run`);
+  }
+  /** RULE-LIB-2 — geometric rule checks over the model's baked AABBs (clearance / escape-distance /
+   *  clear-width). Omit `checks` for the server's starter set. */
+  rulesGeometryRun(pid: string, checks?: { kind: string; scope: string; [k: string]: unknown }[]) {
+    return this.json<{ violation_total: number; by_severity: Record<string, number>;
+        results: { id?: string; kind: string; name: string; severity: string; passed: boolean;
+        checked: number; note?: string; basis?: string;
+        violations: { guid: string; name?: string; detail: string; distance_m?: number;
+          width_m?: number; blocking?: (string | null)[] }[] }[] }>(
+      `/projects/${pid}/rules/geometry/run`,
+      { method: "POST", body: JSON.stringify(checks?.length ? { checks } : {}) });
+  }
+  /** REBAR-RULES — verify a column's authored cage against the ACI envelope (bar count, tie spacing). */
+  rebarCheckCage(pid: string, column: string) {
+    return this.json<{ checked: boolean; longitudinal_bars?: number; ties?: number;
+      violations: string[]; params: { bar_size: string; tie_size: string; tie_spacing: number;
+        governing: string; rule: string; min_longitudinal_bars: number } }>(
+      `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
   }
   };
 }

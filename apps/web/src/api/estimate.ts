@@ -4,6 +4,11 @@
  *  SCALE-SEAM ⑤. Route-group `/estimate`, 12 methods. Reaches only `json` on HttpCore — no shared
  *  private helper crosses this boundary, which is why it is a smaller job than ④ was.
  *
+ *  SCALE-SEAM (83) adds `qtoByFloor` — *what does this model cost, by storey and discipline?*
+ *  It reads as a quantity method and its route is `/qto/by-floor`, but the shape settles it: every
+ *  line carries `rate` and `amount` and the payload has a `grand_total`. It is priced takeoff, so
+ *  it sits beside `estimateFromModel` rather than with the model reads.
+ *
  *  A mixin, so every call site resolves unchanged. The surface ratchet in `api/surface.test.ts`
  *  (`>= 696`) is what proves that: moving a method is invisible to it, losing one fails it by number.
  */
@@ -144,6 +149,15 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
   estimateFromModel(pid: string) {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/from-model`);
+  }
+
+  // --- Priced takeoff by storey ---
+  /** QTO + cost by floor (storey) and discipline (IFC class) — quantities mapped to where they are. */
+  qtoByFloor(pid: string) {
+    type Line = { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number };
+    return this.json<{ grand_total: number; element_count: number;
+      storeys: { storey: string; total: number; element_count: number; lines: Line[] }[];
+      by_discipline: Line[] }>(`/projects/${pid}/qto/by-floor`);
   }
   /** EST-BANDS — range estimate: low/likely/high per line + a correlated envelope and an independent
    *  P10/P50/P90 bid range from design-stage cost uncertainty by discipline. */
