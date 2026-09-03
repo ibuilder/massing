@@ -84,8 +84,20 @@ DONE_WHEN = {
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug
 #: that made every predicate return False would leave this file green and useless.
 OPEN_WHEN = {
-    "SCALE-SEAM": (lambda: (ROOT / "apps/web/src/api/client.ts").read_text().count("\n") > 1200,
-                   "client.ts is still large enough that the split is unfinished"),
+    #: Was `client.ts` line count > 1200 until SCALE-SEAM (85). That is a PROXY for "the split is
+    #: unfinished", and a proxy with a threshold decays: every slice moves the file down, and (85)
+    #: took it to 1,173 and broke this control without anything being wrong. Lowering the number
+    #: each time would be adjusting the check until it passes — the move this whole item exists to
+    #: distrust — and it would need doing again within two slices.
+    #:
+    #: The direct measurement is whether anything is still UNFILED. `client.ts` carries a map of
+    #: the methods that have no home yet, derived and checked by
+    #: `apps/web/src/api/unfiledMap.test.ts`. While that banner exists, the split is unfinished by
+    #: definition; when the last cluster is placed the banner is deleted, and at that moment this
+    #: predicate goes False and correctly demands the roadmap close SCALE-SEAM. So it is both the
+    #: negative control this file needs AND a real staleness check, rather than a number to chase.
+    "SCALE-SEAM": (lambda: "--- UNFILED —" in (ROOT / "apps/web/src/api/client.ts").read_text(),
+                   "client.ts still carries an UNFILED map, so the split is unfinished"),
 }
 
 check("the roadmap parsed and the codes are findable — else every check below is vacuous",
