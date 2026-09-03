@@ -191,6 +191,110 @@ AssemblyRow moved to `apps/web/src/api/types.ts` with the family/group methods.
 
 `MARKS` widened to ⓽ on the way out. Pin 1,584 → 1,512.
 
+Sixteenth follow-on on the same version: **SCALE-SEAM ⓽**. Five public methods — plus the
+private helper three of them share — out of `client.ts`
+(`1,512 → 1,462`) into three existing mixins — and the slice is one cluster, not three,
+because **one banner was covering three different questions**.
+
+The `// --- AI drafting (RFI / submittal summary / scope of work) ---` section held six
+methods. Only four of them draft anything:
+
+- ⓽ *draft this document for me from a file or some text?* — `aiDraftRfi`,
+  `draftSubmittalSummary`, `draftScope` and their shared multipart helper `draftPost` onto
+  `apps/web/src/api/ai.ts`. All three are `/projects/{pid}/draft/{kind}` doors.
+- *what sheets are in this PDF, and make the records?* — `extractSheets` onto
+  `apps/web/src/api/drawingSheets.ts`. It is `/extract/sheets`, not `/draft/`, and with
+  `create: true` it creates DRAWING records — a drawings question wearing an AI label.
+- *how do these bids compare, in detail?* — `bidLevelingDetail` onto
+  `apps/web/src/api/procurement.ts`, whose own header has claimed "bid levelling" since ⑥
+  while this method sat in `client.ts` under a banner about RFIs. It is the detail view of
+  the levelling `procurementLevel` and `procurementLevelQuotes` already answer.
+
+**This is the failure `procurement.ts`'s header recorded at ⑥, met again**: *"the
+`// --- section ---` comments label where a run starts and the file then carries on into
+other domains, so they have not delimited anything for a long time."* A split by route
+prefix or by banner would have moved all six to `ai.ts`; only asking what each method
+ANSWERS separates them.
+
+`BidLevelingDetail` dropped from `client.ts`'s type imports and added to `procurement.ts`.
+Pin 1,512 → 1,462. `MARKS` unchanged — ⓽ is the last glyph in the vocabulary, so the next
+slice needs the range widened before it can be numbered.
+
+Seventeenth follow-on on the same version: **SCALE-SEAM ⓾**. Four methods out of `client.ts`
+(`1,462 → 1,436`) onto `apps/web/src/api/ai.ts` — two AI-facing questions:
+
+- *can I generate a concept image from this project, and store the result?* — the three
+  feature-flagged `/concept-render` doors (status, request, ingest).
+- *is this project's data ready for AI to work on?* — `aiReadiness`, the single-source /
+  completeness / governance / model-integrity scorecard.
+
+**`aiReadiness` had been declined twice, and the two refusals disagreed with each other.**
+`ai.ts` passed on it at ㉑ because *"it is `/ai-readiness`"* — a ROUTE reason, under the rule
+that file was split by at the time. `documents.ts` passed on it at ㉛ on semantic grounds:
+*"it is an AI scorecard, not a CDE question."* That second sentence is a characterisation of
+where it belongs, and it is what moved it. Both headers now say so; `documents.ts`'s note no
+longer claims the method is in `client.ts`, because it is not.
+
+Same lesson as ⓽ one file over: a split by route prefix leaves things misfiled, and the
+misfiling survives precisely because the route reason reads like a decision.
+
+`MARKS` widened to **⓾** (U+24FE) — the last glyph of the double-circled range ⓵–⓾. Pin
+1,462 → 1,436.
+
+Eighteenth follow-on on the same version: **SCALE-SEAM (81)** — the first slice with **no mark**.
+The ⓵–⓾ glyph range is exhausted and there is no natural successor, so the numbering stops here
+rather than starting a fourth visual scheme. Nothing depended on it: the mark is optional in
+`roadmapLanes.test.ts`'s item regex, and the roadmap item and lane cell already carry none.
+
+Eight methods out of `client.ts` (`1,436 → 1,374`) into three existing mixins:
+
+- *is this project ready for substantial completion, and certify it?* — `turnoverReadiness`,
+  `turnoverStatus`, `turnoverCertify`, `g704Url` onto `apps/web/src/api/documents.ts`, beside
+  `closeoutSummary`, which ❿ brought in under *is turnover actually closing?* `ModuleRecord`
+  moved with them into that file's type imports and out of `client.ts`'s.
+- *what IFC class should these generic elements be?* — `ifcClassify` onto
+  `apps/web/src/api/model.ts`.
+- *what is the market doing to my costs?* — `marketSnapshot`, `marketContext`, `marketEscalate`
+  onto `apps/web/src/api/cost.ts`. `marketSnapshot` is global (`/market/snapshot`, no project id);
+  the other two apply that snapshot to one project.
+
+**Third banner in three slices that over-claimed.** `ifcClassify` sat under
+`// --- turnover: substantial completion (G704) + record model ---`, separated from `g704Url` by a
+blank line, with nothing to do with substantial completion — a model question filed at whatever
+banner happened to be nearest. ⓽ found the same thing in "AI drafting" (three questions), ⓾ found
+it in two headers that had declined one method for contradicting reasons.
+
+The two remaining banners are the largest instance yet and are what the next slices are for:
+`// --- Responsibility matrix (RACI / DACI) ---` carries **13** methods including `standardsCheck`
+and `mcpTools`, and `// --- CX-1 commissioning loop ---` carries **49**, among them `rebarBbs` and
+`rebarCheckCage`. Neither is what its banner says.
+
+Pin 1,436 → 1,374.
+
+Nineteenth follow-on on the same version: **SCALE-SEAM (82)**. Six methods out of `client.ts`
+(`1,374 → 1,339`), and the banner that held them was the worst yet: `// --- Responsibility matrix
+(RACI / DACI) ---` covered **thirteen** methods and described **four**.
+
+- *how good is this model, measured against a standard?* — `standardsCheck`, `bimKpiScorecard`,
+  `openbimQuality`, `lodAssessment`, `envelopeAudit` onto `apps/web/src/api/model.ts`.
+  `lodAssessment` joins `lodCensus` and `lodHandoverReadiness`, already there.
+- *how well does this project follow its own naming rules?* — `namingAudit` onto
+  `apps/web/src/api/documents.ts`.
+
+**`namingAudit` was on its way to `model.ts`** — "audit" reads like model quality — **until the
+return shapes were compared.** It reports compliance for `containers` and `sheets`;
+`documents.ts`'s `namingConventions` states the pattern for `container` and `sheet`. Same two
+subjects: one says what the rule is, the other how well it is followed. Splitting that pair would
+have been the mistake, and only reading both return types found it.
+
+**The banner is now split rather than left over-claiming.** The RACI header names its four
+`/responsibility` methods, and the three that are not RACI — `mcpTools` (`/mcp/tools`, global),
+`handoverAcceptance`, `inspectVim` (`/convert/vim/inspect`) — sit under an explicit *UNFILED*
+header that names them and says each needs a home decided by what it answers. Naming them is the
+point: an over-claiming banner is how the previous three slices each lost a method.
+
+Pin 1,374 → 1,339.
+
 
 
 

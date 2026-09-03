@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⓽ *(the only open slice; ②–⓼ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,27 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⓽ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓼ have shipped, **⓺–⓼ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓾ plus one unnumbered slice have shipped, **⓺ onward in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **THE NEXT SLICE NEEDS A NEW GLYPH SCHEME.** ⓾ (U+24FE) is the last glyph in `MARKS`
+  (`apps/web/src/shell/roadmapLanes.test.ts`), which runs ①–⑳, ㉑–㊿, ❶–❿, ⓫–⓴, ⓵–⓾. The
+  double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
+  carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
+  so writing one it does not know would drop this item out of the lane population entirely.
+  **`client.ts` is 1,339 lines.** The RACI banner is dealt with — it covered 13 methods and
+  described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
+  `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
+  (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
+  naming them. **The big one left is `// --- CX-1 commissioning loop ---` at 49 methods**,
+  among them `rebarBbs` and `rebarCheckCage` — roughly a quarter of the file under a banner
+  for something else.
+
+  **⓽ took the AI-drafting banner apart** — and it is the clearest case yet for grouping by
+  what methods ANSWER. One `// --- AI drafting ---` section held **three** questions: the
+  three `/draft/{kind}` doors plus their multipart helper went to `ai.ts`; `extractSheets`
+  (`/extract/sheets`, and it creates DRAWING records) went to `drawingSheets.ts`;
+  `bidLevelingDetail` went to `procurement.ts`, whose header has claimed "bid levelling"
+  since ⑥ while the method sat under a banner about RFIs. A route-prefix or banner split
+  would have put all six in `ai.ts`. (1,512 → 1,462.)
   **⓼ took groups and assemblies out** (five methods) into the existing
   `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
   what they ANSWER: *how are these elements grouped?* **Detailing did NOT come.**

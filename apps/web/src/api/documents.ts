@@ -4,7 +4,10 @@
  *  *is the information container (CDE) and its requirement flow in order?* — BEP, CDE status,
  *  the requirements register / cascade / delivery plan, and ISO 19650-6 exchange acceptance.
  *  They span `/bep`, `/cde` and `/info-requirements`. `aiReadiness` sat inside that run in
- *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question.
+ *  `client.ts` and did **not** come: it is an AI scorecard, not a CDE question. **That
+ *  characterisation is what moved it**: SCALE-SEAM ⓾ took it to `apps/web/src/api/ai.ts`,
+ *  where `ai.ts`'s own header had declined it on route grounds. It is no longer in
+ *  `client.ts`.
  *  Composed through the existing `withDocuments` wrapper — no extra `withX()` on `ApiClient`.
  *
  *  SCALE-SEAM ㊾ adds the report catalog — *what can we print from this project?* List plus
@@ -17,7 +20,7 @@
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore } from "./httpCore";
-import type { DocFile, DocFolderNode, PreflightGate } from "./types";
+import type { DocFile, DocFolderNode, ModuleRecord, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -174,6 +177,42 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
+  }
+
+  // SCALE-SEAM (81) — *is this project ready for substantial completion, and certify it?*
+  // Sits with `closeoutSummary`, which ❿ brought in under *is turnover actually closing?*
+  // Readiness and the G704 certificate are the same question one step further on.
+  turnoverReadiness(pid: string) {
+    return this.json<{ punch: { count: number; verified: number; open: number;
+      complete_pct: number | null; overdue: number; open_cost: number };
+      punch_list_prepared: boolean; latest_model_version: number | null;
+      ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
+  }
+  /** Turnover status — readiness, the substantial-completion record if one exists, and whether the record model is locked. */
+  turnoverStatus(pid: string) {
+    return this.json<{ readiness: { ready_for_substantial_completion: boolean };
+      substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
+      record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
+  }
+  /** Issue the substantial-completion certificate (architect / owner / contractor signatories, occupancy date). */
+  turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
+    return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
+      `/projects/${pid}/turnover/certify`, { method: "POST",
+      body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
+  }
+  /** URL of the AIA G704 substantial-completion certificate PDF for one certificate record. */
+  g704Url(pid: string, certRid: string) {
+    return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
+  }
+
+  // SCALE-SEAM (82) — *how well does this project follow its own naming rules?* The pair of
+  // `namingConventions` above: that one states the container and sheet patterns, this one
+  // reports compliance against the same two subjects. Splitting them would have been the
+  // mistake — it was on its way to `model.ts` until the return shapes were compared.
+  namingAudit(pid: string) {
+    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
+      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
+      `/projects/${pid}/naming/audit`);
   }
   };
 }

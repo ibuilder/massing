@@ -54,10 +54,9 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
+  DisciplineTree, EnergyResult, ModelCiReport, ModulePin, RoomAllocation,
   PropMapRule,
   ResponsibilityMatrix, SmartView,
-    BidLevelingDetail,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
@@ -732,55 +731,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<Dashboard>(`/projects/${pid}/dashboard${q}`);
   }
 
-  // --- AI drafting (RFI / submittal summary / scope of work) -----------------
-  private async draftPost<T>(pid: string, kind: string, fields: Record<string, string | File | undefined>) {
-    const fd = new FormData();
-    for (const [k, v] of Object.entries(fields)) if (v != null) fd.append(k, v);
-    const res = await fetch(this.url(`/projects/${pid}/draft/${kind}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Draft ${kind} -> ${res.status}`);
-    return res.json() as Promise<T>;
-  }
-  /** Draft an RFI from a short note (+ optional source PDF/text) — editable before you create it. */
-  aiDraftRfi(pid: string, opts: { note?: string; file?: File; text?: string }) {
-    return this.draftPost<{ subject: string; question: string; discipline: string; spec_section?: string;
-      priority: string; suggested_assignee?: string; background?: string;
-      citations?: { page: number; snippet?: string }[]; source: string; message?: string }>(
-      pid, "rfi", { note: opts.note, file: opts.file, text: opts.text });
-  }
-  /** Summarize an uploaded submittal package (title / spec / type / key + missing items). */
-  draftSubmittalSummary(pid: string, opts: { file?: File; text?: string }) {
-    return this.draftPost<{ title: string; spec_section?: string; type?: string; summary: string;
-      key_items?: string[]; missing_or_review?: string[];
-      citations?: { page: number }[]; source: string; message?: string }>(
-      pid, "submittal-summary", { file: opts.file, text: opts.text });
-  }
-  /** Draft a trade scope of work (inclusions / exclusions / clarifications) from a plan/spec set. */
-  draftScope(pid: string, trade: string, opts: { file?: File; text?: string }) {
-    return this.draftPost<{ trade: string; inclusions: string[]; exclusions: string[];
-      clarifications: string[]; spec_sections?: string[];
-      citations?: { page: number }[]; source: string; message?: string }>(
-      pid, "scope", { trade, file: opts.file, text: opts.text });
-  }
-
-  /** Extract a drawing-sheet index (number/title/discipline) from a PDF or pasted list; optionally create drawing records. */
-  async extractSheets(pid: string, opts: { file?: File; text?: string; create?: boolean }) {
-    const fd = new FormData();
-    if (opts.file) fd.append("file", opts.file);
-    if (opts.text) fd.append("text", opts.text);
-    fd.append("create", opts.create ? "true" : "false");
-    const res = await fetch(this.url(`/projects/${pid}/extract/sheets`),
-      { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Extract sheets -> ${res.status}`);
-    return res.json() as Promise<{ sheets: { number: string; title: string; discipline: string }[];
-      method: string; has_text_layer?: boolean; note?: string; created?: string[] }>;
-  }
-
-  /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
-  bidLevelingDetail(pid: string, packageId: string) {
-    return this.json<BidLevelingDetail>(`/projects/${pid}/bids/leveling/${packageId}`);
-  }
-
   // --- portfolio benchmarking (cross-project) --------------------------------
   benchmarkCosts(minSamples = 3) {
     return this.json<{ cost_codes: { cost_code: string; samples: number; low: number; p25: number;
@@ -933,67 +883,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       note: string }>(`/projects/${pid}/program/summary`);
   }
 
-  // --- market intelligence & cost escalation (Track M) --------------------------
-  marketSnapshot() {
-    return this.json<{ base_year: number;
-      regions: { key: string; escalation_pct: number; labour_usd_hr: number; location_index: number; label: string }[];
-      sectors: { sector: string; temperature: string }[];
-      market_signal: { hot: string[]; warm_or_hot: string[]; cold: string[]; headline: string };
-      source: string }>(`/market/snapshot`);
-  }
-  marketContext(pid: string, q: { region?: string; sector?: string; start_year?: number; duration_months?: number } = {}) {
-    const p = new URLSearchParams();
-    if (q.region) p.set('region', q.region);
-    if (q.sector) p.set('sector', q.sector);
-    if (q.start_year != null) p.set('start_year', String(q.start_year));
-    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
-    const qs = p.toString();
-    return this.json<{ region: { region: string; escalation_pct: number; labour_usd_hr: number;
-        location_index: number; label: string };
-      sector: { sector: string; temperature: string; note: string };
-      escalation_factor: number; escalation_basis: string; midpoint_year: number;
-      from_assumption: boolean; source: string }>(`/projects/${pid}/market/context${qs ? '?' + qs : ''}`);
-  }
-  marketEscalate(pid: string, amount: number, q: { region?: string; start_year?: number;
-      duration_months?: number; to_year?: number; rate_pct?: number } = {}) {
-    const p = new URLSearchParams({ amount: String(amount) });
-    if (q.region) p.set('region', q.region);
-    if (q.start_year != null) p.set('start_year', String(q.start_year));
-    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
-    if (q.to_year != null) p.set('to_year', String(q.to_year));
-    if (q.rate_pct != null) p.set('rate_pct', String(q.rate_pct));
-    return this.json<{ base_year: number; region: string; annual_rate_pct: number; escalation_basis: string;
-      midpoint_year: number; years: number; escalation_factor: number; base_amount: number;
-      escalated_amount: number; note: string }>(`/projects/${pid}/market/escalate?${p.toString()}`);
-  }
-
-  // --- AI concept-render bridge (Track V; feature-flagged) -----------------------
-  conceptRenderStatus(pid: string) {
-    return this.json<{ feature: string; enabled: boolean; note: string;
-      request_contract: Record<string, string>; ingest_contract: Record<string, string>;
-      reference_adapter: string }>(`/projects/${pid}/concept-render/status`);
-  }
-  conceptRenderRequest(pid: string, payload: { prompt?: string; style?: string; variations?: number;
-      program?: unknown; massing?: unknown } = {}) {
-    return this.json<{ accepted: boolean; reason?: string; prompt?: string; style?: string;
-      variations?: number; note?: string }>(`/projects/${pid}/concept-render/request`,
-      { method: 'POST', body: JSON.stringify(payload) });
-  }
-  conceptRenderIngest(pid: string, payload: { title?: string; prompt?: string; style?: string;
-      image_url: string; source?: string }) {
-    return this.json<{ accepted: boolean; reason?: string; stored?: boolean; record_id?: string;
-      image_url?: string }>(`/projects/${pid}/concept-render/ingest`,
-      { method: 'POST', body: JSON.stringify(payload) });
-  }
-
-  /** AI / data-readiness scorecard — single-source / completeness / model-integrity / governance 0-100. */
-  aiReadiness(pid: string) {
-    type Dim = { score: number; advice: string; [k: string]: unknown };
-    return this.json<{ overall: number; verdict: "ready" | "partial" | "not_ready"; note: string;
-      dimensions: { single_source_of_truth: Dim; information_completeness: Dim; governance: Dim;
-        model_integrity?: Dim } }>(`/projects/${pid}/ai-readiness`);
-  }
-  // --- Responsibility matrix (RACI / DACI) ----------------------------------
+  // --- Responsibility matrix (RACI / DACI) — the four `/responsibility` methods only ------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
   }
@@ -1010,38 +900,19 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       `/projects/${pid}/responsibility/apply-template`, {
         method: "POST", body: JSON.stringify({ key, mode }) });
   }
-  standardsCheck(pid: string, standard: "iso19650" | "cobie" | "ids" | "uniclass") {
-    return this.json<{ standard: string; label?: string; score?: number;
-      findings?: { level: string; text: string; reference: string }[];
-      recommendations?: string[]; error?: string; note?: string }>(
-      `/projects/${pid}/standards/check?standard=${standard}`);
-  }
+
+  // --- UNFILED: three methods that the RACI banner above used to cover -----------------
+  // Named rather than left implicit, because a banner that over-claims is how the previous
+  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `handoverAcceptance`
+  // is `/handover/acceptance`; `inspectVim` is `/convert/vim/inspect`. None is RACI, and each
+  // needs its home decided by what it ANSWERS rather than by what it sits next to.
   mcpTools() {
     return this.json<{ tools: { name: string; description: string }[]; server: string; note: string }>(
       `/mcp/tools`);
   }
-  bimKpiScorecard(pid: string) {
-    return this.json<{
-      categories: { key: string; label: string; grade: string; headline: string;
-        metrics: Record<string, number | null> }[];
-      summary: { scored: number; good: number; warn: number; poor: number; na: number; health_pct: number | null };
-      model_scored: boolean; note: string }>(`/projects/${pid}/bim-kpi/scorecard`);
-  }
   handoverAcceptance(pid: string) {
     return this.json<{ accepted: boolean; checks: { key: string; label: string; ok: boolean }[];
       metrics: Record<string, number>; note: string }>(`/projects/${pid}/handover/acceptance`);
-  }
-  openbimQuality(pid: string, useCase?: string) {
-    const qs = useCase ? `?use_case=${encodeURIComponent(useCase)}` : "";
-    return this.json<{
-      loin: { total: number; max_score: number; avg_score: number; coordinated_pct: number | null;
-        distribution: Record<string, number>; facet_coverage_pct: Record<string, number | null> };
-      export_health: { total: number; proxy_count: number; overall: string;
-        checks: { key: string; label: string; pct: number | null; grade: string }[] };
-      bsdd: { total: number; classified: number; alignment_pct: number | null };
-      ids?: { compliance_pct: number | null; applicable_total: number; passing_total: number;
-        specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
-      use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
 
   async inspectVim(file: File) {
@@ -1050,22 +921,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
-  }
-  lodAssessment(pid: string) {
-    return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
-      distribution: Record<string, number>;
-      by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
-      `/projects/${pid}/lod/assessment`);
-  }
-  envelopeAudit(pid: string) {
-    return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
-      results: { name: string; element_type: string; compliant: boolean | null }[] }>(
-      `/projects/${pid}/envelope/audit`);
-  }
-  namingAudit(pid: string) {
-    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
-      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
-      `/projects/${pid}/naming/audit`);
   }
 
   // --- hold-phase asset management: reserve study + CAM reconciliation ----------
@@ -1114,34 +969,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         survey_date: string | null; satisfaction_score: number | null; design_eui: number | null;
         actual_eui: number | null; eui_gap_pct: number | null } | null };
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
-  }
-
-  // --- turnover: substantial completion (G704) + record model ------------------
-  turnoverReadiness(pid: string) {
-    return this.json<{ punch: { count: number; verified: number; open: number;
-      complete_pct: number | null; overdue: number; open_cost: number };
-      punch_list_prepared: boolean; latest_model_version: number | null;
-      ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
-  }
-  turnoverStatus(pid: string) {
-    return this.json<{ readiness: { ready_for_substantial_completion: boolean };
-      substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
-      record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
-  }
-  turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
-    return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
-      `/projects/${pid}/turnover/certify`, { method: "POST",
-      body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
-  }
-  g704Url(pid: string, certRid: string) {
-    return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
-  }
-
-  ifcClassify(pid: string) {
-    return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
-      suggested_class: string; confidence: string; reason: string }[]; count: number;
-      generic_elements: number; by_target_class: Record<string, number>; message?: string | null }>(
-      `/projects/${pid}/ifc/classify`, { method: "POST", body: JSON.stringify({}) });
   }
 
   // --- CX-1 commissioning loop ----------------------------------------------
