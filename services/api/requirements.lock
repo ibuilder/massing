@@ -1674,9 +1674,9 @@ pyparsing==3.3.2 \
     # via
     #   ezdxf
     #   rdflib
-pypdf==6.15.0 \
-    --hash=sha256:14e001d6504822cb1ca9c7ed9a69bccb320f59b320730f55af804361abe4d5ee \
-    --hash=sha256:d39c4d955a76409284a905e2d65b40076d77ab76129e0faaeeb6612403ecfc79
+pypdf==6.16.2 \
+    --hash=sha256:595647f6191de6f402cfde1d0c455d6cbccbd509aac32b34783009c032de5d6e \
+    --hash=sha256:c8b09a59399062fb45a1b8156c18a787a10a3dae03ac9674397a226712c94604
     # via -r services/api/requirements.in
 pystache==0.6.8 \
     --hash=sha256:3707518e6a4d26dd189b07c10c669b1fc17df72684617c327bd3550e7075c72c \
