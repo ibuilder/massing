@@ -11,9 +11,10 @@ for f in ("./test_opendata.db",):
     if os.path.exists(f):
         os.remove(f)
 
-from fastapi.testclient import TestClient                      # noqa: E402
-from aec_api.main import app                                   # noqa: E402
-from aec_api import opendata                                   # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import opendata  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # canned upstream rows per dataset — real column names from each city's SODA endpoint
 _FAKE = {

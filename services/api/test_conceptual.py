@@ -9,9 +9,11 @@ for _f in ("./test_conceptual.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import conceptual_estimate as ce, ifc_classify   # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import conceptual_estimate as ce  # noqa: E402
+from aec_api import ifc_classify
+from aec_api.main import app  # noqa: E402
 
 # --- conceptual estimate ---
 r = ce.estimate({"building_type": "multifamily", "gfa_sf": 100000, "units": 100, "region": "us_average"})

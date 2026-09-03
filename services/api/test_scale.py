@@ -15,11 +15,12 @@ for _f in ("./test_scale.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient          # noqa: E402
-from aec_api import modules as me                  # noqa: E402
-from aec_api.db import SessionLocal                # noqa: E402
-from aec_api.main import app                       # noqa: E402
-from aec_api.models import Project                 # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import modules as me  # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_api.models import Project  # noqa: E402
 
 HDR = {"X-User": "scaletester"}
 N = 3000  # rfi rows — enough that an unbounded my-work / N+1 BCF would blow the assertions

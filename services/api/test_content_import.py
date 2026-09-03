@@ -27,6 +27,7 @@ obj_bytes = box.export(file_type="obj").encode() if isinstance(box.export(file_t
 verts, faces = content.parse_mesh(obj_bytes, ".obj")
 assert len(verts) >= 8 and len(faces) >= 12, (len(verts), len(faces))      # a box: 8 verts, 12 tris
 import numpy as np  # noqa: E402
+
 vv = np.asarray(verts)
 assert vv.min(axis=0).max() < 1e-6, vv.min(axis=0)                          # min-corner recentred to ~origin
 ext = vv.max(axis=0) - vv.min(axis=0)

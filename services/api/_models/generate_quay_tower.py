@@ -82,7 +82,7 @@ def main():
     m = open_model(OUT)
     # a below-grade plant/POE level
     edit.add_storey(m, "Cellar", CELLAR_Z)
-    storeys = {s.Name: s for s in m.by_type("IfcBuildingStorey")}
+    {s.Name: s for s in m.by_type("IfcBuildingStorey")}
     L = [f"Level {i}" for i in range(1, N_ABOVE + 1)]
     print(f"   storeys: Cellar + {len(L)} above-grade")
 
@@ -128,7 +128,7 @@ def main():
 
     # sample rebar cage detail — a few Level 1 columns (LOD 400 demonstration)
     print("== sample rebar (LOD 400) ==")
-    l1cols = [c for c in m.by_type("IfcColumn")][:6]
+    l1cols = list(m.by_type("IfcColumn"))[:6]
     for c in l1cols:
         try:
             edit.RECIPES["add_rebar_cage"](m, {"column_guid": c.GlobalId}); count["struct"] += 1
@@ -214,7 +214,7 @@ def main():
              ("IfcPump", [28, 3], "ENDSUCTION", "Fire Pump", "Fire Protection"),
              ("IfcBoiler", [28, 10], "WATER", "Heating Boiler", "Heating"),
              ("IfcPump", [12, 18], "SUMPPUMP", "Storm Sump Pump", "Stormwater")]
-    for cls, pt, pd, nm, sysn in plant:
+    for cls, pt, pd, _nm, sysn in plant:
         try:
             edit.add_mep_terminal(m, cls, pt, 1.2, 1.0, 1.8, pd, "Cellar", sysn,
                                   {"Electrical Service": "electrical", "Domestic Water": "plumbing",

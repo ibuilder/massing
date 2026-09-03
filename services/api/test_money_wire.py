@@ -117,7 +117,7 @@ def test_the_engines_that_split_a_total_actually_call_the_helper():
     assert "money.allocate" in inspect.getsource(project_budget), "budget spread must use the helper"
     assert "money.allocate" in inspect.getsource(resource_loading), "resource loading must use it too"
 
-for _n, _f in sorted(list(globals().items())):
+for _n, _f in sorted(globals().items()):
     if _n.startswith("test_") and callable(_f):
         _f()
 

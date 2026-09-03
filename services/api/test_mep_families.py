@@ -8,10 +8,11 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
-import ifcopenshell                                    # noqa: E402
-import ifcopenshell.api                                # noqa: E402
-from aec_data import edit                              # noqa: E402
-from aec_data.ifc_loader import open_model             # noqa: E402
+import ifcopenshell  # noqa: E402
+import ifcopenshell.api  # noqa: E402
+
+from aec_data import edit  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 TMP = os.path.join(os.path.dirname(__file__), "_mepf.ifc")
 OUT = os.path.join(os.path.dirname(__file__), "_mepf_out.ifc")
@@ -46,6 +47,7 @@ assert "HVAC Supply" in {s.Name for s in m.by_type("IfcDistributionSystem")}
 assert m.by_type("IfcCircleProfileDef"), "round duct section"
 # W10-4: the segment carries a nominal-size pset (schedules/QTO/sizing read it without geometry)
 import ifcopenshell.util.element as _ue  # noqa: E402
+
 duct_ps = _ue.get_psets(m.by_type("IfcDuctSegment")[0]).get("Pset_Massing_MEPSizing") or {}
 assert abs((duct_ps.get("NominalSize_mm") or 0) - 400.0) < 0.1 and duct_ps.get("Length_m"), duct_ps
 # W10-4 (remaining): a design flow rate rides the same pset; a duct's default flow unit is CFM
@@ -89,7 +91,8 @@ assert "Telecommunications" in sysnames, sysnames
 # smoke detector authored as a sensor with the right PredefinedType
 assert any(getattr(s, "PredefinedType", None) == "SMOKESENSOR" for s in m.by_type("IfcSensor"))
 # a comms appliance carries the IDF/WAP; discipline classification puts it in Telecommunications
-from aec_api import classification as _cls                 # noqa: E402
+from aec_api import classification as _cls  # noqa: E402
+
 assert _cls.discipline_of_ifc_class("IfcCommunicationsAppliance") == "T"
 assert _cls.discipline_of_ifc_class("IfcAlarm") == "E"     # fire alarm folds to Electrical discipline (FA series)
 

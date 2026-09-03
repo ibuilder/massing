@@ -13,6 +13,7 @@ for f in ("./test_closeout.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 H = {"X-User": "gc"}
@@ -56,7 +57,8 @@ with TestClient(app) as c:
     assert len(log.content) > 800, len(log.content)
 
     # --- COBie enrichment: closeout records fold into the workbook ------------
-    import io as _io, zipfile as _zip
+    import io as _io
+
     import openpyxl  # ships with the xlsx writer
     cobie = c.get(f"/projects/{pid}/exports/cobie.xlsx", headers=H)
     assert cobie.status_code == 200, cobie.text

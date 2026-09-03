@@ -11,9 +11,10 @@ for _f in ("./test_review.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api import review                  # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import review  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 CONTRACT = (
     "The Subcontractor shall be paid only if and when the Owner pays the Contractor (pay-if-paid). "

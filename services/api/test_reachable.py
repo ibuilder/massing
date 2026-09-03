@@ -242,7 +242,7 @@ def test_subpackage_modules_are_reachable():
           "packages were never orphan candidates at all.")
 
 
-for _name, _fn in sorted(list(globals().items())):
+for _name, _fn in sorted(globals().items()):
     if _name.startswith("test_") and callable(_fn):
         _fn()
 

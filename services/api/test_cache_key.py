@@ -91,7 +91,7 @@ def test_the_content_key_is_stable_for_the_same_stat():
     assert a == b and ifc_loader.content_key("/x/y.ifc", (124, 456)) != a
 
 
-for _n, _f in sorted(list(globals().items())):
+for _n, _f in sorted(globals().items()):
     if _n.startswith("test_") and callable(_f):
         _f()
 

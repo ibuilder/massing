@@ -16,7 +16,7 @@ n = len({p.parent.name for p in MOD.glob("*/module.json")})
 
 if problems:
     lines = [f"{len(problems)} module(s) with config issue(s):"]
-    for folder, errs in sorted(problems.items()):
+    for _folder, errs in sorted(problems.items()):
         for e in errs:
             lines.append(f"  {e}")
     raise AssertionError("\n".join(lines))

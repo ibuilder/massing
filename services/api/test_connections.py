@@ -9,6 +9,7 @@ for f in ("./conn_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 BEARER = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731

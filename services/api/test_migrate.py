@@ -13,6 +13,7 @@ for f in ("./_test_migrate.db",):
         os.remove(f)
 
 from sqlalchemy import Column, Index, Integer, String, Table, inspect  # noqa: E402
+
 from aec_api import db  # noqa: E402
 
 # 1) real production startup path: registers dynamic module tables + creates the full schema

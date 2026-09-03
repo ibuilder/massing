@@ -130,7 +130,6 @@ def test_an_absurdly_SHORT_ratio_is_a_data_error_too_and_never_becomes_the_optim
     # The high guard alone left the exact failure this module's contract forbids. A typo — actual
     # finish equal to actual start on a 60-day activity — gave optimistic = 0.0167 inside a
     # `basis="trade"` result, a 1.7%-of-plan best case backed by nothing.
-    from datetime import date
     typo = {"ref": "BAD", "data": {"trade": "Concrete", "start": "2026-03-01", "finish": "2026-04-29",
                                    "actual_start": "2026-03-01", "actual_finish": "2026-03-01"}}
     acts = [ontime(f"C{i}", "Concrete", 1.0, planned=60) for i in range(5)] + [typo]
@@ -147,7 +146,7 @@ def test_the_two_guards_are_asymmetric_on_purpose():
     assert rc.MIN_RATIO * rc.MAX_RATIO == 1.0, "reciprocal bounds, different believability"
 
 
-for name, fn in sorted(list(globals().items())):
+for name, fn in sorted(globals().items()):
     if name.startswith("test_") and callable(fn):
         fn()
 

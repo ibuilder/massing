@@ -124,7 +124,7 @@ def test_degenerate_input_is_an_answer():
     assert ct.classify(None)["present_count"] == 0
 
 
-for name, fn in sorted(list(globals().items())):
+for name, fn in sorted(globals().items()):
     if name.startswith("test_") and callable(fn):
         fn()
 

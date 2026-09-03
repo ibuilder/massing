@@ -326,7 +326,7 @@ _NUM = r"\d[\d_]*"
 
 def _history_pairs(comment):
     out = []
-    for a, b in re.findall(r"\((%s) -> (%s)" % (_NUM, _NUM), comment):
+    for a, b in re.findall(rf"\(({_NUM}) -> ({_NUM})", comment):
         out.append((int(a.replace("_", "")), int(b.replace("_", ""))))
     return out
 
@@ -344,7 +344,7 @@ _CAP_AGREEMENT_EXEMPT = {
 
 _SRC_LINES = open(__file__, encoding="utf-8").read().split("\n")
 for _path, _cap in PER_FILE.items():
-    _line = next((ln for ln in _SRC_LINES if '"%s": ' % _path in ln and "#" in ln), None)
+    _line = next((ln for ln in _SRC_LINES if f'"{_path}": ' in ln and "#" in ln), None)
     _pairs = _history_pairs(_line) if _line else []
     if len(_pairs) < 2:
         continue
@@ -355,20 +355,20 @@ for _path, _cap in PER_FILE.items():
     #: the file with no slice recording it. Demanding strict equality flags every legitimate
     #: growth, and a check that cries wolf gets ignored - which is how a real off-by-one hides.
     _breaks = [(x, y, a, b) for (x, y), (a, b) in zip(_pairs, _pairs[1:]) if x < b]
-    check("the %s history never loses lines it did not record" % _path,
+    check(f"the {_path} history never loses lines it did not record",
           not _breaks,
-          "; ".join("%d->%d" % (a, b) for a, b in _pairs[:4])
-          + " ... %d entries. " % len(_pairs)
-          + ("BREAK: %d->%d follows %d->%d - the newer entry starts BELOW the older result, so "
-             "lines left the file with no slice recording it."
-             % (_breaks[0][0], _breaks[0][1], _breaks[0][2], _breaks[0][3]) if _breaks
+          "; ".join(f"{a}->{b}" for a, b in _pairs[:4])
+          + f" ... {len(_pairs)} entries. "
+          + (f"BREAK: {_breaks[0][0]}->{_breaks[0][1]} follows {_breaks[0][2]}->{_breaks[0][3]} - the "
+             "newer entry starts BELOW the older result, so lines left the file with no slice "
+             "recording it." if _breaks
              else "no entry starts below the previous result"))
-    check("the newest %s history entry ends at the enforced cap" % _path,
+    check(f"the newest {_path} history entry ends at the enforced cap",
           _pairs[0][1] == _cap or _path in _CAP_AGREEMENT_EXEMPT,
-          "newest entry says %d -> %d, cap is %d. THIS IS THE CHECK PR #402 NEEDED: the assertion "
-          "was right and the sentence beside it was wrong. Take the number from this file's own "
-          "count, never from `wc -l`, which reads one higher on a trailing newline."
-          % (_pairs[0][0], _pairs[0][1], _cap))
+          f"newest entry says {_pairs[0][0]} -> {_pairs[0][1]}, cap is {_cap}. THIS IS THE CHECK "
+          "PR #402 NEEDED: the assertion was right and the sentence beside it was wrong. Take the "
+          "number from this file's own count, never from `wc -l`, which reads one higher on a "
+          "trailing newline.")
 
 if FAILED:
     print("FAILED:", ", ".join(FAILED))

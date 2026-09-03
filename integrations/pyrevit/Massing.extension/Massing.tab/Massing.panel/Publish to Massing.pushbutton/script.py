@@ -11,14 +11,18 @@ import os
 import tempfile
 import time
 
-from pyrevit import forms, script
-
 import massing_config as mc
 import massing_export as mx
+from Autodesk.Revit.DB import (
+    FamilyInstance,
+    FilteredElementCollector,
+    IFCExportOptions,
+    IFCVersion,
+    ImportInstance,
+    SpatialElement,
+)
 from massing_api import MassingError
-
-from Autodesk.Revit.DB import (FamilyInstance, FilteredElementCollector, IFCExportOptions,
-                               IFCVersion, ImportInstance, SpatialElement)
+from pyrevit import forms, script
 
 doc = __revit__.ActiveUIDocument.Document  # noqa: F821  (pyRevit-injected)
 output = script.get_output()

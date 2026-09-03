@@ -8,10 +8,11 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
-import ifcopenshell                                    # noqa: E402
-import ifcopenshell.api                                # noqa: E402
-from aec_data import edit, steel                       # noqa: E402
-from aec_data.ifc_loader import open_model             # noqa: E402
+import ifcopenshell  # noqa: E402
+import ifcopenshell.api  # noqa: E402
+
+from aec_data import edit, steel  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 TMP = os.path.join(os.path.dirname(__file__), "_struct.ifc")
 OUT = os.path.join(os.path.dirname(__file__), "_struct_out.ifc")

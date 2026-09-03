@@ -49,7 +49,8 @@ if _DATA_SRC not in sys.path:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import agent_packs, ids_authoring as ia  # noqa: E402
+from aec_api import agent_packs  # noqa: E402
+from aec_api import ids_authoring as ia
 from aec_api.main import app  # noqa: E402
 
 HDR = {"X-User": "engineer"}

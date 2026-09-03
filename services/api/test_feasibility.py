@@ -10,9 +10,10 @@ for _f in ("./test_feasibility.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from aec_api import feasibility as feas      # noqa: E402
-from fastapi.testclient import TestClient    # noqa: E402
-from aec_api.main import app                 # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import feasibility as feas  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- pure math ---------------------------------------------------------------
 # FAR binds: 20,000 SF site x FAR 3 = 60,000 allowed; envelope (50% cov=10,000 ft x 8 floors=80,000) is looser.

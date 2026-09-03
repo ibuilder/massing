@@ -10,8 +10,9 @@ for _f in ("./test_trace.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient                # noqa: E402
-from aec_api.main import app                             # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 A, B = "3vB2eYHr1ABcDeFgHiJkLm", "0aZzYyXxWw1122334455Aa"
 

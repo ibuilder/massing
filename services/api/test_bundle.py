@@ -9,6 +9,7 @@ for f in ("./bundle_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 BEARER = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
@@ -36,7 +37,9 @@ with TestClient(app) as c:
     r = c.get(f"/projects/{pid}/bundle", headers=BEARER(tok))
     assert r.status_code == 200 and r.headers["content-type"] == "application/zip", r.status_code
     blob = r.content
-    import io, zipfile, json
+    import io
+    import json
+    import zipfile
     z = zipfile.ZipFile(io.BytesIO(blob))
     man = json.loads(z.read("manifest.json"))
     # R28-BUNDLE: the container is `.mass` v2 now. `.mmproj` was its name through v1.

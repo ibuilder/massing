@@ -84,7 +84,7 @@ with TestClient(app) as c:
     assert c.get("/license").json()["enforced"] is False
     pid = c.post("/projects", json={"name": "Lic"}).json()["id"]
     # IFC download not licence-gated in open mode (no project IFC -> 409, never 402)
-    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409
+    assert c.get(f"/projects/{pid}/source.ifc").status_code == 409
 
     # --- turn enforcement ON on the Free tier -> entitlements bite ------------
     c.put("/settings/integrations", json={"values": {
@@ -99,7 +99,7 @@ with TestClient(app) as c:
         assert e.status_code == 402, e.status_code
     ls = c.get("/license").json()
     assert ls["enforced"] is True and ls["tier"] == "free", ls
-    assert c.get("/projects/%s/source.ifc" % pid).status_code == 402   # IFC export blocked before 409
+    assert c.get(f"/projects/{pid}/source.ifc").status_code == 402   # IFC export blocked before 409
     # ENTITLE-1: free tier + enforced → every model-export side-door is gated (before the 409/geometry)
     for _rt in ("model/export.gltf", "model/export.glb", "model/export.ifc", "model/export.ifcx"):
         assert c.get(f"/projects/{pid}/{_rt}").status_code == 402, _rt
@@ -116,7 +116,7 @@ with TestClient(app) as c:
     c.put("/settings/integrations", json={"values": {
         "MASSING_LICENSE_KEY": "MASS-AB12-CD34-EF56-GH78", "MASSING_LICENSE_TIER": "commercial"}})
     assert licensing.allows("api_access") and licensing.allows_export("ifc")
-    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409   # allowed -> just no IFC yet
+    assert c.get(f"/projects/{pid}/source.ifc").status_code == 409   # allowed -> just no IFC yet
     # ENTITLE-1: Commercial unlocks the openBIM side-doors too (no 402; 409/other since no model yet)
     for _rt in ("model/export.ifc", "model/export.ifcx"):
         assert c.get(f"/projects/{pid}/{_rt}").status_code != 402, _rt
@@ -124,7 +124,7 @@ with TestClient(app) as c:
     # --- back to open mode (default) ------------------------------------------
     c.put("/settings/integrations", json={"values": {"MASSING_LICENSE_ENFORCE": "0"}})
     assert licensing.enforcement_enabled() is False
-    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409   # open again, never 402
+    assert c.get(f"/projects/{pid}/source.ifc").status_code == 409   # open again, never 402
 
     # --- the full key is never exposed by the settings catalog ----------------
     cat = c.get("/settings/integrations").json()

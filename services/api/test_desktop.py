@@ -17,9 +17,11 @@ for f in ("./desktop_test.db",):
 
 # the desktop module's data-dir/web-dist helpers resolve sensibly
 from aec_api import desktop  # noqa: E402
+
 assert desktop.data_dir().exists()
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:

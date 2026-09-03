@@ -13,6 +13,7 @@ if os.path.exists("./test_rvt.db"):
     os.remove("./test_rvt.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 RVT = ("m.rvt", b"fake-rvt-bytes", "application/octet-stream")

@@ -59,7 +59,6 @@ for candidate in (_HERE / "src", _HERE.parent / "src"):
         break
 
 from aec_api import schedule_cpm  # noqa: E402
-
 from massingplan.core.timeaxis import WorkCalendar, WorkPattern, instant_of  # noqa: E402
 
 FAILURES: list[str] = []

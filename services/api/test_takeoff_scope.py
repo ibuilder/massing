@@ -168,7 +168,7 @@ def test_annotations_without_the_render_factor_are_unknown_too():
     assert r["regions"][0]["scope"] == "unknown" and r["priceable"] == 0, r["regions"]
 
 
-for name, fn in sorted(list(globals().items())):
+for name, fn in sorted(globals().items()):
     if name.startswith("test_") and callable(fn):
         fn()
 

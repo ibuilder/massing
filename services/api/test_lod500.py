@@ -90,6 +90,7 @@ assert s4["with_dimensions"] == 3 and s4["dimensions_out_of_tolerance"] == 1, s4
 
 # G3 via the recipe registry (apply path through the guards gate — guids required)
 from aec_data import guards  # noqa: E402
+
 assert guards.precheck("set_manufacturer_info", {"guids": [], "manufacturer": "X"})["errors"], "empty selection blocked"
 assert guards.precheck("set_manufacturer_info", {"guids": [walls[0]], "manufacturer": "X"})["ok"]
 

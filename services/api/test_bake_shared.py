@@ -102,9 +102,9 @@ with tempfile.TemporaryDirectory() as d:
     # --- a SECOND process must see the first one's work: the whole point --------------------------
     import subprocess
     code = (
-        "import os,sys; os.environ['AEC_BAKE_SHARE_DIR']=%r; sys.path.insert(0,%r);"
+        "import os,sys; os.environ['AEC_BAKE_SHARE_DIR']={!r}; sys.path.insert(0,{!r});"
         "from aec_data import bake_shared as b; v=b.get('model-A');"
-        "print('HIT' if v==%r else 'MISS')" % (d, os.path.abspath("../data/src"), payload)
+        "print('HIT' if v=={!r} else 'MISS')".format(d, os.path.abspath("../data/src"), payload)
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     check("a SEPARATE PROCESS reads the same entry", "HIT" in out.stdout,

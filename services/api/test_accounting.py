@@ -78,8 +78,8 @@ with TestClient(app) as c:
     _memos = [e["memo"] for e in c.get(f"/projects/{oipid}/accounting/journal-entries").json()["entries"]]
     assert not any("APP-002" in m for m in _memos), ("rejected application in the ledger", _memos)
 
-    from aec_api import project_budget as _pbt                    # noqa: E402
-    from aec_api.db import SessionLocal as _SL                    # noqa: E402
+    from aec_api import project_budget as _pbt  # noqa: E402
+    from aec_api.db import SessionLocal as _SL  # noqa: E402
     with _SL() as _db:
         assert _pbt.billed_to_date(_db, oipid) == 100000, "billed_to_date counted a rejected application"
     _ld = c.get(f"/projects/{oipid}/loan-draws").json()

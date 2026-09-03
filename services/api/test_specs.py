@@ -11,9 +11,10 @@ for _f in ("./test_specs.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from aec_api import specs                  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api.main import app               # noqa: E402
+
+from aec_api import specs  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- pure helpers ------------------------------------------------------------
 assert specs.classify_type("Shop Drawings: reinforcement placing drawings") == "Shop Drawing"

@@ -9,9 +9,10 @@ os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./test_disciplines.db"):
     os.remove("./test_disciplines.db")
 
-from fastapi.testclient import TestClient            # noqa: E402
-from aec_api import classification as c              # noqa: E402
-from aec_api.main import app                         # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import classification as c  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- discipline derived from IFC class via its MasterFormat section ---
 assert c.discipline_of_ifc_class("IfcColumn") == "S", c.discipline_of_ifc_class("IfcColumn")   # 03 → Structural
@@ -139,8 +140,8 @@ with TestClient(app) as cl:
     assert disc["Structural"]["packages"] == 1 and disc["Architectural"]["specs"] == 1, tr["disciplines"]
 
     # --- D5: generating a project seeds a fully-connected spine skeleton (model → budget traceable) ---
-    from aec_api.db import SessionLocal                      # noqa: E402
-    from aec_api.routers.generate import _seed_gc_portal     # noqa: E402
+    from aec_api.db import SessionLocal  # noqa: E402
+    from aec_api.routers.generate import _seed_gc_portal  # noqa: E402
     gp = cl.post("/projects", json={"name": "Generated"}).json()["id"]
     with SessionLocal() as _db:
         seeded = _seed_gc_portal(_db, gp, type("B", (), {"hard_cost_psf": 300})(),

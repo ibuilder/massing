@@ -80,7 +80,7 @@ def _fail_no_sdk() -> None:
 
 def main() -> None:
     try:
-        from mcp.server.fastmcp import FastMCP           # type: ignore
+        from mcp.server.fastmcp import FastMCP  # type: ignore
     except ModuleNotFoundError:
         _fail_no_sdk()
         return

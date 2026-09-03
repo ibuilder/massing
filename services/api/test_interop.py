@@ -11,9 +11,10 @@ for _f in ("./test_interop.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api import speckle_bridge, settings_store  # noqa: E402
-from aec_api.main import app                  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import settings_store, speckle_bridge  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # Settings catalog exposes Speckle + APS so a non-technical admin can add keys in the UI (no env edit),
 # and secrets are write-only (the public catalog never returns a secret value).
@@ -24,7 +25,8 @@ _tok = next(k for g in _cat for k in g["keys"] if k["key"] == "SPECKLE_TOKEN")
 assert _tok["secret"] and "value" not in _tok, _tok        # write-only secret
 
 # "Test connection" dispatcher — ✓/✗ per integration (off = ✗ with guidance, unknown = guarded)
-from aec_api import conntest                                # noqa: E402
+from aec_api import conntest  # noqa: E402
+
 assert conntest.test_group("Speckle (interoperability)")["ok"] is False
 assert conntest.test_group("SSO — Google")["ok"] is False
 assert conntest.test_group("Nope")["ok"] is False

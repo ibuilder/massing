@@ -178,7 +178,7 @@ def test_the_crew_s_expected_finish_does_not_collide_with_the_EVM_forecast():
     assert row["forecast_slip_days"] == 19, "the computed delta keeps its own name"
 
 
-for name, fn in sorted(list(globals().items())):
+for name, fn in sorted(globals().items()):
     if name.startswith("test_") and callable(fn):
         fn()
 

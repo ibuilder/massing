@@ -12,10 +12,11 @@ for _f in ("./test_imports.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from openpyxl import Workbook                 # noqa: E402
-from aec_api import imports                   # noqa: E402
-from fastapi.testclient import TestClient     # noqa: E402
-from aec_api.main import app                  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from openpyxl import Workbook  # noqa: E402
+
+from aec_api import imports  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- pure engine (parser + coercion need no module registry) ----------------
 csv_bytes = b"Code,Description,Division\n03-3000,Concrete,03\n05-1200,Steel,05\n"

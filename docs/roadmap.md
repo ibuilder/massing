@@ -1483,7 +1483,8 @@ PRs**, every one reporting `"CodeFlow was not able to perform analysis"` — the
 * Its 2,350 issues are dominated by **TSLint-era rules**: `max-line-length` 960 · `CodeDuplication` 526
   · `jsdoc-format` 402 · `one-variable-per-declaration` 200 · `no-shadowed-variable` 78 · `no-bitwise`
   18 · `variable-name` 7 · `max-classes-per-file` 5. **TSLint was deprecated in 2019.** This repo lints
-  with **ESLint 9.39.5** and **ruff**, both configured, both **clean**. So CodeFlow is not measuring our
+  with **ESLint 9.39.5** and **ruff**, both configured, both **clean** *(ruff over the whole tree only
+  since RUFF-SCOPE on 2026-09-03; it had been clean over two source trees out of the repository)*. So CodeFlow is not measuring our
   standards — it is measuring its defaults, and disagreeing with the linters we actually chose.
 * Its one structural finding is **wrong**: *"Avoid storing generated files in GIT
   (apps/web/src-tauri/Cargo.lock)"*. Rust's own guidance is to **commit `Cargo.lock` for binaries**, and
@@ -3020,6 +3021,14 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
      unused locals) passes clean across `services/api/src` and `services/data/src` on every push.
      Whatever remains in the 139 findings is symbol-level: exports defined and never called, which
      ruff does not look for.
+
+     *(RUFF-SCOPE, 2026-09-03: that sentence named its scope correctly and I still read a tree-wide
+     conclusion out of it. `src/` and `../data/src/` were the ONLY things ruff saw — 612 of 1,338
+     tracked `.py` files — so "already gated" was true of 46% of the tree. Widening the CI command to
+     `../..` found five F401 and one F841 outside it, plus five `assert False`. The bullet's argument
+     survives; its reach did not. **A correctly scoped sentence is still how an over-broad belief
+     gets formed**, which is why the scope is now asserted in `services/api/test_ruff_scope.py`
+     rather than described here.)*
    * Finding those needs a tool this repo does not have (`vulture` is not installed), and **adding
      one is a new dependency — the user's call, not a triage step.**
 

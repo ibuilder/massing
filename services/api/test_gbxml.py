@@ -6,8 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from aec_data import gbxml, spaces, energy   # noqa: E402
 from defusedxml.ElementTree import fromstring  # noqa: E402
+
+from aec_data import energy, gbxml, spaces  # noqa: E402
 
 
 class _Areas:

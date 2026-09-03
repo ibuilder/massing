@@ -2,7 +2,6 @@
    PYTHONPATH=src ./.venv/Scripts/python.exe test_api.py
 """
 import io
-import json
 import os
 import subprocess
 import sys
@@ -17,6 +16,7 @@ for f in ("./test_aec.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 # context manager runs the lifespan handler -> init_db() creates tables

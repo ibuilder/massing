@@ -58,7 +58,7 @@ def main() -> int:
     # exactly what the method costs.
     tight = takt(TRAIN)
     loose = takt(TRAIN, takt_days=tight["takt_days"] * 3)
-    lo = [v for v in loose["utilisation"].values()]
+    lo = list(loose["utilisation"].values())
     check("a longer takt exposes idle capacity — utilisation falls below 1",
           loose["available"] and any(v < 0.9 for v in lo),
           f"takt {tight['takt_days']}d -> {loose['takt_days']}d, utilisation now {min(lo):.2f}-{max(lo):.2f}")

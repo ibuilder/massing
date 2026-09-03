@@ -15,6 +15,7 @@ for f in ("./test_ai.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import ai  # noqa: E402
 from aec_api.main import app  # noqa: E402
 

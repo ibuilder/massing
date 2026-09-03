@@ -6,7 +6,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_openbim.db")
 os.environ.pop("AEC_RBAC", None)
 
-from aec_api import ids_authoring, openbim_quality      # noqa: E402
+from aec_api import ids_authoring, openbim_quality  # noqa: E402
 
 # synthetic index: 2 fully-specified walls, 1 bare wall, 1 proxy element
 IDX = {

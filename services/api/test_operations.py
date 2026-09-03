@@ -10,10 +10,11 @@ for _f in ("./test_operations.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from datetime import date, timedelta                  # noqa: E402
+from datetime import timedelta  # noqa: E402
 
-from fastapi.testclient import TestClient             # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _create(c, pid, key, data):

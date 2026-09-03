@@ -9,6 +9,7 @@ for f in ("./test_cost.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:

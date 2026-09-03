@@ -117,6 +117,17 @@ test — anything held only as prose will drift, **including the prose in this f
 names were wrong until 2026-07-31.** "test_no_competitors.py" never existed at all, and the size
 guard is `test_file_sizes.py`, not "check_file_sizes.py".
 
+**A sixth joined them on 2026-09-03: `services/api/test_ruff_scope.py`** — is the lint aimed at the
+whole tree? CI ran `ruff check src/ ../data/src/` and printed "All checks passed!" while **726 of
+1,338 tracked `.py` files were never linted at all**, the entire backend test suite among them. The
+check was real; the SCOPE was the fiction, and a green lint step is exactly what makes that
+invisible. The gate parses `ci.yml` for the ruff command and asserts *that* command reaches every
+tracked `.py` outside an explicit vendored list — so it cannot drift from what CI runs, because it
+reads what CI runs. **Widening it also broke something**: `--fix` stripped `# -*- coding: utf-8 -*-`
+from four IronPython 2.7 files under `integrations/pyrevit/`, three holding non-ASCII source, which
+is a SyntaxError at import on Python 2 and is executed by no CI here. *Scope and rule set are
+different questions, and widening one can break the other.*
+
 **A fifth joined them on 2026-08-28: `services/api/test_declared_imports.py`** — does our own
 `import` list agree with what we declare? It exists because `httpx` was declared in no requirements
 file at all and reached the lock only `# via anthropic`, so bumping that SDK to 1.x — which moved to

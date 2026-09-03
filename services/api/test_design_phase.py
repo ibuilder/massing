@@ -9,9 +9,10 @@ for _f in ("./test_design_phase.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import soft_costs                       # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import soft_costs  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- soft-cost itemization ---
 it = soft_costs.itemize(1_000_000, 25.0)

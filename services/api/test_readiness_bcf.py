@@ -12,14 +12,16 @@ for f in ("./test_readiness_bcf.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import sys                                                   # noqa: E402
-from pathlib import Path                                     # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_data import edit, massing                           # noqa: E402
-from aec_data.ifc_loader import open_model                   # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+from aec_data import edit, massing  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 # a gap-y model: spaces without OccupancyType, a below-min egress door, an un-substantiated rated wall
 _ifc = Path(tempfile.gettempdir()) / "rbcf_test_model.ifc"

@@ -5,8 +5,8 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from aec_api import tiers as ent       # noqa: E402
-from aec_api import dev_property as dp         # noqa: E402
+from aec_api import dev_property as dp  # noqa: E402
+from aec_api import tiers as ent  # noqa: E402
 
 # --- entitlements ------------------------------------------------------------
 assert ent.normalize(None) == "free"

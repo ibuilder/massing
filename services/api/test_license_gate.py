@@ -228,6 +228,7 @@ def test_the_excluded_package_is_genuinely_unused_by_our_import_path():
     sys.meta_path.insert(0, _Block())
     try:
         from ifctester import ids  # noqa: F401
+
         from aec_data import validate  # noqa: F401
     finally:
         sys.meta_path.pop(0)
@@ -256,7 +257,7 @@ def test_the_classifier_is_not_fooled_by_substrings():
     assert supply_chain.classify_license("") == "unknown"
 
 
-for _n, _f in sorted(list(globals().items())):
+for _n, _f in sorted(globals().items()):
     if _n.startswith("test_") and callable(_f):
         _f()
 

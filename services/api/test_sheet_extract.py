@@ -9,9 +9,10 @@ for _f in ("./test_sheetx.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient             # noqa: E402
-from aec_api.main import app                          # noqa: E402
-from aec_api import sheet_extract                      # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import sheet_extract  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- pure extraction over a typical sheet-index text blob --------------------------------------
 INDEX = """

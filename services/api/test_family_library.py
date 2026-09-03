@@ -13,12 +13,14 @@ for _f in ("./test_family_library.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-import sys                                              # noqa: E402
+import sys  # noqa: E402
+
 sys.path.insert(0, os.path.abspath(os.path.join("..", "data", "src")))
 
-import ifcopenshell                                     # noqa: E402
-from aec_data import families                           # noqa: E402
-from aec_data.build_family_library import build_model, LIBRARY_PATH   # noqa: E402
+import ifcopenshell  # noqa: E402
+
+from aec_data import families  # noqa: E402
+from aec_data.build_family_library import LIBRARY_PATH, build_model  # noqa: E402
 
 # --- catalog expanded with openings + enclosure ---
 keys = {f["key"] for f in families.CATALOG}
@@ -40,8 +42,9 @@ assert len(reopened.by_type("IfcTypeProduct")) == len(families.CATALOG), "librar
 assert reopened.schema == "IFC4", reopened.schema
 
 # --- endpoints: library listing + place-from-library into a generated project ---
-from fastapi.testclient import TestClient               # noqa: E402
-from aec_api.main import app                            # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     lib = c.get("/families/library")

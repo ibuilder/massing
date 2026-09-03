@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(_LIB))
 import massing_api as ma  # noqa: E402
 
 
-class FakeTransport(object):
+class FakeTransport:
     """Records (method, url, headers, body) and replays queued (status, bytes) responses."""
     def __init__(self):
         self.calls = []

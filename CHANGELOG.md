@@ -544,6 +544,56 @@ falsifying a slice's measurement to satisfy a gate.
 
 Pin 1,131 → 1,015. Four methods left under the banner, 126 above it and now counted.
 
+Twenty-fifth follow-on on the same version: **RUFF-SCOPE** — *the lint was real; the scope was the
+fiction*.
+
+`ci.yml` ran `cd services/api && ruff check src/ ../data/src/`. That is two source trees. The
+repository tracks **1,338 `.py` files**; those two trees hold 612. **The other 726 were never linted
+at all** — the entire backend test suite (672), every alembic revision (27), the repo scripts, the
+pyRevit bridge, the Blender bridge, the plugin example and the Claude hooks. The step exited 0 and
+printed *"All checks passed!"* on every push, which is exactly what made it invisible.
+
+The command is now `cd services/api && ruff check ../..` — one path, the whole repository, no list of
+directories to fall out of date. The `cd` is load-bearing: `services/api/ruff.toml` is the only ruff
+config in the tree, and ruff resolves it *and its `extend-exclude` paths* from the working directory.
+Running from the root with `--config services/api/ruff.toml` finds the config but resolves the
+excludes against the wrong root, which silently un-excludes all five vendored trees — measured at 161
+findings in code we copy verbatim and must not edit.
+
+**230 findings, now zero.** 166 auto-fixed (import ordering, unused imports, f-strings), 40 more with
+`--unsafe-fixes` reviewed hunk by hunk, and the last six hand-written. The substantive ones: **five
+`assert False`** (B011), one of them guarding path-traversal rejection in `test_security.py`. Nothing
+here runs `python -O`, so those were **latent, not live** — but they are precisely what ruff exists to
+catch, and it had never been asked.
+
+### Widening the scope broke something, and only reading the diff caught it
+
+`--fix` over the new scope stripped `# -*- coding: utf-8 -*-` from four files under
+`integrations/pyrevit/` — three of which contain non-ASCII source. That tree runs **inside Revit on
+pyRevit's IronPython 2.7 engine** (`massing_api.py` says so in its first docstring line and proves it
+by try/excepting `urllib.request` against `urllib2`). Python 2 defaults to ASCII source encoding, so
+removing that line is `SyntaxError: Non-ASCII character` **at import** — the Revit bridge would not
+load, and no CI here runs IronPython to notice.
+
+`target-version` is a single global setting and cannot be narrowed per directory, so `ruff.toml` now
+carries a `per-file-ignores` entry disabling `UP` for that tree, with the reason written next to it.
+`F`, `E9`, `B` and `C4` stay on there — all four are 2.7-compatible findings worth catching.
+**Scope and rule set are different questions, and widening one can break the other.**
+
+### The gate reads the workflow rather than restating it
+
+`services/api/test_ruff_scope.py` asserts every tracked `.py` is either in ruff's file set or under
+one of five explicitly named vendored prefixes. It gets that file set by **parsing the `ruff check`
+line out of `ci.yml`** and running `--show-files` on it — because a scope gate that measures a command
+nobody runs is the same bug one level up. Narrow the CI command and the gate goes red; it cannot drift
+from CI, because it reads CI. Each vendored prefix must also still match a tracked file, so a renamed
+tree cannot quietly take a carve-out with it.
+
+Mutation-checked: CI narrowed back to `src/ ../data/src/` → exit 1 naming 726 unlinted files; a vendor
+prefix renamed → exit 1 naming the stale entry. Restored → exit 0. *Read the exit code directly, not
+through a pipe.*
+
+
 
 
 

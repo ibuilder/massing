@@ -66,7 +66,19 @@ jobs:
           pip install -r services/api/requirements-dev.txt
 
       - name: Lint (ruff — dead code + real defects)
-        run: cd services/api && python -m ruff check src/ ../data/src/
+        # `../..` is the WHOLE REPOSITORY, not two source trees. Until 2026-09-03 this read
+        # `src/ ../data/src/`, which linted 612 of 1,338 tracked .py files and left 726 — the entire
+        # backend test suite, every migration, the pyRevit bridge, the Blender bridge and the repo
+        # scripts — never linted at all. `services/api/test_ruff_scope.py` now asserts that this
+        # command's file set covers every tracked .py outside the declared vendor excludes, and it
+        # reads THIS LINE to do it, so narrowing the scope here turns the suite red.
+        #
+        # The `cd` is load-bearing: `services/api/ruff.toml` is the only ruff config in the tree, and
+        # ruff resolves both the config and its `extend-exclude` paths from the working directory.
+        # Running from the repo root with `--config services/api/ruff.toml` finds the config but
+        # resolves the excludes against the wrong root, which un-excludes all five vendored trees
+        # (measured: 161 findings in code we copy verbatim and must not edit).
+        run: cd services/api && python -m ruff check ../..
 
       - name: Run test gate
         run: python services/api/run_tests.py

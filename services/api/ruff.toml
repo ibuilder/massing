@@ -42,3 +42,21 @@ ignore = ["B008", "B904", "B905"]
 
 [lint.isort]
 known-first-party = ["aec_api", "aec_data"]
+
+[lint.per-file-ignores]
+# `integrations/pyrevit/**` runs inside REVIT, on pyRevit's engine — which is IronPython 2.7 on
+# legacy pyRevit and CPython 3 on 4.8+. `massing_api.py` says so in its first docstring line and
+# proves it in code: it try/excepts `urllib.request` against `urllib2`. `target-version` is a single
+# global setting and cannot be narrowed per directory, so pyupgrade (UP) here proposes py310 syntax
+# for a tree that must still parse on 2.7 — which is not a style disagreement, it is a break.
+#
+# THIS IS NOT HYPOTHETICAL. Widening the lint scope (2026-09-03) ran `--fix` over this tree before
+# the rule existed, and UP009 stripped `# -*- coding: utf-8 -*-` from four files, three of which
+# contain non-ASCII source. Python 2 defaults to ASCII source encoding, so removing that line turns
+# every one of them into `SyntaxError: Non-ASCII character` AT IMPORT — the Revit bridge would not
+# load at all, and nothing in this repository's CI runs IronPython to notice. The fix was reverted
+# and the rule written instead.
+#
+# F, E9, B and C4 stay ON here: unused imports, syntax errors, bugbear anti-patterns and
+# comprehension hygiene are all 2.7-compatible findings and all worth catching.
+"../../integrations/pyrevit/**/*.py" = ["UP"]

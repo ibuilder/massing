@@ -11,10 +11,11 @@ for f in ("./test_esign.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import pypdf                                                 # noqa: E402
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_api import esign, esign_bridge                      # noqa: E402
+import pypdf  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import esign, esign_bridge  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 
 def _sig_fields(pdf: bytes):
@@ -23,8 +24,9 @@ def _sig_fields(pdf: bytes):
 
 
 # --- unit: PAdES signing + status -------------------------------------------
-from reportlab.lib.pagesizes import letter                   # noqa: E402
-from reportlab.pdfgen import canvas                          # noqa: E402
+from reportlab.lib.pagesizes import letter  # noqa: E402
+from reportlab.pdfgen import canvas  # noqa: E402
+
 _b = io.BytesIO(); _c = canvas.Canvas(_b, pagesize=letter); _c.drawString(72, 720, "Agreement"); _c.save()
 plain = _b.getvalue()
 signed = esign.digitally_sign(plain, reason="Executed", name="Pat GC")
@@ -106,12 +108,12 @@ with TestClient(app) as c:
 # caller-chosen strings of unbounded length: flooding it buries the real trail, which is what an
 # audit log exists to prevent. So it now verifies an HMAC over the RAW body when a secret is set,
 # throttles, caps the payload, and records WHICH posture produced each row.
-import hashlib                                               # noqa: E402
-import hmac                                                  # noqa: E402
-import json as _json                                         # noqa: E402
+import hashlib  # noqa: E402
+import hmac  # noqa: E402
+import json as _json  # noqa: E402
 
-from aec_api.db import SessionLocal                          # noqa: E402
-from aec_api.models import AuditLog                          # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
+from aec_api.models import AuditLog  # noqa: E402
 
 _PAY = {"event_type": "form.completed",
         "data": {"submission_id": "S" * 5000, "email": "e" * 5000}}   # deliberately huge
