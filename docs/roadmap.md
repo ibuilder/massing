@@ -2062,10 +2062,20 @@ refute one, so this goes first even though it is the least visible.
   heading below. `reportMoments.test.ts` reads `reports.py` and fails the build if a package names an
   id the server no longer defines; without that, a renamed report shortens a package silently on the
   Friday it is due.
-  **Still open: "scheduled and shared, not just downloaded."** Assemble is a job
-  (`report_package` in `services/api/src/aec_api/jobs.py`, **Assemble** in `apps/web/src/reportCenter.ts`).
-  Making it a *scheduled deliverable* — sent to a recipient on a date — still wants a delivery surface
-  and SMTP. The Job row is already the record that a pack ran.
+  **SHARED shipped; SCHEDULED still open — and the blocker was never the one written here.** This
+  entry said making a pack a scheduled deliverable "still wants a delivery surface and SMTP".
+  **Both already existed** when that was written: `services/api/src/aec_api/mailer.py` sends real mail
+  (stdlib `smtplib`, a Settings "Test connection" button), and `POST …/notifications/digest` is a
+  working assemble-then-send surface returning a per-recipient status map. What was actually missing
+  was one size smaller — **the mailer could not carry a file**. `POST …/jobs/{job_id}/deliver` now
+  mails any finished job's artifact (`services/api/test_artifact_deliver.py`), surfaced as **Send**
+  beside **Download** in the job tray. *Naming the blocker one layer too high is what let it sit: the
+  two named things were present, so every look confirmed the entry and nobody checked the layer below.*
+  **What genuinely remains is SCHEDULED, and it needs a runner.** There is no scheduler of any kind in
+  this tree — no APScheduler, no croniter, no cron — so the existing digest is admin-triggered and
+  nothing runs on a date. Choosing in-process versus external cron hitting an endpoint is a
+  **deployment decision with different operational consequences, not a wiring task**, which is why it
+  is not taken here. The Job row is already the record that a pack ran.
 - **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
   are a user decision; storey/floor settled v0.3.945).
 

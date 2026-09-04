@@ -305,4 +305,32 @@ describe("the tray is actually reachable", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(btn().getAttribute("aria-expanded")).toBe("false");
   });
+
+  /**
+   * R24-REPORTS-BY-MOMENT — the send affordance is gated on there being a file, exactly like the
+   * download link beside it. Asserted rather than assumed because the two gates are written
+   * separately, and a "Send" on a running job offers to mail something that does not exist yet.
+   */
+  it("offers Send only on rows that actually have an artifact", () => {
+    const host = document.createElement("div");
+    const sent: string[] = [];
+    renderJobTray(host, [
+      J({ id: "running", state: "running" }),
+      J({ id: "noart", state: "done", result: {} }),
+      J({ id: "ready", state: "done", result: { artifact_key: "k" } }),
+    ], { onSend: (j) => sent.push(j.id) });
+
+    const buttons = [...host.querySelectorAll("button")].filter((b) => b.textContent === "Send");
+    expect(buttons.length).toBe(1);
+    buttons[0]!.click();
+    expect(sent).toEqual(["ready"]);
+  });
+
+  /** Omitting `onSend` must offer no button at all — the same contract `artifactUrl` already has,
+   *  so a host that cannot deliver does not show a control that would throw. */
+  it("offers no Send affordance when onSend is omitted", () => {
+    const host = document.createElement("div");
+    renderJobTray(host, [J({ state: "done", result: { artifact_key: "k" } })], {});
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Send")).toBe(false);
+  });
 });

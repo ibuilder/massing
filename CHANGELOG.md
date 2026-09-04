@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — R24-REPORTS-BY-MOMENT: a finished pack can be sent, not only downloaded
+
+`POST /projects/{pid}/jobs/{job_id}/deliver` emails any finished job's artifact to named
+recipients, surfaced as **Send** beside **Download** in the job tray.
+
+**The roadmap named the wrong blocker, one layer too high.** It said this "still wants a delivery
+surface and SMTP" — both of which already shipped: `mailer.py` sends real mail, and the notification
+digest is a working assemble-then-send surface. What was actually missing was smaller and more
+specific: **the mailer could not carry a file**. `build_message` gained attachments, and the order
+matters — `add_alternative` must run before `add_attachment` or Python refuses outright, which the
+test asserts rather than assumes.
+
+Refusals mirror the download route exactly (404 wrong project, 409 while queued/running, 404 with no
+artifact), so a caller does not learn two answers to "is this artifact ready", plus two of its own:
+an empty recipient list is 422 rather than a silent success, and over 15 MB is 413 rather than a
+per-recipient error from a server that would have bounced it. A deployment with no SMTP configured
+returns 200 with every recipient `disabled`, so the UI reads `smtp_configured` before claiming a
+send. The delivery is audited — a file leaving the system is what an audit log is for.
+
+**Not shipped, deliberately: the SCHEDULED half.** There is no scheduler of any kind in this tree,
+so choosing in-process versus external cron is a deployment decision, not a wiring task.
+
 ## v0.3.1143 (2026-09-01) — SCALE-SEAM ㉝, Last-Planner onto schedule.ts
 
 Six methods out of `client.ts` into the existing `apps/web/src/api/schedule.ts` mixin

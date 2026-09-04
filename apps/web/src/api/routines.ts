@@ -115,5 +115,15 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
   jobArtifactUrl(pid: string, jobId: string): string {
     return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
   }
+  /** R24-REPORTS-BY-MOMENT — mail a finished job's artifact to recipients: the "shared, not just
+   *  downloaded" half. Same refusals as the artifact URL above (404 / 409 while running / 404 with
+   *  no artifact), plus 422 on no recipients and 413 over the 15 MB cap. On a deployment with no
+   *  SMTP configured this SUCCEEDS with every recipient reported `disabled` — check
+   *  `smtp_configured` before telling the user it was sent. */
+  deliverJobArtifact(pid: string, jobId: string, to: string[], note = "") {
+    return this.json<{ smtp_configured: boolean; filename: string; bytes: number;
+                       results: Record<string, string[]> }>(
+      `/projects/${pid}/jobs/${jobId}/deliver`, { method: "POST", body: JSON.stringify({ to, note }) });
+  }
   };
 }
