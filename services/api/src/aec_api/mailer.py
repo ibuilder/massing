@@ -78,17 +78,22 @@ def send_email(to: str, subject: str, body_text: str, body_html: str | None = No
         try:
             build_message(to, subject, body_text, body_html, attachments)
         except Exception as e:                           # noqa: BLE001
-            _log.warning("email not built for %s: %s", to, e)
+            # %r, not %s: `to` is attacker-influenced and a CR/LF in it writes literal newlines
+            # into the log stream, so a recipient can forge whole log lines (CWE-117). repr escapes
+            # them. Same at the send handler below.
+            _log.warning("email not built for %r: %s", to, e)
             return "error"
-        _log.info("email disabled (no AEC_SMTP_HOST) — would send %r to %s", subject, to)
+        _log.info("email disabled (no AEC_SMTP_HOST) — would send %r to %r", subject, to)
         return "disabled"
-    host = settings_store.get("AEC_SMTP_HOST")
-    port = int(settings_store.get("AEC_SMTP_PORT", "587"))
     try:
-        # INSIDE the try, not before it: `EmailMessage` rejects a recipient containing CR/LF with
-        # ValueError, and this function is documented to never raise. Built outside, one malformed
-        # address aborted the whole delivery loop — after earlier recipients had already received
-        # the artifact and before the audit row was written, so the record disagreed with reality.
+        # EVERYTHING that can raise belongs inside this boundary, not just the message build. The
+        # first fix moved `build_message` in and left `int(AEC_SMTP_PORT)` outside — and settings are
+        # stored as arbitrary strings (`settings_store.set_value(db, k, str(v))`, no numeric check),
+        # so a mistyped port raised ValueError one line above the guard that exists to prevent
+        # exactly that. Treating the instance rather than the class is what left it; the rule is that
+        # this function returns a status for ANY input, configuration included.
+        host = settings_store.get("AEC_SMTP_HOST")
+        port = int(settings_store.get("AEC_SMTP_PORT", "587"))
         msg = build_message(to, subject, body_text, body_html, attachments)
         with smtplib.SMTP(host, port, timeout=15) as s:
             if settings_store.get("AEC_SMTP_TLS", "1") == "1":
@@ -99,9 +104,18 @@ def send_email(to: str, subject: str, body_text: str, body_html: str | None = No
                 s.starttls(context=ssl.create_default_context())
             user, pw = settings_store.get("AEC_SMTP_USER"), settings_store.get("AEC_SMTP_PASSWORD")
             if user and pw:
+                if settings_store.get("AEC_SMTP_TLS", "1") != "1":
+                    # Deliberately a loud warning, not a refusal. `AEC_SMTP_TLS=0` is a documented
+                    # deployment choice for a self-hosted product relaying through localhost or a
+                    # trusted internal MTA, where cleartext is not an exposure; hard-refusing would
+                    # break those installs to protect against a risk they do not have. What is not
+                    # defensible is doing it SILENTLY, so the operator is told each time.
+                    _log.warning("SMTP auth over cleartext: AEC_SMTP_TLS=0 and a password is set, "
+                                 "so the credential leaves this host unprotected. Set AEC_SMTP_TLS=1 "
+                                 "unless the relay is local or on a trusted network.")
                 s.login(user, pw)
             s.send_message(msg)
         return "sent"
     except Exception as e:           # noqa: BLE001 — one bad send must not abort a batch
-        _log.warning("email send failed to %s: %s", to, e)
+        _log.warning("email send failed to %r: %s", to, e)
         return "error"

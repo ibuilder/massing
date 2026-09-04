@@ -205,4 +205,62 @@ assert _ctx is not None, "starttls() was called with no context — that context
 assert _ctx.verify_mode == ssl.CERT_REQUIRED, _ctx.verify_mode
 assert _ctx.check_hostname is True, _ctx.check_hostname
 
+# --- a mistyped port is a status, not an escaped exception ---------------------------------------
+# The first fix moved build_message inside the boundary and left `int(AEC_SMTP_PORT)` outside it —
+# the same defect class, one line above the guard. Settings are stored as arbitrary strings
+# (settings_store.set_value(db, k, str(v)), no numeric validation), so a typo in the Settings form
+# raised ValueError straight through a function documented never to raise, aborting the delivery
+# loop before its audit row exactly as the CR/LF recipient did.
+_real_get = mailer.settings_store.get
+mailer.settings_store.get = lambda k, d=None: {"AEC_SMTP_HOST": "h",
+                                               "AEC_SMTP_PORT": "not-a-number"}.get(k, d)
+try:
+    assert mailer.send_email("a@example.com", "S", "b") == "error"
+finally:
+    mailer.settings_store.get = _real_get
+
+# --- an attacker-influenced recipient cannot forge log lines (CWE-117) --------------------------
+# `%s` writes a literal CR/LF into the stream, so a recipient can append whatever it likes as a
+# separate, plausible-looking log record. `%r` escapes it.
+import io as _io  # noqa: E402
+import logging as _logging  # noqa: E402
+
+_buf = _io.StringIO()
+_h = _logging.StreamHandler(_buf)
+_ml = _logging.getLogger("aec.mail")
+_saved, _prop = _ml.handlers[:], _ml.propagate
+_ml.handlers[:] = [_h]
+_ml.propagate = False
+try:
+    mailer.send_email("v@x.test\r\nFAKE: forged log line", "S", "b")
+finally:
+    _ml.handlers[:], _ml.propagate = _saved, _prop
+_out = _buf.getvalue()
+assert "FAKE: forged log line" in _out, _out          # the value is still reported...
+assert "\nFAKE: forged log line" not in _out, repr(_out)   # ...but never as its own line
+
+# --- cleartext SMTP auth is allowed but never silent -------------------------------------------
+# AEC_SMTP_TLS=0 is a documented deployment choice (a local or trusted-network relay), so this is a
+# warning rather than a refusal — but sending a credential unprotected without telling anyone is
+# what would be indefensible.
+_FakeSMTP.captured.clear()
+_buf2 = _io.StringIO()
+_h2 = _logging.StreamHandler(_buf2)
+_saved, _prop = _ml.handlers[:], _ml.propagate
+_ml.handlers[:] = [_h2]
+_ml.propagate = False
+_real_smtp, _real_get = mailer.smtplib.SMTP, mailer.settings_store.get
+mailer.smtplib.SMTP = _FakeSMTP
+mailer.settings_store.get = lambda k, d=None: {"AEC_SMTP_HOST": "h", "AEC_SMTP_PORT": "587",
+                                               "AEC_SMTP_TLS": "0", "AEC_SMTP_USER": "u",
+                                               "AEC_SMTP_PASSWORD": "hunter2-secret"}.get(k, d)
+try:
+    assert mailer.send_email("a@example.com", "S", "b") == "sent"   # still allowed
+finally:
+    mailer.smtplib.SMTP, mailer.settings_store.get = _real_smtp, _real_get
+    _ml.handlers[:], _ml.propagate = _saved, _prop
+assert "cleartext" in _buf2.getvalue(), _buf2.getvalue()
+assert "hunter2-secret" not in _buf2.getvalue(), "the password must never be logged"
+assert not _FakeSMTP.captured, "starttls must not run when TLS is off"
+
 print("test_artifact_deliver OK")
