@@ -99,6 +99,7 @@ def job_artifact(pid: str, job_id: str, db: Session = Depends(get_db),
 # record AND a runner, and there is no scheduler of any kind in this tree (no APScheduler, croniter
 # or cron), so choosing one is a deployment decision rather than a wiring task.
 _DELIVER_MAX_BYTES = 15 * 1024 * 1024
+_DELIVER_MAX_RECIPIENTS = 25
 
 
 @router.post("/projects/{pid}/jobs/{job_id}/deliver")
@@ -126,13 +127,28 @@ def deliver_artifact(pid: str, job_id: str, to: list[str] = Body(..., embed=True
     key = res.get("artifact_key") if isinstance(res, dict) else None
     if j.state != "done" or not key or not storage.exists(key):
         raise HTTPException(404, "job has no artifact" + (f" (state {j.state}: {j.error})" if j.error else ""))
-    addrs = [a.strip() for a in to if isinstance(a, str) and a.strip()]
+    # Normalise, de-duplicate (case-insensitively — SMTP domains are not case-sensitive and the
+    # local part is not worth guessing at), and preserve the caller's order so the response reads
+    # the way the request was written. `dict.fromkeys` does both in one pass.
+    addrs = list(dict.fromkeys(a.strip() for a in to if isinstance(a, str) and a.strip()).keys())
+    seen: set[str] = set()
+    addrs = [a for a in addrs if not (a.lower() in seen or seen.add(a.lower()))]
     if not addrs:
         raise HTTPException(422, "at least one recipient is required")
+    # Each address is a SYNCHRONOUS SMTP conversation with a 15-second timeout, so an unbounded
+    # list is a request that occupies a worker for hours. The cap is a refusal, not a silent trim:
+    # quietly dropping recipients is the failure the 422 above exists to avoid, one level up.
+    if len(addrs) > _DELIVER_MAX_RECIPIENTS:
+        raise HTTPException(422, f"at most {_DELIVER_MAX_RECIPIENTS} recipients per delivery "
+                                 f"({len(addrs)} given)")
 
+    # Size BEFORE read. `storage.get` materialises the whole object, and an artifact job can park a
+    # large geometry export, so checking `len(data)` afterwards means the memory has already been
+    # spent on exactly the payload being refused — and concurrent callers multiply it.
+    nbytes = storage.size(key)
+    if nbytes > _DELIVER_MAX_BYTES:
+        raise HTTPException(413, f"artifact is {nbytes} bytes; the delivery cap is {_DELIVER_MAX_BYTES}")
     data = storage.get(key)
-    if len(data) > _DELIVER_MAX_BYTES:
-        raise HTTPException(413, f"artifact is {len(data)} bytes; the delivery cap is {_DELIVER_MAX_BYTES}")
     fname = res.get("filename") or "artifact.bin"
     subject = f"{j.kind.replace('_', ' ')}: {fname}"
     body = (f"{user} sent you {fname} from project {pid}.\n\n"

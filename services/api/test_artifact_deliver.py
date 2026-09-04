@@ -13,7 +13,10 @@ Run: PYTHONPATH=src ./.venv/bin/python test_artifact_deliver.py"""
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_artifact_deliver.db"
-os.environ["STORAGE_DIR"] = "./test_storage_artifact_deliver"
+# setdefault, not assignment: run_tests.py assigns STORAGE_DIR=./_storage_{test} and sweeps exactly
+# that path afterwards. Overwriting it sent this test's 15 MiB blob to a directory the runner does
+# not own, which is what the suite footer means by "dir(s) this runner does not own".
+os.environ.setdefault("STORAGE_DIR", "./_storage_test_artifact_deliver")
 os.environ.pop("AEC_RBAC", None)
 os.environ.pop("AEC_SMTP_HOST", None)          # unconfigured: sends must report "disabled", not fail
 for _f in ("./test_artifact_deliver.db",):
@@ -113,9 +116,93 @@ with TestClient(app) as c:
     r = c.post(f"/projects/{pid}/jobs/job-big/deliver", json={"to": ["a@example.com"]})
     assert r.status_code == 413, (r.status_code, r.text)
 
+    # --- a malformed recipient is that recipient's error, not everyone's -----------------------
+    # `EmailMessage` rejects a header value containing CR/LF with ValueError. `send_email` is
+    # documented to NEVER raise; built outside its try block it did, which aborted the delivery loop
+    # after earlier recipients had already been served and before the audit row was written — so the
+    # audit disagreed with what actually happened. The bad address must degrade to "error" alone.
+    assert mailer.send_email("bad@example.com\r\nBcc: injected@example.com", "S", "b") == "error"
+    r = c.post(f"/projects/{pid}/jobs/job-done/deliver",
+               json={"to": ["good@example.com", "bad@example.com\r\nBcc: x@example.com"]})
+    assert r.status_code == 200, (r.status_code, r.text)
+    res = r.json()["results"]
+    assert res.get("disabled") == ["good@example.com"], res
+    assert res.get("error") == ["bad@example.com\r\nBcc: x@example.com"], res
+
+    # --- recipients are de-duplicated, case-insensitively --------------------------------------
+    # Every retained address is a synchronous SMTP conversation, so a duplicate is not merely untidy.
+    r = c.post(f"/projects/{pid}/jobs/job-done/deliver",
+               json={"to": ["a@example.com", "A@Example.com", " a@example.com "]})
+    assert r.status_code == 200, (r.status_code, r.text)
+    assert r.json()["results"]["disabled"] == ["a@example.com"], r.json()["results"]
+
+    # --- the recipient cap REFUSES, it does not silently trim ----------------------------------
+    # Trimming would be the same silent-success failure the empty-list 422 exists to prevent.
+    many = [f"u{i}@example.com" for i in range(26)]
+    r = c.post(f"/projects/{pid}/jobs/job-done/deliver", json={"to": many})
+    assert r.status_code == 422, (r.status_code, r.text)
+    assert "25" in r.text, r.text
+
+    # --- oversize is refused from the STORED SIZE, without materialising the object -------------
+    # storage.get() pulls the whole artifact into memory; checking len() afterwards spends exactly
+    # the memory being refused. Patching get() to explode proves the refusal happens before it.
+    _boom = storage.get
+    storage.get = lambda k: (_ for _ in ()).throw(AssertionError(f"materialised {k}"))
+    try:
+        r = c.post(f"/projects/{pid}/jobs/job-big/deliver", json={"to": ["a@example.com"]})
+        assert r.status_code == 413, (r.status_code, r.text)
+    finally:
+        storage.get = _boom
+
     # a job in ANOTHER project is not reachable through this project's path.
     pid2 = c.post("/projects", json={"name": "Other"}).json()["id"]
     assert c.post(f"/projects/{pid2}/jobs/job-done/deliver",
                   json={"to": ["a@example.com"]}).status_code == 404
+
+# --- STARTTLS must present a VERIFYING context ---------------------------------------------------
+# `starttls()` with no argument uses `ssl._create_stdlib_context()`, which on this interpreter
+# reports verify_mode=CERT_NONE and check_hostname=False — the artifact and the SMTP password go up
+# with no certificate check. Asserted through a fake SMTP rather than by reading the source, so the
+# test measures what is passed at the call, not what the file appears to say.
+import ssl  # noqa: E402
+
+
+class _FakeSMTP:
+    captured: list = []
+
+    def __init__(self, host, port, timeout=None):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def starttls(self, context=None):
+        _FakeSMTP.captured.append(context)
+
+    def login(self, u, p):
+        pass
+
+    def send_message(self, m):
+        pass
+
+
+_real_smtp, _real_get = mailer.smtplib.SMTP, mailer.settings_store.get
+mailer.smtplib.SMTP = _FakeSMTP
+mailer.settings_store.get = lambda k, d=None: {"AEC_SMTP_HOST": "smtp.example.com",
+                                               "AEC_SMTP_PORT": "587",
+                                               "AEC_SMTP_TLS": "1"}.get(k, d)
+try:
+    assert mailer.send_email("a@example.com", "S", "b") == "sent"
+finally:
+    mailer.smtplib.SMTP, mailer.settings_store.get = _real_smtp, _real_get
+
+assert len(_FakeSMTP.captured) == 1, _FakeSMTP.captured
+_ctx = _FakeSMTP.captured[0]
+assert _ctx is not None, "starttls() was called with no context — that context does NOT verify"
+assert _ctx.verify_mode == ssl.CERT_REQUIRED, _ctx.verify_mode
+assert _ctx.check_hostname is True, _ctx.check_hostname
 
 print("test_artifact_deliver OK")

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from . import settings_store
@@ -36,7 +37,7 @@ def smtp_test() -> dict:
     try:
         with smtplib.SMTP(host, port, timeout=15) as s:
             if settings_store.get("AEC_SMTP_TLS", "1") == "1":
-                s.starttls()
+                s.starttls(context=ssl.create_default_context())   # verified — see send_email
             user, pw = settings_store.get("AEC_SMTP_USER"), settings_store.get("AEC_SMTP_PASSWORD")
             if user and pw:
                 s.login(user, pw)
@@ -71,16 +72,31 @@ def send_email(to: str, subject: str, body_text: str, body_html: str | None = No
                attachments: list[tuple[str, bytes, str]] | None = None) -> str:
     """Send one message. Returns "sent" | "disabled" | "error". Never raises (so a digest
     run can't be broken by one bad address / transient SMTP failure)."""
-    msg = build_message(to, subject, body_text, body_html, attachments)
     if not smtp_configured():
+        # Still built, so an unconfigured deployment fails on a malformed address the same way a
+        # configured one does — a bad recipient must not become visible only in production.
+        try:
+            build_message(to, subject, body_text, body_html, attachments)
+        except Exception as e:                           # noqa: BLE001
+            _log.warning("email not built for %s: %s", to, e)
+            return "error"
         _log.info("email disabled (no AEC_SMTP_HOST) — would send %r to %s", subject, to)
         return "disabled"
     host = settings_store.get("AEC_SMTP_HOST")
     port = int(settings_store.get("AEC_SMTP_PORT", "587"))
     try:
+        # INSIDE the try, not before it: `EmailMessage` rejects a recipient containing CR/LF with
+        # ValueError, and this function is documented to never raise. Built outside, one malformed
+        # address aborted the whole delivery loop — after earlier recipients had already received
+        # the artifact and before the audit row was written, so the record disagreed with reality.
+        msg = build_message(to, subject, body_text, body_html, attachments)
         with smtplib.SMTP(host, port, timeout=15) as s:
             if settings_store.get("AEC_SMTP_TLS", "1") == "1":
-                s.starttls()
+                # An explicit verified context. `starttls()` with no argument uses
+                # `ssl._create_stdlib_context()`, which on this interpreter reports
+                # verify_mode=0 / check_hostname=False — no certificate check at all, so the
+                # artifact and the SMTP credentials go up unauthenticated.
+                s.starttls(context=ssl.create_default_context())
             user, pw = settings_store.get("AEC_SMTP_USER"), settings_store.get("AEC_SMTP_PASSWORD")
             if user and pw:
                 s.login(user, pw)
