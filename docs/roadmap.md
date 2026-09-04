@@ -1910,9 +1910,35 @@ stakes we are missing.
 
   *Cost of the premise-check: one grep. Cost of believing the entry: a scheduling engine.*
 
-  **Still open: department resourcing.** The resourcing half is not the small
-  item this entry's phrasing suggests — `resource_loading.py` groups by **trade and resource type**,
-  per project, so "by department" needs both a new dimension and a portfolio axis. Size it on its own.
+  ✅ **Portfolio resourcing SHIPPED — `GET /portfolio/resourcing`,
+  `services/api/src/aec_api/resource_portfolio.py`.** Weekly CONCURRENT demand per trade, summed
+  across the book. `?cap=` flags the weeks where one trade is over-committed **across projects** and
+  names which projects are competing for it. `services/api/test_resource_portfolio.py` pins the
+  claim that only a cross-project view can make: two projects at 6 units each are both under a cap
+  of 8, and together they are not — asserted by calling each project's own
+  `/schedule/resource-loading?cap=8` and confirming it reports nothing.
+
+  **"By department" was the wrong shape, and the schema says so.** `resource_assignment.trade` is
+  labelled **"Trade / discipline"**, and the word "department" appears nowhere in the backend except
+  a comment in `rooms.py` and a fire-department scope clause. So a department axis is **a product
+  decision** — what is a department that a trade is not? field-vs-office for a GC, or
+  Architecture / Structural / MEP for a design firm — **not a filter over data we hold.** Raised
+  rather than invented: a dimension nobody has defined cannot be reported honestly. **The portfolio
+  axis was the half that mattered and it needed no new field.**
+
+  **Fidelity is reported, not blended.** `resource_loading` falls back to
+  `schedule_activity.crew_size` when a project has no assignments; that is a crew count, not a
+  resourced plan. Every project row carries its `source` and `fidelity` gives the split, so a book
+  of fallbacks cannot read as a resourced one — the heat map's rule one step along: *do not let a
+  lower-fidelity value wear the costume of a higher-fidelity one.*
+
+  ⚠️ **A gate caught something on the way in, and it was a WORD.** Adding this put the field
+  `fidelity.resourced` into the web source, and `sourced` is the leaf of `/schedule/eot/sourced`, so
+  `test_route_reachability` reported that frozen-uncalled route as called. Renamed to `assigned`.
+  The second instance of a class that file already records; the note there explains why the matcher
+  is not the thing to change.
+
+  **R22-PIPELINE is now closed apart from the department question above, which is the user's.**
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
 
 **A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for

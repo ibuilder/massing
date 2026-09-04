@@ -142,6 +142,55 @@ export async function renderPortfolio(ctx: PanelContext) {
       ctx.root.appendChild(card);
     }).catch(() => { /* returns spread is best-effort; the roll-up above stands on its own */ });
 
+    // RESOURCING ACROSS THE BOOK — R22-PIPELINE's last item. The per-project resource histogram
+    // already exists; what it cannot show is a trade committed to three jobs in the same week,
+    // because that trade looks comfortable on every one of them. Same shape as the cross-project
+    // Gantt: the thing only visible once you sum.
+    //
+    // `trade` is the dimension the schema carries (`resource_assignment.trade`, labelled
+    // "Trade / discipline"). There is no department field anywhere, so department reporting is a
+    // product decision rather than a filter — recorded in the roadmap, not invented here.
+    void ctx.host.api.portfolioResourcing().then((rp) => {
+      if (!rp.available || !rp.trades.length) return;
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const f = rp.fidelity;
+      card.innerHTML = `<b>Resourcing across the book</b> <span class="meta">`
+        + `${rp.projects.length} project(s) · ${rp.trades.length} trade(s)`
+        + (rp.peak ? ` · peak ${rp.peak.units} concurrent units in ${esc(rp.peak.week)}` : "")
+        + (f.fallback ? ` · ${f.assigned} assigned / ${f.fallback} from crew counts` : "")
+        + (rp.truncated ? ` · showing ${rp.project_count} of ${rp.projects_available}` : "")
+        + `</span>`;
+      const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
+      tbl.innerHTML = `<thead><tr><th scope="col">Trade / discipline</th>`
+        + `<th scope="col" style="text-align:right">Peak</th><th scope="col">Peak week</th>`
+        + `<th scope="col" style="text-align:right">Projects</th>`
+        + `<th scope="col" style="text-align:right">Unit-weeks</th></tr></thead>`;
+      const tb = document.createElement("tbody");
+      for (const t of rp.trades) {
+        const tr = document.createElement("tr");
+        // A trade on more than one project is the only kind that CAN be double-booked, so it is
+        // the only kind worth colouring — this is a fact from the data, not a severity guess.
+        const col = t.cross_project ? "var(--status-warn)" : "var(--muted)";
+        tr.innerHTML = `<td>${esc(t.trade)}${t.cross_project ? ` <span style="color:${col}" title="on ${t.project_count} projects — can be double-booked">⇄</span>` : ""}</td>`
+          + `<td style="text-align:right;font-weight:600">${t.peak_units}</td>`
+          + `<td class="meta">${esc(t.peak_week ?? "—")}</td>`
+          + `<td style="text-align:right">${t.project_count}</td>`
+          + `<td style="text-align:right">${t.unit_weeks}</td>`;
+        tb.appendChild(tr);
+      }
+      tbl.appendChild(tb); card.appendChild(tbl);
+      if (rp.projects_without_loads.length) {
+        const u = document.createElement("div"); u.className = "meta"; u.style.marginTop = "4px";
+        u.textContent = "No resourcing data — " + rp.projects_without_loads
+          .map((x) => esc(x.name)).join(", ");
+        card.appendChild(u);
+      }
+      card.appendChild(Object.assign(document.createElement("div"), { className: "meta",
+        textContent: "⇄ marks a trade committed to more than one project — the only kind that can be "
+          + "double-booked. Peak is concurrent units summed across the book in its busiest week." }));
+      ctx.root.appendChild(card);
+    }).catch(() => { /* resourcing is best-effort — no assignments in this deployment */ });
+
     // RISK HEAT MAP — R22-PIPELINE. The table above says how each project is PERFORMING; this says
     // which risk ENGINE is hot on which project, which is the question that decides where a
     // programme director spends the morning. Cells come from the same `risk_board` each project's

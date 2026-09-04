@@ -171,6 +171,38 @@ def portfolio_risk(limit: int = 25, db: Session = Depends(get_db),
     return risk_portfolio.heatmap(db, projects, limit=max(1, min(int(limit), 100)))
 
 
+@router.get("/portfolio/resourcing")
+def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int = 26,
+                         db: Session = Depends(get_db), _: str = Depends(rbac.current_user)):
+    """R22-PIPELINE — weekly resource demand per trade, summed **across** projects.
+
+    `/projects/{pid}/schedule/resource-loading` answers one project, and a trade committed to three
+    jobs in the same week looks comfortable on every one of them. This sums concurrent demand over
+    the book, so `?cap=` flags the weeks where a single trade is over-committed **across** projects
+    and names which projects are competing for it.
+
+    `trade` is the dimension the schema carries — `resource_assignment.trade` is labelled
+    "Trade / discipline". There is no `department` field anywhere, so department reporting is a
+    product decision about what a department would be that a trade is not, not a filter over
+    existing data.
+
+    Fidelity is reported, not blended: a project with no `resource_assignment` records falls back to
+    `schedule_activity.crew_size`, which is a crew count rather than a resourced plan, and
+    `fidelity` says how much of the book is which.
+    """
+    from .. import resource_portfolio
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _q = db.query(Project)
+    if _allowed is not None:
+        _q = _q.filter(Project.id.in_(_allowed))
+    # (name, id): `Project.name` is not unique, so name alone leaves tied rows in engine order and
+    # the truncated prefix could differ run to run. Same fix as `/portfolio/risk`.
+    projects = [(p.id, p.name) for p in _q.order_by(Project.name, Project.id).all()]
+    return resource_portfolio.portfolio(
+        db, projects, cap=cap, limit=max(1, min(int(limit), 100)),
+        weeks=max(2, min(int(weeks), 260)))
+
+
 @router.get("/portfolio/prioritization")
 def portfolio_prioritization(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):
     """Ranked portfolio prioritization — scores each accessible project 0–100 on return / on-budget /

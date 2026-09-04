@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — Portfolio resourcing
+
+`GET /portfolio/resourcing` (`resource_portfolio.py`) sums weekly **concurrent** resource demand per
+trade across projects. `?cap=` flags weeks where one trade is over-committed across the book and
+names the competing projects. Rendered on Portfolio, with ⇄ marking the trades on more than one
+project — the only ones that can be double-booked.
+
+**A trade on three jobs in the same week looks comfortable on every one of them.** That is what a
+per-project histogram cannot show, and it is the whole reason for the endpoint.
+`test_resource_portfolio.py` proves it rather than asserting it: two projects at 6 units each are
+each under a cap of 8, verified by calling their own `/schedule/resource-loading?cap=8` and getting
+nothing back, while the book reports 12 over the same cap.
+
+**"By department" turned out to be the wrong shape.** `resource_assignment.trade` is labelled
+"Trade / discipline", and no `department` field exists anywhere in the backend. A department axis is
+a product decision, not a filter over data we hold — raised in the roadmap rather than invented.
+
+**Fidelity is reported, not blended.** A project with no assignments falls back to activity
+`crew_size` — a crew count, not a resourced plan — so every row carries its `source` and `fidelity`
+gives the split.
+
+The two `over_allocation` shapes are **not** interchangeable and both docstrings say so: this one
+caps per trade across the book; `resource_loading`'s caps one project's total weekly units.
+
+Found on the way in: the field named `resourced` made `test_route_reachability` report
+`/schedule/eot/sourced` as called, because that gate matches route leaves as substrings and
+`resourced` contains `sourced`. Renamed to `assigned`; the second instance of that collision is
+recorded in the gate's own notes.
+
 ## Unreleased — Cross-project Gantt
 
 The Programme card (`/projects/{pid}/schedule/portfolio`) now draws a bar per project on a shared
