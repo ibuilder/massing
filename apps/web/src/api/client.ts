@@ -152,27 +152,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       phasing: Record<string, number>; lod: Record<string, number>;
       hygiene: { issues: number | null; clean: boolean | null } }>(`/projects/${pid}/scene-digest`);
   }
-  /** CONTENT-1: the curated content catalog (logistics / furniture / landscaping → IFC class + phase). */
-  contentCatalog() {
-    return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
-      phase: string | null; classification: string; default_dims_m: number[] }[]> }>(`/content/catalog`);
-  }
-  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh). */
-  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true) {
-    return this.editIfc(pid, "place_content", { category, point, ...(name ? { name } : {}) }, publish);
-  }
-  /** CONTENT-1 (import): upload a detailed mesh (glTF/GLB/OBJ/STL/PLY) → auto-classified + placed as the
-   *  right IFC via place_content. Category auto-detected from the filename unless given. */
-  async importContent(pid: string, file: File, opts: { category?: string; e?: number; n?: number;
-      scale?: number; name?: string; storey?: string } = {}) {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
-    const fd = new FormData(); fd.append("file", file);
-    const r = await fetch(this.url(`/projects/${pid}/content/import?${q.toString()}`),
-      { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
-    return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
-  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(
@@ -566,7 +545,7 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 65 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 62 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -636,6 +615,10 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   // (98) took DETAILING CARRIERS to a new `detailing.ts`, leaving 65. The reader's two carrier
   // arrays map 1:1 onto `detailing.py`'s two writers, plus the rule engine that writes both and
   // the audit that reports gaps. Reasoning in `detailing.ts`'s header.
+  //
+  // (99) took the CONTENT SHELF — `contentCatalog`/`placeContent`/`importContent` — to
+  // `authoring.ts`, leaving 62. Role-for-role parallel with the family shelf already there; that
+  // file's first line had claimed "family/content shelf" while holding no content method.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

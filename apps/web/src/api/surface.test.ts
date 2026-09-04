@@ -254,6 +254,8 @@ describe("the API client's public surface", () => {
       // live call sites; `classify` is driven through the generic recipe path, so the SURFACE check
       // is the only thing that would notice it vanishing.
       "elementDetailing", "classify", "applyDetailingRules", "validateDetailing", "attachDocument",
+      // (99) the content shelf -> authoring.ts, joining the family triple it parallels.
+      "contentCatalog", "placeContent", "importContent",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

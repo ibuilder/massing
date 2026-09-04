@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(98) took sixty-one of those 126 — 65 remain, and there is STILL no map.** A new
+  **(88)–(99) took sixty-four of those 126 — 62 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3372,6 +3372,23 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   `apps/web/src/api/compositionOrder.test.ts` gains a fourth assertion, **mutation-checked** —
   relaxing the constraint to `Ctor<any>` produces `TS2578` on exactly the new line, so it fails for
   the reason claimed.
+
+  **(99) took the CONTENT SHELF to `apps/web/src/api/authoring.ts`** — `contentCatalog`,
+  `placeContent`, `importContent`, answering *what pre-made content can I place, and place it?* The
+  witness is a **role-for-role parallel** with the family shelf already in that file, read off the
+  signatures rather than the shared noun: `familyCatalog`/`contentCatalog` are both catalog readers
+  returning `{count, …Record<…>}`, `placeFamily`/`placeContent` are both placers, and
+  `importFamilies`/`importContent` are both async multipart importers. Three roles, three methods
+  each. **A parallel between two method TRIPLES is structural**; *"both are shelves"* would have been
+  a word, which is the grouping (88) and (89) each had to reject.
+
+  **And the destination's own first line was wrong until this commit.** `authoring.ts` has described
+  itself as holding *"the family/content shelf"* while containing **zero** content methods — the
+  word's only other appearances there are an HTTP header and a sentence about IFC *type* content. The
+  docstring stated an intended scope as fact. *Recorded as corroboration that was FALSE rather than
+  as evidence: a header agreeing with the answer is worth nothing until someone checks whether it is
+  true, and this one had been wrong for as long as it had existed.* It is the smallest possible
+  instance of the drift these instructions keep warning about.
 
   **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
   `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note
