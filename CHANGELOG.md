@@ -1185,6 +1185,62 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-seventh follow-on on the same version: **SCALE-SEAM (98)** — *detailing carriers, and a
+field map that is total over one module but not over the codebase*.
+
+Five methods out of `client.ts` (`687 → 665`) into a new `apps/web/src/api/detailing.ts`:
+`elementDetailing`, `classify`, `applyDetailingRules`, `validateDetailing`, `attachDocument`.
+**What they answer: what informational carriers are attached to this element, write them, and which
+are missing.**
+
+### A 1:1 and total field-to-writer map
+
+The reader's response has exactly two carrier arrays, and `services/data/src/aec_data/detailing.py`
+holds exactly two writers, one per array:
+
+| response field | writer | IFC relationship |
+|---|---|---|
+| `classifications[]` | `classify` | `IfcRelAssociatesClassification` |
+| `documents[]` | `attachDocument` | `IfcRelAssociatesDocument` |
+
+`element_detailing` walks `HasAssociations` and branches on precisely those two relationship types —
+nothing else contributes a field — so the map comes from the reader's own body rather than from
+matching names. The other two methods are those same two writes under automation:
+`applyDetailingRules` runs the condition-to-content rule set and writes both carrier kinds, and
+`validateDetailing` reports elements a rule applies to that lack the required code.
+
+### Total over the module, not over the codebase
+
+`attachOmDocument` — moved to `model.ts` in (96) — is a purpose-tagged wrapper of the **same**
+`detailing.attach_document`, so it also writes `IfcRelAssociatesDocument` and its output lands in
+`documents[]`. So *"these are all the writers of this reader's fields"* is **false**. The claim the
+evidence supports is narrower and is the one made: the map is 1:1 and total **over `detailing.py`**.
+*That overlap was named when `attachOmDocument` moved, which is why it was available to qualify this
+slice instead of being discovered by a reviewer.*
+
+### Adjacency agreed with the answer, and is not evidence for it
+
+These five were **contiguous** in `client.ts` (119–145). Unlike (95), where non-contiguity was the
+whole argument for grouping by what methods answer, a positional split would have found this set
+too. That is worth stating precisely *because* it looks like support: a grouping that happens to
+coincide with adjacency is not thereby better evidenced.
+
+Also recorded: **`api.classify()` has no call site.** `viewer/tools/detailingSection.ts` drives the
+recipe through the generic `authorAndReload("classify", …)` path, bypassing the typed method.
+`api/clientCallers.test.ts` counts it as reached because it matches bare string literals as well as
+calls — a looseness that file's own docstring declares deliberate, preferring a higher ceiling to a
+false unreachability report. Noted so the next reader of `detailing.ts` does not assume the method
+is live.
+
+The new mixin needs `editIfc`, so it declares `NeedsEditIfc` and composes outside `withAuthoring`;
+`api/compositionOrder.test.ts` gains a fourth line asserting that. **That assertion was
+mutation-checked**: relaxing the constraint to `Ctor<any>` produces `TS2578: Unused '@ts-expect-error'
+directive` on exactly the new line, so it fails for the reason claimed rather than merely passing.
+
+`client.ts` is 65 methods above the STAYING banner and 4 below. *The extraction removed 27 lines and
+the banner plus import added 5 back — caught by the ratchet, not by me, which is the same way (94)
+found its own banner growth.*
+
 Thirty-sixth follow-on on the same version: **SCALE-SEAM (97)** — *the undo stack, and a
 destination that looked right and was not*.
 
