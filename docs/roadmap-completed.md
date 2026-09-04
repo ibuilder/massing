@@ -5886,6 +5886,20 @@ and never the source IFC; unknown, revoked, not-opted-in and no-model-published 
 identical 404 so none of them is an enumeration oracle. The owner's token list shows which links
 carry geometry, because an opt-in nobody can audit after minting cannot be reviewed or regretted.
 
+**CORRECTION 2026-09-04 — both of those last two sentences were true of the API and false of the
+product, for the whole time this entry has stood.** The record is left above exactly as written,
+because what it got wrong is the useful part. `createShareToken` in the web client never sent
+`show_model`, so no token this product minted could serve geometry and the route 404'd for every
+link it has ever produced; and the token row type had no `show_model` field, so the owner's list
+could not have shown which links carry geometry even once one existed. `_public_row` returned the
+value the entire time — the wire was right and both readers were missing.
+
+*The lesson is about who constructs the request.* `test_shared_model.py` verified this feature
+correctly and could not have caught it: it mints tokens with `json={"show_model": True}`, a body the
+product does not produce, so it passed over a client incapable of asking. **A test that builds its
+own request proves the server honours that request, never that anything sends it.** Closed under
+PORTAL-SHOWMODEL in [`roadmap.md`](roadmap.md) Band 2, which carries the detail.
+
 ## REACH RING — ceiling 131 to 117 in one day ✅ *(v0.3.861–v0.3.880)*
 
 The uncalled ceiling fell from 131 to 117 across #269, #271, #272, #273 and #254, with #266 still to
