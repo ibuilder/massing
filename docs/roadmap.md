@@ -3230,7 +3230,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   model.* Four methods (`addAnnotation`, `addDimension`, `addRevisionCloud`, `addTag`), bounded by
   two sources this extraction did not author: `services/api/src/aec_api/authoring_matrix.py`, whose
   curated `annotate` category holds exactly these four of 99 recipes across 15 categories, and
-  `services/api/test_annotation.py`, which exercises those four recipes and no others. The UI they
+  `services/api/test_annotation.py`, which exercises all four annotation recipes and no other recipe as
+  its subject (it calls `add_wall` and `add_column` as fixtures, to give `add_tag` a host). *That
+  qualification was missing until review — the second consecutive slice to claim "nothing else" about a
+  test while counting only what it targets, after (91)'s `test_cre_tier3`.* The UI they
   serve, `apps/web/src/viewer/tools/annotationSection.ts`, makes exactly four `api.*` calls and they
   are these.
 

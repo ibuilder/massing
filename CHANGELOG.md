@@ -988,7 +988,16 @@ dimension, a cloud or a tag ON the model** — all four author real `IfcAnnotati
    public authoring-coverage endpoint, maintained for a different purpose than this extraction. Its
    `annotate` category holds **exactly these four** of the map's 99 recipes across 15 categories. A
    complete category: nothing left behind, nothing pulled in.
-2. **`services/api/test_annotation.py`** exercises those four recipes and no others.
+2. **`services/api/test_annotation.py`** exercises all four annotation recipes, and no other recipe
+   as its *subject* — it calls `add_wall` and `add_column` once each as fixtures, to give `add_tag` a
+   host element to label.
+
+*The qualification in (2) was missing from the first draft, which said "and no others" — and it is the
+**second consecutive slice** to make that error: (91) claimed no `test_cre_*` file reached outside its
+set while `test_cre_tier3` reached three routes as fixtures. Both times the claim counted what a test
+**targets** and ignored what it **sets up**. A "nothing else" claim about a test has to say whether it
+means assertions or every call the file makes; those are different sets, and the smaller one is the
+one you notice.*
 
 A third corroboration: `apps/web/src/viewer/tools/annotationSection.ts`, the UI these serve, makes
 exactly four `api.*` calls and they are these four.

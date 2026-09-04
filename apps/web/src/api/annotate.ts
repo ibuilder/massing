@@ -10,7 +10,16 @@
  *     extraction. Its `annotate` category holds **exactly four** of the map's 99 recipes across 15
  *     categories, and they are exactly these: `add_annotation`, `add_dimension`, `add_revision_cloud`,
  *     `add_tag`. A complete category — nothing left behind, nothing pulled in.
- *  2. **`services/api/test_annotation.py`** exercises those four recipes and no others.
+ *  2. **`services/api/test_annotation.py`** exercises all four annotation recipes, and no other
+ *     recipe as its SUBJECT — it calls `add_wall` and `add_column` once each as fixtures, to give
+ *     `add_tag` a host element to label.
+ *
+ *  *That qualification was missing from the first draft, which said "and no others" — and it is the
+ *  SECOND CONSECUTIVE SLICE to make it: (91) claimed no `test_cre_*` file reached outside its set
+ *  while `test_cre_tier3` reached three routes as fixtures. Both times the claim counted what a test
+ *  TARGETS and ignored what it SETS UP. **A "nothing else" claim about a test must say whether it
+ *  means assertions or every call the file makes**, because those are different sets and the smaller
+ *  one is the one you notice.*
  *
  *  Both are groupings somebody else authored, which is the kind of source (87) argued to prefer over
  *  a list this extraction wrote for itself.
