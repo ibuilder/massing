@@ -163,7 +163,11 @@ def portfolio_risk(limit: int = 25, db: Session = Depends(get_db),
     _q = db.query(Project)
     if _allowed is not None:
         _q = _q.filter(Project.id.in_(_allowed))
-    projects = [(p.id, p.name) for p in _q.order_by(Project.name).all()]
+    # (name, id): `Project.name` is NOT unique, so name alone leaves tied rows in whatever
+    # order the engine returns — and this route promises a DETERMINISTIC prefix when it
+    # truncates. A tie straddling the `limit` boundary would otherwise scan a different
+    # project run to run. The id is the primary key, so it settles every tie.
+    projects = [(p.id, p.name) for p in _q.order_by(Project.name, Project.id).all()]
     return risk_portfolio.heatmap(db, projects, limit=max(1, min(int(limit), 100)))
 
 

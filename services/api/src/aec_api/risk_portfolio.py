@@ -54,10 +54,14 @@ DEFAULT_LIMIT = 25
 
 
 def _empty_counts() -> dict[str, Any]:
+    """A MEASURED zero — the shape a cell gets only once its lane reported `ok`. An unmeasured
+    cell never passes through here; see the module note on why that distinction is the point."""
     return {"high": 0, "medium": 0, "low": 0, "count": 0, "score": 0}
 
 
 def _score(c: dict[str, Any]) -> int:
+    """Cell intensity: `3·high + 2·medium + 1·low`. Shallow on purpose — the severities were
+    already chosen by the individual engines, and a steeper curve would re-weight them invisibly."""
     return sum(_WEIGHT[s] * c[s] for s in ("high", "medium", "low"))
 
 

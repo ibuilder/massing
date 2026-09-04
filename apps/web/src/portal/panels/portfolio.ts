@@ -184,7 +184,16 @@ export async function renderPortfolio(ctx: PanelContext) {
         }).join("");
         tr.innerHTML = `<td>${esc(p.name)}${p.id === here ? " ·" : ""}</td>${cells}`
           + `<td style="text-align:right;font-weight:700;color:${heat(p.score)}">${p.count || "—"}</td>`;
-        tr.onclick = () => { if (p.id !== here) window.location.search = `?project=${p.id}`; };
+        // Keyboard-operable, matching the `documents.ts` folder-row idiom. `.kpi-click` already
+        // styles `:focus-visible` (style.css) — the stylesheet was written expecting these rows to
+        // be focusable, and a pointer-only handler quietly never delivered it.
+        const go = () => { if (p.id !== here) window.location.search = `?project=${p.id}`; };
+        if (p.id !== here) {
+          tr.setAttribute("role", "button"); tr.tabIndex = 0;
+          tr.setAttribute("aria-label", `Open ${p.name}, ${p.count} open risk item(s)`);
+          tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+        }
+        tr.onclick = go;
         tb.appendChild(tr);
       }
       tbl.appendChild(tb); card.appendChild(tbl);

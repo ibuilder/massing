@@ -118,6 +118,24 @@ with TestClient(app) as c:
     assert c.get("/portfolio/risk?limit=0", headers=HDR).json()["limit"] == 1
     assert c.get("/portfolio/risk?limit=9999", headers=HDR).json()["limit"] == 100
 
+    # --- the truncated prefix is DETERMINISTIC, and name alone does not make it so ---------------
+    # `Project.name` is not unique. Ordering by name alone leaves tied rows in whatever order the
+    # engine returns, so a tie straddling the `limit` boundary scans a different project run to run
+    # — against this route's own stated contract. The fix orders by (name, id); the id is the
+    # primary key, so it settles every tie.
+    #
+    # These sort last alphabetically, so they form the tail of the scan order and the cut lands
+    # inside them. Ids are uuid4, so their sorted order is independent of insertion order: under the
+    # defect the scan would take the first 4 INSERTED, and this asserts it takes the 4 LOWEST-ID.
+    # Those coincide with probability 1/C(8,4) = 1/70, so a regression escapes ~1.4% of the time —
+    # stated rather than hidden, since nothing here can pin a uuid.
+    tied = [c.post("/projects", json={"name": "ZZZ Tied"}, headers=HDR).json()["id"] for _ in range(8)]
+    assert len(set(tied)) == 8, tied
+    d = c.get("/portfolio/risk?limit=6", headers=HDR).json()          # AAA + BBB + 4 of the 8 tied
+    assert d["project_count"] == 6 and d["projects_available"] == 10, d
+    got = {p["id"] for p in d["projects"] if p["name"] == "ZZZ Tied"}
+    assert got == set(sorted(tied)[:4]), (sorted(got), sorted(tied)[:4])
+
 # --- a broken lane renders as `error`, not as a clear cell --------------------------------------
 # The module's central claim, exercised directly: `board` is fail-open, so a lane whose engine
 # raises reports "error" and contributes no items. The heat map must carry that through instead of
@@ -137,6 +155,7 @@ def _with_board(fn, projects):
 
 
 def _fixed(lanes, items):
+    """A `board` stand-in returning fixed lanes and items for every project."""
     return lambda _db, _pid: {"lanes": lanes, "items": items, "band": "watch",
                               "count": len(items), "by_severity": {}}
 
@@ -158,6 +177,7 @@ assert hm["projects"][0]["score"] == 3, hm["projects"][0]   # the one high coord
 
 
 def _raises(_db, _pid):
+    """A `board` that fails outright, so the whole project comes back unmeasured."""
     raise RuntimeError("engine down")
 
 
