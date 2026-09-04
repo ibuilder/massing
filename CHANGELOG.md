@@ -742,6 +742,63 @@ at files naming no `.py` → **exit 1** on the vacuity guard.
 third was introduced while correcting the second. **Widening a scope is itself a scoping decision,
 and it deserves the same suspicion as the one it replaces.***
 
+Twenty-eighth follow-on on the same version: **SCALE-SEAM (89)** — *two clusters, and a banner that
+named two of its four*.
+
+Eight methods out of `client.ts` (`953 → 906`) into two new mixins.
+
+**`apps/web/src/api/resilience.ts` — what could the environment do to this project?** One question
+asked of three things: the SITE (`resilienceFlood` — SFHA, design flood elevation, which assets sit
+below it), the CIVIL DESIGN (`resilienceStormwater` — runoff coefficient, peak CFS, detention volume),
+and the PROGRAMME (`resilienceWeather` — weather-sensitive activities by trade, open site risks, delay
+days). `resilienceClimateRisk` is the composite over all three.
+
+*The tension is named rather than smoothed over*, and then the reason for resolving it was narrowed
+after checking the source. `resilienceWeather` reads activities with trade, start, finish and percent
+complete — `schedule.ts` vocabulary, and a subject-matter split would send it there.
+
+**The first draft of that argument claimed a dependency the backend does not support.**
+`resilience.climate_risk()` does score `high_severity_open`, `open_risk_count` and
+`weather_delay_days` alongside the flood and runoff figures — but it reaches them through
+`_weather_exposure()`, commented in the source as *"site-risk + delay only — skips the
+schedule_activity scan"*. The composite never reads `weather_sensitive_activities`. So the rollup
+binds the half of that method which is **not** schedule-shaped, and the schedule-shaped half has no
+claim from it: a shared input, not a call dependency, and weaker than "separating an input from its
+rollup" implies.
+
+The placement stands on a **boundary rule** instead: `schedule.ts` holds programme-state queries, it
+is not the home of every query that happens to read a `schedule_activity` record. That reason was
+CodeRabbit's, arrived at independently while confirming the narrowing. *An argument that reads well
+is not the same as one that holds, and a header is where the difference gets inherited.*
+
+**`apps/web/src/api/responsibility.ts` — who is accountable for what?** The backend agrees exactly:
+`aec_api/routers/responsibility.py` holds those four routes **and nothing else**. A 1:1 router
+correspondence is the strongest corroboration available for a grouping, and it was checked rather
+than assumed.
+
+*It did NOT go to `modules.ts`, and the router's own docstring is why it nearly did:* "Rows themselves
+are ordinary `responsibility` module records, so create/edit/delete of individual cells goes through
+the generic /modules CRUD." Same storage, and that CRUD lives in `modules.ts`. **Storage is a HOW.**
+A caller reaching for `modules.ts` wants records of a module type; a caller reaching for these wants
+to know who is Accountable for a task. "They are all module records" is (85)'s "they are all multipart
+uploads" one layer down.
+
+Four methods is a small file, and that is fine — `risk.ts`, `dealMemory.ts` and `assetRights.ts` hold
+two each. Sizing a mixin to feel substantial is not a reason to file a method where it does not answer.
+
+### The banner over-claimed, for the sixth time in this sequence
+
+`// --- climate & water resilience (flood + stormwater) ---` sat above **four** methods and named
+**two**. Weather and the climate-risk composite were filed at whatever header was nearest — the same
+defect as ⓽'s "AI drafting" running on into sheet extraction, (81)'s `ifcClassify` under a G704
+turnover header, and (82)'s RACI banner covering thirteen methods while describing four.
+
+`ResponsibilityMatrix` left `client.ts`'s type imports with the methods; it had no other reader.
+
+Pin 953 → 906. **109 above the banner, and still no map.** The banner's seven example names were
+checked against the file this time and none had moved — *that check is the point, not the result.*
+
+
 
 
 
