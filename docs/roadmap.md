@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(97) took fifty-six of those 126 — 70 remain, and there is STILL no map.** A new
+  **(88)–(98) took sixty-one of those 126 — 65 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3339,6 +3339,39 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   exactly these three — but that unit is a block delimited by reading, not a closure the braces
   define. It corroborates; it does not bound. **Not every set has a witness as strong as the last
   one's, and promoting a block to a closure would be this sequence's own recurring defect.**
+
+  **(98) added `apps/web/src/api/detailing.ts`** — `elementDetailing`, `classify`,
+  `applyDetailingRules`, `validateDetailing`, `attachDocument`, answering *what informational
+  carriers are attached to this element, write them, and which are missing?* The witness is the
+  (96) shape at its strongest yet: **a 1:1 AND TOTAL field-to-writer map**. `element_detailing`
+  walks `HasAssociations` and branches on exactly two relationship types, and
+  `services/data/src/aec_data/detailing.py` holds exactly two writers — `classifications[]` from
+  `classify` (`IfcRelAssociatesClassification`), `documents[]` from `attachDocument`
+  (`IfcRelAssociatesDocument`). The map is read out of the reader's own body, not matched on names.
+  The remaining two methods are those same writes automated and audited.
+
+  **Total over the MODULE, not over the codebase — and the difference is the claim.**
+  `attachOmDocument`, moved to `model.ts` in (96), wraps the *same* `detailing.attach_document` and
+  also lands in `documents[]`, so *"these are all the writers of this reader's fields"* is false.
+  *That overlap was named when it moved, which is why it was on hand to qualify this slice rather
+  than being found by a reviewer — the value of recording a limit is that the next slice inherits
+  it.*
+
+  **Adjacency agreed with the answer and is not evidence for it.** These five were contiguous in
+  `client.ts`; unlike (95), where non-contiguity was the whole argument, a positional split would
+  have found this set too. Stated precisely *because* it looks like support.
+
+  *Also recorded, since it will otherwise mislead the next reader:* **`api.classify()` has no call
+  site** — `apps/web/src/viewer/tools/detailingSection.ts` drives the recipe through the generic
+  `authorAndReload` path, bypassing the typed method, and `apps/web/src/api/clientCallers.test.ts`
+  counts it reached because it matches bare string literals as well as calls. That looseness is
+  deliberate per that file's own docstring (a higher ceiling beats a false unreachability report),
+  so it is a limit of the gate, not a defect in it.
+
+  The new mixin needs `editIfc`, so it declares `NeedsEditIfc` and composes outside `withAuthoring`;
+  `apps/web/src/api/compositionOrder.test.ts` gains a fourth assertion, **mutation-checked** —
+  relaxing the constraint to `Ctor<any>` produces `TS2578` on exactly the new line, so it fails for
+  the reason claimed.
 
   **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
   `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note

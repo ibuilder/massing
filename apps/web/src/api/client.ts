@@ -17,6 +17,7 @@ import { withOperations } from "./operations";
 import { withClientPortal } from "./clientPortal";
 import { withCreDeal } from "./creDeal";
 import { withAnnotate } from "./annotate";
+import { withDetailing } from "./detailing";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
@@ -69,7 +70,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -115,33 +116,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   elements5dMap(pid: string, by: "progress" | "cost" = "progress") {
     return this.json<{ by: string; buckets: Record<string, string[]>; counts: Record<string, number>; element_count: number }>(
       `/projects/${pid}/5d/heatmap?by=${by}`);
-  }
-  /** W11 Track D: one element's attached carriers — classification codes + documents (details/instructions). */
-  elementDetailing(pid: string, guid: string) {
-    return this.json<{ guid: string; name: string; ifc_class: string;
-      classifications: { system: string | null; code: string | null; title: string | null }[];
-      documents: { identification: string | null; name: string | null; location: string | null; description: string | null }[] }>(
-      `/projects/${pid}/detailing/${encodeURIComponent(guid)}`);
-  }
-  /** W11 Track D: classify elements with a keynote/spec/element code (UniFormat/MasterFormat/OmniClass). */
-  classify(pid: string, guids: string[], system: string, code: string, name?: string, edition?: string, publish = true) {
-    return this.editIfc(pid, "classify", { guids, system, code, name, edition }, publish);
-  }
-  /** W11 D3: auto-detail — run the condition→content rule set (e.g. exterior window → IBC flashing
-   *  detail + 08 51 00), writing code/detail bundles to every matching element. */
-  applyDetailingRules(pid: string, publish = true) {
-    return this.editIfc(pid, "apply_detailing_rules", {}, publish);
-  }
-  /** W11 D3: IDS-style QA — elements that a rule applies to but are missing their required keynote/spec code. */
-  validateDetailing(pid: string) {
-    return this.json<{ rules_evaluated: number; gaps: number;
-      elements: { rule: string; guid: string; name: string; missing: string }[] }>(
-      `/projects/${pid}/detailing/rules/validate`);
-  }
-  /** W11 Track D: attach a document (detail drawing / installation instruction) to elements. */
-  attachDocument(pid: string, guids: string[], name: string,
-                 opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
-    return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
   }
   /** W11 B6: author a base plate + anchor bolts under a steel column (fabrication assembly). */
   addBasePlate(pid: string, columnGuid: string, opts: { bolts?: number; width?: number; depth?: number } = {}, publish = true) {
@@ -592,7 +566,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 70 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 65 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -658,6 +632,10 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // (97) took the UNDO STACK — `editHistory`/`editUndo`/`editRedo` — to `authoring.ts`, leaving
   // 70. `editIfc`, already there, is the PUSH they pop. `model.ts` looked right and is not: its
   // `modelVersions` reads a DIFFERENT stack. Reasoning in `authoring.ts`'s header.
+  //
+  // (98) took DETAILING CARRIERS to a new `detailing.ts`, leaving 65. The reader's two carrier
+  // arrays map 1:1 onto `detailing.py`'s two writers, plus the rule engine that writes both and
+  // the audit that reports gaps. Reasoning in `detailing.ts`'s header.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {
