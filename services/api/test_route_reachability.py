@@ -124,6 +124,18 @@ KNOWN_UNCALLED: set[str] = {
     # third of the surface out of this gate's reach. The real fix was to stop half-wiring the item —
     # R35-DEAL-MEMORY asks for realised outcomes *by vintage*, and only the summary comparison had
     # been built. The gate collision is what made the missing half visible.
+    #
+    # SECOND INSTANCE, v0.3.1145, and it did not need a route to collide — a WORD did. Adding
+    # `/portfolio/resourcing` put the field `fidelity.resourced` into the web source, and `sourced`
+    # is the leaf of `/projects/{pid}/schedule/eot/sourced`, so that frozen entry read as called
+    # while nothing called it. `strip_comments` was no help: the collision was in an identifier, not
+    # in prose. Fixed by renaming the field to `assigned` — which names its SOURCE (records from the
+    # `resource_assignment` module) rather than restating an adjective, so it is also the better
+    # name. Recorded because the two instances differ in a way that matters: the first was one route
+    # path containing another's, and could be read as a naming accident; this one is an ordinary
+    # English word containing a route leaf, which no naming convention prevents. **The rule's
+    # coarseness is a standing cost of keeping 328 shared-leaf routes in reach, not a bug awaiting a
+    # fix** — and the cost is paid by whoever writes the colliding word next.
     "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
     # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
     # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as
