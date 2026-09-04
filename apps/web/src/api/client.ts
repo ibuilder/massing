@@ -232,14 +232,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
       with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number;
       with_om_docs?: number; om_documents?: string[] }>(`/projects/${pid}/lod500`);
   }
-  /** W11 G2: record a field-verified as-built dimension (+ variance vs design) on the selection. */
-  recordAsbuiltDimension(pid: string, guids: string[], dimension: string, measured: number, design?: number, publish = true) {
-    return this.editIfc(pid, "record_asbuilt_dimension", { guids, dimension, measured, ...(design != null ? { design } : {}) }, publish);
-  }
-  /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
-  verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
-    return this.editIfc(pid, "verify_asbuilt", { guids, ...opts }, publish);
-  }
   /** W11 G3: stamp manufacturer / serial info (Pset_Manufacturer*) — the LOD-500 / O&M / turnover layer. */
   setManufacturerInfo(pid: string, guids: string[], opts: { manufacturer?: string; model_label?: string; production_year?: string; serial?: string; barcode?: string } = {}, publish = true) {
     return this.editIfc(pid, "set_manufacturer_info", { guids, ...opts }, publish);
@@ -652,7 +644,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 82 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 80 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -702,6 +694,10 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // definition rather than two hand-copied signatures. **(92)'s recommendation to move `editIfc`
   // into `HttpCore` was tested and does NOT hold** — that file exists to keep transport separate
   // from the endpoint surface, and `editIfc` is a domain endpoint.
+  //
+  // (94) took the as-built pair to `model.ts`, leaving 80 — the two members of ㊻'s question that a
+  // route-prefix split could not see. `setPhase` did NOT come despite completing the matrix's
+  // `lifecycle` category: its read half `phasing()` is still here. Reasoning in `model.ts`'s header.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {
