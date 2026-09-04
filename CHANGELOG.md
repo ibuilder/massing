@@ -845,6 +845,34 @@ method, where the next reader of that code will find it.
 
 Pin 906 → 867. **101 above the banner, still no map.**
 
+### And RUFF-SCOPE left residue in two documents that tell contributors what to run
+
+Review flagged that this PR's body ignored `.github/pull_request_template.md`. It does — and reading
+that template found something worse than a formatting miss. **Two of its checklist lines were wrong,
+and one was wrong because of my own merged work:**
+
+- *"Backend: `cd services/api && python -m ruff check src/ ../data/src/` clean"* — the narrow scope
+  RUFF-SCOPE replaced on 2026-09-03. The template was still telling every contributor to run the
+  command that linted 612 of 1,338 files while printing "All checks passed!".
+- *"Web: … clean (Node 20)"* — both manifests declare `"engines": {"node": ">=24"}` and `ci.yml` pins
+  `node-version: "24"`.
+
+`CONTRIBUTING.md` carried the same ruff command under the heading *"Run the gates locally — CI runs
+the same"*, which my own change had made false. Both corrected.
+
+**A checklist that names a command CI no longer runs is worse than no checklist, because it gets
+followed.** So the template is now in `test_claude_md_gates.py`'s scanned set — it is a checklist of
+checks, which is that gate's own stated trigger for inclusion. Mutation-checked: a renamed citation
+→ exit 1; its citations stripped → exit 1 on the per-doc ratchet.
+
+`CONTRIBUTING.md` is deliberately **not** added: its commands live in bash fences rather than
+backticks, so it contributes zero citations, and a doc that matches nothing passes vacuously — the
+failure that file's own header calls worse than no gate at all.
+
+*Fixing a scope leaves residue in every document that described the old one, and the ruff line had
+been stale in two of them for a day without anything noticing.*
+
+
 
 
 

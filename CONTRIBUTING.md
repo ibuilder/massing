@@ -22,7 +22,7 @@ cd apps/web && npm install && npm run dev      # vite dev server (:5173)
 ## Before you open a PR
 Run the gates locally — CI runs the same:
 ```bash
-cd services/api && python -m ruff check src/ ../data/src/   # static-analysis gate (dead code + defects)
+cd services/api && python -m ruff check ../..    # static-analysis gate, WHOLE tree (dead code + defects)
 python services/api/run_tests.py               # API suites
 cd services/data && PYTHONPATH=src ./.venv/Scripts/python test_massing.py   # (+ test_families, test_analysis)
 cd apps/web && npm run typecheck && npm run test && npm run build
