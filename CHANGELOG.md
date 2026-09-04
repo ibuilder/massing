@@ -14,9 +14,10 @@ the panel only paints what it returns.
 **It needed no new engine, and that is the finding.** The roadmap recorded a cross-project Gantt as
 missing because `schedule_viz.py` is per-project. But R46's `schedule_portfolio.py` already computes
 `project_starts` and `project_finishes` in its single merged pass, and the route already returned
-them — `apps/web/src/api/schedule.ts` declared only three scalars, so the dates reached the browser
-and were **dropped at the type boundary**. Same class as R37-TESTED-UNWIRED one layer further out:
-not a route without a caller, but a payload without a reader.
+them — `apps/web/src/api/schedule.ts` **named only three scalars**. `HttpCore.json<T>` returns
+`res.json()` under an unchecked cast, so the dates were in the parsed response all along; nothing
+declared them, so no call site could reach them and none did. Same class as R37-TESTED-UNWIRED one
+layer further out: not a route without a caller, but a payload without a reader.
 
 Bars come from the **merged** pass, never each project's standalone CPM. A project can look
 comfortable alone and be critical to the programme; its own run would show the comfortable answer.

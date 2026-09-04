@@ -83,6 +83,42 @@ describe("programmeBars", () => {
     expect(r.bars.find((x) => x.id === "infra")!.linked).toBe(false);
   });
 
+  // `Date` normalises an out-of-range DAY instead of rejecting it — "2026-02-30" becomes
+  // 2026-03-02 — while an out-of-range MONTH is NaN. A normalised date is an invented one, so it
+  // must not reach a bar.
+  it("rejects a date the Date constructor would silently normalise", () => {
+    const r = programmeBars({
+      projects: [{ id: "a", name: "Feb 30", activities: 1 }],
+      project_starts: { a: "2026-02-30" }, project_finishes: { a: "2026-03-31" },
+    });
+    expect(r.bars).toEqual([]);
+    expect(r.unplotted[0]!.reason).toBe("no start date");
+    expect(r.span).toBeNull();
+  });
+
+  it("rejects an impossible month outright", () => {
+    const r = programmeBars({
+      projects: [{ id: "a", name: "Month 13", activities: 1 }],
+      project_starts: { a: "2026-01-01" }, project_finishes: { a: "2026-13-01" },
+    });
+    expect(r.bars).toEqual([]);
+    expect(r.unplotted[0]!.reason).toBe("no finish date");
+  });
+
+  // A bare `startsWith` matches "p10::A1" against a project "p1", flagging the wrong bar as linked
+  // and leaving the right one plain. Ordering matters: `p1` is found first by `find`.
+  it("does not let one project id prefix-match another", () => {
+    const r = programmeBars({
+      projects: [{ id: "p1", name: "One", activities: 1 },
+                 { id: "p10", name: "Ten", activities: 1 }],
+      project_starts: { p1: "2026-01-01", p10: "2026-01-05" },
+      project_finishes: { p1: "2026-01-31", p10: "2026-02-05" },
+      external_links: [{ predecessor: "p10::A1", successor: "p10::B1" }],
+    });
+    expect(r.bars.find((x) => x.id === "p10")!.linked).toBe(true);
+    expect(r.bars.find((x) => x.id === "p1")!.linked).toBe(false);
+  });
+
   it("returns an empty, well-formed result when the run carried no dates at all", () => {
     const r = programmeBars({ projects: [P("a"), P("b")] });
     expect(r.bars).toEqual([]);

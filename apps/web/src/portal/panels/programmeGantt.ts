@@ -6,10 +6,11 @@
  * That entry lists "a cross-project Gantt (`schedule_viz.py` is per-project)" as genuinely missing.
  * Half true: `schedule_viz` *is* per-project, but R46's portfolio scheduler already computes
  * `project_starts` and `project_finishes` in its merged pass, and the route already puts them on the
- * wire. What was missing is that **the client type declared three scalars and dropped the rest** —
- * `programme_finish`, `project_count`, `external_link_count` — so the dates arrived in the browser
- * and were discarded before anything could draw them. The bars here are geometry over data the
- * server was already sending.
+ * wire. What was missing is that **the client type named only three scalars** —
+ * `programme_finish`, `project_count`, `external_link_count`. `HttpCore.json<T>` returns
+ * `res.json()` under an unchecked cast, so the dates were present in the parsed response the whole
+ * time; nothing *declared* them, so no call site could reach them and none did. The bars here are
+ * geometry over data the server was already sending.
  *
  * That matters for where the dates come from. These are the finishes from the ONE merged pass, not
  * each project's standalone schedule: a project that looks comfortable alone can be critical to the
@@ -24,6 +25,8 @@
  */
 
 const DAY_MS = 86_400_000;
+/** Matches `SEPARATOR` in `services/api/src/massingplan/core/portfolio.py`. */
+const SEPARATOR = "::";
 
 export type ProgrammeInput = {
   projects: { id: string; name: string; activities: number }[];
@@ -53,8 +56,14 @@ export type ProgrammeBars = {
 
 function day(s: string | undefined): Date | null {
   if (!s) return null;
-  const d = new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const ymd = String(s).slice(0, 10);
+  const d = new Date(`${ymd}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  // `Date` NORMALISES an out-of-range day instead of rejecting it: "2026-02-30" parses happily and
+  // becomes 2026-03-02. Only the month is range-checked ("2026-13-01" is NaN). Round-tripping is
+  // what catches the day, and it matters here more than usual — a normalised date is an invented
+  // one, and this module's whole rule is that it does not draw a bar it cannot measure.
+  return d.toISOString().slice(0, 10) === ymd ? d : null;
 }
 
 /**
@@ -70,7 +79,11 @@ export function programmeBars(r: ProgrammeInput): ProgrammeBars {
     // Link endpoints are "<project><sep><activity>"; the project id is the part before the
     // separator, and an id containing no separator is already the project.
     for (const end of [ln.predecessor, ln.successor]) {
-      const p = (r.projects ?? []).find((x) => String(end).startsWith(x.id));
+      // The separator is REQUIRED, not decoration: a bare `startsWith` makes "p10::A1" match a
+      // project "p1", flagging the wrong bar as linked and leaving the right one plain. The key
+      // format is `<project>::<activity>` (SEPARATOR in `massingplan/core/portfolio.py`).
+      const p = (r.projects ?? []).find(
+        (x) => end === x.id || String(end).startsWith(`${x.id}${SEPARATOR}`));
       if (p) linked.add(p.id);
     }
   }

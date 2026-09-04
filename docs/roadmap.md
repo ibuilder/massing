@@ -1887,10 +1887,15 @@ stakes we are missing.
   This entry lists it as genuinely missing because `schedule_viz.py` is per-project. That is true and
   it is not the whole picture: **R46's `schedule_portfolio.py` already computes `project_starts` and
   `project_finishes` in its one merged pass**, and the route already returned them. What was missing
-  is that `apps/web/src/api/schedule.ts` declared only `programme_finish`, `project_count` and
-  `external_link_count` — so the dates reached the browser and were **dropped at the type boundary**
-  before anything could draw them. Same class as R37-TESTED-UNWIRED, one layer further out: not a
+  is that `apps/web/src/api/schedule.ts` **named only** `programme_finish`, `project_count` and
+  `external_link_count`. `HttpCore.json<T>` returns `res.json()` under an unchecked cast, so the
+  dates were sitting in the parsed response the whole time — nothing *declared* them, so no call
+  site could reach them and none did. Same class as R37-TESTED-UNWIRED, one layer further out: not a
   route without a caller, but a *payload* without a reader.
+
+  *(The first draft of this entry said the dates were "dropped at the type boundary", which review
+  correctly called out as false: nothing filters them at runtime. Corrected here, because a
+  plausible-sounding mechanism is exactly the kind of wrong this file is supposed to resist.)*
 
   `apps/web/src/portal/panels/programmeGantt.ts` holds the geometry as a pure function
   (`apps/web/src/portal/panels/programmeGantt.test.ts`, 7 cases), and the Programme card renders bars
