@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(99) took sixty-four of those 126 — 62 remain, and there is STILL no map.** A new
+  **(88)–(100) took sixty-six of those 126 — 60 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3389,6 +3389,30 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   as evidence: a header agreeing with the answer is worth nothing until someone checks whether it is
   true, and this one had been wrong for as long as it had existed.* It is the smallest possible
   instance of the drift these instructions keep warning about.
+
+  **(100) took the ELEMENT-CONNECTION pair to `apps/web/src/api/model.ts`** —
+  `elementConnections` (the `IfcRelConnectsElements` graph) and `connectElements` (the verb that adds
+  an edge). **The pair is bound by the backend naming its own writer**, the (96) shape: the
+  `/element-connections` route docstring says *"Author edges with the `connect_elements` recipe."*
+
+  **The DESTINATION argument is weaker than the pairing argument, and is recorded at that strength.**
+  `model.ts` owns `modelGraphStats`, which counts the IFC relationship graph BY RELATION —
+  `IfcRelConnectsElements` being one — and `graphNeighbors`, which walks it. So this is one relation
+  of a graph the file already reads, plus its verb: **a specialisation, not an identity.** *The
+  pairing is evidenced; the placement is a judgement. Collapsing the two into one confident sentence
+  is the overstatement this sequence keeps catching, so they are stated separately.*
+
+  *Two candidates rejected on checkable grounds.* **`connections.ts` is the trap** — it is
+  DATA-SOURCE connections (SQL, ACC, Procore) and shares only the English word; **(97) found two
+  version stacks behind one word, and this is the same collision in a destination rather than a
+  source**, on the very file a name-based search lands on first. And `elements.ts` holds element
+  ATTRIBUTES and views, whereas a relationship between two elements is not an attribute of either.
+  `addBasePlate`/`addShearTab` also did not come despite sharing `connections.py`: a backend module is
+  a HOW, and those author PHYSICAL assemblies rather than relationship edges.
+
+  *Found while deriving, recorded not fixed:* `add_connection_assembly` (B5,
+  `IfcRelConnectsWithRealizingElements`) has **no client method anywhere** in `apps/web/src` — a
+  backend recipe with no web exposure, the class (93) recorded for three MEP recipes.
 
   **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
   `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note

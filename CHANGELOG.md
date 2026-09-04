@@ -1185,6 +1185,52 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-ninth follow-on on the same version: **SCALE-SEAM (100)** — *the element-connection pair, and
+a destination named at the strength the evidence supports*.
+
+Two methods out of `client.ts` (`648 → 642`) into the existing `apps/web/src/api/model.ts`:
+`elementConnections` and `connectElements`. No new mixin. **What they answer: what is physically
+joined to what, and record a joint.**
+
+### The backend names its own writer
+
+The `/element-connections` route docstring reads: *"Author edges with the `connect_elements` recipe
+(`POST /edit` with `{guid_a, guid_b}`)."* Reader and writer, one relationship type
+(`IfcRelConnectsElements`), both marked B5. That is the (96) shape and it is what carries the pair.
+
+### The destination argument is weaker, and is labelled as such
+
+`model.ts` owns `modelGraphStats` — whose `by_rel` counts the IFC relationship graph **by relation**,
+and `IfcRelConnectsElements` is one of those relations — plus `graphNeighbors`, which walks it. So
+this pair is one relation of a graph the file already reads, plus its authoring verb.
+
+**That is a specialisation, not an identity.** `modelGraphStats`/`graphNeighbors` are generic
+traversal over every `IfcRel*`; these two are one relation with a verb attached. Recorded as the best
+available home rather than a derived one — *the pairing is evidenced, the placement is a judgement,
+and collapsing the two would be the overstatement this sequence keeps catching.*
+
+### Two candidates rejected on checkable grounds
+
+**`connections.ts` is the trap.** It is *data-source* connections — SQL, ACC, Procore — and shares
+nothing with this but the English word. (97) found two version stacks behind one word; this is the
+same collision in a **destination** rather than a source, and it is the file a name-based search
+would have landed on first.
+
+**`elements.ts`** holds element *attributes* and views — properties, 5D, colouring, QA, costs. A
+relationship between two elements is not an attribute of either.
+
+`addBasePlate` and `addShearTab` did **not** come despite sharing `services/data/src/aec_data/connections.py`
+with these: a backend module is a HOW, the grouping (89) had to reject, and those two author
+*physical* assemblies (plates, bolts) rather than `IfcRelConnectsElements` edges.
+
+### Found while deriving
+
+`add_connection_assembly` (B5, `IfcRelConnectsWithRealizingElements`) has **no client method
+anywhere** in `apps/web/src` — a backend recipe with no web exposure, the same class (93) recorded
+for three MEP recipes. Noted, not fixed.
+
+`client.ts` is 60 methods above the STAYING banner and 4 below.
+
 Thirty-eighth follow-on on the same version: **SCALE-SEAM (99)** — *the content half of a shelf the
 destination's own first line already claimed*.
 
