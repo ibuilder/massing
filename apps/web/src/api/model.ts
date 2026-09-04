@@ -100,6 +100,42 @@
  *  *A complete category is one vote, not a verdict — and "lifecycle" is a word (88) already caught
  *  misleading once.*
  *
+ *  **SCALE-SEAM (96) finishes the as-built/turnover question by bringing its AGGREGATE READER and
+ *  the two writers that fed it:** `lod500` (LOD-500 readiness), `setManufacturerInfo`
+ *  (`Pset_Manufacturer*`) and `attachOmDocument` (purpose-tagged turnover paperwork).
+ *
+ *  *Two BOUNDING witnesses, derived rather than enumerated, and they agree.* First:
+ *  `openAsBuiltPanel` in `viewer/tools/modelStatePanels.ts` calls exactly five API methods — read
+ *  off that function's brace closure, not grepped for — and two of the five are `verifyAsbuilt`
+ *  and `recordAsbuiltDimension`, which (94) already moved. Second: the reader's own response type
+ *  names its writer set FIELD BY FIELD — `verified`/`by_method` from `verify_asbuilt`,
+ *  `with_dimensions`/`dimensions_out_of_tolerance` from `record_asbuilt_dimension`,
+ *  `with_manufacturer`/`with_serial` from `set_manufacturer_info`, `with_om_docs`/`om_documents`
+ *  from `attach_om_document`. The backend route says so out loud: *"Stamp elements with the
+ *  `verify_asbuilt` recipe."* **A reader whose response type enumerates its writers IS a derived
+ *  population** — the first witness in this sequence that bounds a set instead of sampling it.
+ *
+ *  *`test_lod500.py` CORROBORATES but does NOT bound, and the difference is the whole lesson of
+ *  (91)–(93).* Derived: it reaches exactly three recipes — `attach_om_document`,
+ *  `set_manufacturer_info`, `verify_asbuilt` — and OMITS `record_asbuilt_dimension`, which is
+ *  unambiguously in this family. A witness that misses a known member cannot establish a boundary,
+ *  however exactly its members match. **Three slices claimed "and no others" off a test file and
+ *  were wrong all three times**; the fix is not to look harder at the test, it is to notice which
+ *  question the test can answer.
+ *
+ *  **What this slice does NOT claim.** `attachDocument` — still in `client.ts` — takes a `purpose`
+ *  parameter, and `asbuilt_summary` counts ANY purpose-tagged document reference. So *"every writer
+ *  of `with_om_docs` moves here"* is **false**, and the field-by-field map above is a map of the
+ *  recipes each field was DESIGNED around, not of everything that can set it. The claim that
+ *  survives is the bounded one: these are the five methods `openAsBuiltPanel` calls.
+ *
+ *  **Two sources disagree, and both lose for the same reason.** `attach_om_document` is implemented
+ *  as a purpose-tagged wrapper of `detailing.attach_document` (`edit.py`), and `authoring_matrix.py`
+ *  files it and `set_manufacturer_info` under `data`. The first is a shared HELPER and the second a
+ *  STORAGE bucket — the two groupings (89) and (90) each had to reject. *The matrix is now the
+ *  losing vote twice running, after being right three times. A corroborating source that keeps
+ *  winning is exactly the one that stops being checked.*
+ *
  *  SCALE-SEAM ⓭ adds E57 scan ingest — *can we bring this scan in?* Status plus convert.
  *  Admin audit/error stayed.
  *
@@ -817,6 +853,23 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   /** W10-8: tag elements with a construction phase (new | existing | demolish | temporary). */
   setPhase(pid: string, guids: string[], phase: "new" | "existing" | "demolish" | "temporary", publish = true) {
     return this.editIfc(pid, "set_phase", { guids, phase }, publish);
+  }
+  /** G3: attach an O&M / warranty document reference (purpose-tagged) to elements — turnover paperwork
+   *  bound to the physical asset; surfaced in the as-built summary's `with_om_docs`. */
+  attachOmDocument(pid: string, guids: string[], name: string,
+                   opts: { location?: string; kind?: "om" | "warranty" } = {}, publish = true) {
+    return this.editIfc(pid, "attach_om_document", { guids, name, ...opts }, publish);
+  }
+  /** W11 G1: LOD-500 readiness — share of the model field-verified as-built, by method. */
+  lod500(pid: string) {
+    return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
+      by_method: Record<string, number>; methods: string[]; prop: string;
+      with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number;
+      with_om_docs?: number; om_documents?: string[] }>(`/projects/${pid}/lod500`);
+  }
+  /** W11 G3: stamp manufacturer / serial info (Pset_Manufacturer*) — the LOD-500 / O&M / turnover layer. */
+  setManufacturerInfo(pid: string, guids: string[], opts: { manufacturer?: string; model_label?: string; production_year?: string; serial?: string; barcode?: string } = {}, publish = true) {
+    return this.editIfc(pid, "set_manufacturer_info", { guids, ...opts }, publish);
   }
   };
 }

@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(95) took fifty of those 126 — 76 remain, and there is STILL no map.** A new
+  **(88)–(96) took fifty-three of those 126 — 73 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3276,6 +3276,45 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   install-versus-design; and its read half `phasing()` is still in `client.ts`, so taking the writer
   alone would repeat the reader/rollup split (87) had to undo. **A complete category is one vote, not
   a verdict** — and "lifecycle" is a word (88) already caught misleading once, in a different way.
+
+  **(96) finished the as-built/turnover question by taking its AGGREGATE READER** — `lod500`, plus
+  the two writers still feeding it, `setManufacturerInfo` and `attachOmDocument`. They rejoin
+  `verifyAsbuilt` and `recordAsbuiltDimension`, which (94) moved and could only claim as "two known
+  members, not necessarily all". **This is the slice that can say more than that, and the reason is
+  worth more than the extraction.**
+
+  *Two witnesses BOUND the set, and they were derived independently.* `openAsBuiltPanel` in
+  `apps/web/src/viewer/tools/modelStatePanels.ts` calls exactly five API methods — read off that
+  function's brace closure rather than grepped for, so it is the closure of a scope, not a sample.
+  Separately, the reader's own response type names its writer set field by field:
+  `verified`/`by_method` ← `verify_asbuilt`, `with_dimensions`/`dimensions_out_of_tolerance` ←
+  `record_asbuilt_dimension`, `with_manufacturer`/`with_serial` ← `set_manufacturer_info`,
+  `with_om_docs`/`om_documents` ← `attach_om_document`; and the backend route says it in prose —
+  *"Stamp elements with the `verify_asbuilt` recipe."* **A reader whose response type enumerates its
+  writers is a derived population**, and after eight slices of sampling, that is the first grouping
+  witness here that bounds a set instead of illustrating one.
+
+  *What CORROBORATES is not what BOUNDS.* `services/api/test_lod500.py` reaches exactly three
+  recipes — `attach_om_document`, `set_manufacturer_info`, `verify_asbuilt` — and **omits
+  `record_asbuilt_dimension`**, which is unambiguously in this family. It agrees with the answer
+  without being able to establish it. **A witness that misses a known member cannot bound anything**,
+  however exactly its members match. Three slices claimed "and no others" off a test file and were
+  wrong all three times; the fix is not to read the test harder, it is to ask which question the
+  test is able to answer at all.
+
+  **And what this slice does NOT claim, stated where a later reader will see it.**
+  `attachDocument` stays in `client.ts`, takes a `purpose` parameter, and `asbuilt_summary` counts
+  **any** purpose-tagged document reference — so *"every writer of `with_om_docs` moves here"* is
+  false. The field map is of the recipes each field was designed around, not of everything that can
+  set it. *(94) hedged in its PR while its artifact overstated; the caveat belongs in both, which is
+  why it is in the header, the pin, the changelog and here.*
+
+  *Two sources disagree and lose for the same reason:* `attach_om_document` is implemented as a
+  purpose-tagged wrapper of `detailing.attach_document`, and `authoring_matrix.py` files it and
+  `set_manufacturer_info` under `data`. The first is a shared HELPER, the second a STORAGE bucket —
+  the groupings (89) and (90) each had to reject. **The matrix is now the losing vote twice running
+  after being right three times**, which is the interesting part: a corroborating source that keeps
+  winning is the one that quietly stops getting checked.
 
   **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
   `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note
