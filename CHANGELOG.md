@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — only committed capital owns anything (cap table + waterfall)
+
+`capital.cap_table` summed `commitment` across every investor whatever their workflow state. A
+`prospect` carrying a $10M interest and $0 contributed took 50% of a $10M cap table and halved a real
+LP from 60% to 30% — and the number did not stop at display: `distwaterfall` allocates off these rows,
+so the prospect drew **$1,818,181.82 of a $2M distribution** while the committed LP got $181,818.18.
+
+**The obvious filter is wrong on its own.** `investor` declares `initial: prospect` and every record
+is stamped with it at creation, so on a project where nobody ran the `commit` transition every
+investor is a prospect and filtering empties the cap table. `workflow_in_use` separates the readings:
+a default state is not a signal. Until some investor moves off the initial state everyone counts;
+after that, `prospect` genuinely means "not committed". Prospect rows stay visible at 0% with their
+money reported as `pipeline_commitment`, and no longer sort above real owners.
+
+The decision rides on each row as `counts_toward_ownership` so the seven consumers cannot disagree.
+Mutation-checking found `test_distwaterfall` passed even with the waterfall ignoring the flag — its
+fixture has no prospect — so `test_cap_table_state.py` covers that case through the real API.
+
 ## Unreleased — R24-REPORTS-BY-MOMENT: a finished pack can be sent, not only downloaded
 
 `POST /projects/{pid}/jobs/{job_id}/deliver` emails any finished job's artifact to named

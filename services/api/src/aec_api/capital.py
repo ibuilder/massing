@@ -16,33 +16,78 @@ def _num(v: Any) -> float:
         return 0.0
 
 
+#: `investor`'s workflow is prospect -> committed -> funded -> exited. Ownership belongs to the two
+#: middle states: the `commit` transition is the one that declares `requires: ["commitment"]`, so the
+#: amount is only validated at that point, and `rescind` (committed -> prospect) is how a commitment is
+#: withdrawn. `exited` is deliberately NOT here — an investor who has left does not hold current
+#: ownership — while `prospect` is not yet a commitment, only an interest.
+_OWNING_STATES = ("committed", "funded")
+
+
 def cap_table(investors: list[dict]) -> dict[str, Any]:
-    """Ownership by commitment, contributed/distributed/unreturned totals, per-investor rows."""
+    """Ownership by commitment, contributed/distributed/unreturned totals, per-investor rows.
+
+    **Only committed capital owns anything, and a DEFAULT STATE IS NOT A SIGNAL.** This summed
+    `commitment` across every investor whatever their state: one `prospect` carrying a $10M interest
+    and $0 contributed took 50% of a $10M table and halved a real LP from 60% to 30% — and the number
+    left here, because `distwaterfall` allocates off these rows.
+
+    The obvious fix — filter out `prospect` — is wrong on its own, and that is the part worth knowing.
+    `investor` declares `initial: prospect` and every record is stamped with it at creation, so on a
+    project where nobody ever ran the `commit` transition EVERY investor is a prospect and the filter
+    empties the cap table. `workflow_in_use` is what separates the two readings: until some investor
+    has moved off the initial state, `prospect` means "untouched" and carries no information, so
+    everyone counts; once one has, `prospect` genuinely means "not committed" and the state is
+    evidence. Prospect rows are never dropped — they stay visible at 0% with their money reported as
+    `pipeline_commitment`, so the interest is still on screen, just not as ownership.
+    """
+    # Has anyone actually used the workflow on this project? Any state other than the stamped initial
+    # one proves it, `exited` included — that investor was committed once, which is the same evidence.
+    workflow_in_use = any(
+        (i.get("workflow_state") or "prospect") != "prospect" for i in investors)
+
+    def _owns(i: dict) -> bool:
+        return (not workflow_in_use) or (i.get("workflow_state") in _OWNING_STATES)
+
     rows = []
-    total_commit = sum(_num((i.get("data") or i).get("commitment")) for i in investors)
+    total_commit = sum(_num((i.get("data") or i).get("commitment")) for i in investors if _owns(i))
+    pipeline = sum(_num((i.get("data") or i).get("commitment"))
+                   for i in investors if not _owns(i))
     for i in investors:
         d = i.get("data") or i
         commit = _num(d.get("commitment"))
         contributed = _num(d.get("contributed"))
         distributed = _num(d.get("distributed"))
+        owns = _owns(i)
         rows.append({
             "id": i.get("id"), "ref": i.get("ref"), "investor": d.get("investor"),
             "investor_class": d.get("investor_class") or "LP",
             "entity_type": d.get("entity_type"),
             "commitment": round(commit, 2),
-            "ownership_pct": round(100 * commit / total_commit, 4) if total_commit else 0.0,
+            # Carried on the ROW, not recomputed by each consumer: seven call sites read this table,
+            # and a rule re-derived seven times is a rule that disagrees with itself somewhere.
+            "counts_toward_ownership": owns,
+            "ownership_pct": round(100 * commit / total_commit, 4) if (owns and total_commit) else 0.0,
             "contributed": round(contributed, 2),
             "distributed": round(distributed, 2),
             "unreturned": round(max(0.0, contributed - distributed), 2),
             "status": i.get("workflow_state"),
         })
-    rows.sort(key=lambda r: -r["commitment"])
+    # Owners first, then by size. Sorting on commitment alone put the $10M prospect at the TOP of the
+    # table as the largest apparent owner while showing 0%% — the reader's eye takes rank as ownership.
+    rows.sort(key=lambda r: (not r["counts_toward_ownership"], -r["commitment"]))
     by_class: dict[str, float] = {}
     for r in rows:
+        if not r["counts_toward_ownership"]:
+            continue          # or by_class would sum to more than total_commitment
         by_class[r["investor_class"]] = by_class.get(r["investor_class"], 0.0) + r["commitment"]
     return {
         "investor_count": len(rows),
+        # `total_commitment` is COMMITTED capital — the denominator ownership is computed against.
+        # The uncommitted interest is reported beside it rather than folded in or silently dropped.
         "total_commitment": round(total_commit, 2),
+        "pipeline_commitment": round(pipeline, 2),
+        "workflow_in_use": workflow_in_use,
         "total_contributed": round(sum(r["contributed"] for r in rows), 2),
         "total_distributed": round(sum(r["distributed"] for r in rows), 2),
         "total_unreturned": round(sum(r["unreturned"] for r in rows), 2),
