@@ -1134,7 +1134,7 @@ exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates ca
   needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
   is the specific error row 2 made.
 * **Not the next SCALE-SEAM slice.** ㉘ is genuinely next in a series that has shipped twenty-six
-  increments, but the series is now cutting into `client.ts` at **642** lines from a 3,600-odd start
+  increments, but the series is now cutting into `client.ts` at **603** lines from a 3,600-odd start
   *(re-derived 2026-09-04; this read "2,837" — 4.4x the real figure — because the number was copied
   forward through every slice since, which is the exact drift the rows above document twice)*. The marginal slice
   is worth less than it was. *(㉘ also needed `MARKS` widened; that shipped in v0.3.1112.)* The vocabulary lives in
@@ -3181,7 +3181,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(100) took sixty-six of those 126 — 60 remain, and there is STILL no map.** A new
+  **(88)–(101) took seventy-two of those 126 — 54 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,

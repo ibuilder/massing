@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — SCALE-SEAM (101): design-phase predicted performance
+
+Six methods out of `client.ts` (**642 → 603**). Five to a new
+`apps/web/src/api/designPerformance.ts` — `energy`, `energyModel`, `energyExportUrl`,
+`carbonComplianceReport`, `projectCarbon` — and `benchmarkCosts` to `cost.ts`.
+
+**The seam was drawn by earlier slices, not this one, which is the whole witness.**
+`operations.ts`'s own header records why the carbon half did not go there: *"`projectCarbon` is
+EMBODIED carbon — a design-phase estimate. The GHG figures in `esgSummary` come from metered utility
+data. Same molecule, opposite ends of the asset life."* `models.ts` records the parallel call for
+`/energy`, and `operations.ts` does hold `/energy/actual`. Prediction versus measurement, committed
+to twice independently — these five are the prediction side.
+
+Deliberately **not** named `environmental.ts`: that names the topic both halves share, and would
+re-blur the seam `operations.ts` drew.
+
+**A planned `benchmarks.ts` was abandoned on evidence.** `cost.ts` already held `unitRates`
+(`/benchmarks/unit-rates`) and `schedule.ts` holds `benchmarksPullPlanning`
+(`/benchmarks/pull-planning`), so the repo already distributes that prefix by what each method
+answers; grouping the remaining three by route would have contradicted two live placements.
+`benchmarkResponseRates` and `spaceUtilBenchmarks` stayed — no mixin owns their question, and
+inventing a home on a guess is what produced this file's UNFILED banner.
+
+The DOC-STRAND gate caught the extraction stranding `unitRates`' doc comment above the inserted
+block; reunited rather than deleted.
+
 ## Unreleased — only committed capital owns anything (cap table + waterfall)
 
 `capital.cap_table` summed `commitment` across every investor whatever their workflow state. A
