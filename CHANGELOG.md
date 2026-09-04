@@ -1185,6 +1185,49 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-sixth follow-on on the same version: **SCALE-SEAM (97)** — *the undo stack, and a
+destination that looked right and was not*.
+
+Three methods out of `client.ts` (`698 → 687`) into the existing `apps/web/src/api/authoring.ts`:
+`editHistory`, `editUndo`, `editRedo`. No new mixin. **What they answer: what has been done to this
+model, and can I take it back.**
+
+### `editIfc` is the push they pop
+
+They belong with `editIfc` — already in that mixin — because `authoring.py` records the pre-edit
+version on every `/edit` call *"so this edit can be undone"*, `_restore_version` pops that stack,
+and `edit_history.state()` reads its depths. One stack; the operation that fills it was already
+here.
+
+The types agree: both writers return `{ restored, state: { can_undo, can_redo } }`, and `state` is
+`editHistory`'s own return type minus the depths — **the writers hand back the reader's answer.**
+That is a type-level relation, not a shared `/edit/` prefix. The prefix is real, but a route prefix
+is exactly what ㊻ was caught grouping on, so it corroborates and does not decide.
+
+### A hypothesis tested and withdrawn
+
+*"Undo restores the prior model version"* makes `model.ts` the obvious home — it owns
+`modelVersions`, `versionDiff`, `versionCostDelta`. **It is the wrong home.** Those read
+`/projects/{pid}/versions` out of `bim.py`; undo pops a *different* stack, the `edit_history`
+sidecar, which `recipe_log.py` describes as a list of file paths with *"No recipe, no parameters,
+no actor"*. Two stacks, one word.
+
+This is the second time a plausible destination has had to be withdrawn after checking it — (93)
+withdrew (92)'s forecast about moving `editIfc` into `HttpCore`. **A likely-looking home is a
+hypothesis to check against the backend, not an instruction to carry out.**
+
+### The bound is weaker than (96)'s, and is stated that way
+
+`app.ts`'s S4 block wires `refreshUndo` (calling only `editHistory`) and `doUndoRedo` (calling only
+`editUndo`/`editRedo`), so the union is exactly these three. But unlike (96)'s `openAsBuiltPanel`,
+that unit is a block delimited by reading rather than a closure the braces define — so it is
+recorded as corroboration, not as a boundary. *Not every set has a witness as strong as the last
+one's, and inflating a block into a closure would be the same defect this sequence keeps finding.*
+
+`client.ts` is 70 methods above the STAYING banner and 4 below. Pin lowered with the file; the three
+names added to `surface.test.ts` — all three have live call sites, so a drop breaks the undo/redo
+buttons rather than only the count.
+
 Thirty-fifth follow-on on the same version: **SCALE-SEAM (96)** — *the as-built question's
 aggregate reader, and the first witness in this sequence that actually bounds a set*.
 

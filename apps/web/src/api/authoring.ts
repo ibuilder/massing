@@ -17,6 +17,32 @@
  *  SCALE-SEAM ⓼ adds groups and assemblies — *how are these elements grouped?*
  *  List, inspector, create group/assembly, parametric array. Detailing stayed.
  *
+ *  **SCALE-SEAM (97) adds the UNDO STACK — *what has been done to this model, and can I take it
+ *  back?*** `editHistory` (can_undo/can_redo + depths), `editUndo` and `editRedo`. They belong in
+ *  THIS file because `editIfc` — already here — is the PUSH they pop: `authoring.py` records the
+ *  pre-edit version on every `/edit` call *"so this edit can be undone"*, `_restore_version` pops
+ *  that stack, and `edit_history.state()` reads its depths. One stack, and the operation that fills
+ *  it was already in this mixin.
+ *
+ *  *The writers hand back the reader's answer:* both return `{ restored, state: { can_undo,
+ *  can_redo } }`, and `state` is `editHistory`'s return type minus the depths. That is a type-level
+ *  relation, not a shared `/edit/` prefix — the prefix is real here but is exactly the grouping ㊻
+ *  was caught using, so it corroborates and does not decide.
+ *
+ *  **A hypothesis TESTED AND WITHDRAWN, because it looked right.** "Undo restores the prior model
+ *  version" makes `model.ts` the obvious home — it owns `modelVersions`, `versionDiff` and
+ *  `versionCostDelta`. It is the wrong home: those read `/projects/{pid}/versions` out of `bim.py`,
+ *  while undo pops a **different stack** in the `edit_history` sidecar (a list of file paths, per
+ *  `recipe_log.py`: *"No recipe, no parameters, no actor"*). Two stacks, one word. *(93) had to
+ *  withdraw a forecast the same way; a plausible destination is a hypothesis to check against the
+ *  backend, not an instruction to carry out.*
+ *
+ *  *Bounded by a UI unit rather than a function, and that is weaker on purpose:* `app.ts`'s S4
+ *  undo/redo block wires `refreshUndo` (calling only `editHistory`) and `doUndoRedo` (calling only
+ *  `editUndo`/`editRedo`), so the union is exactly these three. Unlike (96)'s `openAsBuiltPanel`,
+ *  the unit is a block delimited by reading, not a closure the braces define — so it is stated as
+ *  corroboration, not as a boundary.
+ *
  *  First extraction of roadmap SCALE-SEAM. `client.ts` was measured at 4,956 lines with 152 commits
  *  in a fortnight and 631 methods on one class: it had to be opened to add any endpoint, so every
  *  change to it competed with every other change. The server solved this long ago by splitting into
@@ -337,6 +363,21 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
       return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
     }
+  /** S4: whether the model can be undone / redone + stack depths. */
+  editHistory(pid: string) {
+    return this.json<{ can_undo: boolean; can_redo: boolean; undo_depth: number; redo_depth: number }>(
+      `/projects/${pid}/edit/history`);
+  }
+  /** S4: undo the last authoring edit (restore the prior model version + republish). */
+  editUndo(pid: string, publish = true) {
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+      `/projects/${pid}/edit/undo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
+  /** S4: redo an undone edit. */
+  editRedo(pid: string, publish = true) {
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+      `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
   };
 }
 

@@ -161,21 +161,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   specManual(pid: string) {
     return this.json<SpecManual>(`/projects/${pid}/spec/manual`);
   }
-  /** S4: whether the model can be undone / redone + stack depths. */
-  editHistory(pid: string) {
-    return this.json<{ can_undo: boolean; can_redo: boolean; undo_depth: number; redo_depth: number }>(
-      `/projects/${pid}/edit/history`);
-  }
-  /** S4: undo the last authoring edit (restore the prior model version + republish). */
-  editUndo(pid: string, publish = true) {
-    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
-      `/projects/${pid}/edit/undo`, { method: "POST", body: JSON.stringify({ publish }) });
-  }
-  /** S4: redo an undone edit. */
-  editRedo(pid: string, publish = true) {
-    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
-      `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
-  }
   /** B3: give a wall a sloped top (start_height → end_height) for parapet/shed/gable walls. */
   setWallSlope(pid: string, guid: string, startHeight: number, endHeight: number, publish = true) {
     return this.editIfc(pid, "set_wall_slope", { guid, start_height: startHeight, end_height: endHeight }, publish);
@@ -607,7 +592,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 73 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 70 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -669,6 +654,10 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // (96) took as-built/turnover — `lod500`, `setManufacturerInfo`, `attachOmDocument` — to
   // `model.ts`, leaving 73. `lod500` is the AGGREGATE READER of the question whose writers (94)
   // already moved, and its response type names its own writer set field by field.
+  //
+  // (97) took the UNDO STACK — `editHistory`/`editUndo`/`editRedo` — to `authoring.ts`, leaving
+  // 70. `editIfc`, already there, is the PUSH they pop. `model.ts` looked right and is not: its
+  // `modelVersions` reads a DIFFERENT stack. Reasoning in `authoring.ts`'s header.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

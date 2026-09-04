@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(96) took fifty-three of those 126 — 73 remain, and there is STILL no map.** A new
+  **(88)–(97) took fifty-six of those 126 — 70 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3315,6 +3315,30 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   the groupings (89) and (90) each had to reject. **The matrix is now the losing vote twice running
   after being right three times**, which is the interesting part: a corroborating source that keeps
   winning is the one that quietly stops getting checked.
+
+  **(97) took the UNDO STACK to `apps/web/src/api/authoring.ts`** — `editHistory`, `editUndo`,
+  `editRedo`, answering *what has been done to this model, and can I take it back?* They go to that
+  mixin because **`editIfc`, already in it, is the PUSH they pop**: `authoring.py` records the
+  pre-edit version on every `/edit` call *"so this edit can be undone"*, `_restore_version` pops
+  that stack, and `edit_history.state()` reads its depths. The types agree — both writers return
+  `{ restored, state: { can_undo, can_redo } }`, and `state` is the reader's own type minus the
+  depths, so **the writers hand back the reader's answer**. The shared `/edit/` prefix is real and
+  is deliberately NOT the argument; a route prefix is what ㊻ was caught grouping on.
+
+  **A hypothesis tested and withdrawn, which is the part worth keeping.** *"Undo restores the prior
+  model version"* makes `model.ts` the obvious destination — it owns `modelVersions`, `versionDiff`
+  and `versionCostDelta`. It is wrong: those read `/projects/{pid}/versions` out of `bim.py`, while
+  undo pops a **different stack**, the `edit_history` sidecar, which `recipe_log.py` describes as a
+  list of file paths with *"No recipe, no parameters, no actor"*. Two stacks, one word — and the
+  word is what made the wrong answer look obvious. Second withdrawal of a plausible destination
+  after checking it, following (93)'s of (92)'s `HttpCore` forecast: **a likely home is a hypothesis
+  to check against the backend, not an instruction to execute.**
+
+  *And the bound here is weaker than (96)'s, recorded as such.* `app.ts`'s S4 block wires
+  `refreshUndo` (only `editHistory`) and `doUndoRedo` (only `editUndo`/`editRedo`), so the union is
+  exactly these three — but that unit is a block delimited by reading, not a closure the braces
+  define. It corroborates; it does not bound. **Not every set has a witness as strong as the last
+  one's, and promoting a block to a closure would be this sequence's own recurring defect.**
 
   **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
   `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note
