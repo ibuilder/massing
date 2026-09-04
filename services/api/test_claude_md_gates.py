@@ -106,6 +106,21 @@ DOCS = (
     # resolved to real files elsewhere and passed. A looser reader confirming a stricter one's subject
     # is not corroboration.
     "docs/roadmap.md",
+    # Added 2026-09-04. The PR template is a CHECKLIST OF CHECKS — the exact trigger this list names
+    # — and it had gone stale in the way that matters: it told every contributor to run
+    # `ruff check src/ ../data/src/`, the narrow scope RUFF-SCOPE replaced on 2026-09-03, and to
+    # build on "Node 20" when both manifests declare `>=24` and `ci.yml` pins 24. A checklist that
+    # names a command CI no longer runs is worse than no checklist: it is followed.
+    #
+    # This gate can only assert that the FILES it cites exist, not that its COMMANDS match CI —
+    # `services/api/test_ruff_scope.py` does the latter for the ruff line specifically. Adding the
+    # template here catches the cheaper half, which is a dead citation.
+    #
+    # `CONTRIBUTING.md` carries the same commands and was corrected in the same commit, but it is
+    # NOT added: its paths live in bash fences rather than backticks, so it contributes ZERO
+    # citations, and a doc that matches nothing passes vacuously — the failure this file's own
+    # header calls worse than no gate at all.
+    ".github/pull_request_template.md",
     # `docs/roadmap-completed.md` is deliberately NOT here. It is a historical record, and its 245
     # citations include PROPOSED names for things never built (the market-data connector was one, in an
     # "INTEGRATE (optional)" block, backticked as though it shipped — corrected to plain quotes). The
@@ -202,6 +217,7 @@ MIN_CITATIONS = {
     "CLAUDE.md": 4,                    # 6 today
     "docs/roadmap-directions.md": 5,   # 7 today
     "docs/roadmap.md": 90,             # 118 today
+    ".github/pull_request_template.md": 3,   # 4 today
 }
 _thin = sorted(
     f"{d}={n} (min {MIN_CITATIONS[d]})"
