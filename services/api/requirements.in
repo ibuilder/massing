@@ -32,7 +32,7 @@ httpx>=0.28.1
 
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.5,<0.9
-openpyxl>=3.1
+openpyxl>=3.1.5
 numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pip-compile reads
                           # only this file, so a floor raised only there cannot move the lock
 ifctester>=0.8
