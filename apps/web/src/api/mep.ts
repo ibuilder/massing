@@ -3,18 +3,48 @@
  *  SCALE-SEAM ⑲. Route-group `/projects/{pid}/mep`, taken out of `client.ts` by the route
  *  each method calls. Seven methods in **four** regions — summary/connectivity/sizing/sprinkler
  *  next to LOD-500 authoring, fittings after progress-actuals, a second `mep()` GET next to
- *  energy, model-extract next to LOD/envelope audits. `connectMep` / `addMepFitting` call
- *  `editIfc` (`/edit`) and stay.
+ *  energy, model-extract next to LOD/envelope audits.
+ *
+ *  **SCALE-SEAM (93) finishes ⑲.** That slice left `connectMep` and `addMepFitting` behind with the
+ *  note "call `editIfc` (`/edit`) and stay" — which recorded the SYMPTOM without diagnosing the
+ *  cause. They could not come because `editIfc` is declared on the `Authoring` mixin rather than on
+ *  `HttpCore`, so a mixin typed `Ctor<HttpCore>` cannot see it and the extraction does not compile.
+ *  (92) found that and (93) applies it: this mixin now declares `NeedsEditIfc` (in `./types`) as its
+ *  base and is composed outside `withAuthoring`. *A method left behind for a reason nobody wrote
+ *  down stays behind indefinitely — ⑲'s note read as a placement decision and was a compiler error.*
+ *
+ *  These two are exactly the MEP recipes with a TYPED client method. **Twelve** MEP recipes remain
+ *  in `authoring_matrix.py` (11 `create-mep` + 3 `edit-mep`, less these two), and they split:
+ *    - **nine** are driven from viewer code through the generic recipe path in
+ *      `viewer/draft/draftCatalog.ts` and `viewer/tools/mepSection.ts` — never client methods to move;
+ *    - **three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — are referenced
+ *      NOWHERE in `apps/web/src`.** Backend recipes with no web exposure at all. Recorded, not fixed:
+ *      wiring a capability is not an extraction slice's business.
+ *
+ *  *This paragraph said "the other nine" until review. Nine was the number I had ENUMERATED (the
+ *  viewer-driven ones); twelve is the number that REMAIN. **THIRD CONSECUTIVE SLICE, THIRD DISGUISE,
+ *  ONE DEFECT: count the members you looked at, then phrase the result as the whole population.**
+ *  (91) claimed no `test_cre_*` file reached outside its set while three reached out as fixtures;
+ *  (92) claimed `test_annotation.py` exercised four recipes "and no others" while two more were
+ *  tag-host fixtures; this one enumerated a subset and wrote "the other". A reviewer found all
+ *  three. **The fix is not to be more careful — it is to derive the complement instead of counting
+ *  the examples**: `set(all) - set(moved)`, and only then describe what is in it.*
+ *  **Not a complete `authoring_matrix.py` category**, and worth saying plainly: `create-mep` has 11
+ *  members and `edit-mep` 3, of which these are one each. The boundary here is "MEP recipe exposed
+ *  as a typed client method", not a category — a weaker claim than (92)'s and stated as such.
+ *  *`addMepFitting` is callerless and sits on `api/clientCallers.test.ts`'s documented allowlist;
+ *  `mepSection.ts` calls typed `connectMep` but reaches the fitting through the generic path.
+ *  Moving a method does not change its called-ness, so that entry stays.*
  *
  *  Two methods hit GET `/mep` with different response types (`mepSummary` vs `mep`); both move.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore } from "./httpCore";
+import type { NeedsEditIfc } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
-export function withMep<TBase extends Ctor<HttpCore>>(Base: TBase) {
+export function withMep<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Mep extends Base {
   /** First-pass MEP sizing. `kind`:
    *   - `duct` (flow = CFM, velocity = fpm) · `pipe` (flow = GPM, velocity = fps)
@@ -133,6 +163,15 @@ export function withMep<TBase extends Ctor<HttpCore>>(Base: TBase) {
       sf_per_ton: number | null; block_tons: number; delta_vs_block_pct: number | null;
       disclaimer?: string;
     }>(`/projects/${pid}/mep/thermal-loads`);
+  }
+  /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
+  connectMep(pid: string, guidA: string, guidB: string, publish = true) {
+    return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);
+  }
+  /** W11 B6: author a MEP fitting (elbow BEND / tee JUNCTION / TRANSITION) at a point, on a system. */
+  addMepFitting(pid: string, ifcClass: string, point: [number, number],
+                opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
+    return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
   }
   };
 }

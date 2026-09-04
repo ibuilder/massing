@@ -265,10 +265,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
       ahead: number; on_track: number; behind: number; worst: string | null; note: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
   }
-  /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
-  connectMep(pid: string, guidA: string, guidB: string, publish = true) {
-    return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);
-  }
   /** B5: record a physical connection between two elements (IfcRelConnectsElements, LOD-350 coordination). */
   connectElements(pid: string, guidA: string, guidB: string, description?: string, publish = true) {
     return this.editIfc(pid, "connect_elements", { guid_a: guidA, guid_b: guidB, ...(description ? { description } : {}) }, publish);
@@ -278,11 +274,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
     return this.json<{ count: number; elements_connected: number; max_degree: number;
       connections: { a: string; a_class: string; b: string; b_class: string; description: string | null }[] }>(
       `/projects/${pid}/element-connections`);
-  }
-  /** W11 B6: author a MEP fitting (elbow BEND / tee JUNCTION / TRANSITION) at a point, on a system. */
-  addMepFitting(pid: string, ifcClass: string, point: [number, number],
-                opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
-    return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
   }
   /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
   lodSummary(pid: string) {
@@ -661,7 +652,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 84 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 82 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -704,6 +695,13 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // cannot see it and the extraction simply does not compile. `annotate.ts` declares the requirement
   // in its type instead; moving `editIfc` down into `HttpCore` would unblock the other 20 and is
   // left for whichever slice takes the next recipe cluster.
+  //
+  // (93) took `connectMep` and `addMepFitting` to `mep.ts`, leaving 82 — the two ⑲ had left behind
+  // with the note that they "call `editIfc` (`/edit`) and stay", which recorded the symptom without
+  // diagnosing the cause. `NeedsEditIfc` moved to `types.ts` so `annotate.ts` and `mep.ts` share one
+  // definition rather than two hand-copied signatures. **(92)'s recommendation to move `editIfc`
+  // into `HttpCore` was tested and does NOT hold** — that file exists to keep transport separate
+  // from the endpoint surface, and `editIfc` is a domain endpoint.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(92) took forty-two of those 126 — 84 remain, and there is STILL no map.** A new
+  **(88)–(93) took forty-four of those 126 — 82 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3233,7 +3233,30 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   `services/api/test_annotation.py`, which exercises all four annotation recipes and no other recipe as
   its subject (it calls `add_wall` and `add_column` as fixtures, to give `add_tag` a host). *That
   qualification was missing until review — the second consecutive slice to claim "nothing else" about a
-  test while counting only what it targets, after (91)'s `test_cre_tier3`.* The UI they
+  test while counting only what it targets, after (91)'s `test_cre_tier3`.*
+
+  **(93) finished SCALE-SEAM ⑲.** Two methods to the existing `apps/web/src/api/mep.ts` —
+  `connectMep` and `addMepFitting` — which that file has claimed by name since ⑲ under the note
+  *"call `editIfc` (`/edit`) and stay"*. **That note recorded the symptom without diagnosing the
+  cause:** they could not come because `editIfc` is declared on the `Authoring` mixin rather than on
+  `HttpCore`, so a mixin typed `Ctor<HttpCore>` does not compile. *A method left behind for a reason
+  nobody wrote down stays behind indefinitely — eleven slices read ⑲'s note as a placement decision.*
+
+  `NeedsEditIfc` moved from `annotate.ts` into `apps/web/src/api/types.ts` so both mixins share ONE
+  definition; two hand-copied signatures are the drift the #409 review had to check by hand, since a
+  copy subtly wider than the real `editIfc` typechecks at the mixin and still breaks at a call site.
+
+  *The evidence is weaker than (92)'s and is stated as such: **not** a complete `authoring_matrix.py`
+  category (`create-mep` has 11 members, `edit-mep` 3, of which these are one each). The boundary is
+  "MEP recipe exposed as a TYPED client method". TWELVE remain (11 `create-mep` + 3 `edit-mep`, less
+  these two): nine are driven from viewer code through the generic recipe path, and three
+  (`add_sprinkler`, `auto_connect_mep`, `set_system_predefined`) are referenced nowhere in
+  `apps/web/src` at all — backend recipes with no web exposure, recorded rather than fixed.
+  *This said "the other nine" until review: nine was what I had ENUMERATED, twelve is what REMAINS.
+  Third consecutive slice, third disguise, one defect — count the members you looked at, then phrase
+  the result as the whole population. The fix is to DERIVE THE COMPLEMENT, not to be more careful.* `services/api/test_mep_systems.py` covers both AMONG other MEP recipes, so
+  it corroborates the family and does not bound the set. Spelled out because the "nothing else"
+  overstatement was made in each of the two preceding slices.* The UI they
   serve, `apps/web/src/viewer/tools/annotationSection.ts`, makes exactly four `api.*` calls and they
   are these.
 
@@ -3256,8 +3279,15 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   `HttpCore` — so a mixin typed `Ctor<HttpCore>` cannot see it and the extraction does not compile,
   the same shape `authoring.ts` records blocking its SSE methods. `annotate.ts` declares the
   requirement in its type and is composed outside `withAuthoring` (mutation-checked: composing it
-  inside fails with `TS2345`). **Moving `editIfc` down into `HttpCore` would unblock the other 20
-  recipes** — a change to a file every mixin depends on, left for the next recipe slice.
+  inside fails with `TS2345`). ~~**Moving `editIfc` down into `HttpCore` would unblock the other 20
+  recipes** — a change to a file every mixin depends on, left for the next recipe slice.~~
+  **(93) TESTED that and it does not hold.** `httpCore.ts` says it owns "the base URL, the bearer
+  token, and the low-level fetch helpers", keeping "transport concerns separate from the endpoint
+  surface", and all eight of its methods are transport; `editIfc` is a DOMAIN endpoint. Moving it
+  there would contradict that file's stated purpose and the layering SCALE-SEAM exists to build. The
+  answer is the `NeedsEditIfc` pattern, now shared from `apps/web/src/api/types.ts`. *Written as a
+  plan one slice after (91) recorded that a placement forecast is a hypothesis for the next slice to
+  TEST — and phrasing it as a plan is exactly what makes it read as settled.*
 
   **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
   open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the

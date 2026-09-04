@@ -63,35 +63,22 @@
  *  which (91) established is necessary rather than optional, because that file's count is a floor
  *  with slack and would not notice four methods going missing.
  */
-import { HttpCore } from "./httpCore";
+import type { NeedsEditIfc } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
-/** What this mixin needs from the ones composed beneath it.
+/** The `editIfc` requirement now lives in `./types` as `NeedsEditIfc`, shared with `mep.ts`.
  *
- *  **This is the first mixin to call `editIfc` WITHOUT DEFINING IT, and that is most likely why all
- *  24 edit recipes were still sitting in `client.ts`.** (`authoring.ts` calls it seven times, but it
- *  declares it, so it never needed a base type that promises it.) `editIfc` is declared on
- *  the `Authoring` mixin rather than on `HttpCore`, so a mixin typed `Ctor<HttpCore>` cannot see it:
- *  the extraction does not typecheck, and nothing says why.
+ *  It was declared inline here in (92). (93) needed the identical shape and moved it: two
+ *  hand-copied signatures are exactly the drift the #409 review had to check by hand, since a copy
+ *  subtly WIDER than the real `editIfc` typechecks at the mixin and still breaks at a call site.
+ *  `withAnnotate` must still be composed OUTSIDE `withAuthoring`; composing it inside fails with
+ *  `TS2345` naming `editIfc` rather than at runtime.
  *
- *  *`authoring.ts`'s header records a RELATED but not identical blocker for its SSE methods — "a
- *  mixin cannot see a sibling's private member". That one is harder: `liveStream` is `private`, so
- *  it is unreachable at runtime as well and genuinely has to move into `HttpCore`. `editIfc` is
- *  public, so it is reachable at runtime and only the declared base TYPE is missing it — which is
- *  why a type can fix this one and could not fix that one.*
- *
- *  So the requirement is declared instead of assumed. `withAnnotate` must be composed OUTSIDE
- *  `withAuthoring`, which the chain in `client.ts` does; if it ever is not, this fails at compile
- *  time with a message naming `editIfc`, rather than at runtime with `undefined is not a function`.
- *
- *  The alternative — moving `editIfc` down into `HttpCore` — is the more general fix and would
- *  unblock the other 20 recipes too, but it changes a file every mixin depends on and is not this
- *  slice's claim. Left for whichever slice takes the next recipe cluster. */
-type NeedsEditIfc = HttpCore & {
-  editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish?: boolean,
-          wantGuid?: string): Promise<{ recipe: string; changed: number | string; published: unknown }>;
-};
+ *  *(92) also recommended moving `editIfc` down into `HttpCore` to unblock the remaining recipes.
+ *  (93) TESTED that forecast and it does not hold — see the note on `NeedsEditIfc` in `./types`.
+ *  `httpCore.ts` exists to keep transport separate from the endpoint surface, and `editIfc` is a
+ *  domain endpoint. A forecast is a hypothesis for the next slice to test, and this one was mine.* */
 
 export function withAnnotate<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Annotate extends Base {

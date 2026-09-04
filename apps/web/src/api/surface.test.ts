@@ -233,6 +233,11 @@ describe("the API client's public surface", () => {
       // (92) annotation -> annotate.ts. Named for the same measured reason as the thirteen above:
       // the surface floor has slack, so four methods can leave without the count noticing.
       "addAnnotation", "addDimension", "addRevisionCloud", "addTag",
+      // (93) the two MEP recipes ⑲ could not take -> mep.ts. `addMepFitting` is callerless and on
+      // the UNCALLED allowlist in clientCallers.test.ts, which is about CALL SITES; this list is
+      // about the SURFACE. A method with no screen behind it can still vanish in an extraction,
+      // and the count would not notice.
+      "connectMep", "addMepFitting",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

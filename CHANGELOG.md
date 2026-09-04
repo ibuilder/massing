@@ -1043,9 +1043,71 @@ than failing at runtime with `undefined is not a function`. Moving `editIfc` dow
 would unblock the other 20 recipes; that changes a file every mixin depends on and is left for
 whichever slice takes the next recipe cluster.
 
+> **(93) tested that last sentence and it does not hold.** `httpCore.ts` says it owns "the base URL,
+> the bearer token, and the low-level fetch helpers", keeping "transport concerns separate from the
+> endpoint surface" — and all eight of its methods are transport. `editIfc` is a *domain* endpoint.
+> Moving it there contradicts that file's stated purpose and the layering SCALE-SEAM exists to build.
+> The answer is the `NeedsEditIfc` pattern, now shared from `types.ts`. *Written as a plan one slice
+> after (91) recorded that a placement forecast is a hypothesis to test — and phrasing it as a plan
+> is precisely what makes it read as settled.*
+
 All four are named in `surface.test.ts`, which (91) established is necessary rather than optional.
 
 Pin 746 → 733. **84 above the banner, still no map.**
+
+Thirty-second follow-on on the same version: **SCALE-SEAM (93)** — *finishing ⑲, and a note that
+recorded a symptom without diagnosing it*.
+
+Two methods out of `client.ts` (`733 → 731`) into the existing `apps/web/src/api/mep.ts`:
+`connectMep` and `addMepFitting`. No new mixin.
+
+### ⑲ already claimed them, and could not take them
+
+`mep.ts` has said since SCALE-SEAM ⑲ that *"`connectMep` / `addMepFitting` call `editIfc` (`/edit`)
+and stay."* That reads as a placement decision. It was a **compiler error**: `editIfc` is declared on
+the `Authoring` mixin rather than on `HttpCore`, so a mixin typed `Ctor<HttpCore>` cannot see it and
+the extraction does not compile. (92) diagnosed that; (93) applies it, and `mep.ts` now declares
+`NeedsEditIfc` and composes outside `withAuthoring`.
+
+**A method left behind for a reason nobody wrote down stays behind indefinitely.** ⑲ recorded what
+happened and not why, so eleven slices read it as settled and moved on.
+
+### One contract, not two copies
+
+`NeedsEditIfc` moves from `annotate.ts` into `types.ts`, shared by both mixins. Two hand-copied
+signatures are exactly the drift the #409 review had to check by hand — a copy subtly *wider* than
+the real `editIfc` typechecks at the mixin and still breaks at a call site. One definition cannot
+drift from itself. Mutation-checked: composing `withMep` inside `withAuthoring` fails with `TS2345`.
+
+### The evidence is weaker than (92)'s, and says so
+
+This is **not** a complete `authoring_matrix.py` category — `create-mep` has 11 members and
+`edit-mep` 3, of which these are one each. The boundary is *"MEP recipe exposed as a typed client
+method"*, which is exactly these two. **Twelve** MEP recipes remain in the matrix (11 `create-mep`
++ 3 `edit-mep`, less these two): **nine** are driven from viewer code through the generic recipe path
+in `apps/web/src/viewer/draft/draftCatalog.ts` and `apps/web/src/viewer/tools/mepSection.ts`, and
+**three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — are referenced nowhere in
+`apps/web/src` at all.** Recorded, not fixed: wiring a capability is not an extraction slice's business.
+
+> **This said "the other nine" until review, and that is the third consecutive slice with one
+> defect wearing a third disguise.** Nine was the number I had *enumerated* (the viewer-driven ones);
+> twelve is the number that *remain*. (91) claimed no `test_cre_*` file reached outside its set while
+> three reached out as fixtures. (92) claimed `test_annotation.py` exercised four recipes "and no
+> others" while two more were tag-host fixtures. Each time: **count the members you looked at, then
+> phrase the result as the whole population.** A reviewer found all three.
+>
+> The fix is not resolving to be more careful. It is to **derive the complement** — `set(all) -
+> set(moved)` — and only then describe what is in it. Every one of these would have been caught by
+> computing the remainder instead of listing the examples. `test_mep_systems.py` covers both **among** other MEP recipes —
+it corroborates the family and does not bound the set — and `test_guards.py` is cross-cutting.
+*Spelled out because the "no others" overstatement was made in each of the two preceding slices.*
+
+*`addMepFitting` is callerless and stays on `apps/web/src/api/clientCallers.test.ts`'s allowlist:
+moving a method does not change its called-ness. It is still named in `surface.test.ts`, because that
+list is about the surface rather than the call sites — a method with no screen behind it can still
+vanish in an extraction, and the count would not notice.*
+
+Pin 733 → 731. **82 above the banner, still no map.**
 
 
 
