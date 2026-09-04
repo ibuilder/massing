@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(94) took forty-six of those 126 — 80 remain, and there is STILL no map.** A new
+  **(88)–(95) took fifty of those 126 — 76 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3242,6 +3242,22 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   recipe.** *A route-prefix split cannot see a recipe-based sibling of the same question.* They were
   also unmovable then, for the `editIfc` typing reason (92) diagnosed — **three** slices now found to
   have left work behind for that single cause.
+
+  **(95) took element state to the same file** — `lodSummary`/`setLod` and `phasing`/`setPhase`, two
+  read/write pairs answering *what state are the model's elements in, and set it.* The shape is the
+  argument: both readers return `{ total, <x>ed, prop, counts }`, both writers are
+  `(pid, guids, <enum>, publish) → editIfc`, both readers feed
+  `apps/web/src/viewer/tools/modelStatePanels.ts`, and both writers sit unwired and adjacent on the
+  UNCALLED allowlist. *`lodSummary` was a sibling separated from its own family:* `model.ts` already
+  held `/model/lod/census`, `/lod/handover-readiness` and `/lod/assessment`.
+
+  **`authoring_matrix.py` argued against it, for the first time in four slices.** It files `set_lod`
+  under `data` and `set_phase` under `lifecycle` — because it categorises by the IFC OUTPUT a recipe
+  writes, an LOD stage tag against `Massing_Phasing.Status`. Different psets, same question, and
+  **that is (89)'s "storage is a HOW" trap** wearing new clothes. Recorded as a losing vote rather
+  than left unmentioned, because a source that has been right three times is exactly the one whose
+  disagreement is tempting to skip. *It also meets (94)'s objection instead of overriding it: both
+  halves of the phasing pair move together, so nothing is stranded.*
 
   *This entry said "(94) finished SCALE-SEAM ㊻" until review, and the distinction against (93) is
   the point rather than a nicety. **⑲ NAMED the two it left** — `mep.ts`'s header says `connectMep`

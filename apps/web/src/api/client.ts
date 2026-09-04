@@ -267,16 +267,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
       connections: { a: string; a_class: string; b: string; b_class: string; description: string | null }[] }>(
       `/projects/${pid}/element-connections`);
   }
-  /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
-  lodSummary(pid: string) {
-    return this.json<{ total: number; staged: number; prop: string;
-      counts: Record<"100" | "200" | "300" | "350" | "400" | "500" | "UNSET", number> }>(
-      `/projects/${pid}/lod`);
-  }
-  /** W11 F0: tag elements with a LOD stage (element maturity 100→500). */
-  setLod(pid: string, guids: string[], stage: "100" | "200" | "300" | "350" | "400" | "500", publish = true) {
-    return this.editIfc(pid, "set_lod", { guids, stage }, publish);
-  }
   /** W11 F0: establish the view-keyed representation contexts (Model+Plan; Body/Axis/Box/Annotation/
    *  FootPrint) the drawing pipeline needs. Idempotent. */
   ensureContexts(pid: string, publish = false) {
@@ -288,16 +278,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
     return this.json<{ query: string; count: number; truncated: boolean;
       elements: { guid: string; name: string; ifc_class: string; storey: string | null }[] }>(
       `/projects/${pid}/query?q=${encodeURIComponent(q)}&limit=${limit}`);
-  }
-  /** W10-8: element phase/status distribution (new · existing · demolish · temporary · unset). */
-  phasing(pid: string) {
-    return this.json<{ total: number; phased: number; prop: string;
-      counts: Record<"NEW" | "EXISTING" | "DEMOLISH" | "TEMPORARY" | "UNSET", number> }>(
-      `/projects/${pid}/phasing`);
-  }
-  /** W10-8: tag elements with a construction phase (new | existing | demolish | temporary). */
-  setPhase(pid: string, guids: string[], phase: "new" | "existing" | "demolish" | "temporary", publish = true) {
-    return this.editIfc(pid, "set_phase", { guids, phase }, publish);
   }
   /** Speckle interoperability bridge status (open-source, self-hostable; off unless configured). */
   speckleStatus() {
@@ -644,7 +624,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 80 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 76 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -698,6 +678,10 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // (94) took the as-built pair to `model.ts`, leaving 80 — the two members of ㊻'s question that a
   // route-prefix split could not see. `setPhase` did NOT come despite completing the matrix's
   // `lifecycle` category: its read half `phasing()` is still here. Reasoning in `model.ts`'s header.
+  //
+  // (95) took element state — `lodSummary`/`setLod` and `phasing`/`setPhase` — to `model.ts`,
+  // leaving 76. Both pairs move together, which is what (94)'s objection to taking `setPhase` alone
+  // required. Reasoning in `model.ts`'s header.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

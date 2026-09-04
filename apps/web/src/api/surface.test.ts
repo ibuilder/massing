@@ -239,7 +239,11 @@ describe("the API client's public surface", () => {
       // and the count would not notice.
       "connectMep", "addMepFitting",
       // (94) two members of ㊻'s verification question that it did not name -> model.ts.
+      // (95) element state -> model.ts: two read/write pairs, both writers UNWIRED and on the
+      // UNCALLED allowlist. Named here because that allowlist is about CALL SITES and this list is
+      // about the SURFACE — an unwired writer can still vanish in an extraction unnoticed.
       "verifyAsbuilt", "recordAsbuiltDimension",
+      "lodSummary", "setLod", "phasing", "setPhase",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

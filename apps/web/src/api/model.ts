@@ -42,6 +42,33 @@
  *  field-verified dimension with its variance against design. Both are ㊻'s own question — *is this
  *  element installed as designed?* — and neither was named in its header.
  *
+ *  **SCALE-SEAM (95) adds element STATE — *what state are the model's elements in, and set it?***
+ *  Two read/write pairs: `lodSummary`/`setLod` (element maturity 100→500) and `phasing`/`setPhase`
+ *  (new / existing / demolish / temporary).
+ *
+ *  *`lodSummary` was a sibling separated from its own family:* this file already held
+ *  `/model/lod/census`, `/lod/handover-readiness` and `/lod/assessment`, while the BASE distribution
+ *  `/projects/{pid}/lod` stayed behind. The two pairs come together because they are the same
+ *  question in the same shape — both return `{ total, <x>ed, prop, counts }`, both writers are
+ *  `(pid, guids, <enum>, publish) → editIfc`, both readers are consumed by
+ *  `viewer/tools/modelStatePanels.ts`, and both writers sit unwired and adjacent on
+ *  `api/clientCallers.test.ts`'s UNCALLED allowlist.
+ *
+ *  **`authoring_matrix.py` disagrees, and it is worth saying why it loses.** It files `set_lod` under
+ *  `data` and `set_phase` under `lifecycle`, because it categorises by the IFC OUTPUT each recipe
+ *  writes — an LOD stage tag against `Massing_Phasing.Status`. Different property sets, same
+ *  question. **That is (89)'s "storage is a HOW" trap**: "they write different psets" has the same
+ *  shape as "they are all module records", and neither is a question.
+ *
+ *  *This also resolves what (94) deliberately left open.* That slice declined `setPhase` because
+ *  taking the writer would have stranded `phasing()` in `client.ts` — the reader/writer split (87)
+ *  had to undo. Both halves move together here, so nothing is separated and the objection is met
+ *  rather than overridden.
+ *
+ *  *Not contiguous — the pairs sat at 271–279 and 293–301 with `ensureContexts` and `queryElements`
+ *  between them. (88) recorded that as the strongest case for grouping by what methods ANSWER, since
+ *  no prefix or positional split would ever find them together.*
+ *
  *  **Two known members, not necessarily all of them.** This slice does not claim the question is now
  *  complete: it claims these two answer it and were missed. *The first draft said "finishes that
  *  question", which asserts a completeness nothing here established — and the PR description
@@ -770,6 +797,26 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
   verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
     return this.editIfc(pid, "verify_asbuilt", { guids, ...opts }, publish);
+  }
+  /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
+  lodSummary(pid: string) {
+    return this.json<{ total: number; staged: number; prop: string;
+      counts: Record<"100" | "200" | "300" | "350" | "400" | "500" | "UNSET", number> }>(
+      `/projects/${pid}/lod`);
+  }
+  /** W11 F0: tag elements with a LOD stage (element maturity 100→500). */
+  setLod(pid: string, guids: string[], stage: "100" | "200" | "300" | "350" | "400" | "500", publish = true) {
+    return this.editIfc(pid, "set_lod", { guids, stage }, publish);
+  }
+  /** W10-8: element phase/status distribution (new · existing · demolish · temporary · unset). */
+  phasing(pid: string) {
+    return this.json<{ total: number; phased: number; prop: string;
+      counts: Record<"NEW" | "EXISTING" | "DEMOLISH" | "TEMPORARY" | "UNSET", number> }>(
+      `/projects/${pid}/phasing`);
+  }
+  /** W10-8: tag elements with a construction phase (new | existing | demolish | temporary). */
+  setPhase(pid: string, guids: string[], phase: "new" | "existing" | "demolish" | "temporary", publish = true) {
+    return this.editIfc(pid, "set_phase", { guids, phase }, publish);
   }
   };
 }
