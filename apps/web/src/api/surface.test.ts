@@ -218,6 +218,18 @@ describe("the API client's public surface", () => {
       "syncProcore", "pushProcore", "syncSchedules",
       "drawingSet", "issueDrawingSet", "drawingIssuances", "drawingTransmittalUrl",
       "drawingMarkup", "promoteDrawingMarkup", "markupStream", "drawingSchedules",
+      // (91) CRE deal desk -> creDeal.ts. Named for the reason the auth block above is named, and
+      // the reason is now MEASURED rather than assumed: the surface is 788 against a floor of 751,
+      // so losing ONE of these thirteen leaves 787 and clears the floor silently. Losing the whole
+      // mixin (-13) leaves 775 and also clears it. **The count guards nothing here.** A review of
+      // #408 asserted the opposite — "losing any one reduces the count below 751" — which is off by
+      // 37; that is the slack this file's own comment at the 696 floor predicted would accumulate,
+      // and the first time a reader has been actively misled by it.
+      "holdSell", "decisionGate",                                    // decide
+      "clausePlaybook", "saveClausePlaybook", "reviewContractClauses",
+      "loanCovenants", "dealAuthority", "saveDealAuthority",         // terms + authority
+      "normalizeT12", "rentRollScrub", "netEffectiveRent",           // verify the seller's numbers
+      "tieredComps", "competitiveSupply",                            // market evidence
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }
