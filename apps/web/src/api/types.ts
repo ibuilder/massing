@@ -1,6 +1,7 @@
 /** Shared API DTO types for the backend client. Extracted from client.ts so the type surface
  *  (imported across the app) lives apart from the ~2.6k-line ApiClient implementation.
  *  client.ts re-exports everything here (`export * from "./types"`) for import-path compatibility. */
+import type { HttpCore } from "./httpCore";
 
 export interface ElementProps {
   guid: string;
@@ -1129,3 +1130,26 @@ export interface EgressResult {
   occupant_load_per_floor: number; min_exits_required: number;
   exit_separation_m: number; required_separation_m: number;
 }
+
+/** What a mixin needs from `withAuthoring` when it calls `editIfc` without defining it.
+ *
+ *  SCALE-SEAM (92) discovered why 24 edit recipes had sat in `client.ts` through eleven slices:
+ *  `editIfc` is declared on the `Authoring` mixin rather than on `HttpCore`, so a mixin typed
+ *  `Ctor<HttpCore>` cannot see it and the extraction does not compile, with nothing saying why.
+ *  Any mixin declaring this as its base requirement must be composed OUTSIDE `withAuthoring`.
+ *
+ *  **It lives here, shared, rather than being redeclared per mixin.** (92) wrote it inline in
+ *  `annotate.ts`; (93) needed the same shape in `mep.ts`, and two hand-copied signatures are exactly
+ *  the drift the #409 review had to check for by hand — a copy subtly WIDER than the real `editIfc`
+ *  typechecks at the mixin and still breaks at a call site. One definition cannot drift from itself.
+ *
+ *  *This replaces the follow-up (92) recommended, which was to move `editIfc` down into `HttpCore`.
+ *  That was a forecast, and (93) tested it: `httpCore.ts` says it owns "the base URL, the bearer
+ *  token, and the low-level fetch helpers", keeping "transport concerns separate from the endpoint
+ *  surface", and every method on it is transport. `editIfc` is a domain endpoint — POST
+ *  `/projects/{pid}/edit`. Moving it there would contradict that file's stated purpose and the very
+ *  layering SCALE-SEAM exists to establish.* */
+export type NeedsEditIfc = HttpCore & {
+  editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish?: boolean,
+          wantGuid?: string): Promise<{ recipe: string; changed: number | string; published: unknown }>;
+};
