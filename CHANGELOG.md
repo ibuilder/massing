@@ -977,7 +977,7 @@ Pin 867 → 746. **88 above the banner, still no map.**
 Thirty-first follow-on on the same version: **SCALE-SEAM (92)** — *the marker that bounds a set, and
 the one that does not*.
 
-Four methods out of `client.ts` (`746 → 732`) into a new `apps/web/src/api/annotate.ts`:
+Four methods out of `client.ts` (`746 → 733`) into a new `apps/web/src/api/annotate.ts`:
 `addAnnotation`, `addDimension`, `addRevisionCloud`, `addTag`. **What they answer: put a note, a
 dimension, a cloud or a tag ON the model** — all four author real `IfcAnnotation` entities at world
 `[E,N]` through `editIfc`.
