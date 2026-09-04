@@ -832,11 +832,12 @@ export class ApiClient extends withClientPortal(withResilience(withResponsibilit
   //
   // (89) took eight more — the four `/resilience/*` to `resilience.ts` and the four
   // `/responsibility/*` to `responsibility.ts` — leaving 109. The seven names above were checked
-  // against the file this time and none of them had moved; that check is the point, not the
-  // result. (90) took the eight client-portal
-  // methods to `clientPortal.ts`, leaving 101 — and its extraction script had an off-by-one on
-  // ONE-LINE methods that swallowed the next method's doc comment. `docComments.test.ts` caught it.
-  // There is still no map for the 101.
+  // against the file this time and none of them had moved; that check is the point, not the result.
+  //
+  // (90) took the eight client-portal methods to `clientPortal.ts`, leaving 101, still unmapped. Its
+  // extractor swallowed the next doc comment after any ONE-LINE method; `docComments.test.ts` caught
+  // that, while an orphan check written beside the slice passed — it allowed a comment to follow a
+  // comment, which is the defect itself.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

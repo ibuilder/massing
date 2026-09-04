@@ -843,7 +843,7 @@ the public 3D viewer is dark from the UI's side. Left alone because an extractio
 that no behaviour changed, and adding a parameter falsifies it; recorded in the mixin header at the
 method, where the next reader of that code will find it.
 
-Pin 906 → 866. **101 above the banner, still no map.**
+Pin 906 → 867. **101 above the banner, still no map.**
 
 
 
