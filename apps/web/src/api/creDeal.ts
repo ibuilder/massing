@@ -64,10 +64,15 @@
  *  contracts/review, hold-sell) and `test_net_effective` (rent-roll/net-effective). That is all
  *  eleven paths, and no `test_cre_*` file reaches a route outside this set.
  *
- *  *Two honest caveats, because this was found late and is the kind of evidence it is tempting to
- *  round up:* `test_cre_tier3` also exercises `/reports/ic`, which is not here; and
- *  `test_net_effective` sets up through `/rent-roll` and `/modules/lease`, which live elsewhere —
- *  a test may use a neighbour as a fixture without that neighbour belonging to the cluster.
+ *  *Caveats, because this was found late and is the kind of evidence it is tempting to round up.*
+ *  `test_cre_tier3` reaches THREE routes outside the set — `POST /proforma/scenarios`,
+ *  `POST /proforma/scenarios/{sid}/review` and `GET /projects/{pid}/reports/ic_memo.pdf` — and
+ *  `test_net_effective` sets up through `/rent-roll` and `/modules/lease`. A test may use a
+ *  neighbour as a fixture without that neighbour belonging to the cluster, but the count has to be
+ *  right: **this said "also exercises `/reports/ic`", naming one of the three and truncating its
+ *  path.** Caught in review of #408. The claim above is therefore "no `test_cre_*` file reaches a
+ *  route outside the set" only for the routes those tests ASSERT ON, not for their fixtures — which
+ *  is a weaker statement than the first draft made, and the true one.
  *
  *  It was noticed only because `test_cre_deal_desk` and `test_cre_governance` scrolled past in the
  *  suite output *after* the slice was already committed. **Test-file names are a grouping somebody
@@ -75,7 +80,19 @@
  *  list of places this slice thought to look.** It is recorded as a fourth signal rather than folded
  *  into the three, so the derivation stays honest about when each piece arrived.
  *
- *  A mixin, so every call site resolves unchanged; `api/surface.test.ts` is what proves that.
+ *  ### What actually holds the no-behaviour-change claim
+ *
+ *  A mixin, so every call site resolves unchanged — and `api/surface.test.ts` now proves that for
+ *  these thirteen BY NAME, which it did not when this file was first written. That sentence used to
+ *  read "`api/surface.test.ts` is what proves that" full stop, and it was overstated: that file
+ *  spot-checks a name list none of these was on, plus a floor of 751 on the total surface. **The
+ *  surface measured 788.** Losing one of these thirteen would have left 787 and passed; losing the
+ *  whole mixin would have left 775 and passed. The count guarded nothing here, which is exactly the
+ *  slack `surface.test.ts`'s own comment at the 696 floor predicted would accumulate.
+ *
+ *  So all thirteen are named there now, on the same reasoning that file already gives for naming the
+ *  twenty auth methods. Mutation-checked in both directions: renaming `holdSell` fails with
+ *  *"holdSell() vanished — a call site is now broken"*, and restoring it passes.
  */
 import { HttpCore } from "./httpCore";
 

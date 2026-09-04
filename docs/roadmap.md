@@ -3189,9 +3189,17 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **A fourth corroboration turned up after the slice was committed**, and is recorded as such rather
   than folded into the three: the backend suite partitions the same thirteen across
   `test_cre_deal_desk`, `test_cre_governance`, `test_cre_tier3` and `test_net_effective` — all
-  eleven paths, with no `test_cre_*` file reaching outside the set. *Test-file names are a grouping
-  somebody else authored, which is the kind of source (87) argued to prefer, and it was not on the
-  list of places this slice thought to look.*
+  eleven paths, with no `test_cre_*` file **asserting on** a route outside the set (`test_cre_tier3`
+  reaches three as fixtures, and this claim named one of them and truncated its path until review of
+  #408 caught it). *Test-file names are a grouping somebody else authored, which is the kind of
+  source (87) argued to prefer, and it was not on the list of places this slice thought to look.*
+
+  **That review also found the slice's no-behaviour-change claim resting on a slack floor.**
+  `apps/web/src/api/surface.test.ts` spot-checks a name list none of the thirteen was on, plus a
+  floor of 751 on the total client surface — which **measures 788**, so losing one of them, or the
+  whole mixin, would have passed. All thirteen are named there now and mutation-checked. *A floor
+  that new work keeps clearing stops being a ratchet without ever going red* — the same decay this
+  item already records for `client.ts > 1200` and for the banner-string proxy, in a third gate.
 
   **The boundary that decides `rent-roll`.** `apps/web/src/api/proforma.ts` already holds
   `GET /projects/{pid}/rent-roll`, and two of these sit directly beneath it on `/rent-roll/scrub`

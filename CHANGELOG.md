@@ -908,10 +908,14 @@ The backend suite names this family too, and it partitions the same thirteen: `t
 (comps/tiered, rent-roll/scrub, t12/normalize), `test_cre_governance` (deal-room/authority,
 decision-gate, loan/covenants, supply/competitive), `test_cre_tier3` (contracts/playbook,
 contracts/review, hold-sell) and `test_net_effective` (rent-roll/net-effective) — all eleven paths,
-and no `test_cre_*` file reaches a route outside the set. *Caveats, because this arrived late and is
-the kind of evidence it is tempting to round up:* `test_cre_tier3` also exercises `/reports/ic`,
-which is not here, and `test_net_effective` sets up through `/rent-roll` and `/modules/lease`, which
-live elsewhere — a test may use a neighbour as a fixture without that neighbour joining the cluster.
+and no `test_cre_*` file **asserts on** a route outside the set. *Caveats, because this arrived late
+and is the kind of evidence it is tempting to round up:* `test_cre_tier3` reaches three routes
+outside it — `POST /proforma/scenarios`, `POST /proforma/scenarios/{sid}/review` and
+`GET /projects/{pid}/reports/ic_memo.pdf` — and `test_net_effective` sets up through `/rent-roll`
+and `/modules/lease`. A test may use a neighbour as a fixture without that neighbour joining the
+cluster, but the count has to be right: **the first draft named one of those three and truncated its
+path**, which review of #408 caught. The claim is true of asserted routes, not of fixtures — weaker
+than the first draft, and the one the evidence supports.
 
 It was noticed only because those two test names scrolled past in the suite output **after the slice
 was committed**. Test-file names are a grouping somebody else authored, which is precisely the kind
@@ -951,6 +955,22 @@ roadmap entry that repeated the forecast is corrected too.
 left. (89) audited those seven names and found none had moved, *which is why they survived to be
 wrong now — a list that passes one audit is not thereby safe for the next slice.* The roadmap's own
 `client.ts is 953 lines` was three slices stale for the same reason and is corrected to 746.
+
+### The review also found the no-behaviour-change claim resting on a gate with 37 of slack
+
+This entry said `apps/web/src/api/surface.test.ts` proves every call site still resolves. For these
+thirteen it did not. That file spot-checks a name list none of them was on, plus a floor of **751**
+on the total client surface — and the surface **measures 788**. Losing one of the thirteen leaves
+787 and passes; losing the whole mixin leaves 775 and passes. *That is exactly the slack
+`surface.test.ts`'s own comment at the 696 floor predicted would accumulate as endpoints are added,
+and it is the first time it has actually misled a reader* — a review of #408 stated the opposite,
+that "losing any one reduces the count below 751", which is off by 37.
+
+All thirteen are now named in that spot-check, on the same reasoning the file already gives for
+naming the twenty auth methods. Mutation-checked both ways: renaming `holdSell` fails with
+*"holdSell() vanished — a call site is now broken"*; restoring it passes. **A floor that new work
+keeps clearing stops being a ratchet without ever going red** — so the fix is to name the group, not
+to raise the floor.
 
 Pin 867 → 746. **88 above the banner, still no map.**
 
