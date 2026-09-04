@@ -1359,8 +1359,8 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 
 ### Decisions, not effort — these want your call
 
-- **A prospect investor dilutes every real one, and the obvious fix empties the cap table.**
-  *(measured 2026-08-29; money-bearing, and NOT a filter fix — read the second half before touching it)*
+- ✅ **A prospect investor diluted every real one — FIXED 2026-09-04, option (c) with a guard.**
+  *(measured 2026-08-29; the decision below was the user's, taken 2026-09-04)*
 
   `capital.cap_table` sums `commitment` across **every** investor regardless of state. It even reads
   `workflow_state` — to display as `status` — and never filters on it. Measured against the real
@@ -1382,12 +1382,24 @@ that rotted were all sentences no test read. Note for whoever extends it — the
   distribution — returned **0.0**. Not a stale fixture: that is the product's own default path. A
   filter would empty the cap table of every project whose investors were never transitioned.
 
-  So the question is which signal means "this commitment is real", and it is a domain decision rather
-  than a code change: (a) make `committed` the initial state, or require the transition before a
-  record counts — a data migration for existing projects; (b) key the math on `contributed > 0`
-  instead of state, which changes what a *commitment* means in an uncalled fund; or (c) keep the rows
-  and exclude them from the denominator, showing prospects at 0% with the pipeline named separately.
-  Each is defensible and they produce different ownership numbers, which is why this is yours.
+  **Resolved: (c), plus the guard that makes it safe.** (b) was rejected as a domain error — in an
+  uncalled fund an LP with a signed commitment and `contributed = 0` is normal, so keying on
+  contribution zeroes out real LPs who have not been called yet. (a) was rejected as too invasive to
+  take on the owner's behalf: it needs a data migration and rewires the default entry path.
+
+  (c) alone still walks into the trap above, so `cap_table` now separates two readings of the same
+  value: **a default state is not a signal.** `workflow_in_use` is true once ANY investor has moved
+  off the stamped initial state; until then `prospect` means "nobody used the workflow" and every
+  investor counts, exactly as before. Once one has, `prospect` means "not committed" and the state is
+  evidence. Prospect rows are never dropped — they stay visible at 0%, their money reported as
+  `pipeline_commitment`, and they no longer sort above real owners.
+
+  The decision is carried on each row as `counts_toward_ownership` rather than re-derived by each of
+  the seven consumers, and `distwaterfall` honours it. `services/api/test_cap_table_state.py` pins
+  both halves; **mutation-checking found that `test_distwaterfall` passed even with `distwaterfall`
+  ignoring the flag** — its fixture has no prospect — so the missing case is now covered there:
+  without it a prospect drew **$1,818,181.82 of a $2M distribution** while the committed LP got
+  $181,818.18. `exited` is treated as evidence the workflow was used but not as current ownership.
 
 - **Asset-rights stopped at signing, on purpose, and going further is your call — not effort.**
   Shipped 2026-08-29: a stable asset identity that survives a `.mass` round-trip, an opt-in release

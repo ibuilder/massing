@@ -66,8 +66,12 @@ def scenario(db, pid: str, body: dict | None = None) -> dict[str, Any]:
     investors = me.list_records(db, "investor", pid, limit=100000) if "investor" in me.TABLES else []
     ct = capital.cap_table(investors)
     rows = ct["rows"]
-    lp = [r for r in rows if not _is_gp(r["investor_class"])]
-    gp = [r for r in rows if _is_gp(r["investor_class"])]
+    # Honour `cap_table`'s ownership rule rather than re-deriving one. A prospect drew a real
+    # distribution share here — `share = lp_total * (commitment / lp_commit)` off a commitment nobody
+    # had committed to — because these rows were filtered by CLASS and never by state.
+    owning = [r for r in rows if r["counts_toward_ownership"]]
+    lp = [r for r in owning if not _is_gp(r["investor_class"])]
+    gp = [r for r in owning if _is_gp(r["investor_class"])]
     lp_commit = sum(r["commitment"] for r in lp)
     gp_commit = sum(r["commitment"] for r in gp)
     # no cap table -> nothing to allocate; return a clean zeroed scenario rather than a phantom split
