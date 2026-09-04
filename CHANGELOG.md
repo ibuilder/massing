@@ -1154,6 +1154,35 @@ the extraction removed 8, netting **+1** — an extraction slice that grows the 
 purpose. The note is now three lines and the reasoning lives once, in `model.ts`'s header, instead
 of twice.
 
+### Review of #411 found the overstatement I had asked it to look for
+
+I scoped the claim carefully in the PR description — *"two known missed members, not necessarily all
+members"* — and then wrote **"finishes that question"** in `model.ts` and **"completing its
+verification question"** in `surface.test.ts`. The reviewer caught the contradiction.
+
+**Hedging in the review request while the artifact overstates is not scoping.** It puts the caveat
+where a reviewer sees it and the overstatement where every later reader will, which is worse than a
+plain overstatement because it looks like discipline. Fourth instance of one defect across four
+slices, and the first where the correct wording existed and simply did not reach the code.
+
+Both now say *two members of ㊻'s question that it did not name*, which is what the evidence supports.
+
+### The composition-order constraint is now a test rather than a claim
+
+`apps/web/src/api/compositionOrder.test.ts` asserts, with `@ts-expect-error`, that `withAnnotate`,
+`withMep` and `withModel` all reject a bare `HttpCore` base — the `NeedsEditIfc` requirement stated
+positively and checked by `npm run typecheck`, naming the mixin when it breaks.
+
+The review is what forced it: I had reported the constraint as "mutation-checked", but the check was
+a scratch file I deleted, so neither the reviewer nor anyone after me could verify it. **A
+verification that leaves no artifact is a claim, not a check.** Mutation-checked in turn — relaxing
+`withMep` to `Ctor<any>` fails with `TS2578: Unused '@ts-expect-error' directive` naming the line.
+
+*Also corrected: the reviewer described `phasing()`/`setPhase()` as a direct read/write pair in
+`modelStatePanels.ts`. `phasing()` is read there and the panel colours by `Massing_Phasing.Status`,
+but `setPhase` is that panel's **unwired** writer, on `clientCallers.test.ts`'s UNCALLED allowlist.
+Reader and unwired writer on one panel — still the reason not to separate them, stated accurately.*
+
 Pin 731 → 727. **80 above the banner, still no map.**
 
 

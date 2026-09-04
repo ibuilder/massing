@@ -37,10 +37,17 @@
  *  sat between set and deviations). **The photo upload did NOT come** (PHOTO-PIN is parked).
  *  `askModel` stayed — that is NL-Q, not install status.
  *
- *  **SCALE-SEAM (94) finishes that question with the two members ㊻ could not see:** `verifyAsbuilt`
+ *  **SCALE-SEAM (94) adds two members of that question ㊻ did not name:** `verifyAsbuilt`
  *  stamps `Massing_AsBuilt` (the LOD-500 reliability layer) and `recordAsbuiltDimension` records a
  *  field-verified dimension with its variance against design. Both are ㊻'s own question — *is this
  *  element installed as designed?* — and neither was named in its header.
+ *
+ *  **Two known members, not necessarily all of them.** This slice does not claim the question is now
+ *  complete: it claims these two answer it and were missed. *The first draft said "finishes that
+ *  question", which asserts a completeness nothing here established — and the PR description
+ *  simultaneously claimed only "two known missed members". **Hedging in the review request while the
+ *  artifact overstates is not scoping**; it puts the caveat where a reviewer sees it and the
+ *  overstatement where every later reader will. Caught in review of #411.*
  *
  *  *Why ㊻ missed them: it split on the `/verification/*` ROUTE PREFIX, and these two go through
  *  `editIfc`, so they carry no `/verification` route to be found by. **A route-prefix split cannot
@@ -54,8 +61,15 @@
  *  category is exactly these two plus `set_phase` — a COMPLETE category, which is the signal that
  *  decided (92)'s annotate slice. Declined here on two checkable grounds: `setPhase` tags a
  *  construction phase (new/existing/demolish/temporary), which is element state in the build
- *  sequence rather than install-versus-design; and **its read half `phasing()` is still in
- *  `client.ts`**, so taking the writer alone would repeat the reader/rollup split (87) had to undo.
+ *  sequence rather than install-versus-design (`Massing_Phasing.Status`, against `Massing_AsBuilt`
+ *  and `Massing_AsBuiltDim` for these two); and **its read half `phasing()` is still in `client.ts`**,
+ *  so taking the writer alone would repeat the reader/rollup split (87) had to undo.
+ *
+ *  *Precisely: `phasing()` is read by `viewer/tools/modelStatePanels.ts`, which is the phasing panel
+ *  — it also colours by `Massing_Phasing.Status` — while `setPhase` is that panel's UNWIRED writer,
+ *  sitting on `api/clientCallers.test.ts`'s UNCALLED allowlist. So they are a reader and its writer
+ *  on one panel rather than two live call sites, which is the accurate version of the claim and
+ *  still the reason not to separate them.*
  *  *A complete category is one vote, not a verdict — and "lifecycle" is a word (88) already caught
  *  misleading once.*
  *
