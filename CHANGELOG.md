@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — Portfolio risk heat map
+
+`GET /portfolio/risk` (`risk_portfolio.py`) grids `risk_board` across the book: projects down, the
+five risk engines across (Monte-Carlo schedule risk · predictive alerts · EVM · pre-flight gate ·
+overdue coordination), intensity `3·high + 2·medium + 1·low`. Rendered on Portfolio beside the
+executive roll-up, with a "worst first" line and click-through to the project.
+
+`/portfolio/executive` and `/portfolio/construction` roll up *performance*; neither could say which
+risk **engine** is hot on which project. Cells come from `risk_board.board` unchanged — same engines,
+same Monte-Carlo seed — so a cell and the project's own risk panel cannot disagree. That costs a full
+board per project, so the sweep is bounded by `limit` (default 25, clamped 1–100) and reports
+`truncated` rather than quietly scanning a prefix.
+
+**An empty cell is not a safe cell.** A grid of counts renders `0` for two different facts: *this
+engine looked and found nothing*, and *this engine could not run*. `board` is fail-open per lane and
+already separates them, so every cell carries a `state`; an unmeasured cell carries **no counts at
+all** rather than zeros, and the UI draws it as a dash. `coverage` reports the split at portfolio
+level. A clear signal nobody has a basis for is worse than no heat map.
+
+**`risk_board.LANES` is new, and gated against a real board run.** `board` reports coverage under
+lane keys (`schedule_risk`) while its items carry source strings (`schedule-risk`); nothing connected
+the two, and a roll-up must join on both. `test_risk_portfolio.py` asserts every lane key `board`
+emits appears in the table and every `source` its items carry is a value — so a lane added to `board`
+alone fails rather than rendering as a column that never lights up.
+
+Both claims mutation-checked: emitting zeros for an error cell, and dropping a lane from `LANES`,
+each fail with the shape named.
+
 ## Unreleased — SCALE-SEAM (101): design-phase predicted performance
 
 Six methods out of `client.ts` (**642 → 603**). Five to a new

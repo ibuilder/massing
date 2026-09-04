@@ -25,6 +25,27 @@ export function withRisk<TBase extends Ctor<HttpCore>>(Base: TBase) {
   riskDigest(pid: string) {
     return this.json<RiskDigest>(`/projects/${pid}/risk-digest`);
   }
+  /** The same board gridded across the portfolio — projects × risk engine, severity-weighted.
+   *  `state` on a cell is not decoration: an engine that could not run reads `error`, and the map
+   *  must not render that as a clear cell. `coverage` says how much of the grid is measured. */
+  portfolioRisk(limit = 25) {
+    return this.json<{
+      projects: { id: string; name: string; band: string | null; score: number; count: number;
+        high: number; medium: number; low: number; measured_sources: number;
+        cells: Record<string, { state: string; score?: number; count?: number; high?: number;
+          medium?: number; low?: number }> }[];
+      sources: { key: string; label: string; score: number; count: number; high: number;
+        projects_measured: number; projects_error: number }[];
+      totals: { high: number; medium: number; low: number; count: number; score: number };
+      band_tally: Record<string, number>;
+      hotspots: { project_id: string; project: string; source: string; score: number; high: number;
+        title: string | null; link: string | null }[];
+      coverage: { cells: number; measured: number; errored: number; unknown: number;
+        pct: number | null };
+      project_count: number; projects_available: number; truncated: boolean; limit: number;
+      note: string;
+    }>(`/portfolio/risk?limit=${limit}`);
+  }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
   riskBoard(pid: string) {
     return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;

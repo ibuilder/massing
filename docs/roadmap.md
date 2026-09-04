@@ -1860,6 +1860,32 @@ stakes we are missing.
   ✅ **Funnel viz SHIPPED v0.3.1135.** `GET /pipeline/funnel` had no caller; Portfolio now renders
   stage counts, derived win rates, weighted value with coverage, and closed cycle time beside
   open age. Cross-project Gantt, risk heat map, and department resourcing remain.
+
+  ✅ **Risk heat map SHIPPED — `GET /portfolio/risk`, `services/api/src/aec_api/risk_portfolio.py`.**
+  Projects down, the five `risk_board` engines across, intensity `3·high + 2·medium + 1·low`. Cells
+  come from `risk_board.board` unchanged — same engines, same Monte-Carlo seed — so a cell and the
+  project's own risk panel cannot disagree; that costs a full board per project, which is why the
+  sweep is bounded by `limit` and reports `truncated` rather than silently scanning a prefix.
+
+  **The design decision worth recording is that an empty cell is not a safe cell.** A grid of counts
+  renders `0` for two different facts — *this engine looked and found nothing* and *this engine could
+  not run*. `board` already separates them (it is fail-open per lane and returns `lanes: {name: ok |
+  error}` beside its items), so every cell carries a `state` and an unmeasured one carries **no counts
+  at all** rather than zeros; the UI draws it as a dash, never a green zero. This is the cap-table
+  lesson in a second place — *do not let an unmeasured value wear the costume of a measured one* —
+  and it is mutation-checked: making the error branch emit zeros fails
+  `services/api/test_risk_portfolio.py` on the cell shape.
+
+  **A second gate came out of building it.** `board` reports coverage under lane keys
+  (`schedule_risk`) while its items carry source strings (`schedule-risk`), and nothing connected the
+  two — a roll-up has to join on both. The pairing is now `risk_board.LANES`, asserted against a
+  **real board run**: every lane key `board` emits must appear, every `source` its items carry must be
+  a value. A lane added to `board` and not to `LANES` would otherwise render as a column that
+  silently never lights up.
+
+  **Still open: cross-project Gantt and department resourcing.** The resourcing half is not the small
+  item this entry's phrasing suggests — `resource_loading.py` groups by **trade and resource type**,
+  per project, so "by department" needs both a new dimension and a portfolio axis. Size it on its own.
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
 
 **A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for

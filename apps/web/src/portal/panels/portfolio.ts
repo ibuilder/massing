@@ -142,6 +142,73 @@ export async function renderPortfolio(ctx: PanelContext) {
       ctx.root.appendChild(card);
     }).catch(() => { /* returns spread is best-effort; the roll-up above stands on its own */ });
 
+    // RISK HEAT MAP — R22-PIPELINE. The table above says how each project is PERFORMING; this says
+    // which risk ENGINE is hot on which project, which is the question that decides where a
+    // programme director spends the morning. Cells come from the same `risk_board` each project's
+    // own risk panel renders, so clicking through can never show a different number.
+    //
+    // A cell whose engine could not run is drawn as a dash on the muted ground, never as a green
+    // zero. That is the whole reason `state` is on the wire: an unmeasured source rendered as clear
+    // is worse than no heat map, because it is a clear signal nobody has any basis for.
+    void ctx.host.api.portfolioRisk().then((hm) => {
+      if (!hm.projects.length) return;
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const cov = hm.coverage;
+      card.innerHTML = `<b>Risk heat map</b> <span class="meta">${hm.project_count} project(s) × ${hm.sources.length} engines`
+        + ` · ${hm.totals.high} high / ${hm.totals.medium} medium / ${hm.totals.low} low`
+        + (cov.pct == null ? "" : ` · ${cov.pct}% of cells measured`)
+        + (cov.errored || cov.unknown ? ` · ${cov.errored + cov.unknown} unavailable` : "")
+        + (hm.truncated ? ` · showing ${hm.project_count} of ${hm.projects_available}` : "")
+        + `</span>`;
+      // Intensity ramp, not a gradient: four steps a reader can name, keyed off the same
+      // severity-weighted score the API computes so the colour and the number never diverge.
+      const heat = (score: number) => score >= 9 ? "var(--status-crit)" : score >= 4 ? "var(--status-warn)"
+        : score > 0 ? "var(--status-good)" : "transparent";
+      const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
+      tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Project</th>`
+        + hm.sources.map((s2) => `<th scope="col" style="text-align:center">${esc(s2.label)}</th>`).join("")
+        + `<th scope="col" style="text-align:right">Total</th></tr></thead>`;
+      const tb = document.createElement("tbody");
+      for (const p of hm.projects) {
+        const tr = document.createElement("tr"); tr.className = "kpi-click";
+        if (p.id === here) tr.style.fontWeight = "700";
+        const cells = hm.sources.map((s2) => {
+          const c = p.cells[s2.key];
+          if (!c || c.state !== "ok") {
+            return `<td style="text-align:center;color:var(--muted)" title="${esc(s2.label)} could not be computed for this project">–</td>`;
+          }
+          const col = heat(c.score ?? 0);
+          const txt = c.count ? String(c.count) : "·";
+          return `<td style="text-align:center;background:${col === "transparent" ? "transparent" : col + "33"};color:${c.count ? col : "var(--muted)"}"`
+            + ` title="${esc(s2.label)}: ${c.high ?? 0} high / ${c.medium ?? 0} medium / ${c.low ?? 0} low">${txt}</td>`;
+        }).join("");
+        tr.innerHTML = `<td>${esc(p.name)}${p.id === here ? " ·" : ""}</td>${cells}`
+          + `<td style="text-align:right;font-weight:700;color:${heat(p.score)}">${p.count || "—"}</td>`;
+        // Keyboard-operable, matching the `documents.ts` folder-row idiom. `.kpi-click` already
+        // styles `:focus-visible` (style.css) — the stylesheet was written expecting these rows to
+        // be focusable, and a pointer-only handler quietly never delivered it.
+        const go = () => { if (p.id !== here) window.location.search = `?project=${p.id}`; };
+        if (p.id !== here) {
+          tr.setAttribute("role", "button"); tr.tabIndex = 0;
+          tr.setAttribute("aria-label", `Open ${p.name}, ${p.count} open risk item(s)`);
+          tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+        }
+        tr.onclick = go;
+        tb.appendChild(tr);
+      }
+      tbl.appendChild(tb); card.appendChild(tbl);
+      if (hm.hotspots.length) {
+        const hl = document.createElement("div"); hl.className = "meta"; hl.style.marginTop = "6px";
+        hl.innerHTML = "<b>Worst first:</b> " + hm.hotspots.slice(0, 4)
+          .map((x) => `${esc(x.project)} — ${esc(x.title ?? x.source)}`).join(" · ");
+        card.appendChild(hl);
+      }
+      card.appendChild(Object.assign(document.createElement("div"), { className: "meta",
+        textContent: "Cell = open risk items from that engine (hover for the severity split); "
+          + "a dash means the engine could not run for that project, which is not the same as clear." }));
+      ctx.root.appendChild(card);
+    }).catch(() => { /* heat map is best-effort; the roll-up above stands on its own */ });
+
     // Acquisition funnel sits ABOVE the construction book: executive KPIs answer deals we already
     // won; this answers what is in the book, how much of it historically closes, and how long it
     // takes. Weighted value uses this firm's closed history — a stage without enough samples is
