@@ -247,6 +247,9 @@ describe("the API client's public surface", () => {
       // (96) the as-built/turnover reader + its two remaining writers -> model.ts. `lod500` has a
       // LIVE call site (openAsBuiltPanel), so losing it would break the panel, not just the surface.
       "lod500", "setManufacturerInfo", "attachOmDocument",
+      // (97) the undo stack -> authoring.ts. All three have LIVE call sites in app.ts's S4 block,
+      // so a drop here breaks the undo/redo buttons, not just the surface count.
+      "editHistory", "editUndo", "editRedo",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }
