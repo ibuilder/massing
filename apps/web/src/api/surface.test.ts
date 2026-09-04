@@ -258,6 +258,9 @@ describe("the API client's public surface", () => {
       "contentCatalog", "placeContent", "importContent",
       // (100) the IfcRelConnectsElements reader + its writer -> model.ts.
       "elementConnections", "connectElements",
+      // R22-ENTITLEMENT ⑤ — the promote control in register.ts is the only call site, so losing
+      // this method silently un-reaches the capability rather than breaking a typecheck.
+      "promoteComment",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

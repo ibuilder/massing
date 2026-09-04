@@ -1185,6 +1185,55 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Fortieth follow-on on the same version: **R22-ENTITLEMENT ⑤** — *an agency review comment becomes an
+RFI somebody owns*.
+
+**The gap.** `RecordComment` had **no outward link of any kind**. An agency's comment on an
+`entitlement` or `permit` was a text blob at the end of a thread: readable, and impossible to assign,
+track or close. ④ had already made comments survive a revision — that is the *inbound* half of
+"round-tripping"; this is the outbound half the ring entry still listed as remaining.
+
+`POST /projects/{pid}/modules/{key}/{rid}/comments/{cid}/promote` mints a Topic carrying the comment
+text, the source record's ref and its `element_guids`, and writes a back-link on the comment.
+
+### The back-link is the idempotency
+
+A second promote **409s** instead of minting a duplicate RFI — the failure mode a promote button
+produces on every double-click. `services/api/test_comment_promote.py` holds it, and both
+load-bearing assertions were **mutation-checked**: removing the 409 guard makes one comment mint two
+RFIs, and the failure output shows both `comment.promote` activity entries side by side; removing the
+back-link write drops `topic_id` from the comment.
+
+Follows `promote_markup` (`POST …/drawings/markup/{mid}/promote`) rather than inventing a second
+idiom — same shape: mint, carry provenance, link back, 409, audit.
+
+### Reachable, not merely built
+
+The control renders beside the comment in `apps/web/src/portal/register/recordComments.ts` and is
+replaced by "→ RFI raised" once promoted, because a button whose only remaining outcome is a 409 is
+worse than no button.
+
+Adding it turned `register.ts`'s extraction ratchet red, and **the remedy is the one that file
+states: extraction, never headroom.** The comment thread + composer + the new control came out to
+`portal/register/recordComments.ts` (`2,516 → 2,505`, pin lowered with it). The block is a genuine
+leaf — it touches the record's comments, the API and a reload callback and nothing else on the class
+— and the directory already holds three leaves extracted the same way.
+
+### What the premise-check found, and it is why this slice exists
+
+The entry's "Remaining:" line named **two** things and **contradicted itself on one**: it listed
+submittal packages flatly while the ④ note above it said the inbound half had already shipped.
+Measured 2026-09-04 — the inbound *view* is real (`…/related` returns `incoming`), but assembling a
+package to send is not, because `modules/transmittal/module.json` types **`items` as a textarea and
+`to_company` as plain text**. A package's contents are prose no machine can resolve back to the
+records it names, and its recipient cannot be the agency an `entitlement` names, since that is free
+text too. *That is a schema question — reference fields — not a workflow one, which is why reading
+the workflow surface kept reporting it done.* The roadmap now says that instead of the flat line.
+
+Also corrected: the roadmap's argument against picking SCALE-SEAM quoted `client.ts` at **2,837
+lines**. It is **642** — the number was copied forward through every slice since, which is the exact
+drift the rows beside it document twice.
+
 Thirty-ninth follow-on on the same version: **SCALE-SEAM (100)** — *the element-connection pair, and
 a destination named at the strength the evidence supports*.
 
