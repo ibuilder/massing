@@ -205,7 +205,7 @@ describe("the API client's public surface", () => {
       "escalationsScan", "sendDigest", "notificationStream",        // 18 overdue / digest
       "reviewModelVersion", "modelVersions", "versionDiff",         // 19 publish history
       "importClashXlsx", "importClashXml",                          // 20 clash import
-      "enqueueJob", "jobs", "jobArtifactUrl",                       // 21 job tray
+      "enqueueJob", "jobs", "jobArtifactUrl", "deliverJobArtifact", // 21 job tray
       "projects", "createProject", "importBundle",                  // 22 project catalog
       "integrations", "license", "capabilities",                    // 23 deploy entitle
       "siteContext", "parcelAnalyze", "parcelsScreen",              // 24 land around site

@@ -137,6 +137,9 @@ const STATE_COLOR: Record<JobState, string> = {
 export interface JobTrayOpts {
   /** Absolute href for a finished job's artifact. Omitted → no download affordance is offered. */
   artifactUrl?: (j: Job) => string;
+  /** R24-REPORTS-BY-MOMENT — mail a finished artifact to recipients ("shared, not just
+   *  downloaded"). Omitted → no send affordance, exactly like `artifactUrl`. */
+  onSend?: (j: Job) => void;
   /** Remove a finished/failed row from view. Client-side only — the server keeps its history. */
   onDismiss?: (j: Job) => void;
 }
@@ -204,6 +207,20 @@ export function renderJobTray(host: HTMLElement, jobs: readonly Job[], opts: Job
       a.style.cssText = "font-size:11px;flex:0 0 auto";
       a.setAttribute("download", "");
       row.appendChild(a);
+    }
+
+    // Sending sits beside downloading because they answer the same question — "the pack is ready,
+    // now what" — and a report pack that can only be downloaded still has to be forwarded by hand.
+    // Gated on `hasArtifact` for the same reason the link is: there is nothing to send until there
+    // is a file.
+    if (opts.onSend && hasArtifact(j)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Send";
+      b.title = "Email this artifact to recipients";
+      b.style.cssText = "font-size:11px;flex:0 0 auto";
+      b.onclick = () => opts.onSend!(j);
+      row.appendChild(b);
     }
 
     // Only finished rows can be dismissed. Hiding a running job would leave work in flight with no
@@ -312,6 +329,8 @@ export function mountJobTray(opts: {
   host: HTMLElement;
   fetch: () => Promise<Job[]>;
   artifactUrl?: (j: Job) => string;
+  /** R24-REPORTS-BY-MOMENT — see JobTrayOpts.onSend. Passed straight through to each row. */
+  onSend?: (j: Job) => void;
   onSettled?: (j: Job) => void;
   /**
    * R24-RUNS-INBOX — open the run history. A footer row rather than a header button, because the
@@ -359,6 +378,7 @@ export function mountJobTray(opts: {
     if (!panel.hidden) {
       renderJobTray(panel, shown, {
         artifactUrl: opts.artifactUrl,
+        onSend: opts.onSend,
         onDismiss: (j) => { dismissed.add(j.id); draw(); },
       });
       if (opts.onHistory) {

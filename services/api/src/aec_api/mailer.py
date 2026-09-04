@@ -45,8 +45,14 @@ def smtp_test() -> dict:
         return {"ok": False, "message": f"SMTP failed: {str(e)[:140]}"}
 
 
-def build_message(to: str, subject: str, body_text: str, body_html: str | None = None) -> EmailMessage:
-    """Construct a well-formed (optionally multipart) message — pure, no I/O (testable)."""
+def build_message(to: str, subject: str, body_text: str, body_html: str | None = None,
+                  attachments: list[tuple[str, bytes, str]] | None = None) -> EmailMessage:
+    """Construct a well-formed (optionally multipart) message — pure, no I/O (testable).
+
+    `attachments` are `(filename, data, mime)` triples. Order matters: `add_alternative` must run
+    BEFORE `add_attachment`, or the html alternative lands inside the mixed part and clients show
+    the attachment where the body should be.
+    """
     msg = EmailMessage()
     msg["From"] = _from_addr()
     msg["To"] = to
@@ -54,13 +60,18 @@ def build_message(to: str, subject: str, body_text: str, body_html: str | None =
     msg.set_content(body_text)
     if body_html:
         msg.add_alternative(body_html, subtype="html")
+    for filename, data, mime in attachments or []:
+        maintype, _, subtype = mime.partition("/")
+        msg.add_attachment(data, maintype=maintype or "application",
+                           subtype=subtype or "octet-stream", filename=filename)
     return msg
 
 
-def send_email(to: str, subject: str, body_text: str, body_html: str | None = None) -> str:
+def send_email(to: str, subject: str, body_text: str, body_html: str | None = None,
+               attachments: list[tuple[str, bytes, str]] | None = None) -> str:
     """Send one message. Returns "sent" | "disabled" | "error". Never raises (so a digest
     run can't be broken by one bad address / transient SMTP failure)."""
-    msg = build_message(to, subject, body_text, body_html)
+    msg = build_message(to, subject, body_text, body_html, attachments)
     if not smtp_configured():
         _log.info("email disabled (no AEC_SMTP_HOST) — would send %r to %s", subject, to)
         return "disabled"
