@@ -3235,13 +3235,23 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   qualification was missing until review — the second consecutive slice to claim "nothing else" about a
   test while counting only what it targets, after (91)'s `test_cre_tier3`.*
 
-  **(94) finished SCALE-SEAM ㊻ the same way (93) finished ⑲.** `verifyAsbuilt` and
+  **(94) moved two known members of SCALE-SEAM ㊻'s question.** `verifyAsbuilt` and
   `recordAsbuiltDimension` went to `apps/web/src/api/model.ts`, which has claimed *"field-install
   verification — is this element installed as designed?"* since ㊻ and named neither of them. **㊻
   split on the `/verification/*` route prefix, and these two carry no route — only an `editIfc`
   recipe.** *A route-prefix split cannot see a recipe-based sibling of the same question.* They were
   also unmovable then, for the `editIfc` typing reason (92) diagnosed — **three** slices now found to
   have left work behind for that single cause.
+
+  *This entry said "(94) finished SCALE-SEAM ㊻" until review, and the distinction against (93) is
+  the point rather than a nicety. **⑲ NAMED the two it left** — `mep.ts`'s header says `connectMep`
+  and `addMepFitting` by name — so taking both completes an explicit list, and "finished" is
+  defensible there. **㊻ named nothing**, so there is no list to complete and no basis for claiming
+  the question is now whole; only that these two answer it and were missed. Fifth instance of one
+  defect, and **the second consecutive PR in which I corrected a SUBSET of a phrase's sites** — here
+  `model.ts` and `surface.test.ts` but not this line, after #410's pin without its changelog
+  sentence. The rule I wrote for that one (derive the complement) applies to the fix as much as to
+  the claim: grep every site of the wording, then edit.*
 
   *`setPhase` did NOT come, and this is where the method earns its keep:* `authoring_matrix.py`'s
   `lifecycle` category is exactly these two plus `set_phase`, a **complete category** — the signal
