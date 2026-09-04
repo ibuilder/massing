@@ -244,6 +244,9 @@ describe("the API client's public surface", () => {
       // about the SURFACE — an unwired writer can still vanish in an extraction unnoticed.
       "verifyAsbuilt", "recordAsbuiltDimension",
       "lodSummary", "setLod", "phasing", "setPhase",
+      // (96) the as-built/turnover reader + its two remaining writers -> model.ts. `lod500` has a
+      // LIVE call site (openAsBuiltPanel), so losing it would break the panel, not just the surface.
+      "lod500", "setManufacturerInfo", "attachOmDocument",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

@@ -143,12 +143,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
                  opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
     return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
   }
-  /** G3: attach an O&M / warranty document reference (purpose-tagged) to elements — turnover paperwork
-   *  bound to the physical asset; surfaced in the as-built summary's `with_om_docs`. */
-  attachOmDocument(pid: string, guids: string[], name: string,
-                   opts: { location?: string; kind?: "om" | "warranty" } = {}, publish = true) {
-    return this.editIfc(pid, "attach_om_document", { guids, name, ...opts }, publish);
-  }
   /** W11 B6: author a base plate + anchor bolts under a steel column (fabrication assembly). */
   addBasePlate(pid: string, columnGuid: string, opts: { bolts?: number; width?: number; depth?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_base_plate", { column_guid: columnGuid, ...opts }, publish);
@@ -224,17 +218,6 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(
       `/projects/${pid}/edit/precheck`, { method: "POST", body: JSON.stringify({ recipe, params }) });
-  }
-  /** W11 G1: LOD-500 readiness — share of the model field-verified as-built, by method. */
-  lod500(pid: string) {
-    return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
-      by_method: Record<string, number>; methods: string[]; prop: string;
-      with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number;
-      with_om_docs?: number; om_documents?: string[] }>(`/projects/${pid}/lod500`);
-  }
-  /** W11 G3: stamp manufacturer / serial info (Pset_Manufacturer*) — the LOD-500 / O&M / turnover layer. */
-  setManufacturerInfo(pid: string, guids: string[], opts: { manufacturer?: string; model_label?: string; production_year?: string; serial?: string; barcode?: string } = {}, publish = true) {
-    return this.editIfc(pid, "set_manufacturer_info", { guids, ...opts }, publish);
   }
   /** W11 B6: author an IfcCurtainWall (mullions + transoms + glazing panels) along a line. */
   addCurtainWall(pid: string, start: [number, number], end: [number, number],
@@ -624,7 +607,7 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 76 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 73 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -682,6 +665,10 @@ export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withRes
   // (95) took element state — `lodSummary`/`setLod` and `phasing`/`setPhase` — to `model.ts`,
   // leaving 76. Both pairs move together, which is what (94)'s objection to taking `setPhase` alone
   // required. Reasoning in `model.ts`'s header.
+  //
+  // (96) took as-built/turnover — `lod500`, `setManufacturerInfo`, `attachOmDocument` — to
+  // `model.ts`, leaving 73. `lod500` is the AGGREGATE READER of the question whose writers (94)
+  // already moved, and its response type names its own writer set field by field.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

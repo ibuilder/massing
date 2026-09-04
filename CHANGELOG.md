@@ -1185,6 +1185,58 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-fifth follow-on on the same version: **SCALE-SEAM (96)** — *the as-built question's
+aggregate reader, and the first witness in this sequence that actually bounds a set*.
+
+Three methods out of `client.ts` (`711 → 698`) into the existing `apps/web/src/api/model.ts`:
+`lod500`, `setManufacturerInfo` and `attachOmDocument`, rejoining `verifyAsbuilt` and
+`recordAsbuiltDimension` which (94) moved. No new mixin. **What they answer: is this element
+installed as designed, and is it documented for turnover.**
+
+### Two bounding witnesses, and they agree
+
+`openAsBuiltPanel` in `apps/web/src/viewer/tools/modelStatePanels.ts` calls exactly five API
+methods — read off that function's brace closure rather than grepped for, so it is the closure of
+a scope and not a sample. Two of the five were already in `model.ts`.
+
+Independently, the reader's own response type names its writer set field by field:
+`verified`/`by_method` ← `verify_asbuilt`; `with_dimensions`/`dimensions_out_of_tolerance` ←
+`record_asbuilt_dimension`; `with_manufacturer`/`with_serial` ← `set_manufacturer_info`;
+`with_om_docs`/`om_documents` ← `attach_om_document`. The backend route says it in prose:
+*"Stamp elements with the `verify_asbuilt` recipe."*
+
+**A reader whose response type enumerates its writers is a DERIVED population.** Eight slices in,
+that is the first grouping witness here that bounds a set rather than sampling one.
+
+### What corroborates is not what bounds
+
+`services/api/test_lod500.py` reaches exactly three recipes — `attach_om_document`,
+`set_manufacturer_info`, `verify_asbuilt` — and **omits `record_asbuilt_dimension`**, which is
+unambiguously in this family. So it agrees with the answer without being able to establish it. A
+witness that misses a known member cannot bound anything, however exactly its members match.
+*Three slices claimed "and no others" off a test file and were wrong all three times; the fix is
+not to read the test harder, it is to ask which question the test can answer.*
+
+### What is NOT claimed
+
+`attachDocument` stays in `client.ts`, takes a `purpose` parameter, and `asbuilt_summary` counts
+**any** purpose-tagged document reference. So *"every writer of `with_om_docs` moves here"* is
+**false**. The field map above is of the recipes each field was designed around, not of everything
+that can set it. The claim that survives is the bounded one: the five methods `openAsBuiltPanel`
+calls.
+
+### Two sources disagree, and lose for the same reason
+
+`attach_om_document` is implemented as a purpose-tagged wrapper of `detailing.attach_document`, and
+`authoring_matrix.py` files it and `set_manufacturer_info` under `data`. The first is a shared
+HELPER, the second a STORAGE bucket — the two groupings (89) and (90) each had to reject. The
+matrix is now the losing vote twice running after being right three times; *a corroborating source
+that keeps winning is the one that stops getting checked.*
+
+`client.ts` is 73 methods above the STAYING banner and 4 below. Pin lowered with the file; the
+three names added to `surface.test.ts`, whose floor carries enough slack that the count alone would
+not notice a loss.
+
 Thirty-fourth follow-on on the same version: **SCALE-SEAM (95)** — *element state, and a matrix
 disagreement worth stating rather than eliding*.
 
