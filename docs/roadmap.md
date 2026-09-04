@@ -1883,7 +1883,29 @@ stakes we are missing.
   a value. A lane added to `board` and not to `LANES` would otherwise render as a column that
   silently never lights up.
 
-  **Still open: cross-project Gantt and department resourcing.** The resourcing half is not the small
+  ✅ **Cross-project Gantt SHIPPED — and it needed no engine, which is the finding.**
+  This entry lists it as genuinely missing because `schedule_viz.py` is per-project. That is true and
+  it is not the whole picture: **R46's `schedule_portfolio.py` already computes `project_starts` and
+  `project_finishes` in its one merged pass**, and the route already returned them. What was missing
+  is that `apps/web/src/api/schedule.ts` declared only `programme_finish`, `project_count` and
+  `external_link_count` — so the dates reached the browser and were **dropped at the type boundary**
+  before anything could draw them. Same class as R37-TESTED-UNWIRED, one layer further out: not a
+  route without a caller, but a *payload* without a reader.
+
+  `apps/web/src/portal/panels/programmeGantt.ts` holds the geometry as a pure function
+  (`apps/web/src/portal/panels/programmeGantt.test.ts`, 7 cases), and the Programme card renders bars
+  from it. Bars come from the **merged** pass, never each project's standalone CPM — a project can
+  look comfortable alone and be critical to the programme, and its own run would show the comfortable
+  answer. That is asserted, not just documented: `services/api/test_programme_gantt.py` pins that the
+  FS link pushes fit-out past enabling's finish, and dropping the link fails it with that sentence.
+
+  **A project with only one end gets no bar**, and is listed with the reason. Substituting the
+  programme's own start or finish for the missing end draws a bar that looks measured and is not —
+  the risk heat map's rule, arriving independently in a second place the same day.
+
+  *Cost of the premise-check: one grep. Cost of believing the entry: a scheduling engine.*
+
+  **Still open: department resourcing.** The resourcing half is not the small
   item this entry's phrasing suggests — `resource_loading.py` groups by **trade and resource type**,
   per project, so "by department" needs both a new dimension and a portfolio axis. Size it on its own.
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
