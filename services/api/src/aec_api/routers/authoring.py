@@ -1059,7 +1059,8 @@ def _restore_version(pid: str, db: Session, actor: str, publish: bool, redo: boo
 @router.post("/projects/{pid}/edit/undo")
 def edit_undo(pid: str, publish: bool = Body(default=True, embed=True), db: Session = Depends(get_db),
               actor: str = Depends(require_role("editor"))):
-    """S4: **undo** the last authoring edit — restore the prior model version + republish. GUID-stable
+    """S4: **undo** the last authoring edit — restore the prior model version, republishing only when
+    `publish` (the default). GUID-stable
     (pins/RFIs/clashes keyed by GlobalId survive)."""
     return _restore_version(pid, db, actor, publish, redo=False)
 
@@ -1067,7 +1068,8 @@ def edit_undo(pid: str, publish: bool = Body(default=True, embed=True), db: Sess
 @router.post("/projects/{pid}/edit/redo")
 def edit_redo(pid: str, publish: bool = Body(default=True, embed=True), db: Session = Depends(get_db),
               actor: str = Depends(require_role("editor"))):
-    """S4: **redo** an undone edit — restore the next model version + republish."""
+    """S4: **redo** an undone edit — restore the next model version, republishing only when `publish`
+    (the default)."""
     return _restore_version(pid, db, actor, publish, redo=True)
 
 

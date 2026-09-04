@@ -368,14 +368,18 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ can_undo: boolean; can_redo: boolean; undo_depth: number; redo_depth: number }>(
       `/projects/${pid}/edit/history`);
   }
-  /** S4: undo the last authoring edit (restore the prior model version + republish). */
+  /** S4: undo the last authoring edit — restore the prior model version, and republish only when
+   *  `publish` (the default). With `publish: false` the source IFC is swapped and no publish runs,
+   *  so `publish` is absent from the response. */
   editUndo(pid: string, publish = true) {
-    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean };
+      publish?: string }>(
       `/projects/${pid}/edit/undo`, { method: "POST", body: JSON.stringify({ publish }) });
   }
-  /** S4: redo an undone edit. */
+  /** S4: redo an undone edit — same `publish` semantics as `editUndo`. */
   editRedo(pid: string, publish = true) {
-    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean };
+      publish?: string }>(
       `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
   }
   };
