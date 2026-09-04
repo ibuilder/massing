@@ -130,6 +130,15 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/comments`, {
       method: "POST", body: JSON.stringify({ text }) });
   }
+  /** R22-ENTITLEMENT ⑤: promote a review comment into an RFI (or punch item) somebody owns. An
+   *  agency comment has to leave the thread — be assigned, tracked, closed. 409 if already promoted,
+   *  which is what stops a double-click minting two RFIs for one comment. */
+  promoteComment(pid: string, key: string, rid: string, cid: string, kind: "rfi" | "issue" = "rfi") {
+    return this.json<{ comment_id: string; record: ModuleRecord;
+      topic: { id: string; type: string; title: string; status: string; element_guids: string[] | null } }>(
+      `/projects/${pid}/modules/${key}/${rid}/comments/${cid}/promote`,
+      { method: "POST", body: JSON.stringify({ kind }) });
+  }
   updateModuleRecord(pid: string, key: string, rid: string, data: Record<string, unknown>,
                      expectedModifiedAt?: string | null) {
     // pass the modified_at the editor loaded to opt into the optimistic lock — a concurrent edit

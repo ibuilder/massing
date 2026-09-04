@@ -25,8 +25,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session
 
-from . import fin_gov, module_schema, rbac
-from .models import EnumOption, RecordActivity, RecordComment
+from . import audit, fin_gov, module_schema, rbac
+from .models import EnumOption, RecordActivity, RecordComment, Topic
 
 # the read + workflow-evaluation base is a leaf over the registry (no writes, no cycles); re-exported
 # so every existing `modules.list_records` / `.available_actions` / … caller keeps working.
@@ -462,8 +462,12 @@ def get_record(db: Session, key: str, project_id: str, rid: str) -> dict:
     ref_by_id = dict(ancestry)
     ids = [aid for aid, _ in ancestry] + [rid]
     rec["comments"] = sorted(
-        ({"author": cm.author, "text": cm.text,
+        ({"id": cm.id, "author": cm.author, "text": cm.text,
           "created_at": cm.created_at.isoformat() if cm.created_at else None,
+          # R22-ENTITLEMENT ⑤: present ONLY when promoted, so a caller cannot read `None` as "not
+          # yet" on a build that predates the column. `id` is exposed for the same reason promotion
+          # needs it — a comment nobody can address is a comment nobody can act on.
+          **({"topic_id": cm.topic_id} if cm.topic_id else {}),
           **({"inherited": True, "on_ref": ref_by_id[cm.record_id]}
              if cm.record_id != rid else {})}
          for cm in db.query(RecordComment).filter(
@@ -931,6 +935,69 @@ def add_comment(db: Session, key: str, project_id: str, rid: str, text: str,
     _log(db, project_id, key, rid, author, None, "comment", {"text": text[:80]})
     db.commit()
     return get_record(db, key, project_id, rid)
+
+
+def promote_comment(db: Session, key: str, project_id: str, rid: str, cid: str,
+                    author: str, kind: str = "rfi") -> dict:
+    """R22-ENTITLEMENT ⑤ — turn a review comment into an RFI/issue Topic somebody owns.
+
+    **The gap this closes.** `RecordComment` had no outward link of any kind, so an agency's review
+    comment on an `entitlement` or `permit` was a text blob at the end of a thread: readable, and
+    impossible to assign, track or close. The ring's own remainder called this "comment-response
+    round-tripping into RFI/issue records", and the round trip was missing in the *outbound*
+    direction — ④ had already made comments survive a revision, which is the inbound half.
+
+    Follows `promote_markup` exactly rather than inventing a second idiom: mint a `Topic`, carry the
+    source's identity into the description, copy the record's `element_guids` so the RFI lands on the
+    model, write the back-link, and audit. **The back-link is the idempotency**: a second promote of
+    the same comment 409s instead of minting a duplicate RFI, which is the failure mode a
+    "promote" button produces on every double-click.
+    """
+    rec = get_record(db, key, project_id, rid)          # 404 if the record is missing
+    cm = db.get(RecordComment, cid)
+    if not cm or cm.project_id != project_id or cm.module != key or cm.record_id != rid:
+        raise HTTPException(404, "no such comment on this record")
+    if cm.topic_id:
+        raise HTTPException(409, "comment already promoted")
+    if kind not in ("rfi", "issue"):
+        raise HTTPException(422, "kind must be rfi or issue")
+
+    ref = rec.get("ref") or rid
+    # `splitlines()` on stripped whitespace-only text yields [], so `[0]` raised IndexError — a 500
+    # on a comment the comment route itself accepts (`text: str = Body(...)` has no min-length). The
+    # fallback title below was written for exactly this case and was unreachable until now: when the
+    # list is non-empty its first element is never blank, so the `or` arm could never fire.
+    lines = (cm.text or "").strip().splitlines()
+    title = lines[0][:80] if lines else f"{key} {ref} review comment"
+    guids = rec.get("element_guids") or None
+    t = Topic(project_id=project_id, type=("rfi" if kind == "rfi" else "punch"), status="open",
+              author=author, title=title,
+              description=(f"Raised from a review comment on {key} {ref}"
+                           + (f" by {cm.author}" if cm.author else "") + ".\n\n" + (cm.text or "")),
+              element_guids=guids)
+    db.add(t)
+    db.flush()
+    # The `cm.topic_id` check above cannot be the last word: two requests each hold their own session,
+    # each read a null back-link, and a plain assignment lets the later commit overwrite the earlier
+    # one — minting a duplicate RFI *and* orphaning the first, whose Topic no comment then points at.
+    # The claim is therefore a conditional UPDATE. Under Postgres read-committed the loser blocks on
+    # the winner's row lock, then re-evaluates `topic_id IS NULL` against the committed row and
+    # matches nothing; under SQLite the writes serialize to the same effect. Rolling back discards
+    # the Topic flushed a moment ago, so a losing promote leaves nothing behind.
+    if not db.execute(update(RecordComment)
+                      .where(RecordComment.id == cid, RecordComment.topic_id.is_(None))
+                      .values(topic_id=t.id)).rowcount:
+        db.rollback()
+        raise HTTPException(409, "comment already promoted")
+    _log(db, project_id, key, rid, author, None, "comment.promote",
+         {"comment": cid, "topic": t.id, "kind": kind})
+    audit.record(db, action="record.comment.promote", actor=author, method="POST", topic_id=t.id,
+                 path=f"/projects/{project_id}/modules/{key}/{rid}/comments/{cid}/promote",
+                 detail={"module": key, "record": rid, "comment": cid})
+    db.commit()
+    return {"comment_id": cid, "topic": {"id": t.id, "type": t.type, "title": t.title,
+                                         "status": t.status, "element_guids": t.element_guids},
+            "record": get_record(db, key, project_id, rid)}
 
 
 def iter_csv(db: Session, key: str, project_id: str, page: int = 1000):

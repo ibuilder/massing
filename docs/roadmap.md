@@ -1134,7 +1134,9 @@ exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates ca
   needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
   is the specific error row 2 made.
 * **Not the next SCALE-SEAM slice.** ㉘ is genuinely next in a series that has shipped twenty-six
-  increments, but the series is now cutting into `client.ts` at 2,837 lines from a 3,600-odd start. The marginal slice
+  increments, but the series is now cutting into `client.ts` at **642** lines from a 3,600-odd start
+  *(re-derived 2026-09-04; this read "2,837" — 4.4x the real figure — because the number was copied
+  forward through every slice since, which is the exact drift the rows above document twice)*. The marginal slice
   is worth less than it was. *(㉘ also needed `MARKS` widened; that shipped in v0.3.1112.)* The vocabulary lives in
   `apps/web/src/shell/roadmapLanes.test.ts` — a vocabulary change to a population check, which that
   file's own docstring calls a real change and not housekeeping.
@@ -1719,8 +1721,9 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- ◧ **R22-ENTITLEMENT** *(M/L — ①②③ shipped: `approval_conditions.py`, `condition_checks.py`,
-  `approval_cycles.py` + the `review_cycle` register)* — **permit & entitlement workflow**: jurisdiction
+- ◧ **R22-ENTITLEMENT** *(M/L — ①②③④⑤ shipped: `approval_conditions.py`, `condition_checks.py`,
+  `approval_cycles.py` + the `review_cycle` register, comment inheritance across revisions, and the
+  comment→RFI promote)* — **permit & entitlement workflow**: jurisdiction
   submittal packages, review cycles, comment responses, and **conditions of approval carried into the
   model as constraints**. Today there is a hole between "acquisition" and "construction" in our own
   mission statement — we underwrite the deal and we build it, and nothing spans approval.
@@ -1761,8 +1764,29 @@ stakes we are missing.
   about the party you are about to argue with. Days are **calendar**, stated on the response, because
   a statutory review clock does not pause for a weekend and construction durations elsewhere here are
   working days.
-  **Remaining:** submittal *packages* (the documents that go to the authority) and comment-response
-  round-tripping into RFI/issue records.
+  ⑤ **comment-response round-tripping into RFI/issue records, shipped 2026-09-04.** `RecordComment`
+  had **no outward link of any kind** — an agency's comment on an `entitlement` or `permit` was a
+  text blob at the end of a thread: readable, and impossible to assign, track or close. ④ made
+  comments survive a revision, which is the INBOUND half; this is the outbound half.
+  `POST …/modules/{key}/{rid}/comments/{cid}/promote` mints a Topic carrying the comment, the source
+  record's ref and its `element_guids`, and writes a back-link. **The back-link is the idempotency**:
+  a second promote 409s rather than minting a duplicate RFI, which is what a promote button does on
+  every double-click. Follows `promote_markup` rather than inventing a second idiom. Held by
+  `services/api/test_comment_promote.py`, whose two load-bearing assertions were mutation-checked —
+  removing the 409 guard makes one comment mint two RFIs, and the failure output shows both.
+  *Reachable, not merely built:* the control renders beside the comment in
+  `apps/web/src/portal/register/register.ts` and is replaced by "→ RFI raised" once promoted, because
+  a button whose only remaining outcome is a 409 is worse than no button.
+
+  **Remaining: the OUTBOUND submittal package, and the reason is now specific rather than vague.**
+  This line used to name "submittal packages" flatly while the ④ note above said the inbound half had
+  already shipped — the entry contradicted itself. Measured 2026-09-04: the inbound *view* is real
+  (`…/related` returns `incoming`), but assembling a package to send is not, because
+  `modules/transmittal/module.json` types **`items` as a textarea and `to_company` as plain text**.
+  A package's contents are therefore prose no machine can resolve back to the records it names, and
+  its recipient cannot be the agency an `entitlement` names, since that field is free text too.
+  *That is a schema question — reference fields — not a workflow one, which is why reading the
+  workflow surface kept reporting this as done.*
 
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
   `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was

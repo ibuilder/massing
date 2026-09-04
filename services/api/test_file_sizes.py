@@ -140,7 +140,7 @@ PER_FILE = {
     # above records why the timing matters: "a ratchet added at the point of pain only ratifies the
     # 2_546 → 2_516 (v0.3.1000): the model-elements block moved to tiedElements.ts so the
     # lifecycle card could mount on every tied GUID without growing this file.
-    "apps/web/src/portal/register/register.ts": 2_516,
+    "apps/web/src/portal/register/register.ts": 2_505,   # R22-ENTITLEMENT (5): the comment thread + composer + the new promote control -> portal/register/recordComments.ts (2_516 -> 2_505). The ratchet went red on the promote control and the remedy is the one this file states: extraction, never headroom. The block is a genuine leaf — it touches the record's comments, the API and a reload callback, and nothing else on the class — and it follows the directory's own convention (elementTies.ts, schemaStale.ts, tiedElements.ts are already extracted the same way).
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

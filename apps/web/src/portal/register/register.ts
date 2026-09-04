@@ -5,6 +5,7 @@ import { statusChip } from "../../ui/chips";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { mountRecordComments } from "./recordComments";
 import { confidenceReading } from "../../ui/confidenceReading";
 import { confirmModal, modalShell, promptModal } from "../../ui/modal";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offlineQueue";
@@ -2289,24 +2290,12 @@ export class RegisterUI {
       }
     }
 
-    // comments
-    const cd = document.createElement("div"); cd.className = "section-title"; cd.textContent = "Comments";
-    this.ctx.root.appendChild(cd);
-    for (const cm of r.comments ?? []) {
-      const e = document.createElement("div"); e.className = "portal-act";
-      e.textContent = `${cm.author ?? ""}: ${cm.text}`;
-      this.ctx.root.appendChild(e);
-    }
-    const ta = document.createElement("textarea");
-    ta.className = "portal-field"; ta.placeholder = "Add a comment…"; ta.style.width = "100%";
-    const addBtn = document.createElement("button");
-    addBtn.className = "tool-btn"; addBtn.textContent = "Comment"; addBtn.style.margin = "4px 0";
-    addBtn.onclick = async () => {
-      if (!ta.value.trim()) return;
-      await this.ctx.host.api.addComment(pid, m.key, rid, ta.value.trim());
-      void this.openRecord(m, rid);
-    };
-    this.ctx.root.append(ta, addBtn);
+    // comments — thread, composer, and the R22-ENTITLEMENT ⑤ promote control.
+    mountRecordComments({
+      root: this.ctx.root, api: this.ctx.host.api,
+      setStatus: (s) => this.ctx.host.setStatus(s),
+      reload: () => { void this.openRecord(m, rid); },
+    }, pid, m, rid, r);
 
     // activity timeline
     const td = document.createElement("div"); td.className = "section-title"; td.textContent = "Activity";
