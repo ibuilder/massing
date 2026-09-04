@@ -17,6 +17,27 @@
  *  SCALE-SEAM ⓼ adds groups and assemblies — *how are these elements grouped?*
  *  List, inspector, create group/assembly, parametric array. Detailing stayed.
  *
+ *  **SCALE-SEAM (99) adds the CONTENT half of the shelf this file's own first line already claimed.**
+ *  `contentCatalog`, `placeContent`, `importContent` — *what pre-made content can I place, and place
+ *  it.* The witness is a ROLE-FOR-ROLE PARALLEL with the family shelf already here, derived from the
+ *  signatures rather than from the shared word "shelf":
+ *
+ *    catalog reader    `familyCatalog()`  {count, categories: Record<..>}   |  `contentCatalog()`  {count, note, groups: Record<..>}
+ *    placer            `placeFamily(pid, family, position)`                 |  `placeContent(pid, category, point, name)`
+ *    multipart import  `async importFamilies(pid, file, ..)`                |  `async importContent(pid, file, opts)`
+ *
+ *  Three roles, three methods each, matching shapes and matching arities. *A parallel between two
+ *  method TRIPLES is structural; "both are shelves" would have been a word, which is the grouping
+ *  (88) and (89) each had to reject.*
+ *
+ *  **The header above was wrong until this commit, and that is the small finding.** Line 1 has said
+ *  "the family/content shelf" while this file held **zero** content methods — the only other
+ *  occurrences of the word were an HTTP header and a sentence about IFC *type* content. So the
+ *  docstring described an intended scope as though it were a fact. *That is the same class as every
+ *  drift the project instructions warn about, at the smallest possible scale: prose asserting an
+ *  arrangement nothing checked.* It is corroboration that was FALSE, not evidence — the parallel
+ *  above is what carries the slice.
+ *
  *  **SCALE-SEAM (97) adds the UNDO STACK — *what has been done to this model, and can I take it
  *  back?*** `editHistory` (can_undo/can_redo + depths), `editUndo` and `editRedo`. They belong in
  *  THIS file because `editIfc` — already here — is the PUSH they pop: `authoring.py` records the
@@ -381,6 +402,27 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean };
       publish?: string }>(
       `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
+  /** CONTENT-1: the curated content catalog (logistics / furniture / landscaping → IFC class + phase). */
+  contentCatalog() {
+    return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
+      phase: string | null; classification: string; default_dims_m: number[] }[]> }>(`/content/catalog`);
+  }
+  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh). */
+  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true) {
+    return this.editIfc(pid, "place_content", { category, point, ...(name ? { name } : {}) }, publish);
+  }
+  /** CONTENT-1 (import): upload a detailed mesh (glTF/GLB/OBJ/STL/PLY) → auto-classified + placed as the
+   *  right IFC via place_content. Category auto-detected from the filename unless given. */
+  async importContent(pid: string, file: File, opts: { category?: string; e?: number; n?: number;
+      scale?: number; name?: string; storey?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch(this.url(`/projects/${pid}/content/import?${q.toString()}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
   }
   };
 }

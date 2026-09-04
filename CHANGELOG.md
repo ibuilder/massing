@@ -1185,6 +1185,41 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-eighth follow-on on the same version: **SCALE-SEAM (99)** — *the content half of a shelf the
+destination's own first line already claimed*.
+
+Three methods out of `client.ts` (`665 → 648`) into the existing `apps/web/src/api/authoring.ts`:
+`contentCatalog`, `placeContent`, `importContent`. No new mixin. **What they answer: what pre-made
+content can I place, and place it.**
+
+### A role-for-role parallel, read off the signatures
+
+The family shelf was already in `authoring.ts`. The content shelf is the same three roles, with
+matching shapes and arities:
+
+| role | family | content |
+|---|---|---|
+| catalog reader | `familyCatalog()` → `{count, categories: Record<…>}` | `contentCatalog()` → `{count, note, groups: Record<…>}` |
+| placer | `placeFamily(pid, family, position)` | `placeContent(pid, category, point, name)` |
+| multipart importer | `async importFamilies(pid, file, …)` | `async importContent(pid, file, opts)` |
+
+**A parallel between two method *triples* is structural.** "Both are shelves" would have been a
+shared word — the grouping (88) and (89) each had to reject — so the argument is deliberately the
+signatures, not the noun.
+
+### The destination's header was wrong until this commit
+
+`authoring.ts` line 1 has read *"the family/content shelf"* while the file held **zero** content
+methods; the only other occurrences of the word were an HTTP header and a sentence about IFC *type*
+content. The docstring described an intended scope as though it were a fact.
+
+That is the same class as every drift the project instructions warn about, at the smallest possible
+scale: **prose asserting an arrangement that nothing checked.** It is recorded as corroboration that
+was *false* rather than as evidence — the parallel above is what carries the slice, and a header
+that agreed with me would have been worth nothing if I had not checked whether it was true.
+
+`client.ts` is 62 methods above the STAYING banner and 4 below.
+
 Thirty-seventh follow-on on the same version: **SCALE-SEAM (98)** — *detailing carriers, and a
 field map that is total over one module but not over the codebase*.
 
