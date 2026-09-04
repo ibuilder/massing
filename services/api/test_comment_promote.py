@@ -19,9 +19,13 @@ for _f in ("./test_comment_promote.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
+from fastapi import HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from aec_api import modules as mod_engine  # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
 from aec_api.main import app  # noqa: E402
+from aec_api.models import RecordComment  # noqa: E402
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Entitlement P"}).json()["id"]
@@ -103,5 +107,55 @@ with TestClient(app) as c:
     # engine matches project+module+record, not the comment id alone.
     cross = c.post(f"/projects/{pid}/modules/entitlement/{rid2}/comments/{cid3}/promote", json={})
     assert cross.status_code == 404, (cross.status_code, cross.text)
+
+    # --- a whitespace-only comment promotes to the fallback title, it does not 500 ---------------
+    # The comment route takes `text: str = Body(...)` with no min-length, so "   \n  " is a 201.
+    # Promoting it ran `.strip().splitlines()[0]` over an empty list — IndexError, 500, and the
+    # fallback title written for exactly this case never fired.
+    rec3 = c.post(f"/projects/{pid}/modules/entitlement",
+                  json={"data": {"subject": "Blank", "agency": "City Planning",
+                                 "application_type": "Site Plan"}}).json()
+    rid3 = rec3["id"]
+    assert c.post(f"/projects/{pid}/modules/entitlement/{rid3}/comments",
+                  json={"text": "   \n  "}).status_code == 201
+    cid4 = c.get(f"/projects/{pid}/modules/entitlement/{rid3}").json()["comments"][0]["id"]
+    blank = c.post(f"/projects/{pid}/modules/entitlement/{rid3}/comments/{cid4}/promote", json={})
+    assert blank.status_code == 201, (blank.status_code, blank.text)
+    assert blank.json()["topic"]["title"] == f"entitlement {rec3['ref']} review comment", \
+        blank.json()["topic"]["title"]
+
+    # --- two sessions that both read a null back-link: exactly one promote survives -------------
+    # The `if cm.topic_id` guard reads the SESSION's copy, and `SessionLocal` is
+    # `expire_on_commit=False`, so a request that loaded the comment before a concurrent promote
+    # committed still sees None however long it holds it. A plain assignment therefore let the later
+    # writer overwrite the back-link — minting a duplicate RFI AND orphaning the first, whose Topic
+    # no comment pointed at any more. The claim is a conditional UPDATE; this is the loser's path.
+    rec4 = c.post(f"/projects/{pid}/modules/entitlement",
+                  json={"data": {"subject": "Race", "agency": "City Planning",
+                                 "application_type": "Site Plan"}}).json()
+    rid4 = rec4["id"]
+    c.post(f"/projects/{pid}/modules/entitlement/{rid4}/comments",
+           json={"text": "Two reviewers pressed promote at once."})
+    cid5 = c.get(f"/projects/{pid}/modules/entitlement/{rid4}").json()["comments"][0]["id"]
+
+    before = len(c.get(f"/projects/{pid}/topics").json())
+    loser, winner = SessionLocal(), SessionLocal()
+    stale = loser.get(RecordComment, cid5)          # the loser reads first: topic_id is None
+    assert stale.topic_id is None
+    won = mod_engine.promote_comment(winner, "entitlement", pid, rid4, cid5, "winner", "rfi")
+    assert stale.topic_id is None, "the loser's session still holds the pre-promote read"
+    try:
+        mod_engine.promote_comment(loser, "entitlement", pid, rid4, cid5, "loser", "rfi")
+        raise AssertionError("a stale-read promote must be refused, not duplicated")
+    except HTTPException as e:
+        assert e.status_code == 409, e.status_code
+    loser.close()
+    winner.close()
+
+    # and the loser left nothing behind: one new Topic, still pointed at by the comment.
+    assert len(c.get(f"/projects/{pid}/topics").json()) == before + 1, "the loser minted an orphan"
+    linked = [x for x in c.get(f"/projects/{pid}/modules/entitlement/{rid4}").json()["comments"]
+              if x["id"] == cid5][0]
+    assert linked["topic_id"] == won["topic"]["id"], (linked, won["topic"]["id"])
 
 print("test_comment_promote OK")

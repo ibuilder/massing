@@ -963,7 +963,12 @@ def promote_comment(db: Session, key: str, project_id: str, rid: str, cid: str,
         raise HTTPException(422, "kind must be rfi or issue")
 
     ref = rec.get("ref") or rid
-    title = (cm.text or "").strip().splitlines()[0][:80] or f"{key} {ref} review comment"
+    # `splitlines()` on stripped whitespace-only text yields [], so `[0]` raised IndexError — a 500
+    # on a comment the comment route itself accepts (`text: str = Body(...)` has no min-length). The
+    # fallback title below was written for exactly this case and was unreachable until now: when the
+    # list is non-empty its first element is never blank, so the `or` arm could never fire.
+    lines = (cm.text or "").strip().splitlines()
+    title = lines[0][:80] if lines else f"{key} {ref} review comment"
     guids = rec.get("element_guids") or None
     t = Topic(project_id=project_id, type=("rfi" if kind == "rfi" else "punch"), status="open",
               author=author, title=title,
@@ -972,7 +977,18 @@ def promote_comment(db: Session, key: str, project_id: str, rid: str, cid: str,
               element_guids=guids)
     db.add(t)
     db.flush()
-    cm.topic_id = t.id
+    # The `cm.topic_id` check above cannot be the last word: two requests each hold their own session,
+    # each read a null back-link, and a plain assignment lets the later commit overwrite the earlier
+    # one — minting a duplicate RFI *and* orphaning the first, whose Topic no comment then points at.
+    # The claim is therefore a conditional UPDATE. Under Postgres read-committed the loser blocks on
+    # the winner's row lock, then re-evaluates `topic_id IS NULL` against the committed row and
+    # matches nothing; under SQLite the writes serialize to the same effect. Rolling back discards
+    # the Topic flushed a moment ago, so a losing promote leaves nothing behind.
+    if not db.execute(update(RecordComment)
+                      .where(RecordComment.id == cid, RecordComment.topic_id.is_(None))
+                      .values(topic_id=t.id)).rowcount:
+        db.rollback()
+        raise HTTPException(409, "comment already promoted")
     _log(db, project_id, key, rid, author, None, "comment.promote",
          {"comment": cid, "topic": t.id, "kind": kind})
     audit.record(db, action="record.comment.promote", actor=author, method="POST", topic_id=t.id,
