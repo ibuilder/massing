@@ -17,6 +17,7 @@ import { withOperations } from "./operations";
 import { withClientPortal } from "./clientPortal";
 import { withCreDeal } from "./creDeal";
 import { withAnnotate } from "./annotate";
+import { withDesignPerformance } from "./designPerformance";
 import { withDetailing } from "./detailing";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
@@ -61,7 +62,7 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
+  DisciplineTree, ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
     DiligenceReadiness, MasterBuilderBrief, PrequalScores,
@@ -70,7 +71,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -214,18 +215,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
-  /** Embodied-carbon compliance: element totals, coverage and intensity against the project's limits. */
-  carbonComplianceReport(pid: string) {
-    return this.json<{
-      elements: { total_tco2e: number; coverage_pct: number; intensity_kgco2e_m2?: number;
-                  carbon_matched: number; with_quantity: number;
-                  hotspots: { guid: string; name: string | null; category: string; kgco2e: number }[] };
-      buy_clean: { rows: { category: string; achieved_factor: number; limit: number; unit: string;
-                           pass: boolean; headroom_pct: number; action: string | null }[];
-                   passing: number; failing: number };
-      leed_inventory: { total_tco2e: number; items: { category: string; kgco2e: number; share_pct: number }[] };
-    }>(`/projects/${pid}/carbon/compliance`);
-  }
   /** PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a model). */
   permitReadiness(pid: string) {
     return this.json<{
@@ -341,9 +330,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   validate(pid: string) {
     return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);
   }
-  energy(pid: string) {
-    return this.json<EnergyResult>(`/projects/${pid}/energy`);
-  }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
   propmapDetect(pid: string) {
@@ -353,20 +339,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   propmapPlan(pid: string, rules: PropMapRule[]) {
     return this.json<{ dry_run: boolean; changed: number; rules: { from: string; to: string; matched: number; cast: string; keep_source: boolean; samples: { guid: string; from: string; to: string }[] }[] }>(
       `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
-  }
-  /** ENERGY phase 1 — the thermal model extracted from the IFC (zones · surfaces · constructions). */
-  energyModel(pid: string) {
-    return this.json<{ zone_source: string;
-      zones: { id: string; name: string; storey: string; area_m2: number; volume_m3: number }[];
-      surfaces: { id: string; name: string; ifc_class: string; idf_type: string; zone_id: string;
-        construction: string; orientation: string; area_m2: number; geometry: "exact" | "bbox";
-        corners: number[][] }[];
-      constructions: { name: string; u_value: number | null; source: string }[];
-      counts: Record<string, number>; note: string }>(`/projects/${pid}/energy/model`);
-  }
-  /** ENERGY phase 1 — the gbXML / IDF envelope export URLs (downloads, not JSON). */
-  energyExportUrl(pid: string, fmt: "gbxml" | "idf") {
-    return `${this.baseUrl}/projects/${pid}/energy/export.${fmt}`;
   }
   sharedParams(pid: string) {
     return this.json<{ params: { name: string; pset: string; ptype: string; applies_to: string[];
@@ -399,12 +371,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   }
 
   // --- portfolio benchmarking (cross-project) --------------------------------
-  benchmarkCosts(minSamples = 3) {
-    return this.json<{ cost_codes: { cost_code: string; samples: number; low: number; p25: number;
-      median: number; p75: number; high: number; total: number }[];
-      code_count: number; min_samples: number; codes_below_threshold: number; message?: string | null }>(
-      `/benchmarks/costs?min_samples=${minSamples}`);
-  }
   benchmarkResponseRates() {
     return this.json<{ rfi: { total: number; open: number; answered_or_closed: number;
       avg_turnaround_days: number | null; overdue: number; overdue_pct: number };
@@ -427,11 +393,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       waived_unconditional: number; waived_conditional: number; exposure: number; status: string }[];
       total_lien_exposure: number; vendors_at_risk: string[]; message?: string | null }>(
       `/projects/${pid}/payapp/lien-exposure`);
-  }
-  projectCarbon(pid: string) {
-    return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
-      by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
-      `/projects/${pid}/carbon`);
   }
   // --- design lifecycle (RIBA/AIA phases + itemized soft costs) ---------------
   lifecycle(pid: string) {
