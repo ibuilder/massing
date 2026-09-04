@@ -256,6 +256,8 @@ describe("the API client's public surface", () => {
       "elementDetailing", "classify", "applyDetailingRules", "validateDetailing", "attachDocument",
       // (99) the content shelf -> authoring.ts, joining the family triple it parallels.
       "contentCatalog", "placeContent", "importContent",
+      // (100) the IfcRelConnectsElements reader + its writer -> model.ts.
+      "elementConnections", "connectElements",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

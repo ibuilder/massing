@@ -178,16 +178,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       ahead: number; on_track: number; behind: number; worst: string | null; note: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
   }
-  /** B5: record a physical connection between two elements (IfcRelConnectsElements, LOD-350 coordination). */
-  connectElements(pid: string, guidA: string, guidB: string, description?: string, publish = true) {
-    return this.editIfc(pid, "connect_elements", { guid_a: guidA, guid_b: guidB, ...(description ? { description } : {}) }, publish);
-  }
-  /** B5: the element-to-element connection graph (IfcRelConnectsElements) — pairs + per-element degree. */
-  elementConnections(pid: string) {
-    return this.json<{ count: number; elements_connected: number; max_degree: number;
-      connections: { a: string; a_class: string; b: string; b_class: string; description: string | null }[] }>(
-      `/projects/${pid}/element-connections`);
-  }
   /** W11 F0: establish the view-keyed representation contexts (Model+Plan; Body/Axis/Box/Annotation/
    *  FootPrint) the drawing pipeline needs. Idempotent. */
   ensureContexts(pid: string, publish = false) {
@@ -545,7 +535,7 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 62 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 60 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -619,6 +609,10 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   // (99) took the CONTENT SHELF — `contentCatalog`/`placeContent`/`importContent` — to
   // `authoring.ts`, leaving 62. Role-for-role parallel with the family shelf already there; that
   // file's first line had claimed "family/content shelf" while holding no content method.
+  //
+  // (100) took the ELEMENT-CONNECTION pair — `elementConnections`/`connectElements` — to
+  // `model.ts`, leaving 60. The route docstring names its own writer. `connections.ts` is the trap:
+  // that file is DATA-SOURCE connections and shares only the word. Reasoning in `model.ts`.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

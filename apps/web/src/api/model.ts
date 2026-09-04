@@ -138,6 +138,38 @@
  *
  *  SCALE-SEAM ⓭ adds E57 scan ingest — *can we bring this scan in?* Status plus convert.
  *  Admin audit/error stayed.
+
+ *  **SCALE-SEAM (100) adds the ELEMENT-CONNECTION pair** — `elementConnections` (the
+ *  `IfcRelConnectsElements` graph: pairs, per-element degree) and `connectElements` (the verb that
+ *  adds an edge). *What is physically joined to what, and record a joint.*
+ *
+ *  **The pair is bound by the backend naming its own writer**, the (96) shape: the
+ *  `/element-connections` route docstring reads *"Author edges with the `connect_elements` recipe
+ *  (`POST /edit` with `{guid_a, guid_b}`)."* Reader and writer, one relationship type, both marked
+ *  B5. That link is strong and is what carries the pair.
+ *
+ *  **The DESTINATION argument is weaker than the pairing argument, and is stated at that strength.**
+ *  This file owns `modelGraphStats`, whose `by_rel` counts the IFC relationship graph *by relation* —
+ *  and `IfcRelConnectsElements` is one of those relations — plus `graphNeighbors`, which walks it.
+ *  So this pair is one relation of the graph this file already reads, plus its authoring verb. *That
+ *  is a SPECIALISATION, not an identity: `modelGraphStats`/`graphNeighbors` are generic traversal
+ *  over every `IfcRel*`, while these two are one relation with a verb attached.* Recorded as the
+ *  best available home rather than a derived one.
+ *
+ *  **Two candidates were rejected on checkable grounds.** `connections.ts` is the trap: it is
+ *  DATA-SOURCE connections — SQL, ACC, Procore — and shares nothing with this but the English word.
+ *  *(97) found two stacks behind one word; this is the same collision in a destination rather than a
+ *  source.* And `elements.ts` holds element ATTRIBUTES and views (properties, 5D, colouring, QA,
+ *  costs); a relationship between two elements is not an attribute of either.
+ *
+ *  *`addBasePlate` and `addShearTab` did NOT come, though they share `connections.py` with these.*
+ *  A backend module is a HOW — the grouping (89) had to reject — and those two are W11 B6 authoring
+ *  PHYSICAL assemblies (plates, bolts), not `IfcRelConnectsElements` edges. Different output,
+ *  different question, same file on the server.
+ *
+ *  *Recorded while deriving this: `add_connection_assembly` (B5,
+ *  `IfcRelConnectsWithRealizingElements`) has NO client method anywhere in `apps/web/src` — a
+ *  backend recipe with no web exposure, the same class (93) recorded for three MEP recipes.*
  *
  *  SCALE-SEAM ⓳ adds publish history — *what changed between publishes?* Version list,
  *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
@@ -870,6 +902,16 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   /** W11 G3: stamp manufacturer / serial info (Pset_Manufacturer*) — the LOD-500 / O&M / turnover layer. */
   setManufacturerInfo(pid: string, guids: string[], opts: { manufacturer?: string; model_label?: string; production_year?: string; serial?: string; barcode?: string } = {}, publish = true) {
     return this.editIfc(pid, "set_manufacturer_info", { guids, ...opts }, publish);
+  }
+  /** B5: record a physical connection between two elements (IfcRelConnectsElements, LOD-350 coordination). */
+  connectElements(pid: string, guidA: string, guidB: string, description?: string, publish = true) {
+    return this.editIfc(pid, "connect_elements", { guid_a: guidA, guid_b: guidB, ...(description ? { description } : {}) }, publish);
+  }
+  /** B5: the element-to-element connection graph (IfcRelConnectsElements) — pairs + per-element degree. */
+  elementConnections(pid: string) {
+    return this.json<{ count: number; elements_connected: number; max_degree: number;
+      connections: { a: string; a_class: string; b: string; b_class: string; description: string | null }[] }>(
+      `/projects/${pid}/element-connections`);
   }
   };
 }
