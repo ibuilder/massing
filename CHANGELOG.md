@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — Cross-project Gantt
+
+The Programme card (`/projects/{pid}/schedule/portfolio`) now draws a bar per project on a shared
+span: start, finish, duration, which project drives the programme finish, and which are named by an
+external link. `apps/web/src/portal/panels/programmeGantt.ts` holds the geometry as a pure function;
+the panel only paints what it returns.
+
+**It needed no new engine, and that is the finding.** The roadmap recorded a cross-project Gantt as
+missing because `schedule_viz.py` is per-project. But R46's `schedule_portfolio.py` already computes
+`project_starts` and `project_finishes` in its single merged pass, and the route already returned
+them — `apps/web/src/api/schedule.ts` **named only three scalars**. `HttpCore.json<T>` returns
+`res.json()` under an unchecked cast, so the dates were in the parsed response all along; nothing
+declared them, so no call site could reach them and none did. Same class as R37-TESTED-UNWIRED one
+layer further out: not a route without a caller, but a payload without a reader.
+
+Bars come from the **merged** pass, never each project's standalone CPM. A project can look
+comfortable alone and be critical to the programme; its own run would show the comfortable answer.
+`services/api/test_programme_gantt.py` asserts the FS link actually pushes fit-out past enabling's
+finish — removing the link fails it with exactly that explanation, so the claim is load-bearing
+rather than decorative.
+
+**A project with only one dated end gets no bar**, and is listed with the reason. Substituting the
+programme's own start or finish for the missing end would draw a bar that looks measured and is not
+— the same rule the risk heat map applies to an unmeasured cell.
+
+Writing the test also found that an external link must name activities by **record id**: `wbs` and
+`ref` are aliases resolved only for a project's own predecessor tokens, so a link written in WBS
+terms is refused as "no such activity". Recorded next to the link that uses it.
+
 ## Unreleased — Portfolio risk heat map
 
 `GET /portfolio/risk` (`risk_portfolio.py`) grids `risk_board` across the book: projects down, the

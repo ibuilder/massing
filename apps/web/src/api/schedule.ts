@@ -482,6 +482,14 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       rejected_links: string[]; projects_without_activities: string[];
       programme_finish: string | null; project_count: number | null;
       external_link_count: number | null;
+      // The merged pass returns per-project dates and the activities that cross a boundary. This
+      // type declared only the three scalars above until v0.3.1144, so the dates reached the browser
+      // and were dropped before anything could draw them — which is why the roadmap recorded the
+      // cross-project Gantt as missing an engine it already had. Keyed by project id.
+      project_starts?: Record<string, string>;
+      project_finishes?: Record<string, string>;
+      crossing_activities?: string[];
+      issues?: { code?: string; message?: string }[];
     }>(`/projects/${pid}/schedule/portfolio`, { method: "POST", body: JSON.stringify(body) });
   }
 

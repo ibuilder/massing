@@ -22,6 +22,7 @@
 import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { programmeBars } from "./programmeGantt";
 
 type Row = { label: string; value: string; hint?: string };
 
@@ -344,6 +345,58 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     t.textContent = r.projects.map((p) => `${p.name} (${p.activities})`).join("  \u00b7  ")
       + (r.rejected_links.length ? `  \u2014  ignored: ${r.rejected_links.join("; ")}` : "");
     pfOut.appendChild(t);
+
+    // CROSS-PROJECT GANTT — bars from the MERGED pass, not each project's standalone CPM. A project
+    // can look comfortable alone and be critical to the programme; a bar drawn from its own run
+    // would show the comfortable answer. `programmeBars` holds the geometry and the rule that a
+    // half-dated project gets no bar; this only paints what it returns.
+    const g = programmeBars(r);
+    if (g.span) {
+      const gw = document.createElement("div");
+      gw.style.cssText = "margin-top:8px";
+      const head = document.createElement("div");
+      head.className = "meta";
+      head.textContent = `Programme ${g.span.start} \u2192 ${g.span.finish} \u00b7 ${g.span.days} days`;
+      gw.appendChild(head);
+      for (const b of g.bars) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:8px;margin:3px 0";
+        const label = document.createElement("div");
+        label.style.cssText = "flex:0 0 150px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+        label.textContent = b.name;
+        label.title = `${b.name} \u00b7 ${b.start} \u2192 ${b.finish} \u00b7 ${b.days} days`
+          + `${b.linked ? " \u00b7 named by an external link" : ""}`;
+        const track = document.createElement("div");
+        track.style.cssText = "flex:1;position:relative;height:16px;background:var(--panel2);border-radius:3px";
+        const bar = document.createElement("div");
+        // Driving = finishes on the programme finish, so the whole span waits on it. Linked = named
+        // by a cross-project commitment. Both are facts from the run, not a status guess.
+        const col = b.driving ? "var(--status-crit)" : b.linked ? "var(--accent)" : "var(--status-good)";
+        bar.style.cssText = `position:absolute;left:${b.left}%;width:${b.width}%;top:2px;bottom:2px;`
+          + `background:${col};border-radius:2px`;
+        track.appendChild(bar);
+        const days = document.createElement("div");
+        days.className = "meta";
+        days.style.cssText = "flex:0 0 62px;text-align:right;font-variant-numeric:tabular-nums";
+        days.textContent = `${b.days}d${b.driving ? " \u25c0" : ""}`;
+        row.append(label, track, days);
+        gw.appendChild(row);
+      }
+      const key = document.createElement("div");
+      key.className = "meta"; key.style.marginTop = "4px";
+      key.textContent = "\u25c0 drives the programme finish \u00b7 blue = named by an external link "
+        + "(a commitment between parties) \u00b7 bars come from the merged pass, not each project's "
+        + "own schedule.";
+      gw.appendChild(key);
+      pfOut.appendChild(gw);
+    }
+    if (g.unplotted.length) {
+      // Named, never silently dropped and never drawn with an invented end date.
+      const u = document.createElement("div");
+      u.className = "meta"; u.style.cssText = "margin-top:4px;color:var(--status-warn)";
+      u.textContent = "Not plotted \u2014 " + g.unplotted.map((x) => `${x.name} (${x.reason})`).join("; ");
+      pfOut.appendChild(u);
+    }
   }));
   pfc.appendChild(pfRow); pfc.appendChild(pfOut); wrap.appendChild(pfc);
 
