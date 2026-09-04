@@ -974,6 +974,70 @@ to raise the floor.
 
 Pin 867 → 746. **88 above the banner, still no map.**
 
+Thirty-first follow-on on the same version: **SCALE-SEAM (92)** — *the marker that bounds a set, and
+the one that does not*.
+
+Four methods out of `client.ts` (`746 → 732`) into a new `apps/web/src/api/annotate.ts`:
+`addAnnotation`, `addDimension`, `addRevisionCloud`, `addTag`. **What they answer: put a note, a
+dimension, a cloud or a tag ON the model** — all four author real `IfcAnnotation` entities at world
+`[E,N]` through `editIfc`.
+
+### The set is bounded by two sources somebody else authored
+
+1. **`services/api/src/aec_api/authoring_matrix.py`** — the curated recipe→category map behind the
+   public authoring-coverage endpoint, maintained for a different purpose than this extraction. Its
+   `annotate` category holds **exactly these four** of the map's 99 recipes across 15 categories. A
+   complete category: nothing left behind, nothing pulled in.
+2. **`services/api/test_annotation.py`** exercises those four recipes and no others.
+
+A third corroboration: `apps/web/src/viewer/tools/annotationSection.ts`, the UI these serve, makes
+exactly four `api.*` calls and they are these four.
+
+### The `UX-2` marker does NOT bound the set, and the distinction is the point
+
+(91) had a marker that did: `CRE-` occurred only in `client.ts`, so it drew the boundary itself.
+`UX-2` is a different animal — 12 occurrences across three files (`client.ts`, `viewer/app.ts`,
+`viewer/tools/annotationSection.ts`). It marks a **feature workstream** spanning UI and client, so it
+corroborates *purpose* and is silent on *membership*. **Two markers, two strengths.** Treating every
+prefix as a set boundary is how a cluster acquires the wrong members, and (91)'s success with `CRE-`
+is exactly what would make that mistake feel justified here.
+
+### Not `markup.ts`, and not `authoring.ts`
+
+`markup.ts` is **2D sheet markup** — a pin at a sheet's `(x, y)` carrying a note, stored as a markup
+record, promotable to an RFI. These author **model content** that travels with the IFC. *A comment
+layer over a drawing and drawing content authored into the model are different questions sharing the
+word "annotation".*
+
+`authoring.ts` is the harder call: it **defines** `editIfc`, holds seven recipes, and its header
+claims "the endpoints that WRITE to the model rather than read from it" — which would take all 24
+recipes still in `client.ts`. **A description broad enough to take everything is not a seam.** Its
+demonstrated practice is far narrower than its sentence: it declined detailing at ⓼, property-override
+layers at ㊳ (*"those compose properties, they do not write recipes"*), and groups at ⓻. `mep.ts` had
+already settled the principle — its methods *"use `editIfc` (`/edit`) and stay"* — and the matrix
+proves it, splitting those 24 recipes across **nine** categories. `editIfc` cannot be the seam.
+
+### A technical finding that probably explains the whole backlog
+
+**This is the first mixin to call `editIfc` without declaring it, and that is unlikely to be a
+coincidence.** (`authoring.ts` calls it seven times, but it *defines* it, so it never needed a base
+type that promises it — which is why eleven slices could pass these recipes without hitting this.)
+`editIfc` is declared on the `Authoring` mixin rather than on `HttpCore`, so a mixin typed
+`Ctor<HttpCore>` cannot see it: the extraction does not compile, and nothing says why. It is the same
+shape `authoring.ts` records blocking the SSE methods — *"a mixin cannot see a sibling's private
+member"*. That is a plausible reason all 24 recipes were still sitting in `client.ts` after eleven
+slices went past them.
+
+`annotate.ts` declares the requirement in its type (`NeedsEditIfc`) and must be composed outside
+`withAuthoring`. Mutation-checked: composing it *inside* fails with `TS2345` naming `editIfc`, rather
+than failing at runtime with `undefined is not a function`. Moving `editIfc` down into `HttpCore`
+would unblock the other 20 recipes; that changes a file every mixin depends on and is left for
+whichever slice takes the next recipe cluster.
+
+All four are named in `surface.test.ts`, which (91) established is necessary rather than optional.
+
+Pin 746 → 733. **84 above the banner, still no map.**
+
 
 
 

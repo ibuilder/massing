@@ -3135,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(91) took thirty-eight of those 126 — 88 remain, and there is STILL no map.** A new
+  **(88)–(92) took forty-two of those 126 — 84 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3225,6 +3225,36 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   example list until this slice moved it (`esgSummary` was the first, caught by (88)). (89) had
   audited those seven names and found none had moved — *which is why they survived to be wrong now:
   a list that passes one audit is not thereby safe for the next slice.*
+
+  **(92) added `apps/web/src/api/annotate.ts`** — *put a note, a dimension, a cloud or a tag ON the
+  model.* Four methods (`addAnnotation`, `addDimension`, `addRevisionCloud`, `addTag`), bounded by
+  two sources this extraction did not author: `services/api/src/aec_api/authoring_matrix.py`, whose
+  curated `annotate` category holds exactly these four of 99 recipes across 15 categories, and
+  `services/api/test_annotation.py`, which exercises those four recipes and no others. The UI they
+  serve, `apps/web/src/viewer/tools/annotationSection.ts`, makes exactly four `api.*` calls and they
+  are these.
+
+  **The `UX-2` marker on all four does NOT bound the set.** (91)'s `CRE-` did — it occurred only in
+  `client.ts`. `UX-2` occurs 12 times across three files and marks a feature workstream spanning UI
+  and client, so it corroborates purpose and is silent on membership. *Two markers, two strengths;
+  (91)'s success with `CRE-` is exactly what would make treating this one the same way feel
+  justified.*
+
+  *Declined: `apps/web/src/api/markup.ts` is 2D SHEET markup (a pin at a sheet's x/y, promotable to
+  RFI) while these author model content that travels with the IFC. And `apps/web/src/api/authoring.ts`
+  DEFINES `editIfc` and claims "the endpoints that WRITE to the model" — which would take all 24
+  recipes still in `client.ts`. **A description broad enough to take everything is not a seam:** its
+  practice declined detailing at ⓼, property-override layers at ㊳ and groups at ⓻, and the matrix
+  splits those 24 across NINE categories.*
+
+  **A technical finding that probably explains why the recipes were all still there.** (92) is the
+  first mixin to call `editIfc` without declaring it — `authoring.ts` calls it seven times but defines
+  it, so it never needed a base type promising it. `editIfc` sits on the `Authoring` mixin rather than on
+  `HttpCore` — so a mixin typed `Ctor<HttpCore>` cannot see it and the extraction does not compile,
+  the same shape `authoring.ts` records blocking its SSE methods. `annotate.ts` declares the
+  requirement in its type and is composed outside `withAuthoring` (mutation-checked: composing it
+  inside fails with `TS2345`). **Moving `editIfc` down into `HttpCore` would unblock the other 20
+  recipes** — a change to a file every mixin depends on, left for the next recipe slice.
 
   **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
   open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the

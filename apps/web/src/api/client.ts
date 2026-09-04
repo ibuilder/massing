@@ -16,6 +16,7 @@ import { withEvm } from "./evm";
 import { withOperations } from "./operations";
 import { withClientPortal } from "./clientPortal";
 import { withCreDeal } from "./creDeal";
+import { withAnnotate } from "./annotate";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
@@ -68,7 +69,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -188,28 +189,6 @@ export class ApiClient extends withCreDeal(withClientPortal(withResilience(withR
   /** B4: author an element from a raw triangle mesh (verts [[x,y,z]…], faces [[i,j,k]…] 0-based). */
   addMesh(pid: string, verts: number[][], faces: number[][], name = "Mesh", publish = true) {
     return this.editIfc(pid, "add_mesh_representation", { verts, faces, name }, publish);
-  }
-  /** UX-2: place a 2D text annotation (note / tag / callout) as an IfcAnnotation at an [E,N] point. */
-  addAnnotation(pid: string, point: [number, number], text: string,
-                opts: { kind?: "note" | "tag" | "callout"; storey?: string; z?: number } = {}, publish = true) {
-    return this.editIfc(pid, "add_annotation", { point, text, ...opts }, publish);
-  }
-  /** UX-2: place a dimension annotation (line + measured distance) between two [E,N] points. */
-  addDimension(pid: string, start: [number, number], end: [number, number],
-               opts: { text?: string; storey?: string; z?: number } = {}, publish = true) {
-    return this.editIfc(pid, "add_dimension", { start, end, ...opts }, publish);
-  }
-  /** UX-2: place a revision cloud (scalloped outline + optional delta/number tag) around a region —
-   *  two opposite [E,N] corners, or >=3 boundary points. Renders on the generated plan. */
-  addRevisionCloud(pid: string, points: [number, number][],
-                   opts: { tag?: string; storey?: string; z?: number } = {}, publish = true) {
-    return this.editIfc(pid, "add_revision_cloud", { points, ...opts }, publish);
-  }
-  /** UX-2: place an element-aware tag on a host element — the label is auto-read from the host
-   *  (its Name / Pset mark / type), or overridden with `text`; assigned to the element it labels. */
-  addTag(pid: string, hostGuid: string,
-         opts: { text?: string; storey?: string; z?: number } = {}, publish = true) {
-    return this.editIfc(pid, "add_tag", { host_guid: hostGuid, ...opts }, publish);
   }
   /** A4: a compact scene digest of the model (counts by class, storeys, spaces, MEP, phasing, LOD, hygiene
    * + a one-paragraph prose overview) — grounds the AI command bar and gives a one-glance summary. */
@@ -682,7 +661,7 @@ export class ApiClient extends withCreDeal(withClientPortal(withResilience(withR
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 88 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 84 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -717,6 +696,14 @@ export class ApiClient extends withCreDeal(withClientPortal(withResilience(withR
   // (`esgSummary` was the first, caught by (88)). (89) checked its seven names and none had moved,
   // which is why they survived to be wrong now: a list that passes one audit is not thereby safe
   // for the next slice. Re-derive from the file.
+  //
+  // (92) took the four `annotate` methods to `annotate.ts`, leaving 84. It is the first mixin to call
+  // `editIfc` WITHOUT DECLARING IT (`authoring.ts` calls it seven times, but it defines it, so it
+  // never needed a base type that promises it) — most likely why all 24 edit recipes were still here:
+  // is declared on the `Authoring` mixin rather than on `HttpCore`, so a mixin typed `Ctor<HttpCore>`
+  // cannot see it and the extraction simply does not compile. `annotate.ts` declares the requirement
+  // in its type instead; moving `editIfc` down into `HttpCore` would unblock the other 20 and is
+  // left for whichever slice takes the next recipe cluster.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

@@ -230,6 +230,9 @@ describe("the API client's public surface", () => {
       "loanCovenants", "dealAuthority", "saveDealAuthority",         // terms + authority
       "normalizeT12", "rentRollScrub", "netEffectiveRent",           // verify the seller's numbers
       "tieredComps", "competitiveSupply",                            // market evidence
+      // (92) annotation -> annotate.ts. Named for the same measured reason as the thirteen above:
+      // the surface floor has slack, so four methods can leave without the count noticing.
+      "addAnnotation", "addDimension", "addRevisionCloud", "addTag",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }
