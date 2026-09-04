@@ -1083,10 +1083,22 @@ drift from itself. Mutation-checked: composing `withMep` inside `withAuthoring` 
 
 This is **not** a complete `authoring_matrix.py` category — `create-mep` has 11 members and
 `edit-mep` 3, of which these are one each. The boundary is *"MEP recipe exposed as a typed client
-method"*, which is exactly these two: the other nine (`add_duct`, `add_pipe`, `add_riser`,
-`add_sprinkler`, terminals, devices) are driven from viewer code through the generic recipe path in
-`apps/web/src/viewer/draft/draftCatalog.ts` and `apps/web/src/viewer/tools/mepSection.ts`, so they
-were never client methods to move. `test_mep_systems.py` covers both **among** other MEP recipes —
+method"*, which is exactly these two. **Twelve** MEP recipes remain in the matrix (11 `create-mep`
++ 3 `edit-mep`, less these two): **nine** are driven from viewer code through the generic recipe path
+in `apps/web/src/viewer/draft/draftCatalog.ts` and `apps/web/src/viewer/tools/mepSection.ts`, and
+**three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — are referenced nowhere in
+`apps/web/src` at all.** Recorded, not fixed: wiring a capability is not an extraction slice's business.
+
+> **This said "the other nine" until review, and that is the third consecutive slice with one
+> defect wearing a third disguise.** Nine was the number I had *enumerated* (the viewer-driven ones);
+> twelve is the number that *remain*. (91) claimed no `test_cre_*` file reached outside its set while
+> three reached out as fixtures. (92) claimed `test_annotation.py` exercised four recipes "and no
+> others" while two more were tag-host fixtures. Each time: **count the members you looked at, then
+> phrase the result as the whole population.** A reviewer found all three.
+>
+> The fix is not resolving to be more careful. It is to **derive the complement** — `set(all) -
+> set(moved)` — and only then describe what is in it. Every one of these would have been caught by
+> computing the remainder instead of listing the examples. `test_mep_systems.py` covers both **among** other MEP recipes —
 it corroborates the family and does not bound the set — and `test_guards.py` is cross-cutting.
 *Spelled out because the "no others" overstatement was made in each of the two preceding slices.*
 

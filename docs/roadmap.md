@@ -3248,8 +3248,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
   *The evidence is weaker than (92)'s and is stated as such: **not** a complete `authoring_matrix.py`
   category (`create-mep` has 11 members, `edit-mep` 3, of which these are one each). The boundary is
-  "MEP recipe exposed as a TYPED client method" — the other nine are driven from viewer code through
-  the generic recipe path. `services/api/test_mep_systems.py` covers both AMONG other MEP recipes, so
+  "MEP recipe exposed as a TYPED client method". TWELVE remain (11 `create-mep` + 3 `edit-mep`, less
+  these two): nine are driven from viewer code through the generic recipe path, and three
+  (`add_sprinkler`, `auto_connect_mep`, `set_system_predefined`) are referenced nowhere in
+  `apps/web/src` at all — backend recipes with no web exposure, recorded rather than fixed.
+  *This said "the other nine" until review: nine was what I had ENUMERATED, twelve is what REMAINS.
+  Third consecutive slice, third disguise, one defect — count the members you looked at, then phrase
+  the result as the whole population. The fix is to DERIVE THE COMPLEMENT, not to be more careful.* `services/api/test_mep_systems.py` covers both AMONG other MEP recipes, so
   it corroborates the family and does not bound the set. Spelled out because the "nothing else"
   overstatement was made in each of the two preceding slices.* The UI they
   serve, `apps/web/src/viewer/tools/annotationSection.ts`, makes exactly four `api.*` calls and they

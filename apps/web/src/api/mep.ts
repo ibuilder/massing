@@ -13,10 +13,22 @@
  *  base and is composed outside `withAuthoring`. *A method left behind for a reason nobody wrote
  *  down stays behind indefinitely — ⑲'s note read as a placement decision and was a compiler error.*
  *
- *  These two are exactly the MEP recipes with a TYPED client method; the other nine
- *  (`add_duct`, `add_pipe`, `add_riser`, `add_sprinkler`, terminals, devices …) are driven from
- *  viewer code through the generic recipe path in `viewer/draft/draftCatalog.ts` and
- *  `viewer/tools/mepSection.ts`, so they were never client methods to move.
+ *  These two are exactly the MEP recipes with a TYPED client method. **Twelve** MEP recipes remain
+ *  in `authoring_matrix.py` (11 `create-mep` + 3 `edit-mep`, less these two), and they split:
+ *    - **nine** are driven from viewer code through the generic recipe path in
+ *      `viewer/draft/draftCatalog.ts` and `viewer/tools/mepSection.ts` — never client methods to move;
+ *    - **three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — are referenced
+ *      NOWHERE in `apps/web/src`.** Backend recipes with no web exposure at all. Recorded, not fixed:
+ *      wiring a capability is not an extraction slice's business.
+ *
+ *  *This paragraph said "the other nine" until review. Nine was the number I had ENUMERATED (the
+ *  viewer-driven ones); twelve is the number that REMAIN. **THIRD CONSECUTIVE SLICE, THIRD DISGUISE,
+ *  ONE DEFECT: count the members you looked at, then phrase the result as the whole population.**
+ *  (91) claimed no `test_cre_*` file reached outside its set while three reached out as fixtures;
+ *  (92) claimed `test_annotation.py` exercised four recipes "and no others" while two more were
+ *  tag-host fixtures; this one enumerated a subset and wrote "the other". A reviewer found all
+ *  three. **The fix is not to be more careful — it is to derive the complement instead of counting
+ *  the examples**: `set(all) - set(moved)`, and only then describe what is in it.*
  *  **Not a complete `authoring_matrix.py` category**, and worth saying plainly: `create-mep` has 11
  *  members and `edit-mep` 3, of which these are one each. The boundary here is "MEP recipe exposed
  *  as a typed client method", not a category — a weaker claim than (92)'s and stated as such.
