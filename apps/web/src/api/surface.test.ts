@@ -238,6 +238,8 @@ describe("the API client's public surface", () => {
       // about the SURFACE. A method with no screen behind it can still vanish in an extraction,
       // and the count would not notice.
       "connectMep", "addMepFitting",
+      // (94) the as-built pair ㊻ could not see -> model.ts, completing its verification question.
+      "verifyAsbuilt", "recordAsbuiltDimension",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

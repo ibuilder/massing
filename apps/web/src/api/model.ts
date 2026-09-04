@@ -37,6 +37,28 @@
  *  sat between set and deviations). **The photo upload did NOT come** (PHOTO-PIN is parked).
  *  `askModel` stayed — that is NL-Q, not install status.
  *
+ *  **SCALE-SEAM (94) finishes that question with the two members ㊻ could not see:** `verifyAsbuilt`
+ *  stamps `Massing_AsBuilt` (the LOD-500 reliability layer) and `recordAsbuiltDimension` records a
+ *  field-verified dimension with its variance against design. Both are ㊻'s own question — *is this
+ *  element installed as designed?* — and neither was named in its header.
+ *
+ *  *Why ㊻ missed them: it split on the `/verification/*` ROUTE PREFIX, and these two go through
+ *  `editIfc`, so they carry no `/verification` route to be found by. **A route-prefix split cannot
+ *  see a recipe-based sibling of the same question.** They were also unmovable at the time —
+ *  `editIfc` is declared on the `Authoring` mixin rather than `HttpCore`, so a mixin typed
+ *  `Ctor<HttpCore>` does not compile; (92) diagnosed that, and this mixin now declares the shared
+ *  contract from `./types`. That is the THIRD slice found to have left a method behind for this
+ *  reason, after ⑲'s MEP pair (taken by (93)).*
+ *
+ *  **`setPhase` did NOT come, and `authoring_matrix.py` argues it should have.** Its `lifecycle`
+ *  category is exactly these two plus `set_phase` — a COMPLETE category, which is the signal that
+ *  decided (92)'s annotate slice. Declined here on two checkable grounds: `setPhase` tags a
+ *  construction phase (new/existing/demolish/temporary), which is element state in the build
+ *  sequence rather than install-versus-design; and **its read half `phasing()` is still in
+ *  `client.ts`**, so taking the writer alone would repeat the reader/rollup split (87) had to undo.
+ *  *A complete category is one vote, not a verdict — and "lifecycle" is a word (88) already caught
+ *  misleading once.*
+ *
  *  SCALE-SEAM ⓭ adds E57 scan ingest — *can we bring this scan in?* Status plus convert.
  *  Admin audit/error stayed.
  *
@@ -44,12 +66,12 @@
  *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
  *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
-import { HttpCore, type LiveStream } from "./httpCore";
-import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport } from "./types";
+import type { LiveStream } from "./httpCore";
+import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEditIfc } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
-export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
+export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
   modelStream(pid: string, onMessage: (snap: unknown) => void,
@@ -726,6 +748,14 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       violations: string[]; params: { bar_size: string; tie_size: string; tie_spacing: number;
         governing: string; rule: string; min_longitudinal_bars: number } }>(
       `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
+  }
+  /** W11 G2: record a field-verified as-built dimension (+ variance vs design) on the selection. */
+  recordAsbuiltDimension(pid: string, guids: string[], dimension: string, measured: number, design?: number, publish = true) {
+    return this.editIfc(pid, "record_asbuilt_dimension", { guids, dimension, measured, ...(design != null ? { design } : {}) }, publish);
+  }
+  /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
+  verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
+    return this.editIfc(pid, "verify_asbuilt", { guids, ...opts }, publish);
   }
   };
 }

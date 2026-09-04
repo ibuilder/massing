@@ -1109,6 +1109,53 @@ vanish in an extraction, and the count would not notice.*
 
 Pin 733 → 731. **82 above the banner, still no map.**
 
+Thirty-third follow-on on the same version: **SCALE-SEAM (94)** — *the two methods ㊻ could not see,
+and a complete category that is not one question*.
+
+Two methods out of `client.ts` (`731 → 727`) into the existing `apps/web/src/api/model.ts`:
+`verifyAsbuilt` and `recordAsbuiltDimension`. No new mixin.
+
+### ㊻ stated this question and left two of its members behind
+
+`model.ts` has said since SCALE-SEAM ㊻ that it holds *"field-install verification — **is this
+element installed as designed?**"* — coverage, status write, deviation log. `verifyAsbuilt` stamps
+`Massing_AsBuilt` (the LOD-500 reliability layer) and `recordAsbuiltDimension` records a
+field-verified dimension with its variance against design. Both answer exactly that question, and
+**neither is named in ㊻'s header.**
+
+**Why it missed them: ㊻ split on the `/verification/*` route prefix, and these two go through
+`editIfc`, so they carry no route to be found by.** A route-prefix split cannot see a recipe-based
+sibling of the same question. They were also unmovable at the time, for the reason (92) diagnosed —
+`editIfc` lives on the `Authoring` mixin, so a mixin typed `Ctor<HttpCore>` does not compile. That
+makes **three** slices now found to have left work behind for that one cause, after ⑲'s MEP pair.
+
+### The matrix argued for a third method, and it was declined
+
+`authoring_matrix.py`'s `lifecycle` category is exactly these two plus `set_phase` — a **complete
+category**, which is the signal that decided (92)'s annotate slice. `setPhase` stays anyway:
+
+- it answers a different question — tag a construction phase (new / existing / demolish /
+  temporary), which is element state in the build sequence, not install-versus-design; and
+- **its read half `phasing()` is still in `client.ts`.** Taking a writer and leaving its reader is
+  the split (87) had to undo.
+
+*A complete category is one vote, not a verdict — and "lifecycle" is a word (88) already caught
+misleading once, in a different way.*
+
+### Two checks that failed honestly
+
+**The first composition-order check was worthless, and reading its output is the only reason I know
+that.** It rebalanced parentheses wrongly and went red with `TS1005` syntax errors — proving nothing
+about composition order while looking exactly like a passing mutation test. Redone as an isolated
+probe applying `withModel` to bare `HttpCore`, which fails `TS2345` naming `NeedsEditIfc`.
+
+**And the ratchet caught the banner.** The first draft added 9 lines of prose to `client.ts` while
+the extraction removed 8, netting **+1** — an extraction slice that grows the file has failed its
+purpose. The note is now three lines and the reasoning lives once, in `model.ts`'s header, instead
+of twice.
+
+Pin 731 → 727. **80 above the banner, still no map.**
+
 
 
 
