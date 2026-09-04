@@ -14,6 +14,7 @@ import { withTopics } from "./topics";
 import { withAi } from "./ai";
 import { withEvm } from "./evm";
 import { withOperations } from "./operations";
+import { withClientPortal } from "./clientPortal";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
@@ -66,7 +67,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -389,34 +390,6 @@ export class ApiClient extends withResilience(withResponsibility(withOperations(
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** CLIENT-PORTAL — read-only share tokens for a project-readiness digest. */
-  shareTokens(pid: string) {
-    type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
-      created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string;
-      show_payments: boolean };
-    return this.json<{ tokens: Tok[] }>(`/projects/${pid}/share-tokens`);
-  }
-  /** `showPayments` is the explicit opt-in for THIS token's digest to carry the payment schedule. */
-  createShareToken(pid: string, label?: string, showPayments?: boolean) {
-    return this.json<{ token: string; label: string | null; share_path: string; revoked: boolean }>(
-      `/projects/${pid}/share-tokens`,
-      { method: "POST", body: JSON.stringify({ label: label ?? "", show_payments: !!showPayments }) });
-  }
-  revokeShareToken(pid: string, token: string) {
-    return this.json<{ revoked: boolean }>(`/projects/${pid}/share-tokens/${encodeURIComponent(token)}`,
-      { method: "DELETE" });
-  }
-  /** PORTAL-TXN phase 3 — post a client comment through a share token (public; lands on the token's
-   * BCF feedback topic, so the team answers from the Issue Board). */
-  sharedComment(token: string, body: { text: string; client_name?: string }) {
-    return this.json<{ topic_id: string; comment_id: string; author: string | null; text: string;
-      created_at: string | null }>(
-      `/shared/${encodeURIComponent(token)}/comment`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** The public digest JSON URL for a share token. */
-  sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
-  /** The public read-only HTML page for a share token (opens with no login — the human share link). */
-  sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
   /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
   spaceUtilBenchmarks(areaPerPerson = 10) {
     return this.json<{
@@ -426,22 +399,6 @@ export class ApiClient extends withResilience(withResponsibility(withOperations(
       portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
       note: string;
     }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
-  }
-  /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
-  sharedDecision(token: string, body: {
-    item_type: string; item_ref: string; action: "approved" | "acknowledged" | "declined";
-    client_name?: string; note?: string;
-  }) {
-    return this.json<{
-      id: number; item_type: string; item_ref: string; action: string;
-      client_name: string | null; note: string | null; created_at: string | null;
-    }>(`/shared/${encodeURIComponent(token)}/decision`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** PORTAL-TXN — the project's client-decision feed (editor only), newest first. */
-  clientDecisions(pid: string, limit = 500) {
-    type D = { id: number; item_type: string; item_ref: string; action: string; client_name: string | null;
-      note: string | null; created_at: string | null; token: string };
-    return this.json<{ decisions: D[] }>(`/projects/${pid}/client-decisions?limit=${encodeURIComponent(limit)}`);
   }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
@@ -857,7 +814,7 @@ export class ApiClient extends withResilience(withResponsibility(withOperations(
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 109 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // 101 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
   // `energyModel`, `rentRollScrub`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
@@ -876,7 +833,10 @@ export class ApiClient extends withResilience(withResponsibility(withOperations(
   // (89) took eight more — the four `/resilience/*` to `resilience.ts` and the four
   // `/responsibility/*` to `responsibility.ts` — leaving 109. The seven names above were checked
   // against the file this time and none of them had moved; that check is the point, not the
-  // result. There is still no map for the 109.
+  // result. (90) took the eight client-portal
+  // methods to `clientPortal.ts`, leaving 101 — and its extraction script had an off-by-one on
+  // ONE-LINE methods that swallowed the next method's doc comment. `docComments.test.ts` caught it.
+  // There is still no map for the 101.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {

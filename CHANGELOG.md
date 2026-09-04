@@ -798,6 +798,54 @@ turnover header, and (82)'s RACI banner covering thirteen methods while describi
 Pin 953 → 906. **109 above the banner, and still no map.** The banner's seven example names were
 checked against the file this time and none had moved — *that check is the point, not the result.*
 
+Twenty-ninth follow-on on the same version: **SCALE-SEAM (90)** — *the gate caught what my own check
+was built to miss*.
+
+Eight methods out of `client.ts` (`906 → 866`) into a new `apps/web/src/api/clientPortal.ts`.
+
+**What they answer: how does someone with no account see this project, and answer back?** The owner's
+half mints, lists and revokes share tokens and reads what came back; the recipient's half is the
+token-authenticated public surface — the no-login page and digest URLs, and posting a comment or an
+approve/acknowledge/decline. **The token is the seam**: minted on one side, IS the credential on the
+other, and revoking it closes both. Splitting owner-side from recipient-side would put a capability
+and its only means of exercise in different files.
+
+`aec_api/routers/client_portal.py` groups the same set — 8 of its 9 routes, checked. The ninth,
+`GET /shared/{token}/model.frag`, has no client method **by design**: the server-rendered share page
+fetches it, not this SPA.
+
+### The extraction script had a real bug, and a test found it rather than I did
+
+Its brace counter only terminated when `j > i`, so a **one-line method** consumed one line too many
+and swallowed the *next* method's doc comment. `sharedPageUrl` and `sharedDigestUrl` are one-liners:
+the first draft dragged `spaceUtilBenchmarks`'s SPACE-UTIL doc out of `client.ts` and duplicated
+`sharedPageUrl`'s. `apps/web/src/api/docComments.test.ts` went red, the extraction was reverted, the
+counter fixed to terminate on the method line itself, and the slice redone.
+
+Two things about that are worth keeping:
+
+**I wrote an orphan check of my own and it passed.** It treated a following comment as an acceptable
+neighbour — which is *precisely the case that defines the defect*. The real gate asserts that a line
+ending `*/` is not followed by a line starting `/**`, and that is the whole difference between the two.
+*A check you write while looking at the code you just wrote inherits its blind spot.*
+
+**Seven of these eight carry `/** */` docs**, which the walk-back did not handle either until this
+slice; (88) and (89) survived only because the methods they moved used `//` banners. That was luck,
+not care, and the tool is fixed for both now.
+
+### Found on the way, deliberately not fixed here
+
+That ninth route serves geometry only to a token minted with `show_model` — an opt-in the backend
+treats as strictly independent of `show_payments` (*"granting one never implies the other"*).
+**`createShareToken` never sends it**, and the row type `shareTokens` returns has no `show_model`
+field. Every token this product mints has it false, so `/shared/{token}/model.frag` always 404s and
+the public 3D viewer is dark from the UI's side. Left alone because an extraction slice's claim is
+that no behaviour changed, and adding a parameter falsifies it; recorded in the mixin header at the
+method, where the next reader of that code will find it.
+
+Pin 906 → 866. **101 above the banner, still no map.**
+
+
 
 
 
