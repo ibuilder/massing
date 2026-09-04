@@ -14,6 +14,21 @@ from typing import Any
 
 _SEV_ORDER = {"high": 0, "medium": 1, "low": 2}
 
+# The lane key `board` reports coverage under, the `source` string its items carry, and a display
+# label. Two names for one thing is a drift hazard — the lane is `schedule_risk` while its items say
+# `schedule-risk`, and nothing but this table connects them. A roll-up over several projects has to
+# join on both (coverage from `lanes`, counts from `items`), so the pairing is stated once here
+# rather than re-guessed by every consumer. `test_risk_portfolio.py` asserts it against a REAL board
+# run — every lane key `board` emits appears here, and every `source` its items carry is a value —
+# so widening `board` without widening this table fails rather than silently dropping a column.
+LANES: tuple[tuple[str, str, str], ...] = (
+    ("schedule_risk", "schedule-risk", "Schedule risk"),
+    ("schedule_alerts", "schedule-alert", "Schedule alerts"),
+    ("evm", "evm", "EVM"),
+    ("preflight", "preflight", "Pre-flight"),
+    ("coordination", "coordination", "Coordination"),
+)
+
 
 def board(db, pid: str) -> dict[str, Any]:
     from . import modules as me

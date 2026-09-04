@@ -144,6 +144,29 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
     return {"projects": rows, "totals": tot, "status_tally": tally, "project_count": len(rows)}
 
 
+@router.get("/portfolio/risk")
+def portfolio_risk(limit: int = 25, db: Session = Depends(get_db),
+                   _: str = Depends(rbac.current_user)):
+    """R22-PIPELINE — the **portfolio risk heat map**: every accessible project down, the five risk
+    engines across, severity-weighted intensity in the cell.
+
+    `/portfolio/executive` and `/portfolio/construction` roll up performance; neither answers *which
+    engine is hot on which project*. Cells come from `risk_board.board` unchanged, so a cell and the
+    project's own risk panel cannot disagree — which is why the sweep is bounded by `limit` (each
+    project is a full board, Monte-Carlo included) and reports `truncated` rather than quietly
+    scanning a prefix. That prefix is by project name, not by risk: ranking is what the sweep
+    produces, so it cannot choose what to sweep. A cell whose engine could not run reads `error`,
+    never 0.
+    """
+    from .. import risk_portfolio
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _q = db.query(Project)
+    if _allowed is not None:
+        _q = _q.filter(Project.id.in_(_allowed))
+    projects = [(p.id, p.name) for p in _q.order_by(Project.name).all()]
+    return risk_portfolio.heatmap(db, projects, limit=max(1, min(int(limit), 100)))
+
+
 @router.get("/portfolio/prioritization")
 def portfolio_prioritization(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):
     """Ranked portfolio prioritization — scores each accessible project 0–100 on return / on-budget /
