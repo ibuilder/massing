@@ -1185,6 +1185,47 @@ Reader and unwired writer on one panel — still the reason not to separate them
 
 Pin 731 → 727. **80 above the banner, still no map.**
 
+Thirty-fourth follow-on on the same version: **SCALE-SEAM (95)** — *element state, and a matrix
+disagreement worth stating rather than eliding*.
+
+Four methods out of `client.ts` (`727 → 711`) into the existing `apps/web/src/api/model.ts`: the
+`lodSummary`/`setLod` and `phasing`/`setPhase` pairs. No new mixin. **What they answer: what state
+are the model's elements in, and set it.**
+
+### The shape is the argument
+
+Both readers return `{ total, <x>ed, prop, counts: Record<…> }` — same three fields, differing only
+in the second field's name and the key union. Both writers are `(pid, guids, <enum>, publish) →
+editIfc`. Both readers are consumed by `apps/web/src/viewer/tools/modelStatePanels.ts`. Both writers
+are unwired and sit **adjacent** on `clientCallers.test.ts`'s UNCALLED allowlist.
+
+**And `lodSummary` was a sibling separated from its own family.** `model.ts` already held
+`/model/lod/census`, `/lod/handover-readiness` and `/lod/assessment`, while the base distribution
+`/projects/{pid}/lod` stayed behind in `client.ts`.
+
+### `authoring_matrix.py` disagrees, and why it loses
+
+The matrix files `set_lod` under `data` and `set_phase` under `lifecycle`. That is a real
+disagreement with this grouping and is recorded rather than elided. It loses because **the matrix
+categorises by the IFC output each recipe writes** — an LOD stage tag against
+`Massing_Phasing.Status`. Different property sets, same question.
+
+*That is (89)'s "storage is a HOW" trap: "they write different psets" has the same shape as "they are
+all module records", and neither is a question.* The matrix has been a good witness three slices
+running; this is the first time it has been the losing vote, which is the reason to say so plainly
+rather than quietly not mentioning it.
+
+### It meets (94)'s objection rather than overriding it
+
+(94) declined `setPhase` because taking the writer would have stranded `phasing()` in `client.ts` —
+the reader/writer split (87) had to undo. Both halves move together here, so nothing is separated.
+
+*Not contiguous: the pairs sat at 271–279 and 293–301 with `ensureContexts` and `queryElements`
+between them. (88) recorded that as the strongest case for grouping by what methods answer, since no
+prefix or positional split would ever find them together.*
+
+Pin 727 → 711. **76 above the banner, still no map.**
+
 
 
 
