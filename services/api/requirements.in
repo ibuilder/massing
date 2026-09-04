@@ -36,7 +36,7 @@ openpyxl>=3.1
 numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pip-compile reads
                           # only this file, so a floor raised only there cannot move the lock
 ifctester>=0.8
-trimesh>=5.0.0
+trimesh>=5.1.0
 manifold3d>=3.5.2
 scipy>=1.18.1
 # DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,
