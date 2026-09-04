@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(87) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(the cell named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3091,7 +3091,9 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   double-circled range ⓵–⓾ is now EXHAUSTED, and the item code here
   carries no mark for the same reason — `roadmapLanes.test.ts` parses the mark against `MARKS`,
   so writing one it does not know would drop this item out of the lane population entirely.
-  **`client.ts` is 953 lines.** The RACI banner is dealt with — it covered 13 methods and
+  **`client.ts` is 746 lines.** *(This read 953 until (91) — it was last refreshed at (89) and
+  three slices went past it. A present-tense number in prose decays every time the thing it counts
+  changes; `services/api/test_file_sizes.py` is the one that cannot.)* The RACI banner is dealt with — it covered 13 methods and
   described 4; the five model-quality audits went to `model.ts`, `namingAudit` to
   `documents.ts` beside its `namingConventions` pair, and the three remaining non-RACI methods
   (`mcpTools`, `handoverAcceptance`, `inspectVim`) are now under an explicit UNFILED header
@@ -3133,7 +3135,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88), (89) and (90) took twenty-five of those 126 — 101 remain, and there is STILL no map.** A new
+  **(88)–(91) took thirty-eight of those 126 — 88 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
@@ -3143,7 +3145,8 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   *Three declined on the words: `lifecycle`/`lifecycleSeed` are DESIGN lifecycle (RIBA/AIA stage
   gates and soft costs), `projectCarbon` is EMBODIED carbon against `esgSummary`'s metered GHG, and
   `camReconciliation` shared `reserveStudy`'s banner and backend router but allocates recoverable
-  opex across TENANTS — a lease answer, held for a rent-roll slice.*
+  opex across TENANTS — a lease answer, held for a rent-roll slice.* **(91) WAS that slice and did
+  not take it; see below.**
   **And (87)'s own banner had already drifted**: it cited `esgSummary` as an example of work still
   above the line, which (88) moved. Corrected, and it now instructs the reader to re-derive rather
   than to read it.
@@ -3156,6 +3159,64 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   rows ARE module records and that CRUD lives there — but storage is a HOW, the same trap as (85)'s
   "they are all multipart uploads".* And the resilience banner named two of the four beneath it, the
   sixth over-claiming banner in this sequence.
+
+  **(90) added `apps/web/src/api/clientPortal.ts`** — *how does someone with no account see this
+  project, and answer back?* Eight methods: the owner half mints, lists and revokes share tokens and
+  reads what came back; the recipient half is the token-authenticated public surface. The token is
+  the seam — minted on one side, the credential on the other, revoked closes both. Its extraction
+  script had a real bug that `apps/web/src/api/docComments.test.ts` caught and an orphan check
+  written beside the slice did not: **a check written while looking at the code you just wrote
+  inherits its blind spot.**
+
+  **(91) added `apps/web/src/api/creDeal.ts` — thirteen methods, and the first slice in this
+  sequence with THREE independent corroborations that agreed.** The R20 CRE deal desk: *should we
+  transact on this income property, and on what terms?* Verify the seller's numbers (`normalizeT12`,
+  `rentRollScrub`, `netEffectiveRent`, `tieredComps`, `competitiveSupply`), decide (`holdSell`,
+  `decisionGate`), set the terms (`clausePlaybook` + `reviewContractClauses`, `loanCovenants`,
+  `dealAuthority` and the two save halves).
+  1. **The source marks them.** Ten `CRE-` codes — and grepping `apps/web/src` showed those eleven
+     occurrences are the only ones in the entire web tree, all of them in `client.ts`.
+  2. **A 1:1 router match.** Every route these thirteen call — eleven distinct paths, since the
+     playbook and the authority table each have a read and a write half on one path — is served by
+     `services/api/src/aec_api/routers/realestate.py` and by no other router, and its ten `(R20)`
+     docstrings name the same ten codes.
+  3. **One question runs through all thirteen.**
+
+  *A marker alone would not have been enough — four shared-word traps (entitlements, view, carbon,
+  lifecycle) are exactly why `CRE-` counts as one vote of three and the router match carries the
+  weight.*
+
+  **A fourth corroboration turned up after the slice was committed**, and is recorded as such rather
+  than folded into the three: the backend suite partitions the same thirteen across
+  `test_cre_deal_desk`, `test_cre_governance`, `test_cre_tier3` and `test_net_effective` — all
+  eleven paths, with no `test_cre_*` file reaching outside the set. *Test-file names are a grouping
+  somebody else authored, which is the kind of source (87) argued to prefer, and it was not on the
+  list of places this slice thought to look.*
+
+  **The boundary that decides `rent-roll`.** `apps/web/src/api/proforma.ts` already holds
+  `GET /projects/{pid}/rent-roll`, and two of these sit directly beneath it on `/rent-roll/scrub`
+  and `/rent-roll/net-effective`, so a prefix split would have taken all three. The backend states
+  the boundary: the plain rent roll carries no `CRE-` code and no `(R20)`, and its docstring calls
+  it the operating rent roll "from the `lease` module (**the hold phase**)", while these two POST a
+  body of figures the counterparty supplied. *What are we earning* and *is their number true* are
+  different questions that happen to share a prefix.
+
+  **And (88)'s forecast about `camReconciliation` was TESTED rather than executed, and it lost.**
+  (88) left it with a note saying it "goes with `rentRollScrub`, `netEffectiveRent` and
+  `normalizeT12` … when a rent-roll slice takes them". (91) is that slice; it took all three and
+  left `camReconciliation` behind, because all three signals point the other way — no `CRE-` code,
+  no `(R20)`, and `/projects/{pid}/cam/reconciliation` is served by `operations.py`. A CAM true-up
+  bills a **completed operating year** to sitting tenants; the three it was predicted to join test a
+  counterparty's figures *before* a purchase. **A placement forecast written by one slice is a
+  hypothesis for the next slice to test, not an instruction to carry out** — phrased as a plan
+  ("it goes with X when Y") it reads as settled and invites the next reader to execute it without
+  re-deriving anything, which is how a guess becomes a fact. The note at the method now records what
+  was measured instead.
+
+  **The STAYING banner cited a departed method for the second time.** `rentRollScrub` was in its
+  example list until this slice moved it (`esgSummary` was the first, caught by (88)). (89) had
+  audited those seven names and found none had moved — *which is why they survived to be wrong now:
+  a list that passes one audit is not thereby safe for the next slice.*
 
   **The gate that was meant to notice this could not.** `test_roadmap_status.py` held SCALE-SEAM
   open on `client.ts > 1200` — a threshold proxy, which decayed and went red at (85) when the

@@ -872,6 +872,88 @@ failure that file's own header calls worse than no gate at all.
 *Fixing a scope leaves residue in every document that described the old one, and the ruff line had
 been stale in two of them for a day without anything noticing.*
 
+Thirtieth follow-on on the same version: **SCALE-SEAM (91)** — *three corroborations that agreed, and
+a forecast that was tested instead of executed*.
+
+Thirteen methods out of `client.ts` (`867 → 746`) into a new `apps/web/src/api/creDeal.ts`, lifted as
+one contiguous run. No behaviour change: a mixin, so every call site resolves unchanged.
+
+**What they answer: should we transact on this income property, and on what terms?** Verify the
+seller's numbers (`normalizeT12` — the tie-out is a gate, not a report; `rentRollScrub` — a check
+without its inputs reports not-run, never a pass; `netEffectiveRent`; `tieredComps` — a band reports
+the weakest tier it rests on; `competitiveSupply`), decide (`holdSell`, `decisionGate`), and set the
+terms (`clausePlaybook` + `reviewContractClauses`, `loanCovenants`, `dealAuthority`, plus the two
+save halves). Diligence, decision, terms — one transaction.
+
+### Three signals, derived independently, and they agreed
+
+1. **The source marks them itself.** Ten `CRE-` codes sit in these doc comments — `CRE-HOLDSELL`,
+   `CRE-CLAUSE` (twice), `CRE-COVENANT`, `CRE-AUTHORITY`, `CRE-SUPPLY`, `CRE-DECISION-GATE`,
+   `CRE-COMP-TIER`, `CRE-T12`, `CRE-RRSCRUB`, `CRE-NER`. Grepped across the whole of `apps/web/src`:
+   those eleven occurrences are the **only** ones in the web tree, and every one was in `client.ts`.
+2. **A 1:1 router match.** Every route these thirteen call — eleven distinct paths, since the
+   playbook and the authority table each have a read and a write half on one path — is served by
+   `services/api/src/aec_api/routers/realestate.py` and by no other router; its ten `(R20)`
+   docstrings name the same ten codes. Checked by pairing each `@router.` line with the `def`
+   beneath it, not by reading the file top to bottom.
+3. **One question runs through all thirteen.**
+
+*A marker alone would not have been enough.* This sequence has been trapped four times by a shared
+word — entitlements, view, carbon, lifecycle — so `CRE-` counts as **one vote of three**, and the
+router match is what carries the weight.
+
+### A fourth corroboration, found by accident and recorded as such
+
+The backend suite names this family too, and it partitions the same thirteen: `test_cre_deal_desk`
+(comps/tiered, rent-roll/scrub, t12/normalize), `test_cre_governance` (deal-room/authority,
+decision-gate, loan/covenants, supply/competitive), `test_cre_tier3` (contracts/playbook,
+contracts/review, hold-sell) and `test_net_effective` (rent-roll/net-effective) — all eleven paths,
+and no `test_cre_*` file reaches a route outside the set. *Caveats, because this arrived late and is
+the kind of evidence it is tempting to round up:* `test_cre_tier3` also exercises `/reports/ic`,
+which is not here, and `test_net_effective` sets up through `/rent-roll` and `/modules/lease`, which
+live elsewhere — a test may use a neighbour as a fixture without that neighbour joining the cluster.
+
+It was noticed only because those two test names scrolled past in the suite output **after the slice
+was committed**. Test-file names are a grouping somebody else authored, which is precisely the kind
+of source (87) argued to prefer — *and it was not on the list of places this slice thought to look.*
+Recorded as a fourth signal rather than folded into the three, so the derivation stays honest about
+when each piece arrived.
+
+### The boundary that decides `rent-roll`
+
+`apps/web/src/api/proforma.ts` already holds `GET /projects/{pid}/rent-roll`, and two of these sit
+directly beneath it on `/rent-roll/scrub` and `/rent-roll/net-effective`. A route-prefix split takes
+all three; the boundary is what they answer, and **the backend states it**. The plain rent roll
+carries no `CRE-` code and no `(R20)`, and its own docstring calls it the operating rent roll "from
+the `lease` module (**the hold phase**)" — while these two POST a body of figures somebody else
+supplied and report whether they survive scrutiny. *What are we earning* and *is their number true*
+are different questions that happen to share a prefix.
+
+### A forecast from (88) was checked, and it did not hold
+
+(88) left `camReconciliation` in `client.ts` with a note saying it "goes with `rentRollScrub`,
+`netEffectiveRent` and `normalizeT12`, still below, **when a rent-roll slice takes them**". This is
+that slice. It took all three and **left `camReconciliation` where it was**, because every signal
+points the other way: no `CRE-` code, no `(R20)`, and `/projects/{pid}/cam/reconciliation` is served
+by `operations.py`, not `realestate.py`. Reading it settles it — a CAM true-up bills a **completed
+operating year** to sitting tenants, which is running the asset, not buying it.
+
+**A placement forecast written by one slice is a hypothesis for the next slice to test, not an
+instruction to carry out.** Phrased as a plan — *"it goes with X when Y"* — it reads as settled and
+invites the next reader to execute it without re-deriving anything, which is how a guess becomes a
+fact in a file nobody re-checks. The note at that method now records what was measured, and the
+roadmap entry that repeated the forecast is corrected too.
+
+### The banner cited a departed method for the second time
+
+`rentRollScrub` was in the STAYING banner's example list until this slice moved it — the same defect
+(88) caught with `esgSummary`: a banner offering, as evidence of unfinished work, a method that has
+left. (89) audited those seven names and found none had moved, *which is why they survived to be
+wrong now — a list that passes one audit is not thereby safe for the next slice.* The roadmap's own
+`client.ts is 953 lines` was three slices stale for the same reason and is corrected to 746.
+
+Pin 867 → 746. **88 above the banner, still no map.**
+
 
 
 

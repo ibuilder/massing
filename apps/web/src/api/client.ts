@@ -15,6 +15,7 @@ import { withAi } from "./ai";
 import { withEvm } from "./evm";
 import { withOperations } from "./operations";
 import { withClientPortal } from "./clientPortal";
+import { withCreDeal } from "./creDeal";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
 import { withCodeCheck } from "./codecheck"; import { withDealMemory } from "./dealMemory";
@@ -67,7 +68,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -500,152 +501,6 @@ export class ApiClient extends withClientPortal(withResilience(withResponsibilit
     return this.json<{ dry_run: boolean; changed: number; rules: { from: string; to: string; matched: number; cast: string; keep_source: boolean; samples: { guid: string; from: string; to: string }[] }[] }>(
       `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
   }
-
-  /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
-  holdSell(pid: string, inputs: unknown, hurdleRate = 0.12, maxYears = 10) {
-    return this.json<{ computable: boolean; reason?: string;
-      sell_now: { gross_sale: number; selling_costs: number; loan_payoff: number;
-        net_proceeds: number; exit_cap: number };
-      hurdle_rate: number; assumptions: Record<string, number>;
-      years: { hold_years: number; exit_cap: number; noi_at_exit: number;
-        net_proceeds_at_exit: number; incremental_irr: number | null; beats_hurdle: boolean }[];
-      breakeven_hold_years: number | null; recommendation: "hold" | "sell";
-      best_year: unknown; note: string }>(
-      `/projects/${pid}/hold-sell`,
-      { method: "POST", body: JSON.stringify({ inputs, hurdle_rate: hurdleRate,
-                                               max_years: maxYears }) });
-  }
-  /** CRE-CLAUSE — the clause-position playbook (a clause with no red line is not a standard). */
-  clausePlaybook(pid: string) {
-    return this.json<{ playbook: Record<string, { clause: string; severity: string; accept: string;
-      negotiate: string; refuse: string; fallback: string }[]>;
-      starter: unknown[]; positions: string[] }>(`/projects/${pid}/contracts/playbook`);
-  }
-  saveClausePlaybook(pid: string, playbook: unknown) {
-    return this.json<{ playbook: unknown }>(`/projects/${pid}/contracts/playbook`,
-      { method: "PUT", body: JSON.stringify({ playbook }) });
-  }
-  /** CRE-CLAUSE — record a review against the PLAYBOOK (distinct from the AI `reviewContract`
-   *  above: this one takes findings a human already made and scores them against the standard).
-   *  Unreviewed playbook clauses come back as open risk. */
-  reviewContractClauses(pid: string, contractType: string, findings: unknown[], document = "") {
-    return this.json<{ verdict: string; document: string | null; reason?: string;
-      available_types?: string[];
-      clauses: { clause: string; severity: string; position: string; deviation: boolean;
-        note: string | null; reference: string | null; red_line: string }[];
-      deviations: unknown[]; negotiable: unknown[];
-      not_reviewed: { clause: string; severity: string }[]; unknown_clauses: string[];
-      counts: Record<string, number>; note: string }>(
-      `/projects/${pid}/contracts/review`,
-      { method: "POST", body: JSON.stringify({ contract_type: contractType, findings, document }) });
-  }
-  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start). */
-  loanCovenants(pid: string, loan: unknown, actuals?: Record<string, number>) {
-    return this.json<{ loan: { name: string; lender: string }; at_risk: boolean;
-      summary: Record<string, number>;
-      reporting: { obligations: { name: string; computable: boolean; due_date?: string;
-        day_basis?: string; clock_start?: string; anchor_source?: string; status?: string;
-        risk?: string; days_remaining?: number; clock_start_matters?: boolean;
-        alternate_reading?: { due_date: string; days_difference: number; warning: string } }[];
-        upcoming: unknown[]; overdue: unknown[]; not_computable: { name: string; reason: string }[];
-        counts: Record<string, number> };
-      financial: { covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
-        headroom?: number; cure_ends?: string | null; reason?: string }[];
-        untested: { name: string; reason: string }[]; counts: Record<string, number>;
-        clean: boolean } }>(
-      `/projects/${pid}/loan/covenants`,
-      { method: "POST", body: JSON.stringify({ loan, actuals }) });
-  }
-  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis. */
-  dealAuthority(pid: string) {
-    return this.json<{ table: { fact_type: string; label: string; document: string; as_of: string;
-      age_days: number | null; freshness_days: number; fresh: boolean; required: boolean }[];
-      missing: { fact_type: string; label: string }[];
-      stale: { fact_type: string; days_over: number }[];
-      superseded_still_active: { fact_type: string; document: string; issue: string }[];
-      gate: { passes: boolean; blocking: { fact_type: string; why: string }[]; advisory: unknown[] };
-      counts: Record<string, number>; note: string }>(`/projects/${pid}/deal-room/authority`);
-  }
-  saveDealAuthority(pid: string, entries: unknown[]) {
-    return this.json<{ entries: unknown[]; assessment: { gate: { passes: boolean } } }>(
-      `/projects/${pid}/deal-room/authority`,
-      { method: "PUT", body: JSON.stringify({ entries }) });
-  }
-  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label. */
-  competitiveSupply(pid: string, body: { projects: unknown[]; window_start?: string;
-                                         window_end?: string; product_type?: string;
-                                         monthly_absorption?: number }) {
-    return this.json<Record<string, unknown>>(
-      `/projects/${pid}/supply/competitive`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** CRE-DECISION-GATE — the pre-committee gate; a gate without evidence is unknown, and blocks. */
-  decisionGate(pid: string, evidence: unknown, requiredExhibits?: string[], minCoverage?: number) {
-    return this.json<{ verdict: "ready" | "blocked"; ready: boolean;
-      gates: { gate: string; label: string; status: "pass" | "fail" | "unknown"; detail: string;
-        action: string }[];
-      blocking: { gate: string; status: string; detail: string }[];
-      actions: { gate: string; action: string }[];
-      counts: Record<string, number>; note: string }>(
-      `/projects/${pid}/decision-gate`,
-      { method: "POST", body: JSON.stringify({ evidence, required_exhibits: requiredExhibits,
-                                               min_coverage: minCoverage ?? 0.9 }) });
-  }
-  /** CRE-COMP-TIER — comps ranked by source tier; bands report the weakest tier they rest on. */
-  tieredComps(pid: string, field = "price_psf") {
-    return this.json<{ comp_count: number; conflict_count: number;
-      comps: { tier: string; label: string; rank: number; address: string; source: string;
-        price_psf: number | null; cap_rate: number | null }[];
-      conflicts: { address: string; kept_tier: string;
-        outranked: { tier: string; source: string }[];
-        value_deltas: { field: string; kept: number; outranked: number }[] }[];
-      statistics: Record<string, { n: number; median: number | null; p25?: number; p75?: number;
-        worst_tier: string | null; worst_tier_label?: string; best_tier?: string;
-        tier_counts?: Record<string, number>; unattributed?: number; note?: string }>;
-      note: string }>(`/projects/${pid}/comps/tiered?field=${encodeURIComponent(field)}`);
-  }
-  /** CRE-T12 — normalize a trailing-twelve to the house chart; the tie-out is a GATE, not a report. */
-  normalizeT12(pid: string, t12: unknown, units?: number) {
-    return this.json<{ line_count: number; source_totals: Record<string, number>;
-      mapped_totals: Record<string, number>;
-      tie_out: { reconciles: boolean; deltas: Record<string, number>; tolerance: number };
-      stopped?: boolean; adjusted_noi: number | null;
-      reconciling_items?: { issue: string; description?: string; amount?: number }[];
-      unmapped_count: number; unmapped: { description: string; amount: number }[];
-      one_time_items?: { description: string; amount: number; kind: string }[];
-      capital_items?: { description: string; amount: number }[];
-      by_category?: { category: string; label: string; amount: number; run_rate: number }[];
-      run_rate_vs_trailing?: { category: string; trailing: number; run_rate: number; delta: number }[];
-      add_back_questions?: { check: string; severity: string; finding: string; question: string }[];
-      note: string }>(
-      `/projects/${pid}/t12/normalize`, { method: "POST", body: JSON.stringify({ t12, units }) });
-  }
-  /** CRE-RRSCRUB — rent roll vs income; a check without its inputs reports not-run, never a pass. */
-  rentRollScrub(pid: string, income?: unknown, units?: unknown[]) {
-    return this.json<{ lease_count: number; excluded_not_active: number; clean: boolean;
-      counts: { total: number; ran: number; not_applicable: number; passed: number; failed: number };
-      checks: { check: string; applicable: boolean; passed?: boolean; severity?: string;
-        finding: string; needs?: string }[];
-      findings: { check: string; severity: string; finding: string }[];
-      coverage_note: string }>(
-      `/projects/${pid}/rent-roll/scrub`, { method: "POST", body: JSON.stringify({ income, units }) });
-  }
-  /** CRE-NER — net effective rent: the rent roll after concessions (straight-line + discounted). */
-  netEffectiveRent(pid: string, opts: { discountRate?: number; lcPct?: number } = {}) {
-    const q = new URLSearchParams();
-    if (opts.discountRate !== undefined) q.set("discount_rate", String(opts.discountRate));
-    if (opts.lcPct !== undefined) q.set("lc_pct", String(opts.lcPct));
-    const qs = q.toString();
-    return this.json<{ lease_count: number; skipped_count: number; excluded_not_active: number;
-      face_gpr_annual: number; ner_gpr_annual_discounted: number;
-      ner_gpr_annual_straight_line: number; concession_total_term: number;
-      concession_load_pct: number; face_to_ner_delta_annual: number;
-      face_to_ner_delta_pct: number; lc_included: boolean; discount_rate: number;
-      skipped: { tenant: string; suite: string; reason: string }[];
-      leases: { tenant: string; suite: string; face_rent_annual: number;
-        ner_annual_discounted: number; ner_psf_discounted: number | null;
-        concession_load_pct: number }[]; note: string }>(
-      `/projects/${pid}/rent-roll/net-effective${qs ? `?${qs}` : ""}`);
-  }
   /** ENERGY phase 1 — the thermal model extracted from the IFC (zones · surfaces · constructions). */
   energyModel(pid: string) {
     return this.json<{ zone_source: string;
@@ -790,8 +645,21 @@ export class ApiClient extends withClientPortal(withResilience(withResponsibilit
   // Shared a banner with `reserveStudy` ("hold-phase asset management") until SCALE-SEAM (88).
   // That slice took the condition-and-capital half to `operations.ts` and left this behind: it
   // allocates the recoverable pool ACROSS TENANTS by share and returns `balance_due` per suite,
-  // which is a lease answer, not a building-condition one. It goes with `rentRollScrub`,
-  // `netEffectiveRent` and `normalizeT12`, still below, when a rent-roll slice takes them.
+  // which is a lease answer, not a building-condition one.
+  //
+  // **The rest of that note was a FORECAST, and SCALE-SEAM (91) checked it and it did not hold.**
+  // It said this method "goes with `rentRollScrub`, `netEffectiveRent` and `normalizeT12`, still
+  // below, when a rent-roll slice takes them". (91) is that slice — it took all three to
+  // `creDeal.ts` — and left this one here, because all three signals it derived point the other
+  // way: no `CRE-` code on this doc comment, no `(R20)` on the handler, and
+  // `/projects/{pid}/cam/reconciliation` is served by `operations.py`, not by the `realestate.py`
+  // that serves every method (91) took. A CAM true-up bills a COMPLETED OPERATING YEAR to sitting
+  // tenants; the three it was predicted to join test a counterparty's figures before a purchase.
+  //
+  // So this stays, still unfiled, and the correction is the point: **a placement forecast is a
+  // hypothesis for the next slice to test, not an instruction to carry out.** Phrased as a plan
+  // ("it goes with X when Y"), it reads as settled and invites the next reader to execute it
+  // without re-deriving anything — which is how a guess becomes a fact in this file.
   camReconciliation(pid: string, opts: { year?: number; grossUpToPct?: number; buildingSf?: number } = {}) {
     const q = new URLSearchParams();
     if (opts.year) q.set("year", String(opts.year));
@@ -814,8 +682,8 @@ export class ApiClient extends withClientPortal(withResilience(withResponsibilit
   // through (87) worked through, and they are recorded here as DECIDED rather than pending.
   //
   // **THIS IS NOT THE END OF SCALE-SEAM, and a previous version of this banner implied it was.**
-  // 101 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
-  // `energyModel`, `rentRollScrub`, `camReconciliation` and the rest. They were never inside the
+  // 88 methods still sit ABOVE this line — `disciplineTree`, `classify`, `specManual`, `editUndo`,
+  // `energyModel`, `propmapPlan`, `camReconciliation` and the rest. They were never inside the
   // CX-1 banner, so no map has ever covered them. The UNFILED map described the TAIL of this file,
   // not the file.
   //
@@ -838,6 +706,17 @@ export class ApiClient extends withClientPortal(withResilience(withResponsibilit
   // extractor swallowed the next doc comment after any ONE-LINE method; `docComments.test.ts` caught
   // that, while an orphan check written beside the slice passed — it allowed a comment to follow a
   // comment, which is the defect itself.
+  //
+  // (91) took thirteen to `creDeal.ts`, leaving 88, still unmapped — the R20 CRE deal desk, chosen
+  // on three signals that were DERIVED and agreed: ten `CRE-` codes that occur nowhere else in
+  // `apps/web/src`, a 1:1 match to `realestate.py` and to no other router, and one question
+  // (diligence, decision, terms) running through all thirteen. It also tested (88)'s forecast about
+  // `camReconciliation` instead of executing it, and the forecast lost; see the note at that method.
+  // **`rentRollScrub` was named in the example list above until this slice moved it** — the second
+  // time this banner has cited, as evidence of unfinished work, a method that had already left
+  // (`esgSummary` was the first, caught by (88)). (89) checked its seven names and none had moved,
+  // which is why they survived to be wrong now: a list that passes one audit is not thereby safe
+  // for the next slice. Re-derive from the file.
   //
   //   the four that stay        enumOptions, searchAll, attachmentUrl, templates
   enumOptions(pid: string) {
