@@ -34,6 +34,7 @@ import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
 import { withCounterpartyRisk } from "./counterpartyRisk";
+import { withAcceptanceGates } from "./acceptanceGates";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
@@ -66,13 +67,13 @@ import type {
   DisciplineTree, ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief,
+    MasterBuilderBrief,
     SpineTraceability } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -216,14 +217,6 @@ export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDe
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
-  /** PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a model). */
-  permitReadiness(pid: string) {
-    return this.json<{
-      verdict: string; readiness_pct: number; approvability_score: number;
-      checklist: { requirement: string; satisfied: boolean; evidence: string }[];
-      deficiencies: { item: string; severity: string; action: string }[];
-    }>(`/projects/${pid}/permit/readiness`);
-  }
 
 
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
@@ -328,9 +321,6 @@ export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDe
       mean_deviation: number; max_deviation: number; p95_deviation: number;
       histogram: { band: string; count: number }[]; note: string }>;
   }
-  validate(pid: string) {
-    return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);
-  }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
   propmapDetect(pid: string) {
@@ -395,9 +385,6 @@ export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDe
     return this.json<{ seeded: boolean; phases?: number; reason?: string }>(
       `/projects/${pid}/lifecycle/seed`, { method: "POST" });
   }
-  diligenceReadiness(pid: string) {
-    return this.json<DiligenceReadiness>(`/projects/${pid}/diligence/readiness`);
-  }
 
 
 
@@ -419,18 +406,21 @@ export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDe
   }
 
 
-  // --- UNFILED: three methods that the RACI banner above used to cover -----------------
+  // --- UNFILED: two methods that the RACI banner above used to cover -------------------
   // Named rather than left implicit, because a banner that over-claims is how the previous
-  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `handoverAcceptance`
-  // is `/handover/acceptance`; `inspectVim` is `/convert/vim/inspect`. None is RACI, and each
-  // needs its home decided by what it ANSWERS rather than by what it sits next to.
+  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `inspectVim` is
+  // `/convert/vim/inspect`. Neither is RACI, and each still needs its home decided by what it
+  // ANSWERS rather than by what it sits next to.
+  //
+  // This note said THREE until SCALE-SEAM (103). `handoverAcceptance` was the third, and it is
+  // the note working as intended: it was parked here with the instruction to file it by what it
+  // answers, and (103) answered that — an owner's turnover gate, which is the same question as
+  // the AHJ's, the investor's and the IDS checker's. `acceptanceGates.ts` has it now. **Narrowed
+  // rather than deleted**, because the other two are still genuinely unfiled and a note that
+  // silently loses entries is how the earlier slices lost methods in the first place.
   mcpTools() {
     return this.json<{ tools: { name: string; description: string }[]; server: string; note: string }>(
       `/mcp/tools`);
-  }
-  handoverAcceptance(pid: string) {
-    return this.json<{ accepted: boolean; checks: { key: string; label: string; ok: boolean }[];
-      metrics: Record<string, number>; note: string }>(`/projects/${pid}/handover/acceptance`);
   }
 
   async inspectVim(file: File) {
@@ -580,10 +570,3 @@ export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDe
   }
 }
 
-
-export interface ValidationResult {
-  title: string;
-  status: "pass" | "fail";
-  summary: { specifications: number; passed: number; failed: number };
-  specifications: { name: string; status: "pass" | "fail"; applicable: number; passed: number; failed: number; failed_guids: string[] }[];
-}

@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — SCALE-SEAM (103): acceptance gates
+
+Extracts `permitReadiness`, `diligenceReadiness`, `handoverAcceptance` and `validate` from
+`client.ts` (**589 → 572**) into `apps/web/src/api/acceptanceGates.ts` — *will an outside party
+accept this project, and what is blocking it.*
+
+**Neither the route nor the audience produces this grouping.** The four routes are
+`/permit/readiness`, `/diligence/readiness`, `/handover/acceptance` and `/validate` — four different
+prefixes, so a prefix grouping takes one each and the set never forms; the shared leaf word
+"readiness" reaches only two of the four. The deciding parties are an AHJ, an investor, an owner and
+an IDS checker — four different audiences, so grouping by reader fails too. What forms it is the
+**shape of the return**: each collapses the whole project to a single accept/refuse verdict
+(`verdict` / `go` / `accepted` / `status: "pass" | "fail"`) and then enumerates what withholds it.
+
+(102) was carried by a prefix that actively *disagreed* with the seam; this one by a vocabulary that
+says nothing at all — **four names sharing no words can still be one question**. That is the inverse
+of the error (85), (89) and `annotate.ts` each recorded, where a shared mechanism looked like a
+shared question.
+
+**The two exclusions did the work.** `spineTraceability` is the closest miss — same domain,
+adjacent in the file, equally project-scoped — and returns `coverage`/`gaps`/`chain` with **no
+verdict field at all**: it maps completeness for a human rather than deciding acceptance.
+`editPrecheck` *does* return a verdict, but judges a **pending action** ("may I run this recipe with
+these params"), is remedied by changing the parameters you are about to submit, and sits beside
+`addCurtainWall` as the precheck for `editIfc`.
+
+**One false positive is worth recording.** A scan for verdict-shaped returns also flagged
+`collabSnapshot` — but the match came from the doc comment introducing `permitReadiness`, the *next*
+method. A method-body splitter that runs to the next header swallows the comment belonging to that
+header, so the population silently inherits its neighbour's vocabulary; a count of six looked
+entirely checked. Only reading each candidate caught it.
+
+Also files `handoverAcceptance`, which an earlier slice had parked under an explicit "UNFILED" note
+asking for it to be placed *by what it answers rather than by what it sits next to*. That note is
+**narrowed to two entries, not deleted** — the other two are still genuinely unfiled, and a note
+that silently loses entries is how earlier slices lost methods.
+
 ## Unreleased — review fixes, and a gate for the number that keeps drifting
 
 **Four review findings on the same pull request, and the second one was self-referential.** The PR
