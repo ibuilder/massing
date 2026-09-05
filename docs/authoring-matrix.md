@@ -4,7 +4,7 @@
 
 **96 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, and the Reach column says which: `cad+ai` — dispatchable from the CAD command line and the AI planner (12 of 96, the curated `nlauthor.RECIPE_SPECS`); `ui` — invoked by a tool panel, a router or MCP; `superseded` — nothing calls it and nothing should, a reachable recipe authors the same result; `none` — the engine can run it and no surface asks it to.
 
-> ⚠ **6 recipes are reachable from no surface**: `add_connection_assembly`, `convert_length_unit`, `derive_representations`, `program_fit`, `rebase_origin`, `reset_prop_to_type`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
+> ⚠ **12 recipes are reachable from no surface**: `add_connection_assembly`, `batch_tag`, `convert_length_unit`, `derive_representations`, `place_type`, `program_fit`, `purge_empty_groups`, `purge_orphan_psets`, `rebase_origin`, `reset_prop_to_type`, `resolve_wall_joins`, `set_spec_link`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
 
 > **Superseded** — uncalled, and correctly so: `add_sprinkler` → `add_fire_equipment`. A reachable recipe authors the identical result, so these are duplicate spellings rather than gaps. The equivalence is asserted in `services/api/test_recipe_reach.py`, so an entry stops being true if the two recipes stop agreeing.
 
@@ -97,7 +97,7 @@
 | `execute_ifc_code` | sandboxed ifcopenshell escape hatch | ui |
 | `move_element` | translate | ui |
 | `rename_storey` | rename level | ui |
-| `resolve_wall_joins` | butt-join L/T wall joins | ui |
+| `resolve_wall_joins` | butt-join L/T wall joins | none |
 | `rotate_element` | rotate | ui |
 | `set_extrusion_depth` | push/pull an extrusion depth | ui |
 | `set_profile_dims` | resize an extruded profile in place | ui |
@@ -119,7 +119,7 @@
 | --- | --- | --- |
 | `create_type` | IfcTypeProduct | ui |
 | `edit_type_params` | edit type parameters | ui |
-| `place_type` | type occurrence | ui |
+| `place_type` | type occurrence | none |
 
 ### group (5)
 
@@ -140,7 +140,7 @@
 | `assign_material_set` | IfcMaterialLayerSet | ui |
 | `attach_document` | IfcRelAssociatesDocument | ui |
 | `attach_om_document` | O&M document ref | ui |
-| `batch_tag` | AEC_Tags label | ui |
+| `batch_tag` | AEC_Tags label | none |
 | `classify` | IfcClassificationReference | ui |
 | `derive_representations` | coarse Box/Axis/FootPrint views | none |
 | `ensure_contexts` | representation contexts | ui |
@@ -152,7 +152,7 @@
 | `set_manufacturer_info` | manufacturer psets | ui |
 | `set_props_by_guid` | Pset batch (XLSX round-trip) | ui |
 | `set_pset` | Pset property | ui |
-| `set_spec_link` | Pset_Massing_SpecLink breadcrumb | ui |
+| `set_spec_link` | Pset_Massing_SpecLink breadcrumb | none |
 
 ### lifecycle (3)
 
@@ -175,7 +175,7 @@
 | Recipe | Produces | Reach |
 | --- | --- | --- |
 | `convert_length_unit` | convert the project length unit | none |
-| `purge_empty_groups` | purge empty groups | ui |
-| `purge_orphan_psets` | purge orphaned property sets | ui |
+| `purge_empty_groups` | purge empty groups | none |
+| `purge_orphan_psets` | purge orphaned property sets | none |
 | `rebase_origin` | shift model origin (georeference-preserving) | none |
 

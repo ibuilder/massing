@@ -2987,6 +2987,32 @@ removed. Remaining, in priority order:
   the last step: **a button built, returned, destructured and never appended is invisible with every
   typecheck green**, which `envelopeSection.ts` records the annotation group shipping once already.
 
+  ✅ **DOCSTRING-REACH, shipped 2026-09-05 — the gate that named this class had committed it.**
+  `services/api/test_recipe_reach.py` strips `#`, `//` and `/* */` because *"a mention in a comment is
+  not a call"*. **A Python docstring is a string literal, not a comment**, so it survived — and SIX
+  recipes were counted as reachable on prose alone, every one a route *describing what to POST*:
+  `batch_tag` and `place_type` (`authoring.py`, echoed into the generated `schema.d.ts`),
+  `purge_orphan_psets` and `purge_empty_groups` (`authoring_docs.py`), `resolve_wall_joins`
+  (`analysis.py`), `set_spec_link` (`authoring_analysis.py`). `UNREACHED` **6 → 12**; nothing was
+  un-wired, the count was wrong.
+
+  *The principle was right and the implementation covered one of the two ways this tree writes prose.
+  DARK-RECIPES exists because a naive check counts its own documentation as usage, and then
+  under-counted by six for that exact reason one layer down — **nobody asked whether "comment" and
+  "prose" were the same set.*** Docstrings are blanked with `ast`, not a regex (a triple-quoted string
+  is not a regular language); an unparseable file is returned unchanged, because under-stripping
+  leaves a recipe looking *reachable*, the safe direction for a check asserting a gap.
+  `apps/web/src/api/schema.d.ts` joins `CATALOGS` — generated from those same docstrings, so counting
+  it is the registry-read-back-to-itself false positive fixed once already, in a second location.
+  **Mutated in BOTH directions**: a recipe named in a route docstring must not count (it does not),
+  and the same name as real code must (it does) — *a stripper that blanked too much would pass the
+  first and report the whole registry as dark.*
+
+  **Four of the six are the sprint's recurring shape — the diagnosis ships, the repair does not.**
+  `GET /projects/{pid}/model/maintenance` reports how many entities each cleanup *would* remove with
+  no way to remove them, and `analysis.py` detects L/T wall joins while naming a resolution nothing
+  can invoke. Recorded, not wired: where those controls belong is a product decision.
+
   ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
   CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were
   absent from the draft catalog entirely, so they were the only placeable things in the app that

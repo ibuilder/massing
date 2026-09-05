@@ -119,12 +119,20 @@ _MAP: dict[str, tuple[str, str]] = {
 # it stays internal for now, not a place to park work: the gate makes the decision visible.
 #
 #   add_connection_assembly  steel connection plate + bolts + IfcRelConnectsWithRealizingElements
+#   batch_tag                stamp a Pset value across many elements at once
 #   convert_length_unit      project length unit (mm/m/ft), rescaling so real size is unchanged
 #   derive_representations   coarse Box/Axis/FootPrint views derived from Body geometry
+#   place_type               place an occurrence of an existing IfcTypeObject
 #   program_fit              headcount program -> zoned + auto-furnished spaces
+#   purge_empty_groups       delete groups with no members — GET /model/maintenance reports what it
+#                            WOULD remove and offers no way to remove it
+#   purge_orphan_psets       delete property sets attached to nothing — same dry-run-only story
 #   rebase_origin            shift the model origin, preserving georeferencing
 #   reset_prop_to_type       drop an instance override so the type value shows through — the UI ships
 #                            `set_element_pset`, which is the OTHER half of that pair
+#   resolve_wall_joins       butt L/T wall joins — `analysis.py` DETECTS them and names this as the
+#                            resolution, which nothing can invoke
+#   set_spec_link            stamp the Pset_Massing_SpecLink breadcrumb
 #
 # Three of these — add_sprinkler, auto_connect_mep, set_system_predefined — were already found by
 # SCALE-SEAM (93) and recorded in a doc comment in `apps/web/src/api/mep.ts`: "referenced NOWHERE in
@@ -141,9 +149,21 @@ _MAP: dict[str, tuple[str, str]] = {
 # wall-hosted add_opening". *Two descriptions, written independently, both said a shipped tool had a
 # missing twin; neither was a check, so the asymmetry sat there.* It is now on the envelope section
 # beside the curtain wall.
+# DOCSTRING-REACH (2026-09-05) added SIX to this list without anything being un-wired, because the
+# gate had been counting a DOCSTRING as a caller. `test_recipe_reach.py` stripped `#`, `//` and
+# `/* */` on the principle that "a mention in a comment is not a call" — and a Python docstring is a
+# string literal, so it survived. Every one of the six was a ROUTE DESCRIBING what to POST:
+# `authoring.py` ("recipe: set_pset | batch_tag | place_type"), `authoring_docs.py` (a dry-run
+# maintenance report naming the cleanup recipes), `analysis.py` and `authoring_analysis.py`.
+#
+# *The principle was right and the implementation covered one of the two ways this tree writes
+# prose. A gate can state the correct rule and still measure the wrong set — which is the same shape
+# as the defect this whole file exists to catch, one level down.* Four of the six are a product gap
+# of a familiar kind: the DIAGNOSIS ships and the REPAIR does not.
 UNREACHED: frozenset[str] = frozenset({
-    "add_connection_assembly", "convert_length_unit", "derive_representations",
-    "program_fit", "rebase_origin", "reset_prop_to_type",
+    "add_connection_assembly", "batch_tag", "convert_length_unit", "derive_representations",
+    "place_type", "program_fit", "purge_empty_groups", "purge_orphan_psets", "rebase_origin",
+    "reset_prop_to_type", "resolve_wall_joins", "set_spec_link",
 })
 
 # Recipes that nothing invokes AND nothing should: a reachable recipe already authors the identical

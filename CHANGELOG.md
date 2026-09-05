@@ -4,6 +4,51 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the reachability gate counted a docstring as a caller
+
+`test_recipe_reach.py` strips `#`, `//` and `/* */` before deciding whether anything invokes a recipe,
+on the stated principle that **"a mention in a comment is not a call"**. That principle is right. Its
+implementation covered one of the two ways this tree writes prose: **a Python docstring is a string
+literal, not a comment**, so it survived stripping and counted as a caller.
+
+**Six recipes were reported as reachable on prose alone**, and every one was a route *describing what
+you could POST* rather than anything invoking it:
+
+| Recipe | Its only "caller" |
+|---|---|
+| `batch_tag`, `place_type` | `authoring.py` — *"Apply an authoring recipe (set_pset \| batch_tag \| place_type)"*, echoed into the **generated** `schema.d.ts` |
+| `purge_orphan_psets`, `purge_empty_groups` | `authoring_docs.py` — a **dry-run** report whose docstring says *"Run a recipe via `POST /edit`"* |
+| `resolve_wall_joins` | `analysis.py` — *"Resolution is the `resolve_wall_joins` edit recipe"* |
+| `set_spec_link` | `authoring_analysis.py` — *"links with the `set_spec_link` recipe"* |
+
+`UNREACHED` goes **6 → 12**. Nothing was un-wired; the count was wrong.
+
+**The gate that named this class committed it.** DARK-RECIPES was written because a naive reachability
+check counts its own documentation as usage — and then under-counted by six for exactly that reason,
+one layer down. *Stating the correct rule is not the same as implementing its full extent, and nobody
+asked whether "comment" and "prose" were the same set.* The `authoring_docs.py` case is the sharpest:
+a route that reports what a cleanup **would** remove, naming the recipe that applies it, and that
+naming was the only thing making the recipe look reachable. **A dry run is the opposite of a caller.**
+
+Docstrings are now blanked with `ast` rather than a regex — a triple-quoted string is not a regular
+language, and this file's whole subject is checks that look right and measure the wrong thing. An
+unparseable file is returned unchanged, because under-stripping leaves a recipe looking *reachable*,
+which is the safe direction for a check that asserts a gap.
+
+**`apps/web/src/api/schema.d.ts` joins `CATALOGS`.** It is generated from the OpenAPI schema, so its
+`@description` lines are the route docstrings a second time — counting it is the
+registry-read-back-to-itself false positive DARK-RECIPES already fixed once, in a second location.
+
+**Two mutations, in opposite directions, because one alone proves half of it.** Adding an `UNREACHED`
+recipe's name to a route docstring must NOT make it reachable (it does not); adding the same name as
+real code MUST (it does, and the recipe drops off the list). *A stripper that blanked too much would
+pass the first check and quietly report the whole registry as dark.*
+
+**Four of the six are a product gap of the shape this sprint keeps finding: the diagnosis ships and
+the repair does not.** `GET /model/maintenance` reports how many entities each cleanup would remove
+and offers no way to remove them; `analysis.py` detects L/T wall joins and names a resolution nothing
+can invoke. Recorded, not wired — where those controls belong is a product decision.
+
 ## Unreleased — you could put a window in a wall but not a skylight in a roof
 
 `add_roof_window` cuts a full-depth `IfcOpeningElement` through a host `IfcRoof` and fills it with an

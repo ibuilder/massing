@@ -33,6 +33,7 @@ of silently inflating a maturity claim.
 
 Run: PYTHONPATH=src ./.venv/bin/python test_recipe_reach.py
 """
+import ast
 import os
 import re
 import subprocess
@@ -52,6 +53,11 @@ CATALOGS = (
     "__pycache__",
     "docs/authoring-matrix.md",      # generated FROM the matrix
     "services/data/src/aec_data/",   # the engine: the definition and its dispatch table
+    # GENERATED from the OpenAPI schema, so its `@description` lines ARE the route docstrings a
+    # second time. Counting it is false positive (1) in a second location — the check reading a
+    # description of the registry and calling it a caller. It is the only generated file under
+    # `apps/web/src`, which is why it needs naming rather than a pattern.
+    "apps/web/src/api/schema.d.ts",
 )
 
 SEARCHED = (
@@ -61,8 +67,55 @@ SEARCHED = (
 )
 
 
-def _code(src: str) -> str:
-    """Source with comments removed — `//`, `/* */` and `#`.
+def _docstrings_blanked(src: str, path: str) -> str:
+    """Python source with every DOCSTRING body blanked out.
+
+    **A docstring is prose, exactly like a comment — but it is a string literal, so stripping
+    comments does not touch it.** `_code()` below removes `#`, `//` and `/* */` on the stated
+    principle that "a mention in a comment is not a call". That principle was right and its
+    implementation covered one of the two ways this codebase writes prose.
+
+    Six recipes were counted as reachable on a docstring alone, and every one was a route
+    describing what you could POST rather than a caller invoking it:
+
+      * `authoring.py` — "Apply an authoring recipe (set_pset | batch_tag | place_type)"
+      * `authoring_docs.py` — a DRY-RUN maintenance report whose docstring says "Run a recipe via
+        `POST /projects/&#123;pid&#125;/edit` with `recipe: purge_orphan_psets | purge_empty_groups`"
+      * `analysis.py` — "Resolution is the `resolve_wall_joins` edit recipe"
+      * `authoring_analysis.py` — "links with the `set_spec_link` recipe"
+
+    *The `authoring_docs.py` one is the sharpest: a route that reports what a cleanup WOULD remove,
+    naming the recipe that applies it, and the naming was the only thing making that recipe look
+    reachable. A dry run is the opposite of a caller.*
+
+    Parsed with `ast` rather than matched with a regex, because a triple-quoted string is not a
+    regular language and this file's whole subject is checks that look right and measure the wrong
+    thing. A file that cannot be parsed is returned unchanged — under-stripping keeps a recipe
+    looking reachable, which is the SAFE direction for a gate that is asserting a gap.
+    """
+    if not path.endswith(".py"):
+        return src
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return src
+    lines = src.split("\n")
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
+           and isinstance(first.value.value, str) and first.end_lineno:
+            for i in range(first.lineno - 1, min(first.end_lineno, len(lines))):
+                lines[i] = ""
+    return "\n".join(lines)
+
+
+def _code(src: str, path: str = "") -> str:
+    """Source with PROSE removed — `//`, `/* */`, `#`, and Python docstrings.
 
     **A mention in a comment is not a call**, and this gate learned that the same way the two
     false positives in the docstring were learned: a mutation that swapped a recipe out of its
@@ -72,11 +125,18 @@ def _code(src: str) -> str:
     `apps/web/src/viewer/tools/accessorNotCollapsed.test.ts` states the general rule this is the
     third instance of: a gate that greps source must strip comments, or its own documentation
     becomes its evidence.
+
+    **DOCSTRING-REACH found the fourth instance, inside this very file.** Stripping comments and
+    stopping there was itself an example of the defect: the rule is "prose is not a call", and
+    `#`/`//`/`/* */` is only one of the two ways prose is written in this tree. See
+    `_docstrings_blanked`. *Getting the principle right does not mean the implementation covers it —
+    the gate that named this class went on to under-count by six because nobody asked whether
+    "comment" and "prose" were the same set.*
     """
     src = re.sub(r"/\*[\s\S]*?\*/", "", src)
     src = re.sub(r"^\s*#.*$", "", src, flags=re.M)          # python comment lines
     src = re.sub(r"(?<![:\w])//.*$", "", src, flags=re.M)    # js line comments, sparing https://
-    return src
+    return _docstrings_blanked(src, path)
 
 
 def callers(recipe: str) -> list[str]:
@@ -92,7 +152,7 @@ def callers(recipe: str) -> list[str]:
             continue
         try:
             with open(f, encoding="utf-8", errors="ignore") as fh:
-                if word.search(_code(fh.read())):
+                if word.search(_code(fh.read(), f)):
                     hits.append(f)
         except OSError:
             hits.append(f)          # unreadable: assume it counts rather than under-report
