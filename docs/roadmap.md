@@ -1129,7 +1129,7 @@ four phantom entries — one of them a bare `SCALE-SEAM` with its `㉘` silently
 exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates caught all four.)*
 
 * **Not R39-DECOMP-VIEWER ③.** It ranked second last time on a size-ceiling argument that had
-  already gone false. `app.ts` is decomposing steadily (5,064 → 3,444 → and thirteen slices since), the ratchet
+  already gone false. `app.ts` is decomposing steadily (5,064 → 2,508, slices still landing), the ratchet
   is pinned, and it moves on its own whenever a feature pushes it. It does not need a sprint; it
   needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
   is the specific error row 2 made.
@@ -2546,8 +2546,10 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
 
-- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **seven slices shipped; `app.ts` is 5,160 → 3,311, a 36%
-  cut. The `builders` map is entirely gone.** The paragraph below saying the extraction "is NOT begun"
+- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,508, a 50% cut. The `builders`
+  map is entirely gone.** Slice count deliberately not restated here: `services/api/test_file_sizes.py`
+  is the record, and a count repeated in prose is a copy that drifts — this header said "seven slices"
+  while the list immediately below it named eleven.** The paragraph below saying the extraction "is NOT begun"
   was true on 2026-08-06 and stayed on the page until 2026-08-17, through six shipped slices — a
   roadmap entry describing work as un-started while the work is being done is worse than a missing
   entry, because it sends the next reader to re-derive a plan that was already executed. Kept only
@@ -2559,9 +2561,17 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
   ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981 ·
   ⑫ **envelope & free-form geometry (75, v0.3.982)** · ⑬ **model federation & version compare
-  (88, v0.3.1043)**. `app.ts` 5,160 → **2,944**, a **43% cut**.
+  (88, v0.3.1043)**. `app.ts` 5,064 → **2,508**, a **50% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
+
+  *(**Three figures for one file, two of them stale — corrected 2026-09-05.** This block said
+  `5,160 → 2,944` and the header said `5,160 → 3,311`, while the ratchet pinned **2,508**. The two
+  BASELINES also disagreed with `CLAUDE.md`, which says 5,064, and both were real: 5,064 is the file
+  before the first extraction commit of 2026-08-06, and **5,160 was a same-day peak** partway through
+  it — the file grew before it shrank. Neither number was ever labelled, so nothing could tell a
+  reader they were measuring from different points. Baseline is now stated and matches `CLAUDE.md`;
+  the current figure is the ratchet's own count, which is the only one under a gate.)*
 
   **"never reset" was false for two days, and the way it was found is the transferable part.** Slices
   ⑭⑮⑯ walked the pin 2_865 → 2_757 → 2_630 → 2_571 on 2026-08-27, and a REL-4 portal commit to the
