@@ -16,6 +16,15 @@ invoke.
 So each row now carries `reach`, and `UNREACHED` names what nothing can invoke.
 `services/api/test_recipe_reach.py` derives that set from the tree and fails when this file disagrees,
 so the honest form of the claim cannot rot back into the confident one.
+
+**MEP-AUTOCONNECT then found the correction had a second layer.** Two of the ten — `auto_connect_mep`
+and `set_system_predefined` — were wired and are now `ui`. The third, `add_sprinkler`, turned out never
+to have been a gap: `add_fire_equipment(kind="sprinkler")` authors the identical element and has
+shipped on a button all along. It is in `SUPERSEDED`, not `UNREACHED`, and the difference is not
+bookkeeping. *A reachability sweep answers "does anything call this?", which is one question short of
+"can a user do this?" — the same shape of mistake this file was written to fix, one layer further in.
+Listing a duplicate among the gaps understates coverage and invites work that would ship a second
+control for an outcome users already had.*
 """
 from __future__ import annotations
 
@@ -111,25 +120,42 @@ _MAP: dict[str, tuple[str, str]] = {
 #
 #   add_connection_assembly  steel connection plate + bolts + IfcRelConnectsWithRealizingElements
 #   add_roof_window          skylight through a roof — the roof counterpart of the wired add_door/add_window
-#   add_sprinkler            IfcFireSuppressionTerminal
-#   auto_connect_mep         route segments between MEP terminals
 #   convert_length_unit      project length unit (mm/m/ft), rescaling so real size is unchanged
 #   derive_representations   coarse Box/Axis/FootPrint views derived from Body geometry
 #   program_fit              headcount program -> zoned + auto-furnished spaces
 #   rebase_origin            shift the model origin, preserving georeferencing
 #   reset_prop_to_type       drop an instance override so the type value shows through — the UI ships
 #                            `set_element_pset`, which is the OTHER half of that pair
-#   set_system_predefined    set an IfcSystem's PredefinedType
 #
 # Three of these — add_sprinkler, auto_connect_mep, set_system_predefined — were already found by
 # SCALE-SEAM (93) and recorded in a doc comment in `apps/web/src/api/mep.ts`: "referenced NOWHERE in
 # apps/web/src. Backend recipes with no web exposure at all. Recorded, not fixed." That note was right
 # and had no way to stay right. It is now a check.
+#
+# MEP-AUTOCONNECT then took all three off the list, and only two of them by wiring. `auto_connect_mep`
+# and `set_system_predefined` are now typed client methods invoked from the MEP systems panel. The
+# third is the finding: **`add_sprinkler` was never a missing capability.** See SUPERSEDED below.
 UNREACHED: frozenset[str] = frozenset({
-    "add_connection_assembly", "add_roof_window", "add_sprinkler", "auto_connect_mep",
-    "convert_length_unit", "derive_representations", "program_fit", "rebase_origin",
-    "reset_prop_to_type", "set_system_predefined",
+    "add_connection_assembly", "add_roof_window", "convert_length_unit", "derive_representations",
+    "program_fit", "rebase_origin", "reset_prop_to_type",
 })
+
+# Recipes that nothing invokes AND nothing should: a reachable recipe already authors the identical
+# result, so wiring these would put a second control behind the same outcome. This is a distinct verdict
+# from UNREACHED — that one says "a capability no user can reach", which is a defect; this one says
+# "a duplicate spelling of a capability users already have", which is not.
+#
+# The distinction is the whole point of separating the two sets. A reachability sweep answers "does
+# anything call it?" and stops there; it cannot tell a gap from a synonym, so it reports both as gaps
+# and invites work on the synonym. `test_recipe_reach.py` asserts the equivalence itself — the IFC
+# class, predefined type, system and discipline both recipes land on — so an entry here stops being
+# true the moment the two stop agreeing, and the recipe falls back to being a real gap.
+SUPERSEDED: dict[str, str] = {
+    # add_fire_equipment(kind="sprinkler") resolves through the same add_mep_terminal to the same
+    # IfcFireSuppressionTerminal/SPRINKLER on the same "Fire Protection" system with discipline "fire",
+    # and has been on the viewer's 🧯 button since MEP-FP.
+    "add_sprinkler": "add_fire_equipment",
+}
 
 _CATEGORY_ORDER = ["create-structure", "create-enclosure", "create-opening", "create-space",
                    "create-mep", "create-content", "annotate", "edit", "edit-mep", "type", "group",
@@ -147,9 +173,20 @@ def matrix() -> dict[str, Any]:
     for name in recipes:
         cat, produces = _MAP.get(name, ("uncategorized", ""))
         # `cad+ai` reaches the command line and the planner; `ui` is invoked by a panel, a router or
-        # MCP; `none` means the engine can run it and nothing asks it to.
-        reach = "cad+ai" if name in specs else ("none" if name in UNREACHED else "ui")
+        # MCP; `superseded` is authored identically by a reachable recipe; `none` means the engine can
+        # run it and nothing asks it to. `superseded` is checked BEFORE `none` on purpose: both are
+        # uncalled, and reporting a duplicate as a gap is what invites someone to close it.
+        if name in specs:
+            reach = "cad+ai"
+        elif name in SUPERSEDED:
+            reach = "superseded"
+        elif name in UNREACHED:
+            reach = "none"
+        else:
+            reach = "ui"
         row = {"recipe": name, "category": cat, "produces": produces, "reach": reach}
+        if reach == "superseded":
+            row["superseded_by"] = SUPERSEDED[name]
         rows.append(row)
         by_cat.setdefault(cat, []).append(row)
     ordered = {c: by_cat[c] for c in _CATEGORY_ORDER if c in by_cat}
@@ -161,14 +198,18 @@ def matrix() -> dict[str, Any]:
         "cad_ai_count": len(specs),
         "unreached_count": len(UNREACHED),
         "unreached": sorted(UNREACHED),
+        "superseded_count": len(SUPERSEDED),
+        "superseded": {k: SUPERSEDED[k] for k in sorted(SUPERSEDED)},
         "uncategorized": [r["recipe"] for r in by_cat.get("uncategorized", [])],
         "by_category": {c: {"count": len(v), "recipes": v} for c, v in ordered.items()},
         "note": ("Live from the edit.RECIPES registry — a newly-added recipe appears here automatically "
                  "(uncategorized until mapped). Every recipe is a GUID-stable server-side pass. What "
                  "can INVOKE one differs per recipe and is stated per row: `cad+ai` is dispatchable "
                  f"from the CAD command line and the AI planner ({len(specs)} of {len(recipes)}, the "
-                 "curated nlauthor.RECIPE_SPECS); `ui` is invoked by a panel, a router or MCP; `none` "
-                 "means the engine can run it and no surface asks it to."),
+                 "curated nlauthor.RECIPE_SPECS); `ui` is invoked by a panel, a router or MCP; "
+                 "`superseded` means nothing calls it and nothing should, because a reachable recipe "
+                 "authors the identical result; `none` means the engine can run it and no surface asks "
+                 "it to — the only one of the four that is a gap."),
     }
 
 
@@ -186,13 +227,22 @@ def to_markdown() -> str:
            f"`cad+ai` — dispatchable from the CAD command line and the AI planner "
            f"({m['cad_ai_count']} of {m['recipe_count']}, the curated `nlauthor.RECIPE_SPECS`); "
            "`ui` — invoked by a tool panel, a router or MCP; "
-           "`none` — the engine can run it and no surface asks it to.",
+           "`superseded` — nothing calls it and nothing should, a reachable recipe authors the same "
+           "result; `none` — the engine can run it and no surface asks it to.",
            ""]
     if m["unreached"]:
         out += [f"> ⚠ **{m['unreached_count']} recipes are reachable from no surface**: "
                 + ", ".join(f"`{r}`" for r in m["unreached"])
                 + ". They are implemented and tested; they are not something a user can invoke, so "
                   "they are not coverage. Pinned by `services/api/test_recipe_reach.py`.",
+                ""]
+    if m["superseded"]:
+        out += ["> **Superseded** — uncalled, and correctly so: "
+                + ", ".join(f"`{k}` → `{v}`" for k, v in m["superseded"].items())
+                + ". A reachable recipe authors the identical result, so these are duplicate spellings "
+                  "rather than gaps. The equivalence is asserted in "
+                  "`services/api/test_recipe_reach.py`, so an entry stops being true if the two "
+                  "recipes stop agreeing.",
                 ""]
     for cat, data in m["by_category"].items():
         out.append(f"### {cat} ({data['count']})")

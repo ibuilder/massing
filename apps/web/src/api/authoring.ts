@@ -314,6 +314,7 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{
         recipe_count: number; category_count: number; uncategorized: string[];
         cad_ai_count: number; unreached_count: number; unreached: string[];
+        superseded_count: number; superseded: Record<string, string>;
         by_category: Record<string, {
           count: number;
           recipes: { recipe: string; category: string; produces: string; reach: "cad+ai" | "ui" | "none" }[];

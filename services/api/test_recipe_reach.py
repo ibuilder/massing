@@ -111,27 +111,92 @@ assert len(specs) < len(recipes), (
     "natural language and this gate's premise is void — rewrite it rather than deleting it."
 )
 
-unreached = sorted(r for r in recipes if r not in specs and not callers(r))
+uncalled = sorted(r for r in recipes if r not in specs and not callers(r))
 
-# ---- the pinned set ------------------------------------------------------------------------------
-# NAMED in `authoring_matrix.UNREACHED` and asserted equal here, so the published matrix cannot claim
-# a capability the product cannot reach. Adding a recipe with no caller fails this until it is either
-# wired or deliberately listed — which is the point: the listing is a decision, not an oversight.
-assert unreached == sorted(authoring_matrix.UNREACHED), (
-    "the matrix's UNREACHED set disagrees with the tree.\n"
-    f"  derived from the tree : {unreached}\n"
-    f"  named in the matrix   : {sorted(authoring_matrix.UNREACHED)}\n"
-    "A recipe that gained a caller must come OFF the list; one added without a caller must go ON it "
-    "(or be wired). The matrix is published as a maturity claim — it may not count what no user can "
-    "invoke."
+# ---- the pinned sets -----------------------------------------------------------------------------
+# The uncalled set splits in two, and the split is the point. `UNREACHED` is a capability no user can
+# reach — a defect, listed deliberately rather than fixed. `SUPERSEDED` is a duplicate spelling of a
+# capability users already have through another recipe — not a defect, and wiring it would ship a
+# second control for the same outcome.
+#
+# **The two must be disjoint and must together cover the tree**, so neither can absorb the other
+# quietly. Adding a recipe with no caller fails this until it is wired, listed as a gap, or shown to
+# be a duplicate — and the last of those is not a free escape, because the equivalence is asserted
+# below against what the two recipes actually author.
+superseded = authoring_matrix.SUPERSEDED
+assert not (set(superseded) & set(authoring_matrix.UNREACHED)), (
+    f"a recipe is in both UNREACHED and SUPERSEDED: {sorted(set(superseded) & set(authoring_matrix.UNREACHED))}"
+)
+assert uncalled == sorted(set(authoring_matrix.UNREACHED) | set(superseded)), (
+    "the matrix's UNREACHED + SUPERSEDED sets disagree with the tree.\n"
+    f"  uncalled, derived from the tree : {uncalled}\n"
+    f"  UNREACHED named in the matrix   : {sorted(authoring_matrix.UNREACHED)}\n"
+    f"  SUPERSEDED named in the matrix  : {sorted(superseded)}\n"
+    "A recipe that gained a caller must come OFF both; one added without a caller must go ON one of "
+    "them (or be wired). The matrix is published as a maturity claim — it may not count what no user "
+    "can invoke, and it may not report a duplicate as a gap."
 )
 
-# The matrix must SAY so, not merely hold the set.
+# ---- the supersession claim, checked against what the recipes AUTHOR -----------------------------
+# `SUPERSEDED` asserts that a reachable recipe produces the identical result. That is a claim about
+# behaviour, so it is checked by running both and comparing products — not by reading the two lambdas
+# and finding them similar. If `add_fire_equipment` ever stopped resolving "sprinkler" to the same
+# class, predefined type, system and discipline, `add_sprinkler` would silently become a real gap
+# while still sitting in the set that says it is not one.
+#
+# The comparison covers every attribute that distinguishes one MEP terminal from another: without the
+# system and discipline it would pass on two elements that land on different systems, which is most of
+# what these recipes are for.
+if superseded:
+    import tempfile
+
+    import ifcopenshell
+
+    from aec_data import massing  # type: ignore
+
+    _tmp = os.path.join(tempfile.mkdtemp(prefix="supersede_"), "m.ifc")
+    massing.generate_blank_ifc(_tmp, name="Supersession", storeys=1, storey_height=4.0, ground_size=40.0)
+    _model = ifcopenshell.open(_tmp)
+
+    def _fingerprint(guid: str) -> tuple:
+        """(IFC class, PredefinedType, system name, system PredefinedType) for an authored element."""
+        el = next((e for e in _model.by_type("IfcProduct") if e.GlobalId == guid), None)
+        assert el is not None, f"no element with GUID {guid!r}"
+        sys_name = sys_type = None
+        for rel in (getattr(el, "HasAssignments", None) or []):
+            grp = getattr(rel, "RelatingGroup", None)
+            if grp is not None and grp.is_a("IfcDistributionSystem"):
+                sys_name, sys_type = grp.Name, getattr(grp, "PredefinedType", None)
+        return el.is_a(), getattr(el, "PredefinedType", None), sys_name, sys_type
+
+    def _guid_of(result) -> str:
+        return result if isinstance(result, str) else result["guid"]
+
+    for dup, live in sorted(superseded.items()):
+        assert dup in edit.RECIPES and live in edit.RECIPES, (dup, live)
+        a = _fingerprint(_guid_of(edit.RECIPES[dup](_model, {"point": [2.0, 2.0]})))
+        # The live recipe is invoked the way the product invokes it — `add_fire_equipment` takes the
+        # kind as a parameter, and "sprinkler" is what the 🧯 button defaults to and sends.
+        b = _fingerprint(_guid_of(edit.RECIPES[live](_model, {"kind": "sprinkler", "point": [4.0, 2.0]})))
+        assert a == b, (
+            f"{dup!r} is listed as superseded by {live!r}, but they author different elements:\n"
+            f"  {dup:<20} -> {a}\n  {live:<20} -> {b}\n"
+            "(class, PredefinedType, system name, system PredefinedType). If this is a deliberate "
+            f"divergence then {dup!r} is a real capability again — move it to UNREACHED, or wire it."
+        )
+
+# The matrix must SAY so, not merely hold the sets.
 m = authoring_matrix.matrix()
+unreached = sorted(authoring_matrix.UNREACHED)
 assert m["unreached_count"] == len(unreached), (m["unreached_count"], len(unreached))
+assert m["superseded_count"] == len(superseded), (m["superseded_count"], len(superseded))
+assert m["superseded"] == dict(sorted(superseded.items())), m["superseded"]
 by_recipe = {r["recipe"]: r for cat in m["by_category"].values() for r in cat["recipes"]}
 for r in unreached:
     assert by_recipe[r]["reach"] == "none", (r, by_recipe[r])
+for r, live in superseded.items():
+    assert by_recipe[r]["reach"] == "superseded", (r, by_recipe[r])
+    assert by_recipe[r].get("superseded_by") == live, (r, by_recipe[r])
 for r in sorted(specs):
     assert by_recipe[r]["reach"] == "cad+ai", (r, by_recipe[r])
 
@@ -150,12 +215,16 @@ for text in (m["note"], authoring_matrix.to_markdown()):
         assert claim not in text, (
             f"the published matrix claims {claim!r} of every recipe. RECIPE_SPECS — what the CAD line "
             f"and the planner actually dispatch from — names {len(specs)} of {len(recipes)}, and "
-            f"{len(unreached)} have no caller at all."
+            f"{len(uncalled)} have no caller at all."
         )
 
 print(f"RECIPE-REACH OK - {len(recipes)} recipes; {len(specs)} dispatchable from the CAD line and AI "
-      f"planner (RECIPE_SPECS is CURATED, not derived); {len(unreached)} reachable from no surface at "
-      f"all and named in authoring_matrix.UNREACHED: {', '.join(unreached) or '(none)'}. Reachability "
-      "is derived by finding a CALLER outside the catalogs and the engine, because a recipe listed in "
-      "the coverage matrix is registered, not reachable — counting the matrix as a caller reported "
-      "every candidate as reached, which is this check measuring the registry against itself.")
+      f"planner (RECIPE_SPECS is CURATED, not derived); {len(uncalled)} with no caller, split into "
+      f"{len(unreached)} reachable from no surface and named in authoring_matrix.UNREACHED "
+      f"({', '.join(unreached) or '(none)'}) and {len(superseded)} SUPERSEDED — uncalled because a "
+      "reachable recipe authors the identical element, asserted by running both and comparing what "
+      f"they produce ({', '.join(f'{k} -> {v}' for k, v in sorted(superseded.items())) or '(none)'}). "
+      "Reachability is derived by finding a CALLER outside the catalogs and the engine, because a "
+      "recipe listed in the coverage matrix is registered, not reachable — counting the matrix as a "
+      "caller reported every candidate as reached, which is this check measuring the registry against "
+      "itself.")

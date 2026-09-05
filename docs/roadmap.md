@@ -2943,6 +2943,26 @@ removed. Remaining, in priority order:
   are plausibly internal, and inventing ten buttons would be worse than reporting ten honest states.
   `services/api/test_recipe_reach.py` derives the set and fails when the matrix disagrees.
 
+  ✅ **MEP-AUTOCONNECT, shipped 2026-09-05 — and it corrected the entry above.** Three of the ten were
+  MEP. Two were real capabilities and are now on the MEP systems panel: `auto_connect_mep` welds every
+  coincident MEP pair in one pass (the panel had been reporting *"N floating element(s)"* with no way
+  to act on it — the only connect was pick-one-pick-another), and `set_system_predefined` retypes a
+  system's discipline (authoring stamps it on FIRST assignment only, and `_assign_to_system`'s own
+  docstring says *"retag via set_system_predefined"* — a path that existed in the engine and on no
+  surface, so an imported or untyped system stayed untyped permanently).
+
+  **The third was never a gap.** `add_sprinkler` is authored identically by
+  `add_fire_equipment(kind="sprinkler")` — same `add_mep_terminal`, same
+  `IfcFireSuppressionTerminal`/`SPRINKLER`, same size, same *Fire Protection* system, same
+  `discipline="fire"` — which has been on the viewer's 🧯 button since MEP-FP. *A reachability sweep
+  answers "does anything call this?", one question short of "can a user do this?": the same shape of
+  gap the entry above closes, one layer further in. Reporting a duplicate among the gaps understates
+  coverage and invites shipping a redundant control.* So `authoring_matrix.SUPERSEDED` sits beside
+  `UNREACHED`, the matrix carries a fourth `reach` value, and the published table and the in-app
+  coverage panel report the two classes apart. `UNREACHED` goes 10 → 7. The supersession is asserted
+  by RUNNING both recipes and comparing (class, PredefinedType, system, system type), not by reading
+  them — so it fails the moment the two stop agreeing, and the recipe becomes a real gap again.
+
   ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
   CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were
   absent from the draft catalog entirely, so they were the only placeable things in the app that
@@ -3850,6 +3870,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   these two): nine are driven from viewer code through the generic recipe path, and three
   (`add_sprinkler`, `auto_connect_mep`, `set_system_predefined`) are referenced nowhere in
   `apps/web/src` at all — backend recipes with no web exposure, recorded rather than fixed.
+  **MEP-AUTOCONNECT closed all three (2026-09-05), and only two by wiring:** `auto_connect_mep` and
+  `set_system_predefined` are now typed methods on this mixin, and `add_sprinkler` turned out to be
+  authored identically by the already-shipped `add_fire_equipment(kind="sprinkler")` — a duplicate,
+  not a gap. So the split is nine on the generic path, two here, one superseded.
   *This said "the other nine" until review: nine was what I had ENUMERATED, twelve is what REMAINS.
   Third consecutive slice, third disguise, one defect — count the members you looked at, then phrase
   the result as the whole population. The fix is to DERIVE THE COMPLEMENT, not to be more careful.* `services/api/test_mep_systems.py` covers both AMONG other MEP recipes, so
