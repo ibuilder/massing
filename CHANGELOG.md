@@ -4,6 +4,133 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a report package can now be scheduled, and the blocker was in the browser
+
+**Closes the gap the entry below named as the honest remaining work.** "The owner's monthly package,
+every month" is the plainest thing anyone wants from a scheduler sitting on a 56-report catalog, and
+it was the one thing this scheduler could not do.
+
+**The premise-check moved the whole design.** The entry below diagnosed this as routines not carrying
+their job's parameters — true, and not the reason it had stayed open. `routines_run.run_due` built
+one params dict for every kind, which is a dict merge to fix. The real obstacle was that **the seven
+report moments lived only in `apps/web/src/ui/reportMoments.ts`**: authored in the browser, resolved
+in the browser, turned into `{moment_id, reports[]}` and handed to the job. `reports.py` contained no
+notion of a moment at all — grepped, not assumed. So nothing server-side could turn *"the owner's
+monthly package"* into a report list, and the plumbing was never the part that was missing.
+
+**Python owns the moments now.** `services/api/src/aec_api/report_moments.py` holds the table;
+`routines_run.job_params` expands a routine's `moment` into the reports it names; `report_package`
+joins the routine picklist alongside a `moment` select. A scheduled package and one assembled by
+clicking are now the same job, with the same params and the same artifact name.
+
+**Two refusals and one note, because a schedule fails quietly.**
+
+* A package routine that names **no** moment is refused at the sweep, listed with the moments it
+  could have named. Enqueueing it anyway would turn a configuration mistake into a monthly failed job
+  somebody has to diagnose — *the same defect one layer down* that kept `report_package` off the
+  picklist in the first place.
+* An **unknown** moment is refused identically. A typo is not a package.
+* A moment set on a kind with no use for one still **runs**, and the sweep says it ignored the
+  setting. That is what you are left with after changing a routine's kind and not clearing the field:
+  a mistake, not a failure. Silently ignoring it is the "package quietly one row shorter" fault this
+  feature exists to prevent; refusing to run an otherwise-correct routine is worse.
+
+**The refusal text belongs to the server, and the UI was restating it.** The AI Assist sweep rendered
+every refusal as *"names unknown kind X"* — true while that was the only way to be refused, and a lie
+the moment `bad_params` joined it: a package missing its moment would have been reported as naming an
+unregistered job. It now renders the server's own `reason`, which names the fault and lists the valid
+choices. *A copy of a string is still a copy, and this one drifted the same day the rule behind it
+changed.*
+
+**AND IT FOUND THAT THE SWEEP HAS NEVER PASSED `project_id`, which made the entry below inert too.**
+A handler is called as `fn(db, j.params)` and **never sees the Job row**, so `Job.project_id` is
+invisible to it. Every registered kind reads `params.get("project_id")`, and two read
+`params.get("actor")` as an identity claim recorded against the coordination issues they create.
+`routers/jobs.py` writes both into `params` *last*, after the caller's, so neither can be spoofed from
+a request body — deliberately, and documented there. **`routines_run` wrote neither.**
+
+So a scheduled job queued cleanly, ran, and died with `report_package needs a project_id`. The entry
+below says the picklist "now offers the ten registered kinds that actually run" — **that was wrong,
+and it is corrected here**: those ten stopped being *refused at enqueue* and would have *failed at
+run*. Fixing the picklist and leaving this is precisely the *"same defect one layer down"* that fix
+was written to avoid.
+
+**It was invisible because every test asserted the ENQUEUE and none asserted the RUN.** The Job row
+was right — right kind, right reports, right moment — and could not execute. `test_routines_run.py`
+now runs the real handler on the real params the sweep produced: half a second, one 11-report,
+21 KB PDF. Mutation-checked — removing `project_id` and `actor` fails five checks, the first with the
+exact error above.
+
+*Found by CodeRabbit on this PR, on `report_package` alone; the ten other kinds were the same defect
+and are the reason this is a correction rather than a note.*
+
+**Two copies of one table, chosen and priced rather than overlooked.** `reportMoments.test.ts` reads
+`report_moments.py` off disk and asserts ids, order, labels, occasions and report lists are
+identical — the same technique that file already uses to check the catalog against `reports.py`, for
+the same reason. Order is part of the assertion because it is assembly order for the PDF. The
+single-source alternative — delete the literal, fetch the moments from the API — is a Report Center
+change rather than a scheduler one, and it is recorded in `report_moments.py` as the open option.
+
+**Gated in both languages, and mutation-checked in both.** `test_routines.py` asserts set equality
+both ways between the register's moment options and the server's table — a moment offered but unknown
+is a routine that can only be refused, and a moment known but not offered is a package nobody can
+schedule, which is the quieter half. It also asserts every report a moment names is one the catalog
+serves, and that no moment exceeds the 16-report cap `_report_package` enforces. Mutations verified:
+renaming a report id, reordering the moments and deleting one each fail the web tripwire; neutering
+`job_params` fails eight of the thirteen new backend checks.
+
+*The exemption in the entry below is gone because the gap it described was closed, not because the
+argument stopped applying.* An exemption named in a gate is a promissory note; this one was paid.
+
+## Unreleased — every routine kind a user could pick was unrunnable
+
+**Fixes a fully-built feature that could never run once.** `modules/routine/module.json` offered five
+`kind` options — `progress_report`, `schedule_risk_scan`, `cost_variance_scan`, `provenance_check`,
+`custom` — and `jobs.KINDS` registers **none of them**. Verified by executing against the live
+registry, not by reading: the intersection was **empty**.
+
+`routines_run` refuses an unregistered kind with `unknown_kind`, so **every routine anyone created
+through the Routines module was refused at sweep time** — on a module shipping a full workflow
+(draft/active/paused/retired, activate, pause, retire), a persisted register carrying each routine's
+own `last_run`, cadence, and a sweep endpoint. All of it correct; all of it unreachable.
+
+The picklist now offers the ten registered kinds that run from the project alone: `model_ci`, `ids_validate`,
+`clash_detect`, `clash_federated`, `escalation_scan`, `cobie_export`, `model_export`,
+`compiled_set_pdf`, `labor_estimate`, `energy_analyze`.
+
+**Which ten was derived, not chosen.** The sweep enqueues `{routine_id, window_start}`, so a kind is
+schedulable only if every other parameter has a default. All twelve handlers were read — not
+sampled — and each of these ten takes its non-project params as `params.get(…) or <default>`.
+
+⚠️ *Corrected by the entry above: that reading established what each handler DEFAULTS and missed what
+they all REQUIRE — `params["project_id"]`, which the sweep did not pass. "Runs from the project alone"
+was the right test applied to the wrong half, so these ten went from refused-at-enqueue to
+failed-at-run rather than to working. Read for what a function needs, not only for what it defaults.*
+
+**Two kinds are exempt, by name.** `echo` is the queue's smoke-test kind. `report_package` **is**
+registered — it is R24-REPORTS-BY-MOMENT's assemble half — but requires a `reports: [id, …]` list the
+sweep cannot supply. *(Superseded within the same unreleased window by the entry above: routines now
+carry a `moment`, `report_package` is offered, and `echo` is the only remaining exemption. Left
+standing because it is why the next change happened.)* Offering it would move the failure from `unknown_kind` at enqueue to *"no reports
+in the package"* at run: **the same defect one layer down.**
+
+*That also re-scopes R24's "scheduling still open".* A complete scheduler already ships; what is
+missing is a way for a routine to carry its job's parameters. That is a routine-record change, not a
+scheduler change, and it is the honest remaining work.
+
+**The gate lives in `test_routines.py` because that file already names this blind spot.** Its header
+says a suite that only asserts refusals cannot tell a careful feature from a no-op, and pairs every
+"must not fire" with a "must fire". It asserted that an *unknown* kind is refused; nothing asserted
+that the kinds a user can actually *choose* were not all unknown. **A refusal test passes just as
+happily when everything is refused.** The new check asserts the set relationship — every option
+registered, every registered kind offered or exempt by name — plus a non-empty floor so it cannot
+pass vacuously. Mutation-checked: reinstating a dead option fails, and silently dropping an offered
+kind fails.
+
+*Existing routine records naming an old kind are left alone rather than rewritten.* They are already
+refused, so nothing regresses, and silently changing what a user configured would be a worse fault
+than the one being fixed.
+
 ## Unreleased — the app.ts figure was wrong in four places, and the gate that was supposed to stop that reached one of them
 
 **Corrects `docs/roadmap.md`, and widens `services/api/test_claude_md_gates.py` to the class rather

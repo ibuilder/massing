@@ -689,10 +689,17 @@ def _echo(db: Session, params: dict) -> dict:
     return {"echo": params}
 
 
+#: A package is at most this many reports. Named rather than inline because the routine register's
+#: moment gate asserts no schedulable moment exceeds it, and a second copy of the number is a second
+#: thing to forget when it moves.
+PACKAGE_MAX_REPORTS = 16
+
+
 def _report_package(db: Session, params: dict) -> dict:
     """R24-REPORTS-BY-MOMENT ② — assemble a moment's reports into one PDF off the request thread.
 
-    Params: {project_id, reports: [id, …], moment_id?}. Caps at 16. Unknown ids fail at run, not
+    Params: {project_id, reports: [id, …], moment_id?}. Caps at `PACKAGE_MAX_REPORTS`. Unknown ids
+    fail at run, not
     with a silent shorter package. Delivery (email on a date) is still open; this is the assemble
     half, and the Job row is the record that it ran.
     """
@@ -705,8 +712,8 @@ def _report_package(db: Session, params: dict) -> dict:
     ids = [str(x) for x in (params.get("reports") or [])]
     if not ids:
         raise ValueError("no reports in the package")
-    if len(ids) > 16:
-        raise ValueError("a package is at most 16 reports")
+    if len(ids) > PACKAGE_MAX_REPORTS:
+        raise ValueError(f"a package is at most {PACKAGE_MAX_REPORTS} reports")
     unknown = [i for i in ids if i not in reports.REPORTS]
     if unknown:
         raise ValueError(f"unknown report(s): {unknown}")

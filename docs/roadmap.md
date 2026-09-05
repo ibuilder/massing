@@ -2146,7 +2146,8 @@ refute one, so this goes first even though it is the least visible.
   Slice ②: field-mode CSS beats the FAB's inline 52 px. Slice ③: with a project open, field mode
   **lands on the capture sheet** (`shouldOpenCaptureHome`). Slice ④: `#workspaces` is hidden while
   the mode is on, so the seven-room tablist is not field home. Replacing the portal shell is Lane A.
-- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; scheduling still open.** The catalog was
+- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
+  now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
   each stating who asks and when, collapsed by default, with every report still under its noun
@@ -2162,11 +2163,63 @@ refute one, so this goes first even though it is the least visible.
   mails any finished job's artifact (`services/api/test_artifact_deliver.py`), surfaced as **Send**
   beside **Download** in the job tray. *Naming the blocker one layer too high is what let it sit: the
   two named things were present, so every look confirmed the entry and nobody checked the layer below.*
-  **What genuinely remains is SCHEDULED, and it needs a runner.** There is no scheduler of any kind in
-  this tree — no APScheduler, no croniter, no cron — so the existing digest is admin-triggered and
-  nothing runs on a date. Choosing in-process versus external cron hitting an endpoint is a
-  **deployment decision with different operational consequences, not a wiring task**, which is why it
-  is not taken here. The Job row is already the record that a pack ran.
+  ⚠️ **"There is no scheduler of any kind in this tree" WAS FALSE — corrected 2026-09-05, and it is
+  the same mistake this entry diagnoses one paragraph above itself.** The sentence checked for
+  scheduler *libraries* — "no APScheduler, no croniter, no cron" — and that half is true: none is in
+  `requirements.in`. But the repo **hand-rolled one under a different item's name**. `R22-ROUTINES`
+  ships `services/api/src/aec_api/routines.py` (cadences daily/weekly/monthly/quarterly,
+  `window_start`, `due`, `from_project`), `services/api/src/aec_api/routines_run.py` which enqueues
+  due routines through `jobs.enqueue`, a persisted `routine` register carrying each routine's own
+  `last_run`, and the routes behind `apps/web/src/api/routines.ts`. It refuses catch-up replay, refuses
+  to re-enqueue a running kind, and consumes the window at enqueue — all covered by
+  `services/api/test_routines.py`.
+
+  *Searching for the dependency and concluding there was no capability is exactly "naming the blocker
+  one layer too high", one paragraph after this entry warned against it — and it cost more here,
+  because the answer was not a layer below but a **file under another item's heading**.*
+
+  ✅ **What actually remained was smaller and different, and it SHIPPED.** The sweep put only
+  `{routine_id, window_start}` into a job's `params`, so a routine could not say WHICH reports a
+  package contains — and `report_package`, the assemble half shipped in v0.3.1015, requires exactly
+  that list. **Routines now carry their job's parameters**, which was a routine-record change rather
+  than a scheduler one, exactly as this entry predicted.
+
+  (The picklist was fixed first, in the step before: `modules/routine/module.json` had offered **five**
+  `kind` options, **none of them registered**, so every routine any user created was refused at sweep
+  time. Those five were replaced by the **ten** registered kinds that need no arguments beyond the
+  project, and the swap is gated. Five before, ten after — different sets, not a recount.)
+
+  ⚠️ **And the sweep had never passed `project_id`, which made those ten inert as well.** A handler is
+  called as `fn(db, j.params)` and never sees the Job row, so every kind reads
+  `params.get("project_id")` and two read `params.get("actor")` as an identity claim.
+  `routers/jobs.py` writes both last, after the caller's params, so neither can be spoofed;
+  `routines_run.py` wrote neither. Scheduled jobs therefore queued cleanly and died on an empty
+  project — the ten stopped being *refused at enqueue* and would have *failed at run*, which is the
+  "same defect one layer down" that fix was written to avoid. *Every test asserted the ENQUEUE and
+  none asserted the RUN*, so the Job row looked right while being unexecutable.
+  `services/api/test_routines_run.py` now runs the real handler on the sweep's own params and gets an
+  11-report PDF back.
+
+  **The premise-check that shaped it: the moments lived in a browser bundle.** The seven occasions
+  were authored in `apps/web/src/ui/reportMoments.ts` and resolved in the browser, so *nothing
+  server-side could turn "the owner's monthly package" into a report list* — `reports.py` contained no
+  notion of a moment at all. That, not the params plumbing, is why this had stayed open: the plumbing
+  is a dict merge, and the table it needed was on the wrong side of the wire.
+  `services/api/src/aec_api/report_moments.py` owns the table now, `routines_run.job_params` expands a
+  routine's `moment` into the reports it names, and a package routine naming no moment — or an unknown
+  one — is **refused at the sweep with the moments it could have named**, rather than queued to fail at
+  run time. A `moment` on a kind with no use for one still runs, and the sweep says it ignored it.
+
+  **The TypeScript literal is now a mirror, bound by a cross-lane tripwire.** `reportMoments.test.ts`
+  reads `report_moments.py` off disk and asserts ids, order, labels, occasions and report lists are
+  identical — the same technique it already uses to check the catalog against `reports.py`, for the
+  same reason. Deleting the literal and fetching the moments from the API is the single-source
+  alternative; it is a Report Center change rather than a scheduler one, and it is recorded in
+  `report_moments.py` as chosen-against rather than overlooked.
+
+  Still open and genuinely a **deployment decision**: what invokes the sweep on a cadence — in-process
+  versus external cron hitting the endpoint. That is unchanged and still not taken here. The Job row
+  is already the record that a pack ran.
 - **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
   are a user decision; storey/floor settled v0.3.945).
 

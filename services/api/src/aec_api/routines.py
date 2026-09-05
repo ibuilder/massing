@@ -40,6 +40,16 @@ CADENCES: dict[str, str] = {
     CADENCE_QUARTERLY: "the first of Jan/Apr/Jul/Oct, from midnight UTC",
 }
 
+#: Routine-record fields that are JOB PARAMETERS rather than scheduling fields.
+#:
+#: `from_project` reads the stored record and hands `evaluate` a deliberately narrow dict — id, kind,
+#: cadence, project. Everything else in the record is the user's, and echoing it wholesale into the
+#: sweep's response would put arbitrary stored data on a viewer-reachable payload. So the fields a
+#: JOB needs are named here rather than passed through by default, and `routines_run` is what knows
+#: what to do with them. The scheduler stays ignorant of job kinds: it carries these, it never
+#: interprets them.
+JOB_PARAM_FIELDS = ("moment",)
+
 STATUS_DUE = "due"
 STATUS_NOT_DUE = "not_due"
 STATUS_DISABLED = "disabled"
@@ -115,7 +125,8 @@ def evaluate(routine: dict, now: datetime, last_run: Any = None,
     rid = routine.get("id")
     cadence = str(routine.get("cadence") or "")
     base = {"id": rid, "kind": routine.get("kind"), "cadence": cadence,
-            "project_id": routine.get("project_id")}
+            "project_id": routine.get("project_id"),
+            **{k: routine.get(k) for k in JOB_PARAM_FIELDS if routine.get(k) is not None}}
     if cadence not in CADENCES:
         return {**base, "status": STATUS_BAD_CADENCE, "due": False,
                 "cadences_available": dict(CADENCES),
@@ -214,7 +225,8 @@ def from_project(db, project_id: str, now: datetime | None = None,
         # No `enabled` is passed: the workflow state above IS the switch. Reading a stored
         # `enabled` here would reinstate the two-switches ambiguity the register just shed.
         routines.append({"id": rid, "ref": r.get("ref"), "kind": d.get("kind"),
-                         "cadence": d.get("cadence"), "project_id": project_id})
+                         "cadence": d.get("cadence"), "project_id": project_id,
+                         **{k: d.get(k) for k in JOB_PARAM_FIELDS if d.get(k) is not None}})
         if d.get("last_run"):
             last_runs[rid] = d["last_run"]
     out = due(routines, now or utc_now(), last_runs=last_runs, in_flight=in_flight)

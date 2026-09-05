@@ -224,6 +224,101 @@ with _SL() as _db:
 check("a project with no routines is a clean empty evaluation, not an error",
       P2["due_count"] == 0 and P2["stored"] == 0, P2)
 
+# --- 5. THE PICKLIST A USER ACTUALLY SEES MUST NAME KINDS THAT RUN -----------------------------
+#
+# This file's own header says a suite that only asserts refusals cannot tell a careful feature from a
+# no-op, and pairs every "must not fire" with a "must fire". Check 3 above asserts an unknown kind is
+# REFUSED. Nothing asserted that the kinds a user can actually CHOOSE are not all unknown — and they
+# were. `modules/routine/module.json` offered progress_report, schedule_risk_scan, cost_variance_scan,
+# provenance_check and custom; `jobs.KINDS` registers none of those. The intersection was EMPTY, so
+# every routine anyone created through the Routines module was refused at sweep time with
+# `unknown_kind`, on a module that ships a full workflow — draft/active/paused/retired, activate,
+# pause, retire — and a persisted register. **A refusal test passes just as happily when everything
+# is refused.**
+#
+# The picklist and the registry are two copies of one list, and a copy is what drifts. So this asserts
+# the set relationship rather than a count, with every exemption named:
+#
+#   * `echo` is the queue's own smoke-test kind and is deliberately not offered to users.
+#
+# It used to exempt `report_package` too, on the grounds that it REQUIRES a `reports: [id, ...]` list
+# and the sweep enqueued only `{routine_id, window_start}` plus the project id — so offering it would
+# have moved the failure from `unknown_kind` at enqueue to "no reports in the package" at run, the
+# same defect one layer down. **That exemption is gone because the gap it described was closed**, not
+# because the argument stopped applying: `routines_run.job_params` now expands a routine's `moment`
+# into the reports it names (check 6 below), and a package routine that names no moment is refused at
+# the sweep rather than queued to fail. An exemption is a promissory note; this one was paid.
+#
+# Every other registered kind reads its non-project params through `params.get(... ) or <default>`, so
+# it runs from the project alone — verified by reading all twelve handlers, not by sampling.
+#
+# THAT READING WAS HALF A READING, and section 7 of `test_routines_run.py` is what it cost. It
+# established what each handler DEFAULTS and never asked what they all REQUIRE: `params["project_id"]`,
+# which the sweep did not pass. "Runs from the project alone" was the right test applied to the wrong
+# half, and these ten went from refused-at-enqueue to failed-at-run rather than to working.
+# *Read for what a function needs, not only for what it tolerates missing.*
+import json as _cfg_json  # noqa: E402
+from pathlib import Path as _CfgPath  # noqa: E402
+
+from aec_api import jobs as _jobs  # noqa: E402
+
+NOT_OFFERED = {
+    "echo": "the queue's smoke-test kind, deliberately not user-facing",
+}
+
+_mod = _cfg_json.loads(
+    (_CfgPath(__file__).resolve().parent / "modules" / "routine" / "module.json").read_text("utf-8"))
+_offered = [f for f in _mod["fields"] if f["name"] == "kind"][0]["options"]
+
+check("every routine kind a user can pick is a registered job kind",
+      [k for k in _offered if k not in _jobs.KINDS] == [],
+      f"unrunnable options: {[k for k in _offered if k not in _jobs.KINDS]}")
+
+check("the picklist is not empty, so the check above cannot pass vacuously",
+      len(_offered) >= 5, f"{len(_offered)} option(s)")
+
+check("every registered kind is either offered or exempt BY NAME",
+      sorted(set(_jobs.KINDS) - set(_offered)) == sorted(NOT_OFFERED),
+      f"unaccounted: {sorted(set(_jobs.KINDS) - set(_offered) - set(NOT_OFFERED))}; "
+      f"exempt-but-gone: {sorted(set(NOT_OFFERED) - set(_jobs.KINDS))}")
+
+
+# --- 6. THE MOMENT PICKLIST IS THE SAME CLASS OF DEFECT, ONE LAYER DOWN --------------------------
+#
+# Offering `report_package` above is only worth anything if the moment a user picks resolves to a real
+# package. That is check 5's defect exactly — a picklist of identifiers with a registry behind it —
+# and adding a second picklist without a second gate would be repeating the mistake in the same file
+# that records it.
+#
+# Set equality BOTH WAYS, not containment. A moment offered but unknown is a routine that can only be
+# refused; a moment known but not offered is a package nobody can schedule, which is the quieter half
+# and the reason this is not a one-directional check.
+from aec_api import report_moments as _rm  # noqa: E402
+from aec_api import reports as _reports  # noqa: E402
+
+_moments = [f for f in _mod["fields"] if f["name"] == "moment"][0]["options"]
+
+check("the routine register offers EXACTLY the moments the server knows — both directions",
+      sorted(_moments) == sorted(_rm.MOMENTS), (sorted(_moments), sorted(_rm.MOMENTS)))
+
+check("  and there are some, so the equality above is not two empty sets",
+      len(_moments) >= 5, f"{len(_moments)} moment(s)")
+
+# `_report_package` refuses an unknown report id rather than shortening the package, so a stale id
+# here is not a silent gap — it is a scheduled job that fails every month. Caught at build instead.
+_bad = sorted({r for _, _, rs in _rm.MOMENTS.values() for r in rs} - set(_reports.REPORTS))
+check("every report a moment names is one the catalog actually serves", _bad == [], _bad)
+
+# The cap is enforced in `_report_package` and it raises. A moment over it is a package that can never
+# run. Imported rather than retyped: a literal 16 here would be a third copy of a number that already
+# has a home, and this file exists because copies drift.
+_over = sorted(k for k, (_, _, rs) in _rm.MOMENTS.items() if len(rs) > _jobs.PACKAGE_MAX_REPORTS)
+check("  and no moment names more reports than a package may hold", _over == [], _over)
+
+check("report_package is now a kind a user can pick — the point of all of the above",
+      "report_package" in _offered, _offered)
+
+
 _eng.dispose()
 for _f in ("./test_routines.db",):
     if _os.path.exists(_f):
