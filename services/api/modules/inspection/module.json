@@ -79,6 +79,14 @@
       "fieldset": "Result"
     },
     {
+      "name": "agency_company",
+      "label": "Agency (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The inspecting authority as a company record, so a failed inspection can be counted against the same agency the permit was drawn from.",
+      "fieldset": "Result"
+    },
+    {
       "name": "spec_section",
       "label": "Spec Section",
       "type": "text",

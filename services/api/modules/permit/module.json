@@ -40,6 +40,14 @@
       "fieldset": "Permit"
     },
     {
+      "name": "authority_company",
+      "label": "Authority (AHJ) (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The authority having jurisdiction as a company record. Typed the same AHJ twice and it is two authorities; linked, its permits, entitlements and inspections gather on one record.",
+      "fieldset": "Permit"
+    },
+    {
       "name": "number",
       "label": "Permit #",
       "type": "text",

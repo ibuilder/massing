@@ -4,6 +4,128 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — everything placed from the library landed on the ground floor
+
+**Found while premise-checking UX-3's five-item line, and worse than anything on it.**
+`edit_core._first_storey(model, None)` returns the **lowest** storey by elevation, and
+`edit.place_type` assigns the occurrence to that storey and, when a position is given, sets its Z to
+that storey's elevation. So a placement that omits `storey` does not land somewhere neutral — it
+lands on the ground floor.
+Measured on a three-storey model: `('Level 3', (7, 5, 8.0))` with the storey, `('Level 1', (5, 5,
+0.0))` without it.
+
+**Two of the three authoring paths had always handled this.** Drawing in 3D injects the level —
+`finishDraft()` in `apps/web/src/viewer/app.ts`: *"author onto the active level"*. The AI planner
+injects it server-side, in `services/api/src/aec_api/nl_ai.py` `_fill_context`, for the LLM and
+keyword baselines alike. **The library palette sent none**, so a column placed while working on
+Level 7 arrived on Level 1 — as did every content item, every imported mesh, and every family from
+"⊕ Place selected family".
+
+**The capability was present at every layer beneath the caller.** `POST …/families/place` has always
+accepted a `storey`; the `place_content` recipe has always read `p.get("storey")`; `importContent`'s
+options type already *declared* a `storey` that nothing ever passed. Two client methods wrapped one
+recipe and disagreed — `addFamily` carried the level and `placeFamily` dropped it. Four call sites,
+closed by threading an `activeStorey` accessor through the same seam `lastPoint` already crosses, and
+read **at click time**: the user changes level with the palette open, and a value captured at
+panel-build time would place onto whichever level was current when the ribbon was last rebuilt.
+
+**Why nothing caught it.** `services/api/test_content.py` builds its fixture with
+`generate_blank_ifc(..., storeys=1)` and always passes a storey explicitly. On a one-storey model the
+lowest storey and the correct one are the **same entity**, so the defect was invisible by
+construction of the fixture rather than by any gap in its assertions. *A fixture with one of
+something cannot test which one was chosen.* `services/api/test_level_placement.py` builds three, and
+asserts a **middle** storey separately, so "found Level 2" cannot be confused with "ran off the end
+of the list" — and that an unknown level name degrades rather than raises, because the UI sends a
+name and levels are renameable.
+
+**The caller half is `apps/web/src/viewer/tools/levelPlacement.test.ts`**, and it derives its
+population from the client's own signatures rather than a hand list, so a placement method added
+tomorrow is covered the day it is written. It counts **arguments**, not the word "storey": a correct
+call that passes the level through a lambda parameter contains no such word, and a wrong one may
+mention it in a comment. **Its first draft passed a mutation it should have failed** — `importContent`
+carries the storey *inside* an options object, and matching "storey" anywhere in a parameter derived
+it as positional, after which every call satisfied the arity check. Anchoring on the parameter's own
+name fixed it. A green run would never have shown that; the mutation did.
+
+Also recorded in `docs/roadmap.md`: two of UX-3's five items already ship (pick-host→auto-build,
+appendable IFC libraries), thumbnails and drag-to-place do not, and the door/window path's missing
+storey is a **clean negative** — `add_opening` declares a `storey` it never reads, because an opening
+takes its position from the host wall.
+
+## Unreleased — the permitting chain could not name the authority it was applying to
+
+**The entry above closed half of one sentence.** Its roadmap paragraph said a transmittal's recipient
+*"cannot be the agency an `entitlement` names, since that field is free text too"* — and then gave the
+transmittal its `company` reference and left the agency exactly as it found it, which is the half the
+entitlement workflow the item is named after actually needs.
+
+**Four registers named one concept in prose**: `entitlement.agency`, `permit.authority`,
+`review_cycle.agency` and `inspection.agency`. `company.type` has offered an **`Authority`** option the
+whole time, so the directory was already modelling the concept and nothing pointed at it — the same
+shape as `to_company`, one layer earlier in the chain.
+
+The cost is not cosmetic. An authority typed three ways is three authorities, so *whose court did it
+sit in* — the question `approval_cycles.py` exists to answer — could be answered for a single round and
+never for a **jurisdiction**. And `permit` and `entitlement` were **islands**: the two ends of the
+approval process could not point at anything at all, which is most of what separates a register from a
+spreadsheet.
+
+**Five references close it.** Four `*_company` → `company`, plus `review_cycle.reviewer_contact` →
+`contact`, the person half, which copies the `inspection.inspector`/`inspector_contact` pairing already
+used for the person on the other side of the same counter. Each sits **beside** its text field as the
+MOD-SWEEP additive pattern requires rather than converting it, so existing records keep the name
+somebody typed. Reference fields **173 → 178**, islands **46 → 44**, both ratchets tightened. No engine
+changed: `REVERSE_REFS` is derived from `reference_fields()` at registry load, so the links flow into
+`related_records`, the Referenced by panel and the rollups by themselves.
+
+**A pinned assertion turned out to pin a fact rather than a rule.** `services/api/test_modules.py`
+asserted `most_referenced[0] == "cost_code"`; four `company` references made it `company` (25 vs 23),
+which is the module graph telling the truth, not a regression. The identity pin is replaced by what it
+stood for, and the replacement cannot be invalidated by adding a reference again: the ranking is really
+ordered, every entry's `in_degree` agrees with the edge list it was computed from, and cost and company
+— what it costs and who it is with — are both asserted to rank in the top three.
+
+**Two gates, both mutation-checked against `review_cycle`.** `services/api/test_module_fields.py`
+names the four registers and asserts each can point at a company; `services/api/test_modules.py` drives
+a real approval chain through the API and asserts all four gather on one authority record via
+`…/related`, because a field that exists still proves nothing about whether the chain resolves. The
+mutation target is deliberate: `review_cycle` keeps its other references, so the islands ceiling cannot
+fire first and shadow the named gate — which is exactly how the previous entry's first check passed for
+the wrong reason.
+
+The remaining **22** party-named text fields are recorded in `docs/roadmap.md` as a derived population
+with the company-vs-contact split written out, because that split is the part a script cannot do:
+`owner` is a person on a `risk` and an organisation on a lease.
+
+**A workflow gate can now be met by EITHER half of an additive pair — and the change above needed it.**
+Review caught that `entitlement.submit` declares `requires: ["agency"]`, so the moment
+`agency_company` arrived carrying help text telling the user to pick a company **instead of** typing
+the agency name, a linked-only entitlement could never be submitted. *The change that added the
+control created the trap.*
+
+Sweeping all 139 modules found a **second instance already on main**, unrelated to this work:
+`compliance_evidence.sign_off` requires `responsible`, which has had `responsible_contact` beside it.
+So this is the additive pattern's general collision with the workflow gate rather than one bad
+manifest — MOD-SWEEP's whole premise is that the reference arrives beside the text and the text is
+retired later, and a gate naming only the text half blocks the migration it exists to enable.
+
+A `requires` entry may now name alternatives as `"agency|agency_company"`, satisfied when **any** of
+them is filled. The gate is loosened, not removed: a record with neither is still refused, and the
+typed text alone still passes, which every pre-existing record depends on. The refusal message reads
+*"requires: Agency / Jurisdiction or Agency / Jurisdiction (linked)"*.
+
+**The rule lives in two languages, and that is the hazard.** The server enforces it in
+`services/api/src/aec_api/modules.py`; the register disables the button in
+`apps/web/src/portal/register/register.ts`. If only one had learned about `|`, the UI would grey out
+a transition the server accepts — the same defect in mirror. The UI half is extracted to
+`apps/web/src/portal/register/requiresGate.ts` and tested, and its test reaches across to assert the
+**server** splits on `|` too, so the two cannot drift apart silently. `module_schema.py` validates
+every alternative names a real field, because a typo in a gate makes a transition quietly unreachable.
+
+The class rule is **derived, not a list of the two known cases**: `test_module_fields.py` section 7
+walks every transition in all 139 modules and fails if a `requires` entry names the text half of an
+additive pair without offering its reference. A pair added next year is covered the day it is added.
+
 ## Unreleased — a transmittal could not name its recipient, and could not carry a drawing at all
 
 **R22-ENTITLEMENT's remaining item was the outbound package, and the blocker the entry named was the

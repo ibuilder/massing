@@ -1823,6 +1823,54 @@ stakes we are missing.
   `transmittal`, be fed by it, or be retired is a modelling decision about the business, not a gap to
   close on the way past.
 
+  ⑦ **the approval chain can name the AUTHORITY it is applying to, shipped 2026-09-05.** ⑥ closed
+  half of one sentence. Its own paragraph said a transmittal's recipient *"cannot be the agency an
+  `entitlement` names, since that field is free text too"* — and then gave the transmittal its
+  `company` reference and left the agency exactly as it found it, which is the half the *entitlement*
+  workflow this item is named after actually needs.
+
+  Four registers named one concept in prose: `entitlement.agency`, `permit.authority`,
+  `review_cycle.agency` and `inspection.agency`. **`company.type` has offered an `Authority` option
+  the whole time**, so the register was already modelling the concept and nothing pointed at it —
+  the same shape as ⑥'s `to_company`, one layer earlier in the chain. The cost is not cosmetic. An
+  authority typed three ways is three authorities, so ③'s *whose court did it sit in* could be
+  answered for a single round and never for a **jurisdiction**; and `permit` and `entitlement` were
+  **islands** — the two ends of the approval process could not point at anything at all, which is
+  most of what separates a register from a spreadsheet.
+
+  Five references close it: `agency_company`, `authority_company`, `agency_company`,
+  `agency_company` → `company`, plus `review_cycle.reviewer_contact` → `contact`, which is the person
+  half and copies the pairing `inspection.inspector`/`inspector_contact` already used for the person
+  on the other side of the same counter. Reference fields 173 → 178, islands 46 → 44, both ratchets in
+  `services/api/test_module_fields.py` tightened. Additive beside the text as MOD-SWEEP requires, so
+  existing records keep the name somebody typed. No engine changed, for ⑥'s reason.
+
+  **A pinned assertion turned out to be a pin on a fact rather than on a rule.** `test_modules.py`
+  asserted `most_referenced[0] == "cost_code"`; four `company` references made it `company` (25 vs
+  23), which is the graph telling the truth. The pin is replaced by what it stood for and cannot be
+  invalidated by adding a reference again: the ranking is really ordered, every entry's `in_degree`
+  agrees with the edge list it was computed from, and cost and company — what it costs and who it is
+  with — are both asserted to rank in the top three.
+
+  **The rest of the class, derived rather than guessed — 22 fields, and the next step is a judgement,
+  not a sweep.** Scanning all 139 registers for a `text`/`textarea` field whose name contains a party
+  word and which has no `*_company`/`*_contact` reference beside it leaves 22 after this change (51
+  party-named text fields in total, 29 already paired):
+
+  | it names an ORGANISATION → `company` | it names a PERSON → `contact` | it names NEITHER, leave alone |
+  |---|---|---|
+  | `delivery.supplier`, `due_diligence.consultant`, `directive.to_company`, `asset_register.manufacturer`, `submittal.responsible_contractor`, `itp.verifying_party`, `incident.reported_to`, `info_requirement.appointing_party`, `info_requirement.appointed_party`, `info_requirement.lead_appointed_party` | `action_item.assignee`, `issue.assignee_name`, `risk.owner`, `assumption.owner`, `lessons_learned.owner`, `project_charter.project_manager`, `rfi.rfi_manager`, `information_container.reviewer`, `asset_register.service_contact`, `company.contact_name` | `asset_register.manufacturer_url` (a URL), `drawing_issuance.recipients` (plural — a list, not a reference) |
+
+  The split is written down because **it is the part a script cannot do**: `owner` is a person on a
+  `risk` and an organisation on a lease, and `reported_to` is "OSHA/Owner" — an agency *or* the
+  client. A name-keyed sweep gets those wrong silently, which is the failure mode ⑥'s own
+  ⚠️ note warns about one paragraph up. Each row is cheap on its own; none of them should be done by
+  regex.
+
+  📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
+  entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
+  broad statement of scope and calling it closed is a product judgement, not a measurement.
+
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
   `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was
   "entitlements.py" until v0.3.847 renamed the two squatters so only the land-use register keeps the
@@ -2846,6 +2894,41 @@ removed. Remaining, in priority order:
 
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
+
+  **Premise-checked 2026-09-05, because a five-item line is exactly the shape that hides shipped work
+  behind unshipped work.** Two of the five already ship and the bullet did not say so:
+  *pick-host→auto-build* is the ◧/◨ pair in `apps/web/src/viewer/app.ts` — select a wall, and
+  `add_door`/`add_window` cut the opening into it at the point you clicked; *appendable IFC libraries*
+  is `services/data/src/aec_data/families.py` `import_types_from_ifc`, which copies every
+  `IfcTypeProduct` out of a third-party IFC, deduped by (class, name), and the palette exposes it.
+  *Thumbnails* and *drag-to-place* are genuinely unshipped — the palette renders label-plus-meta text
+  and places through a modal that asks for "Location E, N (metres)".
+
+  ⚠️ **And the premise-check found something worse than anything on the line — now fixed.**
+  `edit_core._first_storey(model, None)` returns the LOWEST storey, and `place_type` containers the
+  occurrence there and sets its Z to that storey's elevation. **Every placement from the library
+  palette omitted the storey**, so a family placed while working on Level 7 arrived on Level 1 at
+  Z = 0. Measured on a three-storey model: `('Level 3', (7, 5, 8.0))` with the storey against
+  `('Level 1', (5, 5, 0.0))` without it.
+
+  The capability was present at every layer below the caller — `POST …/families/place` accepts a
+  `storey`, the `place_content` recipe reads `p.get("storey")`, and `importContent`'s options type
+  already declared one. **Two of the three authoring paths had honoured the active level all along**:
+  `finishDraft()` injects `activeStorey` client-side, and `nl_ai.py` `_fill_context` injects
+  `active_storey` server-side for the LLM and keyword planners alike. Only the library palette and the
+  "⊕ Place selected family" button sent none — four call sites, closed by threading an `activeStorey`
+  accessor through the same seam `lastPoint` already crosses.
+
+  *Why no test caught it:* `services/api/test_content.py` builds its model with
+  `generate_blank_ifc(..., storeys=1)`. On a one-storey model the lowest storey and the correct one
+  are the **same entity**, so the defect was invisible by construction of the fixture rather than by
+  any gap in the assertions. **A fixture with one of something cannot test which one was chosen.**
+  `services/api/test_level_placement.py` builds three.
+
+  ✅ *Clean negative worth recording so it is not re-investigated:* the door/window path correctly
+  passes no storey. `add_opening` in `services/data/src/aec_data/edit_enclosure.py` declares a
+  `storey` parameter and never reads it — an opening takes its position from the host wall, which is
+  right — so that argument is vestigial there and its absence at the call site is not the same defect.
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
 
 - **SPRINT C — FIELD-PWA** *(L, frontend)* — offline-first mobile PWA: service-worker sheet sync, auto
