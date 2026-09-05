@@ -100,6 +100,14 @@
       "type": "reference",
       "module": "spec_section",
       "fieldset": "Links"
+    },
+    {
+      "name": "transmittal",
+      "label": "Transmittal",
+      "type": "reference",
+      "module": "transmittal",
+      "help": "The transmittal that issued this drawing. Naming it here is what puts the drawing IN the package: a transmittal's contents are the records that point at it, which is how the Referenced by panel and the related feed resolve them.",
+      "fieldset": "Links"
     }
   ],
   "workflow": {
