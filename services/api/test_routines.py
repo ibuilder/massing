@@ -251,6 +251,12 @@ check("a project with no routines is a clean empty evaluation, not an error",
 #
 # Every other registered kind reads its non-project params through `params.get(... ) or <default>`, so
 # it runs from the project alone — verified by reading all twelve handlers, not by sampling.
+#
+# THAT READING WAS HALF A READING, and section 7 of `test_routines_run.py` is what it cost. It
+# established what each handler DEFAULTS and never asked what they all REQUIRE: `params["project_id"]`,
+# which the sweep did not pass. "Runs from the project alone" was the right test applied to the wrong
+# half, and these ten went from refused-at-enqueue to failed-at-run rather than to working.
+# *Read for what a function needs, not only for what it tolerates missing.*
 import json as _cfg_json  # noqa: E402
 from pathlib import Path as _CfgPath  # noqa: E402
 

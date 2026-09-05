@@ -132,9 +132,21 @@ def run_due(db, project_id: str, now: datetime | None = None,
                             "status": STATUS_BAD_PARAMS, "reason": refusal})
             continue
         try:
+            # `project_id` and `actor` are written LAST, after everything else, for the same reason
+            # `routers/jobs.py` does it: a handler is called as `fn(db, j.params)` and never sees the
+            # Job row, so anything it needs about WHERE it runs and WHO ran it has to be in `params`.
+            #
+            # THIS WAS MISSING AND IT MADE THE WHOLE SWEEP INERT. Every registered handler reads
+            # `params.get("project_id")`, and two (`_clash_detect`, `_clash_federated`) read
+            # `params.get("actor")` as an identity claim recorded against the coordination issues they
+            # create. Without them a scheduled job did not fail at enqueue — it queued cleanly, ran,
+            # and died on an empty project. Fixing the picklist so kinds stop being refused and
+            # leaving this is exactly the "same defect one layer down" that fix was written to avoid,
+            # and it was invisible because the tests asserted the ENQUEUE and never the RUN.
             job = jobs.enqueue(db, kind, project_id, {"routine_id": row.get("id"),
                                                       "window_start": row.get("window_start"),
-                                                      **extra},
+                                                      **extra,
+                                                      "project_id": project_id, "actor": actor},
                                actor=actor)
         except ValueError:
             # One misconfigured routine must not stop the others from running.

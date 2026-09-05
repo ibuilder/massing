@@ -2182,10 +2182,21 @@ refute one, so this goes first even though it is the least visible.
   `{routine_id, window_start}` plus the project id and nothing else, so a routine could not say WHICH
   reports a package contains — and `report_package`, the assemble half shipped in v0.3.1015, requires
   exactly that list. **Routines now carry their job's parameters**, which was a routine-record change
-  rather than a scheduler one, exactly as this entry predicted. (The ten job kinds that already ran
+  rather than a scheduler one, exactly as this entry predicted. (The ten job kinds that run
   from the project alone were offered in `modules/routine/module.json` and gated first; before that
   fix none of the five offered kinds was registered at all, so every routine a user created was
   refused.)
+
+  ⚠️ **And the sweep had never passed `project_id`, which made those ten inert as well.** A handler is
+  called as `fn(db, j.params)` and never sees the Job row, so every kind reads
+  `params.get("project_id")` and two read `params.get("actor")` as an identity claim.
+  `routers/jobs.py` writes both last, after the caller's params, so neither can be spoofed;
+  `routines_run.py` wrote neither. Scheduled jobs therefore queued cleanly and died on an empty
+  project — the ten stopped being *refused at enqueue* and would have *failed at run*, which is the
+  "same defect one layer down" that fix was written to avoid. *Every test asserted the ENQUEUE and
+  none asserted the RUN*, so the Job row looked right while being unexecutable.
+  `services/api/test_routines_run.py` now runs the real handler on the sweep's own params and gets an
+  11-report PDF back.
 
   **The premise-check that shaped it: the moments lived in a browser bundle.** The seven occasions
   were authored in `apps/web/src/ui/reportMoments.ts` and resolved in the browser, so *nothing

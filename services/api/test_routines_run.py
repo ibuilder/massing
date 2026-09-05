@@ -216,6 +216,51 @@ check("job_params expands a moment into exactly the reports that moment names",
 check("  and hands back a COPY, so a caller cannot mutate the table",
       _extra["reports"] is not report_moments.MOMENTS["lender_draw"][2])
 
+# --- 7. THE SCHEDULED JOB IS RUN, NOT MERELY ENQUEUED --------------------------------------------
+#
+# **This section exists because everything above it passed while the sweep produced jobs that could
+# not run.** Section 6 asserted the Job ROW — right kind, right reports, right moment. It never called
+# the handler. And a handler is invoked as `fn(db, j.params)` (`jobs.py`, `_run_one`) and never sees
+# the Job row, so `Job.project_id` is invisible to it: every registered kind reads
+# `params.get("project_id")`, and two of them read `params.get("actor")` as an identity claim recorded
+# against the coordination issues they create.
+#
+# `routers/jobs.py` writes both into `params` LAST, after the caller's, so neither can be spoofed from
+# a request body. The sweep wrote neither. So a scheduled job queued cleanly, ran, and died on an
+# empty project — and the whole Routines feature was inert one layer below the layer that had just
+# been fixed. Nothing above caught it, because **"it was enqueued" and "it can run" are different
+# claims and only the first was ever asserted.**
+#
+# So this runs the real handler on the real params the sweep produced. Half a second, one 11-report
+# PDF, and the class of defect cannot come back silently.
+_pkg_job = db.query(Job).filter(Job.id == _by_routine[r_pkg]["job_id"]).one() if r_pkg in _by_routine \
+    else None
+
+check("every scheduled job carries the project it runs against — handlers never see the Job row",
+      all((j.params or {}).get("project_id") == PID for j in
+          db.query(Job).filter(Job.project_id == PID, Job.kind != "not_a_kind").all()),
+      sorted({str((j.params or {}).get("project_id")) for j in
+              db.query(Job).filter(Job.project_id == PID).all()}))
+
+check("  and the actor, which two kinds record as an identity against what they write",
+      (_pkg_job.params or {}).get("actor") == "test", (_pkg_job.params or {}) if _pkg_job else None)
+
+try:
+    _artifact = jobs.KINDS["report_package"](db, dict(_pkg_job.params or {}))
+    _pkg_err = None
+except Exception as _e:                                    # noqa: BLE001
+    _artifact, _pkg_err = {}, _e
+
+check("A SCHEDULED PACKAGE ACTUALLY ASSEMBLES — the handler runs on the params the sweep wrote",
+      _pkg_err is None, repr(_pkg_err))
+check("  producing a PDF artifact rather than an empty one",
+      str(_artifact.get("media_type")) == "application/pdf" and int(_artifact.get("bytes") or 0) > 1000,
+      {k: _artifact.get(k) for k in ("media_type", "bytes", "filename")})
+check("  named for the moment, and holding every report that moment lists",
+      _artifact.get("filename") == "owner_monthly.pdf"
+      and _artifact.get("reports") == report_moments.MOMENTS["owner_monthly"][2],
+      (_artifact.get("filename"), _artifact.get("reports")))
+
 db.close()
 engine.dispose()
 

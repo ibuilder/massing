@@ -42,6 +42,28 @@ unregistered job. It now renders the server's own `reason`, which names the faul
 choices. *A copy of a string is still a copy, and this one drifted the same day the rule behind it
 changed.*
 
+**AND IT FOUND THAT THE SWEEP HAS NEVER PASSED `project_id`, which made the entry below inert too.**
+A handler is called as `fn(db, j.params)` and **never sees the Job row**, so `Job.project_id` is
+invisible to it. Every registered kind reads `params.get("project_id")`, and two read
+`params.get("actor")` as an identity claim recorded against the coordination issues they create.
+`routers/jobs.py` writes both into `params` *last*, after the caller's, so neither can be spoofed from
+a request body — deliberately, and documented there. **`routines_run` wrote neither.**
+
+So a scheduled job queued cleanly, ran, and died with `report_package needs a project_id`. The entry
+below says the picklist "now offers the ten registered kinds that actually run" — **that was wrong,
+and it is corrected here**: those ten stopped being *refused at enqueue* and would have *failed at
+run*. Fixing the picklist and leaving this is precisely the *"same defect one layer down"* that fix
+was written to avoid.
+
+**It was invisible because every test asserted the ENQUEUE and none asserted the RUN.** The Job row
+was right — right kind, right reports, right moment — and could not execute. `test_routines_run.py`
+now runs the real handler on the real params the sweep produced: half a second, one 11-report,
+21 KB PDF. Mutation-checked — removing `project_id` and `actor` fails five checks, the first with the
+exact error above.
+
+*Found by CodeRabbit on this PR, on `report_package` alone; the ten other kinds were the same defect
+and are the reason this is a correction rather than a note.*
+
 **Two copies of one table, chosen and priced rather than overlooked.** `reportMoments.test.ts` reads
 `report_moments.py` off disk and asserts ids, order, labels, occasions and report lists are
 identical — the same technique that file already uses to check the catalog against `reports.py`, for
@@ -72,14 +94,18 @@ through the Routines module was refused at sweep time** — on a module shipping
 (draft/active/paused/retired, activate, pause, retire), a persisted register carrying each routine's
 own `last_run`, cadence, and a sweep endpoint. All of it correct; all of it unreachable.
 
-The picklist now offers the ten registered kinds that actually run: `model_ci`, `ids_validate`,
+The picklist now offers the ten registered kinds that run from the project alone: `model_ci`, `ids_validate`,
 `clash_detect`, `clash_federated`, `escalation_scan`, `cobie_export`, `model_export`,
 `compiled_set_pdf`, `labor_estimate`, `energy_analyze`.
 
-**Which ten was derived, not chosen.** The sweep enqueues `{routine_id, window_start}` plus the
-project id and nothing else, so a kind is schedulable only if every other parameter has a default.
-All twelve handlers were read — not sampled — and each of these ten takes its non-project params as
-`params.get(…) or <default>`.
+**Which ten was derived, not chosen.** The sweep enqueues `{routine_id, window_start}`, so a kind is
+schedulable only if every other parameter has a default. All twelve handlers were read — not
+sampled — and each of these ten takes its non-project params as `params.get(…) or <default>`.
+
+⚠️ *Corrected by the entry above: that reading established what each handler DEFAULTS and missed what
+they all REQUIRE — `params["project_id"]`, which the sweep did not pass. "Runs from the project alone"
+was the right test applied to the wrong half, so these ten went from refused-at-enqueue to
+failed-at-run rather than to working. Read for what a function needs, not only for what it defaults.*
 
 **Two kinds are exempt, by name.** `echo` is the queue's smoke-test kind. `report_package` **is**
 registered — it is R24-REPORTS-BY-MOMENT's assemble half — but requires a `reports: [id, …]` list the
