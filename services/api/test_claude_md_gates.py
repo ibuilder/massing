@@ -253,6 +253,59 @@ if missing:
         "  unenforced. Do not cite a gate that does not exist — that is the bug this test caught."
     )
 
+# ---------------------------------------------------------------------------------------------
+# CLAUDE.md quotes a line count that a GATE already owns. Added 2026-09-05.
+#
+# The viewer section states the current size of `apps/web/src/viewer/app.ts` as evidence for how far
+# the decomposition has run. That exact number drifted three times: it sat at "3,444" for weeks, was
+# corrected to "2,570", and was stale again **inside the same pull request** because a decomposition
+# slice landed beside the correction and a review bot, not the author, noticed.
+#
+# The check above asks whether a cited FILE exists. This asks whether a cited NUMBER is still true,
+# which is the harder half and the one that keeps failing here. It is cheap only because the number
+# is not really CLAUDE.md's to hold: `test_file_sizes.py` pins the same file at an exact size and
+# fails the build when it moves, so the prose is a COPY of a gated value, and a copy is what drifts.
+#
+# The rule this encodes is narrow on purpose: a doc may quote a number that a gate owns, but the two
+# have to be compared by something. Prose that reasons ABOUT the pin ("pins its exact size", "2,507"
+# as a mutation-check witness) is not a claim about today's file, so only the figure attached to the
+# "has gone from 5,064 lines to N" sentence is read.
+CLAUDE_MD = os.path.join(ROOT, "CLAUDE.md")
+PIN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_file_sizes.py")
+
+with open(CLAUDE_MD, encoding="utf-8") as fh:
+    _claude = fh.read()
+with open(PIN_FILE, encoding="utf-8") as fh:
+    _pins = fh.read()
+
+_stated = re.search(
+    r"`apps/web/src/viewer/app\.ts`\s+has gone from\s+[\d,_]+\s+lines to\s*\n?\s*\*\*([\d,_]+)\*\*",
+    _claude,
+)
+_pinned = re.search(
+    r'"apps/web/src/viewer/app\.ts"\s*:\s*([\d_]+)', _pins,
+)
+
+# Both halves must be FOUND, not just agree. If either pattern stops matching — the sentence is
+# reworded, the ratchet key is renamed — this check would otherwise pass on two Nones, which is the
+# vacuous-green failure this file's own header calls worse than no gate.
+check(
+    "CLAUDE.md's app.ts sentence and the ratchet pin are both readable",
+    bool(_stated) and bool(_pinned),
+    f"prose={'found' if _stated else 'NOT FOUND'} · pin={'found' if _pinned else 'NOT FOUND'}",
+)
+
+if _stated and _pinned:
+    _n_prose = int(_stated.group(1).replace(",", "").replace("_", ""))
+    _n_pin = int(_pinned.group(1).replace("_", ""))
+    check(
+        "CLAUDE.md's stated app.ts size matches the size the ratchet pins",
+        _n_prose == _n_pin,
+        f"CLAUDE.md says {_n_prose:,}; test_file_sizes.py pins {_n_pin:,}"
+        + ("" if _n_prose == _n_pin else
+           " — update the prose in the SAME EDIT as the slice that moved it, not the same commit"),
+    )
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

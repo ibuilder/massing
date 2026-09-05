@@ -4,6 +4,93 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — review fixes, and a gate for the number that keeps drifting
+
+**Four review findings on the same pull request, and the second one was self-referential.** The PR
+corrected `CLAUDE.md`'s stale `apps/web/src/viewer/app.ts` line count from "3,444" to **2,570** —
+and then, in the same PR, R39-DECOMP-VIEWER ⑰ took the file to **2,508**. The paragraph diagnosing
+*numbers that decay toward the conclusion they support* decayed toward its own conclusion before it
+merged, and a review bot found it rather than the author.
+
+* **`services/api/test_claude_md_gates.py` now checks that number against the ratchet.** The
+  existing gate asks whether a cited FILE exists; this asks whether a cited NUMBER is still true.
+  It is cheap only because the value is not really `CLAUDE.md`'s to hold — `test_file_sizes.py`
+  already pins the same file at an exact size, so the prose is a **copy of a gated value, and a copy
+  is what drifts**. Mutation-checked both ways: a wrong figure fails, and a *reworded sentence* fails
+  too rather than passing on two `None`s, which is the vacuous-green failure that file's own header
+  calls worse than no gate at all.
+* **R38-SYNC-2D3D is CLOSED, with its children named.** The entry said three of four children were
+  open and named none of them. Re-derived by grepping the tree rather than reading the file that was
+  already wrong: `R38-SYNC-SELECT`, `R38-SYNC-VIEW`, `R38-PLAN-TRANSFORM` and `R38-PLAN-IDENTITY`,
+  and `docs/roadmap-completed.md` carries a ✅ for **each**. The 2026-08-10 un-archive was
+  mechanically right — a lane row pointed at nothing — and inherited the restored text's open count
+  as though the restore had verified it. Nothing had; R38-PLAN-IDENTITY was marked ✅ *that same
+  day*, in the archive the entry was being pulled out of. **Un-archiving restores an entry's text,
+  not its truth.**
+* **Naming those children made them items, and the gates said so.** Adding four bold item codes to
+  `docs/roadmap.md` put three new orphans in `apps/web/src/shell/roadmapLanes.test.ts` and a stale
+  open-vs-implemented pair in `apps/web/src/shell/roadmapStale.test.ts`. The fourth escaped only
+  because its line happened to contain a ✅ in prose. All four now carry an explicit ✅ marker —
+  *passing by accident and passing by construction look identical until something moves.*
+* Completed the verbless counterparty-risk entry below, and gave the bare `wc -l` in `CLAUDE.md`'s
+  re-measure command its argument — an instruction to verify that hangs on stdin is one nobody runs
+  twice.
+
+## Unreleased — SCALE-SEAM (102): counterparty risk
+
+**Extracts** `prequalScores`, `coiExpiry` and `lienExposure` out of `client.ts` (**603 → 589**) into
+`apps/web/src/api/counterpartyRisk.ts` — *which trade partner is a risk on this job, and why.*
+
+**The witness is that the seam disagrees with the route prefix.** Two sit under `/prequal/`, one
+under `/payapp/lien-exposure`, so grouping by prefix would have **split** the set — while all three
+return per-counterparty rows carrying a verdict about that counterparty: `risk_band` + `flags`,
+days-to-expiry, `exposure` + `vendors_at_risk`. That is the affirmative form of a rule this file has
+only ever recorded negatively — (85) rejected "they are all multipart uploads", (89) "they are all
+module records", `annotate.ts` "they all call `editIfc`" after measuring 24 recipes across nine
+categories. A shared mechanism is not a question; here the mechanism argues *against* the grouping
+and the shape of the returns argues for it, so the evidence is not something a name could produce.
+
+`benchmarkResponseRates` sits immediately above them and **stayed**: it returns RFI/submittal
+turnaround and names no counterparty at all — it measures how responsive the *process* is. Adjacency
+is not a relationship.
+
+Found on the way out: an orphaned `PrequalScores` type import, the same residue slice (101) left
+with `EnergyResult`.
+
+## Unreleased — Roadmap truth pass + R39-DECOMP-VIEWER ⑰
+
+**Two stale claims corrected, both found by testing the entry against the tree rather than reading it.**
+
+* **R38-SYNC-2D3D's stated defect is fixed end to end.** The entry said the pipeline *"discards
+  element identity at bake time"* and that *"nothing in a plan can name what it draws"*.
+  `_bake_uncached` returns `(guid, ifc_class, mesh)` — its own docstring credits R38-PLAN-IDENTITY —
+  `cut_baked_guided` emits `(guid, class, polyline)` and has a **production** caller in the plan
+  renderer, the SVG carries `data-guid`, and `apps/web/src/viewer/planPane.ts` selects on it. The
+  entry described `cut_baked` and `cut_baked_classed` accurately and drew the wrong conclusion,
+  because it never looked for a third function. What actually remains is that it claims three open
+  children and names none of them.
+* **`CLAUDE.md`'s viewer numbers were both stale** — "twenty-eight commits" and "3,444 lines" are
+  now **67** and **2,570**. Unlike the Node and Python drifts that file already records, this one
+  moved in the direction that *strengthens* its argument, which is the hardest kind to notice: a
+  number that decays toward the conclusion it supports never looks wrong.
+
+**R39-DECOMP-VIEWER ⑰ — field verification out of `app.ts` (2,571 → 2,508).**
+`apps/web/src/viewer/tools/verifySection.ts`.
+
+`app.ts` is not a class, so REL-4's "grep the `this.` refs before naming the slice" rule has no
+`this.` to grep — the file is **one 2,445-line function** and everything in it is a closure. The
+equivalent measurement is how many *sibling closures* a candidate captures, and over all fourteen
+candidates of 25+ lines **exactly one captured zero**: `renderVerify`. `buildToolsPanel` captures 14,
+`handleKey` 12, `selectByGuids` 6 — every other move would have been the callback bag REL-4 warns
+about. Four of the five free variables already travelled on the typed `ViewerCtx`, so the deps object
+is that context narrowed, not one invented to make the move possible.
+
+**The narrative-chain gate refused the first ratchet entry, correctly.** The previous entry ended at
+2,571 and the file measured 2,570 when this slice began — one line had left with no slice recording
+it, the drift the roadmap cell already documents from another lane touching the same file. The entry
+now runs 2,571 → 2,508 and says which line is the stray, rather than starting at a number nobody can
+reproduce.
+
 ## Unreleased — Portfolio resourcing
 
 `GET /portfolio/resourcing` (`resource_portfolio.py`) sums weekly **concurrent** resource demand per

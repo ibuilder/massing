@@ -217,11 +217,30 @@ bump. So: the *factual* blocker is corrected here because it was false; the *dec
 untouched and still open. Keep shipping viewer work in the meantime — that guidance below is unchanged and was
 never contingent on the npm question.
 
-**What an agent working in `apps/web/src/viewer` should know.** Twenty-eight commits have touched that directory
-since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to 3,444 —
-largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being done here
-first. That is good and it is also divergence: every one of those commits is a change the swap will have to
-reconcile. So:
+**What an agent working in `apps/web/src/viewer` should know.** **Sixty-seven** commits have touched that
+directory since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to
+**2,508** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
+done here first. That is good and it is also divergence: every one of those commits is a change the swap will
+have to reconcile. So:
+
+  *(Both numbers were stale and are re-measured 2026-09-05 — this said "Twenty-eight commits" and "3,444 lines".
+  Unlike the Node and Python drifts above, **this one moved in the direction that strengthens the argument**:
+  more than twice the commits and another 936 lines out. A number that decays toward the conclusion it supports
+  is the hardest kind to notice, because nothing it predicts ever looks wrong. Re-measure with
+  `git log --oneline --since=2026-08-06 -- apps/web/src/viewer | wc -l` and
+  `wc -l apps/web/src/viewer/app.ts`, never by reading this line — the same rule the two version notes above
+  had to learn the expensive way.)*
+
+  *(**And the line count above was stale again within the same pull request.** The correction first written
+  here said **2,570**; slice ⑰ of R39-DECOMP-VIEWER landed in that same PR and made it **2,508**, so the
+  paragraph diagnosing decay-toward-the-conclusion decayed toward its own conclusion before it was merged, and
+  a review bot found it rather than the author. Two things follow. **A number and the change that moves it must
+  land in the same edit, not the same commit** — "I will update the note after the slice" is a promise made
+  inside the window where it is already wrong. And the authority is `services/api/test_file_sizes.py`, which
+  pins `apps/web/src/viewer/app.ts` at an exact size and fails the build when it drifts; **this line is a
+  narrative copy of a number that has a gate, and a copy is what drifts.** Read the pin, not the prose.
+  The `wc -l` in the re-measure command above was also bare and would have waited on stdin — an instruction to
+  verify that hangs is an instruction nobody runs twice.)*
 
 - **Keep shipping.** Blocking this roadmap for the extraction would make the extraction expensive and it would
   die. Landing viewer work here is the correct default.

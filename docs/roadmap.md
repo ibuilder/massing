@@ -2310,15 +2310,66 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
-- ◧ **split by premise-check 2026-08-02 — un-archived 2026-08-10, the ✅ was wrong.** Only
-  **R38-SYNC-SELECT** of the four children shipped; the other three are open, and archiving the
-  parent took them with it — caught by `roadmapLanes.test.ts`, which names lane items with no
-  entry left in the file. **A ✅ on a parent is not a claim about its children.**
-  Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D. The plans are server-generated, but
-  the pipeline **discards element identity at bake time**: `drawings._bake_uncached` has
-  `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
-  `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
-  draws. Hence:
+- ✅ **CLOSED 2026-09-05 — all four children shipped; the defect this entry described is fixed.**
+  *(Previously ◧, carrying: "split by premise-check 2026-08-02 — un-archived 2026-08-10, the ✅ was
+  wrong. Only **R38-SYNC-SELECT** of the four children shipped; the other three are open, and
+  archiving the parent took them with it — caught by `roadmapLanes.test.ts`, which names lane items
+  with no entry left in the file. **A ✅ on a parent is not a claim about its children.**" That
+  reasoning was correct on the day it was written and is kept here for it; the count it carried was
+  not, see below.)*
+  **Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D.
+
+  ✅ **THE DEFECT THIS ENTRY DESCRIBES IS FIXED, END TO END — corrected 2026-09-05.** The text below
+  said the pipeline *"discards element identity at bake time"*, that `_bake_uncached` *"keeps only
+  `(cls, mesh)`"*, and that **"nothing in a plan can name what it draws."** Measured against the
+  tree, all three are now false:
+
+  * `services/data/src/aec_data/drawings.py` — `_bake_uncached` returns `(guid, ifc_class, mesh)`,
+    and its own docstring credits R38-PLAN-IDENTITY for it: *"it used to be dropped on the floor."*
+  * `cut_baked_guided` emits `(guid, ifc_class, polyline)` and is **called in production**, not only
+    from tests — the plan renderer uses it, with a comment stating why identity must not be
+    mode-dependent: *"a plan whose linework forgets its elements in one rendering mode would make
+    selection sync a mode-dependent feature."*
+  * The SVG carries `data-guid` per polyline and `apps/web/src/viewer/planPane.ts` selects on it —
+    `apps/web/src/viewer/planPane.test.ts` asserts each twin keeps its guid.
+  * Held by `services/api/test_plan_identity.py` and `services/api/test_pipeline_scales.py`.
+
+  `cut_baked` and `cut_baked_classed` still return bare and class-only polylines, which the entry
+  read as the gap. They are the plain and poché variants and are **correct as they are** — the
+  identity-carrying path is a third function beside them, not a replacement for them. *The entry
+  described two functions accurately and drew the wrong conclusion from them, because it never
+  looked for a third.*
+
+  ✅ **THE THREE UNNAMED CHILDREN, RE-DERIVED — and all three had already shipped.** This entry
+  claimed three of four children were open and **named none of them**; `R38-SYNC-SELECT` was the
+  only child named anywhere in this file. An item that says work remains without saying what work
+  is not a backlog entry, it is a reminder that somebody once knew. So the standing instruction here
+  was *re-derive the children or close it* — done, by grepping `R38-[A-Z0-9-]*` across the tree
+  rather than by reading this file, which is the source that was already wrong. The four children
+  are `R38-SYNC-SELECT`, `R38-SYNC-VIEW`, `R38-PLAN-TRANSFORM` and `R38-PLAN-IDENTITY`, and
+  `docs/roadmap-completed.md` carries a ✅ for **each** — and each is marked ✅ *here* too, because
+  naming a child in this file makes it an item this file's own gates must account for:
+
+  * ✅ **R38-SYNC-SELECT ③** — shipped v0.3.829, the one child this entry already credited.
+  * ✅ **R38-SYNC-VIEW ③** — storey, pan and zoom shipped first; cursor sync closed once
+    PLAN-TRANSFORM unblocked it. `apps/web/src/viewer/planPane.ts` +
+    `apps/web/src/viewer/planTransform.ts`.
+  * ✅ **R38-PLAN-TRANSFORM** — shipped v0.3.928. The plan SVG root serialises the six terms of its own
+    transform, and `services/api/test_plan_transform.py` asserts the pixel → world → pixel **round
+    trip** rather than the presence of the attributes.
+  * ✅ **R38-PLAN-IDENTITY** — recorded on **2026-08-10** as *already done when the entry was
+    written*.
+
+  **The un-archive was mechanically right and factually stale on the same day.** It restored a
+  parent because a lane row pointed at nothing — a real defect, correctly fixed — and then inherited
+  the restored text's open/closed count as though the restore had checked it. Nothing had:
+  R38-PLAN-IDENTITY was marked ✅ on that same 2026-08-10, in the very archive this entry was being
+  pulled back out of. **Un-archiving restores an entry's TEXT, not its truth.** Any count it carries
+  is as old as the day it was archived, and here re-deriving it cost one grep against the tree.
+  *That is the same failure as the defect description above — both were true once, neither was
+  re-measured, and one of them then blocked three other items as a phantom prerequisite.*
+
+  Its consuming surface, kept below, is coded and closes with it:
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
@@ -3260,7 +3311,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   banner is renamed UNFILED → STAYING and now says exactly that; the next slices work the 126,
   and there is no map for them yet.
 
-  **(88)–(101) took seventy-two of those 126 — 54 remain, and there is STILL no map.** A new
+  **(88)–(102) took seventy-five of those 126 — 51 remain, and there is STILL no map.** A new
   `apps/web/src/api/operations.ts` holds the operate-phase cluster: *the building is built and
   running.* Maintenance (`cmmsGeneratePm`, `cmmsKpis`), consumption (`energyActual`,
   `energyBenchmarkStatus`, `esgSummary`), condition and capital (`fcaIndex`, `fcaPortfolio`,
