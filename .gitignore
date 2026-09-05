@@ -69,6 +69,12 @@ storage/
 test_storage/
 test_storage_*/
 _storage_*/
+# Any local object-store directory, whatever it is called. The specific entries above and below
+# name the ones somebody thought of; this catches the one they did not. Added after a throwaway
+# probe script pointed STORAGE_DIR at ./probe_storage inside the repo and a generated PDF was
+# committed — the several hand-listed patterns here were each written the same way, one incident
+# at a time. Verified against `git ls-files`: no tracked path matches, so nothing real is hidden.
+*_storage/
 samples/out/
 
 # generated offline assets (recreated by copy-wasm on predev/prebuild)
