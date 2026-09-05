@@ -6,8 +6,10 @@ which already ship: `mailer.py` sends real mail and `POST .../notifications/dige
 assemble-then-send surface. What was actually missing was smaller and more specific: the mailer had
 no way to carry a FILE. That is what this covers.
 
-The SCHEDULED half is deliberately not here: it needs a recurring-trigger record and a runner, and
-this tree has no scheduler of any kind, so picking one is a deployment decision.
+The SCHEDULED half is not here — it is in `test_routines_run.py`, and this line used to explain its
+absence with "this tree has no scheduler of any kind", which was false when written. `routines.py`
+and `routines_run.py` are a scheduler; what is genuinely still a deployment decision is only what
+INVOKES the sweep on a cadence (in-process versus external cron hitting the endpoint).
 
 Run: PYTHONPATH=src ./.venv/bin/python test_artifact_deliver.py"""
 import os

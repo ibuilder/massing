@@ -261,6 +261,118 @@ check("  named for the moment, and holding every report that moment lists",
       and _artifact.get("reports") == report_moments.MOMENTS["owner_monthly"][2],
       (_artifact.get("filename"), _artifact.get("reports")))
 
+# --- 8. A SCHEDULED ARTIFACT REACHES ITS RECIPIENTS ------------------------------------------------
+#
+# R24-REPORTS-BY-MOMENT's last remainder. Section 7 proved a scheduled package ASSEMBLES; assembling
+# it and leaving it in the job tray is most of a feature, because the whole reason to schedule the
+# owner's monthly package is that nobody has to remember it.
+#
+# These run the REAL worker (`jobs._run_one`) on the REAL job the sweep enqueued, with only
+# `mailer.send_email` swapped for a recorder — the same lesson section 7 was written from, applied
+# one layer further out. A test that asserted `deliver_to` reached `params` would pass just as
+# happily if nothing ever mailed it.
+from aec_api import mailer  # noqa: E402
+
+_sent: list = []
+_real_send = mailer.send_email
+
+
+def _recording_send(to, subject, body, html=None, attachments=None):
+    _sent.append({"to": to, "subject": subject, "attachments": attachments})
+    return "sent"
+
+
+def _run_next() -> None:
+    """Claim and run exactly one queued job on a fresh session, the way the worker does."""
+    jobs._run_one(SessionLocal)
+    db.expire_all()                      # this session predates the worker's commit
+
+
+def _drain_to_done() -> None:
+    db.query(Job).filter(Job.state.in_(("queued", "running"))).update({"state": "done"},
+                                                                     synchronize_session=False)
+    db.commit()
+
+
+DELIVER = datetime(2026, 8, 11, 9, 0, tzinfo=timezone.utc)
+mailer.send_email = _recording_send
+try:
+    _drain_to_done()
+    r_mail = routine("Owner package, mailed", "report_package", moment="owner_monthly",
+                     deliver_to="owner@example.test, lender@example.test")
+    r_quiet = routine("Owner package, tray only", "echo")
+    eighth = routines_run.run_due(db, PID, now=DELIVER, actor="scheduler")
+    _mail_job = {e["routine_id"]: e["job_id"] for e in eighth["enqueued"]}
+
+    check("the sweep carries the routine's recipients into the job",
+          "deliver_to" in (db.query(Job).filter(Job.id == _mail_job[r_mail]).one().params or {}),
+          sorted(db.query(Job).filter(Job.id == _mail_job[r_mail]).one().params or {}))
+
+    for _ in range(len(eighth["enqueued"])):
+        _run_next()
+
+    _mj = db.query(Job).filter(Job.id == _mail_job[r_mail]).one()
+    _qj = db.query(Job).filter(Job.id == _mail_job[r_quiet]).one()
+    _delivery = (_mj.result or {}).get("delivery") or {}
+
+    check("A SCHEDULED PACKAGE IS MAILED, not just left in the tray", len(_sent) == 2,
+          [s["to"] for s in _sent])
+    check("  to the addresses the routine named, parsed out of one text field",
+          sorted(s["to"] for s in _sent) == ["lender@example.test", "owner@example.test"],
+          sorted(s["to"] for s in _sent))
+    check("  with the assembled PDF actually attached, not an empty notification",
+          bool(_sent) and _sent[0]["attachments"]
+          and _sent[0]["attachments"][0][0] == "owner_monthly.pdf"
+          and len(_sent[0]["attachments"][0][1]) > 1000,
+          _sent[0]["attachments"][0][:1] if _sent and _sent[0]["attachments"] else None)
+    check("  and the outcome is recorded on the job, so a silent non-delivery is impossible",
+          _delivery.get("recipients") == 2 and _delivery.get("results") == {"sent": [
+              "owner@example.test", "lender@example.test"]}, _delivery)
+    check("  while the job itself is done — delivery is not what the job was for",
+          _mj.state == "done", (_mj.state, _mj.error))
+
+    check("A ROUTINE THAT NAMES NOBODY MAILS NOBODY — the default is off",
+          "delivery" not in (_qj.result or {}), (_qj.result or {}).get("delivery"))
+
+    # Rule 2: `deliver_to` is not a side-channel on the public enqueue endpoint. Without a
+    # routine_id — which only the sweep sets — the worker does not mail, whatever params say.
+    _sent.clear()
+    _direct = jobs.enqueue(db, "echo", PID, {"project_id": PID, "deliver_to": "nobody@example.test"},
+                           actor="tester")
+    _run_next()
+    check("A JOB WITH RECIPIENTS BUT NO ROUTINE DOES NOT MAIL — params are caller-supplied",
+          _sent == [] and "delivery" not in (db.query(Job).filter(Job.id == _direct.id).one().result or {}),
+          _sent)
+
+    # Rule 1: the artifact was produced; a mail failure must not turn that into a failed run.
+    _sent.clear()
+    _boom = routine("Package, SMTP down", "report_package", moment="lender_draw",
+                    deliver_to="x@example.test")
+    _drain_to_done()
+    mailer.send_email = lambda *a, **k: (_ for _ in ()).throw(OSError("smtp unreachable"))
+    ninth = routines_run.run_due(db, PID, now=datetime(2026, 8, 12, 9, 0, tzinfo=timezone.utc),
+                                 actor="scheduler")
+    for _ in range(len(ninth["enqueued"])):
+        _run_next()
+    _bj = db.query(Job).filter(
+        Job.id == {e["routine_id"]: e["job_id"] for e in ninth["enqueued"]}[_boom]).one()
+    check("A DELIVERY FAILURE LEAVES THE JOB DONE — the package exists either way",
+          _bj.state == "done", (_bj.state, _bj.error))
+    check("  and the failure is on the row rather than swallowed",
+          "smtp unreachable" in str(((_bj.result or {}).get("delivery") or {}).get("error")),
+          (_bj.result or {}).get("delivery"))
+    check("  with the artifact still recorded, so it can be re-sent by hand",
+          bool((_bj.result or {}).get("artifact_key")), sorted(_bj.result or {}))
+finally:
+    mailer.send_email = _real_send
+
+check("recipients are split on commas, semicolons and newlines — however someone typed them",
+      jobs._split_recipients("a@x.test, b@x.test; c@x.test\nd@x.test")
+      == ["a@x.test", "b@x.test", "c@x.test", "d@x.test"],
+      jobs._split_recipients("a@x.test, b@x.test; c@x.test\nd@x.test"))
+check("  and an empty field is no delivery, not an empty send",
+      jobs._split_recipients("") == [] and jobs._split_recipients(None) == [])
+
 db.close()
 engine.dispose()
 

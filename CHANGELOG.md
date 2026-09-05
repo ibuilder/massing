@@ -4,6 +4,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the scheduled package now reaches the people it was assembled for
+
+**R24-REPORTS-BY-MOMENT's last remainder, in its own words: *"Delivery (email on a date) is still
+open; this is the assemble half."*** A routine assembled the owner's monthly package and left it in
+the job tray. The reason to schedule it is that nobody has to remember it, so that was most of a
+feature. A routine now carries `deliver_to` and a finished scheduled run mails its artifact.
+
+**The blocker was one layer below the prose again.** `POST …/jobs/{id}/deliver` and `mailer.py` both
+shipped — but **every line of the delivery lived inside the route function**: recipient
+normalisation, the 25-recipient and 15 MB caps, the size-before-read, the message build, the
+per-recipient status map, the audit. A worker has no request and no `Depends`, and an
+`HTTPException` raised from a background thread turns a delivery problem into a 500 nobody sees. The
+reusable half is now `artifact_delivery.py`; the route keeps only what is about HTTP — the "is this
+artifact ready" refusals, which are answers to a question only an outside caller asks. Refusals are
+raised as `DeliveryRefused` carrying the status the route already used, so `test_artifact_deliver.py`
+— which drives the real route — is what proves the extraction changed nothing.
+
+**Three rules.**
+
+* **Delivery never changes a job's state.** The artifact was produced; that is what the job was for.
+  A refused address or an SMTP outage is recorded under `result["delivery"]` and the job stays
+  `done`. Marking it `error` would make the next sweep treat a package that exists as one that
+  failed, and re-assembling a report because an email bounced is the wrong repair.
+* **Only jobs carrying a `routine_id` deliver.** That keeps `deliver_to` from becoming an
+  undocumented side-channel on `POST /projects/{pid}/jobs`, whose `params` are caller-supplied. An
+  editor who synthesises both gains nothing they lack — the deliver route is open to the same role
+  and the audit records the same actor either way.
+* **It runs inside the heartbeat, before the state flips.** `_Heartbeat` only refreshes rows still
+  `running`, so delivering after `state = "done"` would let the claim go stale during a conversation
+  that can take minutes, and the reaper would re-queue a job that had already sent.
+
+**The guarantee is at-least-once, stated rather than discovered.** A crash between the last
+`send_email` and the commit re-mails on recovery. Exactly-once needs a sent-marker committed before
+the send, which trades a duplicate package for a silently un-sent one — the worse failure for a
+deliverable somebody is waiting on.
+
+**The default is off.** An empty `deliver_to` is no delivery, not an empty send, and it is asserted.
+
+**Tested by running the real worker on the real job the sweep enqueued**, with only
+`mailer.send_email` swapped for a recorder — the same lesson the previous entry was written from,
+applied one layer further out: a test that asserted `deliver_to` reached `params` would pass just as
+happily if nothing ever mailed it. Thirteen checks, mutation-verified three ways — removing the
+delivery call fails five, removing the `routine_id` guard fails the side-channel check alone, and
+letting a delivery failure propagate fails the three that say the job stays `done`.
+
+**It also corrects a claim that had reached four files.** *"There is no scheduler of any kind in this
+tree"* was recorded as false in `docs/roadmap.md` earlier the same day, and was still stated as fact
+in a comment in `routers/jobs.py`, in the docstring of `test_artifact_deliver.py`, and in a released
+changelog entry. Only the *library* half was ever true — no APScheduler, croniter or cron in
+`requirements.in` — while `R22-ROUTINES` had hand-rolled the capability under a different heading.
+*Searching for a dependency and concluding there was no capability is what let every copy read true
+against the same grep.* The released entry keeps its wording with a dated correction beneath it,
+because a shipped changelog is a record rather than a place to rewrite history.
+
 ## Unreleased — a report package can now be scheduled, and the blocker was in the browser
 
 **Closes the gap the entry below named as the honest remaining work.** "The owner's monthly package,
@@ -479,6 +533,14 @@ send. The delivery is audited — a file leaving the system is what an audit log
 
 **Not shipped, deliberately: the SCHEDULED half.** There is no scheduler of any kind in this tree,
 so choosing in-process versus external cron is a deployment decision, not a wiring task.
+
+> ⚠️ **Corrected 2026-09-05.** The sentence above is false and is left standing because a released
+> entry is a record of what shipped, not a place to rewrite history. `R22-ROUTINES` had already
+> hand-rolled a scheduler under a different heading, and scheduled report packages ship in a later
+> release. Only the *library* claim was ever true — no APScheduler, croniter or cron in
+> `requirements.in` — and what remains a deployment decision is narrower than this says: what invokes
+> the sweep on a cadence. This claim reached four files; searching for a dependency and concluding
+> there was no capability is what let each copy read true.
 
 ## v0.3.1143 (2026-09-01) — SCALE-SEAM ㉝, Last-Planner onto schedule.ts
 

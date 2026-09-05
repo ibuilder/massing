@@ -48,7 +48,7 @@ CADENCES: dict[str, str] = {
 #: JOB needs are named here rather than passed through by default, and `routines_run` is what knows
 #: what to do with them. The scheduler stays ignorant of job kinds: it carries these, it never
 #: interprets them.
-JOB_PARAM_FIELDS = ("moment",)
+JOB_PARAM_FIELDS = ("moment", "deliver_to")
 
 STATUS_DUE = "due"
 STATUS_NOT_DUE = "not_due"

@@ -72,6 +72,12 @@ def job_params(kind: str, row: dict) -> tuple[dict[str, Any], str | None, str | 
     """
     from . import report_moments
 
+    # Carried for every kind, because "email me the result" is not specific to one job. It is passed
+    # through rather than validated here: a malformed address list is a delivery problem, and
+    # refusing to ASSEMBLE the package because of it would withhold the artifact somebody wanted over
+    # a fault in who gets told about it. `jobs._deliver_if_requested` records the outcome on the row.
+    deliver = {"deliver_to": row["deliver_to"]} if row.get("deliver_to") else {}
+
     moment = row.get("moment")
     if kind == "report_package":
         if not moment:
@@ -80,12 +86,12 @@ def job_params(kind: str, row: dict) -> tuple[dict[str, Any], str | None, str | 
         if str(moment) not in report_moments.MOMENTS:
             return {}, (f"unknown report moment {str(moment)!r}; "
                         f"known: {sorted(report_moments.MOMENTS)}"), None
-        return report_moments.package_params(str(moment)), None, None
+        return {**report_moments.package_params(str(moment)), **deliver}, None, None
     if moment:
-        return {}, None, (f"this routine names the report moment {str(moment)!r}, which only "
-                          f"report_package uses; {kind} takes no parameters, so it was ignored "
-                          "rather than silently changing what ran")
-    return {}, None, None
+        return deliver, None, (f"this routine names the report moment {str(moment)!r}, which only "
+                               f"report_package uses; {kind} takes no parameters, so it was ignored "
+                               "rather than silently changing what ran")
+    return deliver, None, None
 
 
 def in_flight_kinds(db, project_id: str) -> set[str]:

@@ -51,6 +51,13 @@
       "fieldset": "Routine"
     },
     {
+      "name": "deliver_to",
+      "label": "Email the result to",
+      "type": "text",
+      "help": "Optional. Addresses separated by commas, semicolons or spaces; at most 25. When set, a finished run's artifact is emailed to them automatically — leave it empty and the run only lands in the job tray. Only kinds that produce a file have anything to send. A delivery that fails does not fail the run: the outcome is recorded on the job.",
+      "fieldset": "Routine"
+    },
+    {
       "name": "cadence",
       "label": "Cadence",
       "type": "select",

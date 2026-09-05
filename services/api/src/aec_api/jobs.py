@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import traceback
 from collections.abc import Callable
@@ -194,6 +195,76 @@ class _Heartbeat:
                 log.debug("job %s: heartbeat failed", self._job_id, exc_info=True)
 
 
+def _split_recipients(raw: Any) -> list[str]:
+    """A routine's `deliver_to` field as a list. Accepts a list, or one string of separated addresses.
+
+    The register stores it as free text because an address list is not a picklist, so it arrives
+    however the person typed it — commas, semicolons or newlines. Splitting on all three is not
+    cleverness, it is the difference between a routine that delivers and one that reports an
+    unroutable address nobody can see is really two.
+    """
+    if isinstance(raw, list):
+        return [str(a) for a in raw]
+    if not isinstance(raw, str) or not raw.strip():
+        return []
+    return [part for part in re.split(r"[,;\s]+", raw.strip()) if part]
+
+
+def _deliver_if_requested(db: Session, j: Job, res: Any) -> Any:
+    """Mail a finished SCHEDULED job's artifact, and fold the outcome into its result.
+
+    R24-REPORTS-BY-MOMENT's last remainder. Assembling the owner's monthly package on a cadence and
+    leaving it in the job tray is most of a feature: the whole reason to schedule it is that nobody
+    has to remember. This is the step that makes "the owner package, every month, in their inbox"
+    true.
+
+    THREE RULES, and the first is the one that matters:
+
+    1.  **Delivery NEVER changes the job's state.** The artifact was produced; that is what the job
+        was for. A refused address or an SMTP outage is recorded under `result["delivery"]` and the
+        job stays `done`. Marking it `error` would make the next sweep treat a package that exists
+        as one that failed, and re-assembling a report because an email bounced is the wrong repair.
+    2.  **Only jobs that came from a routine deliver.** `deliver_to` is meaningless without a
+        `routine_id`, and requiring both keeps this from becoming an undocumented side-channel on
+        `POST /projects/{pid}/jobs`, whose `params` are caller-supplied. (An editor who synthesises
+        both gains nothing they lack: the deliver ROUTE is open to the same role, and the audit
+        records the same actor either way — `params["actor"]` is written by the server in both
+        paths.)
+    3.  **It runs INSIDE the heartbeat, before the state flips.** `_Heartbeat` only refreshes rows
+        that are still `running`, so delivering after `state = "done"` would leave the claim to go
+        stale during a conversation that can take minutes, and the reaper would re-queue a job that
+        had already finished — and already sent.
+
+    **The guarantee is at-least-once, deliberately and not silently.** If the process dies between
+    the last `send_email` and the commit below, recovery re-runs the job and mails again. Making it
+    exactly-once needs a sent-marker committed before the send, which trades a duplicate package for
+    a silently un-sent one — the worse failure for a deliverable somebody is waiting on.
+    """
+    params = j.params or {}
+    if not params.get("routine_id"):
+        return res
+    raw = _split_recipients(params.get("deliver_to"))
+    if not raw:
+        return res
+    from . import artifact_delivery
+    window = params.get("window_start")
+    try:
+        addrs = artifact_delivery.recipients(raw)
+        out = artifact_delivery.send(
+            db, job_id=j.id, kind=j.kind, project_id=j.project_id or "", result=res, addrs=addrs,
+            actor=str(params.get("actor") or "scheduler"),
+            intro=(f"Scheduled routine delivery from project {j.project_id}"
+                   + (f" for the window starting {window}." if window else ".")))
+        report: dict[str, Any] = {"recipients": len(addrs), "results": out["results"],
+                                  "smtp_configured": out["smtp_configured"]}
+    except artifact_delivery.DeliveryRefused as e:
+        report = {"refused": e.detail, "status": e.status}
+    except Exception as e:                       # noqa: BLE001 — rule 1: the job stays done
+        log.warning("job %s: scheduled delivery failed: %s", j.id, e, exc_info=True)
+        report = {"error": f"{e.__class__.__name__}: {e}"}
+    return {**res, "delivery": report} if isinstance(res, dict) else res
+
+
 def _run_one(SessionLocal) -> bool:
     """Claim + run one job. Returns False when the queue is empty."""
     db = SessionLocal()
@@ -215,7 +286,12 @@ def _run_one(SessionLocal) -> bool:
                         result = fn(db, j.params or {})
                 else:
                     result = fn(db, j.params or {})
-            j.result = result if isinstance(result, (dict, list)) else {"value": result}
+                # Built and delivered inside the heartbeat, then assigned ONCE. Mutating `j.result`
+                # in place after assignment would not reliably mark the JSON column dirty, so the
+                # delivery report could be sent and then not recorded.
+                res = result if isinstance(result, (dict, list)) else {"value": result}
+                res = _deliver_if_requested(db, j, res)
+            j.result = res
             j.state = "done"
         except Exception as e:  # noqa: BLE001 — the job row carries the failure; the worker never dies
             j.state = "error"
