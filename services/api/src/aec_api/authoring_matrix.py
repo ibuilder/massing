@@ -4,6 +4,18 @@ An honest, single-source answer to "what can this tool actually author?" — der
 `edit.RECIPES` registry (never hand-maintained, so it can't drift) + a small curated category/output
 map. Users read it to judge maturity; contributors read it to pick work; the docs copy is generated from
 the same function so `docs/authoring-matrix.md` and the endpoint never disagree.
+
+**Being derived from the engine is not the same as being true about the product, and this file used
+to conflate them.** It said every recipe was "dispatchable from the CAD command line, the AI command
+bar, the node canvas, or the tool panels". The CAD line and the AI bar both dispatch from
+`nlauthor.RECIPE_SPECS`, which is a CURATED subset naming 12 of the 96 — and ten recipes had no
+caller on any surface at all: not the web client, not a router, not MCP, not the planner. The matrix
+could not drift from the ENGINE and was overcounting the PRODUCT by ten capabilities no user could
+invoke.
+
+So each row now carries `reach`, and `UNREACHED` names what nothing can invoke.
+`services/api/test_recipe_reach.py` derives that set from the tree and fails when this file disagrees,
+so the honest form of the claim cannot rot back into the confident one.
 """
 from __future__ import annotations
 
@@ -92,6 +104,33 @@ _MAP: dict[str, tuple[str, str]] = {
     "execute_ifc_code": ("edit", "sandboxed ifcopenshell escape hatch"),
 }
 
+# Recipes the engine can run that NO surface invokes — derived by `test_recipe_reach.py`, which fails
+# if this disagrees with the tree. Each is implemented and tested; each is simply not reachable, which
+# is a different fact from "not built" and a more useful one. Listing a recipe here is a DECISION that
+# it stays internal for now, not a place to park work: the gate makes the decision visible.
+#
+#   add_connection_assembly  steel connection plate + bolts + IfcRelConnectsWithRealizingElements
+#   add_roof_window          skylight through a roof — the roof counterpart of the wired add_door/add_window
+#   add_sprinkler            IfcFireSuppressionTerminal
+#   auto_connect_mep         route segments between MEP terminals
+#   convert_length_unit      project length unit (mm/m/ft), rescaling so real size is unchanged
+#   derive_representations   coarse Box/Axis/FootPrint views derived from Body geometry
+#   program_fit              headcount program -> zoned + auto-furnished spaces
+#   rebase_origin            shift the model origin, preserving georeferencing
+#   reset_prop_to_type       drop an instance override so the type value shows through — the UI ships
+#                            `set_element_pset`, which is the OTHER half of that pair
+#   set_system_predefined    set an IfcSystem's PredefinedType
+#
+# Three of these — add_sprinkler, auto_connect_mep, set_system_predefined — were already found by
+# SCALE-SEAM (93) and recorded in a doc comment in `apps/web/src/api/mep.ts`: "referenced NOWHERE in
+# apps/web/src. Backend recipes with no web exposure at all. Recorded, not fixed." That note was right
+# and had no way to stay right. It is now a check.
+UNREACHED: frozenset[str] = frozenset({
+    "add_connection_assembly", "add_roof_window", "add_sprinkler", "auto_connect_mep",
+    "convert_length_unit", "derive_representations", "program_fit", "rebase_origin",
+    "reset_prop_to_type", "set_system_predefined",
+})
+
 _CATEGORY_ORDER = ["create-structure", "create-enclosure", "create-opening", "create-space",
                    "create-mep", "create-content", "annotate", "edit", "edit-mep", "type", "group",
                    "data", "lifecycle", "analysis", "uncategorized"]
@@ -99,14 +138,18 @@ _CATEGORY_ORDER = ["create-structure", "create-enclosure", "create-opening", "cr
 
 def matrix() -> dict[str, Any]:
     """The live authoring-coverage matrix from `edit.RECIPES` + the category map."""
-    from aec_data import edit  # type: ignore
+    from aec_data import edit, nlauthor  # type: ignore
 
     recipes = sorted(edit.RECIPES.keys())
+    specs = set(nlauthor.RECIPE_SPECS)          # what the CAD line + AI planner can dispatch
     rows = []
     by_cat: dict[str, list[dict[str, str]]] = {}
     for name in recipes:
         cat, produces = _MAP.get(name, ("uncategorized", ""))
-        row = {"recipe": name, "category": cat, "produces": produces}
+        # `cad+ai` reaches the command line and the planner; `ui` is invoked by a panel, a router or
+        # MCP; `none` means the engine can run it and nothing asks it to.
+        reach = "cad+ai" if name in specs else ("none" if name in UNREACHED else "ui")
+        row = {"recipe": name, "category": cat, "produces": produces, "reach": reach}
         rows.append(row)
         by_cat.setdefault(cat, []).append(row)
     ordered = {c: by_cat[c] for c in _CATEGORY_ORDER if c in by_cat}
@@ -115,11 +158,17 @@ def matrix() -> dict[str, Any]:
     return {
         "recipe_count": len(recipes),
         "category_count": len(ordered),
+        "cad_ai_count": len(specs),
+        "unreached_count": len(UNREACHED),
+        "unreached": sorted(UNREACHED),
         "uncategorized": [r["recipe"] for r in by_cat.get("uncategorized", [])],
         "by_category": {c: {"count": len(v), "recipes": v} for c, v in ordered.items()},
         "note": ("Live from the edit.RECIPES registry — a newly-added recipe appears here automatically "
-                 "(uncategorized until mapped). Every recipe is a GUID-stable server-side pass; the CAD "
-                 "command line + AI command bar + panels all dispatch these."),
+                 "(uncategorized until mapped). Every recipe is a GUID-stable server-side pass. What "
+                 "can INVOKE one differs per recipe and is stated per row: `cad+ai` is dispatchable "
+                 f"from the CAD command line and the AI planner ({len(specs)} of {len(recipes)}, the "
+                 "curated nlauthor.RECIPE_SPECS); `ui` is invoked by a panel, a router or MCP; `none` "
+                 "means the engine can run it and no surface asks it to."),
     }
 
 
@@ -132,16 +181,26 @@ def to_markdown() -> str:
            "re-run the generator (or `GET /reference/authoring-matrix`) after adding a recipe.",
            "",
            f"**{m['recipe_count']} authoring recipes** across **{m['category_count']} categories**. "
-           "Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the "
-           "AI command bar, the node canvas, or the tool panels.",
+           "Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, "
+           "and the Reach column says which: "
+           f"`cad+ai` — dispatchable from the CAD command line and the AI planner "
+           f"({m['cad_ai_count']} of {m['recipe_count']}, the curated `nlauthor.RECIPE_SPECS`); "
+           "`ui` — invoked by a tool panel, a router or MCP; "
+           "`none` — the engine can run it and no surface asks it to.",
            ""]
+    if m["unreached"]:
+        out += [f"> ⚠ **{m['unreached_count']} recipes are reachable from no surface**: "
+                + ", ".join(f"`{r}`" for r in m["unreached"])
+                + ". They are implemented and tested; they are not something a user can invoke, so "
+                  "they are not coverage. Pinned by `services/api/test_recipe_reach.py`.",
+                ""]
     for cat, data in m["by_category"].items():
         out.append(f"### {cat} ({data['count']})")
         out.append("")
-        out.append("| Recipe | Produces |")
-        out.append("| --- | --- |")
+        out.append("| Recipe | Produces | Reach |")
+        out.append("| --- | --- | --- |")
         for r in data["recipes"]:
-            out.append(f"| `{r['recipe']}` | {r['produces'] or '—'} |")
+            out.append(f"| `{r['recipe']}` | {r['produces'] or '—'} | {r['reach']} |")
         out.append("")
     if m["uncategorized"]:
         out.append(f"> ⚠ Uncategorized (add to the map in `authoring_matrix.py`): "

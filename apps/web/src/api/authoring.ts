@@ -304,11 +304,20 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
         `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
     }
-    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list. */
+    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list.
+     *
+     *  `reach` says what can INVOKE each recipe, which is a different question from what the engine
+     *  can author and the one a coverage claim is actually making: `cad+ai` (the curated
+     *  `nlauthor.RECIPE_SPECS`, which the CAD line and the AI planner dispatch from), `ui` (a panel,
+     *  a router or MCP), or `none` — implemented, tested, and reachable by nobody. */
     authoringMatrix() {
       return this.json<{
         recipe_count: number; category_count: number; uncategorized: string[];
-        by_category: Record<string, { count: number; recipes: { recipe: string; category: string; produces: string }[] }>;
+        cad_ai_count: number; unreached_count: number; unreached: string[];
+        by_category: Record<string, {
+          count: number;
+          recipes: { recipe: string; category: string; produces: string; reach: "cad+ai" | "ui" | "none" }[];
+        }>;
         note: string;
       }>("/reference/authoring-matrix");
     }

@@ -588,9 +588,20 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     void ctx.host.api.authoringMatrix().then((mx) => {
         am.textContent = "";
         const m = el("div", "meta");
+        // The recipe count is what the ENGINE can author. This panel is read as a coverage claim, so
+        // it also says what can INVOKE one — `unreached` are implemented and tested and reachable by
+        // nobody, which is not coverage. Same shape as the `uncategorized` suffix already here.
         m.textContent = `${mx.recipe_count} recipes across ${mx.category_count} categories`
+          + ` · ${mx.cad_ai_count} on the CAD line + AI planner`
+          + (mx.unreached_count ? ` · ${mx.unreached_count} reachable from no surface` : "")
           + (mx.uncategorized.length ? ` · ${mx.uncategorized.length} uncategorized` : "");
         am.appendChild(m);
+        if (mx.unreached.length) {
+          const u = el("div", "meta");
+          u.style.cssText = "font-size:10px;opacity:.75";
+          u.textContent = `No caller: ${mx.unreached.join(", ")}`;
+          am.appendChild(u);
+        }
         const rows = Object.entries(mx.by_category).map(([cat, v]) => [cat, v.count]);
         if (rows.length) am.appendChild(table(["Category", "Recipes"], rows));
     }).catch(fail(am));

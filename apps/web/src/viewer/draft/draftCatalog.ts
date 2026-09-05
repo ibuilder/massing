@@ -74,6 +74,25 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
   covering("wood_floor", "Wood flooring", "FLOORING", "Wood"),
   covering("cladding", "Wall cladding", "CLADDING", null),
   {
+    // DARK-RECIPES: `extrude_profile` was implemented, tested (test_wall_slope) and reachable from
+    // nothing — no panel, no router, no MCP, and absent from the curated `nlauthor.RECIPE_SPECS` the
+    // CAD line and AI planner dispatch from. Its docstring calls it "E3 — sketch-to-BIM … the massing
+    // move of sketching a shape and pulling it up", which is the namesake gesture of this product.
+    // It needs no new UI: a polygon plus a height is exactly what the draft panel already collects.
+    key: "extrusion", label: "Extrude profile", discipline: "Architectural",
+    ifcClass: "IfcBuildingElementProxy", recipe: "extrude_profile", points: "poly",
+    params: [
+      { key: "height", label: "Height", type: "length", default: 3, unit: "m", min: 0.05, step: 0.1 },
+      { key: "z", label: "Base offset", type: "length", default: 0, unit: "m", step: 0.1 },
+      // The class the sketch BECOMES. A generic mass by default — the recipe's own default — with the
+      // classes its docstring names as the sensible alternatives when the sketch already IS one.
+      { key: "ifc_class", label: "Becomes", type: "select", default: "IfcBuildingElementProxy",
+        options: ["IfcBuildingElementProxy", "IfcWall", "IfcSlab", "IfcCovering"] },
+    ],
+    hint: "Click the profile corners; double-click to close, then it extrudes to the height above.",
+    build: (pts, v) => ({ points: pts, height: v.height, z: v.z, ifc_class: v.ifc_class }),
+  },
+  {
     key: "railing", label: "Railing", discipline: "Architectural", ifcClass: "IfcRailing",
     recipe: "add_railing", points: 2,
     params: [{ key: "height", label: "Height", type: "length", default: 1.1, unit: "m", min: 0.3, step: 0.05 }],
