@@ -4,9 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — review fixes, and a gate for the number that keeps drifting
+
+**Four review findings on the same pull request, and the second one was self-referential.** The PR
+corrected `CLAUDE.md`'s stale `apps/web/src/viewer/app.ts` line count from "3,444" to **2,570** —
+and then, in the same PR, R39-DECOMP-VIEWER ⑰ took the file to **2,508**. The paragraph diagnosing
+*numbers that decay toward the conclusion they support* decayed toward its own conclusion before it
+merged, and a review bot found it rather than the author.
+
+* **`services/api/test_claude_md_gates.py` now checks that number against the ratchet.** The
+  existing gate asks whether a cited FILE exists; this asks whether a cited NUMBER is still true.
+  It is cheap only because the value is not really `CLAUDE.md`'s to hold — `test_file_sizes.py`
+  already pins the same file at an exact size, so the prose is a **copy of a gated value, and a copy
+  is what drifts**. Mutation-checked both ways: a wrong figure fails, and a *reworded sentence* fails
+  too rather than passing on two `None`s, which is the vacuous-green failure that file's own header
+  calls worse than no gate at all.
+* **R38-SYNC-2D3D is CLOSED, with its children named.** The entry said three of four children were
+  open and named none of them. Re-derived by grepping the tree rather than reading the file that was
+  already wrong: `R38-SYNC-SELECT`, `R38-SYNC-VIEW`, `R38-PLAN-TRANSFORM` and `R38-PLAN-IDENTITY`,
+  and `docs/roadmap-completed.md` carries a ✅ for **each**. The 2026-08-10 un-archive was
+  mechanically right — a lane row pointed at nothing — and inherited the restored text's open count
+  as though the restore had verified it. Nothing had; R38-PLAN-IDENTITY was marked ✅ *that same
+  day*, in the archive the entry was being pulled out of. **Un-archiving restores an entry's text,
+  not its truth.**
+* **Naming those children made them items, and the gates said so.** Adding four bold item codes to
+  `docs/roadmap.md` put three new orphans in `apps/web/src/shell/roadmapLanes.test.ts` and a stale
+  open-vs-implemented pair in `apps/web/src/shell/roadmapStale.test.ts`. The fourth escaped only
+  because its line happened to contain a ✅ in prose. All four now carry an explicit ✅ marker —
+  *passing by accident and passing by construction look identical until something moves.*
+* Completed the verbless counterparty-risk entry below, and gave the bare `wc -l` in `CLAUDE.md`'s
+  re-measure command its argument — an instruction to verify that hangs on stdin is one nobody runs
+  twice.
+
 ## Unreleased — SCALE-SEAM (102): counterparty risk
 
-`prequalScores`, `coiExpiry` and `lienExposure` out of `client.ts` (**603 → 589**) into
+**Extracts** `prequalScores`, `coiExpiry` and `lienExposure` out of `client.ts` (**603 → 589**) into
 `apps/web/src/api/counterpartyRisk.ts` — *which trade partner is a risk on this job, and why.*
 
 **The witness is that the seam disagrees with the route prefix.** Two sit under `/prequal/`, one

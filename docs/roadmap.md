@@ -2310,11 +2310,14 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
-- ◧ **split by premise-check 2026-08-02 — un-archived 2026-08-10, the ✅ was wrong.** Only
-  **R38-SYNC-SELECT** of the four children shipped; the other three are open, and archiving the
-  parent took them with it — caught by `roadmapLanes.test.ts`, which names lane items with no
-  entry left in the file. **A ✅ on a parent is not a claim about its children.**
-  Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D.
+- ✅ **CLOSED 2026-09-05 — all four children shipped; the defect this entry described is fixed.**
+  *(Previously ◧, carrying: "split by premise-check 2026-08-02 — un-archived 2026-08-10, the ✅ was
+  wrong. Only **R38-SYNC-SELECT** of the four children shipped; the other three are open, and
+  archiving the parent took them with it — caught by `roadmapLanes.test.ts`, which names lane items
+  with no entry left in the file. **A ✅ on a parent is not a claim about its children.**" That
+  reasoning was correct on the day it was written and is kept here for it; the count it carried was
+  not, see below.)*
+  **Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D.
 
   ✅ **THE DEFECT THIS ENTRY DESCRIBES IS FIXED, END TO END — corrected 2026-09-05.** The text below
   said the pipeline *"discards element identity at bake time"*, that `_bake_uncached` *"keeps only
@@ -2337,11 +2340,36 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   described two functions accurately and drew the wrong conclusion from them, because it never
   looked for a third.*
 
-  ⚠️ **What is left cannot be acted on, and that is now the real defect in this entry.** It claims
-  three of four children are open and **names none of them** — `R38-SYNC-SELECT` is the only child
-  named anywhere in this file. An item that says work remains without saying what work is not a
-  backlog entry, it is a reminder that somebody once knew. **Re-derive the children or close it.**
-  Hence:
+  ✅ **THE THREE UNNAMED CHILDREN, RE-DERIVED — and all three had already shipped.** This entry
+  claimed three of four children were open and **named none of them**; `R38-SYNC-SELECT` was the
+  only child named anywhere in this file. An item that says work remains without saying what work
+  is not a backlog entry, it is a reminder that somebody once knew. So the standing instruction here
+  was *re-derive the children or close it* — done, by grepping `R38-[A-Z0-9-]*` across the tree
+  rather than by reading this file, which is the source that was already wrong. The four children
+  are `R38-SYNC-SELECT`, `R38-SYNC-VIEW`, `R38-PLAN-TRANSFORM` and `R38-PLAN-IDENTITY`, and
+  `docs/roadmap-completed.md` carries a ✅ for **each** — and each is marked ✅ *here* too, because
+  naming a child in this file makes it an item this file's own gates must account for:
+
+  * ✅ **R38-SYNC-SELECT ③** — shipped v0.3.829, the one child this entry already credited.
+  * ✅ **R38-SYNC-VIEW ③** — storey, pan and zoom shipped first; cursor sync closed once
+    PLAN-TRANSFORM unblocked it. `apps/web/src/viewer/planPane.ts` +
+    `apps/web/src/viewer/planTransform.ts`.
+  * ✅ **R38-PLAN-TRANSFORM** — shipped v0.3.928. The plan SVG root serialises the six terms of its own
+    transform, and `services/api/test_plan_transform.py` asserts the pixel → world → pixel **round
+    trip** rather than the presence of the attributes.
+  * ✅ **R38-PLAN-IDENTITY** — recorded on **2026-08-10** as *already done when the entry was
+    written*.
+
+  **The un-archive was mechanically right and factually stale on the same day.** It restored a
+  parent because a lane row pointed at nothing — a real defect, correctly fixed — and then inherited
+  the restored text's open/closed count as though the restore had checked it. Nothing had:
+  R38-PLAN-IDENTITY was marked ✅ on that same 2026-08-10, in the very archive this entry was being
+  pulled back out of. **Un-archiving restores an entry's TEXT, not its truth.** Any count it carries
+  is as old as the day it was archived, and here re-deriving it cost one grep against the tree.
+  *That is the same failure as the defect description above — both were true once, neither was
+  re-measured, and one of them then blocked three other items as a phantom prerequisite.*
+
+  Its consuming surface, kept below, is coded and closes with it:
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
