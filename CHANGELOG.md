@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — SCALE-SEAM (104): coverage maps
+
+Extracts `spineTraceability` and `scopeRegister` from `client.ts` (**572 → 554**) into
+`apps/web/src/api/coverageMaps.ts` — *how completely is this project's chain of records linked, and
+exactly what is missing.*
+
+**This is the affirmative half of a boundary (103) drew by exclusion.** `acceptanceGates.ts` took the
+four methods that collapse the project to one accept/refuse verdict, and named `spineTraceability` as
+the closest miss *precisely because* it maps completeness rather than deciding. Both members here
+report proportion-complete across several link types — `specs_packaged_pct`, `packages_costed_pct`,
+`sheets_specced_pct`, `spec_to_budget_pct`; `pct_quantified`, `pct_allocated`, `pct_scheduled` — plus
+the individual records lacking the link: `specs_without_bid_package`, `bid_packages_without_cost_code`,
+`sheets_without_spec`; `gap_items` with per-item `gaps[]` and `status: "complete" | "gap"`. **Neither
+carries a verdict field.** Same test as (103), run for inclusion this time.
+
+**Deriving the population required resolving named return types, and that is the lesson.** A scan of
+method bodies for coverage vocabulary returned `scopeRegister`, `citedQuery` and `progressActuals` —
+and **missed `spineTraceability`, the strongest member**, because its return is the named type
+`SpineTraceability` and its body contains none of those words. That is the exact **mirror** of the
+mistake (103) recorded, where a body scan *over*-counted by matching the doc comment of the next
+method. *A textual scan of a typed language reads neither the comments nor the types correctly — it
+finds candidates, it never counts them.*
+
+**Exclusions.** `citedQuery` carries `coverage`, `uncited_claims` and `fully_cited`, but its product
+is an *answer* whose sourcing those annotate — the caller renders a cited answer, not a worklist.
+`masterBuilderBrief` is **the closest call in this slice**, closer than `spineTraceability` was to the
+gates: it has `readiness_pct`, `ready_steps` and `gap_steps`. It stays because its product is a
+narrative brief with a `reframe_prompt` and a `disclaimer`, where the percentages head a document
+rather than being it — recorded rather than asserted, since a later reader may decide otherwise.
+`progressActuals`'s `pct_complete` is physical progress against a planned quantity, banded
+`ahead`/`on_track`/`behind`: variance over time, not completeness of linkage.
+
+**A correction to a follow-up proposed in (103).** That PR said three consecutive slices leaving an
+orphaned type import in `client.ts` was "a pattern that wants a gate rather than vigilance". **It
+already has one.** `tsc` reports the orphan as `TS6196`, and it caught every instance — `EnergyResult`
+(101), `PrequalScores` (102), `DiligenceReadiness` (103) and now `SpineTraceability` (104). None ever
+reached a commit. Proposing a gate for a class the toolchain already gates is how a checklist grows
+without getting safer; the follow-up is withdrawn.
+
 ## Unreleased — SCALE-SEAM (103): acceptance gates
 
 Extracts `permitReadiness`, `diligenceReadiness`, `handoverAcceptance` and `validate` from
