@@ -2016,7 +2016,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // being a different concern with a different risk profile). The annotation group was tried
       // first and REJECTED — it writes to `annotGuide`/`guideWired` and mutates the live three.js
       // scene, so it is not renderer-free and this recipe does not fit it.
-      const { curtainBtn, slopeBtn, meshBtn } = buildEnvelopeSection({
+      const { curtainBtn, skylightBtn, slopeBtn, meshBtn } = buildEnvelopeSection({
         toolBtn2, api, pid, projectId, notify, container,
         loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
         lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
@@ -2079,7 +2079,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn, curtainBtn, skylightBtn, slopeBtn, meshBtn, ifcCodeBtn);
 
       // UX-1b: surface the interactive annotation tools + the content library as their own labelled groups
       // (the Annotate + Library ribbon groups), instead of burying them in the Advanced-fabrication fold.

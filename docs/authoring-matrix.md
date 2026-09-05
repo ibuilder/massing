@@ -4,7 +4,7 @@
 
 **96 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, and the Reach column says which: `cad+ai` — dispatchable from the CAD command line and the AI planner (12 of 96, the curated `nlauthor.RECIPE_SPECS`); `ui` — invoked by a tool panel, a router or MCP; `superseded` — nothing calls it and nothing should, a reachable recipe authors the same result; `none` — the engine can run it and no surface asks it to.
 
-> ⚠ **7 recipes are reachable from no surface**: `add_connection_assembly`, `add_roof_window`, `convert_length_unit`, `derive_representations`, `program_fit`, `rebase_origin`, `reset_prop_to_type`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
+> ⚠ **6 recipes are reachable from no surface**: `add_connection_assembly`, `convert_length_unit`, `derive_representations`, `program_fit`, `rebase_origin`, `reset_prop_to_type`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
 
 > **Superseded** — uncalled, and correctly so: `add_sprinkler` → `add_fire_equipment`. A reachable recipe authors the identical result, so these are duplicate spellings rather than gaps. The equivalence is asserted in `services/api/test_recipe_reach.py`, so an entry stops being true if the two recipes stop agreeing.
 
@@ -35,7 +35,7 @@
 | `add_railing` | IfcRailing | ui |
 | `add_ramp` | IfcRamp | ui |
 | `add_roof` | IfcRoof | ui |
-| `add_roof_window` | IfcWindow (SKYLIGHT) voiding a roof | none |
+| `add_roof_window` | IfcWindow (SKYLIGHT) voiding a roof | ui |
 | `add_stair` | IfcStair | ui |
 
 ### create-opening (2)

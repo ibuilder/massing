@@ -2963,6 +2963,30 @@ removed. Remaining, in priority order:
   by RUNNING both recipes and comparing (class, PredefinedType, system, system type), not by reading
   them — so it fails the moment the two stop agreeing, and the recipe becomes a real gap again.
 
+  ✅ **SKYLIGHT, shipped 2026-09-05 — a window in a wall, but never a skylight in a roof.**
+  `add_roof_window` voids a host `IfcRoof` and fills the opening with an `IfcWindow`/`SKYLIGHT`. It
+  has worked since R17 DORMER and `services/api/test_roof_window.py` covers it down to the void/fill
+  relations and GUID stability across a re-open — while the viewer shipped *"Add door to selected
+  wall"* and *"Add window to selected wall"* and no roof counterpart. **Two independent descriptions
+  each said a shipped tool had a missing twin** — the matrix entry ("the roof counterpart of the wired
+  `add_door`/`add_window`") and the engine docstring ("the flat-roof counterpart of the wall-hosted
+  `add_opening`") — *and neither was a check, so the asymmetry sat there through both.* Now
+  **☀ Skylight in selected roof** on the envelope section. `UNREACHED` 7 → 6.
+
+  *One difference was handled rather than copied:* the wall openings centre themselves when no
+  position is given, but `add_roof_window` indexes `p["position"]` with no default, so copying the
+  "click optional" pattern would have turned a button press into a server error. *And it went into
+  `apps/web/src/viewer/tools/envelopeSection.ts`, not `apps/web/src/viewer/app.ts`* — the ratchet in
+  `services/api/test_file_sizes.py` only moves one way, so a new tool in `app.ts` would have been paid
+  for by unwinding an extraction; `app.ts` stays at exactly 2,508.
+
+  **The gate it produced outlives the item.**
+  `apps/web/src/viewer/tools/sectionButtonsWired.test.ts` asserts every member of every `*Buttons`
+  interface a section module exports is destructured **and appended** in `app.ts`. The interfaces
+  were "named so re-ordering cannot silently re-map them" — that guards ORDER, and nothing guarded
+  the last step: **a button built, returned, destructured and never appended is invisible with every
+  typecheck green**, which `envelopeSection.ts` records the annotation group shipping once already.
+
   ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
   CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were
   absent from the draft catalog entirely, so they were the only placeable things in the app that

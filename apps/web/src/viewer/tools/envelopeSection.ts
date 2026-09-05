@@ -56,6 +56,7 @@ export interface EnvelopeDeps {
 /** The three envelope buttons, named so re-ordering cannot silently re-map them. */
 export interface EnvelopeButtons {
   curtainBtn: HTMLButtonElement;
+  skylightBtn: HTMLButtonElement;
   slopeBtn: HTMLButtonElement;
   meshBtn: HTMLButtonElement;
 }
@@ -78,6 +79,35 @@ export function buildEnvelopeSection(d: EnvelopeDeps): EnvelopeButtons {
   });
   curtainBtn.title = "Author an IfcCurtainWall along a line — vertical mullions + horizontal transoms + "
     + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
+
+  // R17 DORMER: a skylight through the selected roof. `app.ts` has had "add door to selected wall"
+  // and "add window to selected wall" since the opening recipes landed; `add_roof_window` is the
+  // roof-hosted counterpart — its own docstring calls itself "the flat-roof counterpart of the
+  // wall-hosted add_opening" — and shipped with no way to invoke it.
+  const skylightBtn = d.toolBtn2("☀ Skylight in selected roof", async () => {
+    const guid = d.selectedGuid();
+    if (!guid) { d.notify("select the roof first, then place the skylight", "error"); return; }
+    // The plan point is REQUIRED here, unlike the wall openings. `add_door`/`add_window` centre
+    // themselves on the host when no position is given; `add_roof_window` indexes p["position"] with
+    // no default, so sending nothing is a server error rather than a sensible default. Refuse here,
+    // where the message can say what to do about it.
+    const pt = d.lastPoint();
+    if (!pt) { d.notify("click where the skylight goes on the roof, then press this", "error"); return; }
+    if (!d.projectId) { d.notify("connect a project with a source IFC to author", "error"); return; }
+    const size = await askText("Skylight", {
+      label: "Width × length in metres (the opening cut through the roof)", value: "0.9, 1.2" });
+    if (!size) return;
+    // `noUncheckedIndexedAccess` types these as `number | undefined`, and `w > 0` does not narrow
+    // that away — so read them as numbers with a NaN default and let the positivity check reject it.
+    const dims = size.split(/[,x×]/).map((v) => Number(v.trim()));
+    const w = dims[0] ?? NaN, l = dims[1] ?? NaN;
+    if (!(w > 0) || !(l > 0)) { d.notify("enter a positive width and length", "error"); return; }
+    await d.authorAndReload("add_roof_window",
+      { roof_guid: guid, position: [pt.x, -pt.z], width: w, length: l }, "skylight");
+  });
+  skylightBtn.title = "Cut a skylight through the selected IfcRoof at the last-clicked plan point — a "
+    + "full-depth IfcOpeningElement voiding the roof, filled with an IfcWindow of PredefinedType "
+    + "SKYLIGHT. The roof-hosted counterpart of the door and window tools, which host on a wall.";
 
   // B3 — sloped-top wall (parapet slope / shed / gable): rebuild the selected wall's top to slope
   // from start_height → end_height.
@@ -141,5 +171,5 @@ export function buildEnvelopeSection(d: EnvelopeDeps): EnvelopeButtons {
   meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
     + "hatch for geometry the parametric recipes can't express.";
 
-  return { curtainBtn, slopeBtn, meshBtn };
+  return { curtainBtn, skylightBtn, slopeBtn, meshBtn };
 }

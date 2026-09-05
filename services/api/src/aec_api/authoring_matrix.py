@@ -119,7 +119,6 @@ _MAP: dict[str, tuple[str, str]] = {
 # it stays internal for now, not a place to park work: the gate makes the decision visible.
 #
 #   add_connection_assembly  steel connection plate + bolts + IfcRelConnectsWithRealizingElements
-#   add_roof_window          skylight through a roof — the roof counterpart of the wired add_door/add_window
 #   convert_length_unit      project length unit (mm/m/ft), rescaling so real size is unchanged
 #   derive_representations   coarse Box/Axis/FootPrint views derived from Body geometry
 #   program_fit              headcount program -> zoned + auto-furnished spaces
@@ -135,8 +134,15 @@ _MAP: dict[str, tuple[str, str]] = {
 # MEP-AUTOCONNECT then took all three off the list, and only two of them by wiring. `auto_connect_mep`
 # and `set_system_predefined` are now typed client methods invoked from the MEP systems panel. The
 # third is the finding: **`add_sprinkler` was never a missing capability.** See SUPERSEDED below.
+#
+# SKYLIGHT took `add_roof_window` off the list (2026-09-05). It was the entry whose own description
+# named its counterpart — "the roof counterpart of the wired add_door/add_window" — and the engine
+# function's docstring says the same thing from the other side: "the flat-roof counterpart of the
+# wall-hosted add_opening". *Two descriptions, written independently, both said a shipped tool had a
+# missing twin; neither was a check, so the asymmetry sat there.* It is now on the envelope section
+# beside the curtain wall.
 UNREACHED: frozenset[str] = frozenset({
-    "add_connection_assembly", "add_roof_window", "convert_length_unit", "derive_representations",
+    "add_connection_assembly", "convert_length_unit", "derive_representations",
     "program_fit", "rebase_origin", "reset_prop_to_type",
 })
 

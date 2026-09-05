@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — you could put a window in a wall but not a skylight in a roof
+
+`add_roof_window` cuts a full-depth `IfcOpeningElement` through a host `IfcRoof` and fills it with an
+`IfcWindow` of PredefinedType `SKYLIGHT`. It has worked since the R17 DORMER slice, it is covered by
+`services/api/test_roof_window.py` down to the void/fill relations and GUID stability across a
+re-open — and no user could invoke it. The viewer has had *"Add door to selected wall"* and *"Add
+window to selected wall"* the whole time.
+
+**Two independent descriptions each said a shipped tool had a missing twin, and neither was a check.**
+The coverage matrix entry read *"the roof counterpart of the wired `add_door`/`add_window`"*; the
+engine function's own docstring says *"the flat-roof counterpart of the wall-hosted `add_opening`"*.
+Prose noticing an asymmetry is not the same as anything failing because of it.
+
+It is now **☀ Skylight in selected roof** on the envelope section, beside the curtain wall — select
+the roof, click where it goes, give width × length. `UNREACHED` goes 7 → 6.
+
+**One behavioural difference had to be handled rather than copied.** `add_door` and `add_window`
+centre themselves on the host when no position is given; `add_roof_window` indexes `p["position"]`
+with no default, so the wall tools' "click optional" pattern would have produced a server error on a
+button press instead of a skylight. The tool requires the point and says what to do about it.
+
+**It went into `envelopeSection.ts`, not `app.ts`.** `services/api/test_file_sizes.py` pins
+`apps/web/src/viewer/app.ts` at 2,508 lines and a decomposition ratchet only ratchets one way, so a
+new tool there would have been paid for by unwinding an extraction. `app.ts` changes by two
+identifiers on two existing lines and stays at exactly 2,508.
+
+**A new gate came out of the wiring, and it generalises past this change.**
+`apps/web/src/viewer/tools/sectionButtonsWired.test.ts` asserts that every member of every `*Buttons`
+interface a section module exports is both destructured **and passed to an `append`** in `app.ts`.
+`envelopeSection.ts`'s own comment says its interface is *"named so re-ordering cannot silently
+re-map them"* — that guards the order, and nothing guarded the last step. **A button that is built,
+returned, destructured and never appended is invisible with every typecheck green**, which
+`envelopeSection.ts`'s docstring records the annotation group shipping once already: *"the same
+silent-inert failure `qaSection.ts` shipped"*. `tsc` is satisfied by the destructure and a unit test
+is satisfied by calling the handler; only the DOM tree knows. Derived from the interfaces rather than
+a list — the failure mode is somebody adding a button and forgetting the second half — and it carries
+a control asserting the derivation still finds all three interfaces, because a regex that stops
+matching passes every assertion vacuously.
+
 ## Unreleased — MEP runs could only be joined two elements at a time, and a system's discipline could never be corrected
 
 Two of the ten recipes the entry below named as reachable from nothing are real capabilities, and both
