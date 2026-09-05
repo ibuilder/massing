@@ -326,12 +326,17 @@ export function buildMepSection(d: MepDeps): MepButtons {
             const r = (await d.api.autoConnectMep(d.pid, tol, true)) as { count?: number };
             const n = Number(r?.count ?? 0);
             const state = await d.waitForPublish(d.projectId!);
-            if (state === "done") await d.loadProjectModel();
+            // `loadProjectModel` returns whether the re-tessellation SUCCEEDED. Ignoring it reports a
+            // clean result over a viewer still showing the pre-edit model — the edit is committed and
+            // what you are looking at is stale, which is the one outcome a user cannot detect
+            // unaided. (Review finding on this PR.)
+            const shown = state === "done" ? await d.loadProjectModel() : false;
             // Zero is a real answer, not a failure: every coincident pair may already be welded, or
             // nothing may be within tolerance. Say which number came back rather than only "done".
             d.notify(n ? `connected ${n} pair(s) within ${tol} m` : `no unconnected pairs within ${tol} m`,
                      n ? "success" : "info");
             if (state !== "done") d.notify(`publish ${state}`, state === "error" ? "error" : "info");
+            else if (!shown) d.notify("connected, but the viewer could not reload — reopen the model", "error");
             mepConnectFrom = null; await d.reloadModelPins();
           } catch (e) { d.notify(`auto-connect failed: ${(e as Error).message}`, "error"); }
         });
@@ -456,10 +461,13 @@ export function buildMepSection(d: MepDeps): MepButtons {
                 const r = (await d.api.setSystemDiscipline(
                   d.pid, sy.name, disc.trim(), true)) as { predefined_type?: string };
                 const state = await d.waitForPublish(d.projectId!);
-                if (state === "done") await d.loadProjectModel();
+                // Same reload contract as the auto-connect above: a false result means the retype
+                // committed and the viewer is stale.
+                const shown = state === "done" ? await d.loadProjectModel() : false;
                 d.notify(`${sy.name} is now ${r?.predefined_type ?? disc.trim()}`
-                  + (state === "done" ? "" : ` — publish ${state}`),
-                  state === "error" ? "error" : "success");
+                  + (state === "done" ? (shown ? "" : " — the viewer could not reload, reopen the model")
+                                      : ` — publish ${state}`),
+                  state === "error" || (state === "done" && !shown) ? "error" : "success");
                 await d.reloadModelPins();
               } catch (e) { d.notify(`retype failed: ${(e as Error).message}`, "error"); }
             });

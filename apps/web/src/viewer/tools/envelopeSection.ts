@@ -98,10 +98,16 @@ export function buildEnvelopeSection(d: EnvelopeDeps): EnvelopeButtons {
       label: "Width × length in metres (the opening cut through the roof)", value: "0.9, 1.2" });
     if (!size) return;
     // `noUncheckedIndexedAccess` types these as `number | undefined`, and `w > 0` does not narrow
-    // that away — so read them as numbers with a NaN default and let the positivity check reject it.
+    // that away — so read them as numbers with a NaN default and let the guard reject it.
+    //
+    // FINITE, not merely positive: `Number("Infinity")` is `Infinity`, which passes `w > 0` and would
+    // reach the engine as a skylight of infinite extent. NaN fails `> 0` and Infinity does not, so
+    // the two bad inputs need two different tests. (Review finding on this PR, verified in node.)
     const dims = size.split(/[,x×]/).map((v) => Number(v.trim()));
     const w = dims[0] ?? NaN, l = dims[1] ?? NaN;
-    if (!(w > 0) || !(l > 0)) { d.notify("enter a positive width and length", "error"); return; }
+    if (!Number.isFinite(w) || !Number.isFinite(l) || !(w > 0) || !(l > 0)) {
+      d.notify("enter a positive width and length", "error"); return;
+    }
     await d.authorAndReload("add_roof_window",
       { roof_guid: guid, position: [pt.x, -pt.z], width: w, length: l }, "skylight");
   });
