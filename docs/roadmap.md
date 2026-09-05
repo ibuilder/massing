@@ -1790,15 +1790,38 @@ stakes we are missing.
   `apps/web/src/portal/register/register.ts` and is replaced by "→ RFI raised" once promoted, because
   a button whose only remaining outcome is a 409 is worse than no button.
 
-  **Remaining: the OUTBOUND submittal package, and the reason is now specific rather than vague.**
-  This line used to name "submittal packages" flatly while the ④ note above said the inbound half had
-  already shipped — the entry contradicted itself. Measured 2026-09-04: the inbound *view* is real
-  (`…/related` returns `incoming`), but assembling a package to send is not, because
-  `modules/transmittal/module.json` types **`items` as a textarea and `to_company` as plain text**.
-  A package's contents are therefore prose no machine can resolve back to the records it names, and
-  its recipient cannot be the agency an `entitlement` names, since that field is free text too.
-  *That is a schema question — reference fields — not a workflow one, which is why reading the
-  workflow surface kept reporting this as done.*
+  ⑥ **the OUTBOUND package, shipped 2026-09-05 — and the blocker named here was the wrong one.**
+  This paragraph said assembling a package to send was impossible because
+  `modules/transmittal/module.json` types **`items` as a textarea**. Re-measured before building:
+  `submittal` has carried a `transmittal` **reference** all along, so submittals resolved into a
+  package the whole time — which is exactly what the ④ note two paragraphs above had already
+  verified against `…/related`. *The entry contradicted itself a second time, in the paragraph
+  written to stop it contradicting itself the first time.* `items` was never the blocker; it was a
+  second, unresolvable copy of a fact the reference already owned, and it is now labelled as the note
+  it is.
+
+  **What was actually missing, measured across all 139 registers.** A transmittal carries drawings,
+  sets and documents at least as often as submittals, and **none of those three could name one** —
+  `document` and `drawing_set` had no reference field of *any* kind, so they were islands that could
+  not take part in a chain at all. And `to_company` was free text while `company` is a register, so a
+  transmittal could not name the party it was addressed to. Four references close it:
+  `drawing.transmittal`, `drawing_set.transmittal`, `document.transmittal`, and
+  `transmittal.to_company_ref`.
+
+  **No engine changed.** `REVERSE_REFS` is derived from `reference_fields()` at registry load, so a
+  new reference flows into `related_records`, the Referenced by panel and the rollups by itself —
+  which is why this was a schema question, the one thing the old paragraph got right.
+  `to_company_ref` sits BESIDE the text as the MOD-SWEEP additive pattern requires rather than
+  converting it, so existing transmittals keep the name somebody typed.
+  `services/api/test_module_fields.py` names the four registers a package carries and asserts each
+  can point at one; `services/api/test_modules.py` asserts a real transmittal resolves all four kinds
+  plus its recipient, because a field that exists still proves nothing about whether a package
+  resolves.
+
+  ⚠️ **`drawing_issuance` overlaps this and was left alone.** It models the same event — `recipients`
+  as free text, a `purpose` select, a sheet count — and is still an island. Whether it should link to
+  `transmittal`, be fed by it, or be retired is a modelling decision about the business, not a gap to
+  close on the way past.
 
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
   `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was

@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a transmittal could not name its recipient, and could not carry a drawing at all
+
+**R22-ENTITLEMENT's remaining item was the outbound package, and the blocker the entry named was the
+wrong one.** It said assembling a package to send was impossible because `transmittal.items` is a
+textarea. Re-measured before building: `submittal` has carried a `transmittal` **reference** all
+along, so submittals resolved into a package the whole time — which is precisely what the same
+entry's ④ note had already verified against `…/related`. *The entry contradicted itself in the
+paragraph written to stop it contradicting itself.*
+
+`items` was never the blocker. It was a second, unresolvable copy of a fact the reference already
+owned, and it is now labelled as the note it is: **the contents are the records whose own Transmittal
+field names this one**, because those resolve, appear under Referenced by, and can be counted.
+
+**What was actually missing, measured across all 139 registers.** A transmittal carries drawings,
+sets and documents at least as often as submittals, and **none of those three could name one**.
+`document` and `drawing_set` had no reference field of *any* kind — islands that could not take part
+in a chain at all. And `to_company` was plain text while `company` is a register, so a transmittal
+could not name the party it was addressed to.
+
+Four references close it: `drawing.transmittal`, `drawing_set.transmittal`, `document.transmittal`
+and `transmittal.to_company_ref`. Reference fields went 169 → **173**, islands 49 → **46**.
+
+**No engine changed, and that is the part worth knowing.** `REVERSE_REFS` is derived from
+`reference_fields()` at registry load, so a new reference flows into `related_records`, the Referenced
+by panel and the rollups by itself. The old paragraph's one correct instinct was that this is a schema
+question rather than a workflow one.
+
+**`to_company_ref` sits BESIDE the text, not instead of it.** The MOD-SWEEP established that pattern
+for 74 fields naming a register — add the reference, backfill, retire the text later — and
+`test_module_fields.py` ratchets it: the pair must be adjacent and share a fieldset. Converting in
+place would have been the obvious move and the wrong one; existing transmittals keep the name
+somebody typed.
+
+**Two gates, and they catch different things.** `test_module_fields.py` names the four registers a
+package carries, with a reason each, and asserts every one can point at a transmittal — the set is
+named rather than derived because "what a transmittal carries" is a judgement about the business.
+`test_modules.py` then asserts a real transmittal resolves all four kinds *and* its company
+recipient, because a field that exists proves nothing about whether a package resolves.
+Mutation-checked: removing `drawing.transmittal` fails the schema gate by name and the behavioural one
+with the three kinds it did resolve; removing `document`'s or the recipient link trips the island
+ceiling first, which is why the named checks were verified against a module that keeps its other
+references.
+
+*A test bug worth recording: the first draft created the submittal with a `subject` field it does not
+have, the POST 4xx'd, and the assertion reported a missing submittal — which reads exactly like the
+product defect it was not.* The check now asserts the POST succeeded before asserting what it means.
+
+⚠️ **`drawing_issuance` overlaps this and was deliberately left alone.** It models the same event —
+free-text `recipients`, a purpose, a sheet count — and is still an island. Whether it should link to
+`transmittal`, be fed by it, or be retired is a modelling decision, not a gap to close in passing.
+
 ## Unreleased — the scheduled package now reaches the people it was assembled for
 
 **R24-REPORTS-BY-MOMENT's last remainder, in its own words: *"Delivery (email on a date) is still

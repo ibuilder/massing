@@ -45,6 +45,14 @@
       "fieldset": "Parties"
     },
     {
+      "name": "to_company_ref",
+      "label": "To (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The company this transmittal is addressed to, as a record rather than a typed name — so the recipient can be resolved, reused and reported on. Sits beside the free-text field rather than replacing it: existing transmittals keep the name somebody typed.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "contents",
       "label": "Contents",
       "type": "textarea",
@@ -52,8 +60,9 @@
     },
     {
       "name": "items",
-      "label": "Items",
+      "label": "Items (note)",
       "type": "textarea",
+      "help": "Free text, and NOT the record of what this transmittal carries. The contents are the drawings, sets, documents and submittals whose own Transmittal field names this one — those resolve, appear under Referenced by, and can be counted. Anything typed here is a note beside them, so a package is never assembled out of prose nothing can follow.",
       "fieldset": "Notes"
     }
   ],
