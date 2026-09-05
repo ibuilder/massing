@@ -2074,7 +2074,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const { contentBtn } = buildContentLibrarySection({
         toolBtn2, api, projectId, container, notify, reloadModelPins,
         loadProjectModel: () => loadProjectModel(), waitForPublish,
-        lastPoint: () => lastPoint,
+        lastPoint: () => lastPoint, activeStorey: () => activeStorey,
       });
 
       const advWrap = document.createElement("div");
@@ -2205,7 +2205,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // R39-DECOMP-VIEWER ④ — moved verbatim to `tools/authoringSection.ts`.
       authoring: () => buildAuthoringSection({
         section, toolBtn2, api, pid, notify, panel, waitForPublish, loadProjectModel,
-        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid, activeStorey: () => activeStorey,
       }),
     };
     for (const key of order) builders[key]?.();

@@ -37,6 +37,10 @@ export interface ContentLibraryDeps {
   waitForPublish: (pid: string, onTick?: (s: string) => void) => Promise<string>;
   /** **An accessor, never a value** — the last point picked in 3D, `let` in `app.ts`. */
   lastPoint: () => import("three").Vector3 | null;
+  /** The active level's NAME, and an accessor for the same reason `lastPoint` is one: the user
+   *  changes level with the palette open, and a value copied at panel-build time would place onto
+   *  whichever level was current when the ribbon was last rebuilt. */
+  activeStorey: () => string | null;
 }
 
 export function buildContentLibrarySection(d: ContentLibraryDeps) {
@@ -53,18 +57,25 @@ export function buildContentLibrarySection(d: ContentLibraryDeps) {
         ]);
       } catch (e) { d.notify(`library failed: ${(e as Error).message}`, "error"); return; }
 
-      const placeAt = (label: string, fn: (e: number, n: number) => Promise<unknown>) => async () => {
+      const placeAt = (label: string,
+                       fn: (e: number, n: number, storey: string | null) => Promise<unknown>) => async () => {
         // Read once, INSIDE the handler — at click time. The ternary form was three separate calls
     // TS cannot narrow, and three chances to read a different point if the user clicks mid-await.
     const at = d.lastPoint();
     const dflt = at ? `${at.x.toFixed(1)}, ${(-at.z).toFixed(1)}` : "0, 0";
-        const v = await askText(`Place ${label}`, { label: "Location E, N (metres):", value: dflt });
+        // Read at click time, beside the point, and for the same reason. LEVEL-PLACE: without it the
+        // recipe falls through to the LOWEST storey, so everything placed from this palette landed on
+        // the ground floor — while the draw-in-3D path (`app.ts` finishDraft) and the AI planner
+        // (`nl_ai._fill_context`) had both honoured the active level all along.
+        const storey = d.activeStorey();
+        const on = storey ? ` on ${storey}` : "";
+        const v = await askText(`Place ${label}${on}`, { label: "Location E, N (metres):", value: dflt });
         if (!v) return;
         const parts = v.split(",").map((s) => parseFloat(s.trim()));
         if (parts.length < 2 || parts.some((n) => !isFinite(n))) { d.notify("enter E, N", "error"); return; }
-        await withLoading(d.container, `placing ${label} + republishing`, async () => {
+        await withLoading(d.container, `placing ${label}${on} + republishing`, async () => {
           try {
-            await fn(parts[0]!, parts[1]!);
+            await fn(parts[0]!, parts[1]!, storey);
             const state = await d.waitForPublish(d.projectId!);
             if (state === "done") { await d.loadProjectModel(); d.notify(`placed ${label}`, "success"); }
             else d.notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
@@ -83,7 +94,7 @@ export function buildContentLibrarySection(d: ContentLibraryDeps) {
             sub: `${it.ifc_class.replace("Ifc", "")} · ${group}${it.phase ? ` · ${it.phase}` : ""}`,
             cls: it.ifc_class.toLowerCase(), cat: group.toLowerCase(), kind: "content",
             search: `${nm} ${it.ifc_class} ${it.classification} ${it.phase || ""} ${group} content`.toLowerCase(),
-            onPlace: placeAt(nm, (e, n) => d.api.placeContent(d.projectId!, it.key, [e, n], undefined, true)) });
+            onPlace: placeAt(nm, (e, n, st) => d.api.placeContent(d.projectId!, it.key, [e, n], undefined, true, st)) });
         }
       }
       for (const f of Object.values(fams!.categories).flat() as FamilyDef[]) {
@@ -91,7 +102,7 @@ export function buildContentLibrarySection(d: ContentLibraryDeps) {
           sub: `${f.ifc_class.replace("Ifc", "")} · ${f.category} · type`,
           cls: f.ifc_class.toLowerCase(), cat: f.category.toLowerCase(), kind: "type",
           search: `${f.label} ${f.key} ${f.ifc_class} ${f.category} family type`.toLowerCase(),
-          onPlace: placeAt(f.label, (e, n) => d.api.placeFamily(d.projectId!, f.key, [e, n])) });
+          onPlace: placeAt(f.label, (e, n, st) => d.api.placeFamily(d.projectId!, f.key, [e, n], st)) });
       }
       // UX-3: a Recent bucket — the last handful of placed items, most-recent first (per-project)
       const RECENT_KEY = `lib-recent:${d.projectId}`;
@@ -104,8 +115,10 @@ export function buildContentLibrarySection(d: ContentLibraryDeps) {
 
       showResult("📚 Library", (body) => {
         body.appendChild(resultNote(`<b>${items.length}</b> library items — content parts + family types. `
-          + `Search, then click to place at an E,N point (defaults to the last picked point). Import a `
-          + `detailed mesh (glTF/OBJ/STL) below to place it auto-classified as the right IFC.`, ""));
+          + `Search, then click to place at an E,N point (defaults to the last picked point). `
+          + `Each placement lands on the <b>active level</b>, named in the confirm prompt — with no `
+          + `active level set it falls to the lowest storey. `
+          + `Import a detailed mesh (glTF/OBJ/STL) below to place it auto-classified as the right IFC.`, ""));
         // import a detailed mesh → auto-detect category → placed as the right IFC
         const imp = document.createElement("div"); imp.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px";
         const impLbl = document.createElement("span"); impLbl.className = "meta"; impLbl.textContent = "⬆ Import mesh (auto-classified):";
@@ -115,9 +128,12 @@ export function buildContentLibrarySection(d: ContentLibraryDeps) {
           const f = fileIn.files?.[0]; if (!f) return;
           const at = d.lastPoint();                       // read once, at change time
       const eN = at ? at.x : 0, nN = at ? -at.z : 0;
+          const st = d.activeStorey();                    // ditto — `importContent` has always taken one
+
           await withLoading(d.container, `importing ${f.name} + republishing`, async () => {
             try {
-              const res = await d.api.importContent(d.projectId!, f, { category: catIn.value.trim() || undefined, e: eN, n: nN });
+              const res = await d.api.importContent(d.projectId!, f,
+                { category: catIn.value.trim() || undefined, e: eN, n: nN, storey: st || undefined });
               const state = await d.waitForPublish(d.projectId!);
               if (state === "done") { await d.loadProjectModel(); d.notify(`imported as ${res.category} (${res.ifc_class}, ${res.faces} faces)`, "success"); }
               else d.notify(`imported — publish ${state}`, state === "error" ? "error" : "info");

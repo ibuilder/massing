@@ -2894,6 +2894,41 @@ removed. Remaining, in priority order:
 
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
+
+  **Premise-checked 2026-09-05, because a five-item line is exactly the shape that hides shipped work
+  behind unshipped work.** Two of the five already ship and the bullet did not say so:
+  *pick-host→auto-build* is the ◧/◨ pair in `apps/web/src/viewer/app.ts` — select a wall, and
+  `add_door`/`add_window` cut the opening into it at the point you clicked; *appendable IFC libraries*
+  is `services/data/src/aec_data/families.py` `import_types_from_ifc`, which copies every
+  `IfcTypeProduct` out of a third-party IFC, deduped by (class, name), and the palette exposes it.
+  *Thumbnails* and *drag-to-place* are genuinely unshipped — the palette renders label-plus-meta text
+  and places through a modal that asks for "Location E, N (metres)".
+
+  ⚠️ **And the premise-check found something worse than anything on the line — now fixed.**
+  `edit_core._first_storey(model, None)` returns the LOWEST storey, and `place_type` containers the
+  occurrence there and sets its Z to that storey's elevation. **Every placement from the library
+  palette omitted the storey**, so a family placed while working on Level 7 arrived on Level 1 at
+  Z = 0. Measured on a three-storey model: `('Level 3', (7, 5, 8.0))` with the storey against
+  `('Level 1', (5, 5, 0.0))` without it.
+
+  The capability was present at every layer below the caller — `POST …/families/place` accepts a
+  `storey`, the `place_content` recipe reads `p.get("storey")`, and `importContent`'s options type
+  already declared one. **Two of the three authoring paths had honoured the active level all along**:
+  `finishDraft()` injects `activeStorey` client-side, and `nl_ai.py` `_fill_context` injects
+  `active_storey` server-side for the LLM and keyword planners alike. Only the library palette and the
+  "⊕ Place selected family" button sent none — four call sites, closed by threading an `activeStorey`
+  accessor through the same seam `lastPoint` already crosses.
+
+  *Why no test caught it:* `services/api/test_content.py` builds its model with
+  `generate_blank_ifc(..., storeys=1)`. On a one-storey model the lowest storey and the correct one
+  are the **same entity**, so the defect was invisible by construction of the fixture rather than by
+  any gap in the assertions. **A fixture with one of something cannot test which one was chosen.**
+  `services/api/test_level_placement.py` builds three.
+
+  ✅ *Clean negative worth recording so it is not re-investigated:* the door/window path correctly
+  passes no storey. `add_opening` in `services/data/src/aec_data/edit_enclosure.py` declares a
+  `storey` parameter and never reads it — an opening takes its position from the host wall, which is
+  right — so that argument is vestigial there and its absence at the call site is not the same defect.
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
 
 - **SPRINT C — FIELD-PWA** *(L, frontend)* — offline-first mobile PWA: service-worker sheet sync, auto

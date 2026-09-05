@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — everything placed from the library landed on the ground floor
+
+**Found while premise-checking UX-3's five-item line, and worse than anything on it.**
+`edit_core._first_storey(model, None)` returns the **lowest** storey by elevation, and
+`edit.place_type` containers the occurrence there *and* sets its Z to that storey's elevation. So a
+placement that omits `storey` does not land somewhere neutral — it lands on the ground floor.
+Measured on a three-storey model: `('Level 3', (7, 5, 8.0))` with the storey, `('Level 1', (5, 5,
+0.0))` without it.
+
+**Two of the three authoring paths had always handled this.** Drawing in 3D injects the level —
+`finishDraft()` in `apps/web/src/viewer/app.ts`: *"author onto the active level"*. The AI planner
+injects it server-side, in `services/api/src/aec_api/nl_ai.py` `_fill_context`, for the LLM and
+keyword baselines alike. **The library palette sent none**, so a column placed while working on
+Level 7 arrived on Level 1 — as did every content item, every imported mesh, and every family from
+"⊕ Place selected family".
+
+**The capability was present at every layer beneath the caller.** `POST …/families/place` has always
+accepted a `storey`; the `place_content` recipe has always read `p.get("storey")`; `importContent`'s
+options type already *declared* a `storey` that nothing ever passed. Two client methods wrapped one
+recipe and disagreed — `addFamily` carried the level and `placeFamily` dropped it. Four call sites,
+closed by threading an `activeStorey` accessor through the same seam `lastPoint` already crosses, and
+read **at click time**: the user changes level with the palette open, and a value captured at
+panel-build time would place onto whichever level was current when the ribbon was last rebuilt.
+
+**Why nothing caught it.** `services/api/test_content.py` builds its fixture with
+`generate_blank_ifc(..., storeys=1)` and always passes a storey explicitly. On a one-storey model the
+lowest storey and the correct one are the **same entity**, so the defect was invisible by
+construction of the fixture rather than by any gap in its assertions. *A fixture with one of
+something cannot test which one was chosen.* `services/api/test_level_placement.py` builds three, and
+asserts a **middle** storey separately, so "found Level 2" cannot be confused with "ran off the end
+of the list" — and that an unknown level name degrades rather than raises, because the UI sends a
+name and levels are renameable.
+
+**The caller half is `apps/web/src/viewer/tools/levelPlacement.test.ts`**, and it derives its
+population from the client's own signatures rather than a hand list, so a placement method added
+tomorrow is covered the day it is written. It counts **arguments**, not the word "storey": a correct
+call that passes the level through a lambda parameter contains no such word, and a wrong one may
+mention it in a comment. **Its first draft passed a mutation it should have failed** — `importContent`
+carries the storey *inside* an options object, and matching "storey" anywhere in a parameter derived
+it as positional, after which every call satisfied the arity check. Anchoring on the parameter's own
+name fixed it. A green run would never have shown that; the mutation did.
+
+Also recorded in `docs/roadmap.md`: two of UX-3's five items already ship (pick-host→auto-build,
+appendable IFC libraries), thumbnails and drag-to-place do not, and the door/window path's missing
+storey is a **clean negative** — `add_opening` declares a `storey` it never reads, because an opening
+takes its position from the host wall.
+
 ## Unreleased — the permitting chain could not name the authority it was applying to
 
 **The entry above closed half of one sentence.** Its roadmap paragraph said a transmittal's recipient
