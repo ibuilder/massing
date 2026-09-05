@@ -2916,6 +2916,33 @@ removed. Remaining, in priority order:
   the app: the population is every placement surface, not the one called "library". **Thumbnails
   remain genuinely unshipped** — the rows are label plus IFC class as text.
 
+  ✅ **DARK-RECIPES, shipped 2026-09-05 — the coverage matrix counted ten capabilities no user could
+  invoke.** `edit.RECIPES` holds 96 authoring recipes and `authoring_matrix.py` publishes them as the
+  authoring-coverage matrix, whose docstring calls it *"an honest, single-source answer to 'what can
+  this tool actually author?' … Users read it to judge maturity."* It is derived from the ENGINE, so
+  it cannot drift from the engine — but the question it answers is about the PRODUCT. The CAD command
+  line and the AI planner both dispatch from `nlauthor.RECIPE_SPECS`, a **curated** subset naming 12
+  of the 96, and **ten recipes had no caller on any surface**. The published `docs/authoring-matrix.md`
+  was separately stale at 91 recipes against a registry of 96, under a header reading *"do not
+  hand-edit; re-run the generator"* that nothing enforced.
+
+  *Three false-positive classes had to be eliminated, and each made the number look better than it
+  was.* The first pass reported 18 candidates and cleared all 18, because `authoring_matrix.py` names
+  every recipe — the check was reading the registry back to itself. Excluding catalogs gave 7. Then a
+  mutation that swapped a recipe out of its entry **failed to fail**, because the entry's own comment
+  still named it. Stripping comments gave the true **10** — larger than either earlier answer.
+  **A naive "is X referenced" check counts its own documentation as usage**, which is the rule
+  `apps/web/src/viewer/tools/accessorNotCollapsed.test.ts` already states and this is the third
+  instance of. Three of the ten were already recorded in a doc comment in `apps/web/src/api/mep.ts`
+  by SCALE-SEAM (93) — *"referenced NOWHERE … Recorded, not fixed"* — a note that was right and had
+  no way to stay right.
+
+  `extrude_profile` is wired rather than listed: its docstring calls it *"the massing move of
+  sketching a shape and pulling it up"*, the namesake gesture of this product, and a polygon plus a
+  height is what the draft panel already collects. The other ten stay listed deliberately — several
+  are plausibly internal, and inventing ten buttons would be worse than reporting ten honest states.
+  `services/api/test_recipe_reach.py` derives the set and fails when the matrix disagrees.
+
   ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
   CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were
   absent from the draft catalog entirely, so they were the only placeable things in the app that

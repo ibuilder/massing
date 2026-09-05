@@ -159,3 +159,43 @@ describe("flattenContentCatalog", () => {
     expect(flattenContentCatalog({} as { groups: Record<string, ContentDef[]> })).toEqual([]);
   });
 });
+
+/**
+ * DARK-RECIPES — `extrude_profile` was implemented, tested and reachable from nothing.
+ *
+ * The engine side is covered by `services/api/test_wall_slope.py`. What no test covered is the
+ * CONTRACT between this catalog entry and the recipe's parameter names, and that is where the risk
+ * is: `build()` returns `Record<string, unknown>`, so a key typo — `ifcClass` for `ifc_class` —
+ * typechecks perfectly and fails only at runtime, against a real model, after a round trip. The
+ * sibling content entry had exactly this shape of trap (`category` vs `key`).
+ *
+ * Verified against the live recipe while writing this: these params authored an
+ * IfcBuildingElementProxy contained in the active storey, and switching `ifc_class` to IfcSlab
+ * authored an IfcSlab.
+ */
+describe("extrude_profile — sketch-to-BIM", () => {
+  const el = () => DRAFT_ELEMENTS.find((e) => e.key === "extrusion")!;
+
+  it("is a poly-point element on the extrude_profile recipe", () => {
+    expect(el()).toBeTruthy();
+    expect(el().recipe).toBe("extrude_profile");
+    expect(el().points).toBe("poly");
+  });
+
+  it("build() emits exactly the keys the recipe reads", () => {
+    // edit.py: extrude_profile(m, p["points"], p.get("height"), p.get("ifc_class"), p.get("name"),
+    //                          p.get("storey"), p.get("z"))
+    const p = el().build([[0, 0], [6, 0], [6, 4], [0, 4]],
+                         { height: 3, z: 0.5, ifc_class: "IfcSlab" });
+    expect(p).toEqual({ points: [[0, 0], [6, 0], [6, 4], [0, 4]], height: 3, z: 0.5, ifc_class: "IfcSlab" });
+    // `storey` is deliberately absent: finishDraft injects the active level, and a value baked in
+    // here would override the level the user is working on — the LEVEL-PLACE defect, inverted.
+    expect(Object.keys(p)).not.toContain("storey");
+  });
+
+  it("defaults to a generic mass, which is the recipe's own default", () => {
+    const byKey = Object.fromEntries(el().params.map((x) => [x.key, x.default]));
+    expect(byKey.ifc_class).toBe("IfcBuildingElementProxy");
+    expect(byKey.height).toBe(3);
+  });
+});

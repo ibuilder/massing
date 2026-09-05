@@ -54,6 +54,28 @@ with TestClient(app) as c:
     body = r.json()
     assert body["recipe_count"] == m["recipe_count"] and body["uncategorized"] == []
 
+# ---- the COMMITTED doc must be what the generator produces -----------------------------------------
+#
+# `docs/authoring-matrix.md` opens with "Generated from `edit.RECIPES` … do not hand-edit; re-run the
+# generator after adding a recipe" — and nothing checked that anyone had. Measured 2026-09-05: the
+# committed copy said **91 authoring recipes** and listed 91 rows while the registry held **96**. It
+# had been stale by five for however long, under a header asserting it could not be.
+#
+# "Generated" is a claim about a process, and a process nobody verifies is a wish. This is the cheap
+# half of the fix: byte-compare. Regenerate with
+#   PYTHONPATH=src:../data/src python -c "from aec_api import authoring_matrix as a; \
+#     open('../../docs/authoring-matrix.md','w').write(a.to_markdown() + '\n')"
+DOC = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "authoring-matrix.md")
+with open(DOC, encoding="utf-8") as fh:
+    committed = fh.read()
+generated = AM.to_markdown() + "\n"
+assert committed == generated, (
+    "docs/authoring-matrix.md is not what to_markdown() produces — it is the PUBLISHED coverage claim "
+    f"and it has drifted. Committed {committed.count(chr(10)) + 1} lines, generator "
+    f"{generated.count(chr(10)) + 1}. Re-run the generator (command in the comment above); do not "
+    "hand-edit the doc, which is what its own header already says."
+)
+
 print(f"AUTHORING-MATRIX OK - {m['recipe_count']} recipes across {m['category_count']} categories, all "
       "mapped (completeness guard green — a new recipe without a category fails this test); create-* rows "
       "name their IFC output; markdown renders with no uncategorized warning; /reference/authoring-matrix "

@@ -4,6 +4,54 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the coverage matrix counted ten capabilities no user could invoke
+
+`edit.RECIPES` holds **96** authoring recipes, and `authoring_matrix.py` publishes them as the
+authoring-coverage matrix. Its docstring calls that *"an honest, single-source answer to 'what can
+this tool actually author?' … derived live from the registry (never hand-maintained, so it can't
+drift). Users read it to judge maturity; contributors read it to pick work."*
+
+**Being derived from the engine is not the same as being true about the product.** The published
+output said every recipe was *"dispatchable from the CAD command line, the AI command bar, the node
+canvas, or the tool panels"*. The CAD line and the AI planner both dispatch from
+`nlauthor.RECIPE_SPECS` — a **curated** subset naming **12** of the 96 — and **10 recipes have no
+caller on any surface at all**: not the web client, not a router, not MCP, not the planner. All ten
+are implemented and tested. The matrix could not drift from the engine and was overcounting the
+product by ten.
+
+**The committed doc was separately stale.** `docs/authoring-matrix.md` opens *"Generated from
+`edit.RECIPES` … do not hand-edit; re-run the generator after adding a recipe"* — and said **91
+recipes**, listing 91 rows, against a registry of 96. Nothing checked it. *"Generated" is a claim
+about a process, and a process nobody verifies is a wish.*
+
+**Three false-positive classes had to be eliminated, and each made the number look better than it
+was.** The first pass reported 18 candidates and then cleared all 18 — because `authoring_matrix.py`
+names every recipe, so the check was reading the registry back to itself; **catalogs are
+registration, not reachability**. Excluding catalogs gave 7. Then a mutation that swapped a recipe
+out of its catalog entry *failed to fail*, because the entry's own explanatory comment still named
+it: **a mention in a comment is not a call**. Stripping comments took the true figure to **10** —
+larger than either earlier answer. `apps/web/src/viewer/tools/accessorNotCollapsed.test.ts` already
+states that rule; this is its third instance.
+
+Three of the ten were already known. SCALE-SEAM (93) recorded `add_sprinkler`, `auto_connect_mep`
+and `set_system_predefined` in a doc comment in `apps/web/src/api/mep.ts`: *"referenced NOWHERE in
+`apps/web/src`. Backend recipes with no web exposure at all. Recorded, not fixed."* That note was
+correct and had no way to stay correct. It is now a check.
+
+**One is wired rather than listed.** `extrude_profile` — *"E3 — sketch-to-BIM … the massing move of
+sketching a shape and pulling it up"* — is the namesake gesture of this product and needed no new UI:
+a polygon plus a height is what the draft panel already collects. It joins `DRAFT_ELEMENTS` as a
+poly-point element, which makes it click- **and** drag-placeable in the same edit, for the reason the
+entry below gives. The other ten stay listed deliberately: several are plausibly internal, and
+inventing ten buttons would be worse than reporting ten honest states.
+
+`services/api/test_recipe_reach.py` derives the unreachable set from the tree and fails when
+`authoring_matrix.UNREACHED` disagrees, so a recipe added without a caller is visible instead of
+silently inflating a maturity claim; it also pins the two false sentences verbatim as negatives.
+`services/api/test_authoring_matrix.py` now byte-compares the committed doc against the generator.
+Mutation-checked: unwiring `extrude_profile` puts it straight back on the derived list, restoring the
+old sentence fails by name, and a one-number edit to the doc fails the comparison.
+
 ## Unreleased — a tree, a crane and a desk could not be placed where you were pointing
 
 **And the entry below contains a claim that was wrong, corrected here.** It said thumbnails and
