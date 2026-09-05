@@ -2901,8 +2901,31 @@ removed. Remaining, in priority order:
   `add_door`/`add_window` cut the opening into it at the point you clicked; *appendable IFC libraries*
   is `services/data/src/aec_data/families.py` `import_types_from_ifc`, which copies every
   `IfcTypeProduct` out of a third-party IFC, deduped by (class, name), and the palette exposes it.
-  *Thumbnails* and *drag-to-place* are genuinely unshipped — the palette renders label-plus-meta text
-  and places through a modal that asks for "Location E, N (metres)".
+  ⚠️ **That sentence said "*Thumbnails* and *drag-to-place* are genuinely unshipped" and the
+  drag-to-place half was WRONG — corrected 2026-09-05, hours after it was merged.** Drag-to-place
+  ships, as RAIL-DRAG: `apps/web/src/viewer/draft/draftPanel.ts` makes every palette row
+  `draggable` and writes the key with `setDraftDragKey`; `apps/web/src/viewer/railDrag.ts` handles
+  the protected-mode payload rule that makes `dragover` unable to read it; and
+  `apps/web/src/viewer/app.ts` has the `dragover`/`drop` pair that arms the dropped key and places
+  it where it landed.
+
+  *This is the fourth naming-based false blocker this ring has produced, and it is the same mistake
+  the ⑥ note above documents — I checked the surface whose NAME matched the noun ("the library") and
+  concluded about the capability.* The library palette genuinely cannot be dragged from, because it
+  is a modal; the **Draw rail** could be dragged from all along. Checking one surface does not check
+  the app: the population is every placement surface, not the one called "library". **Thumbnails
+  remain genuinely unshipped** — the rows are label plus IFC class as text.
+
+  ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
+  CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were
+  absent from the draft catalog entirely, so they were the only placeable things in the app that
+  could be neither armed nor dragged. You could not put a tree, a crane or a desk where you were
+  pointing — only type "Location E, N (metres)" into the modal. `contentToDraftElement` mirrors
+  `familyToDraftElement`, and because `allElements()` feeds the rows, the search, the discipline
+  chips **and `armByKey` — the function the drop handler calls** — one entry closes clicking and
+  dragging together rather than as two implementations that can disagree. Content carries no
+  parameter form: `place_content` sizes from the catalog and takes no dims, so a dims form would
+  render inputs the recipe discards.
 
   ⚠️ **And the premise-check found something worse than anything on the line — now fixed.**
   `edit_core._first_storey(model, None)` returns the LOWEST storey, and `place_type` containers the

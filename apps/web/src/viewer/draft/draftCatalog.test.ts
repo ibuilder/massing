@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DRAFT_ELEMENTS, familyToDraftElement, type FamilyDef } from "./draftCatalog";
+import {
+  contentToDraftElement, DRAFT_ELEMENTS, familyToDraftElement, flattenContentCatalog,
+  type ContentDef, type FamilyDef,
+} from "./draftCatalog";
 
 const byKey = (k: string) => DRAFT_ELEMENTS.find((e) => e.key === k)!;
 
@@ -72,5 +75,87 @@ describe("familyToDraftElement", () => {
     const el = familyToDraftElement(fam);
     const p = el.build([[1, 2]], { width: 0.5, depth: 0.7, height: 0.85 });
     expect(p).toEqual({ family: "toilet", position: [1, 2], dims: [0.5, 0.7, 0.85] });
+  });
+});
+
+/**
+ * CONTENT-DRAFT — the 19 CONTENT-1 items were the only placeable things in the app that could be
+ * neither armed nor dragged.
+ *
+ * `DRAFT_ELEMENTS` and every family have been click- and drag-placeable from the Draw rail since
+ * RAIL-DRAG. Content appeared only in the Library palette, which is a **modal**
+ * (`.result-overlay` is `position: fixed; inset: 0` with a scrim), so nothing could be dragged out
+ * of it and its only placement affordance was a prompt asking for "Location E, N (metres)". You
+ * could not put a tree, a crane or a desk where you were pointing.
+ *
+ * Wrapping content as a `DraftElement` fixes both affordances at once rather than adding a second
+ * placement path: `allElements()` feeds the row buttons, the search, the discipline chips AND
+ * `armByKey`, which is the function the viewport's `drop` handler calls.
+ */
+describe("contentToDraftElement", () => {
+  const tree: ContentDef = {
+    key: "tree", ifc_class: "IfcGeographicElement", phase: null,
+    classification: "23-45 00 00 Landscape", default_dims_m: [3, 3, 6],
+  };
+
+  it("wraps a catalog item as a 1-point place_content element", () => {
+    const el = contentToDraftElement(tree, "Landscape");
+    expect(el.key).toBe("content:tree");
+    expect(el.label).toBe("Tree (Landscape)");
+    expect(el.recipe).toBe("place_content");
+    expect(el.points).toBe(1);
+    expect(el.ifcClass).toBe("IfcGeographicElement");
+  });
+
+  it("has NO params, because place_content sizes from the catalog and takes no dims", () => {
+    // Asserted rather than left implicit: a dims form here would render inputs the recipe discards,
+    // which is a control that looks like it does something and does not.
+    expect(contentToDraftElement(tree, "Landscape").params).toEqual([]);
+  });
+
+  it("build() sends the catalog KEY as `category`, which is what the server names it", () => {
+    // The catalog calls the string `key` and the recipe calls it `category`. Sending the label
+    // instead 400s with "unknown content category" — hence a test on the exact payload.
+    expect(contentToDraftElement(tree, "Landscape").build([[4, 5]], {}))
+      .toEqual({ category: "tree", point: [4, 5] });
+  });
+
+  it("maps each catalog bucket to the discipline chip that lists it", () => {
+    expect(contentToDraftElement(tree, "Landscape").discipline).toBe("Site");
+    expect(contentToDraftElement({ ...tree, key: "hoist" }, "Site Logistics").discipline).toBe("Site");
+    expect(contentToDraftElement({ ...tree, key: "desk" }, "FF&E").discipline).toBe("Architectural");
+    // an unknown bucket must still LIST somewhere — a default of undefined would hide the item from
+    // every chip, which reads as "the catalog shrank" rather than "a bucket was added".
+    expect(contentToDraftElement({ ...tree, key: "x" }, "Newly Added Bucket").discipline).toBe("Site");
+  });
+
+  it("humanises the key AND names the bucket, because 8 of 19 keys collide with a family", () => {
+    // bed, chair, desk, planter, shrub, sofa, table, tree all exist as families too, and the row's
+    // meta badge strips "Ifc"/"Type" so IfcFurnitureType and IfcFurniture both read "Furniture".
+    // Two rows saying "Desk" that author different recipes is the papercut this suffix prevents.
+    expect(contentToDraftElement({ ...tree, key: "site_office" }, "Site Logistics").label)
+      .toBe("Site office (Site Logistics)");
+    expect(contentToDraftElement({ ...tree, key: "desk" }, "FF&E").label).toBe("Desk (FF&E)");
+  });
+
+  it("the hint names the item, not the decorated label", () => {
+    expect(contentToDraftElement(tree, "Landscape").hint).toBe("Click where to place the tree.");
+  });
+});
+
+describe("flattenContentCatalog", () => {
+  it("pairs every item with its bucket", () => {
+    const c: ContentDef = {
+      key: "desk", ifc_class: "IfcFurniture", phase: null, classification: "", default_dims_m: [1, 1, 1],
+    };
+    expect(flattenContentCatalog({ groups: { "FF&E": [c], Landscape: [{ ...c, key: "tree" }] } }))
+      .toEqual([[c, "FF&E"], [{ ...c, key: "tree" }, "Landscape"]]);
+  });
+
+  it("survives an empty or absent groups map rather than throwing into the panel", () => {
+    // The panel loads this lazily and catches, but a throw here would take the whole Draw list with
+    // it on a server that returns a shape we did not expect.
+    expect(flattenContentCatalog({ groups: {} })).toEqual([]);
+    expect(flattenContentCatalog({} as { groups: Record<string, ContentDef[]> })).toEqual([]);
   });
 });

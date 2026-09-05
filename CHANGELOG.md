@@ -4,6 +4,63 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a tree, a crane and a desk could not be placed where you were pointing
+
+**And the entry below contains a claim that was wrong, corrected here.** It said thumbnails and
+drag-to-place were "genuinely unshipped". Drag-to-place **ships** — RAIL-DRAG makes every Draw-rail
+row `draggable` (`apps/web/src/viewer/draft/draftPanel.ts`), `apps/web/src/viewer/railDrag.ts`
+handles the protected-mode payload rule, and `apps/web/src/viewer/app.ts` carries the
+`dragover`/`drop` pair that arms the dropped key and places it where it landed. Thumbnails remain
+genuinely unshipped.
+
+*The error is worth more than the correction.* The premise-check looked at **the library palette**,
+found a modal with a coordinate prompt, and concluded about **the app**. The library cannot be
+dragged from — `.result-overlay` is `position: fixed; inset: 0` with a scrim, so there is no drop
+target to reach — but the **Draw rail** could be dragged from all along. That is the same "checked
+the surface whose name matched the noun" mistake `docs/roadmap.md`'s own ⑥ note records having made,
+one entry earlier, in the paragraph written to stop it happening again.
+
+**What the corrected measurement found is a real gap, and it is closed here.** The 19 CONTENT-1 items
+— FF&E, Landscape, Site Logistics — were absent from the draft catalog entirely. Every built-in
+element and every family has been click- **and** drag-placeable from the Draw rail since RAIL-DRAG;
+content appeared only in the Library modal, whose sole placement affordance is a prompt asking for
+*"Location E, N (metres)"*. They were the only placeable things in the product reachable by neither
+affordance.
+
+`contentToDraftElement` mirrors `familyToDraftElement`: a 1-point `place_content` element, keyed
+`content:<key>`, bucketed onto the discipline chip that lists it (FF&E → Architectural, Landscape
+and Site Logistics → Site). **One entry closes both affordances at once** rather than adding a second
+placement path, because `allElements()` feeds the rows, the search, the discipline chips *and*
+`armByKey` — which is the function the viewport's `drop` handler calls. Content therefore also
+inherits what the Library prompt never had: `validatePlacement` refusing an off-model point by name
+while keeping the tool armed, the amber optimistic ghost, the incremental preview, point undo/redo,
+snapping, Esc-to-cancel — and the active-level injection that landed in the entry below.
+
+**No parameter form, asserted rather than assumed.** `place_content` takes `{category, point}` and
+sizes the item from its own catalog entry, so unlike a family there are no dims to override; a form
+here would render inputs the recipe discards. And `build()` sends the catalog **key** as `category`
+— the catalog calls that string `key` and the recipe calls it `category`, and sending the display
+label instead 400s with *"unknown content category"*, so the exact payload is pinned by test.
+
+Mutation-checked: loading content but leaving it out of `allElements()` — the registered-but-unreachable
+shape — fails three tests including both the arm and drag paths; sending the label instead of the key
+fails two; and dropping the unknown-bucket fallback fails the test that exists because an item mapped
+to no discipline would vanish from every chip and read as a catalog that shrank.
+
+**A row label names its bucket — "Tree (Landscape)", "Hoist (Site Logistics)" — and that is not
+decoration.** Measured before shipping: **8 of the 19 content keys already exist as families** (bed,
+chair, desk, planter, shrub, sofa, table, tree), and the row's meta badge strips both `Ifc` and
+`Type`, so a family's `IfcFurnitureType` and a content item's `IfcFurniture` both render as
+"Furniture". Without the bucket the Draw list would show two rows reading exactly **Desk** that
+author different recipes — one a sized family type, one a phased site-content item. The suffix goes
+on all nineteen rather than only the colliding eight, because a label whose shape depends on what
+else happens to be in the catalog changes under the user the day a family is added.
+
+**An existing gate caught a real defect in this change**: `docStranded.test.ts` failed because the
+new flattener had been inserted *between* `contentToDraftElement`'s doc comment and its signature,
+leaving that comment documenting the wrong function. That is precisely the residue DOC-STRAND exists
+to find, found on its author rather than months later.
+
 ## Unreleased — everything placed from the library landed on the ground floor
 
 **Found while premise-checking UX-3's five-item line, and worse than anything on it.**

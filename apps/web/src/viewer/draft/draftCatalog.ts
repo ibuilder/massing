@@ -255,4 +255,63 @@ export function familyToDraftElement(f: FamilyDef): DraftElement {
   };
 }
 
+/** One entry of `GET /content/catalog` — CONTENT-1 site content (logistics, FF&E, landscaping). */
+export interface ContentDef {
+  key: string;
+  ifc_class: string;
+  phase: string | null;
+  classification: string;
+  default_dims_m: number[];
+}
+
+/** The catalog's three buckets, mapped to the discipline chips the draft panel filters by. */
+const DISCIPLINE_BY_CONTENT_GROUP: Record<string, Discipline> = {
+  "FF&E": "Architectural", Landscape: "Site", "Site Logistics": "Site",
+};
+
+/**
+ * Map a catalog content item into a placeable DraftElement (1 point, `place_content`).
+ *
+ * The mirror of `familyToDraftElement`, and it exists because the 19 content items were the only
+ * placeable things in the app reachable by NEITHER arming nor dragging: they appear in the Library
+ * palette, which is a modal (`.result-overlay` is `position: fixed; inset: 0` with a scrim), so its
+ * only placement affordance is a prompt asking the user to type "Location E, N (metres)". Everything
+ * in `DRAFT_ELEMENTS` and every family has been click- and drag-placeable from the Draw rail all
+ * along. Putting content in the same list closes that by construction rather than by a second
+ * implementation: `allElements()` feeds the list, the search, `armByKey` — which the drop handler
+ * calls — and the discipline chips, so one entry here reaches all of them.
+ *
+ * **No `params`.** `place_content` takes `{category, point}` and sizes the item from its own catalog
+ * entry; unlike a family it has no dims to override. An empty list is a shape the form already
+ * supports (`add_grid` ships one), so this needs no panel change.
+ */
+export function contentToDraftElement(c: ContentDef, group: string): DraftElement {
+  const name = c.key.replace(/_/g, " ").replace(/^./, (ch) => ch.toUpperCase());
+  // The bucket is IN the label, and that is not decoration. **8 of the 19 content items share a key
+  // with a family** — bed, chair, desk, planter, shrub, sofa, table, tree — and the row's meta badge
+  // strips both "Ifc" and "Type", so `IfcFurnitureType` (family) and `IfcFurniture` (content) both
+  // render as "Furniture". Without the bucket the Draw list shows two rows reading exactly "Desk"
+  // that author different recipes: one a sized family type, one a phased site-content item. The
+  // suffix is applied to ALL of them rather than only the colliding eight, because a label whose
+  // shape depends on what else happens to be in the catalog changes under you when a family is added.
+  const label = `${name} (${group})`;
+  return {
+    key: `content:${c.key}`, label,
+    discipline: DISCIPLINE_BY_CONTENT_GROUP[group] ?? "Site",
+    ifcClass: c.ifc_class, recipe: "place_content", points: 1,
+    params: [],
+    hint: `Click where to place the ${name.toLowerCase()}.`,
+    // `category` IS the catalog key — the server names that parameter `category` while the catalog
+    // calls the same string `key`, and sending the label instead 400s with "unknown content category".
+    build: (pts) => ({ category: c.key, point: pts[0] }),
+  };
+}
+
+/** Flatten `GET /content/catalog`'s `{groups: {bucket: item[]}}` into [item, bucket] pairs.
+ *  Pure and separate so `app.ts` wires one expression and the reshape can be tested without a DOM. */
+export function flattenContentCatalog(cat: { groups: Record<string, ContentDef[]> }): [ContentDef, string][] {
+  return Object.entries(cat.groups ?? {}).flatMap(([group, items]) =>
+    (items ?? []).map((c) => [c, group] as [ContentDef, string]));
+}
+
 export const DISCIPLINES: Discipline[] = ["Architectural", "Structural", "MEP", "Site"];
