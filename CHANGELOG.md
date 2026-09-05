@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — SCALE-SEAM (102): counterparty risk
+
+`prequalScores`, `coiExpiry` and `lienExposure` out of `client.ts` (**603 → 589**) into
+`apps/web/src/api/counterpartyRisk.ts` — *which trade partner is a risk on this job, and why.*
+
+**The witness is that the seam disagrees with the route prefix.** Two sit under `/prequal/`, one
+under `/payapp/lien-exposure`, so grouping by prefix would have **split** the set — while all three
+return per-counterparty rows carrying a verdict about that counterparty: `risk_band` + `flags`,
+days-to-expiry, `exposure` + `vendors_at_risk`. That is the affirmative form of a rule this file has
+only ever recorded negatively — (85) rejected "they are all multipart uploads", (89) "they are all
+module records", `annotate.ts` "they all call `editIfc`" after measuring 24 recipes across nine
+categories. A shared mechanism is not a question; here the mechanism argues *against* the grouping
+and the shape of the returns argues for it, so the evidence is not something a name could produce.
+
+`benchmarkResponseRates` sits immediately above them and **stayed**: it returns RFI/submittal
+turnaround and names no counterparty at all — it measures how responsive the *process* is. Adjacency
+is not a relationship.
+
+Found on the way out: an orphaned `PrequalScores` type import, the same residue slice (101) left
+with `EnergyResult`.
+
 ## Unreleased — Roadmap truth pass + R39-DECOMP-VIEWER ⑰
 
 **Two stale claims corrected, both found by testing the entry against the tree rather than reading it.**

@@ -33,6 +33,7 @@ import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
+import { withCounterpartyRisk } from "./counterpartyRisk";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
@@ -65,13 +66,13 @@ import type {
   DisciplineTree, ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief, PrequalScores,
+    DiligenceReadiness, MasterBuilderBrief,
     SpineTraceability } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -378,22 +379,7 @@ export class ApiClient extends withDesignPerformance(withDetailing(withAnnotate(
       overdue: number; overdue_pct: number } }>(`/benchmarks/response-rates`);
   }
 
-  // --- Tier 2/3: prequal, lien exposure, accounting, carbon, code check, pricing ---------------
-  prequalScores(pid: string, projectSize?: number) {
-    const qs = projectSize ? `?project_size=${projectSize}` : "";
-    return this.json<PrequalScores>(`/projects/${pid}/prequal/scores${qs}`);
-  }
-  coiExpiry(pid: string, soonDays = 30) {
-    return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
-      expiring_soon: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
-      expired_count: number; expiring_count: number }>(`/projects/${pid}/prequal/coi-expiry?soon_days=${soonDays}`);
-  }
-  lienExposure(pid: string) {
-    return this.json<{ vendors: { vendor: string; billed: number; paid: number; retainage: number;
-      waived_unconditional: number; waived_conditional: number; exposure: number; status: string }[];
-      total_lien_exposure: number; vendors_at_risk: string[]; message?: string | null }>(
-      `/projects/${pid}/payapp/lien-exposure`);
-  }
+  // --- Tier 2/3: accounting, carbon, code check, pricing (prequal + lien exposure -> counterpartyRisk.ts, SCALE-SEAM (102)) ---
   // --- design lifecycle (RIBA/AIA phases + itemized soft costs) ---------------
   lifecycle(pid: string) {
     return this.json<{ count: number; seeded: boolean;
