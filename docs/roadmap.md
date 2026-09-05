@@ -230,6 +230,46 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ✅ **PORTAL-SHOWMODEL — the public 3D viewer shipped, and nothing could mint a token that reached
+  it** *(S — Lane C; **CLOSED**, fix in this change)*
+
+  The canonical Band 2 shape, and the first one where the *unreachable* half was a single missing
+  key in a JSON body. `show_model` is the per-token opt-in that lets a share link fetch
+  `GET /shared/{token}/model.frag`. The backend has supported it end to end since R22-PUBLIC-VIEWER
+  shipped: the route reads `body.get("show_model")`, `client_portal.model_fragment` gates on it,
+  `_public_row` returns it, and `services/api/test_shared_model.py` proves the 200-vs-404 pair and
+  that `show_payments` does not imply it. **`createShareToken` sent only `label` and
+  `show_payments`.** Every token the product minted had the flag false, so that route 404'd for
+  every link this product has ever produced.
+
+  **Two defects, not one, and the second is the worse kind.** The missing PARAMETER made the
+  capability unreachable. The missing ROW FIELD — `show_model` absent from the `Tok` type
+  `shareTokens` returns — made it *unauditable*: the value was on the wire the whole time and the
+  type dropped it, so even a token minted with geometry some other way would have rendered in the
+  owner's list identically to a digest-only one. R22-PUBLIC-VIEWER's shipped record claims *"the
+  owner's token list shows which links carry geometry, because an opt-in nobody can audit after
+  minting cannot be reviewed or regretted."* That was true of the JSON and false of the product.
+
+  **Why no gate saw it, which is the transferable part.** Both sides were correct in isolation.
+  `test_shared_model.py` mints its own tokens with `json={"show_model": True}` — a body the product
+  never produces — so it passed over a client that could not ask for the thing it tests. *A backend
+  test that constructs its own request cannot tell you the client sends that request.* And the
+  failure is invisible from outside: unknown token, revoked token, no opt-in and no published
+  fragment all return an identical 404 **by design**, so a dark viewer is indistinguishable from a
+  project with no model.
+
+  Closed in `apps/web/src/api/clientPortal.ts` (fourth argument + the row field) and
+  `apps/web/src/portal/panels/masterBuilder.ts` (a `🧊 3D model` opt-in beside the payments one, and
+  both grants marked on every live link). Two new suites, each mutation-checked against the
+  confusion it names: `apps/web/src/api/shareTokenGrants.test.ts` asserts the encoded BODY, and
+  `apps/web/src/portal/panels/masterBuilder.test.ts` drives the real DOM — because a checkbox that
+  renders and is never read would satisfy the first test completely and leave the capability exactly
+  as dark as it was.
+
+  **Scope held deliberately:** the token still serves the converted fragment and never the source
+  IFC. Nothing here widens what a token grants; it makes the grant the backend already defined
+  askable and visible.
+
 - ✅ **ROUTE-INTERP — eight routes were frozen as callerless while the UI called them** *(S — Lane C;
   **CLOSED v0.3.1132**; energy half **SHIPPED v0.3.1133**)*
 
