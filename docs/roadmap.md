@@ -2314,11 +2314,34 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   **R38-SYNC-SELECT** of the four children shipped; the other three are open, and archiving the
   parent took them with it — caught by `roadmapLanes.test.ts`, which names lane items with no
   entry left in the file. **A ✅ on a parent is not a claim about its children.**
-  Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D. The plans are server-generated, but
-  the pipeline **discards element identity at bake time**: `drawings._bake_uncached` has
-  `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
-  `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
-  draws. Hence:
+  Original heading — split by premise-check 2026-08-02** — R38-SYNC-2D3D.
+
+  ✅ **THE DEFECT THIS ENTRY DESCRIBES IS FIXED, END TO END — corrected 2026-09-05.** The text below
+  said the pipeline *"discards element identity at bake time"*, that `_bake_uncached` *"keeps only
+  `(cls, mesh)`"*, and that **"nothing in a plan can name what it draws."** Measured against the
+  tree, all three are now false:
+
+  * `services/data/src/aec_data/drawings.py` — `_bake_uncached` returns `(guid, ifc_class, mesh)`,
+    and its own docstring credits R38-PLAN-IDENTITY for it: *"it used to be dropped on the floor."*
+  * `cut_baked_guided` emits `(guid, ifc_class, polyline)` and is **called in production**, not only
+    from tests — the plan renderer uses it, with a comment stating why identity must not be
+    mode-dependent: *"a plan whose linework forgets its elements in one rendering mode would make
+    selection sync a mode-dependent feature."*
+  * The SVG carries `data-guid` per polyline and `apps/web/src/viewer/planPane.ts` selects on it —
+    `apps/web/src/viewer/planPane.test.ts` asserts each twin keeps its guid.
+  * Held by `services/api/test_plan_identity.py` and `services/api/test_pipeline_scales.py`.
+
+  `cut_baked` and `cut_baked_classed` still return bare and class-only polylines, which the entry
+  read as the gap. They are the plain and poché variants and are **correct as they are** — the
+  identity-carrying path is a third function beside them, not a replacement for them. *The entry
+  described two functions accurately and drew the wrong conclusion from them, because it never
+  looked for a third.*
+
+  ⚠️ **What is left cannot be acted on, and that is now the real defect in this entry.** It claims
+  three of four children are open and **names none of them** — `R38-SYNC-SELECT` is the only child
+  named anywhere in this file. An item that says work remains without saying what work is not a
+  backlog entry, it is a reminder that somebody once knew. **Re-derive the children or close it.**
+  Hence:
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 

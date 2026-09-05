@@ -19,6 +19,7 @@ import { parseDynConstraint } from "./dynInput";
 import { mountCadBar } from "./cadBar";
 import { installViewerHook } from "./debugHook"; import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
+import { makeVerifySection } from "./tools/verifySection";
 import { buildAnnotationSection } from "./tools/annotationSection";
 import { buildContentLibrarySection } from "./tools/contentLibrarySection";
 import { buildDetailingSection } from "./tools/detailingSection";
@@ -33,7 +34,6 @@ import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "../ui/lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
-import { photoVerdict, photoVerdictSummary } from "../ui/photoVerdict";
 import { askText } from "../ui/prompt";
 import { confirmModal } from "../ui/modal";
 import { SelectionSets } from "./selectionSets";
@@ -269,72 +269,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
   }
 
-  async function renderVerify(guid: string) {
-    propsVerify.innerHTML = "";
-    if (!connected || !projectId || !guid) return;
-    const setBtn = (label: string, status: string, color: string) => {
-      const b = document.createElement("button");
-      b.className = "file-btn"; b.textContent = label;
-      b.style.cssText = `font-size:11px;padding:2px 8px;border-color:${color}`;
-      b.onclick = async () => {
-        try {
-          await api.setVerification(projectId!, guid, { status });
-          lbl.textContent = ` ${label}`; lbl.style.color = color;
-          setStatus(`element marked ${status}`);
-        } catch (e) { setStatus("verify failed: " + (e as Error).message); }
-      };
-      return b;
-    };
-    const row = document.createElement("div");
-    row.style.cssText = "border-top:1px solid var(--line);padding-top:6px";
-    row.innerHTML = `<div style="font-weight:700">Field verification</div>`;
-    const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:3px";
-    bar.append(setBtn("Installed", "installed", "#4a8cff"), setBtn("Verified", "verified", "#33d17a"),
-               setBtn("Deviation", "deviation", "#e2554a"));
-    const lbl = document.createElement("span"); lbl.className = "meta";
-    bar.appendChild(lbl);
-
-    // R22-PHOTO-CV — the front door for element-attached photos. The upload endpoint and its whole
-    // analysis stack (quality gate, change screening, detection) previously had NO caller in this
-    // app: reachable by API, unreachable by a person. `capture="environment"` makes a phone open the
-    // rear camera directly rather than the gallery, which is what someone standing at the element
-    // wants.
-    const photoIn = document.createElement("input");
-    photoIn.type = "file"; photoIn.accept = "image/*"; photoIn.hidden = true;
-    photoIn.setAttribute("capture", "environment");
-    const photoBtn = document.createElement("button");
-    photoBtn.className = "file-btn"; photoBtn.textContent = "\u{1F4F7} Photo";
-    photoBtn.style.cssText = "font-size:11px;padding:2px 8px";
-    photoBtn.title = "Attach a field photo to this element";
-    photoBtn.onclick = () => photoIn.click();
-    const verdict = document.createElement("div");
-    verdict.className = "meta"; verdict.style.cssText = "margin-top:4px;line-height:1.45";
-    photoIn.onchange = async () => {
-      const f = photoIn.files?.[0]; if (!f) return;
-      photoIn.value = "";                       // so re-picking the SAME file fires change again
-      verdict.textContent = "uploading\u2026";
-      photoBtn.disabled = true;
-      try {
-        const res = await api.uploadVerificationPhoto(projectId!, guid, f, f.name || "photo.jpg");
-        verdict.textContent = "";
-        const lines = photoVerdict(res);
-        if (!lines.length) verdict.textContent = "photo attached";
-        for (const ln of lines) {
-          const el = document.createElement("div");
-          // textContent, never innerHTML: these strings carry server-derived text.
-          el.textContent = (ln.tone === "warn" ? "\u26A0 " : ln.tone === "ok" ? "\u2713 " : "\u00B7 ") + ln.text;
-          if (ln.tone === "warn") el.style.color = "#e2554a";
-          verdict.appendChild(el);
-        }
-        setStatus(photoVerdictSummary(res) || "photo attached");
-      } catch (e) {
-        verdict.textContent = "upload failed: " + (e as Error).message;
-        verdict.style.color = "#e2554a";
-      } finally { photoBtn.disabled = false; }
-    };
-    bar.append(photoBtn, photoIn);
-    row.appendChild(bar); row.appendChild(verdict); propsVerify.appendChild(row);
-  }
+  // R39-DECOMP-VIEWER ⑰ — field verification lives in `tools/verifySection.ts`. It was the only
+  // one of fourteen candidates that closed over ZERO sibling functions; the module header carries
+  // the measurement. Its deps are the ctx values it already read, narrowed to this one function.
+  const renderVerify = makeVerifySection({ api, connected, projectId, setStatus, host: propsVerify });
 
   async function render5D(guid: string) {
     props5d.innerHTML = "";

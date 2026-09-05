@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — Roadmap truth pass + R39-DECOMP-VIEWER ⑰
+
+**Two stale claims corrected, both found by testing the entry against the tree rather than reading it.**
+
+* **R38-SYNC-2D3D's stated defect is fixed end to end.** The entry said the pipeline *"discards
+  element identity at bake time"* and that *"nothing in a plan can name what it draws"*.
+  `_bake_uncached` returns `(guid, ifc_class, mesh)` — its own docstring credits R38-PLAN-IDENTITY —
+  `cut_baked_guided` emits `(guid, class, polyline)` and has a **production** caller in the plan
+  renderer, the SVG carries `data-guid`, and `apps/web/src/viewer/planPane.ts` selects on it. The
+  entry described `cut_baked` and `cut_baked_classed` accurately and drew the wrong conclusion,
+  because it never looked for a third function. What actually remains is that it claims three open
+  children and names none of them.
+* **`CLAUDE.md`'s viewer numbers were both stale** — "twenty-eight commits" and "3,444 lines" are
+  now **67** and **2,570**. Unlike the Node and Python drifts that file already records, this one
+  moved in the direction that *strengthens* its argument, which is the hardest kind to notice: a
+  number that decays toward the conclusion it supports never looks wrong.
+
+**R39-DECOMP-VIEWER ⑰ — field verification out of `app.ts` (2,571 → 2,508).**
+`apps/web/src/viewer/tools/verifySection.ts`.
+
+`app.ts` is not a class, so REL-4's "grep the `this.` refs before naming the slice" rule has no
+`this.` to grep — the file is **one 2,445-line function** and everything in it is a closure. The
+equivalent measurement is how many *sibling closures* a candidate captures, and over all fourteen
+candidates of 25+ lines **exactly one captured zero**: `renderVerify`. `buildToolsPanel` captures 14,
+`handleKey` 12, `selectByGuids` 6 — every other move would have been the callback bag REL-4 warns
+about. Four of the five free variables already travelled on the typed `ViewerCtx`, so the deps object
+is that context narrowed, not one invented to make the move possible.
+
+**The narrative-chain gate refused the first ratchet entry, correctly.** The previous entry ended at
+2,571 and the file measured 2,570 when this slice began — one line had left with no slice recording
+it, the drift the roadmap cell already documents from another lane touching the same file. The entry
+now runs 2,571 → 2,508 and says which line is the stray, rather than starting at a number nobody can
+reproduce.
+
 ## Unreleased — Portfolio resourcing
 
 `GET /portfolio/resourcing` (`resource_portfolio.py`) sums weekly **concurrent** resource demand per

@@ -217,11 +217,18 @@ bump. So: the *factual* blocker is corrected here because it was false; the *dec
 untouched and still open. Keep shipping viewer work in the meantime — that guidance below is unchanged and was
 never contingent on the npm question.
 
-**What an agent working in `apps/web/src/viewer` should know.** Twenty-eight commits have touched that directory
-since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to 3,444 —
-largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being done here
-first. That is good and it is also divergence: every one of those commits is a change the swap will have to
-reconcile. So:
+**What an agent working in `apps/web/src/viewer` should know.** **Sixty-seven** commits have touched that
+directory since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to
+**2,570** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
+done here first. That is good and it is also divergence: every one of those commits is a change the swap will
+have to reconcile. So:
+
+  *(Both numbers were stale and are re-measured 2026-09-05 — this said "Twenty-eight commits" and "3,444 lines".
+  Unlike the Node and Python drifts above, **this one moved in the direction that strengthens the argument**:
+  more than twice the commits and another 874 lines out. A number that decays toward the conclusion it supports
+  is the hardest kind to notice, because nothing it predicts ever looks wrong. Re-measure with
+  `git log --oneline --since=2026-08-06 -- apps/web/src/viewer | wc -l` and `wc -l`, never by reading this line —
+  the same rule the two version notes above had to learn the expensive way.)*
 
 - **Keep shipping.** Blocking this roadmap for the extraction would make the extraction expensive and it would
   die. Landing viewer work here is the correct default.
