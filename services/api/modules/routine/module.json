@@ -28,9 +28,26 @@
         "model_export",
         "compiled_set_pdf",
         "labor_estimate",
-        "energy_analyze"
+        "energy_analyze",
+        "report_package"
       ],
-      "help": "Every option is a registered background job kind that runs from the project alone. The sweep enqueues {routine_id, window_start} plus the project id and nothing else, so a kind that needs its own parameters cannot be scheduled yet: report_package is the one such kind, and that is what leaves scheduled report packages open.",
+      "help": "Every option is a registered background job kind. All but the last run from the project alone; report_package also needs a moment, set in the field below, to say which package to assemble.",
+      "fieldset": "Routine"
+    },
+    {
+      "name": "moment",
+      "label": "Which package (report_package only)",
+      "type": "select",
+      "options": [
+        "owner_monthly",
+        "lender_draw",
+        "ic_meeting",
+        "precon_gmp",
+        "design_issue",
+        "closeout",
+        "ownership_quarter"
+      ],
+      "help": "The occasion whose reports get assembled — the same seven moments the Report Center offers. Required when the kind is report_package: a routine that does not name one is refused at the sweep rather than queueing a job that can only fail. Ignored, and said so in the sweep result, for every other kind.",
       "fieldset": "Routine"
     },
     {

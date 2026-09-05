@@ -34,15 +34,22 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Routines extends Base {
   /** Enqueue every routine that is due now. One job per DUE routine — never one per missed window;
    *  a routine dormant for a year fires once with its missed count reported. Routines whose kind
-   *  already has queued or running work are skipped as in-flight, and one naming an unregistered
-   *  kind is listed under `refused` without aborting the sweep. */
+   *  already has queued or running work are skipped as in-flight.
+   *
+   *  **`refused` has TWO statuses, and the difference is the whole point of reading `reason`.**
+   *  `unknown_kind` is a routine naming a job that is not registered; `bad_params` is a routine
+   *  naming a real kind without the arguments it needs — a `report_package` that does not say which
+   *  moment to assemble. They were one status until scheduled packages shipped, and a caller that
+   *  renders its own wording instead of the server's `reason` will tell the user the wrong thing
+   *  about the second. (It did: the AI Assist sweep printed "names unknown kind" for every refusal.) */
   routinesRunDue(pid: string) {
     return this.json<{
       project_id: string; as_of: string; due_count: number;
       enqueued: { routine_id: string; kind: string; job_id: string; window_start: string | null;
-        missed_windows: number | null; status: "enqueued" }[];
+        missed_windows: number | null; status: "enqueued"; params?: string[]; note?: string }[];
       enqueued_count: number;
-      refused: { routine_id: string; kind: string; status: "unknown_kind"; reason: string }[];
+      refused: { routine_id: string; kind: string; status: "unknown_kind" | "bad_params";
+        reason: string }[];
       skipped: { id: string; kind: string; status: string; reason: string }[];
       in_flight_kinds: string[]; total_missed_windows: number; note: string;
     }>(`/projects/${pid}/routines/run-due`, { method: "POST" });

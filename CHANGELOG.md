@@ -4,6 +4,62 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a report package can now be scheduled, and the blocker was in the browser
+
+**Closes the gap the entry below named as the honest remaining work.** "The owner's monthly package,
+every month" is the plainest thing anyone wants from a scheduler sitting on a 56-report catalog, and
+it was the one thing this scheduler could not do.
+
+**The premise-check moved the whole design.** The entry below diagnosed this as routines not carrying
+their job's parameters — true, and not the reason it had stayed open. `routines_run.run_due` built
+one params dict for every kind, which is a dict merge to fix. The real obstacle was that **the seven
+report moments lived only in `apps/web/src/ui/reportMoments.ts`**: authored in the browser, resolved
+in the browser, turned into `{moment_id, reports[]}` and handed to the job. `reports.py` contained no
+notion of a moment at all — grepped, not assumed. So nothing server-side could turn *"the owner's
+monthly package"* into a report list, and the plumbing was never the part that was missing.
+
+**Python owns the moments now.** `services/api/src/aec_api/report_moments.py` holds the table;
+`routines_run.job_params` expands a routine's `moment` into the reports it names; `report_package`
+joins the routine picklist alongside a `moment` select. A scheduled package and one assembled by
+clicking are now the same job, with the same params and the same artifact name.
+
+**Two refusals and one note, because a schedule fails quietly.**
+
+* A package routine that names **no** moment is refused at the sweep, listed with the moments it
+  could have named. Enqueueing it anyway would turn a configuration mistake into a monthly failed job
+  somebody has to diagnose — *the same defect one layer down* that kept `report_package` off the
+  picklist in the first place.
+* An **unknown** moment is refused identically. A typo is not a package.
+* A moment set on a kind with no use for one still **runs**, and the sweep says it ignored the
+  setting. That is what you are left with after changing a routine's kind and not clearing the field:
+  a mistake, not a failure. Silently ignoring it is the "package quietly one row shorter" fault this
+  feature exists to prevent; refusing to run an otherwise-correct routine is worse.
+
+**The refusal text belongs to the server, and the UI was restating it.** The AI Assist sweep rendered
+every refusal as *"names unknown kind X"* — true while that was the only way to be refused, and a lie
+the moment `bad_params` joined it: a package missing its moment would have been reported as naming an
+unregistered job. It now renders the server's own `reason`, which names the fault and lists the valid
+choices. *A copy of a string is still a copy, and this one drifted the same day the rule behind it
+changed.*
+
+**Two copies of one table, chosen and priced rather than overlooked.** `reportMoments.test.ts` reads
+`report_moments.py` off disk and asserts ids, order, labels, occasions and report lists are
+identical — the same technique that file already uses to check the catalog against `reports.py`, for
+the same reason. Order is part of the assertion because it is assembly order for the PDF. The
+single-source alternative — delete the literal, fetch the moments from the API — is a Report Center
+change rather than a scheduler one, and it is recorded in `report_moments.py` as the open option.
+
+**Gated in both languages, and mutation-checked in both.** `test_routines.py` asserts set equality
+both ways between the register's moment options and the server's table — a moment offered but unknown
+is a routine that can only be refused, and a moment known but not offered is a package nobody can
+schedule, which is the quieter half. It also asserts every report a moment names is one the catalog
+serves, and that no moment exceeds the 16-report cap `_report_package` enforces. Mutations verified:
+renaming a report id, reordering the moments and deleting one each fail the web tripwire; neutering
+`job_params` fails eight of the thirteen new backend checks.
+
+*The exemption in the entry below is gone because the gap it described was closed, not because the
+argument stopped applying.* An exemption named in a gate is a promissory note; this one was paid.
+
 ## Unreleased — every routine kind a user could pick was unrunnable
 
 **Fixes a fully-built feature that could never run once.** `modules/routine/module.json` offered five
@@ -27,7 +83,9 @@ All twelve handlers were read — not sampled — and each of these ten takes it
 
 **Two kinds are exempt, by name.** `echo` is the queue's smoke-test kind. `report_package` **is**
 registered — it is R24-REPORTS-BY-MOMENT's assemble half — but requires a `reports: [id, …]` list the
-sweep cannot supply. Offering it would move the failure from `unknown_kind` at enqueue to *"no reports
+sweep cannot supply. *(Superseded within the same unreleased window by the entry above: routines now
+carry a `moment`, `report_package` is offered, and `echo` is the only remaining exemption. Left
+standing because it is why the next change happened.)* Offering it would move the failure from `unknown_kind` at enqueue to *"no reports
 in the package"* at run: **the same defect one layer down.**
 
 *That also re-scopes R24's "scheduling still open".* A complete scheduler already ships; what is

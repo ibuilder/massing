@@ -2146,7 +2146,8 @@ refute one, so this goes first even though it is the least visible.
   Slice ②: field-mode CSS beats the FAB's inline 52 px. Slice ③: with a project open, field mode
   **lands on the capture sheet** (`shouldOpenCaptureHome`). Slice ④: `#workspaces` is hidden while
   the mode is on, so the seven-room tablist is not field home. Replacing the portal shell is Lane A.
-- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; scheduling still open.** The catalog was
+- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
+  now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
   each stating who asks and when, collapsed by default, with every report still under its noun
@@ -2177,13 +2178,31 @@ refute one, so this goes first even though it is the least visible.
   one layer too high", one paragraph after this entry warned against it — and it cost more here,
   because the answer was not a layer below but a **file under another item's heading**.*
 
-  **What actually remains is smaller and different.** The sweep enqueues `{routine_id, window_start}`
-  plus the project id and nothing else, so a routine cannot say WHICH reports a package contains —
-  and `report_package`, the assemble half shipped in v0.3.1015, requires exactly that list. So
-  scheduled report packages need **routines to carry their job's parameters**, a routine-record
-  change, not a scheduler. (The ten job kinds that do run from the project alone are now offered in
-  `modules/routine/module.json` and gated; before that fix none of the five offered kinds was
-  registered at all, so every routine a user created was refused.)
+  ✅ **What actually remained was smaller and different, and it SHIPPED.** The sweep enqueued
+  `{routine_id, window_start}` plus the project id and nothing else, so a routine could not say WHICH
+  reports a package contains — and `report_package`, the assemble half shipped in v0.3.1015, requires
+  exactly that list. **Routines now carry their job's parameters**, which was a routine-record change
+  rather than a scheduler one, exactly as this entry predicted. (The ten job kinds that already ran
+  from the project alone were offered in `modules/routine/module.json` and gated first; before that
+  fix none of the five offered kinds was registered at all, so every routine a user created was
+  refused.)
+
+  **The premise-check that shaped it: the moments lived in a browser bundle.** The seven occasions
+  were authored in `apps/web/src/ui/reportMoments.ts` and resolved in the browser, so *nothing
+  server-side could turn "the owner's monthly package" into a report list* — `reports.py` contained no
+  notion of a moment at all. That, not the params plumbing, is why this had stayed open: the plumbing
+  is a dict merge, and the table it needed was on the wrong side of the wire.
+  `services/api/src/aec_api/report_moments.py` owns the table now, `routines_run.job_params` expands a
+  routine's `moment` into the reports it names, and a package routine naming no moment — or an unknown
+  one — is **refused at the sweep with the moments it could have named**, rather than queued to fail at
+  run time. A `moment` on a kind with no use for one still runs, and the sweep says it ignored it.
+
+  **The TypeScript literal is now a mirror, bound by a cross-lane tripwire.** `reportMoments.test.ts`
+  reads `report_moments.py` off disk and asserts ids, order, labels, occasions and report lists are
+  identical — the same technique it already uses to check the catalog against `reports.py`, for the
+  same reason. Deleting the literal and fetching the moments from the API is the single-source
+  alternative; it is a Report Center change rather than a scheduler one, and it is recorded in
+  `report_moments.py` as chosen-against rather than overlooked.
 
   Still open and genuinely a **deployment decision**: what invokes the sweep on a cadence — in-process
   versus external cron hitting the endpoint. That is unchanged and still not taken here. The Job row

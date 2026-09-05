@@ -19,14 +19,18 @@ routines are running. With the default empty set, a monthly report that takes an
 re-enqueued on every sweep for that hour. So the join has to derive `in_flight` from the jobs table,
 and doing that is most of the value here — the plumbing is the easy half.
 
-THREE REFUSALS
---------------
+FOUR REFUSALS
+-------------
 1.  **`in_flight` is derived, never assumed empty.** A routine with a `queued` or `running` job of its
     kind is in flight and is not re-enqueued.
 2.  **An unknown kind is reported, not fatal.** `jobs.enqueue` raises `ValueError` on an unregistered
     kind, and letting that propagate would abort the sweep for every *other* routine because one was
     misconfigured. It is caught per routine and listed.
-3.  **The window is consumed at ENQUEUE, not at success**, and the job id is recorded so the outcome
+3.  **A kind whose arguments are missing is refused, not enqueued half-formed.** `report_package`
+    needs to know WHICH package; a routine that does not say is listed under `refused` with the
+    moments it could have named. Enqueueing it anyway would put a job in the queue that can only fail
+    at run time, which turns a configuration mistake into a failed run somebody has to diagnose.
+4.  **The window is consumed at ENQUEUE, not at success**, and the job id is recorded so the outcome
     stays visible. Consuming it on success instead would re-fire a failing routine on every sweep
     until it passed — a retry storm dressed as a schedule. The cost is that a failed run waits for the
     next window, which is why `enqueued` carries its `job_id`: a reader can see the failure rather
@@ -43,6 +47,45 @@ IN_FLIGHT_STATES = ("queued", "running")
 
 STATUS_ENQUEUED = "enqueued"
 STATUS_UNKNOWN_KIND = "unknown_kind"
+STATUS_BAD_PARAMS = "bad_params"
+
+
+def job_params(kind: str, row: dict) -> tuple[dict[str, Any], str | None, str | None]:
+    """Params a routine's kind needs beyond `{routine_id, window_start}` — `(extra, refusal, note)`.
+
+    R24-REPORTS-BY-MOMENT ③. Until this existed the sweep passed one params dict for every kind, so a
+    kind needing its own arguments could not be scheduled at all, and `report_package` — assemble a
+    named package of reports — was the one that needed them. "The owner package, every month" is the
+    plainest thing anyone wants from a scheduler over a report catalog, and it was the one thing this
+    scheduler could not do.
+
+    A `refusal` is a string and means **do not enqueue**: it is listed under `refused` exactly like an
+    unregistered kind, for the same reason, and it is built from our own constants rather than from an
+    exception's text (see the note in `run_due` — that rule was learnt from a CodeQL finding, and a
+    second place to leak from is still a leak).
+
+    A `note` is advisory and the job runs anyway. It exists for the one case that is a mistake but not
+    a failure: a routine that carries a `moment` for a kind that has no use for one, which is what you
+    are left with after changing a routine's kind and not clearing the field. Silently ignoring the
+    setting would be the "package quietly one row shorter" failure this feature is built to avoid;
+    refusing to run a routine that is otherwise correct would be worse.
+    """
+    from . import report_moments
+
+    moment = row.get("moment")
+    if kind == "report_package":
+        if not moment:
+            return {}, ("a scheduled report package must say WHICH package: set this routine's "
+                        f"moment to one of {sorted(report_moments.MOMENTS)}"), None
+        if str(moment) not in report_moments.MOMENTS:
+            return {}, (f"unknown report moment {str(moment)!r}; "
+                        f"known: {sorted(report_moments.MOMENTS)}"), None
+        return report_moments.package_params(str(moment)), None, None
+    if moment:
+        return {}, None, (f"this routine names the report moment {str(moment)!r}, which only "
+                          f"report_package uses; {kind} takes no parameters, so it was ignored "
+                          "rather than silently changing what ran")
+    return {}, None, None
 
 
 def in_flight_kinds(db, project_id: str) -> set[str]:
@@ -80,9 +123,18 @@ def run_due(db, project_id: str, now: datetime | None = None,
     enqueued, refused = [], []
     for row in verdict.get("due") or []:
         kind = row.get("kind")
+        extra, refusal, note = job_params(str(kind or ""), row)
+        if refusal:
+            # Same treatment as an unregistered kind: listed, and the sweep carries on. A routine
+            # misconfigured in the OTHER direction — right kind, missing argument — used to be
+            # impossible to express, so there was nothing to refuse; now it is, so it is.
+            refused.append({"routine_id": row.get("id"), "kind": kind,
+                            "status": STATUS_BAD_PARAMS, "reason": refusal})
+            continue
         try:
             job = jobs.enqueue(db, kind, project_id, {"routine_id": row.get("id"),
-                                                      "window_start": row.get("window_start")},
+                                                      "window_start": row.get("window_start"),
+                                                      **extra},
                                actor=actor)
         except ValueError:
             # One misconfigured routine must not stop the others from running.
@@ -116,7 +168,9 @@ def run_due(db, project_id: str, now: datetime | None = None,
         enqueued.append({"routine_id": row.get("id"), "kind": kind, "job_id": job.id,
                          "window_start": row.get("window_start"),
                          "missed_windows": row.get("missed_windows"),
-                         "status": STATUS_ENQUEUED})
+                         "status": STATUS_ENQUEUED,
+                         **({"params": sorted(extra)} if extra else {}),
+                         **({"note": note} if note else {})})
 
     return {
         "project_id": project_id,

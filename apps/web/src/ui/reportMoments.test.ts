@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  type CatalogEntry, REPORT_MOMENTS, missingReportIds, packageJobParams, resolveMoment, unclaimedReports,
+  type CatalogEntry, type ReportMoment, REPORT_MOMENTS, missingReportIds, packageJobParams, resolveMoment,
+  unclaimedReports,
 } from "./reportMoments";
 
 /**
@@ -129,5 +130,62 @@ describe("assembling a package does not invent reports", () => {
   it("the job params are the moment's own ids, in order", () => {
     const m = REPORT_MOMENTS[0]!;
     expect(packageJobParams(m)).toEqual({ moment_id: m.id, reports: m.reports });
+  });
+});
+
+/**
+ * **The moments now live in Python, and this table is a mirror of that one.**
+ *
+ * They were authored here and resolved here, which worked for a person clicking a button in the
+ * Report Center and could never work for a *schedule*: `routines_run.run_due` had no way to turn
+ * "the owner's monthly package" into a `reports[]` list, because the only table saying what that
+ * package contains was in a browser bundle. So `report_moments.py` owns it, and `reportCenter.ts`
+ * keeps rendering from the literal above rather than growing a second await on its load path.
+ *
+ * Two copies of one fact is the thing this repository has scars from — which is why it is bound the
+ * same way the catalog above is, by reading the other language's source rather than a copy of it.
+ * The check is **exact and ordered**: ids, order, labels, occasions and report lists. Order matters
+ * because it is assembly order for the PDF, and a package whose sections come out shuffled is a
+ * package somebody has to re-read.
+ *
+ * The single-source alternative — delete this literal, fetch the moments from the API — stays open
+ * and is recorded in `report_moments.py`. It is a Report Center change, not a scheduler one.
+ */
+const MOMENTS_PY = resolve(__dirname, "../../../../services/api/src/aec_api/report_moments.py");
+
+function pythonMoments(): ReportMoment[] {
+  const src = readFileSync(MOMENTS_PY, "utf8");
+  const start = src.indexOf("MOMENTS: dict");
+  expect(start, "could not find the MOMENTS table — report_moments.py was restructured")
+    .toBeGreaterThan(-1);
+  const block = src.slice(start, src.indexOf("\n}", start));
+  return [...block.matchAll(/"([a-z0-9_]+)":\s*\(\s*"([^"]*)",\s*"([^"]*)",\s*\[([^\]]*)\]\s*\)/g)]
+    .map((m) => ({
+      id: m[1]!, label: m[2]!, occasion: m[3]!,
+      reports: [...m[4]!.matchAll(/"([a-z0-9_]+)"/g)].map((r) => r[1]!),
+    }));
+}
+
+describe("the moments agree with the server's copy", () => {
+  it("parses a plausible table, so the comparison below cannot pass vacuously", () => {
+    // Same guard as the catalog parser: a restructured Python literal must fail HERE, loudly,
+    // rather than yielding an empty list that makes every id match nothing and every check green.
+    const py = pythonMoments();
+    expect(py.length).toBeGreaterThan(4);
+    expect(py.every((m) => m.reports.length > 0)).toBe(true);
+  });
+
+  it("id, order, label, occasion and reports are identical on both sides", () => {
+    // A cross-lane tripwire, so the message has to be an instruction: this is a WEB test that a
+    // BACKEND edit can turn red.
+    expect(
+      pythonMoments(),
+      "the moments differ between apps/web/src/ui/reportMoments.ts and "
+      + "services/api/src/aec_api/report_moments.py. They are one table with two homes: Python is "
+      + "the one a scheduled routine reads, this file is the one the Report Center renders. Edit "
+      + "both, in the same commit.",
+    ).toEqual(REPORT_MOMENTS.map((m) => ({
+      id: m.id, label: m.label, occasion: m.occasion, reports: m.reports,
+    })));
   });
 });

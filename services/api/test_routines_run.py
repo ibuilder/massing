@@ -57,7 +57,7 @@ check("the queue really registers `echo`, so a success here is not vacuous", "ec
       sorted(jobs.KINDS))
 
 
-def routine(name, kind, cadence="daily", state="active", last_run=None):
+def routine(name, kind, cadence="daily", state="active", last_run=None, **extra):
     """Create a routine in a given workflow state.
 
     `create_record` files new records as **draft**, and `from_project` deliberately evaluates only
@@ -67,7 +67,7 @@ def routine(name, kind, cadence="daily", state="active", last_run=None):
     """
     rec = me.create_record(db, "routine", PID,
                            {"data": {"name": name, "kind": kind, "cadence": cadence,
-                                     **({"last_run": last_run} if last_run else {})}},
+                                     **({"last_run": last_run} if last_run else {}), **extra}},
                            "tester", None)
     rid = rec["id"]
     t = me.TABLES["routine"]          # a Core Table, so columns are t.c.*, not attributes
@@ -151,6 +151,70 @@ check("  and the missed count is reported rather than replayed",
 check("  so the queue grew by the number of DUE routines, not by windows missed",
       n_after - n_before == fifth["enqueued_count"], (n_before, n_after, fifth["enqueued_count"]))
 check("the note names the flood it is preventing", "flood the queue" in fifth["note"])
+
+# --- 6. A KIND THAT NEEDS ARGUMENTS CAN NOW BE SCHEDULED, AND IS REFUSED WITHOUT THEM -------------
+#
+# R24-REPORTS-BY-MOMENT ③. Until `job_params` existed the sweep built ONE params dict for every kind —
+# `{routine_id, window_start}` plus the project — so `report_package` could not be scheduled at all,
+# and `modules/routine/module.json` had to leave it off the picklist and say why in its help text.
+# "The owner's package, every month" is the plainest thing anyone wants from a scheduler sitting on a
+# report catalog, and it was the one thing this scheduler could not do.
+#
+# **The success and the two refusals are checked in the SAME sweep, on purpose.** A refusal-only test
+# passes just as happily when nothing can ever run — the lesson `test_routines.py` check 5 was written
+# from, where every kind a user could pick was refused and every refusal test was green.
+from aec_api import report_moments  # noqa: E402
+
+db.query(Job).filter(Job.project_id == PID).update({"state": "done"}); db.commit()
+PKG = datetime(2026, 8, 10, 9, 0, tzinfo=timezone.utc)
+
+r_pkg = routine("Owner package, monthly", "report_package", moment="owner_monthly")
+r_nomoment = routine("Package of what?", "report_package")
+r_badmoment = routine("Package of nonsense", "report_package", moment="quarterly_vibes")
+r_moot = routine("Nightly CI with a stray moment", "echo", moment="owner_monthly")
+
+sixth = routines_run.run_due(db, PID, now=PKG, actor="test")
+_by_routine = {e["routine_id"]: e for e in sixth["enqueued"]}
+_refused = {f["routine_id"]: f for f in sixth["refused"]}
+
+check("A SCHEDULED REPORT PACKAGE IS ENQUEUED — the gap R22 left open",
+      r_pkg in _by_routine, sorted(_by_routine))
+_pkg_params = (db.query(Job).filter(Job.id == _by_routine[r_pkg]["job_id"]).one().params or {}
+               ) if r_pkg in _by_routine else {}
+check("  and the JOB ROW carries the moment's reports, which is what makes it runnable",
+      _pkg_params.get("reports") == report_moments.MOMENTS["owner_monthly"][2], _pkg_params)
+check("  named by moment, so a scheduled package and a clicked one are the same job",
+      _pkg_params.get("moment_id") == "owner_monthly", _pkg_params)
+check("  without losing the routine and window it came from",
+      _pkg_params.get("routine_id") == r_pkg and _pkg_params.get("window_start"), _pkg_params)
+
+check("A PACKAGE ROUTINE THAT NAMES NO MOMENT IS REFUSED, not queued to fail later",
+      _refused.get(r_nomoment, {}).get("status") == routines_run.STATUS_BAD_PARAMS,
+      sixth["refused"])
+check("  and the refusal lists the moments it could have named",
+      "owner_monthly" in (_refused.get(r_nomoment, {}).get("reason") or ""),
+      _refused.get(r_nomoment))
+check("AN UNKNOWN MOMENT IS REFUSED THE SAME WAY — a typo is not a package",
+      _refused.get(r_badmoment, {}).get("status") == routines_run.STATUS_BAD_PARAMS,
+      sixth["refused"])
+check("  and neither refusal left a job row behind",
+      db.query(Job).filter(Job.project_id == PID, Job.kind == "report_package").count() == 1,
+      db.query(Job).filter(Job.project_id == PID, Job.kind == "report_package").count())
+
+check("A MOMENT ON A KIND THAT HAS NO USE FOR ONE STILL RUNS", r_moot in _by_routine,
+      sorted(_by_routine))
+check("  but says it ignored it, rather than silently changing what ran",
+      "ignored" in (_by_routine.get(r_moot, {}).get("note") or ""), _by_routine.get(r_moot))
+check("  and the plain routines carry no params key at all",
+      "params" not in _by_routine.get(r_moot, {}), _by_routine.get(r_moot))
+
+# The unit-level table, checked directly: the sweep above proves the wiring, this proves the mapping.
+_extra, _refusal, _note = routines_run.job_params("report_package", {"moment": "lender_draw"})
+check("job_params expands a moment into exactly the reports that moment names",
+      _extra == {"moment_id": "lender_draw", "reports": report_moments.MOMENTS["lender_draw"][2]}
+      and _refusal is None and _note is None, (_extra, _refusal, _note))
+check("  and hands back a COPY, so a caller cannot mutate the table",
+      _extra["reports"] is not report_moments.MOMENTS["lender_draw"][2])
 
 db.close()
 engine.dispose()

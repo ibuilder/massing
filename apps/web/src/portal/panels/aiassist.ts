@@ -88,8 +88,15 @@ export async function renderAiAssist(ctx: PanelContext) {
     // on it; this is the button that makes the schedule happen. One job per DUE routine, never one
     // per missed window: a routine dormant for a year fires once with its missed count reported,
     // rather than flooding the queue on the day it is switched back on. Routines whose kind already
-    // has queued or running work are skipped as in-flight, and one naming an unregistered kind is
-    // listed as refused rather than aborting the sweep for the others.
+    // has queued or running work are skipped as in-flight, and a misconfigured one is listed as
+    // refused rather than aborting the sweep for the others.
+    //
+    // **The refusal text is the SERVER's, not ours.** This used to render every refusal as "names
+    // unknown kind X", which was true while that was the only way to be refused and became a lie the
+    // moment `bad_params` joined it: a scheduled report package that does not say WHICH package would
+    // have been reported as naming an unregistered kind, which is both wrong and un-actionable. The
+    // server's `reason` already names the fault and lists the valid choices, and restating it here is
+    // a copy — of a string that changes when the rule does.
     const rout = el("div", "dash-card"); rout.style.cssText = "margin-bottom:8px";
     const runBtn = el("button", "file-btn") as HTMLButtonElement;
     runBtn.textContent = "⏱ Run due routines";
@@ -102,11 +109,16 @@ export async function renderAiAssist(ctx: PanelContext) {
         const bits: string[] = [];
         bits.push(r.enqueued_count
           ? `${r.enqueued_count} enqueued: ` + r.enqueued.map((e) => esc(e.kind)
-              + ((e.missed_windows ?? 0) > 0 ? ` (${e.missed_windows} window(s) missed, fired once)` : "")).join(", ")
+              + ((e.missed_windows ?? 0) > 0 ? ` (${e.missed_windows} window(s) missed, fired once)` : "")
+              + (e.params?.length ? ` [${e.params.map(esc).join(", ")}]` : "")).join(", ")
           : "nothing was due");
+        // Advisory, and shown for the same reason the refusals are: a setting the sweep ignored is
+        // exactly the kind of thing nobody notices until the output is wrong.
+        const notes = r.enqueued.filter((e) => e.note);
+        if (notes.length) bits.push(notes.map((e) => `${esc(e.kind)}: ${esc(e.note!)}`).join("; "));
         if (r.in_flight_kinds.length) bits.push(`waiting on ${r.in_flight_kinds.map(esc).join(", ")} — already running`);
         if (r.refused.length) bits.push(`<span style="color:var(--status-crit)">${r.refused.length} refused: `
-          + r.refused.map((f) => `${esc(f.routine_id)} names unknown kind ${esc(f.kind)}`).join("; ") + `</span>`);
+          + r.refused.map((f) => `${esc(f.kind)} — ${esc(f.reason)}`).join("; ") + `</span>`);
         routOut.innerHTML = bits.join(" · ");
       } catch (e) { routOut.textContent = `sweep failed: ${(e as Error).message}`; }
       runBtn.disabled = false;
