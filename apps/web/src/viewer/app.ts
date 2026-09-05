@@ -48,7 +48,7 @@ import { LayerManager } from "../tools/layers";
 import { loadSelSets, saveSelSets } from "../tools/selectionSetsStore";
 import { OriginTool } from "../tools/origin";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
-import { type FamilyDef } from "./draft/draftCatalog";
+import { flattenContentCatalog, type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
 import { LogisticsOverlay } from "./draft/logisticsOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
@@ -1713,9 +1713,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           const cat = await api.familyCatalog();
           return Object.values(cat.categories).flat() as FamilyDef[];
         },
+        fetchContent: async () => flattenContentCatalog(await api.contentCatalog()),
         arm: (a) => { armed = a; armPts.length = 0; setDynBuf(""); },  // re-arm resets the dyn HUD
-        notify,
-        canAuthor: () => !!projectId && hasIfc,
+        notify, canAuthor: () => !!projectId && hasIfc,
       });
     }
 
