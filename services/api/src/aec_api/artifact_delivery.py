@@ -45,6 +45,7 @@ class DeliveryRefused(Exception):
     """
 
     def __init__(self, status: int, detail: str) -> None:
+        """`status` is the HTTP code the route raises for this refusal; `detail` is its message."""
         super().__init__(detail)
         self.status, self.detail = status, detail
 

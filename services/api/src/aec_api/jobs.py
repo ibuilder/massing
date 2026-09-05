@@ -195,6 +195,22 @@ class _Heartbeat:
                 log.debug("job %s: heartbeat failed", self._job_id, exc_info=True)
 
 
+#: Param keys the SERVER owns. A caller may not supply them, and `routers/jobs.py` strips them from
+#: a request body before writing its own.
+#:
+#: `project_id` and `actor` were already server-written-last, which was enough while nothing but
+#: identity depended on them. `routine_id` and `deliver_to` changed that: together they make the
+#: worker mail a finished artifact, so a caller who could forge them could aim a delivery.
+#:
+#: **That was not a privilege escalation and it is still worth closing.** Enqueue and the deliver
+#: route are both `require_role("editor")`, so an editor who forged these gained exactly what the
+#: deliver route already gave them, attributed to the same audited actor. The problem is that the
+#: safety of one endpoint rested on the ROLE GATE OF ANOTHER, with nothing stating the dependency:
+#: harden `deliver_artifact` to admin — plausible for a route that mails files out of the system —
+#: and this path silently stays at editor. Stripping makes it structural instead of an argument.
+SERVER_ONLY_PARAMS = ("project_id", "actor", "routine_id", "deliver_to")
+
+
 def _split_recipients(raw: Any) -> list[str]:
     """A routine's `deliver_to` field as a list. Accepts a list, or one string of separated addresses.
 

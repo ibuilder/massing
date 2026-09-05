@@ -278,6 +278,12 @@ _real_send = mailer.send_email
 
 
 def _recording_send(to, subject, body, html=None, attachments=None):
+    """Stand in for `mailer.send_email`, recording what would have been sent and reporting success.
+
+    Only the SMTP call is faked. Everything above it — the sweep, the worker, the handler, the
+    delivery core's caps and de-duplication — is the real code path, which is the point: the
+    interesting failures live there, not in smtplib.
+    """
     _sent.append({"to": to, "subject": subject, "attachments": attachments})
     return "sent"
 
@@ -289,6 +295,11 @@ def _run_next() -> None:
 
 
 def _drain_to_done() -> None:
+    """Finish every outstanding job, so the next sweep is not blocked by an earlier section's queue.
+
+    `run_due` skips a routine whose KIND already has queued or running work — correct behaviour, and
+    it would otherwise make these sections depend on the order the ones above them left things in.
+    """
     db.query(Job).filter(Job.state.in_(("queued", "running"))).update({"state": "done"},
                                                                      synchronize_session=False)
     db.commit()
