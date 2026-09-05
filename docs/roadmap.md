@@ -2549,7 +2549,7 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
 - 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,508, a 50% cut. The `builders`
   map is entirely gone.** Slice count deliberately not restated here: `services/api/test_file_sizes.py`
   is the record, and a count repeated in prose is a copy that drifts — this header said "seven slices"
-  while the list immediately below it named eleven.** The paragraph below saying the extraction "is NOT begun"
+  while the list immediately below it named eleven. The paragraph below saying the extraction "is NOT begun"
   was true on 2026-08-06 and stayed on the page until 2026-08-17, through six shipped slices — a
   roadmap entry describing work as un-started while the work is being done is worse than a missing
   entry, because it sends the next reader to re-derive a plan that was already executed. Kept only
