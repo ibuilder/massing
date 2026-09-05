@@ -2162,11 +2162,32 @@ refute one, so this goes first even though it is the least visible.
   mails any finished job's artifact (`services/api/test_artifact_deliver.py`), surfaced as **Send**
   beside **Download** in the job tray. *Naming the blocker one layer too high is what let it sit: the
   two named things were present, so every look confirmed the entry and nobody checked the layer below.*
-  **What genuinely remains is SCHEDULED, and it needs a runner.** There is no scheduler of any kind in
-  this tree — no APScheduler, no croniter, no cron — so the existing digest is admin-triggered and
-  nothing runs on a date. Choosing in-process versus external cron hitting an endpoint is a
-  **deployment decision with different operational consequences, not a wiring task**, which is why it
-  is not taken here. The Job row is already the record that a pack ran.
+  ⚠️ **"There is no scheduler of any kind in this tree" WAS FALSE — corrected 2026-09-05, and it is
+  the same mistake this entry diagnoses one paragraph above itself.** The sentence checked for
+  scheduler *libraries* — "no APScheduler, no croniter, no cron" — and that half is true: none is in
+  `requirements.in`. But the repo **hand-rolled one under a different item's name**. `R22-ROUTINES`
+  ships `services/api/src/aec_api/routines.py` (cadences daily/weekly/monthly/quarterly,
+  `window_start`, `due`, `from_project`), `services/api/src/aec_api/routines_run.py` which enqueues
+  due routines through `jobs.enqueue`, a persisted `routine` register carrying each routine's own
+  `last_run`, and the routes behind `apps/web/src/api/routines.ts`. It refuses catch-up replay, refuses
+  to re-enqueue a running kind, and consumes the window at enqueue — all covered by
+  `services/api/test_routines.py`.
+
+  *Searching for the dependency and concluding there was no capability is exactly "naming the blocker
+  one layer too high", one paragraph after this entry warned against it — and it cost more here,
+  because the answer was not a layer below but a **file under another item's heading**.*
+
+  **What actually remains is smaller and different.** The sweep enqueues `{routine_id, window_start}`
+  plus the project id and nothing else, so a routine cannot say WHICH reports a package contains —
+  and `report_package`, the assemble half shipped in v0.3.1015, requires exactly that list. So
+  scheduled report packages need **routines to carry their job's parameters**, a routine-record
+  change, not a scheduler. (The ten job kinds that do run from the project alone are now offered in
+  `modules/routine/module.json` and gated; before that fix none of the five offered kinds was
+  registered at all, so every routine a user created was refused.)
+
+  Still open and genuinely a **deployment decision**: what invokes the sweep on a cadence — in-process
+  versus external cron hitting the endpoint. That is unchanged and still not taken here. The Job row
+  is already the record that a pack ran.
 - **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
   are a user decision; storey/floor settled v0.3.945).
 

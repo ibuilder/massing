@@ -19,12 +19,18 @@
       "label": "What it runs",
       "type": "select",
       "options": [
-        "progress_report",
-        "schedule_risk_scan",
-        "cost_variance_scan",
-        "provenance_check",
-        "custom"
+        "model_ci",
+        "ids_validate",
+        "clash_detect",
+        "clash_federated",
+        "escalation_scan",
+        "cobie_export",
+        "model_export",
+        "compiled_set_pdf",
+        "labor_estimate",
+        "energy_analyze"
       ],
+      "help": "Every option is a registered background job kind that runs from the project alone. The sweep enqueues {routine_id, window_start} plus the project id and nothing else, so a kind that needs its own parameters cannot be scheduled yet: report_package is the one such kind, and that is what leaves scheduled report packages open.",
       "fieldset": "Routine"
     },
     {

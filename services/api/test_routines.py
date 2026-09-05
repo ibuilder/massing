@@ -224,6 +224,58 @@ with _SL() as _db:
 check("a project with no routines is a clean empty evaluation, not an error",
       P2["due_count"] == 0 and P2["stored"] == 0, P2)
 
+# --- 5. THE PICKLIST A USER ACTUALLY SEES MUST NAME KINDS THAT RUN -----------------------------
+#
+# This file's own header says a suite that only asserts refusals cannot tell a careful feature from a
+# no-op, and pairs every "must not fire" with a "must fire". Check 3 above asserts an unknown kind is
+# REFUSED. Nothing asserted that the kinds a user can actually CHOOSE are not all unknown — and they
+# were. `modules/routine/module.json` offered progress_report, schedule_risk_scan, cost_variance_scan,
+# provenance_check and custom; `jobs.KINDS` registers none of those. The intersection was EMPTY, so
+# every routine anyone created through the Routines module was refused at sweep time with
+# `unknown_kind`, on a module that ships a full workflow — draft/active/paused/retired, activate,
+# pause, retire — and a persisted register. **A refusal test passes just as happily when everything
+# is refused.**
+#
+# The picklist and the registry are two copies of one list, and a copy is what drifts. So this asserts
+# the set relationship rather than a count, with both exemptions named:
+#
+#   * `echo` is the queue's own smoke-test kind and is deliberately not offered to users;
+#   * `report_package` IS registered — it is R24-REPORTS-BY-MOMENT's assemble half — but it REQUIRES
+#     a `reports: [id, ...]` list, and `routines_run.evaluate_and_enqueue` enqueues only
+#     `{routine_id, window_start}` plus the project id. Offering it would move the failure from
+#     `unknown_kind` at enqueue to "no reports in the package" at run, which is the same defect one
+#     layer down. Scheduled report packages need routines to carry their job's params; that is the
+#     real remaining work behind "scheduling still open", and it is not a scheduler change.
+#
+# Every other registered kind reads its non-project params through `params.get(... ) or <default>`, so
+# it runs from the project alone — verified by reading all twelve handlers, not by sampling.
+import json as _cfg_json  # noqa: E402
+from pathlib import Path as _CfgPath  # noqa: E402
+
+from aec_api import jobs as _jobs  # noqa: E402
+
+NOT_OFFERED = {
+    "echo": "the queue's smoke-test kind, deliberately not user-facing",
+    "report_package": "needs a reports[] list the sweep does not pass; see the note above",
+}
+
+_mod = _cfg_json.loads(
+    (_CfgPath(__file__).resolve().parent / "modules" / "routine" / "module.json").read_text("utf-8"))
+_offered = [f for f in _mod["fields"] if f["name"] == "kind"][0]["options"]
+
+check("every routine kind a user can pick is a registered job kind",
+      [k for k in _offered if k not in _jobs.KINDS] == [],
+      f"unrunnable options: {[k for k in _offered if k not in _jobs.KINDS]}")
+
+check("the picklist is not empty, so the check above cannot pass vacuously",
+      len(_offered) >= 5, f"{len(_offered)} option(s)")
+
+check("every registered kind is either offered or exempt BY NAME",
+      sorted(set(_jobs.KINDS) - set(_offered)) == sorted(NOT_OFFERED),
+      f"unaccounted: {sorted(set(_jobs.KINDS) - set(_offered) - set(NOT_OFFERED))}; "
+      f"exempt-but-gone: {sorted(set(NOT_OFFERED) - set(_jobs.KINDS))}")
+
+
 _eng.dispose()
 for _f in ("./test_routines.db",):
     if _os.path.exists(_f):

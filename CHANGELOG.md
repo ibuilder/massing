@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — every routine kind a user could pick was unrunnable
+
+**Fixes a fully-built feature that could never run once.** `modules/routine/module.json` offered five
+`kind` options — `progress_report`, `schedule_risk_scan`, `cost_variance_scan`, `provenance_check`,
+`custom` — and `jobs.KINDS` registers **none of them**. Verified by executing against the live
+registry, not by reading: the intersection was **empty**.
+
+`routines_run` refuses an unregistered kind with `unknown_kind`, so **every routine anyone created
+through the Routines module was refused at sweep time** — on a module shipping a full workflow
+(draft/active/paused/retired, activate, pause, retire), a persisted register carrying each routine's
+own `last_run`, cadence, and a sweep endpoint. All of it correct; all of it unreachable.
+
+The picklist now offers the ten registered kinds that actually run: `model_ci`, `ids_validate`,
+`clash_detect`, `clash_federated`, `escalation_scan`, `cobie_export`, `model_export`,
+`compiled_set_pdf`, `labor_estimate`, `energy_analyze`.
+
+**Which ten was derived, not chosen.** The sweep enqueues `{routine_id, window_start}` plus the
+project id and nothing else, so a kind is schedulable only if every other parameter has a default.
+All twelve handlers were read — not sampled — and each of these ten takes its non-project params as
+`params.get(…) or <default>`.
+
+**Two kinds are exempt, by name.** `echo` is the queue's smoke-test kind. `report_package` **is**
+registered — it is R24-REPORTS-BY-MOMENT's assemble half — but requires a `reports: [id, …]` list the
+sweep cannot supply. Offering it would move the failure from `unknown_kind` at enqueue to *"no reports
+in the package"* at run: **the same defect one layer down.**
+
+*That also re-scopes R24's "scheduling still open".* A complete scheduler already ships; what is
+missing is a way for a routine to carry its job's parameters. That is a routine-record change, not a
+scheduler change, and it is the honest remaining work.
+
+**The gate lives in `test_routines.py` because that file already names this blind spot.** Its header
+says a suite that only asserts refusals cannot tell a careful feature from a no-op, and pairs every
+"must not fire" with a "must fire". It asserted that an *unknown* kind is refused; nothing asserted
+that the kinds a user can actually *choose* were not all unknown. **A refusal test passes just as
+happily when everything is refused.** The new check asserts the set relationship — every option
+registered, every registered kind offered or exempt by name — plus a non-empty floor so it cannot
+pass vacuously. Mutation-checked: reinstating a dead option fails, and silently dropping an offered
+kind fails.
+
+*Existing routine records naming an old kind are left alone rather than rewritten.* They are already
+refused, so nothing regresses, and silently changing what a user configured would be a worse fault
+than the one being fixed.
+
 ## Unreleased — the app.ts figure was wrong in four places, and the gate that was supposed to stop that reached one of them
 
 **Corrects `docs/roadmap.md`, and widens `services/api/test_claude_md_gates.py` to the class rather
