@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the app.ts figure was wrong in four places, and the gate that was supposed to stop that reached one of them
+
+**Corrects `docs/roadmap.md`, and widens `services/api/test_claude_md_gates.py` to the class rather
+than the instance.**
+
+The R39-DECOMP-VIEWER entry carried **three different figures for one file**: a header saying
+`app.ts` is "5,160 → **3,311**, a 36% cut", a shipped block saying "5,160 → **2,944**, a 43% cut",
+and the ratchet pinning **2,508**. A fourth sat elsewhere in the file — "5,064 → 3,444 → and thirteen
+slices since". The header also claimed "seven slices shipped" directly above a list naming eleven.
+
+**The two baselines were both real, and neither was labelled.** `CLAUDE.md` measures from 5,064 —
+the file before the first extraction commit of 2026-08-06 — while the roadmap measured from 5,160, a
+**same-day peak** partway through it: the file grew before it shrank. Nothing on the page could tell
+a reader the two were counted from different points. The baseline is now stated, matches `CLAUDE.md`,
+and the current figure is the ratchet's own count.
+
+**The gate is the real subject here.** The previous release added a check binding `CLAUDE.md`'s
+narrative `app.ts` figure to the `test_file_sizes.py` pin, on the reasoning that *prose is a copy of
+a gated value and a copy is what drifts*. That reasoning was right and the implementation was too
+narrow: it gated **one copy of a number that lives in four places**, and the other three were already
+wrong when it shipped. *Gating the instance you happened to be looking at is not gating the class.*
+The check now scans every doc that carries the baseline-anchored form.
+
+**It immediately earned that.** Having corrected the two figures I found by reading, the widened
+check failed on a **third** I had missed entirely.
+
+**And mutation testing found a defect in the widened check itself.** Its first draft used a summed
+floor — "at least 2 figures across the docs" — and reported "3 figures across 2 docs" while **all
+three came from the roadmap**: `CLAUDE.md` words it "5,064 lines to", so the arrow pattern never
+matched it and its contribution was zero. A mutation that reformatted only the roadmap took the
+count to 0 and exposed it. That is precisely the per-doc vacuity failure this same file's citation
+ratchet was built to prevent, repeated one screen further down. The floor is now **per-doc**, and
+`CLAUDE.md` is covered by name rather than by assumption.
+
 ## Unreleased — SCALE-SEAM (104): coverage maps
 
 Extracts `spineTraceability` and `scopeRegister` from `client.ts` (**572 → 554**) into

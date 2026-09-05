@@ -289,6 +289,53 @@ _pinned = re.search(
 # Both halves must be FOUND, not just agree. If either pattern stops matching — the sentence is
 # reworded, the ratchet key is renamed — this check would otherwise pass on two Nones, which is the
 # vacuous-green failure this file's own header calls worse than no gate.
+# The SAME figure lives in `docs/roadmap.md` twice, and the gate above did not reach it. Added
+# 2026-09-05, one PR after that gate: the roadmap's R39-DECOMP-VIEWER entry carried THREE figures for
+# `app.ts` — a header saying "5,160 -> 3,311", a shipped block saying "5,160 -> 2,944", and the truth,
+# 2,508. It also used a DIFFERENT baseline from CLAUDE.md (5,160 vs 5,064) with neither labelled, so
+# nothing could tell a reader they were measured from different points; both were real, 5,064 being the
+# file before the first extraction commit and 5,160 a same-day peak partway through it.
+#
+# The lesson is about the gate, not the numbers. The check above was written to stop a narrative copy of
+# a pinned value from drifting, and it gated ONE copy of a number that lives in three places. **Gating
+# the instance you happened to be looking at is not gating the class.** So this scans every doc for the
+# baseline-anchored form and requires each to equal the pin — which also holds the BASELINE steady,
+# since a figure measured from somewhere else no longer matches the pattern at all.
+#
+# Historical mentions are deliberately still matchable only by their own baseline: the corrected text
+# quotes "5,160 -> 2,944" as the thing that was wrong, and that does not match this pattern, so the
+# record of the error survives without failing the build.
+APP_TS_BASELINE = "5,064"
+_arrow = re.compile(re.escape(APP_TS_BASELINE) + r"\s*(?:->|\u2192)\s*\*{0,2}([\d,]+)")
+
+#: Docs carrying the ARROW form, and the minimum each must contribute. PER-DOC, never summed — the
+#: first draft of this check used a summed floor of 2 and reported "3 figures across 2 docs" while
+#: **all three came from the roadmap**: CLAUDE.md words it "5,064 lines to", so the arrow pattern
+#: never matched it and its contribution was ZERO. A mutation that reformatted only the roadmap took
+#: the count to 0 and revealed it. That is the exact failure this file's own citation ratchet was
+#: built to avoid, repeated one screen further down — **a summed floor lets one doc hold the number
+#: up while another silently contributes nothing.** CLAUDE.md is not listed here because the two
+#: checks below cover its wording directly; a doc is either in this map or covered by name, never
+#: assumed.
+ARROW_DOCS = {"docs/roadmap.md": 3}
+
+_bad, _thin = [], []
+for _doc, _min in ARROW_DOCS.items():
+    with open(os.path.join(ROOT, _doc), encoding="utf-8") as fh:
+        _hits = _arrow.findall(fh.read())
+    if len(_hits) < _min:
+        _thin.append(f"{_doc}={len(_hits)} (min {_min})")
+    for _h in _hits:
+        if _pinned and int(_h.replace(",", "")) != int(_pinned.group(1).replace("_", "")):
+            _bad.append(f"{_doc}: {APP_TS_BASELINE} -> {_h}")
+
+check(
+    "every doc that quotes the app.ts figure quotes the pinned one",
+    not _bad and not _thin,
+    (f"below the floor: {', '.join(_thin)}; " if _thin else "")
+    + (f"DISAGREE: {', '.join(_bad)}" if _bad else "all figures match the pin"),
+)
+
 check(
     "CLAUDE.md's app.ts sentence and the ratchet pin are both readable",
     bool(_stated) and bool(_pinned),
