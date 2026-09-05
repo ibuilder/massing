@@ -2178,14 +2178,16 @@ refute one, so this goes first even though it is the least visible.
   one layer too high", one paragraph after this entry warned against it — and it cost more here,
   because the answer was not a layer below but a **file under another item's heading**.*
 
-  ✅ **What actually remained was smaller and different, and it SHIPPED.** The sweep enqueued
-  `{routine_id, window_start}` plus the project id and nothing else, so a routine could not say WHICH
-  reports a package contains — and `report_package`, the assemble half shipped in v0.3.1015, requires
-  exactly that list. **Routines now carry their job's parameters**, which was a routine-record change
-  rather than a scheduler one, exactly as this entry predicted. (The ten job kinds that run
-  from the project alone were offered in `modules/routine/module.json` and gated first; before that
-  fix none of the five offered kinds was registered at all, so every routine a user created was
-  refused.)
+  ✅ **What actually remained was smaller and different, and it SHIPPED.** The sweep put only
+  `{routine_id, window_start}` into a job's `params`, so a routine could not say WHICH reports a
+  package contains — and `report_package`, the assemble half shipped in v0.3.1015, requires exactly
+  that list. **Routines now carry their job's parameters**, which was a routine-record change rather
+  than a scheduler one, exactly as this entry predicted.
+
+  (The picklist was fixed first, in the step before: `modules/routine/module.json` had offered **five**
+  `kind` options, **none of them registered**, so every routine any user created was refused at sweep
+  time. Those five were replaced by the **ten** registered kinds that need no arguments beyond the
+  project, and the swap is gated. Five before, ten after — different sets, not a recount.)
 
   ⚠️ **And the sweep had never passed `project_id`, which made those ten inert as well.** A handler is
   called as `fn(db, j.params)` and never sees the Job row, so every kind reads
