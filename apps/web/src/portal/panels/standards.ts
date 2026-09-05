@@ -602,6 +602,17 @@ export async function renderModelAnalysis(ctx: PanelContext) {
           u.textContent = `No caller: ${mx.unreached.join(", ")}`;
           am.appendChild(u);
         }
+        // Superseded recipes are uncalled too, and listing them beside the gaps would overstate the
+        // gap count — they are a second name for something the product already does, not a hole in it.
+        // Shown separately for the same reason the count above excludes them.
+        const sup = Object.entries(mx.superseded ?? {});
+        if (sup.length) {
+          const v = el("div", "meta");
+          v.style.cssText = "font-size:10px;opacity:.75";
+          v.textContent = `Superseded (a reachable recipe authors the same result): `
+            + sup.map(([dup, live]) => `${dup} → ${live}`).join(", ");
+          am.appendChild(v);
+        }
         const rows = Object.entries(mx.by_category).map(([cat, v]) => [cat, v.count]);
         if (rows.length) am.appendChild(table(["Category", "Recipes"], rows));
     }).catch(fail(am));

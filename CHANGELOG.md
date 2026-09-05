@@ -4,6 +4,101 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — you could put a window in a wall but not a skylight in a roof
+
+`add_roof_window` cuts a full-depth `IfcOpeningElement` through a host `IfcRoof` and fills it with an
+`IfcWindow` of PredefinedType `SKYLIGHT`. It has worked since the R17 DORMER slice, it is covered by
+`services/api/test_roof_window.py` down to the void/fill relations and GUID stability across a
+re-open — and no user could invoke it. The viewer has had *"Add door to selected wall"* and *"Add
+window to selected wall"* the whole time.
+
+**Two independent descriptions each said a shipped tool had a missing twin, and neither was a check.**
+The coverage matrix entry read *"the roof counterpart of the wired `add_door`/`add_window`"*; the
+engine function's own docstring says *"the flat-roof counterpart of the wall-hosted `add_opening`"*.
+Prose noticing an asymmetry is not the same as anything failing because of it.
+
+It is now **☀ Skylight in selected roof** on the envelope section, beside the curtain wall — select
+the roof, click where it goes, give width × length. `UNREACHED` goes 7 → 6.
+
+**One behavioural difference had to be handled rather than copied.** `add_door` and `add_window`
+centre themselves on the host when no position is given; `add_roof_window` indexes `p["position"]`
+with no default, so the wall tools' "click optional" pattern would have produced a server error on a
+button press instead of a skylight. The tool requires the point and says what to do about it.
+
+**It went into `envelopeSection.ts`, not `app.ts`.** `services/api/test_file_sizes.py` pins
+`apps/web/src/viewer/app.ts` at 2,508 lines and a decomposition ratchet only ratchets one way, so a
+new tool there would have been paid for by unwinding an extraction. `app.ts` changes by two
+identifiers on two existing lines and stays at exactly 2,508.
+
+**A new gate came out of the wiring, and it generalises past this change.**
+`apps/web/src/viewer/tools/sectionButtonsWired.test.ts` asserts that every member of every `*Buttons`
+interface a section module exports is both destructured **and passed to an `append`** in `app.ts`.
+`envelopeSection.ts`'s own comment says its interface is *"named so re-ordering cannot silently
+re-map them"* — that guards the order, and nothing guarded the last step. **A button that is built,
+returned, destructured and never appended is invisible with every typecheck green**, which
+`envelopeSection.ts`'s docstring records the annotation group shipping once already: *"the same
+silent-inert failure `qaSection.ts` shipped"*. `tsc` is satisfied by the destructure and a unit test
+is satisfied by calling the handler; only the DOM tree knows. Derived from the interfaces rather than
+a list — the failure mode is somebody adding a button and forgetting the second half — and it carries
+a control asserting the derivation still finds all three interfaces, because a regex that stops
+matching passes every assertion vacuously.
+
+## Unreleased — MEP runs could only be joined two elements at a time, and a system's discipline could never be corrected
+
+Two of the ten recipes the entry below named as reachable from nothing are real capabilities, and both
+are now on the MEP systems panel.
+
+**Auto-connect.** `auto_connect_mep` welds every unconnected MEP pair whose connection points coincide
+within a tolerance, in one pass — nearest pairs first, each element joining at most as many pairs as it
+has free ports, so a second run changes nothing. Until now the only way to connect anything was
+`connectMep`: pick one element, pick another, connect. That is fine for a joint and hopeless for a
+model, and the panel it sits on has been reporting *"**N** floating element(s)"* the whole time with no
+way to act on the number. The new button sits beside that count and reports what it welded — including
+`0`, which is a real answer (everything already joined, or nothing within tolerance) and is worded as
+one rather than as a bare "done".
+
+**Retype a system.** `set_system_predefined` stamps a named `IfcDistributionSystem`'s discipline.
+Authoring already sets it — but only on the system's **first** assignment, and `_assign_to_system`'s own
+docstring says *"first author wins; retag via `set_system_predefined`"*. That retag path existed in the
+engine and in no product surface, so a system that arrived untyped from an import, or was created before
+its discipline was decided, stayed untyped permanently — while the panel displayed the discipline, the
+by-discipline rollup counted it, and the fire-protection checks keyed off it. Each system row now
+carries a retype action.
+
+**The third was never a gap, and that is the finding.** `add_sprinkler` is not missing a caller for want
+of wiring: `add_fire_equipment(kind="sprinkler")` resolves through the same `add_mep_terminal` to the
+same `IfcFireSuppressionTerminal`/`SPRINKLER` at the same size on the same *Fire Protection* system with
+`discipline="fire"`, and has been on the viewer's 🧯 button since MEP-FP. Wiring it would have added a
+second control authoring a byte-identical element.
+
+*A reachability sweep answers "does anything call this?", which is one question short of "can a user do
+this?" — the same shape of gap the entry below was written to close, one layer further in.* So
+`SUPERSEDED` now sits beside `UNREACHED` in `authoring_matrix.py`, the matrix carries a fourth `reach`
+value, and the published table and the in-app coverage panel report the two classes separately: a
+duplicate counted among the gaps understates coverage and invites work that would ship a redundant
+control. `UNREACHED` goes 10 → 7.
+
+**The supersession is asserted against what the recipes author, not against how they read.**
+`test_recipe_reach.py` runs both on a fixture model and compares (IFC class, PredefinedType, system
+name, system PredefinedType) — every attribute that distinguishes one MEP terminal from another; without
+the system and discipline it would pass on two elements landing on different systems, which is most of
+what these recipes are for. Change `_FIRE_EQUIPMENT["sprinkler"]` and the gate names the divergence and
+says the recipe is a real capability again. The `UNREACHED`/`SUPERSEDED` split is checked for
+disjointness and for jointly covering the derived uncalled set, so neither can quietly absorb the other.
+
+**A gate had to be narrowed to say the thing it meant.** `docsPublished.test.ts` rejects any public doc
+whose opening contains "superseded" — a proxy for *"this document declares itself a working note"*. The
+generated matrix now labels a set of **recipes** superseded, which is a claim about them and not about
+the file, and the same latent false positive was already sitting in `docs/internal/security-roadmap.md`
+("this one is **not** a superseded snapshot" — a negation read as a confession), unfired only because it
+is internal. The rule now ignores lines naming a backticked code identifier: a status banner announces
+the document's own condition and cites nothing else. That is a heuristic and is labelled as one — so the
+narrowing carries a **positive control** that re-runs the predicate over the archived notes the
+un-narrowed rule catches and fails if any is no longer recognised. *An empty result means "nothing
+leaked" and "the predicate stopped working" equally, and a narrowing is exactly when the second becomes
+likely.* (Written first over the whole archive, which reported 6 missed — all 6 of which had never
+matched: that assertion was testing the archive's filing, not the predicate.)
+
 ## Unreleased — the coverage matrix counted ten capabilities no user could invoke
 
 `edit.RECIPES` holds **96** authoring recipes, and `authoring_matrix.py` publishes them as the

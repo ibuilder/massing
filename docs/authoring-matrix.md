@@ -2,9 +2,11 @@
 
 > Generated from `edit.RECIPES` by `authoring_matrix.to_markdown()` — do not hand-edit; re-run the generator (or `GET /reference/authoring-matrix`) after adding a recipe.
 
-**96 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, and the Reach column says which: `cad+ai` — dispatchable from the CAD command line and the AI planner (12 of 96, the curated `nlauthor.RECIPE_SPECS`); `ui` — invoked by a tool panel, a router or MCP; `none` — the engine can run it and no surface asks it to.
+**96 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, and the Reach column says which: `cad+ai` — dispatchable from the CAD command line and the AI planner (12 of 96, the curated `nlauthor.RECIPE_SPECS`); `ui` — invoked by a tool panel, a router or MCP; `superseded` — nothing calls it and nothing should, a reachable recipe authors the same result; `none` — the engine can run it and no surface asks it to.
 
-> ⚠ **10 recipes are reachable from no surface**: `add_connection_assembly`, `add_roof_window`, `add_sprinkler`, `auto_connect_mep`, `convert_length_unit`, `derive_representations`, `program_fit`, `rebase_origin`, `reset_prop_to_type`, `set_system_predefined`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
+> ⚠ **6 recipes are reachable from no surface**: `add_connection_assembly`, `convert_length_unit`, `derive_representations`, `program_fit`, `rebase_origin`, `reset_prop_to_type`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
+
+> **Superseded** — uncalled, and correctly so: `add_sprinkler` → `add_fire_equipment`. A reachable recipe authors the identical result, so these are duplicate spellings rather than gaps. The equivalence is asserted in `services/api/test_recipe_reach.py`, so an entry stops being true if the two recipes stop agreeing.
 
 ### create-structure (13)
 
@@ -33,7 +35,7 @@
 | `add_railing` | IfcRailing | ui |
 | `add_ramp` | IfcRamp | ui |
 | `add_roof` | IfcRoof | ui |
-| `add_roof_window` | IfcWindow (SKYLIGHT) voiding a roof | none |
+| `add_roof_window` | IfcWindow (SKYLIGHT) voiding a roof | ui |
 | `add_stair` | IfcStair | ui |
 
 ### create-opening (2)
@@ -63,7 +65,7 @@
 | `add_mep_terminal` | IfcDuct/PipeTerminal | ui |
 | `add_pipe` | IfcPipeSegment | ui |
 | `add_riser` | vertical MEP riser | ui |
-| `add_sprinkler` | IfcFireSuppressionTerminal | none |
+| `add_sprinkler` | IfcFireSuppressionTerminal | superseded |
 | `add_wire` | IfcCableSegment | ui |
 
 ### create-content (5)
@@ -107,9 +109,9 @@
 
 | Recipe | Produces | Reach |
 | --- | --- | --- |
-| `auto_connect_mep` | coincident-port auto-connect sweep | none |
+| `auto_connect_mep` | coincident-port auto-connect sweep | ui |
 | `connect_mep` | port-to-port connection | ui |
-| `set_system_predefined` | system predefined type | none |
+| `set_system_predefined` | system predefined type | ui |
 
 ### type (3)
 
