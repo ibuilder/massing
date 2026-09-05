@@ -123,6 +123,10 @@ pillow>=12.3.0
 # dependency, and the failure would land on a subcontractor rather than on us.
 python-docx>=1.2
 
+# --- ASSET-RIGHTS step 5: optional EVM minting (evm_provider.py) ---
+# MIT. Lazy-imported — only loaded when AEC_CHAIN_PROVIDER=evm. Mock minting needs no chain deps.
+web3>=7.0
+
 # --- security floors on TRANSITIVE packages -------------------------------------------------------
 # Nothing here is imported by our code. Each line exists only to raise a floor on a package we get
 # through something else, because a transitive dependency has no other place to be pinned. Delete a

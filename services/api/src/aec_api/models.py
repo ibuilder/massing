@@ -760,3 +760,28 @@ class ClientDecision(Base):
     client_name: Mapped[str | None] = mapped_column(String, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ReleaseToken(Base):
+    """ASSET-RIGHTS step 4 — off-chain registry of a mock (or future on-chain) mint for one sealed
+    release. Keys on `asset_id` + `content_hash`, never on `project_id`, which import regenerates.
+    `content_hash` is unique: one token per release identity."""
+    __tablename__ = "release_tokens"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    asset_id: Mapped[str] = mapped_column(String, index=True)
+    release_id: Mapped[str] = mapped_column(String, default="")
+    content_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
+    manifest_hash: Mapped[str] = mapped_column(String, default="")
+    provider: Mapped[str] = mapped_column(String, default="mock")
+    chain_id: Mapped[int] = mapped_column(Integer, default=0)
+    contract_address: Mapped[str] = mapped_column(String, default="")
+    token_id: Mapped[str] = mapped_column(String, default="")
+    tx_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_uri: Mapped[str | None] = mapped_column(String, nullable=True)
+    recipient: Mapped[str | None] = mapped_column(String, nullable=True)
+    minted_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: Snapshot of the project row at mint time — not used for provenance lookup.
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String, default="minted")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    __table_args__ = (Index("ix_release_tokens_asset_created", "asset_id", "created_at"),)
