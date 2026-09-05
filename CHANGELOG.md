@@ -8,8 +8,9 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 **Found while premise-checking UX-3's five-item line, and worse than anything on it.**
 `edit_core._first_storey(model, None)` returns the **lowest** storey by elevation, and
-`edit.place_type` containers the occurrence there *and* sets its Z to that storey's elevation. So a
-placement that omits `storey` does not land somewhere neutral — it lands on the ground floor.
+`edit.place_type` assigns the occurrence to that storey and, when a position is given, sets its Z to
+that storey's elevation. So a placement that omits `storey` does not land somewhere neutral — it
+lands on the ground floor.
 Measured on a three-storey model: `('Level 3', (7, 5, 8.0))` with the storey, `('Level 1', (5, 5,
 0.0))` without it.
 
@@ -95,6 +96,35 @@ the wrong reason.
 The remaining **22** party-named text fields are recorded in `docs/roadmap.md` as a derived population
 with the company-vs-contact split written out, because that split is the part a script cannot do:
 `owner` is a person on a `risk` and an organisation on a lease.
+
+**A workflow gate can now be met by EITHER half of an additive pair — and the change above needed it.**
+Review caught that `entitlement.submit` declares `requires: ["agency"]`, so the moment
+`agency_company` arrived carrying help text telling the user to pick a company **instead of** typing
+the agency name, a linked-only entitlement could never be submitted. *The change that added the
+control created the trap.*
+
+Sweeping all 139 modules found a **second instance already on main**, unrelated to this work:
+`compliance_evidence.sign_off` requires `responsible`, which has had `responsible_contact` beside it.
+So this is the additive pattern's general collision with the workflow gate rather than one bad
+manifest — MOD-SWEEP's whole premise is that the reference arrives beside the text and the text is
+retired later, and a gate naming only the text half blocks the migration it exists to enable.
+
+A `requires` entry may now name alternatives as `"agency|agency_company"`, satisfied when **any** of
+them is filled. The gate is loosened, not removed: a record with neither is still refused, and the
+typed text alone still passes, which every pre-existing record depends on. The refusal message reads
+*"requires: Agency / Jurisdiction or Agency / Jurisdiction (linked)"*.
+
+**The rule lives in two languages, and that is the hazard.** The server enforces it in
+`services/api/src/aec_api/modules.py`; the register disables the button in
+`apps/web/src/portal/register/register.ts`. If only one had learned about `|`, the UI would grey out
+a transition the server accepts — the same defect in mirror. The UI half is extracted to
+`apps/web/src/portal/register/requiresGate.ts` and tested, and its test reaches across to assert the
+**server** splits on `|` too, so the two cannot drift apart silently. `module_schema.py` validates
+every alternative names a real field, because a typo in a gate makes a transition quietly unreachable.
+
+The class rule is **derived, not a list of the two known cases**: `test_module_fields.py` section 7
+walks every transition in all 139 modules and fails if a `requires` entry names the text half of an
+additive pair without offering its reference. A pair added next year is covered the day it is added.
 
 ## Unreleased — a transmittal could not name its recipient, and could not carry a drawing at all
 

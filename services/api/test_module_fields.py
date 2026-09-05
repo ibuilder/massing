@@ -201,10 +201,63 @@ for _k, _ref in (("inspection", "inspector_contact"), ("review_cycle", "reviewer
     assert any(f["name"] == _ref and f["type"] == "reference" and f.get("module") == "contact"
                for f in mods[_k]["fields"]), f"{_k}.{_ref} must link the reviewing person to `contact`"
 
+
+# ---- 7. a workflow gate must not demand the half of a pair the user was told not to fill ---------
+#
+# Found by review on PR #449, and the review found ONE of the two. Rule 4's additive pattern adds a
+# reference BESIDE its text field so the text can be retired later — but `entitlement.submit`
+# declared `requires: ["agency"]`, so the moment `agency_company` arrived carrying help text telling
+# the user to pick a company INSTEAD of typing the name, a linked-only entitlement could never be
+# submitted. **The pull request that added the control created the trap.**
+#
+# Sweeping all 139 modules found a second, already on main and nothing to do with that PR:
+# `compliance_evidence.sign_off` requires `responsible`, which has had `responsible_contact` beside
+# it. So this is the additive pattern's general collision with the workflow gate, not a bad manifest
+# — which is why the rule below is DERIVED from the pairs rather than naming the two known cases.
+# A pair added next year is covered the day it is added; a named list would not be.
+#
+# The fix is alternation: `requires: ["agency|agency_company"]`, satisfied when EITHER is filled
+# (`modules.py`, and `requiresGate.ts` on the UI side so the button agrees with the server).
+gated = []
+for k, m in mods.items():
+    by = {f["name"]: f for f in m.get("fields", [])}
+    # NOT `pairs` — rule 4 above builds a module-level list of that name and the summary line prints
+    # its length. Shadowing it here reported "0 additive pairs" while 65 were sitting in the file,
+    # which is the summary lying about the check directly above it.
+    pair_map = {}
+    for n, f in by.items():
+        if f["type"] != "reference":
+            continue
+        for suf in ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id"):
+            stem = n[: -len(suf)] if n.endswith(suf) else None
+            if stem and stem in by and by[stem]["type"] in ("text", "textarea"):
+                pair_map[stem] = n
+    for t in (m.get("workflow") or {}).get("transitions", []):
+        for entry in t.get("requires") or []:
+            alts = entry.split("|")
+            for one in alts:
+                assert one in by, f"{k}: transition {t.get('action')!r} requires unknown field {one!r}"
+            for one in alts:
+                if one in pair_map and pair_map[one] not in alts:
+                    gated.append(f"{k}.{t.get('action')}: requires {entry!r} but {one!r} has the "
+                                 f"reference {pair_map[one]!r} beside it")
+assert not gated, (
+    "a transition gate names the TEXT half of an additive pair without accepting its reference: "
+    + "; ".join(gated) + ". The additive pattern tells the user to fill the reference instead, so a "
+    "gate demanding the text makes the new control a trap — write it as `text|reference`, which is "
+    "met by EITHER half."
+)
+alternated = sorted(f"{k}.{t.get('action')}"
+                    for k, m in mods.items()
+                    for t in (m.get("workflow") or {}).get("transitions", [])
+                    for e in (t.get("requires") or []) if "|" in e)
+assert len(alternated) >= 2, f"expected the two known alternation gates, found {alternated}"
+
 print(f"MOD-SWEEP OK - {len(mods)} modules, {refs} reference fields ({len(islands)} still islands), "
       f"{len(united)} fields carry a declared unit, {len(pairs)} additive text+reference pairs are "
       f"adjacent and share a fieldset, {len(with_ref)} registers surface a reference as a column, and "
-      "no percentage-named field is typed 'number'. Each bound is a FLOOR recording work already done, "
+      "no percentage-named field is typed 'number'. " + f"{len(alternated)} transition gates accept "
+      "either half of an additive pair. Each bound is a FLOOR recording work already done, "
       "so the file needs no edit when a module is added and fails if the work is undone. The three "
       "calendar-year fields are asserted to carry NO unit: a suffix rule cannot tell 2027 from "
       "5 years, and it labelled all three 'yr' before a human read the list.")

@@ -111,7 +111,7 @@
           "OwnersRep"
         ],
         "requires": [
-          "agency"
+          "agency|agency_company"
         ]
       },
       {
