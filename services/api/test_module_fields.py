@@ -111,11 +111,50 @@ for k, m in mods.items():
 refs = sum(1 for m in mods.values() for f in m.get("fields", []) if f["type"] == "reference")
 islands = [k for k, m in mods.items()
            if not any(f["type"] == "reference" for f in m.get("fields", []))]
-assert refs >= 150, f"only {refs} reference fields; the sweep took it from 98 to 152"
-assert len(islands) <= 49, (
-    f"{len(islands)} modules have no reference at all (was 69). A record that points at nothing cannot "
-    "take part in a chain, which is most of what separates a register from a spreadsheet."
+assert refs >= 171, f"only {refs} reference fields; the sweep took it from 98 to 152, TRANSMIT-REFS to 173"
+assert len(islands) <= 46, (
+    f"{len(islands)} modules have no reference at all (was 69, then 49). A record that points at "
+    "nothing cannot take part in a chain, which is most of what separates a register from a "
+    "spreadsheet. TRANSMIT-REFS took three more off the list — `transmittal` itself, which could not "
+    "name the company it was addressed to, and `document` and `drawing_set`, which had no reference "
+    "of any kind and so could not be put in a package."
 )
+
+
+# ---- 5. TRANSMIT-REFS: a package must be able to CARRY what it is sent to carry ------------------
+#
+# R22-ENTITLEMENT's remaining item is the outbound submittal package, and its stated blocker was that
+# `transmittal.items` is a textarea. **That was the wrong blocker.** `submittal.transmittal` was
+# already a reference, so submittals resolved into a package the whole time — the entry's own ④ note
+# had verified exactly that against `…/related`, and its Remaining paragraph contradicted it.
+#
+# What was actually missing is asserted here. A transmittal carries drawings, sets and documents at
+# least as often as submittals, and NONE of those three could name one: `document` and `drawing_set`
+# had no reference field of any kind. A package whose contents cannot point at it is prose.
+#
+# The set is NAMED rather than derived, because "what a transmittal carries" is a judgement about the
+# business, not a fact about the schema — and a derived rule would either miss registers or drag in
+# every module that happens to sit in the Drawings section. Naming it means adding a register here is
+# a deliberate act with a reason, which is the same discipline `NOT_OFFERED` uses in test_routines.py.
+TRANSMITTED = {
+    "submittal": "the original case; its reference predates this rule",
+    "drawing": "a transmittal issues sheets",
+    "drawing_set": "and more often issues the whole set, which is the usual unit of issue",
+    "document": "reports, specs and letters go out under a transmittal too",
+}
+for _k, _why in TRANSMITTED.items():
+    _m = mods[_k]
+    assert any(f["type"] == "reference" and f.get("module") == "transmittal"
+               for f in _m.get("fields", [])), \
+        (f"{_k} cannot name the transmittal that issued it ({_why}), so it can never appear in a "
+         "package: a transmittal's contents ARE the records pointing at it, via REVERSE_REFS.")
+
+# The recipient half. A transmittal addressed to a typed company name cannot be resolved, reused or
+# reported on, and `company` is a register. Kept as the additive pair the sweep established rather
+# than a conversion — rule 4 above asserts the pair is adjacent and shares a fieldset.
+assert any(f["type"] == "reference" and f.get("module") == "company"
+           for f in mods["transmittal"].get("fields", [])), \
+    "a transmittal cannot name the company it is addressed to"
 
 print(f"MOD-SWEEP OK - {len(mods)} modules, {refs} reference fields ({len(islands)} still islands), "
       f"{len(united)} fields carry a declared unit, {len(pairs)} additive text+reference pairs are "

@@ -61,6 +61,14 @@
       "label": "Purpose / Notes",
       "type": "textarea",
       "fieldset": "Issue"
+    },
+    {
+      "name": "transmittal",
+      "label": "Transmittal",
+      "type": "reference",
+      "module": "transmittal",
+      "help": "The transmittal that issued this set. A set is the usual unit of issue, so this is normally the link that matters rather than one per sheet.",
+      "fieldset": "Issue"
     }
   ],
   "workflow": {

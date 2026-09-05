@@ -346,6 +346,46 @@ with TestClient(app) as c:
     docrev = c.post(f"/projects/{pid}/modules/document/{doc['id']}/revise", headers=H("gc")).json()
     assert docrev["ref"] == "DOC-001.1", docrev.get("ref")
 
+    # Placed AFTER the revise assertions on purpose: those pin `DOC-001.1`, and this block creates a
+    # `document`, so running it earlier renumbered their record to DOC-002 and failed an assertion
+    # that was correct. Test order is state here, not just sequence.
+    # TRANSMIT-REFS: a transmittal is a PACKAGE, and its contents are the records pointing at it.
+    #
+    # R22-ENTITLEMENT called the outbound package blocked because `transmittal.items` is a textarea.
+    # It never was: `submittal.transmittal` already existed, so submittals resolved the whole time.
+    # What was missing is the other three registers a transmittal actually carries — `drawing`,
+    # `drawing_set` and `document`, the last two with no reference field of ANY kind. This asserts
+    # the capability rather than the schema: `test_module_fields.py` checks the fields exist, and a
+    # field that exists still proves nothing about whether a package resolves.
+    tr = c.post(f"/projects/{pid}/modules/transmittal", headers=H("gc"),
+                json={"data": {"subject": "IFC set to the city", "purpose": "For Review"}}).json()
+    co = c.post(f"/projects/{pid}/modules/company", headers=H("gc"),
+                json={"data": {"name": "City of Example — Planning"}}).json()
+    c.patch(f"/projects/{pid}/modules/transmittal/{tr['id']}", headers=H("gc"),
+            json={"to_company_ref": co["id"]})
+    dset = c.post(f"/projects/{pid}/modules/drawing_set", headers=H("gc"),
+                  json={"data": {"name": "Permit Set", "transmittal": tr["id"]}}).json()
+    c.post(f"/projects/{pid}/modules/drawing", headers=H("gc"),
+           json={"data": {"number": "A-101", "title": "Level 1 Plan", "transmittal": tr["id"]}})
+    c.post(f"/projects/{pid}/modules/document", headers=H("gc"),
+           json={"data": {"title": "Zoning narrative", "transmittal": tr["id"]}})
+    # `submittal` requires title + spec_section + type; a POST missing them 4xxs and the record simply
+    # is not there. Worth the comment: the first draft of this sent `subject`, the assertion below
+    # reported "submittal missing", and that reads exactly like the product defect it was not.
+    sbm = c.post(f"/projects/{pid}/modules/submittal", headers=H("gc"),
+                 json={"data": {"title": "Curtain wall shop dwgs", "spec_section": "08 44 13",
+                                "type": "Shop Drawing", "transmittal": tr["id"]}})
+    assert sbm.status_code in (200, 201), sbm.text[:200]
+    trel = c.get(f"/projects/{pid}/modules/transmittal/{tr['id']}/related", headers=H("gc")).json()
+    carried = {r.get("module") for r in trel.get("incoming", [])}
+    assert {"drawing", "drawing_set", "document", "submittal"} <= carried, (
+        "a transmittal must resolve every kind of record it carries, not just submittals", trel)
+    # The recipient resolves as a RECORD, which is the half that makes a package addressable: a typed
+    # company name cannot be reused, reported on, or followed to the rest of that company's history.
+    assert any(o.get("ref") == co["ref"] for o in trel.get("outgoing", [])), trel
+    assert dset["data"]["transmittal"] == tr["id"], dset["data"]
+
+
     # ---- AI Draft RFI (template fallback when no ANTHROPIC_API_KEY) -----------
     d = c.post(f"/projects/{pid}/ai/draft-rfi", headers=H("gc"), json={
         "element": {"ifc_class": "IfcBeam", "name": "B-12", "storey": "Level 3"},
