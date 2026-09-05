@@ -4,6 +4,51 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the permitting chain could not name the authority it was applying to
+
+**The entry above closed half of one sentence.** Its roadmap paragraph said a transmittal's recipient
+*"cannot be the agency an `entitlement` names, since that field is free text too"* — and then gave the
+transmittal its `company` reference and left the agency exactly as it found it, which is the half the
+entitlement workflow the item is named after actually needs.
+
+**Four registers named one concept in prose**: `entitlement.agency`, `permit.authority`,
+`review_cycle.agency` and `inspection.agency`. `company.type` has offered an **`Authority`** option the
+whole time, so the directory was already modelling the concept and nothing pointed at it — the same
+shape as `to_company`, one layer earlier in the chain.
+
+The cost is not cosmetic. An authority typed three ways is three authorities, so *whose court did it
+sit in* — the question `approval_cycles.py` exists to answer — could be answered for a single round and
+never for a **jurisdiction**. And `permit` and `entitlement` were **islands**: the two ends of the
+approval process could not point at anything at all, which is most of what separates a register from a
+spreadsheet.
+
+**Five references close it.** Four `*_company` → `company`, plus `review_cycle.reviewer_contact` →
+`contact`, the person half, which copies the `inspection.inspector`/`inspector_contact` pairing already
+used for the person on the other side of the same counter. Each sits **beside** its text field as the
+MOD-SWEEP additive pattern requires rather than converting it, so existing records keep the name
+somebody typed. Reference fields **173 → 178**, islands **46 → 44**, both ratchets tightened. No engine
+changed: `REVERSE_REFS` is derived from `reference_fields()` at registry load, so the links flow into
+`related_records`, the Referenced by panel and the rollups by themselves.
+
+**A pinned assertion turned out to pin a fact rather than a rule.** `services/api/test_modules.py`
+asserted `most_referenced[0] == "cost_code"`; four `company` references made it `company` (25 vs 23),
+which is the module graph telling the truth, not a regression. The identity pin is replaced by what it
+stood for, and the replacement cannot be invalidated by adding a reference again: the ranking is really
+ordered, every entry's `in_degree` agrees with the edge list it was computed from, and cost and company
+— what it costs and who it is with — are both asserted to rank in the top three.
+
+**Two gates, both mutation-checked against `review_cycle`.** `services/api/test_module_fields.py`
+names the four registers and asserts each can point at a company; `services/api/test_modules.py` drives
+a real approval chain through the API and asserts all four gather on one authority record via
+`…/related`, because a field that exists still proves nothing about whether the chain resolves. The
+mutation target is deliberate: `review_cycle` keeps its other references, so the islands ceiling cannot
+fire first and shadow the named gate — which is exactly how the previous entry's first check passed for
+the wrong reason.
+
+The remaining **22** party-named text fields are recorded in `docs/roadmap.md` as a derived population
+with the company-vs-contact split written out, because that split is the part a script cannot do:
+`owner` is a person on a `risk` and an organisation on a lease.
+
 ## Unreleased — a transmittal could not name its recipient, and could not carry a drawing at all
 
 **R22-ENTITLEMENT's remaining item was the outbound package, and the blocker the entry named was the
