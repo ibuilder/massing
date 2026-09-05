@@ -1823,6 +1823,54 @@ stakes we are missing.
   `transmittal`, be fed by it, or be retired is a modelling decision about the business, not a gap to
   close on the way past.
 
+  ⑦ **the approval chain can name the AUTHORITY it is applying to, shipped 2026-09-05.** ⑥ closed
+  half of one sentence. Its own paragraph said a transmittal's recipient *"cannot be the agency an
+  `entitlement` names, since that field is free text too"* — and then gave the transmittal its
+  `company` reference and left the agency exactly as it found it, which is the half the *entitlement*
+  workflow this item is named after actually needs.
+
+  Four registers named one concept in prose: `entitlement.agency`, `permit.authority`,
+  `review_cycle.agency` and `inspection.agency`. **`company.type` has offered an `Authority` option
+  the whole time**, so the register was already modelling the concept and nothing pointed at it —
+  the same shape as ⑥'s `to_company`, one layer earlier in the chain. The cost is not cosmetic. An
+  authority typed three ways is three authorities, so ③'s *whose court did it sit in* could be
+  answered for a single round and never for a **jurisdiction**; and `permit` and `entitlement` were
+  **islands** — the two ends of the approval process could not point at anything at all, which is
+  most of what separates a register from a spreadsheet.
+
+  Five references close it: `agency_company`, `authority_company`, `agency_company`,
+  `agency_company` → `company`, plus `review_cycle.reviewer_contact` → `contact`, which is the person
+  half and copies the pairing `inspection.inspector`/`inspector_contact` already used for the person
+  on the other side of the same counter. Reference fields 173 → 178, islands 46 → 44, both ratchets in
+  `services/api/test_module_fields.py` tightened. Additive beside the text as MOD-SWEEP requires, so
+  existing records keep the name somebody typed. No engine changed, for ⑥'s reason.
+
+  **A pinned assertion turned out to be a pin on a fact rather than on a rule.** `test_modules.py`
+  asserted `most_referenced[0] == "cost_code"`; four `company` references made it `company` (25 vs
+  23), which is the graph telling the truth. The pin is replaced by what it stood for and cannot be
+  invalidated by adding a reference again: the ranking is really ordered, every entry's `in_degree`
+  agrees with the edge list it was computed from, and cost and company — what it costs and who it is
+  with — are both asserted to rank in the top three.
+
+  **The rest of the class, derived rather than guessed — 22 fields, and the next step is a judgement,
+  not a sweep.** Scanning all 139 registers for a `text`/`textarea` field whose name contains a party
+  word and which has no `*_company`/`*_contact` reference beside it leaves 22 after this change (51
+  party-named text fields in total, 29 already paired):
+
+  | it names an ORGANISATION → `company` | it names a PERSON → `contact` | it names NEITHER, leave alone |
+  |---|---|---|
+  | `delivery.supplier`, `due_diligence.consultant`, `directive.to_company`, `asset_register.manufacturer`, `submittal.responsible_contractor`, `itp.verifying_party`, `incident.reported_to`, `info_requirement.appointing_party`, `info_requirement.appointed_party`, `info_requirement.lead_appointed_party` | `action_item.assignee`, `issue.assignee_name`, `risk.owner`, `assumption.owner`, `lessons_learned.owner`, `project_charter.project_manager`, `rfi.rfi_manager`, `information_container.reviewer`, `asset_register.service_contact`, `company.contact_name` | `asset_register.manufacturer_url` (a URL), `drawing_issuance.recipients` (plural — a list, not a reference) |
+
+  The split is written down because **it is the part a script cannot do**: `owner` is a person on a
+  `risk` and an organisation on a lease, and `reported_to` is "OSHA/Owner" — an agency *or* the
+  client. A name-keyed sweep gets those wrong silently, which is the failure mode ⑥'s own
+  ⚠️ note warns about one paragraph up. Each row is cheap on its own; none of them should be done by
+  regex.
+
+  📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
+  entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
+  broad statement of scope and calling it closed is a product judgement, not a measurement.
+
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
   `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was
   "entitlements.py" until v0.3.847 renamed the two squatters so only the land-use register keeps the

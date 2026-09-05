@@ -40,6 +40,14 @@
       "fieldset": "Application"
     },
     {
+      "name": "agency_company",
+      "label": "Agency / Jurisdiction (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "Pick the jurisdiction from the company directory rather than typing its name, so everything filed with it gathers on one record. Companies can be typed 'Authority'.",
+      "fieldset": "Application"
+    },
+    {
       "name": "description",
       "label": "Requested Approval",
       "type": "textarea",

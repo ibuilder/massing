@@ -59,8 +59,18 @@ with TestClient(app) as c:
     # the cost_code references above must appear as edges targeting cost_code
     cc_in = [e for e in g["edges"] if e["target"] == "cost_code" and e["kind"] == "reference"]
     assert {"rfi", "cor", "change_event"} <= {e["source"] for e in cc_in}, "cost-impact edges → cost_code"
-    # cost_code is heavily referenced → it tops the in-degree ranking, and its node in-degree matches
-    assert g["most_referenced"] and g["most_referenced"][0]["key"] == "cost_code", g["most_referenced"][:3]
+    # This pinned `most_referenced[0] == "cost_code"` until PERMIT-AUTHORITY gave four permitting
+    # registers a `company` reference and company overtook it (25 vs 23). That is the graph telling the
+    # truth, not a regression — so the identity pin is replaced by what it was standing in for, which
+    # is strictly stronger and cannot be invalidated by adding a reference: the ranking is really
+    # ordered, and every entry's in_degree agrees with the edge list it was computed from.
+    assert g["most_referenced"], g
+    _deg = [e["in_degree"] for e in g["most_referenced"]]
+    assert _deg == sorted(_deg, reverse=True), g["most_referenced"]
+    for _e in g["most_referenced"]:
+        assert _e["in_degree"] == len([x for x in g["edges"] if x["target"] == _e["key"]]), _e
+    # the two spines of the register set — what it costs and who it is with — both rank near the top
+    assert {"cost_code", "company"} <= {e["key"] for e in g["most_referenced"][:3]}, g["most_referenced"][:3]
     cc_node = next(n for n in g["nodes"] if n["key"] == "cost_code")
     assert cc_node["in_degree"] == len(cc_in) + len([e for e in g["edges"] if e["target"] == "cost_code" and e["kind"] == "rollup"]), cc_node
     # workspace scope keeps its modules + referenced targets, and is a subset of the full graph
@@ -384,6 +394,43 @@ with TestClient(app) as c:
     # company name cannot be reused, reported on, or followed to the rest of that company's history.
     assert any(o.get("ref") == co["ref"] for o in trel.get("outgoing", [])), trel
     assert dset["data"]["transmittal"] == tr["id"], dset["data"]
+
+    # PERMIT-AUTHORITY: the approval chain gathers on the authority it is applying to.
+    #
+    # The same jurisdiction is named by four registers. While each named it in free text, "City of
+    # Example — Planning", "City of Example Planning" and "COE Planning" were three authorities, and
+    # the question a developer actually asks — what is open with this agency, and how long do they
+    # take — had no answer. Asserted behaviourally for the same reason as the block above: the fields
+    # existing (test_module_fields.py section 6) proves nothing about whether the chain resolves.
+    #
+    # `company.type` has offered 'Authority' since before any of this, which is why the target is
+    # `company` and not a new register — the directory was already modelling the concept.
+    ahj = c.post(f"/projects/{pid}/modules/company", headers=H("gc"),
+                 json={"data": {"name": "City of Example — Building Dept", "type": "Authority"}}).json()
+    ent = c.post(f"/projects/{pid}/modules/entitlement", headers=H("gc"),
+                 json={"data": {"subject": "CUP for the podium", "application_type": "Conditional Use Permit",
+                                "agency": "City of Example", "agency_company": ahj["id"]}})
+    assert ent.status_code in (200, 201), ent.text[:200]
+    per = c.post(f"/projects/{pid}/modules/permit", headers=H("gc"),
+                 json={"data": {"name": "Core & shell building permit", "permit_type": "Building",
+                                "expires": "2027-06-30", "authority_company": ahj["id"]}})
+    assert per.status_code in (200, 201), per.text[:200]
+    insp = c.post(f"/projects/{pid}/modules/inspection", headers=H("gc"),
+                  json={"data": {"subject": "Footing inspection", "inspection_type": "Agency",
+                                 "date": "2026-09-01", "agency_company": ahj["id"]}})
+    assert insp.status_code in (200, 201), insp.text[:200]
+    rev = c.post(f"/projects/{pid}/modules/review_cycle", headers=H("gc"),
+                 json={"data": {"subject": "Plan check round 1", "round": 1,
+                                "permit": per.json()["id"], "agency_company": ahj["id"]}})
+    assert rev.status_code in (200, 201), rev.text[:200]
+    arel = c.get(f"/projects/{pid}/modules/company/{ahj['id']}/related", headers=H("gc")).json()
+    at_agency = {r.get("module") for r in arel.get("incoming", [])}
+    assert {"entitlement", "permit", "inspection", "review_cycle"} <= at_agency, (
+        "every register in the approval chain must gather on the authority record", arel)
+    # And the chain still resolves end to end: a round points at its permit, which points at the AHJ.
+    prel = c.get(f"/projects/{pid}/modules/permit/{per.json()['id']}/related", headers=H("gc")).json()
+    assert any(r.get("module") == "review_cycle" for r in prel.get("incoming", [])), prel
+    assert any(o.get("ref") == ahj["ref"] for o in prel.get("outgoing", [])), prel
 
 
     # ---- AI Draft RFI (template fallback when no ANTHROPIC_API_KEY) -----------

@@ -111,13 +111,18 @@ for k, m in mods.items():
 refs = sum(1 for m in mods.values() for f in m.get("fields", []) if f["type"] == "reference")
 islands = [k for k, m in mods.items()
            if not any(f["type"] == "reference" for f in m.get("fields", []))]
-assert refs >= 171, f"only {refs} reference fields; the sweep took it from 98 to 152, TRANSMIT-REFS to 173"
-assert len(islands) <= 46, (
+assert refs >= 176, (
+    f"only {refs} reference fields; the sweep took it from 98 to 152, TRANSMIT-REFS to 173 and "
+    "PERMIT-AUTHORITY to 178"
+)
+assert len(islands) <= 44, (
     f"{len(islands)} modules have no reference at all (was 69, then 49). A record that points at "
     "nothing cannot take part in a chain, which is most of what separates a register from a "
     "spreadsheet. TRANSMIT-REFS took three more off the list — `transmittal` itself, which could not "
     "name the company it was addressed to, and `document` and `drawing_set`, which had no reference "
-    "of any kind and so could not be put in a package."
+    "of any kind and so could not be put in a package. PERMIT-AUTHORITY took two more — `permit` "
+    "and `entitlement`, the two ends of the approval chain, neither of which could point at the "
+    "authority it was applying to."
 )
 
 
@@ -155,6 +160,46 @@ for _k, _why in TRANSMITTED.items():
 assert any(f["type"] == "reference" and f.get("module") == "company"
            for f in mods["transmittal"].get("fields", [])), \
     "a transmittal cannot name the company it is addressed to"
+
+
+# ---- 6. PERMIT-AUTHORITY: the permitting chain must be able to NAME the body it is applying to ----
+#
+# #448 closed half of one sentence. The roadmap said a transmittal's recipient "cannot be the agency
+# an `entitlement` names, since that field is free text too" — TRANSMIT-REFS gave the transmittal its
+# `company` reference and left the agency half exactly as it found it.
+#
+# The whole permitting chain named its counterparty in prose: `entitlement.agency`,
+# `permit.authority`, `review_cycle.agency` and `inspection.agency` were four text fields for one
+# concept, and `company` already models it — `company.type` has offered an 'Authority' option all
+# along, so the register was waiting and nothing pointed at it. The cost is not cosmetic: an authority
+# typed four ways is four authorities, so "how long does this jurisdiction take" and "what else is
+# open with them" are unanswerable, and `entitlement` and `permit` were islands — a permit could not
+# be tied to anything at all.
+#
+# NAMED, not derived, for the reason TRANSMITTED gives above: which registers apply to an authority is
+# a judgement about permitting, and a derived rule keyed on the field NAME would sweep in
+# `project_charter.budget_authority`, which is an internal spend limit and not an agency at all.
+AUTHORITY_NAMED = {
+    "entitlement": ("agency_company", "the jurisdiction an application is made to"),
+    "permit": ("authority_company", "the AHJ that issues it, and the one that can revoke it"),
+    "review_cycle": ("agency_company", "a round is with an agency; that is what makes it a round"),
+    "inspection": ("agency_company", "the authority whose inspector signs the result"),
+}
+for _k, (_ref, _why) in AUTHORITY_NAMED.items():
+    _by = {f["name"]: f for f in mods[_k]["fields"]}
+    _f = _by.get(_ref)
+    assert _f is not None and _f["type"] == "reference" and _f.get("module") == "company", (
+        f"{_k} cannot name its authority as a record ({_why}). It is {_ref!r} -> company; without it "
+        "the same jurisdiction typed two ways is two jurisdictions, and nothing about an agency can "
+        "be totalled, filtered or reported on."
+    )
+
+# The person, not the body. `inspection` already paired inspector/inspector_contact; `review_cycle`
+# named the plan reviewer in text beside it, which is the same fact about the same kind of person on
+# the other side of the same counter.
+for _k, _ref in (("inspection", "inspector_contact"), ("review_cycle", "reviewer_contact")):
+    assert any(f["name"] == _ref and f["type"] == "reference" and f.get("module") == "contact"
+               for f in mods[_k]["fields"]), f"{_k}.{_ref} must link the reviewing person to `contact`"
 
 print(f"MOD-SWEEP OK - {len(mods)} modules, {refs} reference fields ({len(islands)} still islands), "
       f"{len(united)} fields carry a declared unit, {len(pairs)} additive text+reference pairs are "
