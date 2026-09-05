@@ -35,6 +35,7 @@ import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
 import { withCounterpartyRisk } from "./counterpartyRisk";
 import { withAcceptanceGates } from "./acceptanceGates";
+import { withCoverageMaps } from "./coverageMaps";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
@@ -67,13 +68,12 @@ import type {
   DisciplineTree, ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
-    MasterBuilderBrief,
-    SpineTraceability } from "./types";
+    MasterBuilderBrief } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -273,20 +273,6 @@ export class ApiClient extends withAcceptanceGates(withCounterpartyRisk(withDesi
       note: string;
     }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
   }
-  scopeRegister(pid: string, body: {
-    scope_items: Record<string, unknown>[]; qto_lines?: Record<string, unknown>[]; activities?: Record<string, unknown>[];
-  }) {
-    type Item = {
-      id: string | null; name: string; cost_code: string | null; qty: number | null; value: number | null;
-      responsible: string | null; package: string | null; start: string | null; finish: string | null;
-      quantified: boolean; allocated: boolean; scheduled: boolean; gaps: string[]; status: "complete" | "gap";
-    };
-    return this.json<{
-      item_count: number; complete: number; with_gaps: number; pct_quantified: number; pct_allocated: number;
-      pct_scheduled: number; total_value: number; by_owner: { owner: string; value: number }[];
-      gap_items: Item[]; items: Item[]; note: string;
-    }>(`/projects/${pid}/scope/register`, { method: "POST", body: JSON.stringify(body) });
-  }
   citedQuery(pid: string, query: string, property?: string, persona?: "exec" | "pm" | "field") {
     type CitationRef = {
       source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
@@ -388,10 +374,6 @@ export class ApiClient extends withAcceptanceGates(withCounterpartyRisk(withDesi
 
 
 
-  /** Discipline Spine traceability: discipline → sheets → specs → bid packages → cost codes → budget. */
-  spineTraceability(pid: string) {
-    return this.json<SpineTraceability>(`/projects/${pid}/spine/traceability`);
-  }
 
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {
