@@ -83,6 +83,28 @@ with TestClient(app) as c:
     assert c.post(f"/projects/{pid}/jobs", json={"kind": "nope"}).status_code == 400
     assert c.get(f"/projects/{other}/jobs/{jid}").status_code == 404, "cross-project job access"
 
+    # SERVER-OWNED PARAMS ARE STRIPPED FROM THE REQUEST BODY, not merely overwritten afterwards.
+    #
+    # `project_id` and `actor` were always written last, which stops an override. `routine_id` and
+    # `deliver_to` are different: nothing here writes them, and TOGETHER THEY MAKE THE WORKER MAIL
+    # THE FINISHED ARTIFACT (`jobs._deliver_if_requested`). A caller who could set both could aim a
+    # delivery by forging a routine that does not exist.
+    #
+    # It was never a privilege escalation — enqueue and the deliver route are both editor, so this
+    # bought an editor nothing the deliver route already gave them, under the same audited actor.
+    # It is closed anyway because the SAFETY OF ONE ENDPOINT RESTED ON THE ROLE GATE OF ANOTHER with
+    # nothing stating the dependency: tighten `deliver_artifact` to admin, a plausible hardening for
+    # a route that mails files out of the system, and this path silently stays at editor. This
+    # asserts the structural version, so the argument no longer has to hold.
+    forged = c.post(f"/projects/{pid}/jobs", json={"kind": "echo", "params": {
+        "b": 2, "routine_id": "forged", "deliver_to": "attacker@example.test",
+        "project_id": other, "actor": "somebody-else"}})
+    assert forged.status_code == 201, forged.text[:200]
+    fp = c.get(f"/projects/{pid}/jobs/{forged.json()['id']}").json()["params"]
+    assert "routine_id" not in fp and "deliver_to" not in fp, ("forged delivery params survived", fp)
+    assert fp["project_id"] == pid and fp["actor"] != "somebody-else", ("server keys not owned", fp)
+    assert fp["b"] == 2, ("a caller's own params must still arrive", fp)
+
     _wait(jid)
     got = c.get(f"/projects/{pid}/jobs/{jid}").json()
     assert got["state"] == "done" and got["result"]["echo"]["a"] == 1, got

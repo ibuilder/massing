@@ -2217,6 +2217,30 @@ refute one, so this goes first even though it is the least visible.
   alternative; it is a Report Center change rather than a scheduler one, and it is recorded in
   `report_moments.py` as chosen-against rather than overlooked.
 
+  ✅ **DELIVERY SHIPPED, and it was this entry's own last remainder** — *"Delivery (email on a date)
+  is still open; this is the assemble half."* Assembling the owner's package on a cadence and leaving
+  it in the job tray is most of a feature, because the reason to schedule it is that nobody has to
+  remember. A routine now carries `deliver_to`, and a finished scheduled run mails its artifact.
+
+  The blocker was again one layer below where the prose put it. `POST …/jobs/{id}/deliver` and
+  `mailer.py` both shipped — but **every line of the delivery lived inside the route function**: the
+  recipient normalisation, the two caps, the size-before-read, the message build, the per-recipient
+  status map and the audit. A worker has no request and no `Depends`, and an `HTTPException` raised
+  from a background thread is a 500 nobody sees. So the reusable half moved to
+  `services/api/src/aec_api/artifact_delivery.py` and the route kept only what is genuinely about
+  HTTP — the "is this artifact ready" refusals. `services/api/test_artifact_deliver.py` drives the
+  real route and is what proves the extraction changed no behaviour.
+
+  **Three rules, and one property worth a reader's attention.** Delivery never changes a job's state
+  (the artifact exists; a bounced address is not a failed run, and re-assembling a report because an
+  email bounced is the wrong repair). Only jobs carrying a `routine_id` deliver, so `deliver_to` is
+  not an undocumented side-channel on an endpoint whose `params` are caller-supplied. It runs inside
+  the heartbeat, before the state flips, because `_Heartbeat` only refreshes rows still `running`.
+  And the guarantee is **at-least-once**: a crash between the last send and the commit re-mails on
+  recovery. Exactly-once needs a sent-marker committed before sending, which trades a duplicate
+  package for a silently un-sent one — the worse failure for a deliverable somebody is waiting on.
+  Stated here rather than discovered later.
+
   Still open and genuinely a **deployment decision**: what invokes the sweep on a cadence — in-process
   versus external cron hitting the endpoint. That is unchanged and still not taken here. The Job row
   is already the record that a pack ran.
