@@ -347,18 +347,29 @@ export function deltaCommitter(d: DeltaDeps) {
       await d.publish(true);
       const st = await d.awaitPublish();
       if (st !== "done") { d.notify(`rebuild ${st}`, st === "error" ? "error" : "info"); return; }
-      // `reloadModel` returns whether the new base actually LOADED, and the paragraph above is the
-      // reason that matters: clearing the store on a failed reload leaves the user with neither the
-      // delta nor the rebuild — "the one state in which the deltas are the only correct geometry
-      // they have". The publish failure was already guarded a line up; the RELOAD failure was not,
-      // so the invariant this function documents held for one of its two failure modes.
+      // `reloadModel` returns whether the new base actually LOADED. The publish failure was guarded
+      // a line up; the RELOAD failure was not, so the invariant this function documents held for one
+      // of its two failure modes — a failed reload fell through to `store.clear()` and a "geometry
+      // rebuilt" success, telling the user the rebuild worked while the screen showed nothing.
       //
-      // `commit()` above already gets this right — `const shown = await d.reloadModel()` and a
-      // notify that says "— shown" only when it did. This is the same module disagreeing with itself
-      // forty lines apart, which is why keeping the deltas here is a correction and not a new policy.
-      const shown = await d.reloadModel();   // disposeAll() reclaims the delta models with everything else
+      // **What this guard does and does not recover.** `reloadModel` calls `disposeAll()` before it
+      // loads, so by the time it returns `false` the delta geometry is gone from the scene no matter
+      // what this function does. Keeping the store therefore preserves the RECORD, not the pixels —
+      // the rail keeps saying there are unbuilt edits, and "Rebuild" stays available to retry. That
+      // is the useful state; clearing would report a clean, finished model over an empty viewport.
+      // (Making the disposal itself atomic — not tearing down the old models until the new one is
+      // known to load — would recover the pixels too, but it belongs to `loadProjectModel`, not
+      // here, and is deliberately not in this change.)
+      //
+      // `commit()` forty lines above deliberately does the OPPOSITE on its reconvert path, and the
+      // asymmetry is not an inconsistency: that path republishes and reconverts, so the pending
+      // edits are IN the new base — leaving them in the store would strand the rail on "N edits not
+      // yet rebuilt" forever. What `commit()` shares with this function is only the messaging rule:
+      // read the boolean, and never claim a rebuild the user cannot see.
+      const shown = await d.reloadModel();
       if (!shown) {
-        d.notify("rebuild published, but the model could not be reloaded — deltas kept", "error");
+        d.notify("rebuild published, but the viewer could not reload it — reopen the model, or rebuild again",
+                 "error");
         return;
       }
       d.store.clear();

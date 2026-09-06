@@ -310,10 +310,30 @@ describe("consolidate", () => {
     const { d, store, c } = harness({ reloadModel: vi.fn(async () => false) });
     store.add({ modelId: "pv-1", label: "Wall" });
     await c.consolidate();
-    expect(store.count, "the deltas are the only correct geometry left — they must survive").toBe(1);
+    expect(store.count, "the record of unbuilt edits must survive so Rebuild stays available").toBe(1);
     expect(d.refresh).not.toHaveBeenCalled();
-    expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("could not be reloaded"), "error");
+    expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("could not reload"), "error");
     expect(d.notify).not.toHaveBeenCalledWith("geometry rebuilt", "success");
+  });
+
+  it("does not claim the delta GEOMETRY survived a failed reload — only the record does", async () => {
+    // A reviewer read the first version of this guard's message ("deltas kept") as a promise that
+    // the delta models were still on screen. They are not, and cannot be: `reloadModel` disposes
+    // every model BEFORE it loads, so by the time it returns `false` the delta geometry is gone
+    // whatever this function does. Keeping the store preserves the RECORD — the rail still says
+    // there are unbuilt edits and Rebuild stays available to retry — and the message has to say
+    // that rather than imply the viewport is intact.
+    //
+    // *The guard was right and its wording described a stronger outcome than it delivers*, which is
+    // the same class as the "geometry rebuilt" toast it replaced, just much milder. Pinned here so
+    // the message cannot drift back into promising recovered geometry.
+    const { d, c } = harness({ reloadModel: vi.fn(async () => false) });
+    await c.consolidate();
+    const msgs = (d.notify as unknown as { mock: { calls: [string, string?][] } }).mock.calls
+      .map(([m]) => m).join(" | ");
+    expect(msgs, "the message must not imply the delta geometry is still on screen")
+      .not.toMatch(/deltas kept|still shown|geometry kept/i);
+    expect(msgs, "it must point at the action that recovers the view").toMatch(/reopen|rebuild again/i);
   });
 
   it("KEEPS the deltas when the publish request itself throws", async () => {

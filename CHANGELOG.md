@@ -19,6 +19,20 @@ caught — but `reloadModel()` returning `false` fell straight through to `store
 not load **and** the deltas are gone. On a failed reload the deltas are now kept and the message says
 so.
 
+**What "kept" means, corrected after review.** `reloadModel` disposes every model *before* it loads, so
+by the time it returns `false` the delta geometry is gone from the scene whatever this function does.
+The guard preserves the **record** — the rail keeps reporting unbuilt edits and *Rebuild* stays
+available to retry — not the pixels, and the message now points at that action instead of saying
+"deltas kept", which read as a promise the viewport was intact. *The guard was right and its wording
+described a stronger outcome than it delivers* — a much milder instance of the same class as the
+`"geometry rebuilt"` toast it replaced. Making the disposal itself atomic would recover the geometry
+too; that belongs to `loadProjectModel` and is deliberately not in this change.
+
+`commit()` deliberately does the **opposite** on its reconvert path, and the asymmetry is not an
+inconsistency: that path republishes and reconverts, so the pending edits are already in the new base
+— leaving them in the store would strand the rail on "N edits not yet rebuilt" forever. What the two
+share is only the messaging rule: read the boolean, and never claim a rebuild the user cannot see.
+
 **The tests had the same gap, in the same shape.** `deltaCommit.test.ts` covered two of the three
 failure modes — publish returns a non-`done` state, publish throws — and not the third, publish
 succeeds and the reload fails. Both existing tests pass whether or not the reload result is read,
