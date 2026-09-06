@@ -92,11 +92,28 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     const mkRow = document.createElement("div"); mkRow.style.cssText = "display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap";
     const labelI = document.createElement("input"); labelI.className = "portal-filter"; labelI.placeholder = "label (e.g. Owner review)"; labelI.style.cssText = "flex:1 1 160px;font-size:12px";
     const mkBtn = document.createElement("button"); mkBtn.className = "tool-btn on"; mkBtn.textContent = "＋ Create link";
-    const payLbl = document.createElement("label"); payLbl.className = "meta"; payLbl.style.cssText = "display:flex;align-items:center;gap:4px;font-size:12px";
-    payLbl.title = "Opt-in: this link's digest also shows the owner-invoice payment schedule (display only)";
-    const payCk = document.createElement("input"); payCk.type = "checkbox";
-    payLbl.append(payCk, document.createTextNode("💲 payment schedule"));
-    mkRow.append(labelI, payLbl, mkBtn); share.append(mkRow, shareBody); body.appendChild(share);
+    // R22-PUBLIC-VIEWER — two INDEPENDENT opt-ins, deliberately not one "share more" control. The
+    // backend's rule is that a token "may carry payments, or geometry, or neither, and granting one
+    // never implies the other"; a single toggle or an ordered level could not express that. Both are
+    // unchecked on every mint, and the form resets them after one, so a geometry link is always a
+    // decision taken for THAT link rather than a setting that carries over to the next.
+    const optIn = (title: string, text: string) => {
+      const l = document.createElement("label"); l.className = "meta";
+      l.style.cssText = "display:flex;align-items:center;gap:4px;font-size:12px";
+      l.title = title;
+      const ck = document.createElement("input"); ck.type = "checkbox";
+      l.append(ck, document.createTextNode(text));
+      return { label: l, box: ck };
+    };
+    const pay = optIn("Opt-in: this link's digest also shows the owner-invoice payment schedule (display only)",
+      "💲 payment schedule");
+    // Geometry is a real disclosure, so the tooltip states the boundary the backend actually enforces:
+    // the converted fragment, never the source IFC with its property sets and classifications.
+    const mdl = optIn("Opt-in: this link may also load the project's 3D geometry (shapes and placements "
+      + "only — never the source IFC with its property sets, classifications and GlobalIds)",
+      "🧊 3D model");
+    const payCk = pay.box, mdlCk = mdl.box;
+    mkRow.append(labelI, pay.label, mdl.label, mkBtn); share.append(mkRow, shareBody); body.appendChild(share);
     const loadTokens = async () => {
       shareBody.innerHTML = `<div class="meta">loading…</div>`;
       try {
@@ -108,7 +125,15 @@ export async function renderMasterBuilder(ctx: PanelContext) {
           const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0;flex-wrap:wrap";
           const link = document.createElement("a"); link.href = ctx.host.api.sharedPageUrl(t.token); link.target = "_blank"; link.rel = "noopener";
           link.className = "meta"; link.style.cssText = "flex:1 1 200px;word-break:break-all";
-          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)}${t.show_payments ? " · 💲" : ""}`;
+          // Both opt-ins are marked, because an opt-in nobody can audit after minting cannot be
+          // reviewed or regretted. `show_model` was on the wire from the day the column shipped and
+          // this row dropped it — the same defect UX-VIEWED fixed for `last_viewed_at` below.
+          const grants = [t.show_payments ? "💲" : "", t.show_model ? "🧊" : ""].filter(Boolean);
+          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)}`
+            + (grants.length ? ` · ${grants.join(" ")}` : "");
+          link.title = grants.length
+            ? `Also grants: ${[t.show_payments ? "payment schedule" : "", t.show_model ? "3D model" : ""].filter(Boolean).join(", ")}`
+            : "Readiness digest only — no payments, no geometry";
           // UX-VIEWED: the chip vocabulary, on data that was already on the wire. `last_viewed_at`
           // was stored, served and typed, and this row dropped it — the count was rendered as
           // plain text and the timestamp never read at all.
@@ -127,7 +152,8 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     };
     mkBtn.onclick = async () => {
       mkBtn.disabled = true;
-      try { await ctx.host.api.createShareToken(pid, labelI.value.trim() || undefined, payCk.checked); labelI.value = ""; payCk.checked = false; await loadTokens(); }
+      try { await ctx.host.api.createShareToken(pid, labelI.value.trim() || undefined, payCk.checked, mdlCk.checked);
+        labelI.value = ""; payCk.checked = false; mdlCk.checked = false; await loadTokens(); }
       catch (e) { alert((e as Error).message); }
       finally { mkBtn.disabled = false; }
     };

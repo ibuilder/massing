@@ -17,6 +17,27 @@
  *  SCALE-SEAM ⓼ adds groups and assemblies — *how are these elements grouped?*
  *  List, inspector, create group/assembly, parametric array. Detailing stayed.
  *
+ *  **SCALE-SEAM (99) adds the CONTENT half of the shelf this file's own first line already claimed.**
+ *  `contentCatalog`, `placeContent`, `importContent` — *what pre-made content can I place, and place
+ *  it.* The witness is a ROLE-FOR-ROLE PARALLEL with the family shelf already here, derived from the
+ *  signatures rather than from the shared word "shelf":
+ *
+ *    catalog reader    `familyCatalog()`  {count, categories: Record<..>}   |  `contentCatalog()`  {count, note, groups: Record<..>}
+ *    placer            `placeFamily(pid, family, position)`                 |  `placeContent(pid, category, point, name)`
+ *    multipart import  `async importFamilies(pid, file, ..)`                |  `async importContent(pid, file, opts)`
+ *
+ *  Three roles, three methods each, matching shapes and matching arities. *A parallel between two
+ *  method TRIPLES is structural; "both are shelves" would have been a word, which is the grouping
+ *  (88) and (89) each had to reject.*
+ *
+ *  **The header above was wrong until this commit, and that is the small finding.** Line 1 has said
+ *  "the family/content shelf" while this file held **zero** content methods — the only other
+ *  occurrences of the word were an HTTP header and a sentence about IFC *type* content. So the
+ *  docstring described an intended scope as though it were a fact. *That is the same class as every
+ *  drift the project instructions warn about, at the smallest possible scale: prose asserting an
+ *  arrangement nothing checked.* It is corroboration that was FALSE, not evidence — the parallel
+ *  above is what carries the slice.
+ *
  *  **SCALE-SEAM (97) adds the UNDO STACK — *what has been done to this model, and can I take it
  *  back?*** `editHistory` (can_undo/can_redo + depths), `editUndo` and `editRedo`. They belong in
  *  THIS file because `editIfc` — already here — is the PUSH they pop: `authoring.py` records the
@@ -184,11 +205,20 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         `/projects/${pid}/families/import-pack`,
         { method: "POST", body: JSON.stringify({ pack, publish }) });
     }
-    /** Place a library family (thin wrapper over the add_family recipe). */
-    placeFamily(pid: string, family: string, position?: [number, number] | null) {
+    /** Place a library family (thin wrapper over the add_family recipe).
+     *
+     *  `storey` is the LEVEL NAME to place onto, and omitting it is not neutral: the recipe falls
+     *  through to `_first_storey(model, None)`, which returns the LOWEST storey by elevation — so a
+     *  family placed with no storey lands on the ground floor at Z=0 whatever level the user is on.
+     *  Measured on a three-storey model: with the storey, `('Level 3', (7, 5, 8.0))`; without it,
+     *  `('Level 1', (5, 5, 0.0))`. The route has accepted `storey` all along
+     *  (`routers/authoring.py::place_family`); this method could not send one. */
+    placeFamily(pid: string, family: string, position?: [number, number] | null,
+                storey?: string | null) {
       return this.json<{ recipe: string; changed: number | string; publish?: string }>(
         `/projects/${pid}/families/place`, { method: "POST",
-        body: JSON.stringify({ family, position: position || undefined, publish: true }) });
+        body: JSON.stringify({ family, position: position || undefined,
+                               storey: storey || undefined, publish: true }) });
     }
     /** Place a starter-library family on a storey (optionally at an [E,N] point in metres), then
      *  publish the round-trip. Reuses the `add_family` edit recipe. */
@@ -274,11 +304,21 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
         `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
     }
-    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list. */
+    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list.
+     *
+     *  `reach` says what can INVOKE each recipe, which is a different question from what the engine
+     *  can author and the one a coverage claim is actually making: `cad+ai` (the curated
+     *  `nlauthor.RECIPE_SPECS`, which the CAD line and the AI planner dispatch from), `ui` (a panel,
+     *  a router or MCP), or `none` — implemented, tested, and reachable by nobody. */
     authoringMatrix() {
       return this.json<{
         recipe_count: number; category_count: number; uncategorized: string[];
-        by_category: Record<string, { count: number; recipes: { recipe: string; category: string; produces: string }[] }>;
+        cad_ai_count: number; unreached_count: number; unreached: string[];
+        superseded_count: number; superseded: Record<string, string>;
+        by_category: Record<string, {
+          count: number;
+          recipes: { recipe: string; category: string; produces: string; reach: "cad+ai" | "ui" | "none" }[];
+        }>;
         note: string;
       }>("/reference/authoring-matrix");
     }
@@ -381,6 +421,32 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean };
       publish?: string }>(
       `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
+  /** CONTENT-1: the curated content catalog (logistics / furniture / landscaping → IFC class + phase). */
+  contentCatalog() {
+    return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
+      phase: string | null; classification: string; default_dims_m: number[] }[]> }>(`/content/catalog`);
+  }
+  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh).
+   *  `storey` carries the active level — see `placeFamily` for what omitting it costs; the
+   *  `place_content` recipe has taken a storey since it was written and this method could not send
+   *  one. */
+  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true,
+               storey?: string | null) {
+    return this.editIfc(pid, "place_content",
+      { category, point, ...(name ? { name } : {}), ...(storey ? { storey } : {}) }, publish);
+  }
+  /** CONTENT-1 (import): upload a detailed mesh (glTF/GLB/OBJ/STL/PLY) → auto-classified + placed as the
+   *  right IFC via place_content. Category auto-detected from the filename unless given. */
+  async importContent(pid: string, file: File, opts: { category?: string; e?: number; n?: number;
+      scale?: number; name?: string; storey?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch(this.url(`/projects/${pid}/content/import?${q.toString()}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
   }
   };
 }

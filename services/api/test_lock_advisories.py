@@ -295,6 +295,128 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
           f"{len(gate.LOCKS)} path(s)")
 
 
+# A line that RUNS gitleaks, as opposed to one that merely mentions it. Anchored at the start of
+# the line or just after a shell operator, so `echo "gitleaks detect"` is prose and
+# `prep && ./gitleaks detect` is a command. The optional prefix allows `./gitleaks`, a bare
+# `gitleaks` on PATH, or any directory.
+_RUNS_GITLEAKS = re.compile(r"(?:^|[;&|])\s*(?:[A-Za-z0-9_.+-]*/)?gitleaks\s+detect(?:\s|$)")
+
+
+def _gitleaks_step_lines() -> list[str]:
+    """The EXECUTABLE lines of the step that runs gitleaks — comments stripped.
+
+    THE FIRST VERSION OF THIS GREPPED THE WHOLE FILE, and CodeRabbit was right to refuse it.
+    `security.yml` mentions gitleaks in fourteen comment lines, one of which names
+    `.gitleaksignore`. So `"gitleaks detect" in text` stayed true with the scanner deleted, and a
+    comment that happened to write `--gitleaks-ignore-path` would have been read as the baseline.
+
+    That is the lesson this file already carries one function up, applied to the wrong text twice:
+    "a gate that greps prose measures the wrong text." `test_ruff_scope.py` learned the same thing
+    when its `re.search` took the first match and a decoy above the real command bypassed it. A
+    check written to catch a scope fiction was itself scoped to prose.
+
+    Worse, the MUTATION MISSED IT TOO. The check "remove `gitleaks detect` from the workflow" was
+    run as a blanket string replace, which rewrote the comments along with the command — so it
+    could not tell the two apart either, and reported a pass that meant nothing. *A mutation that
+    shares the implementation's blind spot confirms it instead of challenging it.*
+    """
+    import yaml
+    wf = os.path.join(ROOT, ".github", "workflows", "security.yml")
+    with open(wf, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh.read()) or {}
+    for job in (doc.get("jobs") or {}).values():
+        for step in (job or {}).get("steps") or []:
+            run = (step or {}).get("run")
+            if not isinstance(run, str):
+                continue
+            body = [ln for ln in run.splitlines()
+                    if ln.strip() and not ln.strip().startswith("#")]
+            if any(_RUNS_GITLEAKS.search(ln) for ln in body):
+                return body
+    raise AssertionError(
+        "no step in security.yml RUNS `gitleaks detect` — the scanner is gone, or it moved "
+        "somewhere this check cannot see. Either way asserting a trigger for its baseline is "
+        "worse than not checking at all")
+
+
+def _gitleaks_invocation() -> str:
+    """The `gitleaks detect` COMMAND ITSELF, its line-continuations joined.
+
+    A SECOND ROUND OF THE SAME MISTAKE, one notch finer, and CodeRabbit was right again. The
+    version before this narrowed from the whole FILE to the step's executable LINES — and then
+    read the ignore-path flag from any of them. That step runs some two dozen commands, several
+    of them `echo`s that already mention `.gitleaksignore` in their message text. So an `echo`
+    carrying `--gitleaks-ignore-path .gitleaksignore` would have been read as scanner
+    configuration while the real `gitleaks detect` pointed somewhere else entirely, and the check
+    would have validated a trigger for a baseline nothing reads — and passed.
+
+    Narrowing a scope is not the same as narrowing it to the right UNIT. The unit that decides
+    which file gitleaks reads is the invocation, not the step it happens to sit in.
+    """
+    lines = _gitleaks_step_lines()
+    for i, line in enumerate(lines):
+        if not _RUNS_GITLEAKS.search(line):
+            continue
+        parts = [line]
+        # A future edit may wrap the command across lines; follow trailing-backslash continuations
+        # so the flag stays findable, and stop at the first line that does not continue.
+        j = i
+        while parts[-1].rstrip().endswith("\\") and j + 1 < len(lines):
+            j += 1
+            parts.append(lines[j])
+        return " ".join(p.rstrip().rstrip("\\").strip() for p in parts)
+    raise AssertionError("unreachable: _gitleaks_step_lines only returns a step that invokes it")
+
+
+def _gitleaks_baseline_path() -> str:
+    """Which file does the gitleaks step read as its baseline? DERIVED from the invocation.
+
+    Not hardcoded, for the same reason `test_ruff_scope.py` parses the ruff command rather than
+    naming directories: if the step ever gains an explicit `--gitleaks-ignore-path`, a hardcoded
+    `.gitleaksignore` would keep asserting a trigger for a file nothing reads any more, and pass.
+
+    Read from the COMMAND only — see `_gitleaks_invocation` for why the step was too wide a unit.
+    """
+    m = re.search(r"--gitleaks-ignore-path[=\s]+(\S+)", _gitleaks_invocation())
+    return m.group(1).strip("\"'") if m else ".gitleaksignore"   # gitleaks' default with no flag
+
+
+def test_the_gitleaks_baseline_can_trigger_its_own_scanner() -> None:
+    """The file that SILENCES findings could not run the scanner whose findings it silences.
+
+    Found 2026-09-06, and it is the third instance of this workflow's own sentence: "a check's
+    TRIGGER is part of its scope, and a scope that excludes its own subject is not a smaller check
+    — it is no check." The first was `requirements.lock`, the second the whole `pull_request`
+    event. This one is the sharpest of the three, because `.gitleaksignore` is not merely an input
+    — every line in it SUPPRESSES a real finding. Adding one is the single most consequential edit
+    available in this repository's security surface, and it was the one edit that ran nothing.
+
+    Note what that means for the entry that found this: the two fingerprints baselined on
+    2026-09-06 were verified by running gitleaks 8.30.1 BY HAND, at the pinned version and digest,
+    because no CI job would have run on that commit. That is not a workflow anyone repeats.
+
+    `test_every_audited_path_can_actually_trigger_the_workflow` could not see this: its population
+    is `audit_lock_gate.LOCKS` plus the npm manifests — the inputs of the two *advisory* gates. The
+    gitleaks step has an input too and was in neither list. A coverage check is only as wide as the
+    population behind it, and that population was derived from two of the job's three scanners.
+    """
+    baseline = _gitleaks_baseline_path()
+    tracked = subprocess.run(["git", "ls-files", baseline], cwd=ROOT,
+                             capture_output=True, text=True).stdout.split()
+    assert tracked, (
+        f"the gitleaks step reads {baseline!r} as its baseline, but git does not track that path "
+        f"— a baseline CI cannot see suppresses nothing and hides that it suppresses nothing")
+    on = _triggers()
+    for event in ("push", "pull_request"):
+        globs = list((on.get(event) or {}).get("paths") or [])
+        assert globs, f"no `{event}: paths:` globs parsed"
+        assert _matches_a_glob(baseline, globs), (
+            f"{baseline} is read by the gitleaks step but matches none of security.yml's "
+            f"`{event}` globs {globs} — silencing a finding there would not re-run the scanner, "
+            f"so nothing would ever show what the silence covers")
+    print(f"PASS  the gitleaks baseline can trigger its own scanner on both events   {baseline}")
+
+
 if __name__ == "__main__":
     test_every_exemption_is_dated_and_unexpired()
     test_an_expired_exemption_blocks()
@@ -305,4 +427,5 @@ if __name__ == "__main__":
     test_the_push_and_pull_request_globs_stay_identical()
     test_the_npm_manifests_can_trigger_the_workflow_too()
     test_every_audited_path_can_actually_trigger_the_workflow()
+    test_the_gitleaks_baseline_can_trigger_its_own_scanner()
     print("test_lock_advisories OK")

@@ -45,5 +45,37 @@ with TestClient(app) as c:
     rid2 = mk(c, pid, "rfi", {"subject": "Door schedule?", "question": "Confirm hardware set."})
     assert trans(c, pid, "rfi", rid2, "submit").status_code == 200
 
+    # --- ALTERNATIVES: `requires: ["a|b"]` is met by EITHER ---------------------------------------
+    #
+    # Found by review on PR #449. The MOD-SWEEP additive pattern adds a reference field BESIDE its
+    # text field and retires the text later — so `entitlement.agency_company` arrived carrying help
+    # text that tells the user to pick a company INSTEAD of typing the agency name, while `submit`
+    # still required the typed `agency`. A linked-only entitlement could never be submitted: the new
+    # control was a trap, and the PR that added it created the trap.
+    #
+    # Asserted at the ROUTE, because the value of this rule is entirely in what the engine refuses.
+    ent = mk(c, pid, "entitlement", {"subject": "CUP for the podium",
+                                     "application_type": "Conditional Use Permit"})
+    empty = trans(c, pid, "entitlement", ent, "submit")
+    assert empty.status_code == 400, ("neither half filled must still be refused — the gate is "
+                                      "loosened, not removed", empty.text[:200])
+    assert "agency" in empty.json()["detail"].lower(), empty.text[:200]
+    # the reference alone satisfies it — the case that was impossible before
+    co = c.post(f"/projects/{pid}/modules/company", json={"data": {"name": "City of Example",
+                                                                  "type": "Authority"}}).json()
+    c.patch(f"/projects/{pid}/modules/entitlement/{ent}", json={"agency_company": co["id"]})
+    linked = trans(c, pid, "entitlement", ent, "submit")
+    assert linked.status_code == 200 and linked.json()["workflow_state"] == "submitted", linked.text[:200]
+
+    # and the TEXT alone still satisfies it, because every existing record has only that. A fix that
+    # moved the requirement to the reference would strand them all — this is the back-compat half.
+    ent2 = mk(c, pid, "entitlement", {"subject": "Variance", "application_type": "Variance",
+                                      "agency": "City of Example"})
+    typed = trans(c, pid, "entitlement", ent2, "submit")
+    assert typed.status_code == 200 and typed.json()["workflow_state"] == "submitted", typed.text[:200]
+
 print("WORKFLOW-GATE OK - RFI respond blocked without an answer (400); available_actions advertises "
-      "`requires`; passes once filled; transitions without `requires` are unaffected")
+      "`requires`; passes once filled; transitions without `requires` are unaffected. An entry naming "
+      "ALTERNATIVES (`agency|agency_company`) is met by EITHER half and by neither being absent: the "
+      "reference alone submits (the case the additive pattern made impossible), the typed text alone "
+      "still submits (every pre-existing record has only that), and an empty record is still refused.")

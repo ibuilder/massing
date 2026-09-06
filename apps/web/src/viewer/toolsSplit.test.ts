@@ -46,6 +46,19 @@ const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 const SECTION_SOURCES = [
   "src/viewer/app.ts",
   "src/viewer/tools/qaSection.ts",
+  // WALL-JOINS: the two repair controls moved to `tools/repairPanel.ts`, and
+  // `🧹 Model cleanup (maintenance)` is in the frozen INVENTORY below. A control moved to a file
+  // this list does not read is indistinguishable from a deleted one — which is exactly the
+  // both-directions check the docstring above promises, so the entry is the promise being kept.
+  //
+  // **ORDER IS LOAD-BEARING for this entry, and for no other.** Every other file here opens its own
+  // `const b = section("key"` and so labels itself; `repairPanel.ts` does not — it exports two
+  // buttons that `qaSection.ts` appends. `sectionBody` splits the CONCATENATED text on that marker
+  // and runs each body to the next one, so an unmarked file is attributed to whichever section
+  // precedes it. Listed last it read as `authoring` and the cleanup control showed as having
+  // changed sides; sitting directly after `qaSection.ts` it reads as `qa`, which is where the
+  // buttons actually mount. *A list that looks like a set can still be an order.*
+  "src/viewer/tools/repairPanel.ts",
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",
