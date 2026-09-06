@@ -887,6 +887,19 @@ def add_comment(pid: str, key: str, rid: str, text: str = Body(..., embed=True),
     return mod_engine.add_comment(db, key, pid, rid, text, user)
 
 
+@router.post("/projects/{pid}/modules/{key}/{rid}/comments/{cid}/promote", status_code=201)
+def promote_comment(pid: str, key: str, rid: str, cid: str, kind: str = Body("rfi", embed=True),
+                    db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
+    """R22-ENTITLEMENT ⑤ — promote a review comment into an RFI (or punch item) somebody owns.
+
+    An agency's review comment is the one input that must leave the thread: it has to be assigned,
+    tracked and closed. Mints a Topic carrying the comment text, the source record's ref and its
+    `element_guids`, and writes a back-link so a second promote 409s rather than minting a duplicate.
+    Mirrors `POST /projects/{pid}/drawings/markup/{mid}/promote` rather than inventing a second idiom.
+    """
+    return mod_engine.promote_comment(db, key, pid, rid, cid, user, kind)
+
+
 @router.post("/projects/{pid}/modules/{key}/{rid}/assign")
 def assign_record(pid: str, key: str, rid: str, assignee: str | None = Body(None, embed=True),
                   db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):

@@ -64,6 +64,14 @@
       "label": "Notes",
       "type": "textarea",
       "fieldset": "Notes"
+    },
+    {
+      "name": "transmittal",
+      "label": "Transmittal",
+      "type": "reference",
+      "module": "transmittal",
+      "help": "The transmittal that issued this document — the same link drawings and submittals use, so one package can carry all three.",
+      "fieldset": "Links"
     }
   ],
   "workflow": {
