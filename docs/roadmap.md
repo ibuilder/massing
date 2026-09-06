@@ -2984,6 +2984,12 @@ removed. Remaining, in priority order:
   every row silently read "wallWall IfcWall". Only `draftPanel.test.ts`, matching on row text, said
   so; nothing about the drawing was wrong.
 
+  ⚠️ **And a third, found by review rather than by me.** The empty state keyed on `familiesLoaded`
+  alone, while families and content settle independently — so a search for a content item before
+  `/content/catalog` answered said *"Nothing matches"*. **The same defect as the chip bug above, one
+  layer down**, and in a line I had just written: a claim of absence made from partial knowledge.
+  Both catalogs are tracked now, and a failed fetch counts as settled.
+
   ✅ **And a findability defect that had nothing to do with icons.** The filter box ANDed its query
   with the active discipline chip, so typing "column" on the Architectural chip returned *"No
   elements for this discipline yet."* — **the palette denying that a column exists.** A query now

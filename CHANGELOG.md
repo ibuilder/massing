@@ -10,7 +10,7 @@ UX-3's last unshipped item was "thumbnails". Every Draft-palette row now carries
 for its IFC class, so a ~90-row list is scannable by shape rather than only by reading. **That is
 part of the item, not the item**, and the roadmap entry says so instead of ticking the word: a
 thumbnail renders what you are about to place, so a 30 m wall would look different from a 3 m one
-and a W24x76 from a W8x31. A glyph is keyed on the class and cannot. What remains is a preview built
+and a W24x76 from a W8x31. A glyph is keyed on the class, so it cannot show either. What remains is a preview built
 from the parametric geometry the recipe would author, which is a different job from an icon table.
 
 The gate derives its population from the three catalogs that can put a row in that list — the TS
@@ -29,6 +29,14 @@ copies `IfcTypeProduct.Name` verbatim out of an uploaded IFC, and this palette e
 server-supplied content. And the first draft rendered the glyph's name as an `<svg><title>`, which
 counts toward the enclosing row's `textContent`; every row silently read "wallWall IfcWall". Nothing
 about the drawing was wrong, and only an existing test that matched on row text caught it.
+
+**A third thing, found in review and worth more than the icons.** The empty state keyed on
+`familiesLoaded` alone — but families and content settle independently, on purpose. So searching for
+a content item before `/content/catalog` answered announced *"Nothing matches …"*: a definite claim
+the code was not entitled to make, and the same wrong-answer-not-slow-answer shape as the
+discipline-chip bug one layer up. Both catalogs are now tracked, and until both settle the panel
+reports waiting; the Enter path does the same rather than erroring. A failed fetch counts as settled
+— the answer is then final, if incomplete.
 
 **And the search box was answering a question it had not been asked.** It ANDed the query with the
 active discipline chip, so typing "column" while Architectural was selected returned *"No elements

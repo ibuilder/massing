@@ -50,7 +50,14 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   let armedKey: string | null = null;
   let families: DraftElement[] = [];
   let content: DraftElement[] = [];
+  // BOTH catalogs, tracked separately, because they settle independently on purpose (see the
+  // fetch pair at the bottom) — and because the empty state makes a DEFINITE claim. Saying
+  // "nothing matches" while a third of the catalog is still in flight is a wrong answer, not a
+  // slow one: search for a content item before /content/catalog answers and the panel denies it
+  // exists. This is the same defect the cross-discipline fix in this change was about, one layer
+  // down, and a review bot found it rather than the author.
   let familiesLoaded = false;
+  let contentLoaded = false;
 
   const intro = el("div", "meta");
   intro.textContent = "Pick an element, set its parameters, then Place and click in the model. "
@@ -81,7 +88,13 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     if (e.key !== "Enter") return;
     e.preventDefault();
     const first = listed[0];
-    if (!first) { deps.notify("no element matches that filter", "error"); return; }
+    if (!first) {
+      // Same rule as the empty state: while a catalog is still arriving, "no element matches" is a
+      // claim this code cannot make. Report waiting, not absence.
+      deps.notify(catalogsSettled() ? "no element matches that filter" : "still loading the catalog…",
+                  catalogsSettled() ? "error" : "info");
+      return;
+    }
     handle.armByKey(first.key);      // handles canAuthor(), the notify and the form/selection state
   };
   body.appendChild(search);
@@ -96,6 +109,11 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   // is what the viewport's drop handler calls. Adding content here makes it click- and drag-placeable
   // in the same edit, rather than by two implementations that can disagree.
   function allElements(): DraftElement[] { return [...DRAFT_ELEMENTS, ...families, ...content]; }
+
+  /** True once BOTH server catalogs have settled — resolved or failed. Only then can "nothing
+   *  matches" be asserted rather than guessed. A failed fetch counts as settled: the built-ins are
+   *  all there will be, so the answer is final even though it is incomplete. */
+  function catalogsSettled(): boolean { return familiesLoaded && contentLoaded; }
 
   /** What `renderList` last drew, in order. Enter in the filter box arms `listed[0]` — it is read
    *  from the render rather than recomputed, so the key press cannot act on a different list from
@@ -117,7 +135,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     listed = items;
     if (!items.length) {
       const n = el("div", "meta");
-      n.textContent = !familiesLoaded ? "loading families…"
+      n.textContent = !catalogsSettled() ? "loading the catalog…"
         : q ? `Nothing matches “${search.value.trim()}” in any discipline.`
             : "No elements for this discipline yet.";
       list.appendChild(n); return;
@@ -222,8 +240,9 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   }).catch(() => { familiesLoaded = true; renderList(); });
   void deps.fetchContent().then((cs) => {
     content = cs.map(([c, group]) => contentToDraftElement(c, group));
+    contentLoaded = true;
     renderList();
-  }).catch(() => { /* content unavailable — the built-ins and families still list */ });
+  }).catch(() => { contentLoaded = true; renderList(); });   // unavailable is still SETTLED
 
   const handle: DraftPanelHandle = {
     onArmCleared() { if (armedKey) { armedKey = null; renderForm(); } },
