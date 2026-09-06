@@ -10,6 +10,7 @@ import {
   contentToDraftElement, DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
   type ContentDef, type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
+import { draftGlyph, glyphElement, normaliseIfcClass } from "./draftGlyph";
 import { setDraftDragKey } from "../railDrag";
 
 export interface ArmedDraft {
@@ -98,10 +99,17 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     }
     for (const item of items) {
       const row = el("button", "tool-btn") as HTMLButtonElement;
-      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin:2px 0";
+      row.style.cssText = "display:flex;gap:6px;align-items:center;width:100%;text-align:left;margin:2px 0";
       row.classList.toggle("on", selected?.key === item.key);
-      row.innerHTML = `<span>${item.label}</span>`
-        + `<span class="meta" style="font-size:10px">${item.ifcClass.replace("Ifc", "").replace("Type", "")}</span>`;
+      // UX-3 — glyph, label, class badge. Built as NODES, not as an innerHTML string: `item.label`
+      // and `item.ifcClass` come from the server for families and content, and a palette designed to
+      // grow with server-supplied content should not be one route-change away from parsing a name as
+      // markup. See draftGlyph.ts for why this is a latent hardening rather than a live fix.
+      row.appendChild(glyphElement(draftGlyph(item.ifcClass)));
+      const name = el("span"); name.textContent = item.label; name.style.flex = "1";
+      const badge = el("span", "meta"); badge.style.fontSize = "10px";
+      badge.textContent = normaliseIfcClass(item.ifcClass);
+      row.append(name, badge);
       row.onclick = () => { selected = item; renderList(); renderForm(); };
       // RAIL-DRAG — the same row is also a drag source. Dragging selects it too, so the parameter
       // form below matches what is being dragged: a drag that placed an element while the form showed

@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the palette rows have a shape now, and it is not the shape the roadmap asked for
+
+UX-3's last unshipped item was "thumbnails". Every Draft-palette row now carries a line-art glyph
+for its IFC class, so a ~90-row list is scannable by shape rather than only by reading. **That is
+part of the item, not the item**, and the roadmap entry says so instead of ticking the word: a
+thumbnail renders what you are about to place, so a 30 m wall would look different from a 3 m one
+and a W24x76 from a W8x31. A glyph is keyed on the class and cannot. What remains is a preview built
+from the parametric geometry the recipe would author, which is a different job from an icon table.
+
+The gate derives its population from the three catalogs that can put a row in that list — the TS
+`DRAFT_ELEMENTS`, `content.py` and `families.py` — rather than listing the classes, so an element
+added with an unmapped class reds the build. Every assertion runs through `hasExplicitGlyph` and
+never through truthiness, because `draftGlyph()` always returns *something*: a test that cannot tell
+the fallback from a real entry would report full coverage over a table with one row in it. Four
+mutations were run — a deleted entry, an entry no catalog can reach, two classes drawn identically,
+and a new element arriving with an unmapped class.
+
+**Two things turned up that were not the feature.** The row built itself with `innerHTML` around a
+server-supplied label and is now built with `createElementNS` + `textContent`. That is a *latent*
+hardening and calling it more would be wrong: `/families/catalog` and `/content/catalog` both serve
+static catalogs, so nothing attacker-controlled reaches that row today — but `import_types_from_ifc`
+copies `IfcTypeProduct.Name` verbatim out of an uploaded IFC, and this palette exists to grow with
+server-supplied content. And the first draft rendered the glyph's name as an `<svg><title>`, which
+counts toward the enclosing row's `textContent`; every row silently read "wallWall IfcWall". Nothing
+about the drawing was wrong, and only an existing test that matched on row text caught it.
+
 ## Unreleased — the gate shipped that morning was blind to a read done through a helper
 
 `test_seeding_sweep` landed a few hours ago reporting **0 unguarded** seeding sites. It was not

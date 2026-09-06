@@ -2953,8 +2953,36 @@ removed. Remaining, in priority order:
   the ⑥ note above documents — I checked the surface whose NAME matched the noun ("the library") and
   concluded about the capability.* The library palette genuinely cannot be dragged from, because it
   is a modal; the **Draw rail** could be dragged from all along. Checking one surface does not check
-  the app: the population is every placement surface, not the one called "library". **Thumbnails
-  remain genuinely unshipped** — the rows are label plus IFC class as text.
+  the app: the population is every placement surface, not the one called "library".
+
+  ◧ **GLYPH-ROWS, shipped 2026-09-06 — the fifth item is PART done, and the part that is not done is
+  the harder half.** Every Draft-palette row now carries a line-art glyph for its IFC class
+  (`apps/web/src/viewer/draft/draftGlyph.ts`), so a ~90-row list is scannable by shape instead of
+  only by reading; before this the rows were label plus IFC class as text.
+  **These are CLASS GLYPHS, not thumbnails, and the entry says so rather than ticking the word.**
+  A thumbnail renders the thing you are about to place — a 30 m wall looking different from a 3 m
+  one, a W24x76 different from a W8x31. A glyph cannot: it is keyed on the class, so every wall in
+  the palette wears the same drawing whatever the form says. What remains is a *preview*, which
+  needs the parametric geometry the recipe would author, and that is a different job from an icon
+  table. *Recorded this way because the entry above it is a monument to the opposite habit — a
+  five-item line where two items already shipped and the line did not say so. Half-shipping is fine;
+  half-shipping under the name of the whole item is what costs the next reader a day.*
+
+  `apps/web/src/viewer/draft/draftGlyph.test.ts` derives the class population from the three
+  catalogs that can put a row in the list — `draftCatalog.ts`, `services/data/src/aec_data/content.py`
+  and `services/data/src/aec_data/families.py` — rather than listing it, so a new element with an
+  unmapped class reds the build. Its assertions go through `hasExplicitGlyph`, never truthiness:
+  `draftGlyph()` always returns *something*, so a test that cannot tell the fallback from a real
+  entry would report full coverage over a one-row table. Four mutations were run against it.
+
+  Two things were found on the way, and neither was the feature. The palette row built itself with
+  `innerHTML` and a server-supplied `label`; it is now built with `createElementNS` + `textContent`.
+  **That is latent, not live** — `/families/catalog` and `/content/catalog` both serve static
+  catalogs, so nothing attacker-controlled reaches that row today, and calling it a vulnerability
+  would be the naming-based error this ring has made four times already. And the first draft rendered
+  the glyph's name as an `<svg><title>`, which **counts toward the enclosing row's `textContent`** —
+  every row silently read "wallWall IfcWall". Only `draftPanel.test.ts`, matching on row text, said
+  so; nothing about the drawing was wrong.
 
   ✅ **DARK-RECIPES, shipped 2026-09-05 — the coverage matrix counted ten capabilities no user could
   invoke.** `edit.RECIPES` holds 96 authoring recipes and `authoring_matrix.py` publishes them as the
