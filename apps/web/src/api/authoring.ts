@@ -205,11 +205,20 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         `/projects/${pid}/families/import-pack`,
         { method: "POST", body: JSON.stringify({ pack, publish }) });
     }
-    /** Place a library family (thin wrapper over the add_family recipe). */
-    placeFamily(pid: string, family: string, position?: [number, number] | null) {
+    /** Place a library family (thin wrapper over the add_family recipe).
+     *
+     *  `storey` is the LEVEL NAME to place onto, and omitting it is not neutral: the recipe falls
+     *  through to `_first_storey(model, None)`, which returns the LOWEST storey by elevation — so a
+     *  family placed with no storey lands on the ground floor at Z=0 whatever level the user is on.
+     *  Measured on a three-storey model: with the storey, `('Level 3', (7, 5, 8.0))`; without it,
+     *  `('Level 1', (5, 5, 0.0))`. The route has accepted `storey` all along
+     *  (`routers/authoring.py::place_family`); this method could not send one. */
+    placeFamily(pid: string, family: string, position?: [number, number] | null,
+                storey?: string | null) {
       return this.json<{ recipe: string; changed: number | string; publish?: string }>(
         `/projects/${pid}/families/place`, { method: "POST",
-        body: JSON.stringify({ family, position: position || undefined, publish: true }) });
+        body: JSON.stringify({ family, position: position || undefined,
+                               storey: storey || undefined, publish: true }) });
     }
     /** Place a starter-library family on a storey (optionally at an [E,N] point in metres), then
      *  publish the round-trip. Reuses the `add_family` edit recipe. */
@@ -295,11 +304,21 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
         `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
     }
-    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list. */
+    /** Live recipe coverage by concern — derived from `edit.RECIPES`, not a hand list.
+     *
+     *  `reach` says what can INVOKE each recipe, which is a different question from what the engine
+     *  can author and the one a coverage claim is actually making: `cad+ai` (the curated
+     *  `nlauthor.RECIPE_SPECS`, which the CAD line and the AI planner dispatch from), `ui` (a panel,
+     *  a router or MCP), or `none` — implemented, tested, and reachable by nobody. */
     authoringMatrix() {
       return this.json<{
         recipe_count: number; category_count: number; uncategorized: string[];
-        by_category: Record<string, { count: number; recipes: { recipe: string; category: string; produces: string }[] }>;
+        cad_ai_count: number; unreached_count: number; unreached: string[];
+        superseded_count: number; superseded: Record<string, string>;
+        by_category: Record<string, {
+          count: number;
+          recipes: { recipe: string; category: string; produces: string; reach: "cad+ai" | "ui" | "none" }[];
+        }>;
         note: string;
       }>("/reference/authoring-matrix");
     }
@@ -408,9 +427,14 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
       phase: string | null; classification: string; default_dims_m: number[] }[]> }>(`/content/catalog`);
   }
-  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh). */
-  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true) {
-    return this.editIfc(pid, "place_content", { category, point, ...(name ? { name } : {}) }, publish);
+  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh).
+   *  `storey` carries the active level — see `placeFamily` for what omitting it costs; the
+   *  `place_content` recipe has taken a storey since it was written and this method could not send
+   *  one. */
+  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true,
+               storey?: string | null) {
+    return this.editIfc(pid, "place_content",
+      { category, point, ...(name ? { name } : {}), ...(storey ? { storey } : {}) }, publish);
   }
   /** CONTENT-1 (import): upload a detailed mesh (glTF/GLB/OBJ/STL/PLY) → auto-classified + placed as the
    *  right IFC via place_content. Category auto-detected from the filename unless given. */

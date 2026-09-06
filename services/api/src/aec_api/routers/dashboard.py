@@ -144,6 +144,65 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
     return {"projects": rows, "totals": tot, "status_tally": tally, "project_count": len(rows)}
 
 
+@router.get("/portfolio/risk")
+def portfolio_risk(limit: int = 25, db: Session = Depends(get_db),
+                   _: str = Depends(rbac.current_user)):
+    """R22-PIPELINE — the **portfolio risk heat map**: every accessible project down, the five risk
+    engines across, severity-weighted intensity in the cell.
+
+    `/portfolio/executive` and `/portfolio/construction` roll up performance; neither answers *which
+    engine is hot on which project*. Cells come from `risk_board.board` unchanged, so a cell and the
+    project's own risk panel cannot disagree — which is why the sweep is bounded by `limit` (each
+    project is a full board, Monte-Carlo included) and reports `truncated` rather than quietly
+    scanning a prefix. That prefix is by project name, not by risk: ranking is what the sweep
+    produces, so it cannot choose what to sweep. A cell whose engine could not run reads `error`,
+    never 0.
+    """
+    from .. import risk_portfolio
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _q = db.query(Project)
+    if _allowed is not None:
+        _q = _q.filter(Project.id.in_(_allowed))
+    # (name, id): `Project.name` is NOT unique, so name alone leaves tied rows in whatever
+    # order the engine returns — and this route promises a DETERMINISTIC prefix when it
+    # truncates. A tie straddling the `limit` boundary would otherwise scan a different
+    # project run to run. The id is the primary key, so it settles every tie.
+    projects = [(p.id, p.name) for p in _q.order_by(Project.name, Project.id).all()]
+    return risk_portfolio.heatmap(db, projects, limit=max(1, min(int(limit), 100)))
+
+
+@router.get("/portfolio/resourcing")
+def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int = 26,
+                         db: Session = Depends(get_db), _: str = Depends(rbac.current_user)):
+    """R22-PIPELINE — weekly resource demand per trade, summed **across** projects.
+
+    `/projects/{pid}/schedule/resource-loading` answers one project, and a trade committed to three
+    jobs in the same week looks comfortable on every one of them. This sums concurrent demand over
+    the book, so `?cap=` flags the weeks where a single trade is over-committed **across** projects
+    and names which projects are competing for it.
+
+    `trade` is the dimension the schema carries — `resource_assignment.trade` is labelled
+    "Trade / discipline". There is no `department` field anywhere, so department reporting is a
+    product decision about what a department would be that a trade is not, not a filter over
+    existing data.
+
+    Fidelity is reported, not blended: a project with no `resource_assignment` records falls back to
+    `schedule_activity.crew_size`, which is a crew count rather than a resourced plan, and
+    `fidelity` says how much of the book is which.
+    """
+    from .. import resource_portfolio
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _q = db.query(Project)
+    if _allowed is not None:
+        _q = _q.filter(Project.id.in_(_allowed))
+    # (name, id): `Project.name` is not unique, so name alone leaves tied rows in engine order and
+    # the truncated prefix could differ run to run. Same fix as `/portfolio/risk`.
+    projects = [(p.id, p.name) for p in _q.order_by(Project.name, Project.id).all()]
+    return resource_portfolio.portfolio(
+        db, projects, cap=cap, limit=max(1, min(int(limit), 100)),
+        weeks=max(2, min(int(weeks), 260)))
+
+
 @router.get("/portfolio/prioritization")
 def portfolio_prioritization(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):
     """Ranked portfolio prioritization — scores each accessible project 0–100 on return / on-budget /

@@ -6,6 +6,7 @@ import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { mountRecordComments } from "./recordComments";
+import { unmetRequires } from "./requiresGate";
 import { confidenceReading } from "../../ui/confidenceReading";
 import { confirmModal, modalShell, promptModal } from "../../ui/modal";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offlineQueue";
@@ -2263,15 +2264,14 @@ export class RegisterUI {
       this.ctx.root.appendChild(this.workflowMap(m, r.workflow_state));   // visual state diagram
       const labelOf = (f: string) => m.fields.find((x) => x.name === f)?.label ?? f;
       for (const a of acts) {
-        // transition field-gate: which required fields are still empty on this record
-        const missing = (a.requires ?? []).filter((f) => {
-          const v = (r.data ?? {})[f]; return v === undefined || v === null || v === "";
-        });
+        // transition field-gate: which required entries are still unsatisfied on this record
+        const missing = unmetRequires(a.requires ?? [], r.data ?? {});
         const b = document.createElement("button"); b.className = "tool-btn";
-        b.textContent = `${a.action} → ${a.to}` + (missing.length ? ` (needs ${missing.map(labelOf).join(", ")})` : "");
+        const needLabel = (e: string) => e.split("|").map(labelOf).join(" or ");
+        b.textContent = `${a.action} → ${a.to}` + (missing.length ? ` (needs ${missing.map(needLabel).join(", ")})` : "");
         b.style.cssText = "display:block;margin:3px 0;width:100%;text-align:left";
         b.disabled = missing.length > 0;
-        if (missing.length) b.title = `Fill ${missing.map(labelOf).join(", ")} before ${a.action}`;
+        if (missing.length) b.title = `Fill ${missing.map(needLabel).join(", ")} before ${a.action}`;
         b.onclick = async () => {
           try { await this.ctx.host.api.transitionRecord(pid, m.key, rid, a.action); void this.openRecord(m, rid); }
           catch (e) { this.ctx.host.setStatus(`blocked: ${(e as Error).message}`); }

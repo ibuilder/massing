@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import audit, rbac
+from .. import rbac
 from ..db import get_db
 from ..models import Job
 from ..rbac import require_role
@@ -40,15 +40,22 @@ def enqueue_job(pid: str, kind: str = Body(..., embed=True),
     from .. import audit, jobs
     _require_kind_role(db, pid, actor, kind)
     try:
-        # `project_id` and `actor` are written LAST, after the caller's params, so neither can be
-        # overridden from the request body. `project_id` was already server-set; `actor` is new and
-        # is the half that matters. A handler sees only `params` -- never the Job row -- so the
-        # moment any kind needs to know WHO ran it, `params["actor"]` becomes an identity claim, and
-        # a caller-supplied one would be believed. `clash_federated` is the first kind that reads it
-        # (`clash_intel.coordinate` records the actor and their party role against every coordination
-        # issue it creates), which is why this moved from "harmless" to "load-bearing" in one commit.
-        j = jobs.enqueue(db, kind, pid, {**(params or {}), "project_id": pid, "actor": actor},
-                         actor=actor)
+        # Server-owned keys are STRIPPED from the caller's params, then written. `project_id` and
+        # `actor` were previously only written last, which stops an override and was enough while
+        # identity was all that rested on them. A handler sees only `params` -- never the Job row --
+        # so the moment any kind needs to know WHO ran it, `params["actor"]` becomes an identity
+        # claim, and a caller-supplied one would be believed. `clash_federated` is the first kind
+        # that reads it (`clash_intel.coordinate` records the actor and their party role against
+        # every coordination issue it creates), which is why this moved from "harmless" to
+        # "load-bearing" in one commit.
+        #
+        # `routine_id` and `deliver_to` then joined them and write-last was no longer enough, because
+        # nothing here writes those: together they make the worker MAIL the finished artifact, so a
+        # forged pair could aim a delivery. Stripping is what makes the rule structural — see
+        # `jobs.SERVER_ONLY_PARAMS` for why "an editor could do this through the deliver route
+        # anyway" was true and still not a good enough guarantee to rest on.
+        clean = {k: v for k, v in (params or {}).items() if k not in jobs.SERVER_ONLY_PARAMS}
+        j = jobs.enqueue(db, kind, pid, {**clean, "project_id": pid, "actor": actor}, actor=actor)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     if kind in _KIND_MIN_ROLE:                       # privileged kinds get the same audit trail as
@@ -93,14 +100,19 @@ def job_artifact(pid: str, job_id: str, db: Session = Depends(get_db),
 
 
 # R24-REPORTS-BY-MOMENT — "scheduled AND SHARED, not just downloaded" is the entry's own remainder,
-# and the two halves have different blockers. SHARED is unblocked and lands here: the mailer already
+# and the two halves had different blockers. SHARED is unblocked and lands here: the mailer already
 # ships (stdlib smtplib, a Settings "Test connection" button, a digest route that sends real mail),
-# it just had no way to carry a file. SCHEDULED is not here on purpose — it needs a recurring-trigger
-# record AND a runner, and there is no scheduler of any kind in this tree (no APScheduler, croniter
-# or cron), so choosing one is a deployment decision rather than a wiring task.
-_DELIVER_MAX_BYTES = 15 * 1024 * 1024
-_DELIVER_MAX_RECIPIENTS = 25
-
+# it just had no way to carry a file.
+#
+# ⚠️ THIS COMMENT USED TO SAY "there is no scheduler of any kind in this tree (no APScheduler,
+# croniter or cron)". THAT WAS FALSE, and it is the third copy of the claim to be corrected — the
+# roadmap entry carried it, `test_artifact_deliver.py` carried it, and so did the changelog. The
+# LIBRARY half is true and always was: none of those three is in `requirements.in`. But R22-ROUTINES
+# hand-rolled a scheduler under a different item's name — `routines.py` (cadences, `window_start`,
+# `due`, `from_project`), `routines_run.py`, a persisted `routine` register — and scheduled report
+# packages ship today. A claim phrased as a search for a DEPENDENCY answered a question about a
+# CAPABILITY, and then propagated to three files because each copy read true against the same
+# grep.
 
 @router.post("/projects/{pid}/jobs/{job_id}/deliver")
 def deliver_artifact(pid: str, job_id: str, to: list[str] = Body(..., embed=True),
@@ -116,8 +128,14 @@ def deliver_artifact(pid: str, job_id: str, to: list[str] = Body(..., embed=True
 
     Returns a per-recipient status map (`sent` / `disabled` / `error`) in the same shape as the
     notification digest, so an unconfigured deployment reports `disabled` instead of failing.
+
+    **The body of this is in `artifact_delivery`, because the worker needs it too.** A scheduled
+    report package is assembled with nobody watching, and it has to reach its recipients by the same
+    caps, the same de-duplication and the same audit record — a second copy of those would be a
+    second thing to keep in step. What stays here is only the part that is about HTTP: the readiness
+    refusals above, and turning a `DeliveryRefused` back into the status it has always carried.
     """
-    from .. import mailer, storage
+    from .. import artifact_delivery, storage
     j = db.get(Job, job_id)
     if j is None or j.project_id != pid:
         raise HTTPException(404, "job not found")
@@ -127,44 +145,16 @@ def deliver_artifact(pid: str, job_id: str, to: list[str] = Body(..., embed=True
     key = res.get("artifact_key") if isinstance(res, dict) else None
     if j.state != "done" or not key or not storage.exists(key):
         raise HTTPException(404, "job has no artifact" + (f" (state {j.state}: {j.error})" if j.error else ""))
-    # Normalise, de-duplicate (case-insensitively — SMTP domains are not case-sensitive and the
-    # local part is not worth guessing at), and preserve the caller's order so the response reads
-    # the way the request was written. `dict.fromkeys` does both in one pass.
-    addrs = list(dict.fromkeys(a.strip() for a in to if isinstance(a, str) and a.strip()).keys())
-    seen: set[str] = set()
-    addrs = [a for a in addrs if not (a.lower() in seen or seen.add(a.lower()))]
-    if not addrs:
-        raise HTTPException(422, "at least one recipient is required")
-    # Each address is a SYNCHRONOUS SMTP conversation with a 15-second timeout, so an unbounded
-    # list is a request that occupies a worker for hours. The cap is a refusal, not a silent trim:
-    # quietly dropping recipients is the failure the 422 above exists to avoid, one level up.
-    if len(addrs) > _DELIVER_MAX_RECIPIENTS:
-        raise HTTPException(422, f"at most {_DELIVER_MAX_RECIPIENTS} recipients per delivery "
-                                 f"({len(addrs)} given)")
-
-    # Size BEFORE read. `storage.get` materialises the whole object, and an artifact job can park a
-    # large geometry export, so checking `len(data)` afterwards means the memory has already been
-    # spent on exactly the payload being refused — and concurrent callers multiply it.
-    nbytes = storage.size(key)
-    if nbytes > _DELIVER_MAX_BYTES:
-        raise HTTPException(413, f"artifact is {nbytes} bytes; the delivery cap is {_DELIVER_MAX_BYTES}")
-    data = storage.get(key)
-    fname = res.get("filename") or "artifact.bin"
-    subject = f"{j.kind.replace('_', ' ')}: {fname}"
-    body = (f"{user} sent you {fname} from project {pid}.\n\n"
-            + (note.strip() + "\n\n" if note.strip() else "")
-            + f"Generated by job {job_id} ({j.kind}).\n")
-    att = [(fname, data, res.get("media_type") or "application/octet-stream")]
-    results: dict[str, list[str]] = {}
-    for addr in addrs:
-        results.setdefault(mailer.send_email(addr, subject, body, None, att), []).append(addr)
-    audit.record(db, action="job.artifact.deliver", actor=user, method="POST",
-                 path=f"/projects/{pid}/jobs/{job_id}/deliver",
-                 detail={"kind": j.kind, "filename": fname, "bytes": len(data),
-                         "recipients": len(addrs)})
+    try:
+        addrs = artifact_delivery.recipients(to)
+        out = artifact_delivery.send(db, job_id=job_id, kind=j.kind, project_id=pid, result=res,
+                                     addrs=addrs, actor=user,
+                                     intro=f"{user} sent you {res.get('filename') or 'artifact.bin'} "
+                                           f"from project {pid}.", note=note)
+    except artifact_delivery.DeliveryRefused as e:
+        raise HTTPException(e.status, e.detail) from e
     db.commit()
-    return {"smtp_configured": mailer.smtp_configured(), "filename": fname,
-            "bytes": len(data), "results": results}
+    return out
 
 
 @router.get("/projects/{pid}/jobs")

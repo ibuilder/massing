@@ -118,7 +118,43 @@ export function jobSummary(j: Job): string {
   if (j.state === "error") return j.error ? j.error.slice(0, 140) : "failed";
   if (j.state === "queued") return "queued";
   if (j.state === "running") return "running";
-  return "done";
+  return "done" + deliverySummary(j);
+}
+
+/**
+ * What a SCHEDULED delivery did, appended to a finished row — `""` when there was none.
+ *
+ * A routine can name recipients, and the worker mails the artifact and records the outcome under
+ * `result.delivery`. Recording it and showing nothing would be the fault the rest of this feature is
+ * built to avoid: an owner package that quietly did not send looks exactly like one that did, and
+ * the person who set the routine up is the last to find out. A person clicking **Send** sees the
+ * result immediately; nobody is watching when a cadence fires, so the row has to say.
+ *
+ * `done` stays the prefix in every case. The delivery is something the job ALSO did — a bounced
+ * address does not make the package a failure, which is the same rule the server applies when it
+ * leaves the job `done` and puts the error here instead.
+ */
+export function deliverySummary(j: Job): string {
+  const d = j.result && typeof j.result === "object"
+    ? (j.result as Record<string, unknown>)["delivery"] : null;
+  if (!d || typeof d !== "object") return "";
+  const rec = d as Record<string, unknown>;
+  if (typeof rec["refused"] === "string") return ` · not sent: ${rec["refused"]}`;
+  if (typeof rec["error"] === "string") return ` · send failed: ${rec["error"]}`;
+  const results = (rec["results"] && typeof rec["results"] === "object"
+    ? rec["results"] : {}) as Record<string, string[]>;
+  // Counted from the per-address map rather than from `recipients`, because "how many were asked"
+  // and "how many went" are different numbers and the second is the one worth a line in a tray.
+  const sent = (results["sent"] || []).length;
+  const total = Object.values(results).reduce((n, xs) => n + (xs || []).length, 0);
+  if (!total) return "";
+  if (sent === total) return ` · emailed ${sent}`;
+  // Naming the non-sent states rather than saying "some failed": `disabled` (no SMTP configured)
+  // and `error` are different problems with different fixes, and the tray is where somebody decides
+  // which one they are looking at.
+  const rest = Object.keys(results).filter((k) => k !== "sent" && (results[k] || []).length)
+    .map((k) => `${(results[k] || []).length} ${k}`).join(", ");
+  return ` · emailed ${sent} of ${total}${rest ? ` (${rest})` : ""}`;
 }
 
 /** `done` **and** the handler parked something downloadable. Artifact kinds set `artifact_key`. */

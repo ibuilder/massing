@@ -1093,13 +1093,22 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     # field gate: a transition can declare `requires: [field, …]` that must be filled before it fires
     # (e.g. an RFI can't be Answered without an answer; a COR can't be Approved without an amount).
     # Generalizes the attachment gate below; surfaced to the UI via available_actions(... include_requires).
+    # An entry may name ALTERNATIVES with `|` — satisfied when ANY of them is filled. That exists for
+    # the MOD-SWEEP additive pattern: a reference is added BESIDE its text field and the text is
+    # retired later, so a gate naming only the text half blocks the very migration the pattern is for.
+    # `entitlement.submit` hit this the moment `agency_company` was added — its help text tells the
+    # user to pick a company instead of typing a name, and then submit demanded the typed name.
     required = tr.get("requires") or []
     if required:
         data = rec.get("data") or {}
-        missing = [f for f in required if data.get(f) in (None, "", [], {})]
+        def _filled(f: str) -> bool:
+            return data.get(f) not in (None, "", [], {})
+        missing = [r for r in required if not any(_filled(f) for f in r.split("|"))]
         if missing:
             labels = {fl["name"]: fl.get("label", fl["name"]) for fl in mod.get("fields", [])}
-            raise HTTPException(400, f"{action!r} requires: {', '.join(labels.get(m, m) for m in missing)}")
+            def _label(r: str) -> str:
+                return " or ".join(labels.get(f, f) for f in r.split("|"))
+            raise HTTPException(400, f"{action!r} requires: {', '.join(_label(m) for m in missing)}")
     # evidence gate: modules can require a photo/attachment before entering a sign-off state
     if tr["to"] in (mod.get("close_requires_attachment") or []):
         from .models import RecordAttachment

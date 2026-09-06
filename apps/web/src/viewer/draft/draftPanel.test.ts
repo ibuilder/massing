@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { installDraftPanel, type ArmedDraft } from "./draftPanel";
+import { type ContentDef } from "./draftCatalog";
 import { DRAFT_DRAG_MIME, readDraftDragKey } from "../railDrag";
 
 /**
@@ -15,19 +16,24 @@ import { DRAFT_DRAG_MIME, readDraftDragKey } from "../railDrag";
  * over with a mock that would only assert the mock.
  */
 
-function mount() {
+function mount(content: [ContentDef, string][] = []) {
   const body = document.createElement("div");
   document.body.appendChild(body);
   const armed: (ArmedDraft | null)[] = [];
   const handle = installDraftPanel({
     body,
-    fetchFamilies: () => Promise.resolve([]),
+    fetchFamilies: () => Promise.resolve([]), fetchContent: () => Promise.resolve(content),
     arm: (a) => { armed.push(a); },
     notify: vi.fn((_m: string, _k?: "info" | "success" | "error") => {}),
     canAuthor: () => true,
   });
   return { body, armed, handle };
 }
+
+const TREE: ContentDef = {
+  key: "tree", ifc_class: "IfcGeographicElement", phase: null,
+  classification: "23-45 00 00", default_dims_m: [3, 3, 6],
+};
 
 /** The palette rows — buttons inside the scrolling list, excluding discipline chips. */
 const rows = (body: HTMLElement) =>
@@ -114,5 +120,58 @@ describe("RAIL-DRAG — the palette rows are actually drag sources", () => {
     const row = rows(body)[1] ?? rows(body)[0]!;
     row.click();
     expect(body.querySelectorAll("button.on").length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * CONTENT-DRAFT — content must be reachable through the SAME two affordances as everything else.
+ *
+ * Asserting `contentToDraftElement` returns the right object proves nothing about whether the panel
+ * ever lists it: "the engine exists and nothing calls it" is the defect this file's own header names
+ * as the repo's most-repeated. So these drive the real panel, and the arming case goes through
+ * `armByKey` specifically — the function the viewport's `drop` handler calls — rather than through a
+ * row click, because that is the path a drag actually takes.
+ */
+describe("CONTENT-DRAFT — content lists, arms and drags like any other element", () => {
+  it("lists a content item once its catalog resolves", async () => {
+    const { body } = mount([[TREE, "Landscape"]]);
+    // Landscape → Site, so switch the chip before looking: an item filtered out by the discipline
+    // it was assigned is indistinguishable from an item that never loaded.
+    await Promise.resolve(); await Promise.resolve();
+    const site = [...body.querySelectorAll<HTMLButtonElement>("button")]
+      .find((b) => b.textContent === "Site");
+    expect(site, "no Site discipline chip").toBeTruthy();
+    site!.click();
+    expect(rows(body).map((r) => r.textContent)).toContain("Tree (Landscape)GeographicElement");
+  });
+
+  it("armByKey arms a content item — the path a DROP takes", async () => {
+    const { armed, handle } = mount([[TREE, "Landscape"]]);
+    await Promise.resolve(); await Promise.resolve();
+    expect(handle.armByKey("content:tree")).toBe("Tree (Landscape)");
+    const a = armed.at(-1);
+    expect(a?.recipe).toBe("place_content");
+    expect(a?.points).toBe(1);
+    expect(a?.build([[7, 8]])).toEqual({ category: "tree", point: [7, 8] });
+  });
+
+  it("a content row is draggable and carries its key, like the built-ins", async () => {
+    const { body } = mount([[TREE, "Landscape"]]);
+    await Promise.resolve(); await Promise.resolve();
+    const site = [...body.querySelectorAll<HTMLButtonElement>("button")]
+      .find((b) => b.textContent === "Site");
+    site!.click();
+    const row = rows(body).find((r) => r.textContent?.startsWith("Tree (Landscape)"));
+    expect(row, "the content row is not a drag source").toBeTruthy();
+    const dt = makeDT();
+    row!.dispatchEvent(Object.assign(new Event("dragstart"), { dataTransfer: dt }));
+    expect(readDraftDragKey(dt)).toBe("content:tree");
+    expect(dt.types).toContain(DRAFT_DRAG_MIME);
+  });
+
+  it("an unknown key still refuses, so a stale drag cannot arm the wrong thing", async () => {
+    const { handle } = mount([[TREE, "Landscape"]]);
+    await Promise.resolve(); await Promise.resolve();
+    expect(handle.armByKey("content:no_such_item")).toBeNull();
   });
 });

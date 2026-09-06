@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Job, JobState } from "../api/types";
 import {
   activeCount, createJobPoller, hasArtifact, humanDuration, isActive, jobElapsed,
-  jobLabel, jobSummary, mountJobTray, renderJobTray, sortJobs,
+  deliverySummary, jobLabel, jobSummary, mountJobTray, renderJobTray, sortJobs,
 } from "./jobTray";
 
 /**
@@ -332,5 +332,54 @@ describe("the tray is actually reachable", () => {
     const host = document.createElement("div");
     renderJobTray(host, [J({ state: "done", result: { artifact_key: "k" } })], {});
     expect([...host.querySelectorAll("button")].some((b) => b.textContent === "Send")).toBe(false);
+  });
+});
+
+/**
+ * A scheduled delivery has no audience at the moment it happens.
+ *
+ * A person clicking **Send** sees the per-recipient result in the response. A routine firing on its
+ * cadence has nobody watching, so the only place the outcome can surface is the row — and an owner
+ * package that quietly did not send looks exactly like one that did. These assert the row says.
+ */
+describe("a scheduled delivery is visible on the row that did it", () => {
+  const withDelivery = (delivery: unknown) =>
+    J({ state: "done", result: { artifact_key: "k", delivery } });
+
+  it("says nothing at all when no delivery was asked for", () => {
+    expect(jobSummary(J({ state: "done", result: { artifact_key: "k" } }))).toBe("done");
+    expect(deliverySummary(J({ state: "done", result: null }))).toBe("");
+  });
+
+  it("reports a clean send by how many actually went", () => {
+    expect(jobSummary(withDelivery({ recipients: 2, results: { sent: ["a@x", "b@x"] } })))
+      .toBe("done · emailed 2");
+  });
+
+  it("NAMES the states that are not `sent`, because they need different fixes", () => {
+    // `disabled` means no SMTP is configured; `error` means it is and the send failed. Collapsing
+    // them into "some failed" would hide which one somebody is looking at.
+    expect(jobSummary(withDelivery({ results: { sent: ["a@x"], disabled: ["b@x"], error: ["c@x"] } })))
+      .toBe("done · emailed 1 of 3 (1 disabled, 1 error)");
+  });
+
+  it("surfaces a refusal and a thrown failure distinctly", () => {
+    expect(jobSummary(withDelivery({ refused: "at least one recipient is required", status: 422 })))
+      .toBe("done · not sent: at least one recipient is required");
+    expect(jobSummary(withDelivery({ error: "OSError: smtp unreachable" })))
+      .toBe("done · send failed: OSError: smtp unreachable");
+  });
+
+  it("stays `done` throughout — a bounced address is not a failed job", () => {
+    // The same rule the server applies: it leaves the job `done` and records the problem here,
+    // because the artifact exists either way and re-running the report is the wrong repair.
+    for (const d of [{ error: "x" }, { refused: "y" }, { results: { error: ["a@x"] } }]) {
+      expect(jobSummary(withDelivery(d)).startsWith("done")).toBe(true);
+    }
+  });
+
+  it("ignores a malformed delivery record rather than rendering junk", () => {
+    expect(jobSummary(withDelivery("not-an-object"))).toBe("done");
+    expect(jobSummary(withDelivery({ results: {} }))).toBe("done");
   });
 });

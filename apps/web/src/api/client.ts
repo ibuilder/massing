@@ -17,6 +17,7 @@ import { withOperations } from "./operations";
 import { withClientPortal } from "./clientPortal";
 import { withCreDeal } from "./creDeal";
 import { withAnnotate } from "./annotate";
+import { withDesignPerformance } from "./designPerformance";
 import { withDetailing } from "./detailing";
 import { withResilience } from "./resilience";
 import { withResponsibility } from "./responsibility";
@@ -32,6 +33,9 @@ import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
+import { withCounterpartyRisk } from "./counterpartyRisk";
+import { withAcceptanceGates } from "./acceptanceGates";
+import { withCoverageMaps } from "./coverageMaps";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
@@ -61,16 +65,15 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, EnergyResult, ModulePin, RoomAllocation,
+  DisciplineTree, ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief, PrequalScores,
-    SpineTraceability } from "./types";
+    MasterBuilderBrief } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -214,26 +217,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
-  /** Embodied-carbon compliance: element totals, coverage and intensity against the project's limits. */
-  carbonComplianceReport(pid: string) {
-    return this.json<{
-      elements: { total_tco2e: number; coverage_pct: number; intensity_kgco2e_m2?: number;
-                  carbon_matched: number; with_quantity: number;
-                  hotspots: { guid: string; name: string | null; category: string; kgco2e: number }[] };
-      buy_clean: { rows: { category: string; achieved_factor: number; limit: number; unit: string;
-                           pass: boolean; headroom_pct: number; action: string | null }[];
-                   passing: number; failing: number };
-      leed_inventory: { total_tco2e: number; items: { category: string; kgco2e: number; share_pct: number }[] };
-    }>(`/projects/${pid}/carbon/compliance`);
-  }
-  /** PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a model). */
-  permitReadiness(pid: string) {
-    return this.json<{
-      verdict: string; readiness_pct: number; approvability_score: number;
-      checklist: { requirement: string; satisfied: boolean; evidence: string }[];
-      deficiencies: { item: string; severity: string; action: string }[];
-    }>(`/projects/${pid}/permit/readiness`);
-  }
 
 
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
@@ -290,20 +273,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       note: string;
     }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
   }
-  scopeRegister(pid: string, body: {
-    scope_items: Record<string, unknown>[]; qto_lines?: Record<string, unknown>[]; activities?: Record<string, unknown>[];
-  }) {
-    type Item = {
-      id: string | null; name: string; cost_code: string | null; qty: number | null; value: number | null;
-      responsible: string | null; package: string | null; start: string | null; finish: string | null;
-      quantified: boolean; allocated: boolean; scheduled: boolean; gaps: string[]; status: "complete" | "gap";
-    };
-    return this.json<{
-      item_count: number; complete: number; with_gaps: number; pct_quantified: number; pct_allocated: number;
-      pct_scheduled: number; total_value: number; by_owner: { owner: string; value: number }[];
-      gap_items: Item[]; items: Item[]; note: string;
-    }>(`/projects/${pid}/scope/register`, { method: "POST", body: JSON.stringify(body) });
-  }
   citedQuery(pid: string, query: string, property?: string, persona?: "exec" | "pm" | "field") {
     type CitationRef = {
       source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
@@ -338,12 +307,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       mean_deviation: number; max_deviation: number; p95_deviation: number;
       histogram: { band: string; count: number }[]; note: string }>;
   }
-  validate(pid: string) {
-    return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);
-  }
-  energy(pid: string) {
-    return this.json<EnergyResult>(`/projects/${pid}/energy`);
-  }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
   propmapDetect(pid: string) {
@@ -353,20 +316,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   propmapPlan(pid: string, rules: PropMapRule[]) {
     return this.json<{ dry_run: boolean; changed: number; rules: { from: string; to: string; matched: number; cast: string; keep_source: boolean; samples: { guid: string; from: string; to: string }[] }[] }>(
       `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
-  }
-  /** ENERGY phase 1 — the thermal model extracted from the IFC (zones · surfaces · constructions). */
-  energyModel(pid: string) {
-    return this.json<{ zone_source: string;
-      zones: { id: string; name: string; storey: string; area_m2: number; volume_m3: number }[];
-      surfaces: { id: string; name: string; ifc_class: string; idf_type: string; zone_id: string;
-        construction: string; orientation: string; area_m2: number; geometry: "exact" | "bbox";
-        corners: number[][] }[];
-      constructions: { name: string; u_value: number | null; source: string }[];
-      counts: Record<string, number>; note: string }>(`/projects/${pid}/energy/model`);
-  }
-  /** ENERGY phase 1 — the gbXML / IDF envelope export URLs (downloads, not JSON). */
-  energyExportUrl(pid: string, fmt: "gbxml" | "idf") {
-    return `${this.baseUrl}/projects/${pid}/energy/export.${fmt}`;
   }
   sharedParams(pid: string) {
     return this.json<{ params: { name: string; pset: string; ptype: string; applies_to: string[];
@@ -399,12 +348,6 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   }
 
   // --- portfolio benchmarking (cross-project) --------------------------------
-  benchmarkCosts(minSamples = 3) {
-    return this.json<{ cost_codes: { cost_code: string; samples: number; low: number; p25: number;
-      median: number; p75: number; high: number; total: number }[];
-      code_count: number; min_samples: number; codes_below_threshold: number; message?: string | null }>(
-      `/benchmarks/costs?min_samples=${minSamples}`);
-  }
   benchmarkResponseRates() {
     return this.json<{ rfi: { total: number; open: number; answered_or_closed: number;
       avg_turnaround_days: number | null; overdue: number; overdue_pct: number };
@@ -412,27 +355,7 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
       overdue: number; overdue_pct: number } }>(`/benchmarks/response-rates`);
   }
 
-  // --- Tier 2/3: prequal, lien exposure, accounting, carbon, code check, pricing ---------------
-  prequalScores(pid: string, projectSize?: number) {
-    const qs = projectSize ? `?project_size=${projectSize}` : "";
-    return this.json<PrequalScores>(`/projects/${pid}/prequal/scores${qs}`);
-  }
-  coiExpiry(pid: string, soonDays = 30) {
-    return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
-      expiring_soon: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
-      expired_count: number; expiring_count: number }>(`/projects/${pid}/prequal/coi-expiry?soon_days=${soonDays}`);
-  }
-  lienExposure(pid: string) {
-    return this.json<{ vendors: { vendor: string; billed: number; paid: number; retainage: number;
-      waived_unconditional: number; waived_conditional: number; exposure: number; status: string }[];
-      total_lien_exposure: number; vendors_at_risk: string[]; message?: string | null }>(
-      `/projects/${pid}/payapp/lien-exposure`);
-  }
-  projectCarbon(pid: string) {
-    return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
-      by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
-      `/projects/${pid}/carbon`);
-  }
+  // --- Tier 2/3: accounting, carbon, code check, pricing (prequal + lien exposure -> counterpartyRisk.ts, SCALE-SEAM (102)) ---
   // --- design lifecycle (RIBA/AIA phases + itemized soft costs) ---------------
   lifecycle(pid: string) {
     return this.json<{ count: number; seeded: boolean;
@@ -448,16 +371,9 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
     return this.json<{ seeded: boolean; phases?: number; reason?: string }>(
       `/projects/${pid}/lifecycle/seed`, { method: "POST" });
   }
-  diligenceReadiness(pid: string) {
-    return this.json<DiligenceReadiness>(`/projects/${pid}/diligence/readiness`);
-  }
 
 
 
-  /** Discipline Spine traceability: discipline → sheets → specs → bid packages → cost codes → budget. */
-  spineTraceability(pid: string) {
-    return this.json<SpineTraceability>(`/projects/${pid}/spine/traceability`);
-  }
 
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {
@@ -472,18 +388,21 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   }
 
 
-  // --- UNFILED: three methods that the RACI banner above used to cover -----------------
+  // --- UNFILED: two methods that the RACI banner above used to cover -------------------
   // Named rather than left implicit, because a banner that over-claims is how the previous
-  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `handoverAcceptance`
-  // is `/handover/acceptance`; `inspectVim` is `/convert/vim/inspect`. None is RACI, and each
-  // needs its home decided by what it ANSWERS rather than by what it sits next to.
+  // three slices each lost a method. `mcpTools` is global (`/mcp/tools`); `inspectVim` is
+  // `/convert/vim/inspect`. Neither is RACI, and each still needs its home decided by what it
+  // ANSWERS rather than by what it sits next to.
+  //
+  // This note said THREE until SCALE-SEAM (103). `handoverAcceptance` was the third, and it is
+  // the note working as intended: it was parked here with the instruction to file it by what it
+  // answers, and (103) answered that — an owner's turnover gate, which is the same question as
+  // the AHJ's, the investor's and the IDS checker's. `acceptanceGates.ts` has it now. **Narrowed
+  // rather than deleted**, because the other two are still genuinely unfiled and a note that
+  // silently loses entries is how the earlier slices lost methods in the first place.
   mcpTools() {
     return this.json<{ tools: { name: string; description: string }[]; server: string; note: string }>(
       `/mcp/tools`);
-  }
-  handoverAcceptance(pid: string) {
-    return this.json<{ accepted: boolean; checks: { key: string; label: string; ok: boolean }[];
-      metrics: Record<string, number>; note: string }>(`/projects/${pid}/handover/acceptance`);
   }
 
   async inspectVim(file: File) {
@@ -633,10 +552,3 @@ export class ApiClient extends withDetailing(withAnnotate(withCreDeal(withClient
   }
 }
 
-
-export interface ValidationResult {
-  title: string;
-  status: "pass" | "fail";
-  summary: { specifications: number; passed: number; failed: number };
-  specifications: { name: string; status: "pass" | "fail"; applicable: number; passed: number; failed: number; failed_guids: string[] }[];
-}
