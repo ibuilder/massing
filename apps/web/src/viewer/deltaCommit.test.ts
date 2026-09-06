@@ -297,6 +297,25 @@ describe("consolidate", () => {
     expect(store.count).toBe(1);
   });
 
+  it("KEEPS the deltas when the publish SUCCEEDS but the model will not reload", async () => {
+    // The third failure mode, and the one the other two hid. `consolidate` guarded the publish
+    // twice — a non-"done" state and a thrown request — and then discarded the deltas on a reload
+    // that returned `false`, which is the same end state both of those tests exist to prevent:
+    // the base did not load AND the deltas are gone.
+    //
+    // `reloadModel` returns a boolean precisely so this case can be told apart from success, and
+    // reading it is the only way to tell — the two tests above pass either way, because they never
+    // reach the reload. *A failure mode with no test is not the same as a failure mode that cannot
+    // happen, and here the missing test and the missing guard were the same absence.*
+    const { d, store, c } = harness({ reloadModel: vi.fn(async () => false) });
+    store.add({ modelId: "pv-1", label: "Wall" });
+    await c.consolidate();
+    expect(store.count, "the deltas are the only correct geometry left — they must survive").toBe(1);
+    expect(d.refresh).not.toHaveBeenCalled();
+    expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("could not be reloaded"), "error");
+    expect(d.notify).not.toHaveBeenCalledWith("geometry rebuilt", "success");
+  });
+
   it("KEEPS the deltas when the publish request itself throws", async () => {
     const { d, store, c } = harness({ publish: vi.fn(async () => { throw new Error("network"); }) });
     store.add({ modelId: "pv-1", label: "Wall" });

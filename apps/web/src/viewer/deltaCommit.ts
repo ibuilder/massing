@@ -347,7 +347,20 @@ export function deltaCommitter(d: DeltaDeps) {
       await d.publish(true);
       const st = await d.awaitPublish();
       if (st !== "done") { d.notify(`rebuild ${st}`, st === "error" ? "error" : "info"); return; }
-      await d.reloadModel();          // disposeAll() reclaims the delta models with everything else
+      // `reloadModel` returns whether the new base actually LOADED, and the paragraph above is the
+      // reason that matters: clearing the store on a failed reload leaves the user with neither the
+      // delta nor the rebuild — "the one state in which the deltas are the only correct geometry
+      // they have". The publish failure was already guarded a line up; the RELOAD failure was not,
+      // so the invariant this function documents held for one of its two failure modes.
+      //
+      // `commit()` above already gets this right — `const shown = await d.reloadModel()` and a
+      // notify that says "— shown" only when it did. This is the same module disagreeing with itself
+      // forty lines apart, which is why keeping the deltas here is a correction and not a new policy.
+      const shown = await d.reloadModel();   // disposeAll() reclaims the delta models with everything else
+      if (!shown) {
+        d.notify("rebuild published, but the model could not be reloaded — deltas kept", "error");
+        return;
+      }
       d.store.clear();
       d.refresh();
       await d.reloadPins();
