@@ -32,8 +32,15 @@ borrow a unique key it does not satisfy. And it treated any call in the selector
 question about MEANING with a test of SHAPE, in the fail-closed direction's exact opposite. Neither
 could have shown up in a report — they produced BACKED and AGGREGATE, which is what a healthy tree
 looks like. Fixed by pinning columns only through AND-shaped equality and by naming the aggregate
-functions explicitly; three fixtures now assert the verdicts, and each was run against the pre-fix
+functions explicitly; fixtures now assert the verdicts, and each was run against the pre-fix
 analyser first to confirm it came back safe there.
+
+That fix then had a third hole of the same kind, found by the same review: AND-shaped `==` still
+accepted `X.a == X.b`, an equality between two mapped columns, which correlates them rather than
+pinning either — so a pair of self-comparisons assembled a whole composite key out of predicates
+that restrict nothing. A column now counts only when its comparator contains no mapped attribute.
+**A narrowed rule is not a sound rule**, and the second draft of a fail-closed check earns no more
+trust than the first.
 
 Two race tests also had their `DATABASE_URL` changed from `setdefault` to an assignment. Under
 `run_tests.py` either is safe, but these files document how to run them directly, and `setdefault`

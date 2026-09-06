@@ -43,6 +43,15 @@ been caught by a clean report — the verdicts they produced were BACKED and AGG
 a healthy tree looks like. `_OR_PREDICATE_POSITIVE`, `_OR_OPERATOR_POSITIVE` and
 `_SCALAR_FUNC_POSITIVE` below were each run against the pre-fix analyser and each came back safe.
 
+**And the FIX for those had a third hole, found by the same review.** Narrowing the collector to
+AND-shaped `==` still accepted `X.a == X.b` — an equality whose right side is another mapped column.
+That correlates two columns instead of pinning either, so `where(EV.project_id == EV.guid,
+EV.guid == EV.project_id)` assembled the whole composite key out of predicates restricting nothing,
+and came back BACKED. `_COLUMN_TO_COLUMN_POSITIVE` covers it, and the rule is now that the
+comparator must contain no mapped attribute at all. *The lesson is not about SQLAlchemy: **a
+narrowed rule is not a sound rule**, and the second draft of a fail-closed check earns no more trust
+than the first — it was written by someone who had just been wrong about the same function.*
+
 ## The uniqueness question is asked of SQLAlchemy, never of the text
 
 `UniqueConstraint(...)` and `Index(..., unique=True)` are BOTH in use in `models.py`, deliberately —
@@ -174,8 +183,18 @@ def _pinned_columns(node: ast.AST, models: set[str]) -> set[str]:
     if isinstance(node, ast.Compare):
         if len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
             target = node.left
+            # The right-hand side must be a VALUE. `X.a == X.b` and `Topic.id == Comment.topic_id`
+            # are equalities that pin nothing: they correlate two columns, and every row where the
+            # two happen to agree still qualifies. Collecting `a` from those let a self-comparison
+            # assemble a whole composite key out of predicates that restrict nothing. Any mapped
+            # attribute anywhere in the comparator disqualifies it, which also rejects
+            # `X.a == func.lower(Y.b)`.
+            compares_to_a_column = any(
+                isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                and n.value.id in models
+                for n in ast.walk(node.comparators[0]))
             if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
-                    and target.value.id in models):
+                    and target.value.id in models and not compares_to_a_column):
                 return {target.attr}
         return set()
     if isinstance(node, ast.Call):
@@ -295,6 +314,19 @@ def pick(pid, guid, db):
     )).scalar_one_or_none()
 '''
 
+#: Both halves of a unique key, each compared to the OTHER half rather than to a value. Every
+#: column of `uq_element_verifications_project_guid` appears in an `==` inside a conjunction, which
+#: is exactly the shape the fix above looks for — but the predicate admits every row whose two
+#: columns happen to agree, so it does not pin either one. Found by review on the fix for the OR
+#: hole: *narrowing a rule is not the same as making it sound, and the second draft of a
+#: fail-closed check is no more trustworthy than the first.*
+_COLUMN_TO_COLUMN_POSITIVE = '''
+def pick(db):
+    return db.execute(select(ElementVerification).where(
+        ElementVerification.project_id == ElementVerification.guid,
+        ElementVerification.guid == ElementVerification.project_id)).scalar_one_or_none()
+'''
+
 #: An ordinary scalar function in the selector. `func.lower(...)` returns one value PER ROW, so this
 #: read demands uniqueness like any other — but "the selector's arguments are all calls" called it an
 #: aggregate and exempted it from the whole gate.
@@ -396,6 +428,11 @@ def main() -> int:
     check("the AND of those same two columns is still BACKED — the narrowing did not blunt the gate",
           classify("x::set_status::ElementVerification", _m3, _c3, _a3, mapped) == "BACKED",
           sorted(_c3))
+    (_f5, _m5, _c5, _a5, _l5), = unique_reads(_COLUMN_TO_COLUMN_POSITIVE, names | {"ElementVerification"})
+    check("an equality between two mapped COLUMNS pins neither, so it cannot assemble a unique key",
+          _c5 == frozenset()
+          and classify("x::pick::ElementVerification", _m5, _c5, _a5, mapped) == "UNKNOWN",
+          (sorted(_c5), classify("x::pick::ElementVerification", _m5, _c5, _a5, mapped)))
     (_f4, _m4, _c4, _a4, _l4), = unique_reads(_SCALAR_FUNC_POSITIVE, names)
     check("a scalar function in the selector is NOT an aggregate and is not waved through",
           _a4 is False and classify("x::pick::None", _m4, _c4, _a4, mapped) == "UNKNOWN",
