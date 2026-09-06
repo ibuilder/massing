@@ -205,7 +205,7 @@ describe("the API client's public surface", () => {
       "escalationsScan", "sendDigest", "notificationStream",        // 18 overdue / digest
       "reviewModelVersion", "modelVersions", "versionDiff",         // 19 publish history
       "importClashXlsx", "importClashXml",                          // 20 clash import
-      "enqueueJob", "jobs", "jobArtifactUrl",                       // 21 job tray
+      "enqueueJob", "jobs", "jobArtifactUrl", "deliverJobArtifact", // 21 job tray
       "projects", "createProject", "importBundle",                  // 22 project catalog
       "integrations", "license", "capabilities",                    // 23 deploy entitle
       "siteContext", "parcelAnalyze", "parcelsScreen",              // 24 land around site
@@ -250,6 +250,17 @@ describe("the API client's public surface", () => {
       // (97) the undo stack -> authoring.ts. All three have LIVE call sites in app.ts's S4 block,
       // so a drop here breaks the undo/redo buttons, not just the surface count.
       "editHistory", "editUndo", "editRedo",
+      // (98) detailing carriers -> detailing.ts. `elementDetailing` and `validateDetailing` have
+      // live call sites; `classify` is driven through the generic recipe path, so the SURFACE check
+      // is the only thing that would notice it vanishing.
+      "elementDetailing", "classify", "applyDetailingRules", "validateDetailing", "attachDocument",
+      // (99) the content shelf -> authoring.ts, joining the family triple it parallels.
+      "contentCatalog", "placeContent", "importContent",
+      // (100) the IfcRelConnectsElements reader + its writer -> model.ts.
+      "elementConnections", "connectElements",
+      // R22-ENTITLEMENT ⑤ — the promote control in register.ts is the only call site, so losing
+      // this method silently un-reaches the capability rather than breaking a typecheck.
+      "promoteComment",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

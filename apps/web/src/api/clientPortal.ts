@@ -14,20 +14,27 @@
  *
  *  `services/api/src/aec_api/routers/client_portal.py` groups the same set — 8 of its 9 routes are
  *  exactly these methods, checked rather than assumed. The ninth, `GET /shared/{token}/model.frag`,
- *  has no client method BY DESIGN: it is fetched by the server-rendered share page, not by this SPA.
+ *  still has no client method: it is a whole-file response a recipient opens by URL, not JSON this
+ *  SPA parses. What it DOES need from here is the mint-time opt-in that makes it answer at all.
  *
- *  ### A capability this file cannot currently reach
+ *  ### The opt-in this file could not reach — fixed 2026-09-04
  *
  *  That ninth route serves geometry only to a token minted with `show_model`, which the backend
  *  treats as an opt-in independent of `show_payments` — *"a token may carry payments, or geometry,
- *  or neither, and granting one never implies the other"*. **`createShareToken` below does not send
- *  it**, and the row type `shareTokens` returns has no `show_model` field, so every token this
- *  product mints has it false and that route always 404s for them. The public 3D viewer is dark from
- *  the UI's side.
+ *  or neither, and granting one never implies the other"*. **`createShareToken` did not send it**,
+ *  and the row type `shareTokens` returns had no `show_model` field, so every token this product
+ *  minted had it false and that route 404'd for all of them.
  *
- *  Not fixed here on purpose: this slice's claim is that no behaviour changed, and adding a
- *  parameter would falsify it. Recorded so the next reader of this file finds it at the method
- *  rather than in a backlog.
+ *  Both halves are closed below, and they are separate defects with separate consequences. The
+ *  missing PARAMETER made the capability unreachable. The missing ROW FIELD made it unauditable —
+ *  `_public_row` has always returned `show_model`, the wire carried it, and the type simply dropped
+ *  it, so an owner could not have told a geometry link from a digest link even once one existed.
+ *  R22-PUBLIC-VIEWER's shipped record claims *"the owner's token list shows which links carry
+ *  geometry"*; until this change that was true of the JSON and false of the product.
+ *
+ *  The two flags are passed as separate arguments, never as one "share more" level, because the
+ *  backend's rule is that granting one must never imply the other. A single enum or an ordered
+ *  level would make that rule unexpressible at the call site.
  *
  *  A mixin, so every call site resolves unchanged; `api/surface.test.ts` is what proves it.
  */
@@ -37,17 +44,23 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withClientPortal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class ClientPortal extends Base {
-  /** `showPayments` is the explicit opt-in for THIS token's digest to carry the payment schedule. */
-  createShareToken(pid: string, label?: string, showPayments?: boolean) {
-    return this.json<{ token: string; label: string | null; share_path: string; revoked: boolean }>(
+  /** Mint a read-only share token. `showPayments` and `showModel` are two INDEPENDENT opt-ins, and
+   * the backend is explicit that granting one never implies the other: `showPayments` lets this
+   * token's digest carry the owner-invoice payment schedule, `showModel` lets it fetch the project's
+   * geometry fragment (`GET /shared/{token}/model.frag` — shapes and placements, never the source
+   * IFC). Both default to false; a token already in somebody's inbox is never widened. */
+  createShareToken(pid: string, label?: string, showPayments?: boolean, showModel?: boolean) {
+    return this.json<{ token: string; label: string | null; share_path: string; revoked: boolean;
+      show_payments: boolean; show_model: boolean }>(
       `/projects/${pid}/share-tokens`,
-      { method: "POST", body: JSON.stringify({ label: label ?? "", show_payments: !!showPayments }) });
+      { method: "POST", body: JSON.stringify({ label: label ?? "", show_payments: !!showPayments,
+        show_model: !!showModel }) });
   }
   /** CLIENT-PORTAL — read-only share tokens for a project-readiness digest. */
   shareTokens(pid: string) {
     type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
       created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string;
-      show_payments: boolean };
+      show_payments: boolean; show_model: boolean };
     return this.json<{ tokens: Tok[] }>(`/projects/${pid}/share-tokens`);
   }
   revokeShareToken(pid: string, token: string) {

@@ -2171,6 +2171,23 @@ const _jobs = _embed ? null : mountJobTray({
   host: toolbar,
   fetch: () => (projectId ? api.jobs(projectId, 25) : Promise.resolve([])),
   artifactUrl: (j) => api.jobArtifactUrl(projectId!, j.id),
+  // R24-REPORTS-BY-MOMENT — "shared, not just downloaded". `prompt` rather than a modal on purpose:
+  // the recipient list is the whole input, and a dialog for one text field is chrome. An
+  // unconfigured deployment answers 200 with every recipient `disabled`, which is why the notice
+  // below reads `smtp_configured` instead of assuming a 200 means the mail went.
+  onSend: (j) => {
+    const to = window.prompt("Email this artifact to (comma-separated addresses):", "");
+    if (to === null) return;
+    const addrs = to.split(",").map((a) => a.trim()).filter(Boolean);
+    if (!addrs.length) { notify("No recipients — nothing sent.", "error"); return; }
+    void api.deliverJobArtifact(projectId!, j.id, addrs)
+      .then((r) => notify(
+        r.smtp_configured
+          ? `${r.filename} sent to ${(r.results.sent ?? []).length} of ${addrs.length}`
+          : "Email is not configured on this server — nothing was sent.",
+        r.smtp_configured && (r.results.sent ?? []).length ? "success" : "error"))
+      .catch((e: Error) => notify(`Send failed — ${e.message}`, "error"));
+  },
   // The completion notice is the point of the tray: it is what makes leaving safe.
   onSettled: (j) => notify(
     j.state === "error" ? `${jobLabel(j.kind)} failed — ${j.error ?? "no detail"}` : `${jobLabel(j.kind)} finished`,
