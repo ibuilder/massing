@@ -7,8 +7,8 @@
  * catalog in draftCatalog.ts.
  */
 import {
-  DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
-  type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
+  contentToDraftElement, DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
+  type ContentDef, type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
 import { setDraftDragKey } from "../railDrag";
 
@@ -26,6 +26,8 @@ export interface ArmedDraft {
 export interface DraftPanelDeps {
   body: HTMLElement;
   fetchFamilies: () => Promise<FamilyDef[]>;
+  /** CONTENT-1 items, already flattened to [item, group] pairs — the catalog nests them by bucket. */
+  fetchContent: () => Promise<[ContentDef, string][]>;
   arm: (a: ArmedDraft | null) => void;
   notify: (msg: string, kind?: "info" | "success" | "error") => void;
   canAuthor: () => boolean;
@@ -46,6 +48,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   let selected: DraftElement | null = null;
   let armedKey: string | null = null;
   let families: DraftElement[] = [];
+  let content: DraftElement[] = [];
   let familiesLoaded = false;
 
   const intro = el("div", "meta");
@@ -78,7 +81,10 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   const form = el("div"); form.style.marginTop = "4px";   // parameter form + Place button
   body.appendChild(form);
 
-  function allElements(): DraftElement[] { return [...DRAFT_ELEMENTS, ...families]; }
+  // One list, reached by the row buttons, the search box, the discipline chips AND `armByKey` — which
+  // is what the viewport's drop handler calls. Adding content here makes it click- and drag-placeable
+  // in the same edit, rather than by two implementations that can disagree.
+  function allElements(): DraftElement[] { return [...DRAFT_ELEMENTS, ...families, ...content]; }
 
   function renderList() {
     for (const d of DISCIPLINES) chipBtns[d]?.classList.toggle("on", d === discipline);
@@ -169,13 +175,18 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     renderForm();
   }
 
-  // initial paint; families load lazily
+  // initial paint; families and content load lazily. Settled independently on purpose: a content
+  // catalog that 404s on an older server must not take the families down with it, and vice versa.
   renderList();
   void deps.fetchFamilies().then((fs) => {
     families = fs.map(familyToDraftElement);
     familiesLoaded = true;
     renderList();
   }).catch(() => { familiesLoaded = true; renderList(); });
+  void deps.fetchContent().then((cs) => {
+    content = cs.map(([c, group]) => contentToDraftElement(c, group));
+    renderList();
+  }).catch(() => { /* content unavailable — the built-ins and families still list */ });
 
   return {
     onArmCleared() { if (armedKey) { armedKey = null; renderForm(); } },

@@ -35,3 +35,22 @@
 # test_licensing.py — fabricated MASSING_LICENSE_KEY fixtures driving the tier/expiry paths.
 1528d60ec54371809ed896170b30d5defa478fed:services/api/test_licensing.py:generic-api-key:85
 fc0d7767f57653f3ea235db5abaeb646db79c4a1:services/api/test_licensing.py:generic-api-key:49
+
+# masterBuilder.test.ts — the DEFAULT share-token value in a test fixture factory, "0123456789abcdef":
+# sixteen characters of hex immediately after an identifier named `token`, which is precisely the
+# shape generic-api-key looks for. Not a credential and never issued — the two call sites in that
+# test both OVERRIDE it, so the flagged value was not even the one under assertion. Triaged
+# 2026-09-06: nothing to rotate.
+#
+# TWO fingerprints for ONE fixture, and that is the lesson rather than an accident. The value was
+# introduced on a feature branch (db8d9a79) and again by the SQUASH commit that landed it on main
+# (cf02024c) — a squash re-adds every line as a new diff, so it earns its own fingerprint. Baseline
+# the branch commit alone and the scan stays red on main. Both are needed, and the second only
+# exists after the merge, so this baseline could not have been written correctly before it.
+#
+# The current file no longer matches: the fixture was reshaped to repeated characters, which is why
+# the other two token values in that same test were never flagged. That fix does NOT close these —
+# the strings are in the objects for good — but it stops a future edit to that file re-adding the
+# line and minting a third fingerprint.
+db8d9a79d19791748469e0ab84c4dd4b6c3191b9:apps/web/src/portal/panels/masterBuilder.test.ts:generic-api-key:109
+cf02024cb78d24d5322977ba63d80d0c099840f9:apps/web/src/portal/panels/masterBuilder.test.ts:generic-api-key:109

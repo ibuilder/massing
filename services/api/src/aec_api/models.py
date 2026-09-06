@@ -155,6 +155,11 @@ class RecordComment(Base):
     record_id: Mapped[str] = mapped_column(String, index=True)
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    # R22-ENTITLEMENT ⑤ — the RFI/issue this comment was promoted into, if any. An agency review
+    # comment is the one input that has to LEAVE the thread: somebody must be assigned it and it must
+    # close. Nullable because promotion is a deliberate act, and the back-link is what makes it
+    # idempotent — a second promote 409s instead of minting a duplicate RFI for the same comment.
+    topic_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
