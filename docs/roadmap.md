@@ -3008,10 +3008,19 @@ removed. Remaining, in priority order:
   and the same name as real code must (it does) — *a stripper that blanked too much would pass the
   first and report the whole registry as dark.*
 
-  **Four of the six are the sprint's recurring shape — the diagnosis ships, the repair does not.**
-  `GET /projects/{pid}/model/maintenance` reports how many entities each cleanup *would* remove with
-  no way to remove them, and `analysis.py` detects L/T wall joins while naming a resolution nothing
-  can invoke. Recorded, not wired: where those controls belong is a product decision.
+  **Four of the six are the sprint's recurring shape — the diagnosis ships, the repair does not — and
+  here are all four, because the first draft said "four" and named three.** `purge_orphan_psets` and
+  `purge_empty_groups`: `GET /projects/{pid}/model/maintenance` reports how many entities each cleanup
+  *would* remove and offers no way to remove them. `resolve_wall_joins`: `analysis.py` detects L/T wall
+  joins and names a resolution nothing can invoke. `set_spec_link`: `GET /projects/{pid}/spec-links`
+  rolls up linked spec sections **plus the unlinked count** and says "Stamp links with the
+  `set_spec_link` recipe". Recorded, not wired: where those controls belong is a product decision.
+
+  *A reviewer found the missing fourth. `apps/web/src/api/mep.ts` carries a paragraph about exactly
+  this — "count the members you looked at, then phrase the result as the whole population … the fix is
+  to DERIVE THE COMPLEMENT, not to be more careful" — and it happened here inside the entry about a
+  gate that miscounted. **Stating a cardinal and then enumerating is the tell**: the number and the
+  list are two claims, and only the list was checked.*
 
   ✅ **CONTENT-DRAFT, shipped 2026-09-05 — what the corrected measurement actually found.** The 19
   CONTENT-1 items (FF&E · Landscape · Site Logistics) appeared in **neither** affordance: they were

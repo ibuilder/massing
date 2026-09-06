@@ -45,9 +45,21 @@ real code MUST (it does, and the recipe drops off the list). *A stripper that bl
 pass the first check and quietly report the whole registry as dark.*
 
 **Four of the six are a product gap of the shape this sprint keeps finding: the diagnosis ships and
-the repair does not.** `GET /model/maintenance` reports how many entities each cleanup would remove
-and offers no way to remove them; `analysis.py` detects L/T wall joins and names a resolution nothing
-can invoke. Recorded, not wired — where those controls belong is a product decision.
+the repair does not.** All four, because the first draft said "four" and named three:
+
+| Recipe | The diagnosis that ships without it |
+|---|---|
+| `purge_orphan_psets`, `purge_empty_groups` | `GET /model/maintenance` reports how many entities each cleanup **would** remove, and offers no way to remove them |
+| `resolve_wall_joins` | `analysis.py` detects L/T wall joins and names a resolution nothing can invoke |
+| `set_spec_link` | `GET /spec-links` rolls up linked spec sections **plus the unlinked count**, and says *"Stamp links with the `set_spec_link` recipe"* |
+
+Recorded, not wired — where those controls belong is a product decision.
+
+*A reviewer found the missing fourth. `apps/web/src/api/mep.ts` carries a paragraph about precisely
+this failure — "count the members you looked at, then phrase the result as the whole population … the
+fix is to DERIVE THE COMPLEMENT, not to be more careful" — and it recurred here, in the entry about a
+gate that miscounted. **Stating a cardinal and then enumerating is the tell**: the number and the list
+are two separate claims, and only the list had been checked.*
 
 ## Unreleased — you could put a window in a wall but not a skylight in a roof
 
