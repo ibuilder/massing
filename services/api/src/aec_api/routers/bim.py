@@ -540,9 +540,11 @@ def asset_rights_status(_user: str = Depends(current_user)) -> dict:
     which is the one an attacker who rewrote the manifest would have replaced. Empty when signing is
     unavailable, so a caller can tell "no key here" from "key withheld"."""
     from .. import asset_rights as ar
+    from .. import chain_provider as cp
     return {"enabled": ar.enabled(), "signing": ar.signing_available(),
             "issuer": os.environ.get(ar.ISSUER_ENV) or "",
-            "public_key": ar.public_key_b64() if ar.signing_available() else ""}
+            "public_key": ar.public_key_b64() if ar.signing_available() else "",
+            "chain": cp.status()}
 
 
 @router.post("/asset-rights/verify")
@@ -582,6 +584,73 @@ def asset_rights_verify(manifest: dict = Body(..., embed=True),
     if not isinstance(manifest, dict):
         raise HTTPException(422, "manifest must be an object")
     return ar.verify_release(manifest, public_key=(public_key or None))
+
+
+@router.post("/asset-rights/mint")
+def asset_rights_mint(manifest: dict = Body(..., embed=True),
+                      recipient: str | None = Body(default=None, embed=True),
+                      metadata_uri: str | None = Body(default=None, embed=True),
+                      public_key: str | None = Body(default=None, embed=True),
+                      project_id: str | None = Body(default=None, embed=True),
+                      pin_metadata: bool = Body(default=True, embed=True),
+                      db: Session = Depends(get_db),
+                      actor: str = Depends(require_identified)) -> dict:
+    """Register a mock or on-chain mint for a sealed release manifest.
+
+    Requires `AEC_CHAIN_ENABLED`. Validates the manifest the same way as `/asset-rights/verify`
+    before minting. When `pin_metadata` is true and no `metadata_uri` is supplied, ERC-721 JSON
+    is pinned via the configured IPFS provider (mock by default). Idempotent on `content_hash`.
+    `project_id` is optional metadata only — provenance keys on `asset_id` + `content_hash`."""
+    from .. import release_tokens as rt
+    row, result, created = rt.mint_from_manifest(
+        db, manifest,
+        recipient=recipient,
+        metadata_uri=metadata_uri,
+        minted_by=actor,
+        project_id=project_id,
+        public_key=public_key,
+        pin_metadata=pin_metadata,
+    )
+    return {"created": created, "mint": rt.row_to_dict(row),
+            "chain": {
+                "provider": result.provider,
+                "chain_id": result.chain_id,
+                "contract_address": result.contract_address,
+                "token_id": result.token_id,
+                "tx_hash": result.tx_hash,
+                "metadata_uri": result.metadata_uri,
+            }}
+
+
+@router.get("/asset-rights/mints/verify")
+def asset_rights_mint_verify(content_hash: str, db: Session = Depends(get_db),
+                             _user: str = Depends(require_identified)) -> dict:
+    """Cross-check a mint registry row against the configured chain provider."""
+    from .. import release_tokens as rt
+    return rt.verify_mint(db, content_hash)
+
+
+@router.get("/asset-rights/mints")
+def asset_rights_mint_lookup(content_hash: str, db: Session = Depends(get_db),
+                             _user: str = Depends(require_identified)) -> dict:
+    """Look up a mint record by release `content_hash` (`sha256:…`)."""
+    from .. import release_tokens as rt
+    row = rt.get_by_content_hash(db, content_hash)
+    if not row:
+        raise HTTPException(404, "no mint for this content_hash")
+    return rt.row_to_dict(row)
+
+
+@router.get("/projects/{pid}/asset-rights/mints")
+def project_asset_rights_mints(pid: str, db: Session = Depends(get_db),
+                               _sec: str = Depends(require_role("viewer"))) -> dict:
+    """List mint records for this project's stable `asset_id` lineage."""
+    from .. import release_tokens as rt
+    p = _project(db, pid)
+    if not p.asset_id:
+        return {"asset_id": None, "mints": []}
+    rows = rt.list_for_asset(db, p.asset_id)
+    return {"asset_id": p.asset_id, "mints": [rt.row_to_dict(r) for r in rows]}
 
 
 @router.get("/projects/{pid}/bundle")

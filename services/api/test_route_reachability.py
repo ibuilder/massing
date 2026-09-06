@@ -95,6 +95,28 @@ KNOWN_UNCALLED: set[str] = {
     #: Expiry condition: none. This is not parked work — a client caller here would mean the app was
     #: forging its own callback, which is the thing PKCE exists to prevent.
     "/auth/cloud/callback",
+    #: ASSET-RIGHTS STEP 4/5 (the chain mint registry) — added with the EVM provider. The PR that
+    #: introduced these touches **no `apps/web` file at all**: it is the server half of a staged
+    #: feature, so "no client caller" is the accurate state rather than an oversight.
+    #:
+    #: **Four routes were added and this rule can only see two of them**, which is worth writing down
+    #: because the two invisible ones are equally uncalled:
+    #:
+    #:     POST /asset-rights/mint           leaf `mint`   — occurs in unrelated web text
+    #:     GET  /asset-rights/mints/verify   leaf `verify` — the ASSET-VERIFY blind spot, already
+    #:                                                       documented below, met a second time
+    #:     GET  /asset-rights/mints          flagged, frozen here
+    #:     GET  /projects/{pid}/asset-rights/mints   flagged, frozen here
+    #:
+    #: So freezing these two does NOT mean the other two are reachable. The gate's coarseness is the
+    #: only difference between them, and a reader who assumes the unfrozen pair has a caller would be
+    #: wrong.
+    #:
+    #: **Expiry condition, so this cannot become permanent by inattention:** remove all of these when
+    #: a mint/provenance surface lands in the client. Until then the registry is queryable over HTTP
+    #: and has no screen — a UI gap, not an unfinished endpoint.
+    "/asset-rights/mints",
+    "/projects/{pid}/asset-rights/mints",
     #: R39-VIEWER-OBS, added 2026-08-07 with an expiry condition rather than a shrug. The POST that
     #: WRITES load timings has a caller (`reportViewerLoad` in `apps/web/src/api/model.ts`, called
     #: from the viewer's load path) — it is only this read-side aggregate that has none yet.
