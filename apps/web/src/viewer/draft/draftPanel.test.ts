@@ -20,14 +20,33 @@ function mount(content: [ContentDef, string][] = []) {
   const body = document.createElement("div");
   document.body.appendChild(body);
   const armed: (ArmedDraft | null)[] = [];
+  const notify = vi.fn((_m: string, _k?: "info" | "success" | "error") => {});
   const handle = installDraftPanel({
     body,
     fetchFamilies: () => Promise.resolve([]), fetchContent: () => Promise.resolve(content),
     arm: (a) => { armed.push(a); },
-    notify: vi.fn((_m: string, _k?: "info" | "success" | "error") => {}),
+    notify,
     canAuthor: () => true,
   });
-  return { body, armed, handle };
+  return { body, armed, handle, notify };
+}
+
+/** Like `mount`, but `fetchContent` never settles — the window in which the panel knows only part
+ *  of its catalog. The empty state and the Enter path must not make a definite claim there. */
+function mountWithPendingContent() {
+  const body = document.createElement("div");
+  document.body.appendChild(body);
+  const armed: (ArmedDraft | null)[] = [];
+  const notify = vi.fn((_m: string, _k?: "info" | "success" | "error") => {});
+  const handle = installDraftPanel({
+    body,
+    fetchFamilies: () => Promise.resolve([]),
+    fetchContent: () => new Promise<[ContentDef, string][]>(() => { /* never settles */ }),
+    arm: (a) => { armed.push(a); },
+    notify,
+    canAuthor: () => true,
+  });
+  return { body, armed, handle, notify };
 }
 
 const TREE: ContentDef = {
@@ -173,5 +192,117 @@ describe("CONTENT-DRAFT — content lists, arms and drags like any other element
     const { handle } = mount([[TREE, "Landscape"]]);
     await Promise.resolve(); await Promise.resolve();
     expect(handle.armByKey("content:no_such_item")).toBeNull();
+  });
+});
+
+/**
+ * A query spans every discipline. Until this changed the search was ANDed with the active chip, so
+ * typing "column" on the Architectural chip answered "No elements for this discipline yet." — the
+ * palette denying that a column exists. A wrong answer, not a slow one.
+ */
+describe("the search box is not scoped to the active discipline", () => {
+  const filter = (body: HTMLElement) =>
+    body.querySelector<HTMLInputElement>("input[type=search]")!;
+  const type = (body: HTMLElement, q: string) => {
+    const f = filter(body); f.value = q; f.dispatchEvent(new Event("input"));
+  };
+
+  it("finds a Structural element while the Architectural chip is active", () => {
+    const { body } = mount();
+    // Architectural is the default chip, and `column` is Structural — the exact miss.
+    type(body, "column");
+    const labels = rows(body).map((r) => r.textContent ?? "");
+    expect(labels.some((l) => l.includes("Column")), `got: ${labels.join(" | ")}`).toBe(true);
+  });
+
+  it("says which discipline an off-chip hit came from, so the result is readable", () => {
+    const { body } = mount();
+    type(body, "column");
+    const row = rows(body).find((r) => r.textContent?.includes("Column"));
+    expect(row?.textContent).toContain("Structural");
+  });
+
+  it("with no query the chip still scopes the list — the chips did not become decoration", () => {
+    const { body } = mount();
+    type(body, "");
+    const labels = rows(body).map((r) => r.textContent ?? "");
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.some((l) => l.includes("Column")),
+      "a Structural element is listed under the Architectural chip with no query").toBe(false);
+  });
+
+  it("Enter arms the top match, so a filtered pick needs no mouse", () => {
+    const { body, armed } = mount();
+    type(body, "column");
+    filter(body).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(armed.at(-1)?.label).toBe("Column");
+    expect(armed.at(-1)?.recipe).toBe("add_column");
+  });
+
+  it("Enter on a filter that matches nothing arms nothing and says why", async () => {
+    const { body, armed, notify } = mount();
+    // Awaited so BOTH catalogs have settled: only then is "no element matches" a claim the panel is
+    // entitled to make. Before that it reports waiting — asserted separately below.
+    await Promise.resolve(); await Promise.resolve();
+    type(body, "zzzznotathing");
+    filter(body).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(armed, "a no-match Enter armed something").toHaveLength(0);
+    expect(notify.mock.calls.at(-1)?.[1]).toBe("error");
+  });
+
+  it("a key that is not Enter does not arm — the box is still a text field", () => {
+    const { body, armed } = mount();
+    type(body, "column");
+    for (const key of ["a", "ArrowDown", "Escape", "Tab"]) {
+      filter(body).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }
+    expect(armed).toHaveLength(0);
+  });
+
+  it("while a catalog is still arriving it says LOADING, not 'nothing matches'", async () => {
+    // The bug this asserts against: the empty state keyed on `familiesLoaded` alone, but content
+    // settles separately — so searching for a content item before /content/catalog answered
+    // announced that it does not exist. A definite claim the code was not entitled to make.
+    const { body } = mountWithPendingContent();
+    await Promise.resolve(); await Promise.resolve();   // families settle; content never does
+    type(body, "tree");
+    expect(rows(body)).toHaveLength(0);
+    expect(body.textContent).toContain("loading");
+    expect(body.textContent).not.toContain("Nothing matches");
+  });
+
+  it("Enter during that window reports waiting, not absence", async () => {
+    const { body, armed, notify } = mountWithPendingContent();
+    await Promise.resolve(); await Promise.resolve();
+    type(body, "tree");
+    filter(body).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(armed).toHaveLength(0);
+    expect(notify.mock.calls.at(-1)?.[1]).not.toBe("error");
+    expect(String(notify.mock.calls.at(-1)?.[0])).toContain("loading");
+  });
+
+  it("a failed content fetch counts as SETTLED — the answer is final, if incomplete", async () => {
+    const body = document.createElement("div");
+    document.body.appendChild(body);
+    installDraftPanel({
+      body,
+      fetchFamilies: () => Promise.resolve([]),
+      fetchContent: () => Promise.reject(new Error("503")),
+      arm: () => {}, notify: vi.fn(), canAuthor: () => true,
+    });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    type(body, "zzzznotathing");
+    expect(body.textContent).toContain("Nothing matches");
+    expect(body.textContent).not.toContain("loading");
+  });
+
+  it("a query that matches nothing says so in the query's terms, not the chip's", async () => {
+    const { body } = mount();
+    // Awaited on purpose: until the families settle the panel says "loading families…", which is the
+    // correct answer to "nothing matches" when a third of the catalog has not arrived yet.
+    await Promise.resolve(); await Promise.resolve();
+    type(body, "zzzznotathing");
+    expect(rows(body)).toHaveLength(0);
+    expect(body.textContent).toContain("zzzznotathing");
   });
 });

@@ -10,6 +10,7 @@ import {
   contentToDraftElement, DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
   type ContentDef, type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
+import { draftGlyph, glyphElement, normaliseIfcClass } from "./draftGlyph";
 import { setDraftDragKey } from "../railDrag";
 
 export interface ArmedDraft {
@@ -49,7 +50,14 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   let armedKey: string | null = null;
   let families: DraftElement[] = [];
   let content: DraftElement[] = [];
+  // BOTH catalogs, tracked separately, because they settle independently on purpose (see the
+  // fetch pair at the bottom) — and because the empty state makes a DEFINITE claim. Saying
+  // "nothing matches" while a third of the catalog is still in flight is a wrong answer, not a
+  // slow one: search for a content item before /content/catalog answers and the panel denies it
+  // exists. This is the same defect the cross-discipline fix in this change was about, one layer
+  // down, and a review bot found it rather than the author.
   let familiesLoaded = false;
+  let contentLoaded = false;
 
   const intro = el("div", "meta");
   intro.textContent = "Pick an element, set its parameters, then Place and click in the model. "
@@ -73,6 +81,22 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   search.type = "search"; search.placeholder = "Filter elements…"; search.setAttribute("aria-label", "Filter draft elements");
   search.style.cssText = "width:100%;margin-bottom:6px";
   search.oninput = () => renderList();
+  // Type a few letters, press Enter, click in the model. Without this the filter box narrows 90 rows
+  // to one and then makes you reach for the mouse anyway — and `armByKey` already exists for the
+  // KEYS shortcuts, so the arming path is shared rather than reimplemented here.
+  search.onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const first = listed[0];
+    if (!first) {
+      // Same rule as the empty state: while a catalog is still arriving, "no element matches" is a
+      // claim this code cannot make. Report waiting, not absence.
+      deps.notify(catalogsSettled() ? "no element matches that filter" : "still loading the catalog…",
+                  catalogsSettled() ? "error" : "info");
+      return;
+    }
+    handle.armByKey(first.key);      // handles canAuthor(), the notify and the form/selection state
+  };
   body.appendChild(search);
 
   const list = el("div"); list.style.cssText = "max-height:220px;overflow:auto;margin-bottom:6px";
@@ -86,22 +110,53 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   // in the same edit, rather than by two implementations that can disagree.
   function allElements(): DraftElement[] { return [...DRAFT_ELEMENTS, ...families, ...content]; }
 
+  /** True once BOTH server catalogs have settled — resolved or failed. Only then can "nothing
+   *  matches" be asserted rather than guessed. A failed fetch counts as settled: the built-ins are
+   *  all there will be, so the answer is final even though it is incomplete. */
+  function catalogsSettled(): boolean { return familiesLoaded && contentLoaded; }
+
+  /** What `renderList` last drew, in order. Enter in the filter box arms `listed[0]` — it is read
+   *  from the render rather than recomputed, so the key press cannot act on a different list from
+   *  the one on screen. */
+  let listed: DraftElement[] = [];
+
   function renderList() {
     for (const d of DISCIPLINES) chipBtns[d]?.classList.toggle("on", d === discipline);
     const q = search.value.trim().toLowerCase();
-    const items = allElements().filter((e) => e.discipline === discipline
-      && (!q || e.label.toLowerCase().includes(q) || e.ifcClass.toLowerCase().includes(q)));
+    // A QUERY SPANS EVERY DISCIPLINE; the chips are for browsing. Until this changed, typing "door"
+    // while the Structural chip was active answered "No elements for this discipline yet." — a wrong
+    // answer rather than a slow one, because there IS a door and the palette said there was not. The
+    // discipline of each hit is shown on the row below, so a cross-discipline result is readable.
+    const matches = (e: DraftElement) =>
+      e.label.toLowerCase().includes(q) || e.ifcClass.toLowerCase().includes(q);
+    const items = q ? allElements().filter(matches)
+                    : allElements().filter((e) => e.discipline === discipline);
     list.innerHTML = "";
+    listed = items;
     if (!items.length) {
-      const n = el("div", "meta"); n.textContent = familiesLoaded ? "No elements for this discipline yet." : "loading families…";
+      const n = el("div", "meta");
+      n.textContent = !catalogsSettled() ? "loading the catalog…"
+        : q ? `Nothing matches “${search.value.trim()}” in any discipline.`
+            : "No elements for this discipline yet.";
       list.appendChild(n); return;
     }
     for (const item of items) {
       const row = el("button", "tool-btn") as HTMLButtonElement;
-      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin:2px 0";
+      row.style.cssText = "display:flex;gap:6px;align-items:center;width:100%;text-align:left;margin:2px 0";
       row.classList.toggle("on", selected?.key === item.key);
-      row.innerHTML = `<span>${item.label}</span>`
-        + `<span class="meta" style="font-size:10px">${item.ifcClass.replace("Ifc", "").replace("Type", "")}</span>`;
+      // UX-3 — glyph, label, class badge. Built as NODES, not as an innerHTML string: `item.label`
+      // and `item.ifcClass` come from the server for families and content, and a palette designed to
+      // grow with server-supplied content should not be one route-change away from parsing a name as
+      // markup. See draftGlyph.ts for why this is a latent hardening rather than a live fix.
+      row.appendChild(glyphElement(draftGlyph(item.ifcClass)));
+      const name = el("span"); name.textContent = item.label; name.style.flex = "1";
+      const badge = el("span", "meta"); badge.style.fontSize = "10px";
+      // While searching the list is cross-discipline, so the row has to say which one it came from —
+      // otherwise "Column" appearing under the MEP chip reads as a bug in the filter.
+      badge.textContent = q && item.discipline !== discipline
+        ? `${item.discipline} · ${normaliseIfcClass(item.ifcClass)}`
+        : normaliseIfcClass(item.ifcClass);
+      row.append(name, badge);
       row.onclick = () => { selected = item; renderList(); renderForm(); };
       // RAIL-DRAG — the same row is also a drag source. Dragging selects it too, so the parameter
       // form below matches what is being dragged: a drag that placed an element while the form showed
@@ -185,10 +240,11 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   }).catch(() => { familiesLoaded = true; renderList(); });
   void deps.fetchContent().then((cs) => {
     content = cs.map(([c, group]) => contentToDraftElement(c, group));
+    contentLoaded = true;
     renderList();
-  }).catch(() => { /* content unavailable — the built-ins and families still list */ });
+  }).catch(() => { contentLoaded = true; renderList(); });   // unavailable is still SETTLED
 
-  return {
+  const handle: DraftPanelHandle = {
     onArmCleared() { if (armedKey) { armedKey = null; renderForm(); } },
     armByKey(key: string): string | null {
       const s = allElements().find((e) => e.key === key);
@@ -205,4 +261,5 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       return s.label;
     },
   };
+  return handle;
 }
