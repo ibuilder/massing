@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from . import auth
 from .db import get_db
 from .models import ProjectMember
 
@@ -281,13 +282,20 @@ def grant(db: Session, project_id: str, user: str, role: str,
           party_role: str | None = None) -> ProjectMember:
     if role not in ROLE_ORDER:
         raise HTTPException(400, f"invalid role {role!r}")
-    existing = db.query(ProjectMember).filter(
-        ProjectMember.project_id == project_id, ProjectMember.user == user).first()
-    if existing:
-        existing.role = role
+    # A SEEDING RACE ON THE AUTHORISATION TABLE, and it read as safe because the insert is not in a
+    # branch — it sits after the early `return` above, at function scope, which is precisely the
+    # shape `test_seeding_sweep` names as its own blind spot. Two concurrent grants both read "not a
+    # member" and both INSERT; `remove_member` then deletes `.first()`, one row, and the person keeps
+    # the project while the route reports success. The savepoint below needs
+    # `uq_project_members_project_user` to have anything to catch — both halves ship together.
+    m, created = auth.get_or_create_by_key(
+        db, ProjectMember,
+        (ProjectMember.project_id == project_id, ProjectMember.user == user),
+        lambda: ProjectMember(project_id=project_id, user=user, role=role, party_role=party_role))
+    if not created:
+        # Re-grant is an UPDATE, exactly as before: "add this member" run twice sets the role rather
+        # than failing. The loser of a race lands here too, folding into the winner's row.
+        m.role = role
         if party_role is not None:
-            existing.party_role = party_role
-        return existing
-    m = ProjectMember(project_id=project_id, user=user, role=role, party_role=party_role)
-    db.add(m)
+            m.party_role = party_role
     return m

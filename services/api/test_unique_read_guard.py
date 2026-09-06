@@ -45,8 +45,24 @@ A grep for "UniqueConstraint" would have called the first one unprotected. This 
 That `.first()` is used correctly. `.first()` on an ambiguous query does not raise — it silently
 returns whichever row the database felt like, which is a WRONG ANSWER rather than an error, and is
 strictly harder to detect. `saved_views` had exactly that shape and forked people's saved reports in
-two. That population is much larger and is not derivable this way; it is named here so the next
-reader knows this gate's edge rather than inferring a completeness it does not have.
+two. It is named here so the next reader knows this gate's edge rather than inferring a completeness
+it does not have.
+
+**That edge has now been MEASURED rather than left as a warning, and walking it found a live defect
+on the authorisation table.** 35 `.first()` sites across both service trees: 10 carry an `order_by`
+or `limit` (the choice is deterministic and intended — "the latest scenario"), 2 filter on a unique
+key, 8 could not be resolved to a model, and **11 were ambiguous**. Five of the eleven were
+`project_members`, where `rbac.grant` is a read-decide-insert on `(project_id, user)` over two
+SEPARATE non-unique indexes — so `remove_member`, which deletes `.first()`, removed one of two rows
+and left the person with the project while returning 200. Fixed in `a3c7d9e4f218`; see
+`services/api/test_member_role_race.py`.
+
+**Six ambiguous sites remain and are deliberately NOT gated here** — `Topic(guid, project_id)` ×2,
+`Viewpoint(guid)`, `ModelVersion(project_id, version)` ×3 — because none of them has been traced to
+a reachable duplicate yet, and a gate that demands a constraint before anyone has established one is
+wanted would be answering a question nobody asked. They are recorded as the next sweep axis in
+`docs/roadmap.md` rather than as an `EXEMPT` entry here, because an exemption asserts safety and
+nothing here has established theirs.
 """
 from __future__ import annotations
 

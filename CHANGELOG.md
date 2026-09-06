@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — removing a member from a project reported success and did not remove them
+
+`project_members` has carried two SEPARATE non-unique indexes since the schema baseline — one on
+`project_id`, one on `user`, nothing spanning the pair — and `rbac.grant` is a read-decide-insert on
+exactly that pair. Two concurrent grants for one person (an admin double-clicking "Add member", a
+SCIM sync racing a manual add) both read "not a member" and both INSERT.
+
+**`remove_member` deletes `.first()` — one row.** With a duplicate present the route returns 200, the
+person disappears from the member list, and they still have the project. `rbac.role_for` reads
+`.first()` too, and `require_role` calls it on every protected route, so the effective permission was
+whichever row the database happened to return.
+
+Fixed the same way as this morning's three, because at this size the fix is the same: a unique index
+(`a3c7d9e4f218`) plus `auth.get_or_create_by_key`. The dedupe keeps the **highest** role rather than
+the earliest row, and that differs from the sibling migrations deliberately — these rows are
+permissions, and the two failure directions are not symmetric. Keeping the least-privileged row can
+demote a project's only admin, which nothing in the app can undo from the inside; keeping the most
+privileged can leave someone with more access than intended, which is visible in the member list and
+one click to correct. `party_role` and `company` are carried forward off the rows being removed.
+
+**`test_seeding_sweep` could not have caught this, and its docstring already said so.** It reports a
+conditional branch that inserts a mapped model; `grant` puts the insert at function scope after an
+early `return`, which that gate names as its own blind spot. A named limit is still a limit — writing
+it down did not stop a live instance from sitting inside it on the authorisation table. It was found
+from the read side instead, by measuring the `.first()` population the new read-guard names as its
+edge: 35 sites, 11 ambiguous, five of them this one table.
+
+Verified: the duplicate reproduced against the pre-fix schema and revocation shown to fail; the fixed
+schema refuses the second row; `grant` run twice updates rather than inserting; a lost race folds into
+the winner's row; the migration's dedupe exercised against a seeded dirty database, keeping the admin
+row and carrying `party_role` forward off a losing one; `alembic check` reports no drift.
+
 ## Unreleased — the reads that demand one row, asked whether anything guarantees it
 
 The other half of this morning's seeding work. That fixed the WRITERS — conditional inserts with

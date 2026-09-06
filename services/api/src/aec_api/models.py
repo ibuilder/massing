@@ -137,6 +137,17 @@ class ProjectMember(Base):
       - CRUD capability role: viewer < reviewer < editor < admin
       - party role (workflow gate): GC | Owner | OwnersRep | Consultant | Subcontractor"""
     __tablename__ = "project_members"
+    #: ONE membership row per person per project. Until 2026-09-06 this table had only the two
+    #: separate non-unique indexes below, and `rbac.grant` is a read-decide-insert on the pair — so
+    #: two concurrent grants (a double-clicked "Add member", a SCIM sync racing a manual add) both
+    #: read "not a member" and both INSERT. The consequence is not cosmetic: `remove_member` deletes
+    #: `.first()`, i.e. ONE row, so the route returns 200, the member vanishes from the list, and the
+    #: person still has the project. **Revocation reported success and did not happen.**
+    #: A unique INDEX rather than a UniqueConstraint, for the reason recorded on ElementVerification:
+    #: the two are different objects on Postgres and indistinguishable on SQLite, and `alembic check`
+    #: drifts permanently if the migration and the model disagree about which one this is.
+    __table_args__ = (Index("uq_project_members_project_user",
+                            "project_id", "user", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     user: Mapped[str] = mapped_column(String, index=True)
