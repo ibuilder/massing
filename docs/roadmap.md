@@ -222,6 +222,49 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > subsystem to ship re-opens all three, and the date above is what to compare against.
 >
 > **The three sweeps did not want the same method, and assuming they would was the thing to avoid.**
+>
+> ### 🔴 AMBIGUOUS-READ SWEEP RUN 2026-09-06 — **a live defect on the authorisation table**
+>
+> Fourth axis, and it refills this band. Chosen because the day's three seeding fixes were all
+> WRITERS, and the mirror question had not been asked: *which reads assume a uniqueness the schema
+> does not enforce?*
+>
+> Two populations, derived rather than listed. **Unique-demanding reads** (`scalar_one_or_none`,
+> `one_or_none`, `one`) raise `MultipleResultsFound` on a second row: 5 sites, all established —
+> 3 backed by a constraint, 1 an aggregate, 1 exempt (`cloud_identities.cloud_sub`, safe by an
+> ordering invariant rather than by the schema; making it unique is a product decision because it
+> would forbid two local accounts linked to one cloud identity). Gated by
+> `services/api/test_unique_read_guard.py`, which **fails closed** — an unresolvable site reds the
+> build rather than being skipped.
+>
+> **`.first()` is the larger and nastier half**, because it raises nothing: it returns whichever row
+> the database felt like, so the failure is a wrong answer rather than an error. 35 sites — 10
+> deterministic by `order_by`, 2 on a unique key, 8 unresolvable, **11 ambiguous**. Five of the
+> eleven were one table.
+>
+> **`project_members` had no constraint spanning `(project_id, user)`** — two separate non-unique
+> indexes, since the schema baseline. `rbac.grant` is a read-decide-insert on that pair, so two
+> concurrent grants (a double-clicked "Add member", a SCIM sync racing a manual add) both write.
+> Then: `role_for` reads `.first()` and `require_role` calls it on **every protected route**, so the
+> effective permission is whichever row came back; and **`remove_member` deletes `.first()`, one
+> row** — the route returns 200, the person vanishes from the member list, and they still have the
+> project. **Revocation reported success and did not happen.** Fixed in `a3c7d9e4f218` +
+> `auth.get_or_create_by_key`; reproduced against the pre-fix schema in
+> `services/api/test_member_role_race.py` before being fixed.
+>
+> **`test_seeding_sweep` could not have found it, and had already said so.** Its docstring names
+> *"an insert guarded by an early `return`"* as what it still cannot see, and `grant` is written
+> exactly that way — the insert sits at function scope after the early return, in no branch. *A
+> named limit is still a limit*: writing the blind spot down did not stop a live instance sitting
+> inside it, on the authorisation table, while the gate reported `0 unguarded`. It took a second
+> derivation, from the opposite direction, to reach it.
+>
+> **The next axis is already named and measured**: the six ambiguous `.first()` sites left —
+> `Topic(guid, project_id)` ×2, `Viewpoint(guid)`, `ModelVersion(project_id, version)` ×3. None has
+> been traced to a reachable duplicate, which is why none is exempted: an exemption asserts safety,
+> and nothing has established theirs. `ModelVersion` is the one to read first — `version` is
+> computed, so two concurrent uploads can compute the same number.
+
 
 
 ### Band 2 — built but unreachable (cheapest real value in the file)

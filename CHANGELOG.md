@@ -4,6 +4,93 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — removing a member from a project reported success and did not remove them
+
+`project_members` has carried two SEPARATE non-unique indexes since the schema baseline — one on
+`project_id`, one on `user`, nothing spanning the pair — and `rbac.grant` is a read-decide-insert on
+exactly that pair. Two concurrent grants for one person (an admin double-clicking "Add member", a
+SCIM sync racing a manual add) both read "not a member" and both INSERT.
+
+**`remove_member` deletes `.first()` — one row.** With a duplicate present the route returns 200, the
+person disappears from the member list, and they still have the project. `rbac.role_for` reads
+`.first()` too, and `require_role` calls it on every protected route, so the effective permission was
+whichever row the database happened to return.
+
+Fixed the same way as this morning's three, because at this size the fix is the same: a unique index
+(`a3c7d9e4f218`) plus `auth.get_or_create_by_key`. The dedupe keeps the **highest** role rather than
+the earliest row, and that differs from the sibling migrations deliberately — these rows are
+permissions, and the two failure directions are not symmetric. Keeping the least-privileged row can
+demote a project's only admin, which nothing in the app can undo from the inside; keeping the most
+privileged can leave someone with more access than intended, which is visible in the member list and
+one click to correct. `party_role` and `company` are carried forward off the rows being removed.
+
+**The read-side gate that found it shipped with two fail-OPEN holes of its own, both caught in
+review.** `test_unique_read_guard` collected a query's filtered columns with `ast.walk`, which unions
+an OR's branches — `where(or_(a == 1, b == 2))` looked like a conjunction on `(a, b)` and could
+borrow a unique key it does not satisfy. And it treated any call in the selector as an aggregate, so
+`db.query(func.lower(X))` was exempted from the gate entirely. Both are the same mistake: answering a
+question about MEANING with a test of SHAPE, in the fail-closed direction's exact opposite. Neither
+could have shown up in a report — they produced BACKED and AGGREGATE, which is what a healthy tree
+looks like. Fixed by pinning columns only through AND-shaped equality and by naming the aggregate
+functions explicitly; fixtures now assert the verdicts, and each was run against the pre-fix
+analyser first to confirm it came back safe there.
+
+That fix then had a third hole of the same kind, found by the same review: AND-shaped `==` still
+accepted `X.a == X.b`, an equality between two mapped columns, which correlates them rather than
+pinning either — so a pair of self-comparisons assembled a whole composite key out of predicates
+that restrict nothing. A column now counts only when its comparator contains no mapped attribute.
+**A narrowed rule is not a sound rule**, and the second draft of a fail-closed check earns no more
+trust than the first.
+
+Two race tests also had their `DATABASE_URL` changed from `setdefault` to an assignment. Under
+`run_tests.py` either is safe, but these files document how to run them directly, and `setdefault`
+then hands them whatever DSN the shell carries — a developer's dev database, into a test that creates
+tables and deletes rows. The assignment form is also the one `run_tests.py`'s sweeper can read.
+
+**`test_seeding_sweep` could not have caught this, and its docstring already said so.** It reports a
+conditional branch that inserts a mapped model; `grant` puts the insert at function scope after an
+early `return`, which that gate names as its own blind spot. A named limit is still a limit — writing
+it down did not stop a live instance from sitting inside it on the authorisation table. It was found
+from the read side instead, by measuring the `.first()` population the new read-guard names as its
+edge: 35 sites, 11 ambiguous, five of them this one table.
+
+Verified: the duplicate reproduced against the pre-fix schema and revocation shown to fail; the fixed
+schema refuses the second row; `grant` run twice updates rather than inserting; a lost race folds into
+the winner's row; the migration's dedupe exercised against a seeded dirty database, keeping the admin
+row and carrying `party_role` forward off a losing one; `alembic check` reports no drift.
+
+## Unreleased — the reads that demand one row, asked whether anything guarantees it
+
+The other half of this morning's seeding work. That fixed the WRITERS — conditional inserts with
+nothing holding the world still. `services/api/test_unique_read_guard.py` walks the READERS:
+`scalar_one_or_none()` and `one_or_none()` do not prefer a single row, they **raise** on two, so a
+read filtered on columns the schema does not constrain is a 500 that arms itself the first time a
+duplicate appears and never disarms. That is exactly how `element_verifications` became permanently
+unreadable for an element, and this gate would have found it from the query side without anyone
+looking at the inserts.
+
+**No live defect.** 5 unique-demanding reads: 3 backed by a unique constraint, 1 an aggregate that
+returns one row by construction, 1 exempt. The exempt one is `cloud_identities.cloud_sub`, read with
+`one_or_none()` over an index that is **not** unique. Traced serially and under concurrency: the only
+creator runs in the branch where that same query just proved no row holds the sub, and it keys on
+`username` — a primary key — through `auth.get_or_create_by_pk`, so no duplicate is reachable. It is
+recorded as an exemption rather than fixed with a unique index because making it unique is a product
+decision, not a cleanup: it would forbid two local accounts deliberately linked to one cloud identity,
+and nothing here establishes that nobody wants that.
+
+The gate **fails closed** — a call site it cannot resolve is reported as UNKNOWN and reds the build,
+rather than being skipped, because both of `test_seeding_sweep`'s blind spots were a predicate
+deciding what to look at. **Its own first draft repeated that bug one layer up.** The self-test
+asserted the analyser still *reported* an unresolvable read, and a mutation routing every unresolvable
+read to "safe" passed anyway: reporting a site and classifying it are two different questions, and the
+test asked only the first. The verdict is now a separate function so it can be mutated directly. Four
+mutations run — dropping the real unique index, deleting the exemption, the fail-open reclassification,
+and a newly added unguarded read — all four caught.
+
+Uniqueness is asked of SQLAlchemy's metadata, never of the source text: `UniqueConstraint` and
+`Index(..., unique=True)` are both in use deliberately, and a grep for the former would have called
+`uq_element_verifications_project_guid` unprotected.
+
 ## Unreleased — the palette rows have a shape now, and it is not the shape the roadmap asked for
 
 UX-3's last unshipped item was "thumbnails". Every Draft-palette row now carries a line-art glyph

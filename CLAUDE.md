@@ -163,6 +163,24 @@ a candidate and the only shape detected is the conditional insert, which is synt
 that decides what to LOOK at is more dangerous than one that decides what to report**, because
 everything it excludes is invisible to its own output — the count looked complete both times.
 
+**An eighth joined them on 2026-09-06: `services/api/test_unique_read_guard.py`** — the READ side of the
+seventh. `test_seeding_sweep` walks conditional inserts; this walks the queries that DEMAND one row.
+`scalar_one_or_none()` does not prefer a single row, it **raises** on two — so a read filtered on
+columns the schema does not constrain is a 500 that arms itself the first time a duplicate appears
+and never disarms. It would have found the `element_verifications` defect **without anyone looking at
+the writers**, which is the argument for having both: a future instance must now evade two unrelated
+derivations rather than one. Population today: 5 reads — 3 backed by a unique constraint, 1 aggregate,
+1 exempt. The exemption is `cloud_identities.cloud_sub`, which is indexed and NOT unique: at most one
+row can carry a given sub, but the *ordering* guarantees it rather than the schema, and making it
+unique is a product decision (it would forbid two local accounts deliberately linked to one cloud
+identity) rather than a cleanup.
+**It fails CLOSED, and that is the whole design** — a call site the analyser cannot resolve is
+reported as UNKNOWN and reds the build, because the two blind spots above were both a predicate
+deciding what to LOOK at. **And its own first draft had the same bug one layer up**: the self-test
+asserted the analyser still *reported* an unresolvable read, so a mutation routing every unresolvable
+read to "safe" PASSED. *Reporting a site and classifying it are two different questions, and asserting
+one is not asserting the other.* The verdict function is now separate so it can be mutated directly.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including
