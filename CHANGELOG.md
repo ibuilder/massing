@@ -38,6 +38,13 @@ discipline and each off-chip hit says which one it came from; with the box empty
 list exactly as before, which is asserted so the chips cannot quietly become decoration. Verified by
 reinstating the old filter and watching the two behavioural assertions go red.
 
+**Enter in that box now arms the top match**, so filtering 90 rows down to one no longer ends with
+reaching for the mouse: type "wal", press Enter, click in the model. It routes through the existing
+`armByKey` the keyboard shortcuts already use rather than reimplementing the arming path, and it
+reads the list the panel last DREW rather than recomputing one, so the key cannot act on a different
+list from the one on screen. A filter matching nothing arms nothing and says so. Three mutations:
+removing the handler, firing it on every key, and arming `listed[0]` without the empty guard.
+
 ## Unreleased — the gate shipped that morning was blind to a read done through a helper
 
 `test_seeding_sweep` landed a few hours ago reporting **0 unguarded** seeding sites. It was not

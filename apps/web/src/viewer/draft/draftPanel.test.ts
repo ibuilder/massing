@@ -20,14 +20,15 @@ function mount(content: [ContentDef, string][] = []) {
   const body = document.createElement("div");
   document.body.appendChild(body);
   const armed: (ArmedDraft | null)[] = [];
+  const notify = vi.fn((_m: string, _k?: "info" | "success" | "error") => {});
   const handle = installDraftPanel({
     body,
     fetchFamilies: () => Promise.resolve([]), fetchContent: () => Promise.resolve(content),
     arm: (a) => { armed.push(a); },
-    notify: vi.fn((_m: string, _k?: "info" | "success" | "error") => {}),
+    notify,
     canAuthor: () => true,
   });
-  return { body, armed, handle };
+  return { body, armed, handle, notify };
 }
 
 const TREE: ContentDef = {
@@ -210,6 +211,31 @@ describe("the search box is not scoped to the active discipline", () => {
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.some((l) => l.includes("Column")),
       "a Structural element is listed under the Architectural chip with no query").toBe(false);
+  });
+
+  it("Enter arms the top match, so a filtered pick needs no mouse", () => {
+    const { body, armed } = mount();
+    type(body, "column");
+    filter(body).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(armed.at(-1)?.label).toBe("Column");
+    expect(armed.at(-1)?.recipe).toBe("add_column");
+  });
+
+  it("Enter on a filter that matches nothing arms nothing and says why", () => {
+    const { body, armed, notify } = mount();
+    type(body, "zzzznotathing");
+    filter(body).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(armed, "a no-match Enter armed something").toHaveLength(0);
+    expect(notify.mock.calls.at(-1)?.[1]).toBe("error");
+  });
+
+  it("a key that is not Enter does not arm — the box is still a text field", () => {
+    const { body, armed } = mount();
+    type(body, "column");
+    for (const key of ["a", "ArrowDown", "Escape", "Tab"]) {
+      filter(body).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }
+    expect(armed).toHaveLength(0);
   });
 
   it("a query that matches nothing says so in the query's terms, not the chip's", async () => {

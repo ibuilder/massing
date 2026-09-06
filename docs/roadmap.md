@@ -2992,6 +2992,11 @@ removed. Remaining, in priority order:
   code around the row rather than by looking for it: *the roadmap called this item "library depth",
   and the thing actually in the way of finding an element was the search.*
 
+  ✅ **Enter in the filter box arms the top match** — type "wal", press Enter, click in the model.
+  The box could narrow 90 rows to one and then still required the mouse. It routes through the
+  existing `armByKey` the KEYS shortcuts already use, and reads the list the panel last *drew* rather
+  than recomputing one, so the keystroke cannot act on a different list from the one on screen.
+
   ✅ **DARK-RECIPES, shipped 2026-09-05 — the coverage matrix counted ten capabilities no user could
   invoke.** `edit.RECIPES` holds 96 authoring recipes and `authoring_matrix.py` publishes them as the
   authoring-coverage matrix, whose docstring calls it *"an honest, single-source answer to 'what can

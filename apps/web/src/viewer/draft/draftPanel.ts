@@ -74,6 +74,16 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   search.type = "search"; search.placeholder = "Filter elements…"; search.setAttribute("aria-label", "Filter draft elements");
   search.style.cssText = "width:100%;margin-bottom:6px";
   search.oninput = () => renderList();
+  // Type a few letters, press Enter, click in the model. Without this the filter box narrows 90 rows
+  // to one and then makes you reach for the mouse anyway — and `armByKey` already exists for the
+  // KEYS shortcuts, so the arming path is shared rather than reimplemented here.
+  search.onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const first = listed[0];
+    if (!first) { deps.notify("no element matches that filter", "error"); return; }
+    handle.armByKey(first.key);      // handles canAuthor(), the notify and the form/selection state
+  };
   body.appendChild(search);
 
   const list = el("div"); list.style.cssText = "max-height:220px;overflow:auto;margin-bottom:6px";
@@ -87,6 +97,11 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   // in the same edit, rather than by two implementations that can disagree.
   function allElements(): DraftElement[] { return [...DRAFT_ELEMENTS, ...families, ...content]; }
 
+  /** What `renderList` last drew, in order. Enter in the filter box arms `listed[0]` — it is read
+   *  from the render rather than recomputed, so the key press cannot act on a different list from
+   *  the one on screen. */
+  let listed: DraftElement[] = [];
+
   function renderList() {
     for (const d of DISCIPLINES) chipBtns[d]?.classList.toggle("on", d === discipline);
     const q = search.value.trim().toLowerCase();
@@ -99,6 +114,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     const items = q ? allElements().filter(matches)
                     : allElements().filter((e) => e.discipline === discipline);
     list.innerHTML = "";
+    listed = items;
     if (!items.length) {
       const n = el("div", "meta");
       n.textContent = !familiesLoaded ? "loading families…"
@@ -209,7 +225,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     renderList();
   }).catch(() => { /* content unavailable — the built-ins and families still list */ });
 
-  return {
+  const handle: DraftPanelHandle = {
     onArmCleared() { if (armedKey) { armedKey = null; renderForm(); } },
     armByKey(key: string): string | null {
       const s = allElements().find((e) => e.key === key);
@@ -226,4 +242,5 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       return s.label;
     },
   };
+  return handle;
 }
