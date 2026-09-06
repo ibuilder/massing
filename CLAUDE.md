@@ -139,6 +139,22 @@ transitive availability is a fact about somebody else's metadata that can change
 here reviews. (The list above still says "four" on purpose — that sentence is about which of the
 ORIGINAL four names were wrong, and rewriting it to say "five" would quietly destroy the record.)
 
+**A seventh joined them on 2026-09-06: `services/api/test_seeding_sweep.py`** — is the seeding sweep
+real, or only written down? Five find-or-create races were fixed across 2026-08-25/27 and what bound
+them was recorded as prose in comments beside each fix. **A sweep held as prose is a check that can
+only report good news**, and there were four more sites: the ones keyed by a composite NATURAL key
+rather than a primary one, which `get_or_create_by_pk` could not express — so they stayed
+unconverted *and unmentioned*. **A sweep is bounded by the fix available to it.** They were also the
+worse ones: a primary key refuses the loser's INSERT (one 500, and the retry works), while a
+non-unique index refuses nothing, so the race does not fail — **it succeeds twice**, and
+`scalar_one_or_none` then raises on every later read of that element, permanently. *Severity ran
+opposite to the order the sites were found in.* The gate derives the population by AST instead of
+listing it — **and its own first draft found one of the four known races and reported the tree
+clean**, because it looked for the `Model(...)` assignment only inside the statement holding the
+`.add()`, and the doors are written as two statements. It now runs itself against the pre-fix SAML
+door and must find it before it may report anything. *Derive the population AND prove the derivation
+reaches it.*
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

@@ -393,3 +393,56 @@ def get_or_create_by_pk(db, model, pk, make_row):
         if row is None:                     # pragma: no cover - not a seeding collision after all
             raise
         return row, False
+
+
+def get_or_create_by_key(db, model, where, make_row):
+    """Find-or-create `model` by a composite NATURAL key, surviving a lost seeding race.
+    Returns ``(row, created)``. `where` is the criteria identifying the row, as for `select().where`.
+
+    **The variant `cost_db` asked for, and the reason the 2026-08-27 sweep left four sites.** That
+    sweep converted every seeding site whose key was a PRIMARY key, because `get_or_create_by_pk`
+    was the only shape it had — and `cost_db.import_custom_vintage` wrote down what was left over:
+    *"this wants `auth.get_or_create_by_pk`'s idiom with a query instead of a primary key."* Nothing
+    was built for it, so the sites keyed by a natural key stayed unconverted AND unmentioned. **A
+    sweep is bounded by the fix available to it**, and the leftovers do not announce themselves.
+
+    **Those sites are WORSE than the primary-key races, not milder, and the missing constraint is
+    exactly why.** When the key is a PRIMARY key the database refuses the loser's INSERT: one 500,
+    and the retry succeeds because the winner's row now exists. When the key is only a non-unique
+    index, nothing refuses anything — the loser's row is *written*, and the table holds two rows for
+    one logical thing. `element_verifications` is then read with `scalar_one_or_none()`, so every
+    LATER read of that element raises `MultipleResultsFound`: a **permanent** 500 that no retry
+    clears, on an element a field engineer can no longer verify. `saved_views` is read with
+    `.first()`, which raises nothing and silently forks the user's saved report in two.
+
+    So the UNIQUE constraint is not decoration around this helper, it is the half that makes it
+    work — the savepoint has nothing to catch until the constraint exists. Both ship together in
+    `d5f2a81c6b47`.
+
+    The re-read uses `.first()` rather than `scalar_one_or_none()` deliberately: this helper is what
+    a caller reaches for when it has just lost a race, and it must not be the thing that raises on a
+    duplicate the migration has not yet cleaned up.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+
+    def _read():
+        return db.execute(select(model).where(*where)).scalars().first()
+
+    row = _read()
+    if row is not None:
+        return row, False
+    try:
+        with db.begin_nested():
+            row = make_row()
+            db.add(row)
+            db.flush()
+        return row, True
+    except IntegrityError:
+        # The unique constraint refused the loser's INSERT. That refusal is the database working;
+        # before the constraint existed there was nothing to refuse and the duplicate simply landed.
+        # The savepoint kept the failure local, so the caller's other staged rows survive.
+        row = _read()
+        if row is None:                     # pragma: no cover - not a seeding collision after all
+            raise
+        return row, False

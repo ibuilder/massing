@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import storage
+from .. import auth, storage
 from ..db import get_db
 from ..models import ElementVerification
 from ..rbac import require_role
@@ -122,11 +122,16 @@ def set_status(pid: str, guid: str, body: dict = Body(...), db: Session = Depend
         raise HTTPException(422, f"status must be one of {', '.join(STATUSES)}")
     _ensure_loaded(pid)
     el = _INDEX.get(pid, {}).get(guid) or {}
-    v = db.execute(select(ElementVerification).where(
-        ElementVerification.project_id == pid, ElementVerification.guid == guid)).scalar_one_or_none()
-    if v is None:
-        v = ElementVerification(project_id=pid, guid=guid)
-        db.add(v)
+    # The seeding race, on a NATURAL key rather than a primary one — which made it worse, not
+    # milder. Two field engineers marking the same element in the same moment both read None and
+    # both inserted, and until `uq_element_verifications_project_guid` existed nothing refused the
+    # second row. The `scalar_one_or_none()` this line used to be then raised `MultipleResultsFound`
+    # on EVERY later read of that element — status, photo, coverage dashboard — so the element
+    # became permanently unverifiable rather than transiently 500ing once.
+    v, _created = auth.get_or_create_by_key(
+        db, ElementVerification,
+        (ElementVerification.project_id == pid, ElementVerification.guid == guid),
+        lambda: ElementVerification(project_id=pid, guid=guid))
     v.status = status
     if "note" in body:
         v.note = body.get("note")
@@ -269,8 +274,13 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
 
     storage.put(key, data)
     if v is None:
-        v = ElementVerification(project_id=pid, guid=guid, status="installed", verified_by=user)
-        db.add(v)
+        # Same race, same table, one route over — and the reason this helper takes a callable: the
+        # row this path seeds carries a status and an author that `set_status`'s does not.
+        v, _created = auth.get_or_create_by_key(
+            db, ElementVerification,
+            (ElementVerification.project_id == pid, ElementVerification.guid == guid),
+            lambda: ElementVerification(project_id=pid, guid=guid, status="installed",
+                                        verified_by=user))
     v.photo_key = key
     # NULL when the bytes could not be decoded, so this row stays out of every future comparison
     # rather than joining it with a fingerprint of nothing.

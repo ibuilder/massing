@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a field engineer could put an element permanently beyond verifying, by tapping twice
+
+Two people marking the same element installed in the same second — or one person on a flaky site
+connection whose phone retried — wrote **two rows** for that element. `element_verifications` is
+read with `scalar_one_or_none()`, so from that moment on *every* request touching it raised: setting
+its status, uploading a photo, the install-coverage rollup. The element was permanently unverifiable
+and nothing short of deleting a row by hand brought it back.
+
+The route's own docstring said it *"upserts by (project, guid)"*. The table had three **non-unique**
+indexes on those columns. `saved_views` carried the same mismatch — *"Owned by project + module +
+user + name"*, nothing enforcing it — where the failure is quieter and arguably nastier: `.first()`
+raises nothing, so a lost race silently **forks the saved report in two** and the author edits one
+copy while everyone runs the other.
+
+Fixed in both halves, which do not work apart: `UNIQUE` constraints (migration `d5f2a81c6b47`,
+de-duplicating first and carrying a photo or note forward from the row it removes) and
+`auth.get_or_create_by_key`, which inserts inside a SAVEPOINT so losing the race folds into the
+winner's row instead of writing a second one — and leaves the session usable, so the audit entry the
+caller staged still commits.
+
+### The sweep that missed them was bounded by the fix it had to hand
+
+This is the same defect the 2026-08-25 sign-in-door work fixed, and those four sites were **all**
+keyed by a PRIMARY key. That is not a coincidence, it is the selection: `get_or_create_by_pk` was
+the only shape available, so the sites it could not express stayed unconverted **and unmentioned**.
+`cost_db.import_custom_vintage` had even written down what was missing — *"this wants
+`auth.get_or_create_by_pk`'s idiom with a query instead of a primary key"* — and nothing acted on it
+for ten days, because a note in a comment is not a check.
+
+**And the primary-key sites were the mild ones.** There the database refuses the loser's INSERT: one
+500, self-clearing, because the retry finds the winner's row. Where the key is only an index nothing
+refuses anything, so the race does not fail — **it succeeds twice**, and the damage is permanent.
+The severity ran opposite to the order they were found in.
+
+`services/api/test_seeding_sweep.py` replaces the prose with a derivation: it walks both service
+source trees for read-decide-insert on a mapped model and requires each site to be guarded or carry
+a stated reason. Its own first draft found **one** of the four known races and pronounced the tree
+clean — the sign-in doors write `u = User(...)` and `db.add(u)` as two statements and it only looked
+inside one. So the gate now runs itself against the pre-fix SAML door and requires a hit before it
+is allowed to report anything: a completeness verdict from an unvalidated detector is confident and
+unfounded.
+
 ## Unreleased — wall joins had a route, a client method, and no way for anyone to use it
 
 Walls are authored to their **centrelines**, so an L or T meeting leaves the corner open or the stub

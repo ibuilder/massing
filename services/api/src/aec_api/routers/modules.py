@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import ai, audit, mailer, rbac, ref_backfill, rooms
+from .. import ai, audit, auth, mailer, rbac, ref_backfill, rooms
 from .. import modules as mod_engine
 from .. import sync as sync_engine
 from ..db import get_db
@@ -451,14 +451,18 @@ def save_view(pid: str, key: str, name: str = Body(..., embed=True),
     # Ownership is still (project, module, user, name): sharing a view does not move it, and two
     # people may hold same-named views without colliding. Only the owner's row is ever written here,
     # so this route cannot edit somebody else's shared report.
-    v = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
-                                   SavedView.user == user, SavedView.name == name).first()
-    if v:
-        v.config = config
-        v.scope = scope
-    else:
-        v = SavedView(project_id=pid, module=key, user=user, name=name, config=config, scope=scope)
-        db.add(v)
+    # Seeding race on the natural key this route claims to own. `.first()` never raised on a
+    # duplicate, so a lost race did not fail — it FORKED the view: two rows, the user editing one
+    # and running the other, with no error anywhere to say so. `uq_saved_views_owner_name` now
+    # refuses the second insert and the helper folds this request into the winner's row.
+    v, _created = auth.get_or_create_by_key(
+        db, SavedView,
+        (SavedView.project_id == pid, SavedView.module == key,
+         SavedView.user == user, SavedView.name == name),
+        lambda: SavedView(project_id=pid, module=key, user=user, name=name,
+                          config=config, scope=scope))
+    v.config = config
+    v.scope = scope
     db.commit()
     return {"id": v.id, "name": v.name, "config": v.config, "scope": v.scope,
             "owner": v.user, "mine": True}
