@@ -155,6 +155,14 @@ clean**, because it looked for the `Model(...)` assignment only inside the state
 door and must find it before it may report anything. *Derive the population AND prove the derivation
 reaches it.*
 
+**And it was blind a SECOND time, within hours of merging.** To decide whether a conditional insert
+was a get-or-create it required the model's name in a lookup call *in the same function* — so
+`modules.add_enum_option`, which reads through the helper `list_enum_options`, was skipped silently,
+and behind it sat a third live instance of the class. The precondition is gone: every mapped model is
+a candidate and the only shape detected is the conditional insert, which is syntactic. **A predicate
+that decides what to LOOK at is more dangerous than one that decides what to report**, because
+everything it excludes is invisible to its own output — the count looked complete both times.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

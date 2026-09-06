@@ -255,6 +255,55 @@ try:
 finally:
     db.close()
 
+# --------------------------------------------------------------------------------------------
+print("\ncustom enum options — the third instance, and the one the FIRST gate could not see")
+# Found by relaxing test_seeding_sweep's own predicate: it required the model's name to appear in a
+# lookup call in the same function, and `add_enum_option` reads through `list_enum_options(db, pid)`.
+# So a gate reporting "0 unguarded" was not looking at this site at all. The gate no longer asks
+# whether a function read the model first; see its docstring.
+db = SessionLocal()
+try:
+    from aec_api.models import EnumOption
+
+    other = SessionLocal()
+    other.add(EnumOption(project_id=PID, module="rfis", field="discipline", value="Facade",
+                         created_by="winner"))
+    other.commit()
+    other.close()
+
+    real = db.execute
+    seen = {"n": 0}
+
+    def execute(statement, *a, **kw):                        # noqa: ANN001 - local shim
+        if seen["n"] == 0 and "enum_options" in str(statement):
+            seen["n"] = 1
+
+            class _E:
+                def scalars(self):
+                    return self
+
+                def first(self):
+                    return None
+            return _E()
+        return real(statement, *a, **kw)
+
+    db.execute = execute
+    row, created = auth.get_or_create_by_key(
+        db, EnumOption,
+        (EnumOption.project_id == PID, EnumOption.module == "rfis",
+         EnumOption.field == "discipline", EnumOption.value == "Facade"),
+        lambda: EnumOption(project_id=PID, module="rfis", field="discipline", value="Facade",
+                           created_by="loser"))
+    db.commit()
+    db.execute = real
+    n = db.scalar(sa.select(sa.func.count()).select_from(EnumOption)
+                  .where(EnumOption.project_id == PID))
+    check("the option is stored once, so it cannot appear twice in the dropdown "
+          "(list_enum_options APPENDS — it does not de-duplicate)", n == 1 and created is False,
+          (n, created))
+finally:
+    db.close()
+
 print()
 if FAILED:
     print(f"NATURAL KEY RACE FAILED - {len(FAILED)}: {FAILED}")

@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session
 
-from . import audit, fin_gov, module_schema, rbac
+from . import audit, auth, fin_gov, module_schema, rbac
 from .models import EnumOption, RecordActivity, RecordComment, Topic
 
 # the read + workflow-evaluation base is a leaf over the registry (no writes, no cycles); re-exported
@@ -1180,8 +1180,18 @@ def add_enum_option(db: Session, project_id: str, module: str, field: str, value
     existing = set(f.get("options", [])) | set(
         list_enum_options(db, project_id).get(module, {}).get(field, []))
     if value not in existing:
-        db.add(EnumOption(project_id=project_id, module=module, field=field,
-                          value=value, created_by=actor))
+        # The docstring above promises idempotence, and this read-decide-insert could not deliver
+        # it under concurrency: two people adding the same option both saw `not in existing` and
+        # both inserted. `list_enum_options` APPENDS, so the value then showed up twice in the
+        # dropdown and stayed. Same class as the verification and saved-view races, milder in
+        # effect and identical in shape; `uq_enum_options_project_module_field_value` now refuses
+        # the second insert and the helper folds this request into the winner's row.
+        auth.get_or_create_by_key(
+            db, EnumOption,
+            (EnumOption.project_id == project_id, EnumOption.module == module,
+             EnumOption.field == field, EnumOption.value == value),
+            lambda: EnumOption(project_id=project_id, module=module, field=field,
+                               value=value, created_by=actor))
         db.commit()
     return {"module": module, "field": field, "value": value,
             "options": list_enum_options(db, project_id).get(module, {}).get(field, [])}

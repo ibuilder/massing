@@ -374,6 +374,13 @@ class EnumOption(Base):
     enum (e.g. a firm's own discipline/trade/type), so users extend dropdowns without editing
     JSON. Merged with the module.json options at read time. Keyed by project + module + field."""
     __tablename__ = "enum_options"
+    #: `add_enum_option`'s docstring promises it "is idempotent against the JSON options + existing
+    #: customs", and until 2026-09-06 the table had only three NON-unique indexes — so two people
+    #: adding the same option at once both read "not present" and both inserted, and
+    #: `list_enum_options` APPENDS without de-duplicating, which put the same value in the dropdown
+    #: twice. A unique INDEX (not a UniqueConstraint) for the reason given on ElementVerification.
+    __table_args__ = (Index("uq_enum_options_project_module_field_value",
+                            "project_id", "module", "field", "value", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     module: Mapped[str] = mapped_column(String, index=True)
