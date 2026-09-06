@@ -3108,6 +3108,19 @@ removed. Remaining, in priority order:
   nothing was wrong or nothing was measured,* and the non-empty answer is the whole reason the tool
   exists. The positive case is now asserted (1 L + 1 T over 3 walls, both wall GUIDs per join, the
   tolerance honoured), mutation-checked by stubbing the route to return empty.
+  ⏳ **ATOMIC-RELOAD** *(S–M, follow-up from PR #454)* — `loadProjectModel` calls `loader.disposeAll()`
+  **before** `loadFragments()`. When the fragment file is present but unreadable, the dispose has
+  already happened and the load then fails, so the viewer is left with an empty scene. PR #454 made
+  that state *recoverable* — `deltaCommit.consolidate()` keeps the `DeltaStore` records, so the rail
+  still reports unbuilt edits and **Rebuild** stays available, and a republish regenerates the
+  fragment the reload choked on. It did **not** make the geometry survive, and it cannot: by the time
+  the boolean comes back the models are gone. *The record and the pixels are two different
+  recoveries.* The fix is to load the replacement before discarding what is on screen — which touches
+  the load path every caller shares (memory doubles briefly; model ids may collide during the
+  overlap), so it is a deliberate change rather than a rider on a one-line guard. Named in
+  `apps/web/src/viewer/deltaCommit.ts` at the guard, so the next reader finds it rather than
+  re-deriving it.
+
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
 
 - **SPRINT C — FIELD-PWA** *(L, frontend)* — offline-first mobile PWA: service-worker sheet sync, auto
