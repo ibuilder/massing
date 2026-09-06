@@ -60,4 +60,4 @@ pyyaml>=6.0.3        # `test_ruff_scope.py` parses .github/workflows/*.yml to fi
 DracoPy==2.0.0       # Apache-2.0
 
 # coverage: the test gate's opt-in COVERAGE=1 mode (run_tests.py) — shards + combined + xml
-coverage>=7.6
+coverage>=7.16.0
