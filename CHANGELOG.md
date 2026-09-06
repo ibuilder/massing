@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — wall joins had a route, a client method, and no way for anyone to use it
+
+Walls are authored to their **centrelines**, so an L or T meeting leaves the corner open or the stub
+running through the other wall — right as a diagram, wrong as geometry, and it is what a quantity
+takeoff and a clash run both read. `GET /model/wall-joins` detected them and the `resolve_wall_joins`
+recipe butt-joins them. **Neither was on screen.** `api.wallJoins` existed and sat on the
+uncalled-method ratchet in `apps/web/src/api/clientCallers.test.ts` with no caller anywhere in the
+app. *A route and a client method are two thirds of a feature, and counting either one reports it as
+shipped.*
+
+Both halves now ship as one QA tool — **📐 Wall joins (open corners / stubs)**: scan at a tolerance,
+list every L/T join (clicking a row selects both walls by GlobalId), butt-join them all, then
+**re-scan to confirm**. The count the user is owed is measured *after* the edit rather than inferred
+from the request having succeeded. GUID-stable and idempotent, so pins, RFIs and clashes survive.
+
+### The roadmap's "diagnosis ships, repair does not" list was right about one of four
+
+It was assembled from routes and docstrings. Checked against the **screen**, it is wrong in both
+directions:
+
+| recipe | diagnosis on screen | repair on screen | the claim |
+|---|---|---|---|
+| `purge_orphan_psets` | yes | **yes** | wrong — the repair ships |
+| `purge_empty_groups` | yes | **yes** | wrong — the repair ships |
+| `resolve_wall_joins` | **no** | no | wrong — the diagnosis is dark too |
+| `set_spec_link` | yes | no | correct |
+
+**The two purges were never a gap.** A per-row *Purge* button in "Model cleanup (maintenance)" has
+shipped all along. It POSTs `row["recipe"]` — a name the **server** sent, out of `ifcpatch_lib.scan` —
+so the string is a literal only inside the engine file `services/api/test_recipe_reach.py` excludes as
+"the definition and its dispatch table". *That exclusion is right for a dispatch table and wrong for a
+capability advertisement, and both live in that one file.*
+
+The gate now reads `ifcpatch_lib.RECIPES` as a third reach source, **checked against what `scan()`
+returns rather than against the dict** — the client dispatches on the response, and asserting the dict
+against itself proves nothing. `scan()` iterates that dict instead of naming the recipes twice, so the
+advertisement cannot drift from the capability. `UNREACHED` **12 → 9**; the published maturity claim in
+`docs/authoring-matrix.md` said 12, and three of them were reachable.
+
+*This is the third shape of one false positive, after comments and docstrings. What repeats is not the
+syntax — it is that "reachable" was decided by grepping for the name, and **a dispatch by value has no
+name to grep**.*
+
+### And a gap in the engine's own test
+
+`services/api/test_wall_joins.py` exercised the route only on the **already-resolved** model, asserting
+`counts == {"L": 0, "T": 0}` — which a route returning a hard-coded empty result passes. *An empty
+answer reads identically whether nothing was wrong or nothing was measured*, and the non-empty answer
+is the whole reason the tool exists. The positive case is now asserted, and mutation-checked by
+stubbing the route to return empty.
+
 ## Unreleased — a failed reload threw away the only correct geometry on screen
 
 `deltaCommit.consolidate()` republishes the model, reloads it, and then clears the delta store. Its own
