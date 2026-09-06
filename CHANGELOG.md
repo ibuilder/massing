@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the reads that demand one row, asked whether anything guarantees it
+
+The other half of this morning's seeding work. That fixed the WRITERS — conditional inserts with
+nothing holding the world still. `services/api/test_unique_read_guard.py` walks the READERS:
+`scalar_one_or_none()` and `one_or_none()` do not prefer a single row, they **raise** on two, so a
+read filtered on columns the schema does not constrain is a 500 that arms itself the first time a
+duplicate appears and never disarms. That is exactly how `element_verifications` became permanently
+unreadable for an element, and this gate would have found it from the query side without anyone
+looking at the inserts.
+
+**No live defect.** 5 unique-demanding reads: 3 backed by a unique constraint, 1 an aggregate that
+returns one row by construction, 1 exempt. The exempt one is `cloud_identities.cloud_sub`, read with
+`one_or_none()` over an index that is **not** unique. Traced serially and under concurrency: the only
+creator runs in the branch where that same query just proved no row holds the sub, and it keys on
+`username` — a primary key — through `auth.get_or_create_by_pk`, so no duplicate is reachable. It is
+recorded as an exemption rather than fixed with a unique index because making it unique is a product
+decision, not a cleanup: it would forbid two local accounts deliberately linked to one cloud identity,
+and nothing here establishes that nobody wants that.
+
+The gate **fails closed** — a call site it cannot resolve is reported as UNKNOWN and reds the build,
+rather than being skipped, because both of `test_seeding_sweep`'s blind spots were a predicate
+deciding what to look at. **Its own first draft repeated that bug one layer up.** The self-test
+asserted the analyser still *reported* an unresolvable read, and a mutation routing every unresolvable
+read to "safe" passed anyway: reporting a site and classifying it are two different questions, and the
+test asked only the first. The verdict is now a separate function so it can be mutated directly. Four
+mutations run — dropping the real unique index, deleting the exemption, the fail-open reclassification,
+and a newly added unguarded read — all four caught.
+
+Uniqueness is asked of SQLAlchemy's metadata, never of the source text: `UniqueConstraint` and
+`Index(..., unique=True)` are both in use deliberately, and a grep for the former would have called
+`uq_element_verifications_project_guid` unprotected.
+
 ## Unreleased — the palette rows have a shape now, and it is not the shape the roadmap asked for
 
 UX-3's last unshipped item was "thumbnails". Every Draft-palette row now carries a line-art glyph
