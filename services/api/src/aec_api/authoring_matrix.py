@@ -158,12 +158,42 @@ _MAP: dict[str, tuple[str, str]] = {
 #
 # *The principle was right and the implementation covered one of the two ways this tree writes
 # prose. A gate can state the correct rule and still measure the wrong set — which is the same shape
-# as the defect this whole file exists to catch, one level down.* Four of the six are a product gap
-# of a familiar kind: the DIAGNOSIS ships and the REPAIR does not.
+# as the defect this whole file exists to catch, one level down.*
+#
+# WALL-JOINS (2026-09-06) then checked the sentence DOCSTRING-REACH ended on — *"four of the six are
+# a product gap of a familiar kind: the DIAGNOSIS ships and the REPAIR does not"* — against the
+# screen rather than the server, and it was right about ONE of the four:
+#
+#   | recipe                | diagnosis on screen | repair on screen | the claim |
+#   |-----------------------|---------------------|------------------|-----------|
+#   | `purge_orphan_psets`  | yes                 | **yes**          | wrong — the repair ships |
+#   | `purge_empty_groups`  | yes                 | **yes**          | wrong — the repair ships |
+#   | `resolve_wall_joins`  | **no**              | no               | wrong — the diagnosis is dark too |
+#   | `set_spec_link`       | yes                 | no               | correct |
+#
+# **The two purges were never unreachable.** `apps/web/src/viewer/tools/qaSection.ts` has shipped a
+# per-row *Purge* button in "Model cleanup (maintenance)" all along. It POSTs `row["recipe"]` — a
+# name the SERVER handed it, from `ifcpatch_lib.scan` — so the string appears as a literal only in
+# the engine file the gate excludes as a catalog, and `callers()` could not see it. That exclusion is
+# right for a dispatch TABLE and wrong for a capability ADVERTISEMENT, and the two live in the same
+# file. `test_recipe_reach.py` now reads `ifcpatch_lib.RECIPES` as a third reach source beside
+# `RECIPE_SPECS`, and checks it against what `scan()` actually returns rather than against the tuple.
+#
+# *This is the THIRD shape of the same false positive — a check reading the registry's own
+# description of itself. First comments, then docstrings, now a name the server sends as DATA. What
+# is common is not the syntax: it is that "reachable" was being decided by grepping for the name,
+# and a dispatch by value has no name to grep.*
+#
+# **`resolve_wall_joins` was the opposite error, and worse for being in the same sentence.** The
+# roadmap said `analysis.py` "detects L/T wall joins and names a resolution nothing can invoke",
+# which reads as half a feature shipping. `GET /model/wall-joins` and `api.wallJoins` both existed —
+# and `api.wallJoins` sat on the uncalled-method ratchet in `apps/web/src/api/clientCallers.test.ts`
+# with no caller anywhere in the app. *A route and a client method are two thirds of a feature, and
+# counting either one reports it as shipped.* Both halves are now one QA tool: scan, list the joins
+# (clicking one selects both walls by GlobalId), butt-join, re-scan to confirm.
 UNREACHED: frozenset[str] = frozenset({
     "add_connection_assembly", "batch_tag", "convert_length_unit", "derive_representations",
-    "place_type", "program_fit", "purge_empty_groups", "purge_orphan_psets", "rebase_origin",
-    "reset_prop_to_type", "resolve_wall_joins", "set_spec_link",
+    "place_type", "program_fit", "rebase_origin", "reset_prop_to_type", "set_spec_link",
 })
 
 # Recipes that nothing invokes AND nothing should: a reachable recipe already authors the identical

@@ -4,6 +4,81 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — wall joins had a route, a client method, and no way for anyone to use it
+
+Walls are authored to their **centrelines**, so an L or T meeting leaves the corner open or the stub
+running through the other wall — right as a diagram, wrong as geometry, and it is what a quantity
+takeoff and a clash run both read. `GET /model/wall-joins` detected them and the `resolve_wall_joins`
+recipe butt-joins them. **Neither was on screen.** `api.wallJoins` existed and sat on the
+uncalled-method ratchet in `apps/web/src/api/clientCallers.test.ts` with no caller anywhere in the
+app. *A route and a client method are two thirds of a feature, and counting either one reports it as
+shipped.*
+
+Both halves now ship as one QA tool — **📐 Wall joins (open corners / stubs)**: scan at a tolerance,
+list every L/T join (clicking a row selects both walls by GlobalId), butt-join them all, then
+**re-scan to confirm**. The count the user is owed is measured *after* the edit rather than inferred
+from the request having succeeded. GUID-stable and idempotent, so pins, RFIs and clashes survive.
+
+### The roadmap's "diagnosis ships, repair does not" list was right about one of four
+
+It was assembled from routes and docstrings. Checked against the **screen**, it is wrong in both
+directions:
+
+| recipe | diagnosis on screen | repair on screen | the claim |
+|---|---|---|---|
+| `purge_orphan_psets` | yes | **yes** | wrong — the repair ships |
+| `purge_empty_groups` | yes | **yes** | wrong — the repair ships |
+| `resolve_wall_joins` | **no** | no | wrong — the diagnosis is dark too |
+| `set_spec_link` | yes | no | correct |
+
+**The two purges were never a gap.** A per-row *Purge* button in "Model cleanup (maintenance)" has
+shipped all along. It POSTs `row["recipe"]` — a name the **server** sent, out of `ifcpatch_lib.scan` —
+so the string is a literal only inside the engine file `services/api/test_recipe_reach.py` excludes as
+"the definition and its dispatch table". *That exclusion is right for a dispatch table and wrong for a
+capability advertisement, and both live in that one file.*
+
+The gate now reads `ifcpatch_lib.RECIPES` as a third reach source, **checked against what `scan()`
+returns rather than against the dict** — the client dispatches on the response, and asserting the dict
+against itself proves nothing. `scan()` iterates that dict instead of naming the recipes twice, so the
+advertisement cannot drift from the capability. `UNREACHED` **12 → 9**; the published maturity claim in
+`docs/authoring-matrix.md` said 12, and three of them were reachable.
+
+*This is the third shape of one false positive, after comments and docstrings. What repeats is not the
+syntax — it is that "reachable" was decided by grepping for the name, and **a dispatch by value has no
+name to grep**.*
+
+### And a gap in the engine's own test
+
+`services/api/test_wall_joins.py` exercised the route only on the **already-resolved** model, asserting
+`counts == {"L": 0, "T": 0}` — which a route returning a hard-coded empty result passes. *An empty
+answer reads identically whether nothing was wrong or nothing was measured*, and the non-empty answer
+is the whole reason the tool exists. The positive case is now asserted, and mutation-checked by
+stubbing the route to return empty.
+
+### The repair now runs at the tolerance of the list on screen
+
+Found in review, and it is the same defect one layer inside the fix for it. The butt-join re-read the
+tolerance input **at the moment it was pressed** rather than using the value the visible list was
+measured at: scan at 0.05, see three joins, nudge the input to 0.5, press the button — and the server
+resolved at 0.5, trimming walls that were never displayed. *The list is the user's consent, and it is
+specific to the number it was measured at.*
+
+The accepted scan's tolerance is now stored with it and used for the repair; editing the input
+invalidates the list rather than silently re-scoping what the button will do; and a slow scan whose
+answer lands after a newer one has started is discarded instead of overwriting it.
+`apps/web/src/viewer/tools/repairPanel.test.ts` drives the panel through the DOM it builds and pins
+all three.
+
+**And the first draft of that test proved less than it claimed** — caught in the same review. It
+disabled the button, clicked it, and concluded from an empty repair log that the press-time guard had
+refused. It had not: *a disabled button's `.click()` does not fire its handler at all*, so the
+assertion passed on the affordance alone and would have passed with the guard deleted. The two
+properties are now asserted separately — ① editing the tolerance disables the control, ② the handler
+itself refuses when forced to run — and the mutation the original could not catch now fails on
+*"the handler itself must refuse a list the user never saw: expected [ { tol: 0.5 } ] to deeply
+equal []"*. *A test can state the right rule and exercise none of it, which is this entry's own
+subject one layer further in.*
+
 ## Unreleased — a failed reload threw away the only correct geometry on screen
 
 `deltaCommit.consolidate()` republishes the model, reloads it, and then clears the delta store. Its own

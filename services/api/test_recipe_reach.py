@@ -43,8 +43,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "services", "data", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
+import ifcopenshell  # noqa: E402
+
 from aec_api import authoring_matrix  # noqa: E402
-from aec_data import edit, nlauthor  # noqa: E402
+from aec_data import edit, ifcpatch_lib, nlauthor  # noqa: E402
 
 # Files that NAME every recipe by being a catalog, index or generated doc. Naming a recipe here is
 # registration, not reachability — see false positive (1) in the docstring.
@@ -171,7 +173,39 @@ assert len(specs) < len(recipes), (
     "natural language and this gate's premise is void — rewrite it rather than deleting it."
 )
 
-uncalled = sorted(r for r in recipes if r not in specs and not callers(r))
+# ---- the third reach source: a recipe the SERVER SENDS AS DATA ------------------------------------
+# `callers()` decides reachability by looking for the recipe's NAME in the tree. That works for every
+# surface that names what it invokes, and it is blind by construction to a dispatch by VALUE.
+#
+# `ifcpatch_lib.scan` returns one row per cleanup recipe; the maintenance tool in
+# `apps/web/src/viewer/tools/qaSection.ts` renders a *Purge* button per row and POSTs `row["recipe"]`
+# straight back to `/edit`. The name therefore appears as a literal only inside `ifcpatch_lib.py`,
+# which sits under `services/data/` and is excluded above as "the engine: the definition and its
+# dispatch table". **That exclusion is right for a dispatch table and wrong for a capability
+# advertisement, and both live in that one file** — so `purge_orphan_psets` and `purge_empty_groups`
+# were reported as reachable by nothing while a shipped button had been invoking them all along.
+#
+# *This is the third shape of one false positive, after comments and docstrings: a check reading the
+# registry's own account of itself. The lesson is not "strip another kind of prose" — it is that
+# grepping for a name cannot see a dispatch that carries no name.*
+#
+# Read from the RESPONSE, not from the tuple. `ifcpatch_lib.RECIPES` is what `scan()` iterates, but
+# asserting against the dict would only prove the dict agrees with itself; the client dispatches on
+# what the endpoint actually returns, so that is what has to carry these names.
+_advertised_rows = {r["recipe"] for r in ifcpatch_lib.scan(ifcopenshell.file(schema="IFC4"))["recipes"]}
+assert _advertised_rows, "scan() advertised no recipes at all — the maintenance tool would render no buttons"
+assert _advertised_rows == set(ifcpatch_lib.RECIPES), (
+    f"scan() advertises {sorted(_advertised_rows)} but RECIPES holds "
+    f"{sorted(ifcpatch_lib.RECIPES)}. The client dispatches on the RESPONSE, so a recipe in the dict "
+    "and not in the response is unreachable however the dict is spelled."
+)
+advertised = _advertised_rows & set(recipes)
+assert advertised == _advertised_rows, (
+    f"scan() advertises a recipe the edit registry does not have: "
+    f"{sorted(_advertised_rows - set(recipes))}. The Purge button would 4xx."
+)
+
+uncalled = sorted(r for r in recipes if r not in specs and r not in advertised and not callers(r))
 
 # ---- the pinned sets -----------------------------------------------------------------------------
 # The uncalled set splits in two, and the split is the point. `UNREACHED` is a capability no user can
@@ -287,4 +321,7 @@ print(f"RECIPE-REACH OK - {len(recipes)} recipes; {len(specs)} dispatchable from
       "Reachability is derived by finding a CALLER outside the catalogs and the engine, because a "
       "recipe listed in the coverage matrix is registered, not reachable — counting the matrix as a "
       "caller reported every candidate as reached, which is this check measuring the registry against "
-      "itself.")
+      f"itself. {len(advertised)} more reach a user WITHOUT any caller to find "
+      f"({', '.join(sorted(advertised))}): the maintenance scan sends the name as DATA and the Purge "
+      "button POSTs it back, so there is no literal to grep — read out of scan()'s response, not out "
+      "of the dict it iterates.")

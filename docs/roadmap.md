@@ -3016,6 +3016,14 @@ removed. Remaining, in priority order:
   rolls up linked spec sections **plus the unlinked count** and says "Stamp links with the
   `set_spec_link` recipe". Recorded, not wired: where those controls belong is a product decision.
 
+  > ❌ **The paragraph above is wrong about three of its four, and WALL-JOINS below is the correction.**
+  > It is kept as written because the error is the point: every claim in it was checked against the
+  > SERVER and none against the SCREEN, in a sprint whose whole subject was that distinction. The
+  > verified table is in `services/api/src/aec_api/authoring_matrix.py` beside `UNREACHED`.
+  > `purge_orphan_psets` and `purge_empty_groups` — the repair had shipped all along, as a per-row
+  > *Purge* button in `apps/web/src/viewer/tools/qaSection.ts`. `resolve_wall_joins` — the diagnosis
+  > had NOT shipped: `api.wallJoins` existed with no caller. Only `set_spec_link` was as described.
+
   *A reviewer found the missing fourth. `apps/web/src/api/mep.ts` carries a paragraph about exactly
   this — "count the members you looked at, then phrase the result as the whole population … the fix is
   to DERIVE THE COMPLEMENT, not to be more careful" — and it happened here inside the entry about a
@@ -3058,6 +3066,61 @@ removed. Remaining, in priority order:
   passes no storey. `add_opening` in `services/data/src/aec_data/edit_enclosure.py` declares a
   `storey` parameter and never reads it — an opening takes its position from the host wall, which is
   right — so that argument is vestigial there and its absence at the call site is not the same defect.
+
+  ✅ **WALL-JOINS, shipped 2026-09-06 — the "diagnosis ships, repair does not" claim was wrong about
+  three of its four.** The list above was assembled from routes and docstrings; checking it against
+  the SCREEN gives a different answer in both directions:
+
+  | recipe | diagnosis on screen | repair on screen | the claim above |
+  |---|---|---|---|
+  | `purge_orphan_psets` | yes | **yes** | wrong — the repair ships |
+  | `purge_empty_groups` | yes | **yes** | wrong — the repair ships |
+  | `resolve_wall_joins` | **no** | no | wrong — the diagnosis is dark too |
+  | `set_spec_link` | yes | no | correct |
+
+  **The two purges were never a gap.** `apps/web/src/viewer/tools/qaSection.ts` has shipped a per-row
+  *Purge* button in "Model cleanup (maintenance)" all along. It POSTs `row["recipe"]` — a name the
+  SERVER sent, out of `ifcpatch_lib.scan` — so the string is a literal only inside
+  `services/data/src/aec_data/ifcpatch_lib.py`, which `services/api/test_recipe_reach.py` excludes as
+  "the engine: the definition and its dispatch table". *That exclusion is right for a dispatch table
+  and wrong for a capability advertisement, and both live in that one file.* The gate now reads
+  `ifcpatch_lib.RECIPES` as a third reach source beside `nlauthor.RECIPE_SPECS` — **checked against
+  what `scan()` returns rather than against the dict**, because the client dispatches on the response
+  and asserting the dict against itself proves nothing. `scan()` iterates that dict instead of naming
+  the recipes a second time, so the advertisement cannot drift from the capability.
+
+  *This is the THIRD shape of one false positive, after comments (DARK-RECIPES) and docstrings
+  (DOCSTRING-REACH). What repeats is not the syntax — it is that "reachable" was decided by grepping
+  for the name, and **a dispatch by value has no name to grep**.*
+
+  **`resolve_wall_joins` was the opposite error, in the same sentence.** `GET /model/wall-joins` and
+  `api.wallJoins` both existed — and `api.wallJoins` sat on the uncalled-method ratchet in
+  `apps/web/src/api/clientCallers.test.ts` with no caller anywhere in the app. *A route and a client
+  method are two thirds of a feature, and counting either one reports it as shipped.* Both halves now
+  ship as one QA tool: scan at a tolerance, list each L/T join (clicking a row selects both walls by
+  GlobalId), butt-join, **re-scan to confirm** — the count the user is owed is measured after the
+  edit, not inferred from the request having succeeded. `UNREACHED` **12 → 9**; the ratchet drops
+  `wallJoins`.
+
+  **A gap in the engine's own test, found on the way.** `services/api/test_wall_joins.py` exercised
+  the route only on the ALREADY-RESOLVED model, asserting `counts == {"L": 0, "T": 0}` — which a
+  route returning a hard-coded empty result passes. *An empty answer reads identically whether
+  nothing was wrong or nothing was measured,* and the non-empty answer is the whole reason the tool
+  exists. The positive case is now asserted (1 L + 1 T over 3 walls, both wall GUIDs per join, the
+  tolerance honoured), mutation-checked by stubbing the route to return empty.
+  ⏳ **ATOMIC-RELOAD** *(S–M, follow-up from PR #454)* — `loadProjectModel` calls `loader.disposeAll()`
+  **before** `loadFragments()`. When the fragment file is present but unreadable, the dispose has
+  already happened and the load then fails, so the viewer is left with an empty scene. PR #454 made
+  that state *recoverable* — `deltaCommit.consolidate()` keeps the `DeltaStore` records, so the rail
+  still reports unbuilt edits and **Rebuild** stays available, and a republish regenerates the
+  fragment the reload choked on. It did **not** make the geometry survive, and it cannot: by the time
+  the boolean comes back the models are gone. *The record and the pixels are two different
+  recoveries.* The fix is to load the replacement before discarding what is on screen — which touches
+  the load path every caller shares (memory doubles briefly; model ids may collide during the
+  overlap), so it is a deliberate change rather than a rider on a one-line guard. Named in
+  `apps/web/src/viewer/deltaCommit.ts` at the guard, so the next reader finds it rather than
+  re-deriving it.
+
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
 
 - **SPRINT C — FIELD-PWA** *(L, frontend)* — offline-first mobile PWA: service-worker sheet sync, auto
