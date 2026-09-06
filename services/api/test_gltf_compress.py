@@ -19,11 +19,23 @@ left, not against the original file.
 truncates geometry on large meshes — a defect that produces a valid file with missing triangles,
 which is the worst shape available here.
 
-**Draco (opt-in) is verified here by Draco's own decoder, which is NOT an independent witness.** The
-independent check has to be run by hand, because no reader in this venv decodes the extension —
-trimesh returns the right vertex and triangle COUNTS with every position at (0,0,0) and raises
-nothing, so the obvious "an independent reader agrees" check passes on a file containing no
-recoverable geometry. That degenerate result is asserted below rather than hidden.
+**Draco (opt-in) was verified here by Draco's own decoder, which is NOT an independent witness — and
+that is no longer the only witness available.** trimesh gained a real KHR_draco_mesh_compression
+decoder in 5.1.0 (`trimesh/exchange/gltf/extensions.py`, a `draco_decode` handler on DracoPy); 5.0.0
+had no such file. Under the floor this repo now pins, the round-trip below IS checked by a reader
+sharing no code with the encoder, which is strictly stronger evidence than Draco decoding Draco.
+
+The paragraph this replaces said "the independent check has to be run by hand, because no reader in
+this venv decodes the extension". True when written, false from the trimesh 5.1.0 bump onward — and
+it failed loudly rather than quietly, because the assertion under it measured trimesh's LIMITATION
+rather than our export: *a test that pins a dependency's weakness will break when the dependency
+improves, and that break is information, not noise.*
+
+Both branches are still asserted, because both are true of some reader in the wild: without a
+decoder trimesh returns the right vertex and triangle COUNTS with every position at (0,0,0) and
+raises nothing, so the obvious "an independent reader agrees" check passes on a file containing no
+recoverable geometry. That degenerate result is asserted below rather than hidden, and the file
+picks its branch by asking the reader instead of assuming a version.
 
 The real cross-check, run 2026-07-29 against Blender 3.5's glTF importer (headless), which decodes
 Draco natively and shares no code with this module:
@@ -311,20 +323,51 @@ else:
                   ext["attributes"]["POSITION"] ==
                   next(a["unique_id"] for a in dm.attributes if a.get("attribute_type") == 0))
 
-    # --- what a reader WITHOUT the decoder actually does, measured ------------------------------------
-    # This is the cost of the extension, and it is worse than "it fails". trimesh reads the container,
-    # honours the accessor counts, and returns the right NUMBER of vertices and triangles — every one
-    # of them at (0,0,0). It does not raise. So "the file loaded" and "the triangle count matched" are
-    # both TRUE of a file containing no recoverable geometry, and a check that stops there passes on a
-    # blank model. (It did, here, before this was measured.) Asserting the degenerate result is what
-    # keeps the claim honest: an unsupported required extension fails SILENTLY in at least one
-    # mainstream reader, which is exactly why draco stays opt-in.
+    # --- what the INDEPENDENT reader does with the file, measured -------------------------------------
+    # WHICH BRANCH RUNS DEPENDS ON THE READER, so ask it rather than assuming. trimesh gained a real
+    # KHR_draco_mesh_compression decoder in 5.1.0 (`trimesh/exchange/gltf/extensions.py`, a
+    # `draco_decode` handler built on DracoPy); 5.0.0 had no such file. Both outcomes are asserted
+    # here because both are true of some reader in the wild, and the file must not silently stop
+    # testing whichever one it stops seeing.
+    #
+    # WITHOUT a decoder the cost of the extension is worse than "it fails": trimesh 5.0.0 read the
+    # container, honoured the accessor counts, and returned the right NUMBER of vertices and
+    # triangles — every one at (0,0,0), raising nothing. So "the file loaded" and "the triangle count
+    # matched" were both TRUE of a file containing no recoverable geometry, and a check stopping
+    # there passed on a blank model. (It did, here, before that was measured.) That is exactly why
+    # draco stays opt-in, and it is why the degenerate result is asserted rather than hidden.
+    #
+    # WITH a decoder the same read becomes the INDEPENDENT witness this file's header said it did not
+    # have — "verified here by Draco's own decoder, which is NOT an independent witness ... the
+    # independent check has to be run by hand". It no longer does: the reader shares no code with the
+    # encoder, so a round-trip through it is strictly stronger evidence than Draco decoding Draco.
     dscene = trimesh.load(_io.BytesIO(dglb), file_type="glb")
     dpts_all = np.vstack([np.asarray(g.vertices) for g in dscene.geometry.values()])
-    check("a reader without a draco decoder recovers NO geometry (all vertices collapse to origin)",
-          np.abs(dpts_all).max() == 0.0, np.abs(dpts_all).max())
-    check("  and it does so WITHOUT raising — the silent failure the required flag is meant to prevent",
+    check("  the reader returns the same geometry COUNT either way — which is why count is not evidence",
           len(dscene.geometry) == len(scene.geometry))
+
+    _reader_decodes = np.abs(dpts_all).max() > 0.0
+    if not _reader_decodes:
+        check("a reader without a draco decoder recovers NO geometry (all vertices collapse to origin)",
+              np.abs(dpts_all).max() == 0.0, np.abs(dpts_all).max())
+        print("      reader has NO draco decoder — the silent-failure branch is the one under test")
+    else:
+        # An independent decode must land within the SAME bound draco_accuracy() states, per mesh.
+        # Comparing sorted vertex arrays, because a decoder is free to reorder them and the claim is
+        # about geometry recovered, not about buffer layout.
+        print(f"      reader DECODES draco (trimesh {trimesh.__version__}) — independent round-trip under test")
+        for name, dg in dscene.geometry.items():
+            og = scene.geometry.get(name)
+            check(f"{name!r} is recovered by an independent decoder, not silently blanked",
+                  og is not None and len(dg.vertices) == len(og.vertices))
+            if og is None:
+                continue
+            ov, dvv = np.asarray(og.vertices), np.asarray(dg.vertices)
+            extent = float(max(ov.max(axis=0) - ov.min(axis=0)))
+            err = float(np.abs(np.sort(dvv, axis=0) - np.sort(ov, axis=0)).max())
+            check(f"  {name!r} round-trips within the bound draco_accuracy() states",
+                  err <= gltf_export.draco_accuracy(extent) + 1e-6,
+                  (err, gltf_export.draco_accuracy(extent)))
 
     # --- the lossy half, measured through Draco's own decoder -------------------------------------------
     # trimesh cannot be the witness here (it returned zeros), so the comparison is the ORIGINAL geometry
