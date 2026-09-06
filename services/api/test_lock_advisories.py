@@ -295,7 +295,7 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
           f"{len(gate.LOCKS)} path(s)")
 
 
-def _gitleaks_command_lines() -> list[str]:
+def _gitleaks_step_lines() -> list[str]:
     """The EXECUTABLE lines of the step that runs gitleaks — comments stripped.
 
     THE FIRST VERSION OF THIS GREPPED THE WHOLE FILE, and CodeRabbit was right to refuse it.
@@ -311,8 +311,7 @@ def _gitleaks_command_lines() -> list[str]:
     Worse, the MUTATION MISSED IT TOO. The check "remove `gitleaks detect` from the workflow" was
     run as a blanket string replace, which rewrote the comments along with the command — so it
     could not tell the two apart either, and reported a pass that meant nothing. *A mutation that
-    shares the implementation's blind spot confirms it instead of challenging it*; the mutation
-    below now deletes only the command and leaves every comment in place.
+    shares the implementation's blind spot confirms it instead of challenging it.*
     """
     import yaml
     wf = os.path.join(ROOT, ".github", "workflows", "security.yml")
@@ -333,21 +332,46 @@ def _gitleaks_command_lines() -> list[str]:
         "worse than not checking at all")
 
 
+def _gitleaks_invocation() -> str:
+    """The `gitleaks detect` COMMAND ITSELF, its line-continuations joined.
+
+    A SECOND ROUND OF THE SAME MISTAKE, one notch finer, and CodeRabbit was right again. The
+    version before this narrowed from the whole FILE to the step's executable LINES — and then
+    read the ignore-path flag from any of them. That step runs some two dozen commands, several
+    of them `echo`s that already mention `.gitleaksignore` in their message text. So an `echo`
+    carrying `--gitleaks-ignore-path .gitleaksignore` would have been read as scanner
+    configuration while the real `gitleaks detect` pointed somewhere else entirely, and the check
+    would have validated a trigger for a baseline nothing reads — and passed.
+
+    Narrowing a scope is not the same as narrowing it to the right UNIT. The unit that decides
+    which file gitleaks reads is the invocation, not the step it happens to sit in.
+    """
+    lines = _gitleaks_step_lines()
+    for i, line in enumerate(lines):
+        if "gitleaks detect" not in line:
+            continue
+        parts = [line]
+        # A future edit may wrap the command across lines; follow trailing-backslash continuations
+        # so the flag stays findable, and stop at the first line that does not continue.
+        j = i
+        while parts[-1].rstrip().endswith("\\") and j + 1 < len(lines):
+            j += 1
+            parts.append(lines[j])
+        return " ".join(p.rstrip().rstrip("\\").strip() for p in parts)
+    raise AssertionError("unreachable: _gitleaks_step_lines only returns a step that invokes it")
+
+
 def _gitleaks_baseline_path() -> str:
-    """Which file does the gitleaks step read as its baseline? DERIVED from the command it runs.
+    """Which file does the gitleaks step read as its baseline? DERIVED from the invocation.
 
     Not hardcoded, for the same reason `test_ruff_scope.py` parses the ruff command rather than
     naming directories: if the step ever gains an explicit `--gitleaks-ignore-path`, a hardcoded
     `.gitleaksignore` would keep asserting a trigger for a file nothing reads any more, and pass.
 
-    Read from executable lines only — see `_gitleaks_command_lines` for why that distinction is
-    the whole point rather than a tidy-up.
+    Read from the COMMAND only — see `_gitleaks_invocation` for why the step was too wide a unit.
     """
-    for line in _gitleaks_command_lines():
-        m = re.search(r"--gitleaks-ignore-path[=\s]+(\S+)", line)
-        if m:
-            return m.group(1).strip("\"'")
-    return ".gitleaksignore"          # gitleaks' own default when the flag is absent
+    m = re.search(r"--gitleaks-ignore-path[=\s]+(\S+)", _gitleaks_invocation())
+    return m.group(1).strip("\"'") if m else ".gitleaksignore"   # gitleaks' default with no flag
 
 
 def test_the_gitleaks_baseline_can_trigger_its_own_scanner() -> None:
