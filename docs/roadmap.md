@@ -2984,6 +2984,14 @@ removed. Remaining, in priority order:
   every row silently read "wallWall IfcWall". Only `draftPanel.test.ts`, matching on row text, said
   so; nothing about the drawing was wrong.
 
+  ✅ **And a findability defect that had nothing to do with icons.** The filter box ANDed its query
+  with the active discipline chip, so typing "column" on the Architectural chip returned *"No
+  elements for this discipline yet."* — **the palette denying that a column exists.** A query now
+  spans every discipline, an off-chip hit names the discipline it came from, and an empty box still
+  scopes to the chip (asserted, so the chips cannot quietly become decoration). Found by reading the
+  code around the row rather than by looking for it: *the roadmap called this item "library depth",
+  and the thing actually in the way of finding an element was the search.*
+
   ✅ **DARK-RECIPES, shipped 2026-09-05 — the coverage matrix counted ten capabilities no user could
   invoke.** `edit.RECIPES` holds 96 authoring recipes and `authoring_matrix.py` publishes them as the
   authoring-coverage matrix, whose docstring calls it *"an honest, single-source answer to 'what can

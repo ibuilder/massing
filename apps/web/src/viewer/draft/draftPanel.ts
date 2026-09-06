@@ -90,11 +90,20 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
   function renderList() {
     for (const d of DISCIPLINES) chipBtns[d]?.classList.toggle("on", d === discipline);
     const q = search.value.trim().toLowerCase();
-    const items = allElements().filter((e) => e.discipline === discipline
-      && (!q || e.label.toLowerCase().includes(q) || e.ifcClass.toLowerCase().includes(q)));
+    // A QUERY SPANS EVERY DISCIPLINE; the chips are for browsing. Until this changed, typing "door"
+    // while the Structural chip was active answered "No elements for this discipline yet." — a wrong
+    // answer rather than a slow one, because there IS a door and the palette said there was not. The
+    // discipline of each hit is shown on the row below, so a cross-discipline result is readable.
+    const matches = (e: DraftElement) =>
+      e.label.toLowerCase().includes(q) || e.ifcClass.toLowerCase().includes(q);
+    const items = q ? allElements().filter(matches)
+                    : allElements().filter((e) => e.discipline === discipline);
     list.innerHTML = "";
     if (!items.length) {
-      const n = el("div", "meta"); n.textContent = familiesLoaded ? "No elements for this discipline yet." : "loading families…";
+      const n = el("div", "meta");
+      n.textContent = !familiesLoaded ? "loading families…"
+        : q ? `Nothing matches “${search.value.trim()}” in any discipline.`
+            : "No elements for this discipline yet.";
       list.appendChild(n); return;
     }
     for (const item of items) {
@@ -108,7 +117,11 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       row.appendChild(glyphElement(draftGlyph(item.ifcClass)));
       const name = el("span"); name.textContent = item.label; name.style.flex = "1";
       const badge = el("span", "meta"); badge.style.fontSize = "10px";
-      badge.textContent = normaliseIfcClass(item.ifcClass);
+      // While searching the list is cross-discipline, so the row has to say which one it came from —
+      // otherwise "Column" appearing under the MEP chip reads as a bug in the filter.
+      badge.textContent = q && item.discipline !== discipline
+        ? `${item.discipline} · ${normaliseIfcClass(item.ifcClass)}`
+        : normaliseIfcClass(item.ifcClass);
       row.append(name, badge);
       row.onclick = () => { selected = item; renderList(); renderForm(); };
       // RAIL-DRAG — the same row is also a drag source. Dragging selects it too, so the parameter

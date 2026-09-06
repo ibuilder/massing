@@ -30,6 +30,14 @@ server-supplied content. And the first draft rendered the glyph's name as an `<s
 counts toward the enclosing row's `textContent`; every row silently read "wallWall IfcWall". Nothing
 about the drawing was wrong, and only an existing test that matched on row text caught it.
 
+**And the search box was answering a question it had not been asked.** It ANDed the query with the
+active discipline chip, so typing "column" while Architectural was selected returned *"No elements
+for this discipline yet."* — the palette denying that a column exists. That is a wrong answer, not a
+slow one, and nothing in the panel hinted that the chip was still filtering. A query now spans every
+discipline and each off-chip hit says which one it came from; with the box empty the chip scopes the
+list exactly as before, which is asserted so the chips cannot quietly become decoration. Verified by
+reinstating the old filter and watching the two behavioural assertions go red.
+
 ## Unreleased — the gate shipped that morning was blind to a read done through a helper
 
 `test_seeding_sweep` landed a few hours ago reporting **0 unguarded** seeding sites. It was not

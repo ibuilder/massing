@@ -175,3 +175,50 @@ describe("CONTENT-DRAFT — content lists, arms and drags like any other element
     expect(handle.armByKey("content:no_such_item")).toBeNull();
   });
 });
+
+/**
+ * A query spans every discipline. Until this changed the search was ANDed with the active chip, so
+ * typing "column" on the Architectural chip answered "No elements for this discipline yet." — the
+ * palette denying that a column exists. A wrong answer, not a slow one.
+ */
+describe("the search box is not scoped to the active discipline", () => {
+  const filter = (body: HTMLElement) =>
+    body.querySelector<HTMLInputElement>("input[type=search]")!;
+  const type = (body: HTMLElement, q: string) => {
+    const f = filter(body); f.value = q; f.dispatchEvent(new Event("input"));
+  };
+
+  it("finds a Structural element while the Architectural chip is active", () => {
+    const { body } = mount();
+    // Architectural is the default chip, and `column` is Structural — the exact miss.
+    type(body, "column");
+    const labels = rows(body).map((r) => r.textContent ?? "");
+    expect(labels.some((l) => l.includes("Column")), `got: ${labels.join(" | ")}`).toBe(true);
+  });
+
+  it("says which discipline an off-chip hit came from, so the result is readable", () => {
+    const { body } = mount();
+    type(body, "column");
+    const row = rows(body).find((r) => r.textContent?.includes("Column"));
+    expect(row?.textContent).toContain("Structural");
+  });
+
+  it("with no query the chip still scopes the list — the chips did not become decoration", () => {
+    const { body } = mount();
+    type(body, "");
+    const labels = rows(body).map((r) => r.textContent ?? "");
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.some((l) => l.includes("Column")),
+      "a Structural element is listed under the Architectural chip with no query").toBe(false);
+  });
+
+  it("a query that matches nothing says so in the query's terms, not the chip's", async () => {
+    const { body } = mount();
+    // Awaited on purpose: until the families settle the panel says "loading families…", which is the
+    // correct answer to "nothing matches" when a third of the catalog has not arrived yet.
+    await Promise.resolve(); await Promise.resolve();
+    type(body, "zzzznotathing");
+    expect(rows(body)).toHaveLength(0);
+    expect(body.textContent).toContain("zzzznotathing");
+  });
+});
