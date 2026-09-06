@@ -312,7 +312,39 @@ export function buildMepSection(d: MepDeps): MepButtons {
           } catch (e) { d.notify(`connect failed: ${(e as Error).message}`, "error"); }
         });
       });
-      cw.append(pick, doConn); body.appendChild(cw);
+      // W10-4: the bulk complement to the two-step pick. `connectMep` welds ONE pair the user chose;
+      // a model drawn run-by-run leaves as many open joints as it has runs, and picking them off in
+      // pairs is the work this button exists to not do.
+      const autoBtn = d.toolBtn2("🧲 Auto-connect coincident ports", async () => {
+        const tolText = await askText("Auto-connect MEP", {
+          label: "Weld ports that coincide within this many metres", value: "0.05" });
+        if (!tolText) return;
+        const tol = parseFloat(tolText.trim());
+        if (!isFinite(tol) || tol <= 0) { d.notify("enter a tolerance greater than zero", "error"); return; }
+        await withLoading(d.container, "auto-connecting MEP ports + republishing", async () => {
+          try {
+            const r = (await d.api.autoConnectMep(d.pid, tol, true)) as { count?: number };
+            const n = Number(r?.count ?? 0);
+            const state = await d.waitForPublish(d.projectId!);
+            // `loadProjectModel` returns whether the re-tessellation SUCCEEDED. Ignoring it reports a
+            // clean result over a viewer still showing the pre-edit model — the edit is committed and
+            // what you are looking at is stale, which is the one outcome a user cannot detect
+            // unaided. (Review finding on this PR.)
+            const shown = state === "done" ? await d.loadProjectModel() : false;
+            // Zero is a real answer, not a failure: every coincident pair may already be welded, or
+            // nothing may be within tolerance. Say which number came back rather than only "done".
+            d.notify(n ? `connected ${n} pair(s) within ${tol} m` : `no unconnected pairs within ${tol} m`,
+                     n ? "success" : "info");
+            if (state !== "done") d.notify(`publish ${state}`, state === "error" ? "error" : "info");
+            else if (!shown) d.notify("connected, but the viewer could not reload — reopen the model", "error");
+            mepConnectFrom = null; await d.reloadModelPins();
+          } catch (e) { d.notify(`auto-connect failed: ${(e as Error).message}`, "error"); }
+        });
+      });
+      autoBtn.title = "Weld every unconnected MEP element pair whose connection points coincide within a "
+        + "tolerance, in one pass — the bulk form of the two-step connect. Nearest pairs first, and each "
+        + "element joins at most as many pairs as it has free ports, so running it twice changes nothing.";
+      cw.append(pick, doConn, autoBtn); body.appendChild(cw);
       if (c!.dangling.length) {
         const iso = d.toolBtn2("◎ Isolate floating elements in 3D", () => { void d.layerMgr.isolateGuids(c!.dangling.map((d) => d.guid)); });
         body.appendChild(iso);
@@ -413,6 +445,38 @@ export function buildMepSection(d: MepDeps): MepButtons {
           { k: "  segments · fittings · terminals", v: `${sy.segments} · ${sy.fittings} · ${sy.terminals}` },
           { k: "  elements with open ports", v: String(sy.elements_with_open_ports) },
         ]));
+        // Authoring stamps a system's discipline on FIRST assignment only and never revises it, so an
+        // imported system, or one created before its discipline was decided, stays untyped for the life
+        // of the model. This is the only path that revises it — the engine's own note says "retag via
+        // set_system_predefined", and until now nothing in the product could.
+        const tag = d.toolBtn2(sy.predefined_type ? `🏷 Retype ${sy.name}` : `🏷 Set discipline for ${sy.name}`,
+          async () => {
+            const disc = await askText(`Discipline for ${sy.name}`, {
+              label: "hvac · plumbing · electrical · fire · comms · lighting · drainage · exhaust — "
+                + "or a raw IfcDistributionSystemEnum value",
+              value: sy.discipline || "hvac" });
+            if (!disc) return;
+            await withLoading(d.container, "retyping the system + republishing", async () => {
+              try {
+                const r = (await d.api.setSystemDiscipline(
+                  d.pid, sy.name, disc.trim(), true)) as { predefined_type?: string };
+                const state = await d.waitForPublish(d.projectId!);
+                // Same reload contract as the auto-connect above: a false result means the retype
+                // committed and the viewer is stale.
+                const shown = state === "done" ? await d.loadProjectModel() : false;
+                d.notify(`${sy.name} is now ${r?.predefined_type ?? disc.trim()}`
+                  + (state === "done" ? (shown ? "" : " — the viewer could not reload, reopen the model")
+                                      : ` — publish ${state}`),
+                  state === "error" || (state === "done" && !shown) ? "error" : "success");
+                await d.reloadModelPins();
+              } catch (e) { d.notify(`retype failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+        tag.title = `Stamp ${sy.name}'s IfcDistributionSystem PredefinedType — the discipline the system `
+          + "browser, the by-discipline rollup and the fire-protection checks all read. Authoring only "
+          + "sets it when the system is first created, so this is what corrects an untyped or "
+          + "mis-typed one.";
+        body.appendChild(tag);
       }
       if (s.unassigned.segments || s.unassigned.fittings) {
         body.appendChild(resultNote(`⚠ Unassigned to any system: <b>${s.unassigned.segments}</b> segment(s), `
