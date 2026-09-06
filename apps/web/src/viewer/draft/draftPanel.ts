@@ -11,6 +11,7 @@ import {
   type ContentDef, type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
 import { draftGlyph, glyphElement, normaliseIfcClass } from "./draftGlyph";
+import { previewElement, previewFor, warningsFor } from "./draftPreview";
 import { setDraftDragKey } from "../railDrag";
 
 export interface ArmedDraft {
@@ -170,13 +171,14 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     }
   }
 
-  function fieldRow(p: ParamDef): { row: HTMLElement; get: () => number | string } {
+  function fieldRow(p: ParamDef, onChange: () => void): { row: HTMLElement; get: () => number | string } {
     const row = el("label", "layer-row"); row.style.cssText = "display:flex;align-items:center;gap:6px;margin:2px 0";
     const name = el("span", "name"); name.textContent = p.label; name.style.flex = "1";
     if (p.type === "select") {
       const sel = el("select", "portal-filter") as HTMLSelectElement; sel.style.width = "110px";
       for (const o of p.options ?? []) { const opt = document.createElement("option"); opt.value = o; opt.textContent = o; sel.appendChild(opt); }
       sel.value = String(p.default); sel.setAttribute("aria-label", p.label);
+      sel.onchange = onChange;
       row.append(name, sel);
       return { row, get: () => sel.value };
     }
@@ -185,6 +187,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     if (p.min != null) inp.min = String(p.min);
     if (p.step != null) inp.step = String(p.step);
     inp.setAttribute("aria-label", `${p.label}${p.unit ? " (" + p.unit + ")" : ""}`);
+    inp.oninput = onChange;
     const unit = el("span", "meta"); unit.textContent = p.unit ?? ""; unit.style.width = "20px";
     row.append(name, inp, unit);
     return { row, get: () => Number(inp.value) || Number(p.default) };
@@ -202,7 +205,44 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     form.appendChild(badge);
     const getters: (() => number | string)[] = [];
     const keys = s.params.map((p) => p.key);
-    for (const p of s.params) { const f = fieldRow(p); form.appendChild(f.row); getters.push(f.get); }
+    const readValues = (): ParamValues => {
+      const v: ParamValues = {};
+      keys.forEach((k, i) => { const g = getters[i]; if (g) v[k] = g(); });
+      return v;
+    };
+
+    // The preview sits ABOVE the fields and is rebuilt on every keystroke, because its whole job is
+    // to answer "is the number I just typed the number I meant". One drawn when the form opens would
+    // show the defaults, and the defaults are never the values anyone gets wrong.
+    const preview = el("div");
+    preview.style.cssText = "display:flex;align-items:center;gap:8px;margin:4px 0";
+    const drawPreview = () => {
+      preview.replaceChildren();
+      const pv = previewFor(s, readValues());
+      if (!pv) return;                                    // NO_PREVIEW — see draftPreview.ts
+      preview.appendChild(previewElement(pv));
+      const cap = el("div", "meta");
+      cap.style.lineHeight = "1.35";
+      // textContent per node, never innerHTML: the caption carries numbers the user typed, and the
+      // palette row next door had exactly that latent hole until it was rebuilt with createElement.
+      const dims = el("div"); dims.textContent = pv.caption;
+      const scale = el("div"); scale.textContent = `frame ${pv.viewMetres} m`; scale.style.opacity = "0.7";
+      cap.append(dims, scale);
+      // ALL that apply, each on its own line — the two conditions are independent and both can
+      // hold at once. `warningsFor` lives beside the flags it explains; see its note for why this
+      // is a list rather than the ternary it started as.
+      for (const text of warningsFor(pv)) {
+        const warn = el("div");
+        warn.textContent = text;
+        warn.style.color = "var(--warn,#e0a030)";
+        cap.appendChild(warn);
+      }
+      preview.appendChild(cap);
+    };
+    form.appendChild(preview);
+
+    for (const p of s.params) { const f = fieldRow(p, drawPreview); form.appendChild(f.row); getters.push(f.get); }
+    drawPreview();
 
     const btnRow = el("div"); btnRow.style.cssText = "display:flex;gap:6px;margin-top:6px";
     const place = el("button", "tool-btn") as HTMLButtonElement;
@@ -211,8 +251,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     place.onclick = () => {
       if (armedKey === s.key) { arm(null); return; }
       if (!deps.canAuthor()) { deps.notify("connect a project with a source IFC to draft", "error"); return; }
-      const vals: ParamValues = {};
-      keys.forEach((k, i) => { const g = getters[i]; if (g) vals[k] = g(); });
+      const vals = readValues();
       const armed: ArmedDraft = {
         key: s.key, label: s.label, recipe: s.recipe, points: s.points, ifcClass: s.ifcClass, hint: s.hint,
         build: (pts) => s.build(pts, vals),

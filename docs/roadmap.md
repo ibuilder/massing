@@ -3040,7 +3040,37 @@ removed. Remaining, in priority order:
   one, a W24x76 different from a W8x31. A glyph cannot: it is keyed on the class, so every wall in
   the palette wears the same drawing whatever the form says. What remains is a *preview*, which
   needs the parametric geometry the recipe would author, and that is a different job from an icon
-  table. *Recorded this way because the entry above it is a monument to the opposite habit — a
+  table.
+
+  ◨ **PREVIEW-SCALE, shipped 2026-09-06 — the remaining half.** The Draft form now draws a scaled
+  section of the element above the fields, rebuilt on every keystroke, so **a mistyped 8.0 where 0.8
+  was meant is visible before you place it** (`apps/web/src/viewer/draft/draftPreview.ts`). A W24x76
+  really does draw deeper than a W8x31 — the nominal depth is read out of the section name — and the
+  desk that started this example draws at its actual width.
+
+  **The frame does not rescale to fit what you typed, and that is the entire mechanism.** A view that
+  auto-fits would draw an 8 m desk and a 0.8 m desk identically, which is a preview that always looks
+  right and is therefore worth nothing — the UI form of a check that always passes. So the frame's
+  height in metres is computed once from the element's own DEFAULTS and the shape is drawn to true
+  scale inside it; ten times the default runs off the top, and a negative base offset runs off the
+  bottom — both warned, in different words, because "too big" is a false thing to say about a value
+  that is merely pointing the wrong way. The band is derived from the defaults' bounding box rather
+  than tabulated, so a new **supported preview** element gets a sensible frame with nothing to
+  remember to update — supported meaning one `previewFor` draws, not every entry in
+  `draftCatalog.ts`, since the `NO_PREVIEW` families below get no frame at all.
+
+  **Two families of element have no preview and are listed rather than silently blank**, in
+  `NO_PREVIEW` with a sentence each: the 13 `mep:` terminals, whose dimensions are baked into the
+  recipe closure and exposed as no params at all, and the 19 `content:` items, which `place_content`
+  sizes from its own server catalog. Both would need a second copy of numbers this side of the wire,
+  and a preview drawn from a second copy can disagree with what is placed.
+
+  *The population was hand-counted as 17 and is 34.* `draftCatalog.ts` builds the `cov:` and `mep:`
+  entries from generator functions, which a grep for the literal element shape does not see — and
+  `draftPreview.test.ts`, which derives the population from `DRAFT_ELEMENTS` itself, failed on the
+  first run naming `cov:ceiling`. **The derived test caught a population error in the same session
+  the feature was written**, which is the argument for deriving rather than listing, made by the
+  thing rather than about it. *Recorded this way because the entry above it is a monument to the opposite habit — a
   five-item line where two items already shipped and the line did not say so. Half-shipping is fine;
   half-shipping under the name of the whole item is what costs the next reader a day.*
 
