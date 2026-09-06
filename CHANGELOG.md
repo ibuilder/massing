@@ -55,6 +55,21 @@ answer reads identically whether nothing was wrong or nothing was measured*, and
 is the whole reason the tool exists. The positive case is now asserted, and mutation-checked by
 stubbing the route to return empty.
 
+### The repair now runs at the tolerance of the list on screen
+
+Found in review, and it is the same defect one layer inside the fix for it. The butt-join re-read the
+tolerance input **at the moment it was pressed** rather than using the value the visible list was
+measured at: scan at 0.05, see three joins, nudge the input to 0.5, press the button — and the server
+resolved at 0.5, trimming walls that were never displayed. *The list is the user's consent, and it is
+specific to the number it was measured at.*
+
+The accepted scan's tolerance is now stored with it and used for the repair; editing the input
+invalidates the list rather than silently re-scoping what the button will do; and a slow scan whose
+answer lands after a newer one has started is discarded instead of overwriting it.
+`apps/web/src/viewer/tools/repairPanel.test.ts` drives the panel through the DOM it builds and pins
+all three, the regression one mutation-checked — reverting the guard fails it on *"editing the
+tolerance invalidates the list on screen"*.
+
 ## Unreleased — a failed reload threw away the only correct geometry on screen
 
 `deltaCommit.consolidate()` republishes the model, reloads it, and then clears the delta store. Its own

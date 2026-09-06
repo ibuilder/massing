@@ -92,21 +92,47 @@ export function wallJoinsButton(d: RepairDeps): HTMLButtonElement {
         const v = Number(tolI.value);
         return Number.isFinite(v) ? Math.min(Math.max(v, 0.005), 0.5) : 0.05;
       };
+
+      // **The repair runs at the tolerance of the LIST ON SCREEN, never at whatever the input holds
+      // when the button is pressed.** Reading `tol()` again at repair time is a real divergence: scan
+      // at 0.05, see three joins, nudge the input to 0.5, press butt-join — and the server resolves
+      // at 0.5, trimming walls that were never displayed. *The list is the user's consent, and it is
+      // specific to the number it was measured at.* So the accepted scan's tolerance is stored with
+      // it, editing the input invalidates the list rather than silently re-scoping the repair, and a
+      // slow scan that lands after a newer one has started is discarded instead of overwriting it.
+      //
+      // This is the same shape as everything else in this PR — what is shown and what is acted on
+      // coming apart — found by a reviewer one layer inside the fix for it.
+      let scannedTol: number | null = null;      // null = no list on screen the repair may act on
+      let scanSeq = 0;                           // guards against an out-of-order scan response
+      const invalidate = (why: string) => {
+        scannedTol = null;
+        fixBtn.disabled = true;
+        out2.replaceChildren();
+        out2.appendChild(resultNote(why, ""));
+      };
+      tolI.oninput = () => invalidate("tolerance changed — scan again to see which joins this finds");
+
       const scan = async () => {
-        out2.replaceChildren(); fixBtn.disabled = true;
+        const seq = ++scanSeq;
+        const used = tol();
+        out2.replaceChildren(); fixBtn.disabled = true; scannedTol = null;
         out2.appendChild(resultNote("scanning…", ""));
         let r;
-        try { r = await api.wallJoins(pid, tol()); }
+        try { r = await api.wallJoins(pid, used); }
         catch (e) {
+          if (seq !== scanSeq) return;
           out2.replaceChildren();
           out2.appendChild(resultNote(`scan failed: ${escapeHtml((e as Error).message)}`, "bad"));
           return;
         }
+        if (seq !== scanSeq) return;             // a newer scan started; this answer is already stale
         out2.replaceChildren();
         out2.appendChild(resultNote(r.joins.length
           ? `<b>${r.joins.length}</b> open join(s) — ${r.counts.L} L · ${r.counts.T} T, across ${r.wall_count} wall(s)`
           : `No open L/T joins among <b>${r.wall_count}</b> wall(s) at this tolerance.`,
           r.joins.length ? "" : "ok"));
+        scannedTol = used;
         fixBtn.disabled = r.joins.length === 0;
         for (const j of r.joins.slice(0, 200)) {
           const line = document.createElement("div");
@@ -121,8 +147,10 @@ export function wallJoinsButton(d: RepairDeps): HTMLButtonElement {
       };
       scanBtn.onclick = () => { void scan(); };
       fixBtn.onclick = async () => {
+        const at = scannedTol;
+        if (at === null) { invalidate("scan again before repairing — the list is out of date"); return; }
         fixBtn.disabled = true;
-        const res = await authorAndReload("resolve_wall_joins", { tol: tol() }, "wall joins");
+        const res = await authorAndReload("resolve_wall_joins", { tol: at }, "wall joins");
         // `authorAndReload` already reports a refusal and a failed republish/reload. What it
         // cannot say is whether the joins are actually gone, so the count the user is owed is
         // re-MEASURED rather than inferred from the request having succeeded.
