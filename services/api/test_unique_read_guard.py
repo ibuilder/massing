@@ -32,6 +32,17 @@ exactly one of four verdicts, and the fourth is a FAILURE:
 An UNKNOWN is not a gap to widen the parser around at leisure. It is the gate saying "there is a
 read here whose safety nobody has established", which is the true state and the useful one.
 
+**And the first version of this file failed closed in its verdicts while failing OPEN in its
+analysis — two holes, both found in review on the day it shipped.** The filter's columns were
+collected with `ast.walk`, which unions an OR's two branches into one set: `where(or_(a == 1,
+b == 2))` reported `{a, b}`, so a unique key on `(a, b)` made a genuinely two-row read look BACKED.
+And "the selector's arguments are all `ast.Call`" was read as "this is an aggregate", so
+`db.query(func.lower(X))` was exempted from the gate entirely. *Both holes are the same mistake in
+different clothes: answering a question about MEANING with a test of SHAPE.* Neither could ever have
+been caught by a clean report — the verdicts they produced were BACKED and AGGREGATE, which is what
+a healthy tree looks like. `_OR_PREDICATE_POSITIVE`, `_OR_OPERATOR_POSITIVE` and
+`_SCALAR_FUNC_POSITIVE` below were each run against the pre-fix analyser and each came back safe.
+
 ## The uniqueness question is asked of SQLAlchemy, never of the text
 
 `UniqueConstraint(...)` and `Index(..., unique=True)` are BOTH in use in `models.py`, deliberately —
@@ -128,16 +139,68 @@ def _receiver_chain(node: ast.AST) -> list[ast.Call]:
             return chain
 
 
-def _entity_and_columns(chain: list[ast.Call], models: set[str]) -> tuple[str | None, set[str], bool]:
-    """(model, filtered column names, selects_no_entity) for one reader chain.
+#: SQL functions that collapse any number of rows to exactly one. Named explicitly, because the
+#: question "does this query return one row by construction" is answered by WHICH function was
+#: called, not by the fact that A function was called. Matched on the function name only, so an
+#: aliased namespace (`from sqlalchemy import func as _f`, which `bim.py` uses) still resolves.
+_AGGREGATE_FUNCS = {"count", "max", "min", "sum", "avg"}
 
-    `selects_no_entity` marks an aggregate — `db.query(func.count(X), func.max(Y))` — which returns
-    exactly one row whatever the filter says, so it needs no constraint.
+
+def _is_aggregate_call(node: ast.AST) -> bool:
+    """`func.count(...)` / `_f.max(...)` — an aggregate. `func.lower(...)` is NOT one."""
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _AGGREGATE_FUNCS)
+
+
+def _pinned_columns(node: ast.AST, models: set[str]) -> set[str]:
+    """Columns this predicate pins to a value on EVERY row it admits.
+
+    Only AND-shaped structure and `==` comparisons count. An OR branch contributes NOTHING, because
+    a row matching the other branch is not pinned by it — `where(or_(a == 1, b == 2))` admits rows
+    that agree on neither column, so a unique key on `(a, b)` does not make it single-rowed.
+    Anything else — `in_`, `!=`, `<`, `ilike`, a helper call — also contributes nothing, which
+    leaves the site short of a full unique key and therefore UNKNOWN. That is the fail-closed
+    direction on purpose: under-collecting turns the build red, over-collecting waves a defect
+    through.
+    """
+    if isinstance(node, ast.BoolOp):
+        if isinstance(node.op, ast.And):
+            return set().union(*(_pinned_columns(v, models) for v in node.values))
+        return set()                                     # `or` — proves nothing about any column
+    if isinstance(node, ast.BinOp):                      # SQLAlchemy overloads `&` and `|`
+        if isinstance(node.op, ast.BitAnd):
+            return _pinned_columns(node.left, models) | _pinned_columns(node.right, models)
+        return set()
+    if isinstance(node, ast.Compare):
+        if len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
+            target = node.left
+            if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                    and target.value.id in models):
+                return {target.attr}
+        return set()
+    if isinstance(node, ast.Call):
+        fn = node.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else (fn.id if isinstance(fn, ast.Name) else "")
+        if name == "and_":
+            return set().union(set(), *(_pinned_columns(a, models) for a in node.args))
+        return set()
+    return set()
+
+
+def _entity_and_columns(chain: list[ast.Call], models: set[str]) -> tuple[str | None, set[str], bool]:
+    """(model, PINNED column names, selects_only_aggregates) for one reader chain.
+
+    `selects_only_aggregates` marks `db.query(func.count(X), func.max(Y))` — one row whatever the
+    filter says, so it needs no constraint. Both halves used to be answered by shape rather than by
+    meaning: any `ast.Call` in the selector counted as an aggregate (so `func.lower(...)` did), and
+    the filter's columns were collected with `ast.walk`, which unions an OR's two branches into one
+    set that looks like a conjunction. Both errors point the same way — they make a read look SAFER
+    than it is, in a gate whose entire value is that it fails closed.
     """
     model: str | None = None
     cols: set[str] = set()
     saw_selector = False
-    selector_args_were_all_calls = False
+    selector_args_were_all_aggregates = False
     for call in chain:
         fn = call.func
         name = fn.attr if isinstance(fn, ast.Attribute) else (fn.id if isinstance(fn, ast.Name) else "")
@@ -146,15 +209,12 @@ def _entity_and_columns(chain: list[ast.Call], models: set[str]) -> tuple[str | 
             named = [a for a in call.args if isinstance(a, ast.Name) and a.id in models]
             if named:
                 model = named[0].id
-            elif call.args and all(isinstance(a, ast.Call) for a in call.args):
-                selector_args_were_all_calls = True      # count()/max() — an aggregate row
+            elif call.args and all(_is_aggregate_call(a) for a in call.args):
+                selector_args_were_all_aggregates = True
         elif name in ("where", "filter"):
             for a in call.args:
-                for sub in ast.walk(a):
-                    if (isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name)
-                            and sub.value.id in models):
-                        cols.add(sub.attr)
-    return model, cols, saw_selector and model is None and selector_args_were_all_calls
+                cols |= _pinned_columns(a, models)
+    return model, cols, saw_selector and model is None and selector_args_were_all_aggregates
 
 
 def unique_reads(src: str, models: set[str]) -> list[tuple[str, str | None, frozenset[str], bool, int]]:
@@ -213,6 +273,34 @@ def set_status(pid, guid, db):
 _UNRESOLVABLE_POSITIVE = '''
 def pick(db, entity):
     return db.query(entity).filter(entity.thing == 1).one_or_none()
+'''
+
+#: An OR over the two halves of a unique key. Every column of `uq_element_verifications_project_guid`
+#: appears, so a collector built on `ast.walk` reports the full key and the site is judged BACKED —
+#: while the query itself admits every row of the project AND every row carrying that guid, which is
+#: exactly the two-row read this gate exists to catch. Found by review on the day it shipped.
+_OR_PREDICATE_POSITIVE = '''
+def pick(pid, guid, db):
+    return db.execute(select(ElementVerification).where(or_(
+        ElementVerification.project_id == pid,
+        ElementVerification.guid == guid))).scalar_one_or_none()
+'''
+
+#: The same hole in SQLAlchemy's operator spelling — `|` is a BinOp, not a BoolOp, so a fix that
+#: only taught the collector about `or_(...)` would still miss this one.
+_OR_OPERATOR_POSITIVE = '''
+def pick(pid, guid, db):
+    return db.execute(select(ElementVerification).where(
+        (ElementVerification.project_id == pid) | (ElementVerification.guid == guid),
+    )).scalar_one_or_none()
+'''
+
+#: An ordinary scalar function in the selector. `func.lower(...)` returns one value PER ROW, so this
+#: read demands uniqueness like any other — but "the selector's arguments are all calls" called it an
+#: aggregate and exempted it from the whole gate.
+_SCALAR_FUNC_POSITIVE = '''
+def pick(name, db):
+    return db.query(func.lower(Project.name)).filter(Project.name == name).one_or_none()
 '''
 
 def classify(site: str, model: str | None, cols: frozenset[str], aggregate: bool,
@@ -291,6 +379,28 @@ def main() -> int:
     check("...and the VERDICT for it is UNKNOWN, not quietly waved through",
           classify("nowhere::pick::None", _model, _cols, _agg, mapped) == "UNKNOWN",
           classify("nowhere::pick::None", _model, _cols, _agg, mapped))
+    # ---- fail-closed: neither an OR predicate nor a scalar function may look safe ---------------
+    # Each of these was a live fail-OPEN hole in the first version of this file, and each is asserted
+    # on the VERDICT rather than on what the analyser reported — the distinction that let the earlier
+    # AGGREGATE mutation through. They are checked here, against the CURRENT schema, so they cannot
+    # be satisfied by the constraint being absent.
+    for label, src in (("or_(...)", _OR_PREDICATE_POSITIVE), ("the `|` operator", _OR_OPERATOR_POSITIVE)):
+        (_f2, _m2, _c2, _a2, _l2), = unique_reads(src, names | {"ElementVerification"})
+        check(f"an OR predicate written with {label} pins NO column, so it cannot borrow a unique key",
+              _m2 == "ElementVerification" and _c2 == frozenset()
+              and classify("x::pick::ElementVerification", _m2, _c2, _a2, mapped) == "UNKNOWN",
+              (_m2, sorted(_c2), classify("x::pick::ElementVerification", _m2, _c2, _a2, mapped)))
+    # ...and the conjunction of the SAME two columns still is backed, so the rule above narrowed the
+    # collector rather than breaking it.
+    (_f3, _m3, _c3, _a3, _l3), = unique_reads(_KNOWN_POSITIVE, names | {"ElementVerification"})
+    check("the AND of those same two columns is still BACKED — the narrowing did not blunt the gate",
+          classify("x::set_status::ElementVerification", _m3, _c3, _a3, mapped) == "BACKED",
+          sorted(_c3))
+    (_f4, _m4, _c4, _a4, _l4), = unique_reads(_SCALAR_FUNC_POSITIVE, names)
+    check("a scalar function in the selector is NOT an aggregate and is not waved through",
+          _a4 is False and classify("x::pick::None", _m4, _c4, _a4, mapped) == "UNKNOWN",
+          (_a4, classify("x::pick::None", _m4, _c4, _a4, mapped)))
+
     check("an unresolvable read is not rescued by being listed in EXEMPT under another name",
           classify("routers/cloud.py::_link_account::CloudIdentity", None, frozenset(), False,
                    mapped) == "EXEMPT",

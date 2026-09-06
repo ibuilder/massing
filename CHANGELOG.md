@@ -24,6 +24,22 @@ demote a project's only admin, which nothing in the app can undo from the inside
 privileged can leave someone with more access than intended, which is visible in the member list and
 one click to correct. `party_role` and `company` are carried forward off the rows being removed.
 
+**The read-side gate that found it shipped with two fail-OPEN holes of its own, both caught in
+review.** `test_unique_read_guard` collected a query's filtered columns with `ast.walk`, which unions
+an OR's branches — `where(or_(a == 1, b == 2))` looked like a conjunction on `(a, b)` and could
+borrow a unique key it does not satisfy. And it treated any call in the selector as an aggregate, so
+`db.query(func.lower(X))` was exempted from the gate entirely. Both are the same mistake: answering a
+question about MEANING with a test of SHAPE, in the fail-closed direction's exact opposite. Neither
+could have shown up in a report — they produced BACKED and AGGREGATE, which is what a healthy tree
+looks like. Fixed by pinning columns only through AND-shaped equality and by naming the aggregate
+functions explicitly; three fixtures now assert the verdicts, and each was run against the pre-fix
+analyser first to confirm it came back safe there.
+
+Two race tests also had their `DATABASE_URL` changed from `setdefault` to an assignment. Under
+`run_tests.py` either is safe, but these files document how to run them directly, and `setdefault`
+then hands them whatever DSN the shell carries — a developer's dev database, into a test that creates
+tables and deletes rows. The assignment form is also the one `run_tests.py`'s sweeper can read.
+
 **`test_seeding_sweep` could not have caught this, and its docstring already said so.** It reports a
 conditional branch that inserts a mapped model; `grant` puts the insert at function scope after an
 early `return`, which that gate names as its own blind spot. A named limit is still a limit — writing

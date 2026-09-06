@@ -56,7 +56,12 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_member_role_race.db")
+# ASSIGNED, not `setdefault`. Under `run_tests.py` either form is safe — the runner exports a
+# private `_{test}.db` per test — but this file is also run directly (the docstring says how),
+# and then `setdefault` hands it whatever DATABASE_URL the shell happens to carry, which for a
+# developer is their dev database. This test CREATES TABLES AND DELETES ROWS. The assignment
+# form is also the one `run_tests.py::_DB_LITERAL` can read, so the file it makes is swept.
+os.environ["DATABASE_URL"] = "sqlite:///./_member_role_race.db"
 for _p in ("src", "../data/src"):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -75,6 +80,8 @@ from aec_api.models import Base, Project, ProjectMember              # noqa: E40
 Base.metadata.create_all(engine)
 
 PID, USER = "p-race", "carla@example.com"
+#: A second member, used only for the lost-race reproduction: it has to start with NO row.
+LOSER = "dana@example.com"
 FAILED: list[str] = []
 
 
@@ -163,14 +170,49 @@ try:
     check("role_for is now unambiguous", rbac.role_for(db, PID, USER) == "editor",
           rbac.role_for(db, PID, USER))
 
-    # THE LOST RACE, folded: the loser's blind first read answers empty, its INSERT collides, and
-    # `get_or_create_by_key` returns the WINNER's row instead of 500-ing on a legitimate request.
-    m, created = auth.get_or_create_by_key(
-        db, ProjectMember,
-        (ProjectMember.project_id == PID, ProjectMember.user == USER),
-        lambda: ProjectMember(project_id=PID, user=USER, role="admin"))
+    # THE LOST RACE, taken through the recovery path rather than around it.
+    #
+    # **The first draft of this check tested nothing, and it passed.** It called
+    # `get_or_create_by_key` for a member that ALREADY EXISTED, so the helper's opening read found
+    # the row and returned on its first branch — `created is False` was true because nothing was
+    # ever inserted, not because an IntegrityError was recovered from. The assertion's own words
+    # ("a lost race folds into the winner's row") described a code path the test never reached.
+    # Another check that could only report good news, in the file written to demonstrate the class.
+    #
+    # So: a member who does NOT exist, whose competing row is committed by a SECOND session from
+    # inside `make_row` — which `auth.get_or_create_by_key` calls after its opening read has already
+    # answered empty and before the candidate is flushed. That is precisely where the winner commits
+    # in a real race, and it forces the loser down `except IntegrityError -> _read() -> return the
+    # winner`. The precondition is asserted below rather than assumed, because it is the whole
+    # reason the path is reached.
+    db.commit()
+    pre = db.query(ProjectMember).filter(
+        ProjectMember.project_id == PID, ProjectMember.user == LOSER).count()
+    check("the racing read starts from NO row, so the opening branch cannot answer it", pre == 0,
+          f"{pre} row(s) before the call")
+
+    winner_session = SessionLocal()
+
+    def _winner_commits_first() -> ProjectMember:
+        """The competing grant, committed between the loser's read and the loser's flush."""
+        winner_session.add(ProjectMember(project_id=PID, user=LOSER, role="editor"))
+        winner_session.commit()
+        return ProjectMember(project_id=PID, user=LOSER, role="admin")
+
+    try:
+        m, created = auth.get_or_create_by_key(
+            db, ProjectMember,
+            (ProjectMember.project_id == PID, ProjectMember.user == LOSER),
+            _winner_commits_first)
+    finally:
+        winner_session.close()
+    # `created is False` can now only be reached through the IntegrityError branch: the opening read
+    # ran before the winner existed, so the only other exit from this helper is `created is True`.
     check("a lost race folds into the winner's row instead of erroring",
           created is False and m.role == "editor", (created, m.role))
+    dupes = db.query(ProjectMember).filter(
+        ProjectMember.project_id == PID, ProjectMember.user == LOSER).count()
+    check("...and the loser's candidate row was NOT written", dupes == 1, f"{dupes} row(s)")
 finally:
     db.close()
 

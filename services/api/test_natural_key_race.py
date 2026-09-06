@@ -47,7 +47,11 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_natural_key_race.db")
+# ASSIGNED, not `setdefault` — the same hazard corrected in `test_member_role_race.py`: run
+# directly rather than through `run_tests.py`, `setdefault` hands this file whatever
+# DATABASE_URL the shell carries, and this test creates tables and deletes rows. The
+# assignment form is also the one `run_tests.py::_DB_LITERAL` reads, so the file is swept.
+os.environ["DATABASE_URL"] = "sqlite:///./_natural_key_race.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_natural_key_race")
 
 for _f in ("./_natural_key_race.db", "./_natural_key_race_legacy.db"):
