@@ -199,6 +199,24 @@ def saml_acs(request, SAMLResponse, db):
 '''
 
 
+#: `modules.add_enum_option` in the shape it had before this file could see it: the read that
+#: decides the insert goes through a HELPER, so the model's name never appears in a lookup call
+#: here. Kept because `_KNOWN_POSITIVE` cannot stand in for it — that one reads with a direct
+#: `db.get(User, ...)`, so it is still found when the removed precondition is put back, and the
+#: gate would pass while going blind again. Measured, not assumed:
+#:
+#:     precondition restored -> SAML fixture FOUND (green), helper-read site MISSED
+#:
+#: A positive sample that survives the regression it is meant to catch is not a regression test.
+_HELPER_READ_POSITIVE = '''
+def add_enum_option(db, project_id, module, field, value, actor):
+    existing = set(list_enum_options(db, project_id).get(module, {}).get(field, []))
+    if value not in existing:
+        db.add(EnumOption(project_id=project_id, module=module, field=field, value=value))
+        db.commit()
+'''
+
+
 def check(label: str, ok: bool, detail: object = None) -> bool:
     print(f"  {'PASS' if ok else 'FAIL'}  {label}" + (f"   [{detail!r}]" if not ok else ""))
     return ok
@@ -212,6 +230,11 @@ def main() -> int:
     hits = seeding_sites(_KNOWN_POSITIVE, models)
     ok &= check("the pre-fix SAML door IS detected (1 site, on User)",
                 [(f, m) for f, m, _ in hits] == [("saml_acs", "User")], hits)
+
+    hits = seeding_sites(_HELPER_READ_POSITIVE, models)
+    ok &= check("a site whose read goes through a HELPER is detected — the shape that was invisible "
+                "until 2026-09-06, and the one _KNOWN_POSITIVE cannot stand in for",
+                [(f, m) for f, m, _ in hits] == [("add_enum_option", "EnumOption")], hits)
 
     live = (ROOT / "services/api/src/aec_api/routers/saml.py").read_text(encoding="utf-8")
     ok &= check("...and the SAME function, after conversion, is NOT — so a fix removes a site "
@@ -253,8 +276,9 @@ def main() -> int:
     if ok:
         print(f"SEEDING SWEEP OK - {len(found)} read-decide-insert sites across {len(models)} mapped "
               f"models, {len(EXEMPT)} exempt with stated reasons and 0 unguarded; the deriver is "
-              "checked against the pre-fix SAML door so a clean report means the tree is clean "
-              "rather than the detector being blind.")
+              "checked against TWO positives it must find — the pre-fix SAML door (a direct read) "
+              "and a helper-mediated read — so a clean report means the tree is clean rather than "
+              "the detector being blind.")
     else:
         print("SEEDING SWEEP FAILED")
     return 0 if ok else 1
