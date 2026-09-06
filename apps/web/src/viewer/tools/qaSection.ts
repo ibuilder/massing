@@ -397,6 +397,86 @@ export function buildQaSection(d: QaDeps): void {
             }
           });
         })));
+        // AUTH-CONSTRAINTS ③ — wall joins, and NEITHER half of it was on screen.
+        //
+        // Walls are authored to their CENTRELINES, so an L or a T meeting leaves the corner open or
+        // the stub running through the other wall: right as a diagram, wrong as geometry, and it is
+        // what a takeoff and a clash run both read. `wall_joins.find` detects them; the
+        // `resolve_wall_joins` recipe butt-joins them.
+        //
+        // `docs/roadmap.md` filed this under *"the diagnosis ships, the repair does not"*. The
+        // diagnosis shipped as a ROUTE and a CLIENT METHOD — `api.wallJoins` sat on the uncalled-method
+        // ratchet in `apps/web/src/api/clientCallers.test.ts` with no caller anywhere in the app. *A
+        // route and a client method are two thirds of a feature, and counting either one reports it
+        // as shipped.* The same conflation the reach gate exists to catch, one layer up from the
+        // recipe.
+        b.appendChild(toolBtn2("📐 Wall joins (open corners / stubs)", () => {
+          showResult("Wall joins — detect and butt-join", (body) => {
+            body.appendChild(resultNote("Walls are authored to their <b>centrelines</b>, so an L or T meeting "
+              + "leaves the corner open or the stub crossing through. Butt-joining trims the stub back to the "
+              + "through wall's face, and closes the outside of an L. GUID-stable and idempotent — pins, RFIs "
+              + "and clashes keyed by GlobalId survive.", ""));
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0";
+            const tolLbl = document.createElement("span"); tolLbl.className = "meta"; tolLbl.textContent = "tolerance (m)";
+            const tolI = document.createElement("input");
+            tolI.className = "portal-filter"; tolI.type = "number";
+            tolI.step = "0.005"; tolI.min = "0.005"; tolI.max = "0.5"; tolI.value = "0.05";
+            tolI.style.cssText = "width:90px;font-size:12px";
+            tolI.title = "How close two wall ends must be to count as a join (metres)";
+            const scanBtn = document.createElement("button"); scanBtn.className = "mini-btn on"; scanBtn.textContent = "⟳ Scan";
+            const fixBtn = document.createElement("button"); fixBtn.className = "mini-btn"; fixBtn.textContent = "🔨 Butt-join all";
+            fixBtn.disabled = true;
+            row.append(tolLbl, tolI, scanBtn, fixBtn);
+            const out2 = document.createElement("div"); out2.style.cssText = "margin-top:6px;max-height:40vh;overflow:auto";
+            body.append(row, out2);
+
+            // The route already clamps to [0.005, 0.5]; clamping here too keeps the number the user
+            // sees and the number the server used the same, rather than silently differing.
+            const tol = () => {
+              const v = Number(tolI.value);
+              return Number.isFinite(v) ? Math.min(Math.max(v, 0.005), 0.5) : 0.05;
+            };
+            const scan = async () => {
+              out2.replaceChildren(); fixBtn.disabled = true;
+              out2.appendChild(resultNote("scanning…", ""));
+              let r;
+              try { r = await api.wallJoins(pid, tol()); }
+              catch (e) {
+                out2.replaceChildren();
+                out2.appendChild(resultNote(`scan failed: ${escapeHtml((e as Error).message)}`, "bad"));
+                return;
+              }
+              out2.replaceChildren();
+              out2.appendChild(resultNote(r.joins.length
+                ? `<b>${r.joins.length}</b> open join(s) — ${r.counts.L} L · ${r.counts.T} T, across ${r.wall_count} wall(s)`
+                : `No open L/T joins among <b>${r.wall_count}</b> wall(s) at this tolerance.`,
+                r.joins.length ? "" : "ok"));
+              fixBtn.disabled = r.joins.length === 0;
+              for (const j of r.joins.slice(0, 200)) {
+                const line = document.createElement("div");
+                line.className = "meta";
+                line.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+                line.innerHTML = `<b>${escapeHtml(j.kind)}</b> at ${j.corner.map((n) => n.toFixed(2)).join(", ")} m`
+                  + ` — stub <code>${escapeHtml(j.stub)}</code> butts into <code>${escapeHtml(j.through)}</code>`;
+                line.title = "Select both walls";
+                line.onclick = async () => { await selectMap(await sets.fromGuids(j.walls)); };
+                out2.appendChild(line);
+              }
+            };
+            scanBtn.onclick = () => { void scan(); };
+            fixBtn.onclick = async () => {
+              fixBtn.disabled = true;
+              const res = await authorAndReload("resolve_wall_joins", { tol: tol() }, "wall joins");
+              // `authorAndReload` already reports a refusal and a failed republish/reload. What it
+              // cannot say is whether the joins are actually gone, so the count the user is owed is
+              // re-MEASURED rather than inferred from the request having succeeded.
+              if (res.applied) await scan();
+              else fixBtn.disabled = false;
+            };
+            void scan();
+          });
+        }));
         // SOURCES-1 — what governs the selected element. `elementSources` had no client caller, so
         // the answer to "why is this wall like this?" existed server-side and nowhere else.
         b.appendChild(toolBtn2("🔎 Element sources (what governs this?)", () => withLoading(container, "Reading provenance", async () => {

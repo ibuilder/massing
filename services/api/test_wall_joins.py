@@ -78,6 +78,38 @@ with TestClient(app) as c:
     r = c.get(f"/projects/{pid}/model/wall-joins")
     assert r.status_code == 200 and r.json()["counts"] == {"L": 0, "T": 0}, r.text  # already resolved
 
+    # ...and the POSITIVE case, which this file did not have. Asserting only the resolved model means
+    # a route that returned a hard-coded empty result passes — *an empty answer reads identically
+    # whether nothing was wrong or nothing was measured*, and the whole point of the route is the
+    # non-empty answer the QA tool renders. A second project on the UNRESOLVED file pins that.
+    _raw = Path(tempfile.gettempdir()) / "wall_joins_raw.ifc"
+    massing.generate_blank_ifc(str(_raw), name="WJ2", storeys=1, storey_height=3.0, ground_size=30.0)
+    m2 = open_model(str(_raw))
+    ra = edit.add_wall(m2, [0, 0], [10, 0], 3.0, 0.2, "Level 1")
+    edit.add_wall(m2, [0, 0], [0, 6], 3.0, 0.2, "Level 1")
+    edit.add_wall(m2, [5, 4], [5, 0], 3.0, 0.3, "Level 1")
+    m2.write(str(_raw))
+    pid2 = c.post("/projects", json={"name": "WJ2"}).json()["id"]
+    with SessionLocal() as db:
+        db.get(Project, pid2).source_ifc = str(_raw)
+        db.commit()
+    r2 = c.get(f"/projects/{pid2}/model/wall-joins")
+    assert r2.status_code == 200, r2.text
+    body = r2.json()
+    assert body["counts"] == {"L": 1, "T": 1}, body["counts"]
+    assert body["wall_count"] == 3, body["wall_count"]
+    # the payload the tool actually reads: each join names both walls by GlobalId, and the through
+    # wall of the L is the longer one — a row the user can click to select both.
+    lj = next(j for j in body["joins"] if j["kind"] == "L")
+    assert lj["through"] == ra, lj
+    assert set(lj["walls"]) == {lj["through"], lj["stub"]}, lj
+    assert len(lj["corner"]) == 2, lj
+    # the tolerance the tool sends is honoured rather than ignored: nothing coincides at 5 mm
+    tight = c.get(f"/projects/{pid2}/model/wall-joins?tol=0.005").json()
+    assert tight["counts"]["L"] == 1, tight["counts"]        # the L ends are exactly coincident
+    if _raw.exists():
+        _raw.unlink()
+
 if _ifc.exists():
     _ifc.unlink()
 
@@ -85,4 +117,7 @@ print("WALL-JOINS OK - find classifies the 10mx6m corner as an L (longer wall th
       "4m dead-end as a T; resolve butt-joins deterministically (through 10->10.1 m closing the "
       "outside corner, L-stub 6->5.9 m, T-stub 4->3.9 m, far ends pinned, the door in the through "
       "wall unmoved to the millimetre), a second pass is a no-op (idempotent), and "
-      "GET /model/wall-joins reports the resolved model clean.")
+      "GET /model/wall-joins reports the resolved model clean AND reports the unresolved one as "
+      "1 L + 1 T over 3 walls with both wall GUIDs per join and the tolerance honoured - the "
+      "positive case this file asserted nowhere, which a route returning a hard-coded empty result "
+      "would have passed.")
