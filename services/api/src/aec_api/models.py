@@ -436,6 +436,11 @@ class RecordActivity(Base):
 class Topic(Base):
     """An RFI / punchlist item / clash / info note. A *pin* is a Topic with an anchor."""
     __tablename__ = "topics"
+    # A BCF topic guid is the identity the file carries, so a re-import must find the same row rather
+    # than make a second one. An INDEX rather than a UniqueConstraint, matching
+    # `uq_element_verifications_project_guid`: on Postgres the two are different objects and
+    # `alembic check` compares them, on SQLite they are indistinguishable.
+    __table_args__ = (Index("uq_topics_project_guid", "project_id", "guid", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     guid: Mapped[str] = mapped_column(String, default=_uuid, index=True)  # BCF topic guid
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -465,7 +470,13 @@ class Topic(Base):
 
 class Comment(Base):
     __tablename__ = "comments"
+    # BCF-COMMENT-ID: a comment's identity in a .bcfzip, separate from our primary key so a
+    # re-import can match one. Before this column the exporter wrote `Guid = c.id` and the importer
+    # threw the file's Guid away entirely, so every re-import appended the same comments again. The
+    # migration backfills `guid := id`, which keeps every ALREADY EXPORTED file matching.
+    __table_args__ = (Index("uq_comments_topic_guid", "topic_id", "guid", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    guid: Mapped[str] = mapped_column(String, default=_uuid, index=True)
     topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)

@@ -48,10 +48,52 @@ with TestClient(app) as c:
     imp = c.post(f"/projects/{dst}/bcf/import",
                  files={"file": ("issues.bcfzip", blob, "application/zip")})
     assert imp.status_code == 200, imp.text[:200]
-    assert imp.json()["imported"] == 2, imp.json()
+    assert imp.json()["imported"] == 2 and imp.json()["updated"] == 0, imp.json()
 
     topics = c.get(f"/projects/{dst}/topics").json()
     assert len(topics) == 2, topics
+
+    # --- BCF-REIMPORT: the same file again UPDATES; it does not make a second copy ----------------
+    # The importer used to blind-insert `Topic(guid=...)` with no lookup, so a coordinator
+    # re-importing an updated .bcfzip each week — the ordinary loop with a coordination tool — got
+    # a second copy of every topic. Export then wrote two <Topic> elements sharing one Guid, which
+    # is not valid BCF, so the duplication escaped this deployment into whatever opened the file.
+    again = c.post(f"/projects/{dst}/bcf/import",
+                   files={"file": ("issues.bcfzip", blob, "application/zip")})
+    assert again.json() == {"imported": 0, "updated": 2}, again.json()
+    assert len(c.get(f"/projects/{dst}/topics").json()) == 2, "a re-import duplicated the topics"
+
+    # ...and an EDIT in the file is applied rather than ignored — "updates in place" has to mean
+    # the update lands, not merely that nothing was inserted.
+    # Rewritten ENTRY BY ENTRY: the zip is deflated, so a bytes.replace over the archive finds
+    # nothing and would have left this asserting that re-importing an identical file changes
+    # nothing — which the block above already covers. The precondition below is what caught that.
+    ebuf = io.BytesIO()
+    touched = 0
+    with zipfile.ZipFile(io.BytesIO(blob)) as zin, zipfile.ZipFile(ebuf, "w") as zout:
+        for item in zin.namelist():
+            raw = zin.read(item)
+            if b"Beam vs duct" in raw:
+                raw = raw.replace(b"Beam vs duct", b"Beam vs duct (resolved)")
+                touched += 1
+            zout.writestr(item, raw)
+    assert touched == 1, f"the fixture's title was not found in the archive ({touched} entries hit)"
+    edited = ebuf.getvalue()
+    c.post(f"/projects/{dst}/bcf/import",
+           files={"file": ("issues.bcfzip", edited, "application/zip")})
+    titles = {t["title"] for t in c.get(f"/projects/{dst}/topics").json()}
+    assert "Beam vs duct (resolved)" in titles, titles
+
+    # --- comments survive a round-trip by their own guid, and are not appended twice --------------
+    # `Comment.guid` exists for this: the exporter wrote `<Comment Guid="{id}">` and the importer
+    # discarded it, so every re-import appended the same conversation again. The migration
+    # backfilled `guid := id`, so files exported BEFORE this change still match.
+    tid = c.get(f"/projects/{dst}/topics").json()[0]["id"]
+    c.post(f"/projects/{dst}/topics/{tid}/comments", json={"text": "Rerouted above the beam."})
+    round_trip = c.get(f"/projects/{dst}/bcf/export").content
+    c.post(f"/projects/{dst}/bcf/import",
+           files={"file": ("issues.bcfzip", round_trip, "application/zip")})
+    assert len(c.get(f"/projects/{dst}/topics/{tid}/comments").json()) == 1, "the comment duplicated"
     # PERF-4: the topics list is paginated (default 500, hard cap) — limit/offset bound the payload
     assert len(c.get(f"/projects/{dst}/topics?limit=1").json()) == 1, "limit caps the page"
     assert len(c.get(f"/projects/{dst}/topics?offset=1").json()) == 1, "offset skips"
@@ -163,11 +205,21 @@ with TestClient(app) as c:
     from aec_api.models import Topic as _Topic  # noqa: E402
     p3 = c.post("/projects", json={"name": "BCF 3.0 nested"}).json()["id"]
     with SessionLocal() as db:
-        assert bcf_io.import_bcfzip(db, p3, b3buf.getvalue()) == 1
+        assert bcf_io.import_bcfzip(db, p3, b3buf.getvalue()) == (1, 0)   # (created, updated)
         db.commit()
         topic = db.query(_Topic).filter(_Topic.project_id == p3).first()
         assert topic.labels == ["NC-9"], topic.labels               # grouped <Labels><Label> read
         assert topic.comments and topic.comments[0].text == "please fix", topic.comments  # nested comment read
+
+        # BCF-REIMPORT: importing the SAME file again updates the topic in place. It used to insert
+        # a second one — and a second copy of every comment — so a coordinator re-importing an
+        # updated file each week grew the list instead of moving it forward, and the export then
+        # emitted two <Topic> elements sharing one Guid, which is not valid BCF.
+        assert bcf_io.import_bcfzip(db, p3, b3buf.getvalue()) == (0, 1)
+        db.commit()
+        again = db.query(_Topic).filter(_Topic.project_id == p3).all()
+        assert len(again) == 1, [(t.id, t.guid) for t in again]
+        assert len(again[0].comments) == 1, [c.text for c in again[0].comments]
 
     # --- SEC F9: decompression-bomb bounds — oversized uncompressed entries are rejected ----------
     from fastapi import HTTPException as _HTTPExc  # noqa: E402

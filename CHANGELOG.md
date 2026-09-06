@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a BCF re-import duplicated everything, and one snapshot read crossed projects
+
+**Re-importing a `.bcfzip` made a second copy of every topic instead of updating it.**
+`bcf_io.import_bcfzip` blind-inserted `Topic(guid=te.get("Guid"))` with no lookup at all, and threw
+each `<Comment Guid>` away entirely. So the ordinary weekly loop — export the coordination issues,
+open them in a coordination tool, import the updated file back — grew the list instead of moving it
+forward, and did it again every week.
+
+The damage did not stay here. Export then wrote two `<Topic>` elements carrying one GUID, which is
+not valid BCF, so the duplication left this deployment and became the next tool's problem. That is
+the round-trip guarantee in `CLAUDE.md` — *pins/RFIs/punchlist follow the BCF model so they
+round-trip with other BIM tools* — failing in the direction that is hardest to notice, because
+nothing here ever showed an error.
+
+A topic is now identified by `(project_id, guid)` and a comment by `(topic_id, guid)`. Both are
+backed by unique indexes in `b6e1c4d09a37`, because a find-or-create with no constraint under it is
+the same defect this week's other three migrations were about: the savepoint has nothing to catch
+until the constraint exists.
+
+`comments.guid` is new — a comment's identity in the *file*, separate from our primary key. It is
+backfilled `guid := id`, which is exactly what the exporter has been writing as `<Comment Guid>` all
+along, so **files exported before this change still match their comments on re-import**. Without the
+backfill the fix would only have worked for files exported afterwards.
+
+**The dedupe re-parents rather than deletes**, which departs from the three sibling migrations. An
+enum option or an element verification carries nothing; a topic carries comments, viewpoints and
+attachments by foreign key, plus audit entries, record comments and drawing markups through a plain
+`topic_id` string with no constraint behind it. Deleting a duplicate topic would take a real
+conversation with it and leave those three soft references pointing at a row that no longer exists.
+So every child moves onto the earliest topic — the id every other record already points at — and only
+then is the empty row removed. `services/api/test_bcf_reimport_dedupe.py` seeds that mess and
+upgrades through it, because a dedupe runs **once, on a production database, against rows nobody here
+has ever seen**, and if it is wrong the evidence is the data it destroyed.
+
+The import route now answers `{"imported": N, "updated": M}`. `imported` keeps its name and now means
+*new* topics; the old shape counted every topic in the file as an import while quietly creating a
+second copy of each one.
+
+**Separately, a viewpoint snapshot could be fetched from another project.**
+`bcf_viewpoint_snapshot` validated the *topic* against the project and then read the viewpoint with
+`filter(Viewpoint.guid == vguid)` over the whole table, so a viewer on their own project, passing a
+viewpoint GUID belonging to someone else's, got that project's snapshot PNG with a 200. The GUID is
+not a secret — a `.bcfzip` carries GUIDs chosen by whoever authored it, and those files move between
+firms. Every sibling read in that router already scoped by the topic; this was the lone outlier. Now
+scoped by `Viewpoint.topic_id == t.id`.
+
+Found while reading the six ambiguous `.first()` sites the previous entry named rather than exempted,
+of which `Viewpoint(guid)` was one. *The ambiguity question — can this return two rows? — and the
+authorisation question — can this return someone else's row? — turn out to be the same reading of the
+same line.*
+
 ## Unreleased — removing a member from a project reported success and did not remove them
 
 `project_members` has carried two SEPARATE non-unique indexes since the schema baseline — one on

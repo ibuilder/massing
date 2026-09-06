@@ -105,6 +105,16 @@ EXEMPT: dict[str, str] = {
         "Not a get-or-create: it creates one Topic per finding inside a per-finding loop, with no existence read and nothing to fold into. Two concurrent runs produce two sets of issues, which is what running an analysis twice means — the same shape as any append-only log. Listed rather than filtered out because the gate no longer asks whether a function read the model first, and this is the cost of that: a stated reason instead of a silent omission.",
     "services/api/src/aec_api/routers/standards.py::ci_run":
         "Not a get-or-create: it creates one Topic per finding inside a per-finding loop, with no existence read and nothing to fold into. Two concurrent runs produce two sets of issues, which is what running an analysis twice means — the same shape as any append-only log. Listed rather than filtered out because the gate no longer asks whether a function read the model first, and this is the cost of that: a stated reason instead of a silent omission.",
+    "services/api/src/aec_api/bcf_io.py::import_bcfzip":
+        "The GUARDED half of this function is not what is reported here — the topic keyed on "
+        "(project_id, guid) goes through auth.get_or_create_by_key, and it does so BECAUSE this "
+        "gate refused its hand-rolled first draft. What is left is the other branch: a .bcfzip "
+        "whose <Topic> carries no Guid at all. There is nothing to find-or-create ON, so the insert "
+        "is unconditional by necessity, and inventing a key from the title would silently merge two "
+        "genuinely different topics — worse than a duplicate anyone can see and delete. Two "
+        "concurrent imports of such a file produce two topics, which is the same answer importing "
+        "an identity-less file twice has always had. Exempt because the site is real and the reason "
+        "is the file's, not ours.",
     "services/api/src/aec_api/routers/modules.py::mark_view_seen":
         "Already guarded, by a different idiom: it catches IntegrityError from the UNIQUE "
         "(view_id, user) constraint, rolls back, and advances the winner's row. Correct, and left "

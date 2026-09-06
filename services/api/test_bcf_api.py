@@ -88,10 +88,41 @@ with TestClient(app) as c:
     snap = c.get(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints/{vguid}/snapshot")
     assert snap.status_code == 200 and snap.content[:8] == b"\x89PNG\r\n\x1a\n", snap.status_code
 
+    # --- a viewpoint snapshot may not be fetched across projects ----------------------------------
+    # `bcf_viewpoint_snapshot` validated the TOPIC against `pid` via `_topic_or_404` and then read
+    # `Viewpoint.guid == vguid` over the WHOLE table, so a viewer on one project holding a viewpoint
+    # GUID from another got that project's snapshot PNG back. The GUID is not a secret: a .bcfzip
+    # carries GUIDs chosen by whoever authored the file, and those files move between firms, so
+    # whoever wrote the BCF knows identifiers that also exist inside a client's project.
+    #
+    # Every sibling read in the router already scoped by `t.id` or joined Topic; this was the lone
+    # outlier, which is why it is asserted here rather than left to the reviewer's eye.
+    other_pid = c.post("/projects", json={"name": "Someone else's job"}).json()["id"]
+    other_guid = c.post(f"/bcf/2.1/projects/{other_pid}/topics",
+                        json={"title": "Confidential clash"}).json()["guid"]
+    # a DIFFERENT image, so the assertion can tell "denied" from "returned the wrong project's PNG"
+    other_png_b64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM"
+                     "IQAAAABJRU5ErkJggg==")
+    other_v = c.post(f"/bcf/2.1/projects/{other_pid}/topics/{other_guid}/viewpoints", json={
+        "snapshot": {"snapshot_type": "png", "snapshot_data": other_png_b64}}).json()
+    other_vguid = other_v["guid"]
+    # it is fetchable from its OWN project, so the 404 below is about scoping and not about the row
+    own = c.get(f"/bcf/2.1/projects/{other_pid}/topics/{other_guid}/viewpoints/{other_vguid}/snapshot")
+    assert own.status_code == 200 and own.content[:8] == b"\x89PNG\r\n\x1a\n", own.status_code
+
+    stolen = c.get(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints/{other_vguid}/snapshot")
+    assert stolen.status_code == 404, (
+        f"cross-project viewpoint snapshot returned {stolen.status_code}; "
+        f"leaked another project's image: {stolen.content[:8]!r}")
+    # ...and the project's own snapshot still resolves, so the scoping did not break the route
+    mine = c.get(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints/{vguid}/snapshot")
+    assert mine.status_code == 200 and mine.content != own.content, mine.status_code
+
 print("BCF-API OK - /bcf/versions negotiates 2.1 + /bcf/2.1/auth advertises the token URL; "
       "/bcf/2.1/projects lists accessible projects; a BCF-shape topic create maps topic_type/"
       "topic_status/labels/assigned_to onto the native Topic (Clash/Open, same row as /projects/"
       "{pid}/topics), fetch-by-guid 404s on a bad guid; comments round-trip in BCF shape and share the "
       "native Comment row; missing title / empty comment -> 422. Viewpoints round-trip the "
       "perspective_camera (view_point + unit direction), components.selection/visibility.exceptions, "
-      "and snapshot — same row as the native viewpoint route; the snapshot streams as a real PNG.")
+      "and snapshot — same row as the native viewpoint route; the snapshot streams as a real PNG. A viewpoint snapshot is scoped to its own topic, so one project cannot fetch another's image "
+      "by guid.")

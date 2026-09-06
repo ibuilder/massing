@@ -74,7 +74,7 @@ def topic_to_bcf(t: Topic) -> dict[str, Any]:
 
 
 def comment_to_bcf(c: Comment, topic_guid: str) -> dict[str, Any]:
-    return {"guid": c.id, "date": _iso(c.created_at), "author": c.author,
+    return {"guid": c.guid, "date": _iso(c.created_at), "author": c.author,
             "comment": c.text, "topic_guid": topic_guid,
             "viewpoint_guid": c.viewpoint_id}
 
@@ -247,8 +247,16 @@ def bcf_viewpoint_snapshot(pid: str, guid: str, vguid: str, db: Session = Depend
                            _: str = Depends(require_role("viewer"))):
     """The viewpoint's PNG snapshot (BCF managers fetch it separately). 404 if none stored."""
     from fastapi import Response
-    _topic_or_404(db, pid, guid)
-    v = db.query(Viewpoint).filter(Viewpoint.guid == vguid).first()
+    t = _topic_or_404(db, pid, guid)
+    # SCOPED TO THE TOPIC, which is what makes the `require_role` above mean anything. This read
+    # used to filter on `Viewpoint.guid` ALONE: the topic was checked against `pid` and then the
+    # viewpoint was fetched from the whole table, so a viewer on one project holding a viewpoint
+    # GUID from another got that project's snapshot back. The GUID is not a secret — a BCF file
+    # carries GUIDs chosen by whoever authored it, and those files travel between firms — so this
+    # was reachable rather than theoretical. Every sibling read in this file (comments, viewpoints,
+    # attachments) already scopes by `t.id` or joins Topic; this was the one that did not.
+    v = db.query(Viewpoint).filter(Viewpoint.topic_id == t.id,
+                                   Viewpoint.guid == vguid).first()
     if not v or not v.snapshot:
         raise HTTPException(404, "no snapshot for this viewpoint")
     data = v.snapshot.split(",", 1)[-1] if v.snapshot.startswith("data:") else v.snapshot

@@ -264,6 +264,22 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > been traced to a reachable duplicate, which is why none is exempted: an exemption asserts safety,
 > and nothing has established theirs. `ModelVersion` is the one to read first — `version` is
 > computed, so two concurrent uploads can compute the same number.
+>
+> **THREE OF THE SIX ARE CLOSED**, and reading them found two defects rather than the race that was
+> predicted. `Topic(guid, project_id)` was reachable, but not through concurrency: `import_bcfzip`
+> blind-inserted a topic for every `<Topic Guid>` with no lookup at all, so **one person re-importing
+> a `.bcfzip` duplicated every topic**, no second writer required. `Viewpoint(guid)` turned out not
+> to be an ambiguity question at all — `bcf_viewpoint_snapshot` read it unscoped after checking only
+> the topic, so it returned **another project's** snapshot. Both fixed with
+> `services/api/migrations/versions/2026_09_06_1950-b6e1c4d09a37_bcf_reimport_identity.py`,
+> `services/api/test_bcf_reimport_dedupe.py` and the round-trip assertions in
+> `services/api/test_bcf.py`.
+>
+> *Two lessons, and neither was the one the axis was written to look for.* A find-or-create defect
+> does not need two writers when the same file is imported twice — **"race" was too narrow a frame
+> for the class**. And "can this return two rows?" and "can this return someone ELSE's row?" are the
+> same reading of the same line: an unscoped filter is both. The three `ModelVersion` sites remain,
+> and they are the ones where the original concurrency reading still applies.
 
 
 
