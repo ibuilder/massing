@@ -4,6 +4,62 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a failed reload threw away the only correct geometry on screen
+
+`deltaCommit.consolidate()` republishes the model, reloads it, and then clears the delta store. Its own
+docstring explains the ordering in detail:
+
+> *The deltas are cleared only AFTER the new base has loaded. Clearing first would blink the elements
+> off screen, and on a failed publish would leave the user with neither the delta nor the rebuild —
+> **the one state in which the deltas are the only correct geometry they have.***
+
+**It guarded the publish and not the reload.** `st !== "done"` returns early, and a thrown request is
+caught — but `reloadModel()` returning `false` fell straight through to `store.clear()` and a
+`"geometry rebuilt"` success. That produces exactly the end state the paragraph forbids: the base did
+not load **and** the deltas are gone. On a failed reload the deltas are now kept and the message says
+so.
+
+**What "kept" means, corrected after review.** `reloadModel` disposes every model *before* it loads, so
+by the time it returns `false` the delta geometry is gone from the scene whatever this function does.
+The guard preserves the **record** — the rail keeps reporting unbuilt edits and *Rebuild* stays
+available to retry — not the pixels, and the message now points at that action instead of saying
+"deltas kept", which read as a promise the viewport was intact. *The guard was right and its wording
+described a stronger outcome than it delivers* — a much milder instance of the same class as the
+`"geometry rebuilt"` toast it replaced. Making the disposal itself atomic would recover the geometry
+too; that belongs to `loadProjectModel` and is deliberately not in this change.
+
+`commit()` deliberately does the **opposite** on its reconvert path, and the asymmetry is not an
+inconsistency: that path republishes and reconverts, so the pending edits are already in the new base
+— leaving them in the store would strand the rail on "N edits not yet rebuilt" forever. What the two
+share is only the messaging rule: read the boolean, and never claim a rebuild the user cannot see.
+
+**The tests had the same gap, in the same shape.** `deltaCommit.test.ts` covered two of the three
+failure modes — publish returns a non-`done` state, publish throws — and not the third, publish
+succeeds and the reload fails. Both existing tests pass whether or not the reload result is read,
+because neither reaches the reload. *A failure mode with no test is not the same as a failure mode that
+cannot happen, and here the missing test and the missing guard were the same absence.* The third case
+is now covered, and reverting the guard fails it on the exact symptom (deltas cleared, count 0 where it
+must be 1).
+
+**`commit()` forty lines above was already correct** — `const shown = await d.reloadModel()`, and a
+notify that says *"— shown"* only when it did. So this is one module disagreeing with itself, which is
+why keeping the deltas is a correction rather than a new policy.
+
+### A correction to what this repo said about the class
+
+PR #452's commit message and review thread claimed *"a failed reload is the one outcome a user cannot
+detect unaided"*. **That was wrong.** `loadProjectModel` already sets an explicit user-visible status on
+three of its four `return false` paths — *"no published model yet"*, *"published model file is empty"*,
+*"could not read geometry — file is not a Fragments model"*. The fourth is a `!projectId` guard that
+cannot fire from those handlers.
+
+The defect is real but different: **two contradictory signals**, a status line saying the geometry could
+not be read beside a success toast saying the edit is done. *I verified that callers discard the boolean
+and then inferred that the user learns nothing — a check aimed one layer above where the behaviour
+lives, which is the same failure the two entries below are about.* Corrected on the #452 thread, since a
+reviewer had recorded a repo learning partly on that claim; the learning's advice stands, the
+justification did not.
+
 ## Unreleased — the reachability gate counted a docstring as a caller
 
 `test_recipe_reach.py` strips `#`, `//` and `/* */` before deciding whether anything invokes a recipe,
