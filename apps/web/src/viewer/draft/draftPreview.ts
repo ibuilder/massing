@@ -266,6 +266,24 @@ export function previewFor(el: DraftElement, values: ParamValues): Preview | nul
   };
 }
 
+/**
+ * Every warning that applies to `p`, in the order they are shown.
+ *
+ * **A list, not a choice.** The first version of this was a ternary, so an extrusion with a negative
+ * base AND an excessive height reported only "larger than this element usually is" and silently
+ * dropped the fact that the base was also off the bottom. The two conditions are independent —
+ * `oversize` reads the upper and right bounds, `belowFrame` the lower — and both can hold at once
+ * (z = -10 with height = 50 inside a 5 m frame sets both). *Telling the user one true thing while
+ * withholding another is the same failure as telling them nothing*, which is what this whole feature
+ * exists to avoid, so it lives here beside the flags rather than in the panel's render path.
+ */
+export function warningsFor(p: Preview): string[] {
+  const out: string[] = [];
+  if (p.oversize) out.push("larger than this element usually is");
+  if (p.belowFrame) out.push("base is below the frame — the shape is drawn off the bottom");
+  return out;
+}
+
 /** 2 decimal places, without a trailing ".00" — keeps the path strings short and comparable. */
 const r = (n: number): string => String(Math.round(n * 100) / 100);
 

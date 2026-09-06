@@ -4,7 +4,10 @@ import {
   contentToDraftElement, DRAFT_ELEMENTS, familyToDraftElement,
   type DraftElement, type ParamValues,
 } from "./draftCatalog";
-import { bandFor, noPreviewReason, NO_PREVIEW, previewElement, previewFor } from "./draftPreview";
+import {
+  bandFor, noPreviewReason, NO_PREVIEW, previewElement, previewFor, warningsFor,
+  type Preview,
+} from "./draftPreview";
 
 /**
  * UX-3 — does the preview actually depend on what you typed?
@@ -184,6 +187,43 @@ describe("draftPreview — the drawing follows the values", () => {
       const p = previewFor(extrusion, { height: 3, z, ifc_class: "IfcWall" });
       expect(p?.belowFrame, `z=${z} should sit inside the frame`).toBe(false);
     }
+  });
+
+  /**
+   * BOTH conditions can hold at once, and the panel used to show only the first.
+   *
+   * The warning started life as a ternary, which reads as an exhaustive choice and is not one:
+   * `oversize` reads the upper and right bounds, `belowFrame` the lower, and an extrusion with a
+   * negative base AND an excessive height sets both. The user was then told the shape was too big
+   * and NOT told its base was off the bottom — a true sentence standing in for a complete one.
+   *
+   * `warningsFor` is asserted rather than the DOM because the panel's render path would need the
+   * whole form driven to reach it, and what is actually at stake is the SELECTION, not the styling.
+   */
+  it("both warnings can apply at once, and both are reported", () => {
+    expect(extrusion).toBeDefined();
+    if (!extrusion) return;
+    const both = previewFor(extrusion, { height: 50, z: -10, ifc_class: "IfcWall" });
+    expect(both).not.toBeNull();
+    if (!both) return;
+    expect([both.oversize, both.belowFrame]).toEqual([true, true]);
+    expect(warningsFor(both)).toHaveLength(2);
+    expect(warningsFor(both).join(" ")).toContain("larger than");
+    expect(warningsFor(both).join(" ")).toContain("below the frame");
+  });
+
+  it("warningsFor is empty at the defaults and says exactly one thing for one fault", () => {
+    expect(extrusion).toBeDefined();
+    if (!extrusion) return;
+    expect(warningsFor(previewFor(extrusion, defaults(extrusion)) as Preview)).toEqual([]);
+    // Only below-frame: a modest height keeps it inside the frame vertically.
+    const low = previewFor(extrusion, { height: 1, z: -2, ifc_class: "IfcWall" }) as Preview;
+    expect(warningsFor(low)).toHaveLength(1);
+    expect(warningsFor(low)[0]).toContain("below the frame");
+    // Only oversize: a positive base, an absurd height.
+    const tall = previewFor(FAMILY, { width: 8, depth: 0.7, height: 0.75 }) as Preview;
+    expect(warningsFor(tall)).toHaveLength(1);
+    expect(warningsFor(tall)[0]).toContain("larger than");
   });
 
   it("an oversize value is NOT reported as below-frame, and no element's defaults are either", () => {

@@ -11,7 +11,7 @@ import {
   type ContentDef, type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
 import { draftGlyph, glyphElement, normaliseIfcClass } from "./draftGlyph";
-import { previewElement, previewFor } from "./draftPreview";
+import { previewElement, previewFor, warningsFor } from "./draftPreview";
 import { setDraftDragKey } from "../railDrag";
 
 export interface ArmedDraft {
@@ -228,15 +228,12 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       const dims = el("div"); dims.textContent = pv.caption;
       const scale = el("div"); scale.textContent = `frame ${pv.viewMetres} m`; scale.style.opacity = "0.7";
       cap.append(dims, scale);
-      // Two different wrongnesses, two different sentences. A base offset of -2 m is not "larger
-      // than this element usually is", and saying so would be a false statement from the one
-      // control whose job is to tell the truth about what was typed.
-      const warning = pv.oversize ? "larger than this element usually is"
-        : pv.belowFrame ? "base is below the frame — the shape is drawn off the bottom"
-        : "";
-      if (warning) {
+      // ALL that apply, each on its own line — the two conditions are independent and both can
+      // hold at once. `warningsFor` lives beside the flags it explains; see its note for why this
+      // is a list rather than the ternary it started as.
+      for (const text of warningsFor(pv)) {
         const warn = el("div");
-        warn.textContent = warning;
+        warn.textContent = text;
         warn.style.color = "var(--warn,#e0a030)";
         cap.appendChild(warn);
       }
