@@ -126,7 +126,7 @@
           "GC"
         ],
         "requires": [
-          "responsible"
+          "responsible|responsible_contact"
         ]
       }
     ]
