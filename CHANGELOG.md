@@ -25,8 +25,8 @@ and keeping the **earliest** row so the dropdown's order does not move) plus
 only shape detected is the conditional insert, which is syntactic. *"Did this function read the
 model first"* is semantic — helpers, relationship access, raw SQL — and an AST answering it will
 always answer some cases wrongly, silently, in the direction of reporting less. The cost is four
-sites that genuinely are not get-or-create (a Topic per clash, per failing CI check) needing an
-entry in `EXEMPT`. That is the better trade: **an exemption is a sentence someone wrote and can
+NEWLY exempt sites that genuinely are not get-or-create (a Topic per clash, per failing CI check),
+taking `EXEMPT` from two entries to six. That is the better trade: **an exemption is a sentence someone wrote and can
 argue with; the precondition dropped sites with no record that it had.**
 
 The gate now also states what it still cannot see — an insert guarded by an early `return` or by a

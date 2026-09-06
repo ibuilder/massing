@@ -133,8 +133,12 @@ def tracked(root: Path, pattern: str) -> list[str]:
 
 
 def seeding_sites(src: str, models: set[str]) -> list[tuple[str, str, int]]:
-    """Every `(function, model, line)` where a conditional branch inserts a model the enclosing
-    function also looks up — the read-decide-insert shape.
+    """Every `(function, model, line)` where a conditional branch inserts a mapped model —
+    **wherever the read that decided it happens, or whether one is visible here at all.**
+
+    There is deliberately no "the enclosing function also looks the model up" condition; the module
+    docstring says why it was removed and what it cost when it was there. The shape reported is the
+    conditional insert alone, so a site whose read goes through a helper is still seen.
 
     The two statements need not be adjacent, and MUST NOT be required to be: the sign-in doors
     write `u = User(...)` and `db.add(u)` as separate statements, and an earlier version of this
@@ -147,10 +151,10 @@ def seeding_sites(src: str, models: set[str]) -> list[tuple[str, str, int]]:
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        # NO "does this function look the model up" precondition, deliberately — see the module
-        # docstring. Every mapped model is a candidate; the shape being detected is the CONDITIONAL
-        # INSERT, which is syntactic and cannot be evaded by moving the read.
-        looked_up = models
+        # Every mapped model is a candidate — no "does this function look it up" precondition; see
+        # the module docstring. The shape detected is the CONDITIONAL INSERT, which is syntactic and
+        # so cannot be evaded by moving the read somewhere this parser cannot follow.
+        candidates = models
         for node in ast.walk(fn):
             if not isinstance(node, ast.If):
                 continue
@@ -159,7 +163,7 @@ def seeding_sites(src: str, models: set[str]) -> list[tuple[str, str, int]]:
                 t.id: n.value.func.id
                 for n in branch
                 if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
-                and isinstance(n.value.func, ast.Name) and n.value.func.id in looked_up
+                and isinstance(n.value.func, ast.Name) and n.value.func.id in candidates
                 for t in n.targets if isinstance(t, ast.Name)
             }
             for n in branch:
@@ -168,7 +172,7 @@ def seeding_sites(src: str, models: set[str]) -> list[tuple[str, str, int]]:
                     continue
                 a = n.args[0]
                 if isinstance(a, ast.Call) and isinstance(a.func, ast.Name) \
-                        and a.func.id in looked_up:
+                        and a.func.id in candidates:
                     hits.append((fn.name, a.func.id, n.lineno))
                 elif isinstance(a, ast.Name) and a.id in var_model:
                     hits.append((fn.name, var_model[a.id], n.lineno))
