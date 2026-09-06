@@ -67,8 +67,17 @@ The accepted scan's tolerance is now stored with it and used for the repair; edi
 invalidates the list rather than silently re-scoping what the button will do; and a slow scan whose
 answer lands after a newer one has started is discarded instead of overwriting it.
 `apps/web/src/viewer/tools/repairPanel.test.ts` drives the panel through the DOM it builds and pins
-all three, the regression one mutation-checked — reverting the guard fails it on *"editing the
-tolerance invalidates the list on screen"*.
+all three.
+
+**And the first draft of that test proved less than it claimed** — caught in the same review. It
+disabled the button, clicked it, and concluded from an empty repair log that the press-time guard had
+refused. It had not: *a disabled button's `.click()` does not fire its handler at all*, so the
+assertion passed on the affordance alone and would have passed with the guard deleted. The two
+properties are now asserted separately — ① editing the tolerance disables the control, ② the handler
+itself refuses when forced to run — and the mutation the original could not catch now fails on
+*"the handler itself must refuse a list the user never saw: expected [ { tol: 0.5 } ] to deeply
+equal []"*. *A test can state the right rule and exercise none of it, which is this entry's own
+subject one layer further in.*
 
 ## Unreleased — a failed reload threw away the only correct geometry on screen
 

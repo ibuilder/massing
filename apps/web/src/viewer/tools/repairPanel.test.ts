@@ -73,6 +73,13 @@ describe("wall joins: the repair uses the tolerance the LIST was measured at", (
   it("REFUSES to repair at a tolerance the user never saw a list for", async () => {
     // The regression. Without the fix this repairs at 0.5 while the visible list is the 0.05 one,
     // trimming walls that were never displayed.
+    //
+    // **The two properties are asserted separately, and the first draft of this test conflated
+    // them.** It disabled the button, clicked it, and concluded from an empty `repaired` that the
+    // press-time guard had refused. It had not: *a disabled button's `.click()` does not fire its
+    // handler at all*, so the assertion passed on the affordance alone and would have passed with
+    // the guard deleted. Caught in review — and it is this PR's own subject a fourth time, a claim
+    // in a comment that the check does not back. The handler is now forced to run.
     const { deps, calls } = harness();
     await openPanel(deps);
     expect(calls.scanned).toEqual([0.05]);
@@ -82,11 +89,13 @@ describe("wall joins: the repair uses the tolerance the LIST was measured at", (
     tolI.dispatchEvent(new Event("input"));
 
     const fix = btn("Butt-join");
-    expect(fix.disabled, "editing the tolerance invalidates the list on screen").toBe(true);
+    expect(fix.disabled, "① the affordance: editing the tolerance invalidates the list on screen").toBe(true);
 
-    fix.click();                       // even if something re-enables it, the guard must hold
+    fix.disabled = false;              // ② the guard, exercised for real: re-enable so the handler RUNS
+    fix.click();
     await flush();
-    expect(calls.repaired, "no repair may run against a list the user never saw").toEqual([]);
+    expect(calls.repaired, "the handler itself must refuse a list the user never saw").toEqual([]);
+    expect(fix.disabled, "and it must put the control back where it found it").toBe(true);
   });
 
   it("repairs at the NEW tolerance once the user has actually re-scanned at it", async () => {
