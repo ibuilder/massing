@@ -126,27 +126,55 @@ with engine.begin() as conn:
 
 # ...and the index the migration exists to create actually refuses the next duplicate. Without this
 # the whole file would prove only that the dedupe ran, not that it achieved anything.
-refused = None
-try:
-    with engine.begin() as conn:
-        conn.execute(sa.text(
-            "INSERT INTO topics (id, guid, project_id, type, title, status) "
-            "VALUES ('t-third', :g, :p, 'clash', 'again', 'open')"), {"g": GUID, "p": PID})
-except sa.exc.IntegrityError as exc:
-    refused = exc
-check("a fresh duplicate is now refused by uq_topics_project_guid", refused is not None,
-      "the index accepted a third row" if refused is None else "UNIQUE constraint held")
+#
+# **THE FIRST VERSION OF THESE TWO PROBES PROVED NOTHING, AND PASSED.** They omitted `created_at`
+# and `modified_at`, which are NOT NULL, so the INSERT died on
+# `NOT NULL constraint failed: topics.created_at` — an `IntegrityError` like any other. `refused is
+# not None` was true, the check printed PASS, and the unique index was never reached. In the file
+# whose whole docstring is about a check that can only report good news. Caught by review.
+#
+# So the probes now supply every required column, and each asserts the error names ITS OWN
+# constraint. Catching a bare exception type is the mistake: `IntegrityError` is what a schema says
+# when anything is wrong, and "something was refused" is not the claim being made.
+
+
+def _refusal(sql: str, params: dict | None = None) -> str:
+    """The database's own words when it refuses `sql`, or "" if it accepted it."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(sa.text(sql), params or {})
+    except sa.exc.IntegrityError as exc:
+        return str(exc.orig)
+    return ""
+
+
+topic_refusal = _refusal(
+    "INSERT INTO topics (id, guid, project_id, type, title, status, created_at, modified_at) "
+    "VALUES ('t-third', :g, :p, 'clash', 'again', 'open', :c, :c)",
+    {"g": GUID, "p": PID, "c": "2026-02-01 09:00:00"})
+check("a fresh duplicate is refused, and by uq_topics_project_guid rather than something else",
+      "UNIQUE" in topic_refusal and "topics.project_id" in topic_refusal
+      and "topics.guid" in topic_refusal,
+      topic_refusal or "the index accepted a third row")
 
 # the same for comments, whose index only becomes reachable once the topics collapse
-crefused = None
-try:
-    with engine.begin() as conn:
-        conn.execute(sa.text(
-            "INSERT INTO comments (id, guid, topic_id, text) VALUES ('c-dup', 'c-1a', 't-first', 'x')"))
-except sa.exc.IntegrityError as exc:
-    crefused = exc
-check("a duplicate comment guid on one topic is refused by uq_comments_topic_guid",
-      crefused is not None, "the index accepted it" if crefused is None else "UNIQUE constraint held")
+comment_refusal = _refusal(
+    "INSERT INTO comments (id, guid, topic_id, text, created_at) "
+    "VALUES ('c-dup', 'c-1a', 't-first', 'x', :c)", {"c": "2026-02-01 09:01:00"})
+check("a duplicate comment guid on one topic is refused, and by uq_comments_topic_guid",
+      "UNIQUE" in comment_refusal and "comments.topic_id" in comment_refusal
+      and "comments.guid" in comment_refusal,
+      comment_refusal or "the index accepted it")
+
+# ...and the probes reach the index rather than dying earlier: the SAME inserts with a guid nothing
+# else holds must SUCCEED. Without this the two checks above could go back to passing on a NOT NULL
+# failure the moment a required column is added to either table, which is exactly how they broke.
+_control = _refusal(
+    "INSERT INTO topics (id, guid, project_id, type, title, status, created_at, modified_at) "
+    "VALUES ('t-ok', 'a-guid-nothing-else-holds', :p, 'clash', 'ok', 'open', :c, :c)",
+    {"p": PID, "c": "2026-02-01 09:02:00"})
+check("the probe inserts are otherwise valid, so a refusal above is the index and not a missing column",
+      _control == "", _control or "the same insert with a free guid was accepted")
 
 engine.dispose()
 _DB.unlink(missing_ok=True)

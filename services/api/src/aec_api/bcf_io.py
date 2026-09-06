@@ -409,7 +409,7 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> tuple[int, int]:
                 topic, was_created = auth.get_or_create_by_key(
                     db, Topic,
                     (Topic.project_id == project_id, Topic.guid == guid),
-                    lambda: Topic(project_id=project_id, guid=guid, **fields))  # noqa: B023
+                    lambda _g=guid, _f=fields: Topic(project_id=project_id, guid=_g, **_f))
                 if was_created:
                     created += 1
                 else:
@@ -424,22 +424,32 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> tuple[int, int]:
                 created += 1
             db.flush()                           # need topic.id to key the comments below
 
-            # `topic.comments` is the winner's list when the find-or-create above folded, so a
-            # lost race normally sees the winner's guids here and inserts nothing. A tighter
-            # interleaving can still collide on uq_comments_topic_guid; that is a transient 500 the
-            # retry clears, not the permanent duplicate this whole change is about.
+            # `seen` is a fast pre-filter over rows already loaded, not the safety mechanism: two
+            # imports of one file can both pass it and both append the same (topic_id, guid), and
+            # `uq_comments_topic_guid` then refuses one of them mid-flush. So the actual insert of a
+            # GUID-bearing comment goes through the same guarded helper the topic uses, which folds
+            # that collision onto the winner's row instead of 500-ing a legitimate import.
+            #
+            # The pre-filter is kept because it is free — the comments are already in memory — and
+            # it means the common case (a re-import of an unchanged file) issues no queries at all
+            # rather than one SELECT per comment.
             seen = {c.guid for c in topic.comments}
             for ce in _all_comments(root, te):
                 cguid = ce.get("Guid")
                 if cguid and cguid in seen:
                     continue                     # already carried in from an earlier import
-                topic.comments.append(Comment(
-                    **({"guid": cguid} if cguid else {}),
-                    author=ce.findtext("Author"),
-                    text=ce.findtext("Comment") or "",
-                ))
+                author, text = ce.findtext("Author"), ce.findtext("Comment") or ""
                 if cguid:
+                    auth.get_or_create_by_key(
+                        db, Comment,
+                        (Comment.topic_id == topic.id, Comment.guid == cguid),
+                        lambda _t=topic, _g=cguid, _a=author, _x=text: Comment(
+                            topic_id=_t.id, guid=_g, author=_a, text=_x))
                     seen.add(cguid)
+                else:
+                    # No Guid in the file, so nothing to fold onto — the same reasoning as a topic
+                    # without one, recorded in this function's docstring.
+                    topic.comments.append(Comment(author=author, text=text))
 
             # preserve the full camera (incl. orthographic) + per-element coloring as a Viewpoint,
             # so a section/coloured viewpoint from Solibri/ACC survives the round-trip (not just the pin).
