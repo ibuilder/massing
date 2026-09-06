@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — two publishes could take the same model version number, and a signed certificate points at one of them
+
+`versions.snapshot()` allocates `version = last.version + 1` after reading the maximum, over an index
+on `project_id` alone. Two publishes to one project — two uploads, a retried convert — both read 7
+and both insert 8. Nothing refused it.
+
+**The consequence is not that the diff picks arbitrarily.** `versions.review` reads
+`(project_id, version).first()` and sets `review_status` on whatever comes back, so approving
+"version 8" approves one row and leaves its twin a draft — against a rule whose whole purpose is
+*issue drawings only from approved versions*. And `turnover.py` stamps `record_model_version`, a bare
+integer, into the `data` of a signed AIA G704 substantial-completion certificate. With two rows
+carrying that number, **which snapshot the certificate attests to is decided by `.first()`**.
+
+Fixed with `uq_model_versions_project_version` plus a bounded retry in the allocator.
+`auth.get_or_create_by_key` does not fit here and the reason is worth stating: that helper folds a
+loser onto a row identified by a key the caller already holds, and this caller cannot know its key
+until it has read the maximum. The two publishes are **different snapshots** and both belong in the
+history, so the loser recomputes and takes the next number rather than adopting the winner's row.
+
+**The dedupe renumbers and deliberately does not re-sequence.** That signed integer is why:
+re-sequencing a project's versions by `created_at` would make the numbering match the chronology, and
+would silently change what an already-signed certificate points at. A migration must not move the
+target of a signature. So every number stays on the row that has it and only the later members of a
+duplicate set move past the maximum, each carrying a note saying where it came from. The honest cost,
+stated rather than hidden: a renumbered row's new number sits after versions created later than it,
+so for that project numbering no longer matches chronology. `created_at` still does.
+
+This closes the last three of the six ambiguous `.first()` sites, and unlike the first three it *was*
+the concurrency defect the axis was written to look for.
+
+**Three of this entry's own checks measured less than they claimed**, and each was found by running a
+mutation rather than by reading. The competing insert that was supposed to force a collision fired
+before the allocator's read instead of after it, so deleting the retry entirely left the test green.
+The fixture index used the wrong shape, so every snapshot in the file was of an empty model and the
+delta assertions compared nothing to nothing — surfaced only because one check demanded a specific
+number and got `+0/-0`. And the retry, once actually exercised, turned out to reassign the `note`
+parameter, pinning the first attempt's `+1/-0` onto a row computed against a different baseline.
+*A check that asserts a value catches what a check that asserts "it ran" does not.*
+
 ## Unreleased — a BCF re-import duplicated everything, and one snapshot read crossed projects
 
 **Re-importing a `.bcfzip` made a second copy of every topic instead of updating it.**

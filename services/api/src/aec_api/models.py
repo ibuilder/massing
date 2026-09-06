@@ -647,6 +647,15 @@ class ModelVersion(Base):
     """A snapshot of a project's model at each publish — the GUID set + count, so versions can be
     diffed (added/removed elements). GUID-stable authoring makes the diff meaningful."""
     __tablename__ = "model_versions"
+    # `version` is ALLOCATED as max+1 after a read, so without this two concurrent publishes compute
+    # the same number and both insert it. That is not merely a duplicate row: `turnover.py` stamps
+    # `record_model_version` — a bare integer — into a signed substantial-completion certificate, and
+    # `versions.review` approves whichever of the two `.first()` returns, so "the record model" and
+    # "the approved version" both become whichever row the database felt like. An INDEX rather than a
+    # UniqueConstraint, matching its siblings: the two are different objects on Postgres and
+    # indistinguishable on SQLite.
+    __table_args__ = (Index("uq_model_versions_project_version", "project_id", "version",
+                            unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     version: Mapped[int] = mapped_column(default=1)

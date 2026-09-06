@@ -278,8 +278,25 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > *Two lessons, and neither was the one the axis was written to look for.* A find-or-create defect
 > does not need two writers when the same file is imported twice — **"race" was too narrow a frame
 > for the class**. And "can this return two rows?" and "can this return someone ELSE's row?" are the
-> same reading of the same line: an unscoped filter is both. The three `ModelVersion` sites remain,
-> and they are the ones where the original concurrency reading still applies.
+> same reading of the same line: an unscoped filter is both.
+>
+> **THE AXIS IS CLOSED.** The last three — `ModelVersion(project_id, version)` — *were* the
+> concurrency defect the axis predicted, and the severity ran higher than the prediction:
+> `versions.snapshot()` allocates `version = last.version + 1` after a MAX read, so two publishes
+> take the same number; `versions.review` then approves whichever `.first()` returns and leaves its
+> twin a draft, and `turnover.py` stamps that bare integer into a **signed** substantial-completion
+> certificate, so which snapshot the signature attests to is decided by nothing. Fixed with
+> `services/api/migrations/versions/2026_09_06_2140-c9f4a8b2e731_unique_model_version.py` plus a
+> bounded retry, and exercised by `services/api/test_model_version_collision.py`.
+>
+> That signed integer also decided the repair: the migration **renumbers and refuses to
+> re-sequence**, because re-sequencing by `created_at` would tidy the numbering and silently move
+> what a signature points at. **A migration must not move the target of a signature** — the tidier
+> repair was the wrong one, and only reading `turnover.py` showed why.
+>
+> *Six sites, three defects, and the frame was wrong for two of them.* The axis was worth walking
+> because it forced every site to be read; it was not worth trusting, because what it predicted
+> matched only where it happened to be right.
 
 
 
