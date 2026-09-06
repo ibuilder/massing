@@ -74,7 +74,7 @@ def topic_to_bcf(t: Topic) -> dict[str, Any]:
 
 
 def comment_to_bcf(c: Comment, topic_guid: str) -> dict[str, Any]:
-    return {"guid": c.id, "date": _iso(c.created_at), "author": c.author,
+    return {"guid": c.guid, "date": _iso(c.created_at), "author": c.author,
             "comment": c.text, "topic_guid": topic_guid,
             "viewpoint_guid": c.viewpoint_id}
 

@@ -27,6 +27,7 @@ from defusedxml.ElementTree import fromstring as _safe_fromstring
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from . import auth
 from .models import Comment, Topic, Viewpoint
 
 # Decompression-bomb guard: the raw upload is capped by AEC_MAX_UPLOAD_MB, but a tiny zip can still
@@ -80,7 +81,9 @@ def _labels_xml(parent: ET.Element, labels, version: str) -> None:
 
 
 def _comment_xml(parent: ET.Element, c) -> None:
-    ce = ET.SubElement(parent, "Comment", {"Guid": c.id})
+    # `c.guid`, not `c.id` — see BCF-COMMENT-ID in models.py. The migration backfilled
+    # `guid := id`, so this writes the same value it always did for every existing comment.
+    ce = ET.SubElement(parent, "Comment", {"Guid": c.guid})
     ET.SubElement(ce, "Date").text = _iso(c.created_at)
     if c.author:
         ET.SubElement(ce, "Author").text = c.author
@@ -353,9 +356,25 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
     return out
 
 
-def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
-    """Import topics from a .bcfzip. Returns the count imported."""
-    count = 0
+def import_bcfzip(db: Session, project_id: str, data: bytes) -> tuple[int, int]:
+    """Import topics from a .bcfzip. Returns `(created, updated)`.
+
+    **A re-import UPDATES; it does not make a second copy.** This function used to blind-insert
+    `Topic(guid=te.get("Guid"))` with no lookup and throw every `<Comment Guid>` away, so importing
+    an updated file — which is the ordinary weekly loop with a coordination tool — duplicated every
+    topic and every comment instead of moving them forward. Export then wrote two `<Topic>` elements
+    carrying one GUID, which is not valid BCF: the duplication left this deployment and became the
+    next tool's problem, against the round-trip guarantee in `CLAUDE.md`.
+
+    A topic is identified by `(project_id, guid)` and a comment by `(topic_id, guid)`, both backed by
+    unique indexes in `b6e1c4d09a37` — the constraint is not decoration around the find-or-create,
+    it is what makes it hold when two people import the same file at once.
+
+    **A topic with no `Guid` in the file is always inserted**, because there is nothing to match it
+    on. That is the honest behaviour: inventing a key from the title would silently merge two
+    genuinely different topics, which is worse than a duplicate anyone can see and delete.
+    """
+    created = updated = 0
     with _open_bcfzip(data) as z:
         names = z.namelist()
         markups = [n for n in names if n.endswith("markup.bcf")]
@@ -368,31 +387,71 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
             folder = name.rsplit("/", 1)[0] if "/" in name else ""
             comps, cam, coloring = _folder_viewpoints(z, names, folder)
             anchor = cam.get("position") if cam is not None else None
-            topic = Topic(
-                project_id=project_id,
-                guid=te.get("Guid"),
-                type=te.get("TopicType", "info"),
-                status=te.get("TopicStatus", "open"),
-                title=(te.findtext("Title") or "Imported topic"),
-                description=te.findtext("Description"),
-                priority=te.findtext("Priority"),
-                assignee=te.findtext("AssignedTo"),
-                author=te.findtext("CreationAuthor"),
-                labels=_all_labels(te),
-                element_guids=comps or None,
-                anchor=anchor,
-            )
+            guid = te.get("Guid")
+            fields = {
+                "type": te.get("TopicType", "info"),
+                "status": te.get("TopicStatus", "open"),
+                "title": (te.findtext("Title") or "Imported topic"),
+                "description": te.findtext("Description"),
+                "priority": te.findtext("Priority"),
+                "assignee": te.findtext("AssignedTo"),
+                "author": te.findtext("CreationAuthor"),
+                "labels": _all_labels(te),
+                "element_guids": comps or None,
+                "anchor": anchor,
+            }
+            if guid:
+                # Through `auth.get_or_create_by_key`, not a hand-rolled read-decide-insert: two
+                # people importing the same file at once both read "not here" and both insert, and
+                # the savepoint + re-read is what folds the loser onto the winner's row instead of
+                # 500-ing. `test_seeding_sweep` refuses the hand-rolled shape, and it refused this
+                # function's first draft, which is what sent it here.
+                topic, was_created = auth.get_or_create_by_key(
+                    db, Topic,
+                    (Topic.project_id == project_id, Topic.guid == guid),
+                    lambda: Topic(project_id=project_id, guid=guid, **fields))  # noqa: B023
+                if was_created:
+                    created += 1
+                else:
+                    for k, v in fields.items():
+                        setattr(topic, k, v)
+                    updated += 1
+            else:
+                # Nothing to key on, so this is an insert every time — see the docstring. The column
+                # default mints a guid so the row is still exportable.
+                topic = Topic(project_id=project_id, **fields)
+                db.add(topic)
+                created += 1
+            db.flush()                           # need topic.id to key the comments below
+
+            # `topic.comments` is the winner's list when the find-or-create above folded, so a
+            # lost race normally sees the winner's guids here and inserts nothing. A tighter
+            # interleaving can still collide on uq_comments_topic_guid; that is a transient 500 the
+            # retry clears, not the permanent duplicate this whole change is about.
+            seen = {c.guid for c in topic.comments}
             for ce in _all_comments(root, te):
+                cguid = ce.get("Guid")
+                if cguid and cguid in seen:
+                    continue                     # already carried in from an earlier import
                 topic.comments.append(Comment(
+                    **({"guid": cguid} if cguid else {}),
                     author=ce.findtext("Author"),
                     text=ce.findtext("Comment") or "",
                 ))
+                if cguid:
+                    seen.add(cguid)
+
             # preserve the full camera (incl. orthographic) + per-element coloring as a Viewpoint,
             # so a section/coloured viewpoint from Solibri/ACC survives the round-trip (not just the pin).
+            # One folder yields at most one of these, so on a re-import the existing one is REPLACED
+            # rather than joined by a second: the file is the authority on the topic's camera.
             if cam is not None or coloring:
-                topic.viewpoints.append(Viewpoint(
-                    camera=cam, components=comps or None,
-                    visibility={"coloring": coloring} if coloring else None))
-            db.add(topic)
-            count += 1
-    return count
+                vp = {"camera": cam, "components": comps or None,
+                      "visibility": {"coloring": coloring} if coloring else None}
+                existing = next((v for v in topic.viewpoints if v.camera is not None), None)
+                if existing is None:
+                    topic.viewpoints.append(Viewpoint(**vp))
+                else:
+                    for k, v in vp.items():
+                        setattr(existing, k, v)
+    return created, updated

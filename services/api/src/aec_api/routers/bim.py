@@ -1073,11 +1073,15 @@ async def bcf_import(pid: str, file: UploadFile = File(...), db: Session = Depen
                      _: str = Depends(require_role("editor"))):
     _project(db, pid)
     data = await file.read()
-    count = await run_in_threadpool(bcf_io.import_bcfzip, db, pid, data)   # zip+XML parse off the event loop
+    # zip+XML parse off the event loop
+    created, updated = await run_in_threadpool(bcf_io.import_bcfzip, db, pid, data)
     audit.record(db, action="bcf.import", method="POST", path=f"/projects/{pid}/bcf/import",
-                 detail={"topics": count})
+                 detail={"created": created, "updated": updated})
     db.commit()
-    return {"imported": count}
+    # `imported` keeps its name and now means NEW topics; a re-import of an unchanged file reports
+    # 0 imported and N updated, which is the truth the old shape could not express — it counted
+    # every topic in the file as an import while quietly creating a second copy of each one.
+    return {"imported": created, "updated": updated}
 
 
 @router.post("/projects/{pid}/coordination/import-xlsx")
