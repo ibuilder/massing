@@ -295,21 +295,59 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
           f"{len(gate.LOCKS)} path(s)")
 
 
+def _gitleaks_command_lines() -> list[str]:
+    """The EXECUTABLE lines of the step that runs gitleaks — comments stripped.
+
+    THE FIRST VERSION OF THIS GREPPED THE WHOLE FILE, and CodeRabbit was right to refuse it.
+    `security.yml` mentions gitleaks in fourteen comment lines, one of which names
+    `.gitleaksignore`. So `"gitleaks detect" in text` stayed true with the scanner deleted, and a
+    comment that happened to write `--gitleaks-ignore-path` would have been read as the baseline.
+
+    That is the lesson this file already carries one function up, applied to the wrong text twice:
+    "a gate that greps prose measures the wrong text." `test_ruff_scope.py` learned the same thing
+    when its `re.search` took the first match and a decoy above the real command bypassed it. A
+    check written to catch a scope fiction was itself scoped to prose.
+
+    Worse, the MUTATION MISSED IT TOO. The check "remove `gitleaks detect` from the workflow" was
+    run as a blanket string replace, which rewrote the comments along with the command — so it
+    could not tell the two apart either, and reported a pass that meant nothing. *A mutation that
+    shares the implementation's blind spot confirms it instead of challenging it*; the mutation
+    below now deletes only the command and leaves every comment in place.
+    """
+    import yaml
+    wf = os.path.join(ROOT, ".github", "workflows", "security.yml")
+    with open(wf, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh.read()) or {}
+    for job in (doc.get("jobs") or {}).values():
+        for step in (job or {}).get("steps") or []:
+            run = (step or {}).get("run")
+            if not isinstance(run, str):
+                continue
+            body = [ln for ln in run.splitlines()
+                    if ln.strip() and not ln.strip().startswith("#")]
+            if any("gitleaks detect" in ln for ln in body):
+                return body
+    raise AssertionError(
+        "no step in security.yml RUNS `gitleaks detect` — the scanner is gone, or it moved "
+        "somewhere this check cannot see. Either way asserting a trigger for its baseline is "
+        "worse than not checking at all")
+
+
 def _gitleaks_baseline_path() -> str:
-    """Which file does the gitleaks step read as its baseline? DERIVED from the workflow.
+    """Which file does the gitleaks step read as its baseline? DERIVED from the command it runs.
 
     Not hardcoded, for the same reason `test_ruff_scope.py` parses the ruff command rather than
     naming directories: if the step ever gains an explicit `--gitleaks-ignore-path`, a hardcoded
     `.gitleaksignore` would keep asserting a trigger for a file nothing reads any more, and pass.
+
+    Read from executable lines only — see `_gitleaks_command_lines` for why that distinction is
+    the whole point rather than a tidy-up.
     """
-    wf = os.path.join(ROOT, ".github", "workflows", "security.yml")
-    with open(wf, encoding="utf-8") as fh:
-        text = fh.read()
-    assert "gitleaks detect" in text, (
-        "security.yml no longer runs `gitleaks detect` — this check is asserting a trigger for a "
-        "scanner that is gone, which is worse than not checking at all")
-    m = re.search(r"--gitleaks-ignore-path[= ]+(\S+)", text)
-    return m.group(1).strip("\"'") if m else ".gitleaksignore"
+    for line in _gitleaks_command_lines():
+        m = re.search(r"--gitleaks-ignore-path[=\s]+(\S+)", line)
+        if m:
+            return m.group(1).strip("\"'")
+    return ".gitleaksignore"          # gitleaks' own default when the flag is absent
 
 
 def test_the_gitleaks_baseline_can_trigger_its_own_scanner() -> None:
