@@ -54,6 +54,24 @@ def _dupe_keys(conn, table: str, cols: tuple[str, ...]) -> list[tuple]:
 def upgrade() -> None:
     conn = op.get_bind()
 
+    # HOLD THE WRITERS OFF FOR THE WHOLE OPERATION, not just for the index build. Dedupe and
+    # CREATE UNIQUE INDEX are two steps, and between them a live API can insert the very duplicate
+    # this migration just removed — after which the index build fails and the deploy aborts. The
+    # window is small and it is exactly the race being fixed here, which is a poor reason to leave
+    # it open.
+    #
+    # SHARE is the level `CREATE INDEX` already takes on its own; taking it up front simply extends
+    # it back over the DELETEs. It conflicts with ROW EXCLUSIVE, so writers wait and readers do not.
+    # Postgres only: SQLite has no LOCK TABLE and needs none, because it serialises writers for the
+    # duration of the write transaction this migration runs in.
+    #
+    # Worth stating for the next reader, because it bounds how bad the un-locked version was: this
+    # is NOT `CREATE INDEX CONCURRENTLY`, so a failure here rolls the whole transaction back under
+    # Postgres's transactional DDL. There is no half-applied schema and no INVALID index to clean
+    # up — the deploy fails loudly and the database is untouched.
+    if conn.dialect.name == "postgresql":
+        conn.execute(sa.text("LOCK TABLE element_verifications, saved_views IN SHARE MODE"))
+
     # --- element_verifications: keep the newest by modified_at, carrying NULLs forward ------------
     for pid, guid in _dupe_keys(conn, "element_verifications", ("project_id", "guid")):
         rows = conn.execute(sa.text(
