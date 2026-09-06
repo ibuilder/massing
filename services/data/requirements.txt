@@ -1,6 +1,6 @@
 # Data service — IfcOpenShell extraction, QA & clash (guide §8 + analysis)
 ifcopenshell>=0.8.5,<0.9
-openpyxl>=3.1          # XLSX export
+openpyxl>=3.1.5          # XLSX export
 numpy>=2.5.2           # geometry-derived quantities, AABB clash
 ifctester>=0.8        # IDS / openBIM model validation
 # Held at 4.12.2, which is what `services/api/requirements.lock` pins and therefore what the
@@ -11,7 +11,7 @@ ifctester>=0.8        # IDS / openBIM model validation
 # AND validating trimesh 5 against the paths below — it drives mesh booleans (with manifold3d, at
 # 3.5.2) and 2D section cuts, so a major move there is not free. `test_lock_satisfies_requirements.py`
 # now reads this file, so the two can no longer disagree silently.
-trimesh>=5.0.0         # clash narrow phase (mesh booleans) + 2D section cuts
+trimesh>=5.1.0         # clash narrow phase (mesh booleans) + 2D section cuts
 manifold3d>=3.5.2     # boolean intersection engine for trimesh
 scipy>=1.18.1           # trimesh path assembly (section drawings)
 networkx>=3.6.1         # trimesh path traversal (section drawings)
