@@ -122,30 +122,58 @@ def _materially_differs(before: list, after: list) -> bool:
 def snapshot(pid: str, idx: dict, note: str | None = None) -> dict[str, Any]:
     """Record a new version from a freshly-built properties index. Opens its own session so it can
     be called from the background publish worker. Stores the GUID set + per-element fingerprints."""
+    from sqlalchemy.exc import IntegrityError
+
     from .db import SessionLocal
     guids = _guids(idx)
     fps = _fingerprints(idx)
-    with SessionLocal() as db:
-        last = db.query(ModelVersion).filter(ModelVersion.project_id == pid) \
-            .order_by(ModelVersion.version.desc()).first()
-        prev = set(last.guids or []) if last else set()
-        prev_fp = (last.fingerprints or {}) if last else {}
-        cur = set(guids)
-        added, removed = cur - prev, prev - cur
-        # modified = common guids whose fingerprint changed (only when both versions carry fingerprints)
-        modified = sum(1 for g in (cur & prev)
-                       if g in fps and g in prev_fp and _materially_differs(prev_fp[g], fps[g]))
-        # skip a true no-op republish (identical elements AND fingerprints) to keep history meaningful
-        if last and not added and not removed and not modified and prev_fp:
-            return {"version": last.version, "skipped": "no element change"}
-        if note is None:
-            note = (f"+{len(added)}/-{len(removed)}" + (f"/~{modified}" if modified else "")) if last else "initial"
-        v = ModelVersion(project_id=pid, version=(last.version + 1 if last else 1),
-                         element_count=len(guids), guids=guids, fingerprints=fps, note=note)
-        db.add(v)
-        db.commit()
-        return {"version": v.version, "element_count": v.element_count,
-                "added": len(added), "removed": len(removed), "modified": modified}
+    # RETRIED, because the version number is COMPUTED rather than supplied. `auth.get_or_create_by_key`
+    # does not fit here for exactly that reason: it folds a loser onto a row identified by a key the
+    # caller already holds, and this caller cannot know its key until it has read the maximum. So the
+    # loser must recompute and try again rather than adopt the winner's row — the two publishes are
+    # different snapshots and both belong in the history, just under different numbers.
+    #
+    # Bounded at 5: each attempt re-reads the maximum, so a retry only fails again if yet another
+    # publish landed in between. Five consecutive losses to the same project is not contention, it is
+    # something wrong, and looping forever would hide it.
+    for attempt in range(5):
+        with SessionLocal() as db:
+            last = db.query(ModelVersion).filter(ModelVersion.project_id == pid) \
+                .order_by(ModelVersion.version.desc()).first()
+            prev = set(last.guids or []) if last else set()
+            prev_fp = (last.fingerprints or {}) if last else {}
+            cur = set(guids)
+            added, removed = cur - prev, prev - cur
+            # modified = common guids whose fingerprint changed (only when both versions carry fingerprints)
+            modified = sum(1 for g in (cur & prev)
+                           if g in fps and g in prev_fp and _materially_differs(prev_fp[g], fps[g]))
+            # skip a true no-op republish (identical elements AND fingerprints) to keep history meaningful
+            if last and not added and not removed and not modified and prev_fp:
+                return {"version": last.version, "skipped": "no element change"}
+            # A LOCAL, not `note` itself: on a retry the baseline has moved, so the delta this row
+            # describes is different. Reassigning the parameter would pin the FIRST attempt's
+            # "+3/-1" onto a row computed against another version — a note that quietly lies about
+            # its own row. Found by making the retry mutation actually fail, which it did not at
+            # first because the test's competing insert landed before the read instead of after it.
+            row_note = note
+            if row_note is None:
+                row_note = (f"+{len(added)}/-{len(removed)}"
+                            + (f"/~{modified}" if modified else "")) if last else "initial"
+            v = ModelVersion(project_id=pid, version=(last.version + 1 if last else 1),
+                             element_count=len(guids), guids=guids, fingerprints=fps, note=row_note)
+            db.add(v)
+            try:
+                db.commit()
+            except IntegrityError:
+                # `uq_model_versions_project_version` refused the number: another publish took it
+                # between this attempt's read and its commit. Recompute against the new maximum.
+                db.rollback()
+                if attempt == 4:
+                    raise
+                continue
+            return {"version": v.version, "element_count": v.element_count,
+                    "added": len(added), "removed": len(removed), "modified": modified}
+    raise RuntimeError("could not allocate a model version number")   # pragma: no cover - loop returns
 
 
 def history(db: Session, pid: str) -> list[dict]:
