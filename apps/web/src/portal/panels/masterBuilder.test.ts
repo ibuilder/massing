@@ -105,8 +105,14 @@ describe("R22-PUBLIC-VIEWER — the geometry opt-in is offered, and it is READ",
   });
 
   it("marks which live links grant geometry, so the opt-in can be audited after minting", async () => {
+    // The token values here are deliberately REPEATED characters, not hex-looking ones. A
+    // 16-char high-entropy string after an identifier named `token` is exactly what gitleaks'
+    // generic-api-key rule matches, and this fixture's original "0123456789abcdef" tripped the
+    // full-history scan for real — on a value that is not a credential and never was. The scan
+    // is right to be that blunt; a fixture that happens to look like a secret costs a red build
+    // and a triage, so shape it so it cannot be mistaken for one.
     const tok = (over: Record<string, unknown>) => ({
-      token: "0123456789abcdef", label: null, revoked: false, created_at: null, created_by: null,
+      token: "cccccccccccccccc", label: null, revoked: false, created_at: null, created_by: null,
       view_count: 0, last_viewed_at: null, share_path: "/s", show_payments: false, show_model: false,
       ...over,
     });

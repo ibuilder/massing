@@ -295,6 +295,59 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
           f"{len(gate.LOCKS)} path(s)")
 
 
+def _gitleaks_baseline_path() -> str:
+    """Which file does the gitleaks step read as its baseline? DERIVED from the workflow.
+
+    Not hardcoded, for the same reason `test_ruff_scope.py` parses the ruff command rather than
+    naming directories: if the step ever gains an explicit `--gitleaks-ignore-path`, a hardcoded
+    `.gitleaksignore` would keep asserting a trigger for a file nothing reads any more, and pass.
+    """
+    wf = os.path.join(ROOT, ".github", "workflows", "security.yml")
+    with open(wf, encoding="utf-8") as fh:
+        text = fh.read()
+    assert "gitleaks detect" in text, (
+        "security.yml no longer runs `gitleaks detect` — this check is asserting a trigger for a "
+        "scanner that is gone, which is worse than not checking at all")
+    m = re.search(r"--gitleaks-ignore-path[= ]+(\S+)", text)
+    return m.group(1).strip("\"'") if m else ".gitleaksignore"
+
+
+def test_the_gitleaks_baseline_can_trigger_its_own_scanner() -> None:
+    """The file that SILENCES findings could not run the scanner whose findings it silences.
+
+    Found 2026-09-06, and it is the third instance of this workflow's own sentence: "a check's
+    TRIGGER is part of its scope, and a scope that excludes its own subject is not a smaller check
+    — it is no check." The first was `requirements.lock`, the second the whole `pull_request`
+    event. This one is the sharpest of the three, because `.gitleaksignore` is not merely an input
+    — every line in it SUPPRESSES a real finding. Adding one is the single most consequential edit
+    available in this repository's security surface, and it was the one edit that ran nothing.
+
+    Note what that means for the entry that found this: the two fingerprints baselined on
+    2026-09-06 were verified by running gitleaks 8.30.1 BY HAND, at the pinned version and digest,
+    because no CI job would have run on that commit. That is not a workflow anyone repeats.
+
+    `test_every_audited_path_can_actually_trigger_the_workflow` could not see this: its population
+    is `audit_lock_gate.LOCKS` plus the npm manifests — the inputs of the two *advisory* gates. The
+    gitleaks step has an input too and was in neither list. A coverage check is only as wide as the
+    population behind it, and that population was derived from two of the job's three scanners.
+    """
+    baseline = _gitleaks_baseline_path()
+    tracked = subprocess.run(["git", "ls-files", baseline], cwd=ROOT,
+                             capture_output=True, text=True).stdout.split()
+    assert tracked, (
+        f"the gitleaks step reads {baseline!r} as its baseline, but git does not track that path "
+        f"— a baseline CI cannot see suppresses nothing and hides that it suppresses nothing")
+    on = _triggers()
+    for event in ("push", "pull_request"):
+        globs = list((on.get(event) or {}).get("paths") or [])
+        assert globs, f"no `{event}: paths:` globs parsed"
+        assert _matches_a_glob(baseline, globs), (
+            f"{baseline} is read by the gitleaks step but matches none of security.yml's "
+            f"`{event}` globs {globs} — silencing a finding there would not re-run the scanner, "
+            f"so nothing would ever show what the silence covers")
+    print(f"PASS  the gitleaks baseline can trigger its own scanner on both events   {baseline}")
+
+
 if __name__ == "__main__":
     test_every_exemption_is_dated_and_unexpired()
     test_an_expired_exemption_blocks()
@@ -305,4 +358,5 @@ if __name__ == "__main__":
     test_the_push_and_pull_request_globs_stay_identical()
     test_the_npm_manifests_can_trigger_the_workflow_too()
     test_every_audited_path_can_actually_trigger_the_workflow()
+    test_the_gitleaks_baseline_can_trigger_its_own_scanner()
     print("test_lock_advisories OK")
