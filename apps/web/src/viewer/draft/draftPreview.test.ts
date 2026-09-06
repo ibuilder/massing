@@ -146,6 +146,57 @@ describe("draftPreview — the drawing follows the values", () => {
     expect(previewFor(FAMILY, defaults(FAMILY))?.oversize).toBe(false);
   });
 
+  /**
+   * A shape can miss the frame DOWNWARDS, and the "too big" check could not see it.
+   *
+   * `extrusion`'s base offset is the only param that reaches a negative number: every other shape is
+   * built at y = 0 (or cy = r), and `num()` substitutes the default for a negative — but `z` bypasses
+   * `num()` on purpose, because 0 is a legitimate base offset and `num()` would reject it. The old
+   * `top = Math.max(...bboxTop, 0.01)` then floored the bound to 0.01 and reported a fit, so a base
+   * of -10 m drew the rect entirely below the viewBox while the panel said nothing was wrong.
+   *
+   * *That is a preview lying about the value it exists to show* — the same fail-open shape as a check
+   * that can only report good news, one layer out from the code into the UI.
+   */
+  const extrusion = DRAFT_ELEMENTS.find((e) => e.key === "extrusion");
+
+  it("a NEGATIVE base offset is flagged, because the shape is drawn off the bottom of the frame", () => {
+    expect(extrusion).toBeDefined();
+    if (!extrusion) return;
+    const below = previewFor(extrusion, { height: 3, z: -10, ifc_class: "IfcWall" });
+    expect(below).not.toBeNull();
+    expect(below?.belowFrame).toBe(true);
+    // ...and NOT as oversize, which would put "larger than this element usually is" under a number
+    // that is not large. The two warnings say different things and must not be conflated.
+    expect(below?.oversize).toBe(false);
+  });
+
+  it("a small negative offset is flagged too — invisible is invisible at any magnitude", () => {
+    expect(extrusion).toBeDefined();
+    if (!extrusion) return;
+    expect(previewFor(extrusion, { height: 3, z: -0.5, ifc_class: "IfcWall" })?.belowFrame).toBe(true);
+  });
+
+  it("a legitimate offset of zero or above is not flagged, so the warning stays meaningful", () => {
+    expect(extrusion).toBeDefined();
+    if (!extrusion) return;
+    for (const z of [0, 1, 2.5]) {
+      const p = previewFor(extrusion, { height: 3, z, ifc_class: "IfcWall" });
+      expect(p?.belowFrame, `z=${z} should sit inside the frame`).toBe(false);
+    }
+  });
+
+  it("an oversize value is NOT reported as below-frame, and no element's defaults are either", () => {
+    const big = previewFor(FAMILY, { width: 8, depth: 0.7, height: 0.75 });
+    expect(big?.oversize).toBe(true);
+    expect(big?.belowFrame).toBe(false);
+    const sunken = DRAFT_ELEMENTS.concat([FAMILY])
+      .map((el) => [el.key, previewFor(el, defaults(el))] as const)
+      .filter(([, p]) => p?.belowFrame)
+      .map(([k]) => k);
+    expect(sunken).toEqual([]);
+  });
+
   it("every element's default values sit INSIDE its own frame", () => {
     // The band is derived from the defaults, so this is close to a tautology — which is the point:
     // if it ever fails, the derivation has broken and every preview is framed wrongly at rest.

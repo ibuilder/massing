@@ -3052,9 +3052,12 @@ removed. Remaining, in priority order:
   auto-fits would draw an 8 m desk and a 0.8 m desk identically, which is a preview that always looks
   right and is therefore worth nothing — the UI form of a check that always passes. So the frame's
   height in metres is computed once from the element's own DEFAULTS and the shape is drawn to true
-  scale inside it; ten times the default runs off the top. The band is derived from the defaults'
-  bounding box rather than tabulated, so a new element in `draftCatalog.ts` gets a sensible frame
-  with nothing to remember to update.
+  scale inside it; ten times the default runs off the top, and a negative base offset runs off the
+  bottom — both warned, in different words, because "too big" is a false thing to say about a value
+  that is merely pointing the wrong way. The band is derived from the defaults' bounding box rather
+  than tabulated, so a new **supported preview** element gets a sensible frame with nothing to
+  remember to update — supported meaning one `previewFor` draws, not every entry in
+  `draftCatalog.ts`, since the `NO_PREVIEW` families below get no frame at all.
 
   **Two families of element have no preview and are listed rather than silently blank**, in
   `NO_PREVIEW` with a sentence each: the 13 `mep:` terminals, whose dimensions are baked into the

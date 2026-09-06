@@ -18,8 +18,19 @@ which is worth nothing, and is the UI form of a check that always passes. So the
 metres is computed once from the element's own DEFAULTS, and the shape is drawn to true scale inside
 it. Ten times the default runs off the top of the frame and the caption says so.
 
-The band is derived from the defaults' bounding box rather than tabulated, so a new element gets a
-sensible frame with nothing to remember to update anywhere.
+**A shape can also miss the frame downwards, and the "too big" check could not see it.** `extrusion`
+is the one element with a base offset, and it is the one value allowed to be negative — 0 is a
+legitimate offset, so it bypasses the guard that substitutes a default for a non-positive number.
+Type -10 and the rectangle was drawn entirely below the viewBox while the panel reported a fit,
+because the upper bound was clamped at 0.01 before the comparison and the clamp hid it. The lower
+bound is now measured, and it gets its **own sentence** — "base is below the frame" rather than
+"larger than this element usually is", because a base offset of -2 m is not large, it is pointing the
+wrong way, and a false explanation from the one control whose job is to tell the truth about what you
+typed is worse than no warning at all.
+
+The band is derived from the defaults' bounding box rather than tabulated, so a new **supported**
+element — one `previewFor` draws, not every catalog entry — gets a sensible frame with nothing to
+remember to update anywhere.
 
 **What has no preview is a list with reasons, not a silence.** The 13 `mep:` terminals bake their
 dimensions into the recipe closure and expose no params, so the form has nothing to get wrong; the 19

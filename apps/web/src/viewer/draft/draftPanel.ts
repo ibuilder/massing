@@ -228,9 +228,15 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       const dims = el("div"); dims.textContent = pv.caption;
       const scale = el("div"); scale.textContent = `frame ${pv.viewMetres} m`; scale.style.opacity = "0.7";
       cap.append(dims, scale);
-      if (pv.oversize) {
+      // Two different wrongnesses, two different sentences. A base offset of -2 m is not "larger
+      // than this element usually is", and saying so would be a false statement from the one
+      // control whose job is to tell the truth about what was typed.
+      const warning = pv.oversize ? "larger than this element usually is"
+        : pv.belowFrame ? "base is below the frame — the shape is drawn off the bottom"
+        : "";
+      if (warning) {
         const warn = el("div");
-        warn.textContent = "larger than this element usually is";
+        warn.textContent = warning;
         warn.style.color = "var(--warn,#e0a030)";
         cap.appendChild(warn);
       }

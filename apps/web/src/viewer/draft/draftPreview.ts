@@ -19,9 +19,16 @@
  * own default values**, and the shape is then drawn to true scale inside it. Type ten times the
  * default and the drawing runs off the top of the frame, which is the signal.
  *
+ * A shape can miss the frame DOWNWARDS too, which `oversize` alone could not see: `extrusion`'s base
+ * offset is the one value allowed to be negative, and the old upper bound was clamped at 0.01 before
+ * the comparison, so a base of -10 m reported a fit while drawing nothing visible. `belowFrame` is
+ * measured from the lower bound and says so in its own words — see the field's own note for why
+ * reusing "larger than this element usually is" would have been a false statement.
+ *
  * The band is derived rather than tabulated: it is the element's bounding box at its defaults,
- * padded, snapped up to a round number of metres. A new element in `draftCatalog.ts` therefore gets
- * a sensible frame with no entry anywhere — nothing to forget to update.
+ * padded, snapped up to a round number of metres. A new **supported** element therefore gets a
+ * sensible frame with no entry anywhere — supported meaning one this file draws, not every entry in
+ * `draftCatalog.ts`, since the `NO_PREVIEW` families below get no frame at all.
  *
  * A metre grid is drawn behind the shape at every whole metre. It is the constant that makes the
  * scale readable: without a reference, "big rectangle" carries no information.
@@ -51,6 +58,15 @@ export interface Preview {
   readonly caption: string;
   /** True when the shape does not fit the frame: the value is far from what the element expects. */
   readonly oversize: boolean;
+  /**
+   * True when the shape sits BELOW the frame's floor, which only `extrusion`'s base offset can do.
+   *
+   * Separate from `oversize` because the two need different words. A base offset of -2 m is not
+   * "larger than this element usually is" — it is a perfectly ordinary number pointing the wrong
+   * way, and telling the user it is too big would be a false statement from the one control whose
+   * whole job is to tell the truth about what they typed.
+   */
+  readonly belowFrame: boolean;
 }
 
 /** Elements that cannot have a preview, each with the reason. Read by the test, not just by people. */
@@ -199,6 +215,7 @@ export function bandFor(el: DraftElement): number {
 
 const bboxTop = (s: Shape): number => (s.kind === "rect" ? s.y + s.h : s.cy + s.r);
 const bboxRight = (s: Shape): number => (s.kind === "rect" ? s.x + s.w : s.cx + s.r);
+const bboxBottom = (s: Shape): number => (s.kind === "rect" ? s.y : s.cy - s.r);
 
 /**
  * The preview for `el` at `values`, or null when the element is one of the `NO_PREVIEW` cases.
@@ -233,7 +250,20 @@ export function previewFor(el: DraftElement, values: ParamValues): Preview | nul
   const step = viewMetres <= 1 ? 0.25 : viewMetres <= 3 ? 0.5 : 1;
   for (let m = step; m < viewMetres + 1e-9; m += step) grid.push(`M0 ${r(y(m))}H100`);
 
-  return { d, grid, viewMetres, caption: built.caption, oversize: top > viewMetres || width > viewMetres };
+  // The frame's floor is 0 m, so anything below it is drawn off the bottom and cannot be seen. Only
+  // `extrusion`'s base offset can get there: every other shape is built at y = 0 (or cy = r), and
+  // `num()` rejects a negative, but `z` deliberately bypasses `num()` because 0 is a legitimate base
+  // offset and `num()` would substitute the default for it. The `Math.max(..., 0.01)` above then
+  // MASKS the case — `top` for a rect at y = -10 is -7, which floors to 0.01 and reports a fit. A
+  // preview that silently draws nothing is the exact failure this feature exists to prevent, so the
+  // bound is measured rather than clamped.
+  const bottom = Math.min(...built.shapes.map(bboxBottom), 0);
+
+  return {
+    d, grid, viewMetres, caption: built.caption,
+    oversize: top > viewMetres || width > viewMetres,
+    belowFrame: bottom < 0,
+  };
 }
 
 /** 2 decimal places, without a trailing ".00" — keeps the path strings short and comparable. */
@@ -268,7 +298,7 @@ export function previewElement(p: Preview): SVGSVGElement {
   const shape = document.createElementNS(NS, "path");
   shape.setAttribute("d", p.d.join(" "));
   shape.setAttribute("fill", "currentColor");
-  shape.setAttribute("fill-opacity", p.oversize ? "0.25" : "0.45");
+  shape.setAttribute("fill-opacity", p.oversize || p.belowFrame ? "0.25" : "0.45");
   shape.setAttribute("stroke", "currentColor");
   shape.setAttribute("stroke-width", "1.5");
   shape.setAttribute("stroke-linejoin", "round");
