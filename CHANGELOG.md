@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — the gate shipped that morning was blind to a read done through a helper
+
+`test_seeding_sweep` landed a few hours ago reporting **0 unguarded** seeding sites. It was not
+looking at all of them. To decide whether a conditional insert was a get-or-create, it required the
+model's name to appear in a lookup call **in the same function** — and `modules.add_enum_option`
+reads the existing options through a helper, `list_enum_options(db, project_id)`, so the name
+`EnumOption` never appears there and the site was skipped without a trace.
+
+Behind it was a third instance of the class the gate exists for. `add_enum_option`'s docstring
+promises it *"is idempotent against the JSON options + existing customs"*; `enum_options` carried
+three **non-unique** indexes. Two people adding the same custom option at once both read "not
+present" and both inserted — and `list_enum_options` **appends**, so the value then appeared twice
+in the dropdown and stayed there. Milder than its two siblings, and fixed the same way, because at
+this size the fix costs the same either way: a unique index (`e7b3f4a9c218`, de-duplicating first
+and keeping the **earliest** row so the dropdown's order does not move) plus
+`auth.get_or_create_by_key`.
+
+**The precondition is now gone rather than repaired.** Every mapped model is a candidate and the
+only shape detected is the conditional insert, which is syntactic. *"Did this function read the
+model first"* is semantic — helpers, relationship access, raw SQL — and an AST answering it will
+always answer some cases wrongly, silently, in the direction of reporting less. The cost is four
+sites that genuinely are not get-or-create (a Topic per clash, per failing CI check) needing an
+entry in `EXEMPT`. That is the better trade: **an exemption is a sentence someone wrote and can
+argue with; the precondition dropped sites with no record that it had.**
+
+The gate now also states what it still cannot see — an insert guarded by an early `return` or by a
+`try/except` rather than a branch — because the next blind spot will look exactly like this one did:
+a clean report.
+
 ## Unreleased — a field engineer could put an element permanently beyond verifying, by tapping twice
 
 Two people marking the same element installed in the same second — or one person on a flaky site
