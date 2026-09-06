@@ -17,9 +17,21 @@
  *  in `authoring_matrix.py` (11 `create-mep` + 3 `edit-mep`, less these two), and they split:
  *    - **nine** are driven from viewer code through the generic recipe path in
  *      `viewer/draft/draftCatalog.ts` and `viewer/tools/mepSection.ts` — never client methods to move;
- *    - **three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — are referenced
+ *    - **three — `add_sprinkler`, `auto_connect_mep`, `set_system_predefined` — were referenced
  *      NOWHERE in `apps/web/src`.** Backend recipes with no web exposure at all. Recorded, not fixed:
  *      wiring a capability is not an extraction slice's business.
+ *
+ *  **MEP-AUTOCONNECT closed that, and only two of the three were capabilities.** `autoConnectMep` and
+ *  `setSystemDiscipline` (below) are new typed methods, so the split is now nine on the generic path,
+ *  two here, and one that should never be wired: **`add_sprinkler` is superseded, not missing.**
+ *  `add_fire_equipment(kind="sprinkler")` resolves through the same `add_mep_terminal` to the same
+ *  `IfcFireSuppressionTerminal`/`SPRINKLER` at the same size on the same Fire Protection system with
+ *  `discipline="fire"` — and it has shipped on the 🧯 button since MEP-FP. Wiring `add_sprinkler` would
+ *  have added a second control authoring a byte-identical element. *The list above counted three gaps
+ *  because it derived reachability and stopped; **"nothing calls it" and "no user can do it" are
+ *  different questions**, and only the second one is a defect. The equivalence is asserted in
+ *  `services/api/test_recipe_reach.py` rather than asserted here, so the supersession fails loudly if
+ *  either recipe's class, predefined type, system or discipline drifts away from the other.*
  *
  *  *This paragraph said "the other nine" until review. Nine was the number I had ENUMERATED (the
  *  viewer-driven ones); twelve is the number that REMAIN. **THIRD CONSECUTIVE SLICE, THIRD DISGUISE,
@@ -172,6 +184,24 @@ export function withMep<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   addMepFitting(pid: string, ifcClass: string, point: [number, number],
                 opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
     return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
+  }
+  /** W10-4: weld every unconnected MEP pair whose connection points coincide, in one pass.
+   *
+   *  The bulk complement to `connectMep`, which joins exactly two elements the user picked. `tolerance`
+   *  is in metres and defaults to the engine's 0.05; nearest pairs go first and each element joins at
+   *  most as many pairs as it has free ports, so a second run over the same model welds nothing. */
+  autoConnectMep(pid: string, tolerance?: number, publish = true) {
+    return this.editIfc(pid, "auto_connect_mep",
+                        tolerance === undefined ? {} : { tolerance }, publish);
+  }
+  /** (Re)stamp a named distribution system's discipline via its `PredefinedType`.
+   *
+   *  `discipline` takes either a word the engine maps (`fire`, `hvac`, `plumbing`, `electrical`,
+   *  `comms`…) or a raw `IfcDistributionSystemEnum` value. This is the retag path: authoring stamps a
+   *  system's type on FIRST assignment only, so a system that arrived untyped — an import, or one
+   *  created before its discipline was known — cannot be corrected any other way. */
+  setSystemDiscipline(pid: string, system: string, discipline: string, publish = true) {
+    return this.editIfc(pid, "set_system_predefined", { system, discipline }, publish);
   }
   };
 }

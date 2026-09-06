@@ -64,10 +64,22 @@ def purge_empty_groups(model: ifcopenshell.file) -> int:
     return n
 
 
-# recipe name → (label, mutator) — registered into edit.RECIPES so the apply→republish path is free
+# recipe name → (label, mutator, detector).
+#
+# **This table is an ADVERTISEMENT, not just a definition, and the difference matters to a gate.**
+# ``scan()`` builds one row per entry and hands it to the client; the maintenance tool renders a Purge
+# button per row and POSTs ``row["recipe"]`` straight back to ``/edit``. So these recipes are dispatched
+# by NAME AS DATA — the string never appears as a literal in any client file, and a reachability check
+# that greps the tree for callers cannot see them. `services/api/test_recipe_reach.py` reads these keys
+# for exactly that reason, and had listed both recipes as unreachable while the button shipped.
+#
+# The detector lives here so the advertisement cannot drift from the capability: ``scan()`` iterates
+# this dict rather than naming the two recipes a second time, so a recipe added here is scanned,
+# advertised and reachable in one edit — and one added WITHOUT a detector fails to construct rather
+# than quietly going unadvertised.
 RECIPES = {
-    "purge_orphan_psets": ("Purge orphaned property sets", purge_orphan_psets),
-    "purge_empty_groups": ("Purge empty groups", purge_empty_groups),
+    "purge_orphan_psets": ("Purge orphaned property sets", purge_orphan_psets, _orphan_psets),
+    "purge_empty_groups": ("Purge empty groups", purge_empty_groups, _empty_groups),
 }
 
 
@@ -100,16 +112,13 @@ def extract_subset(model: ifcopenshell.file, keep_guids: set[str]) -> dict[str, 
 
 def scan(model: ifcopenshell.file) -> dict[str, Any]:
     """Dry-run maintenance report — how many entities each recipe WOULD remove (no mutation)."""
-    orphan_ps = _orphan_psets(model)
-    empty_g = _empty_groups(model)
-    recipes = [
-        {"recipe": "purge_orphan_psets", "label": RECIPES["purge_orphan_psets"][0],
-         "removable": len(orphan_ps),
-         "sample": [p.Name for p in orphan_ps[:20] if getattr(p, "Name", None)]},
-        {"recipe": "purge_empty_groups", "label": RECIPES["purge_empty_groups"][0],
-         "removable": len(empty_g),
-         "sample": [g.Name for g in empty_g[:20] if getattr(g, "Name", None)]},
-    ]
+    recipes = []
+    for name, (label, _mutate, detect) in RECIPES.items():
+        found = detect(model)
+        recipes.append({
+            "recipe": name, "label": label, "removable": len(found),
+            "sample": [e.Name for e in found[:20] if getattr(e, "Name", None)],
+        })
     return {"total_entities": len(list(model)),
             "cleanable": sum(r["removable"] for r in recipes),
             "recipes": recipes}

@@ -32,6 +32,7 @@ import { HttpCore } from "./httpCore";
 import { withAnnotate } from "./annotate";
 import { withMep } from "./mep";
 import { withModel } from "./model";
+import { withDetailing } from "./detailing";
 
 describe("mixins requiring editIfc", () => {
   it("reject a base that lacks it, so a bad chain order fails at compile time", () => {
@@ -41,6 +42,8 @@ describe("mixins requiring editIfc", () => {
     void (() => withMep(HttpCore));
     // @ts-expect-error withModel needs NeedsEditIfc; bare HttpCore has no editIfc.
     void (() => withModel(HttpCore));
+    // @ts-expect-error withDetailing needs NeedsEditIfc; bare HttpCore has no editIfc.
+    void (() => withDetailing(HttpCore));
     expect(true).toBe(true);
   });
 });
