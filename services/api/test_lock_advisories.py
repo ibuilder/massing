@@ -295,6 +295,13 @@ def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
           f"{len(gate.LOCKS)} path(s)")
 
 
+# A line that RUNS gitleaks, as opposed to one that merely mentions it. Anchored at the start of
+# the line or just after a shell operator, so `echo "gitleaks detect"` is prose and
+# `prep && ./gitleaks detect` is a command. The optional prefix allows `./gitleaks`, a bare
+# `gitleaks` on PATH, or any directory.
+_RUNS_GITLEAKS = re.compile(r"(?:^|[;&|])\s*(?:[A-Za-z0-9_.+-]*/)?gitleaks\s+detect(?:\s|$)")
+
+
 def _gitleaks_step_lines() -> list[str]:
     """The EXECUTABLE lines of the step that runs gitleaks — comments stripped.
 
@@ -324,7 +331,7 @@ def _gitleaks_step_lines() -> list[str]:
                 continue
             body = [ln for ln in run.splitlines()
                     if ln.strip() and not ln.strip().startswith("#")]
-            if any("gitleaks detect" in ln for ln in body):
+            if any(_RUNS_GITLEAKS.search(ln) for ln in body):
                 return body
     raise AssertionError(
         "no step in security.yml RUNS `gitleaks detect` — the scanner is gone, or it moved "
@@ -348,7 +355,7 @@ def _gitleaks_invocation() -> str:
     """
     lines = _gitleaks_step_lines()
     for i, line in enumerate(lines):
-        if "gitleaks detect" not in line:
+        if not _RUNS_GITLEAKS.search(line):
             continue
         parts = [line]
         # A future edit may wrap the command across lines; follow trailing-backslash continuations
