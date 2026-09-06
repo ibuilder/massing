@@ -85,6 +85,12 @@ def upgrade() -> None:
             conn.execute(sa.text("DELETE FROM saved_views WHERE id IN :ids").bindparams(
                 sa.bindparam("ids", value=drop, expanding=True)))
 
+    # A unique INDEX, and the models declare `Index(..., unique=True)` to match. The two must agree
+    # or `alembic check` reports drift on every run forever — CI's Postgres job caught exactly that
+    # when this created an index while the models declared a UniqueConstraint. SQLite cannot ALTER
+    # TABLE ADD CONSTRAINT, so a constraint would need a batch copy-and-move rebuild, and
+    # `saved_view_seen` holds an FK into `saved_views` that a rebuild would put at risk. An index
+    # enforces uniqueness identically on both engines and rebuilds nothing.
     op.create_index("uq_element_verifications_project_guid", "element_verifications",
                     ["project_id", "guid"], unique=True)
     op.create_index("uq_saved_views_owner_name", "saved_views",

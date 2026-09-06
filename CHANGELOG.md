@@ -24,6 +24,14 @@ de-duplicating first and carrying a photo or note forward from the row it remove
 winner's row instead of writing a second one — and leaves the session usable, so the audit entry the
 caller staged still commits.
 
+Both are declared as a unique **index**, on the model and in the migration alike, and they have to
+match: declaring a `UniqueConstraint` against an index in the database makes `alembic check` report
+drift on every run forever. The first version did exactly that and CI's Postgres job caught it —
+SQLite does not distinguish the two, so no local check could have. Switching the migration to add a
+constraint then failed the other way, because SQLite cannot `ALTER TABLE ADD CONSTRAINT` at all and
+the batch copy-and-move rebuild it would need puts `saved_view_seen`'s foreign key into `saved_views`
+at risk. An index is the one form that enforces identically on both engines and rebuilds nothing.
+
 ### The sweep that missed them was bounded by the fix it had to hand
 
 This is the same defect the 2026-08-25 sign-in-door work fixed, and those four sites were **all**
