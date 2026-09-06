@@ -384,7 +384,11 @@ export interface ModuleRecord {
   };
   attachments?: RecordAttachmentMeta[];
   activity?: { ts: string; actor: string; party: string; action: string; detail: unknown }[];
-  comments?: { author: string | null; text: string; created_at: string }[];
+  // `id` and `topic_id` are R22-ENTITLEMENT ⑤: a comment must be addressable to be promoted into
+  // an RFI, and `topic_id` is present ONLY once it has been — absent means not promoted, which
+  // a build predating the column reports identically rather than claiming a false `null`.
+  comments?: { id?: string; author: string | null; text: string; created_at: string;
+               topic_id?: string }[];
   available_actions?: { action: string; to: string; party: string[]; requires?: string[] }[];
 }
 export interface RecordAttachmentMeta {

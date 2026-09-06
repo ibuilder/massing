@@ -253,6 +253,106 @@ if missing:
         "  unenforced. Do not cite a gate that does not exist — that is the bug this test caught."
     )
 
+# ---------------------------------------------------------------------------------------------
+# CLAUDE.md quotes a line count that a GATE already owns. Added 2026-09-05.
+#
+# The viewer section states the current size of `apps/web/src/viewer/app.ts` as evidence for how far
+# the decomposition has run. That exact number drifted three times: it sat at "3,444" for weeks, was
+# corrected to "2,570", and was stale again **inside the same pull request** because a decomposition
+# slice landed beside the correction and a review bot, not the author, noticed.
+#
+# The check above asks whether a cited FILE exists. This asks whether a cited NUMBER is still true,
+# which is the harder half and the one that keeps failing here. It is cheap only because the number
+# is not really CLAUDE.md's to hold: `test_file_sizes.py` pins the same file at an exact size and
+# fails the build when it moves, so the prose is a COPY of a gated value, and a copy is what drifts.
+#
+# The rule this encodes is narrow on purpose: a doc may quote a number that a gate owns, but the two
+# have to be compared by something. Prose that reasons ABOUT the pin ("pins its exact size", "2,507"
+# as a mutation-check witness) is not a claim about today's file, so only the figure attached to the
+# "has gone from 5,064 lines to N" sentence is read.
+CLAUDE_MD = os.path.join(ROOT, "CLAUDE.md")
+PIN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_file_sizes.py")
+
+with open(CLAUDE_MD, encoding="utf-8") as fh:
+    _claude = fh.read()
+with open(PIN_FILE, encoding="utf-8") as fh:
+    _pins = fh.read()
+
+_stated = re.search(
+    r"`apps/web/src/viewer/app\.ts`\s+has gone from\s+[\d,_]+\s+lines to\s*\n?\s*\*\*([\d,_]+)\*\*",
+    _claude,
+)
+_pinned = re.search(
+    r'"apps/web/src/viewer/app\.ts"\s*:\s*([\d_]+)', _pins,
+)
+
+# Both halves must be FOUND, not just agree. If either pattern stops matching — the sentence is
+# reworded, the ratchet key is renamed — this check would otherwise pass on two Nones, which is the
+# vacuous-green failure this file's own header calls worse than no gate.
+# The SAME figure lives in `docs/roadmap.md` twice, and the gate above did not reach it. Added
+# 2026-09-05, one PR after that gate: the roadmap's R39-DECOMP-VIEWER entry carried THREE figures for
+# `app.ts` — a header saying "5,160 -> 3,311", a shipped block saying "5,160 -> 2,944", and the truth,
+# 2,508. It also used a DIFFERENT baseline from CLAUDE.md (5,160 vs 5,064) with neither labelled, so
+# nothing could tell a reader they were measured from different points; both were real, 5,064 being the
+# file before the first extraction commit and 5,160 a same-day peak partway through it.
+#
+# The lesson is about the gate, not the numbers. The check above was written to stop a narrative copy of
+# a pinned value from drifting, and it gated ONE copy of a number that lives in three places. **Gating
+# the instance you happened to be looking at is not gating the class.** So this scans every doc for the
+# baseline-anchored form and requires each to equal the pin — which also holds the BASELINE steady,
+# since a figure measured from somewhere else no longer matches the pattern at all.
+#
+# Historical mentions are deliberately still matchable only by their own baseline: the corrected text
+# quotes "5,160 -> 2,944" as the thing that was wrong, and that does not match this pattern, so the
+# record of the error survives without failing the build.
+APP_TS_BASELINE = "5,064"
+_arrow = re.compile(re.escape(APP_TS_BASELINE) + r"\s*(?:->|\u2192)\s*\*{0,2}([\d,]+)")
+
+#: Docs carrying the ARROW form, and the minimum each must contribute. PER-DOC, never summed — the
+#: first draft of this check used a summed floor of 2 and reported "3 figures across 2 docs" while
+#: **all three came from the roadmap**: CLAUDE.md words it "5,064 lines to", so the arrow pattern
+#: never matched it and its contribution was ZERO. A mutation that reformatted only the roadmap took
+#: the count to 0 and revealed it. That is the exact failure this file's own citation ratchet was
+#: built to avoid, repeated one screen further down — **a summed floor lets one doc hold the number
+#: up while another silently contributes nothing.** CLAUDE.md is not listed here because the two
+#: checks below cover its wording directly; a doc is either in this map or covered by name, never
+#: assumed.
+ARROW_DOCS = {"docs/roadmap.md": 3}
+
+_bad, _thin = [], []
+for _doc, _min in ARROW_DOCS.items():
+    with open(os.path.join(ROOT, _doc), encoding="utf-8") as fh:
+        _hits = _arrow.findall(fh.read())
+    if len(_hits) < _min:
+        _thin.append(f"{_doc}={len(_hits)} (min {_min})")
+    for _h in _hits:
+        if _pinned and int(_h.replace(",", "")) != int(_pinned.group(1).replace("_", "")):
+            _bad.append(f"{_doc}: {APP_TS_BASELINE} -> {_h}")
+
+check(
+    "every doc that quotes the app.ts figure quotes the pinned one",
+    not _bad and not _thin,
+    (f"below the floor: {', '.join(_thin)}; " if _thin else "")
+    + (f"DISAGREE: {', '.join(_bad)}" if _bad else "all figures match the pin"),
+)
+
+check(
+    "CLAUDE.md's app.ts sentence and the ratchet pin are both readable",
+    bool(_stated) and bool(_pinned),
+    f"prose={'found' if _stated else 'NOT FOUND'} · pin={'found' if _pinned else 'NOT FOUND'}",
+)
+
+if _stated and _pinned:
+    _n_prose = int(_stated.group(1).replace(",", "").replace("_", ""))
+    _n_pin = int(_pinned.group(1).replace("_", ""))
+    check(
+        "CLAUDE.md's stated app.ts size matches the size the ratchet pins",
+        _n_prose == _n_pin,
+        f"CLAUDE.md says {_n_prose:,}; test_file_sizes.py pins {_n_pin:,}"
+        + ("" if _n_prose == _n_pin else
+           " — update the prose in the SAME EDIT as the slice that moved it, not the same commit"),
+    )
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
