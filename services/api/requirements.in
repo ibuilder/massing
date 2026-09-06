@@ -15,7 +15,7 @@ starlette>=1.6.0
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
-pydantic>=2.7
+pydantic>=2.13.5
 python-multipart>=0.0.9   # file uploads (attachments)
 orjson>=3.12.0              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
 boto3>=1.43.73            # MinIO/S3 object storage (range reads); lazy-imported
@@ -32,11 +32,11 @@ httpx>=0.28.1
 
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.5,<0.9
-openpyxl>=3.1
+openpyxl>=3.1.5
 numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pip-compile reads
                           # only this file, so a floor raised only there cannot move the lock
 ifctester>=0.8
-trimesh>=5.0.0
+trimesh>=5.1.0
 manifold3d>=3.5.2
 scipy>=1.18.1
 # DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,

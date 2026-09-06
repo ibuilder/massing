@@ -318,6 +318,13 @@ class SavedView(Base):
     not read is how a future reader "fixes" something by reading it again.
     """
     __tablename__ = "saved_views"
+    #: Ownership is (project, module, user, name) — the docstring above says so, and until
+    #: 2026-09-06 nothing enforced it. `save_view` reads with `.first()`, so a lost seeding race did
+    #: not fail: it wrote a second row and the user's saved report forked in two, edited on one and
+    #: run from the other.
+    #: A unique INDEX, matching the migration — see the note on ElementVerification.
+    __table_args__ = (Index("uq_saved_views_owner_name",
+                            "project_id", "module", "user", "name", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     module: Mapped[str] = mapped_column(String, index=True)
@@ -694,6 +701,18 @@ class ElementVerification(Base):
     Keyed by IFC GlobalId so it survives re-conversion. status: pending | installed | verified |
     deviation. Drives the install-coverage dashboard and the deviation log handed to operations."""
     __tablename__ = "element_verifications"
+    #: The route docstring has always said "upserts by (project, guid)" — until 2026-09-06 the table
+    #: had only NON-unique indexes on those columns, so two concurrent writers for one element both
+    #: inserted and `scalar_one_or_none()` raised `MultipleResultsFound` on every read afterwards.
+    #: A permanent 500 on one element, where the primary-key seeding races cost one transient one.
+    #: A unique INDEX rather than a UniqueConstraint, and the two are not interchangeable here:
+    #: SQLite cannot ALTER TABLE ADD CONSTRAINT at all, so a constraint could only be added by a
+    #: batch copy-and-move rebuild — and `saved_views` below has an inbound FK that a rebuild would
+    #: put at risk. An index enforces uniqueness identically on both engines and rebuilds nothing.
+    #: It must MATCH the migration: declare a constraint here against an index in the database and
+    #: `alembic check` reports drift forever. (It did; CI's Postgres job caught it.)
+    __table_args__ = (Index("uq_element_verifications_project_guid",
+                            "project_id", "guid", unique=True),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     guid: Mapped[str] = mapped_column(String, index=True)
