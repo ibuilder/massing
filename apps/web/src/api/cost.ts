@@ -129,6 +129,17 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       adjustment: Record<string, unknown> | null;
     }>(`/projects/${pid}/cost-vintage`);
   }
+  /** Cross-project cost-code bands — the same question `unitRates` below answers at a different
+   *  granularity (cost codes rather than unit rates), with the same low/p25/median/p75/high shape.
+   *  It lives here and not in a `/benchmarks` file because this repo places those by what each one
+   *  ANSWERS: `unitRates` was already here and `benchmarksPullPlanning` is in `schedule.ts`, both
+   *  under the same route prefix. Grouping by the prefix would have contradicted two live placements. */
+  benchmarkCosts(minSamples = 3) {
+    return this.json<{ cost_codes: { cost_code: string; samples: number; low: number; p25: number;
+      median: number; p75: number; high: number; total: number }[];
+      code_count: number; min_samples: number; codes_below_threshold: number; message?: string | null }>(
+      `/benchmarks/costs?min_samples=${minSamples}`);
+  }
   /** Actual unit rates per cost code across the caller's projects (cost ÷ installed quantity). */
   unitRates(minProjects = 3) {
     return this.json<{

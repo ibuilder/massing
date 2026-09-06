@@ -32,6 +32,11 @@ export interface AuthoringDeps {
    * so the locks editor would silently edit the wrong element for the rest of the session.
    */
   selectedGuid: () => string | null;
+  /** The active level's NAME. An accessor for the third time in this interface and for the third
+   *  identical reason — it is a `let` in `app.ts` and the user changes it mid-session. LEVEL-PLACE:
+   *  `addFamily`'s fourth parameter has always been the storey and this section never passed one, so
+   *  "⊕ Place selected family" put every family on the lowest storey. */
+  activeStorey: () => string | null;
   /** The tools panel element — this section dims itself for non-editors via `data-cap`. */
   panel: HTMLElement;
   waitForPublish: (pid: string, onTick?: (s: string) => void) => Promise<string>;
@@ -93,8 +98,9 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
           const label = sel.options[sel.selectedIndex]?.text ?? key;
           const lp = lastPoint();
           const pos: [number, number] | null = lp ? [lp.x, -lp.z] : null;
-          out.textContent = `adding ${label}…`;
-          await api.addFamily(pid, key, pos);
+          const storey = d.activeStorey();          // at click time, beside the point, same as `lastPoint`
+          out.textContent = `adding ${label}${storey ? ` on ${storey}` : ""}…`;
+          await api.addFamily(pid, key, pos, storey);
           out.textContent = `${label} added · converting…`;
           // Same tick path Republish already had: without onTick the Place button sits on
           // "converting…" for the whole convert, which reads as a hang.

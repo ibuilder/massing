@@ -69,6 +69,14 @@ storage/
 test_storage/
 test_storage_*/
 _storage_*/
+# Any directory whose name ENDS IN `_storage` — the naming convention every local object store in
+# this repo already follows, not "any storage directory whatever it is called": a scratch dir named
+# `probe_out` would still slip through. Added after a throwaway probe script pointed STORAGE_DIR at
+# ./probe_storage inside the repo and a generated PDF was committed; the hand-listed patterns above
+# and below were each written the same way, one incident at a time, and this generalises the shape
+# they share rather than the intent behind them. Verified against `git ls-files`: no tracked path
+# matches, so nothing real is hidden.
+*_storage/
 samples/out/
 
 # generated offline assets (recreated by copy-wasm on predev/prebuild)

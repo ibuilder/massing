@@ -33,6 +33,13 @@ on:
       - "**/package.json"
       - "**/package-lock.json"
       - ".github/workflows/security.yml"
+      # `.gitleaksignore` is READ BY the gitleaks step below, which makes it an audited input of
+      # this workflow exactly as `requirements.lock` is an audited input of the pip gate — and it
+      # could not trigger the workflow that reads it. Third instance of the sentence twenty lines
+      # up ("a scope that excludes its own subject is not a smaller check — it is no check"), and
+      # the first where the excluded subject is the BASELINE: a line added here silences a finding,
+      # and until now nothing re-ran the scanner to show what the silence covers.
+      - ".gitleaksignore"
 
   # THE BLOCKING GATES ABOVE COULD NOT BLOCK A MERGE UNTIL THIS EXISTED. With only `push:`, they
   # fire AFTER a PR lands — they report a merge that already happened. Same shape as
@@ -56,6 +63,7 @@ on:
       - "**/package.json"
       - "**/package-lock.json"
       - ".github/workflows/security.yml"
+      - ".gitleaksignore"   # see the push: list above for why the baseline triggers its own scanner
 
   workflow_dispatch:
 

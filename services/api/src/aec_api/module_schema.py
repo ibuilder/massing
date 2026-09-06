@@ -431,9 +431,15 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
             for label, s in (("from", t.from_), ("to", t.to)):
                 if s and s not in states:
                     errors.append(f"{key}: transition {label} {s!r} not in states")
+            # A requires entry may name ALTERNATIVES with `|` (satisfied when ANY is filled — see the
+            # gate in `modules.py`). EVERY alternative must still be a real field: the point of this
+            # check is that a typo in a gate silently makes a transition unreachable, and splitting
+            # without re-checking each half would reintroduce exactly that for the alternation form.
             for req in t.requires:
-                if req not in nameset:
-                    errors.append(f"{key}: transition {t.action!r} requires non-existent field {req!r}")
+                for one in req.split("|"):
+                    if one not in nameset:
+                        errors.append(f"{key}: transition {t.action!r} requires non-existent field "
+                                      f"{one!r}" + (f" (in {req!r})" if "|" in req else ""))
     return errors
 
 

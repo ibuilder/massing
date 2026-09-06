@@ -151,14 +151,55 @@ describe("internal notes live under docs/internal/", () => {
       /\bsuperseded\b/i,
       /\bNothing here is built yet\b/i,
     ];
-    const leaked = DOC_PATHS.filter((p) => {
-      if (isInternal(p)) return false;
+
+    /** Lines that could be a status banner ABOUT THIS DOCUMENT — the thing the markers stand in for.
+     *
+     * A banner announces the document's own condition and names nothing else; a line that cites a
+     * `code.identifier` is making a claim about that identifier instead. Both false positives this
+     * had were the second kind: `docs/authoring-matrix.md` labels a set of RECIPES superseded by
+     * other recipes, and `docs/internal/security-roadmap.md` says it is "not a superseded snapshot"
+     * — a negation, which the word-anywhere rule reads as a confession. The second one has never
+     * fired only because it happens to be internal, so the narrowing removes a latent failure as
+     * well as an actual one.
+     *
+     * This is a heuristic and worth naming as one: it trades a class of false positive for the
+     * possibility that a real banner cites a path. `bannerCandidates` is proved against every known
+     * true positive below rather than argued for here — the check that a narrowing did not open a
+     * hole belongs in the test, not in a comment claiming it did not. */
+    const bannerCandidates = (text: string) =>
+      text.split("\n").filter((line) => !/`[^`]+`/.test(line)).join("\n");
+
+    const declaresItselfAWorkingNote = (p: string) => {
       // Only the opening matters: roadmap.md discusses superseded items throughout its body.
+      const head = read(resolve(REPO, p)).split("\n").slice(0, 12).join("\n");
+      return markers.some((m) => m.test(bannerCandidates(head)));
+    };
+
+    const leaked = DOC_PATHS.filter((p) => !isInternal(p) && declaresItselfAWorkingNote(p));
+    expect(leaked, `these declare themselves working notes but would be published: ${leaked.join(", ")}`)
+      .toEqual([]);
+
+    // POSITIVE CONTROL. The filter above returns [] both when nothing leaks and when the predicate
+    // has stopped detecting anything at all, and those two look identical from the outside — which is
+    // the failure mode a narrowing invites. So the control is the set the UN-narrowed rule catches
+    // under `docs/internal/archive/`: within the archive, `bannerCandidates` must subtract nothing.
+    //
+    // Derived from the raw markers rather than listed by filename, so it tracks the archive instead of
+    // going stale beside it. It is deliberately NOT the whole archive — most files there were archived
+    // for reasons other than declaring themselves superseded, and asserting over all of them tested
+    // the archive's filing rather than this predicate. (Written that way first: it reported 6 missed,
+    // and all 6 had never matched the original markers either.)
+    const bannerCarrying = DOC_PATHS.filter((p) => {
+      if (!p.startsWith("docs/internal/archive/")) return false;
       const head = read(resolve(REPO, p)).split("\n").slice(0, 12).join("\n");
       return markers.some((m) => m.test(head));
     });
-    expect(leaked, `these declare themselves working notes but would be published: ${leaked.join(", ")}`)
-      .toEqual([]);
+    expect(bannerCarrying.length, "no archived self-declared working notes to check the predicate "
+      + "against — the control is empty, so it proves nothing").toBeGreaterThan(3);
+    const missed = bannerCarrying.filter((p) => !declaresItselfAWorkingNote(p));
+    expect(missed, `narrowing the rule to lines that name no code identifier stopped it recognising `
+      + `these archived working notes, so a leak of the same shape would now go unreported: `
+      + `${missed.join(", ")}`).toEqual([]);
   });
 });
 

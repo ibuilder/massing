@@ -317,7 +317,6 @@ const UNCALLED: readonly string[] = [
   "setLod", "setPhase", "sharedComment", "sharedDecision",
   "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
   "topicComments", "updateConnection", "veLog", "verificationDeviations",
-  "wallJoins",
 ];
 
 describe("client methods the application actually calls", () => {
