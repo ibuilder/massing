@@ -153,6 +153,37 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       over_allocation: { week: string; units: number; cap: number | null }[]; note: string }>(
       `/projects/${pid}/schedule/resource-loading${cap != null ? `?cap=${cap}` : ""}`);
   }
+  /** The same weekly demand summed **across** projects — R22-PIPELINE's portfolio resourcing axis.
+   *
+   *  `resourceLoading` above answers one project, and a trade committed to three jobs in the same
+   *  week looks comfortable on every one of them. Note the two `over_allocation` shapes are NOT
+   *  interchangeable: this one caps **per trade** across the book and names the competing projects,
+   *  while `resourceLoading`'s caps a single project's **total** weekly units.
+   *
+   *  `fidelity` is not decoration — a project with no resource assignments falls back to activity
+   *  `crew_size`, which is a crew count rather than a resourced plan, and a book of fallbacks must
+   *  not read as a resourced one. */
+  portfolioResourcing(opts: { cap?: number; limit?: number; weeks?: number } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v != null) q.set(k, String(v));
+    return this.json<{
+      available: boolean; reason?: string;
+      projects: { id: string; name: string; source: string; loads: number; trades: string[];
+        unit_weeks: number; cost: number }[];
+      projects_without_loads: { id: string; name: string; reason: string }[];
+      trades: { trade: string; peak_units: number; peak_week: string | null; unit_weeks: number;
+        cost: number; project_count: number; cross_project: boolean }[];
+      weeks: { week: string; total: number; by_trade: Record<string, number> }[];
+      week_span?: { start: string; finish: string; count: number; shown: number };
+      peak: { week: string; units: number } | null;
+      over_allocation: { week: string; trade: string; units: number; cap: number;
+        projects: Record<string, number> }[];
+      cap: number | null;
+      fidelity: { by_source: Record<string, number>; assigned: number; fallback: number;
+        note?: string };
+      project_count: number; projects_available: number; truncated: boolean; note?: string;
+    }>(`/portfolio/resourcing${q.toString() ? `?${q}` : ""}`);
+  }
   /** Resource-leveling advisory: over-allocated work with CPM float that can be smoothed within float. */
   resourceLeveling(pid: string, cap: number) {
     return this.json<{ cap: number; peak: { week: string | null; units: number }; over_weeks: number;
@@ -482,6 +513,14 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       rejected_links: string[]; projects_without_activities: string[];
       programme_finish: string | null; project_count: number | null;
       external_link_count: number | null;
+      // The merged pass returns per-project dates and the activities that cross a boundary. This
+      // type declared only the three scalars above until v0.3.1144, so the dates reached the browser
+      // and were dropped before anything could draw them — which is why the roadmap recorded the
+      // cross-project Gantt as missing an engine it already had. Keyed by project id.
+      project_starts?: Record<string, string>;
+      project_finishes?: Record<string, string>;
+      crossing_activities?: string[];
+      issues?: { code?: string; message?: string }[];
     }>(`/projects/${pid}/schedule/portfolio`, { method: "POST", body: JSON.stringify(body) });
   }
 

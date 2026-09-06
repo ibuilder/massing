@@ -297,6 +297,45 @@ describe("consolidate", () => {
     expect(store.count).toBe(1);
   });
 
+  it("KEEPS the deltas when the publish SUCCEEDS but the model will not reload", async () => {
+    // The third failure mode, and the one the other two hid. `consolidate` guarded the publish
+    // twice — a non-"done" state and a thrown request — and then discarded the deltas on a reload
+    // that returned `false`, which is the same end state both of those tests exist to prevent:
+    // the base did not load AND the deltas are gone.
+    //
+    // `reloadModel` returns a boolean precisely so this case can be told apart from success, and
+    // reading it is the only way to tell — the two tests above pass either way, because they never
+    // reach the reload. *A failure mode with no test is not the same as a failure mode that cannot
+    // happen, and here the missing test and the missing guard were the same absence.*
+    const { d, store, c } = harness({ reloadModel: vi.fn(async () => false) });
+    store.add({ modelId: "pv-1", label: "Wall" });
+    await c.consolidate();
+    expect(store.count, "the record of unbuilt edits must survive so Rebuild stays available").toBe(1);
+    expect(d.refresh).not.toHaveBeenCalled();
+    expect(d.notify).toHaveBeenCalledWith(expect.stringContaining("could not reload"), "error");
+    expect(d.notify).not.toHaveBeenCalledWith("geometry rebuilt", "success");
+  });
+
+  it("does not claim the delta GEOMETRY survived a failed reload — only the record does", async () => {
+    // A reviewer read the first version of this guard's message ("deltas kept") as a promise that
+    // the delta models were still on screen. They are not, and cannot be: `reloadModel` disposes
+    // every model BEFORE it loads, so by the time it returns `false` the delta geometry is gone
+    // whatever this function does. Keeping the store preserves the RECORD — the rail still says
+    // there are unbuilt edits and Rebuild stays available to retry — and the message has to say
+    // that rather than imply the viewport is intact.
+    //
+    // *The guard was right and its wording described a stronger outcome than it delivers*, which is
+    // the same class as the "geometry rebuilt" toast it replaced, just much milder. Pinned here so
+    // the message cannot drift back into promising recovered geometry.
+    const { d, c } = harness({ reloadModel: vi.fn(async () => false) });
+    await c.consolidate();
+    const msgs = (d.notify as unknown as { mock: { calls: [string, string?][] } }).mock.calls
+      .map(([m]) => m).join(" | ");
+    expect(msgs, "the message must not imply the delta geometry is still on screen")
+      .not.toMatch(/deltas kept|still shown|geometry kept/i);
+    expect(msgs, "it must point at the action that recovers the view").toMatch(/reopen|rebuild again/i);
+  });
+
   it("KEEPS the deltas when the publish request itself throws", async () => {
     const { d, store, c } = harness({ publish: vi.fn(async () => { throw new Error("network"); }) });
     store.add({ modelId: "pv-1", label: "Wall" });

@@ -118,7 +118,43 @@ export function jobSummary(j: Job): string {
   if (j.state === "error") return j.error ? j.error.slice(0, 140) : "failed";
   if (j.state === "queued") return "queued";
   if (j.state === "running") return "running";
-  return "done";
+  return "done" + deliverySummary(j);
+}
+
+/**
+ * What a SCHEDULED delivery did, appended to a finished row — `""` when there was none.
+ *
+ * A routine can name recipients, and the worker mails the artifact and records the outcome under
+ * `result.delivery`. Recording it and showing nothing would be the fault the rest of this feature is
+ * built to avoid: an owner package that quietly did not send looks exactly like one that did, and
+ * the person who set the routine up is the last to find out. A person clicking **Send** sees the
+ * result immediately; nobody is watching when a cadence fires, so the row has to say.
+ *
+ * `done` stays the prefix in every case. The delivery is something the job ALSO did — a bounced
+ * address does not make the package a failure, which is the same rule the server applies when it
+ * leaves the job `done` and puts the error here instead.
+ */
+export function deliverySummary(j: Job): string {
+  const d = j.result && typeof j.result === "object"
+    ? (j.result as Record<string, unknown>)["delivery"] : null;
+  if (!d || typeof d !== "object") return "";
+  const rec = d as Record<string, unknown>;
+  if (typeof rec["refused"] === "string") return ` · not sent: ${rec["refused"]}`;
+  if (typeof rec["error"] === "string") return ` · send failed: ${rec["error"]}`;
+  const results = (rec["results"] && typeof rec["results"] === "object"
+    ? rec["results"] : {}) as Record<string, string[]>;
+  // Counted from the per-address map rather than from `recipients`, because "how many were asked"
+  // and "how many went" are different numbers and the second is the one worth a line in a tray.
+  const sent = (results["sent"] || []).length;
+  const total = Object.values(results).reduce((n, xs) => n + (xs || []).length, 0);
+  if (!total) return "";
+  if (sent === total) return ` · emailed ${sent}`;
+  // Naming the non-sent states rather than saying "some failed": `disabled` (no SMTP configured)
+  // and `error` are different problems with different fixes, and the tray is where somebody decides
+  // which one they are looking at.
+  const rest = Object.keys(results).filter((k) => k !== "sent" && (results[k] || []).length)
+    .map((k) => `${(results[k] || []).length} ${k}`).join(", ");
+  return ` · emailed ${sent} of ${total}${rest ? ` (${rest})` : ""}`;
 }
 
 /** `done` **and** the handler parked something downloadable. Artifact kinds set `artifact_key`. */
@@ -137,6 +173,9 @@ const STATE_COLOR: Record<JobState, string> = {
 export interface JobTrayOpts {
   /** Absolute href for a finished job's artifact. Omitted → no download affordance is offered. */
   artifactUrl?: (j: Job) => string;
+  /** R24-REPORTS-BY-MOMENT — mail a finished artifact to recipients ("shared, not just
+   *  downloaded"). Omitted → no send affordance, exactly like `artifactUrl`. */
+  onSend?: (j: Job) => void;
   /** Remove a finished/failed row from view. Client-side only — the server keeps its history. */
   onDismiss?: (j: Job) => void;
 }
@@ -204,6 +243,20 @@ export function renderJobTray(host: HTMLElement, jobs: readonly Job[], opts: Job
       a.style.cssText = "font-size:11px;flex:0 0 auto";
       a.setAttribute("download", "");
       row.appendChild(a);
+    }
+
+    // Sending sits beside downloading because they answer the same question — "the pack is ready,
+    // now what" — and a report pack that can only be downloaded still has to be forwarded by hand.
+    // Gated on `hasArtifact` for the same reason the link is: there is nothing to send until there
+    // is a file.
+    if (opts.onSend && hasArtifact(j)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Send";
+      b.title = "Email this artifact to recipients";
+      b.style.cssText = "font-size:11px;flex:0 0 auto";
+      b.onclick = () => opts.onSend!(j);
+      row.appendChild(b);
     }
 
     // Only finished rows can be dismissed. Hiding a running job would leave work in flight with no
@@ -312,6 +365,8 @@ export function mountJobTray(opts: {
   host: HTMLElement;
   fetch: () => Promise<Job[]>;
   artifactUrl?: (j: Job) => string;
+  /** R24-REPORTS-BY-MOMENT — see JobTrayOpts.onSend. Passed straight through to each row. */
+  onSend?: (j: Job) => void;
   onSettled?: (j: Job) => void;
   /**
    * R24-RUNS-INBOX — open the run history. A footer row rather than a header button, because the
@@ -359,6 +414,7 @@ export function mountJobTray(opts: {
     if (!panel.hidden) {
       renderJobTray(panel, shown, {
         artifactUrl: opts.artifactUrl,
+        onSend: opts.onSend,
         onDismiss: (j) => { dismissed.add(j.id); draw(); },
       });
       if (opts.onHistory) {
