@@ -353,8 +353,17 @@ else:
         print("      reader has NO draco decoder — the silent-failure branch is the one under test")
     else:
         # An independent decode must land within the SAME bound draco_accuracy() states, per mesh.
-        # Comparing sorted vertex arrays, because a decoder is free to reorder them and the claim is
-        # about geometry recovered, not about buffer layout.
+        # Rows are compared after a LEXICOGRAPHIC sort, because a decoder is free to reorder vertices
+        # and the claim is about geometry recovered, not about buffer layout.
+        #
+        # NOT `np.sort(a, axis=0)`, which was the first version of this and is wrong: it sorts each
+        # coordinate COLUMN independently, so the (x,y,z) association of a vertex is destroyed and a
+        # decoder that swapped components BETWEEN vertices would compare equal. Found in review;
+        # the mutation below is the proof, not the argument.
+        def _rows(a):
+            a = np.asarray(a)
+            return a[np.lexsort(a.T[::-1])]        # last key is primary -> sorts by x, then y, then z
+
         print(f"      reader DECODES draco (trimesh {trimesh.__version__}) — independent round-trip under test")
         for name, dg in dscene.geometry.items():
             og = scene.geometry.get(name)
@@ -364,7 +373,7 @@ else:
                 continue
             ov, dvv = np.asarray(og.vertices), np.asarray(dg.vertices)
             extent = float(max(ov.max(axis=0) - ov.min(axis=0)))
-            err = float(np.abs(np.sort(dvv, axis=0) - np.sort(ov, axis=0)).max())
+            err = float(np.abs(_rows(dvv) - _rows(ov)).max())
             check(f"  {name!r} round-trips within the bound draco_accuracy() states",
                   err <= gltf_export.draco_accuracy(extent) + 1e-6,
                   (err, gltf_export.draco_accuracy(extent)))
