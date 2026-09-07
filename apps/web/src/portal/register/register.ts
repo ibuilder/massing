@@ -5,6 +5,8 @@ import { statusChip } from "../../ui/chips";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { type PairField, pairedValue, referenceHalf } from "./fieldPairs";
+import { REF_RESOLVE_LIMIT, UUID_RE, refCell } from "./refCell";
 import { mountRecordComments } from "./recordComments";
 import { unmetRequires } from "./requiresGate";
 import { confidenceReading } from "../../ui/confidenceReading";
@@ -14,19 +16,6 @@ import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
 import { schemaStaleBanner } from "./schemaStale";
 import { renderTiedElements } from "./tiedElements";
-
-/**
- * How many records of a referenced module are fetched to build the id→label map for a table.
- *
- * A bound is necessary — a reference column must not pull an unbounded register to render one page —
- * but the bound is also a correctness boundary, so it is named rather than buried as a literal. Past
- * this many records the tail of the target module is genuinely unresolvable from the client, and
- * `refCell` is required to SAY so instead of inventing a label. See MOD-SWEEP below.
- */
-const REF_RESOLVE_LIMIT = 500;
-
-/** A record id is a `uuid.uuid4()` string server-side, so this distinguishes an id from free text. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * MOD-PERCENT — the field types that hold a MAGNITUDE, named once.
@@ -612,7 +601,21 @@ export class RegisterUI {
     // code rendered any unresolved value as a link labelled `String(v).slice(0, 8)`. On a project with
     // 600 companies, company #550 therefore drew a clickable link showing eight characters of its own
     // id, opening nothing — a control that looks resolved and is not. See `refCell`.
-    const refCols = cols.filter((c) => c.type === "reference" && c.module);
+    //
+    // COL-PAIR — the resolve set is every reference a column can END UP rendering, not every
+    // reference column. A column holding the TEXT half of an additive pair renders its reference
+    // twin for records that filled the link instead (see `pairedValue`), so that twin's module must
+    // be fetched too — otherwise the pair-aware cell resolves nothing and `refCell` correctly, and
+    // uselessly, reports every linked record as unresolvable. Measured before this shipped: 19
+    // registers list the text half of a pair whose reference is not a column, so this is the common
+    // case rather than the corner one.
+    const refCols: ModuleDef["fields"] = [];
+    for (const c of cols) {
+      if (c.type === "reference" && c.module) { refCols.push(c); continue; }
+      const twin = referenceHalf(c.name, fieldByName as Map<string, PairField>);
+      const tf = twin ? fieldByName.get(twin) : undefined;
+      if (tf?.module && !refCols.some((x) => x.name === tf.name)) refCols.push(tf);
+    }
     const refMaps: Record<string, Map<string, { ref: string; title: string | null }>> = {};
     if (refCols.length) {
       await Promise.all(refCols.map(async (c) => {
@@ -647,10 +650,24 @@ export class RegisterUI {
         } else if (editing && EDITABLE.includes(c.type)) {
           tr.appendChild(this.inlineCell(pid, m, r, c));
         } else if (c.type === "reference" && c.module && v) {
-          tr.appendChild(this.refCell(String(v), c, refMaps[c.name]));
+          tr.appendChild(refCell(String(v), c, refMaps[c.name], (mod, id) => this.openByBrief(mod, id)));
         } else {
-          cell(this.fmtCell(c, v));
-          if (isNumericField(c.type)) tr.lastElementChild?.classList.add("num");
+          // COL-PAIR — read-only cells render the PAIR, not the field. A column that is half of an
+          // additive text+reference pair falls back to its twin when its own value is empty, so one
+          // column answers "who is it with" for records from both sides of the conversion. Only the
+          // read path: while `editing` is on, each half stays its own editor, because a cell that
+          // silently edits a DIFFERENT field than its header names is worse than a blank one.
+          const pv = pairedValue(c as PairField, fieldByName as Map<string, PairField>, (n) => r.data[n]);
+          const pvv = r.data[pv.field.name];
+          if (pv.field.name !== c.name && pv.as === "reference" && pvv) {
+            tr.appendChild(refCell(String(pvv), pv.field as ModuleDef["fields"][number], refMaps[pv.field.name],
+            (mod, id) => this.openByBrief(mod, id)));
+          } else if (pv.field.name !== c.name) {
+            cell(this.fmtCell(pv.field as ModuleDef["fields"][number], pvv));
+          } else {
+            cell(this.fmtCell(c, v));
+            if (isNumericField(c.type)) tr.lastElementChild?.classList.add("num");
+          }
         }
       }
       tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable
@@ -712,61 +729,6 @@ export class RegisterUI {
       this.ctx.host.onPinsChanged();
       void this.openRecord(tgt, nv.id);
     } catch (e) { toast(`convert failed: ${(e as Error).message}`, "error"); }
-  }
-
-  /**
-   * MOD-SWEEP — a reference cell that never pretends to have resolved.
-   *
-   * The old inline version rendered EVERY non-empty reference as a clickable link labelled
-   * `String(v).slice(0, 8)`, falling back to those eight characters whenever the id was not in the
-   * resolved map. Three different values took that path and all three looked identical to a working
-   * link: a record deleted since it was referenced, a record past `REF_RESOLVE_LIMIT` in a large
-   * register, and — the one that matters for the field sweep — a **legacy free-text value** in a field
-   * that used to be `text`. Converting `coi.vendor` from text to reference would have turned
-   * "Acme Electrical Inc" into a link reading `Acme Ele` that opens nothing.
-   *
-   * So the three cases are now distinguished, because they call for different things from the user:
-   *
-   * - **resolved** → the link, labelled `REF-001 · Title`, navigating on click.
-   * - **an id we could not resolve** (UUID-shaped, absent from the map) → the short id, NOT a link,
-   *   marked as unresolved. The record may be deleted or beyond the fetch bound; either way clicking
-   *   is not the answer and offering it is a lie.
-   * - **not an id at all** → the value verbatim, full length, marked as unlinked text. This is what a
-   *   pre-conversion value looks like, and showing it whole is what lets someone re-link it by hand.
-   *
-   * Truncating to 8 characters was the specific harm in every case: it is short enough to look like an
-   * id and long enough to look deliberate.
-   */
-  private refCell(
-    v: string,
-    c: ModuleDef["fields"][number],
-    map: Map<string, { ref: string; title: string | null }> | undefined,
-  ): HTMLElement {
-    const td = document.createElement("td");
-    const info = map?.get(v);
-    const target = String(c.module ?? "record").replace(/_/g, " ");
-    if (info) {
-      const a = document.createElement("a"); a.href = "#"; a.className = "ref-link";
-      a.textContent = info.title ? `${info.ref} · ${info.title}` : info.ref;
-      a.title = `Open linked ${target} ${info.ref}`;
-      a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); this.openByBrief(c.module!, v); };
-      td.appendChild(a);
-      return td;
-    }
-    const span = document.createElement("span");
-    if (UUID_RE.test(v)) {
-      span.className = "ref-unresolved";
-      span.textContent = `${v.slice(0, 8)}…`;
-      span.title = `This ${target} could not be resolved — it may have been deleted, or lie beyond `
-        + `the first ${REF_RESOLVE_LIMIT} records of ${target}. Not a working link.`;
-    } else {
-      span.className = "ref-unlinked";
-      span.textContent = v;                        // in full: it is the only handle for re-linking
-      span.title = `Plain text, not a link to a ${target} record. Edit the field to pick the `
-        + `${target} it refers to.`;
-    }
-    td.appendChild(span);
-    return td;
   }
 
   /**

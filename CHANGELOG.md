@@ -12,6 +12,36 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a register column stops going blank when a record links the party instead of typing it
+
+MOD-SWEEP's additive pattern adds a reference **beside** the free text it names rather than
+converting it, so existing records keep whatever somebody typed. That is right for the data and it
+left the register table showing only one era: a column naming one half is blank for every record
+that filled the other.
+
+Measured across all 139 registers: **19 registers list the text half** while its reference exists and
+is not a column, and one (`subcontract`) lists the reference while the text is not. Four of the 19
+are registers that only just gained a reference — `delivery.supplier`, `asset_register.manufacturer`,
+`assumption.owner`, `project_charter.project_manager` — whose help text now tells the user to pick the
+linked record, which is exactly the input that would have blanked the column.
+
+**Swapping which half is the column is not the fix** — it only moves which era goes blank. So the
+column renders the **pair**: the linked record when the reference is set, the typed name when it is
+not. One column, right for records from both sides of the conversion, and no manifest changed.
+
+Read-only by construction. While inline editing is on, each half stays its own editor — a cell that
+silently edits a different field than its header names is worse than a blank one.
+
+The resolve set widened with it: a text column can now end up rendering its reference twin, so that
+twin's module is fetched too. Without that the cell would find the twin, render it, and `refCell`
+would correctly and uselessly report every linked record as unresolvable — the rule would look wired
+and leave those 19 registers **worse** than the blank they had.
+
+Held by `apps/web/src/portal/register/fieldPairs.test.ts`, which also reads the suffix list out of
+`services/api/test_module_fields.py` and fails if the two disagree. That list now exists in two
+languages, and a drift between them is silent: the pair simply stops being detected and the column
+goes back to showing one era with nothing to say so.
+
 ### sixteen registers can now point at the firm or the person they name
 
 Sixteen registers named a party — a supplier, a consultant, an assignee, a risk owner — across
