@@ -120,6 +120,43 @@ with TestClient(app) as c:
           "'Acme Electrical Supply' is a different firm; matching it would over-report")
     check("exactly the two Acme rows come back", got == {linked["id"], typed["id"]}, f"{len(got)} rows")
 
+    # ---- review finding 1: Unicode case folding ---------------------------------------------------
+    #
+    # SQLite `lower()` folds ASCII only — measured: lower('Ångström') = lower('ångström') is 0 —
+    # while Postgres folds the full range. The same filter therefore returned DIFFERENT rows on the
+    # two backends, and since this gate runs SQLite while production runs Postgres, the tested
+    # behaviour was not the shipped behaviour. `db.py` now registers `aec_casefold` on SQLite so both
+    # agree. This case FAILS without that registration.
+    nordic = mk("company", {"name": "Ångström Kraft", "type": "Subcontractor"})
+    nordic_typed = mk("delivery", {"description": "Transformer", "supplier": "ångström kraft",
+                                   "date": "2026-09-05"})
+    r = c.get(f"/projects/{pid}/modules/delivery", params={"f.supplier_company": nordic["id"]})
+    nrows = r.json()
+    nrows = nrows.get("items", nrows) if isinstance(nrows, dict) else nrows
+    check("a non-ASCII name differing only in CASE still matches",
+          nordic_typed["id"] in {x["id"] for x in nrows},
+          "SQLite lower() folds ASCII only; aec_casefold is what makes this pass")
+
+    # ---- review finding 2: the title must be resolved INSIDE the requested project -----------------
+    #
+    # Every module table carries project_id, and the filter value is caller-supplied. Resolving a
+    # title by id alone let a record id from ANOTHER project decide what a text twin in this one
+    # matched against. Two projects, a company in each, and a delivery here that typed the OTHER
+    # project's company name: it must not match.
+    pid2 = c.post("/projects", json={"name": "Other Project"}).json()["id"]
+    r2 = c.post(f"/projects/{pid2}/modules/company",
+                json={"data": {"name": "Foreign Partners", "type": "Subcontractor"}})
+    foreign = r2.json()
+    leaky = mk("delivery", {"description": "Ductwork", "supplier": "Foreign Partners",
+                            "date": "2026-09-06"})
+    r3 = c.get(f"/projects/{pid}/modules/delivery",
+               params={"f.supplier_company": foreign["id"]})
+    frows = r3.json()
+    frows = frows.get("items", frows) if isinstance(frows, dict) else frows
+    check("a title from ANOTHER project cannot decide what this project matches",
+          leaky["id"] not in {x["id"] for x in frows},
+          "IDOR: resolving the title by id alone crossed the project boundary")
+
     # A register with no pair on the filtered field must behave exactly as before.
     plain = c.get(f"/projects/{pid}/modules/delivery", params={"f.date": "2026-09-04"})
     prows = plain.json()

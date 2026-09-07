@@ -35,6 +35,27 @@ else:
     }
 engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True,
                        future=True, **_pool_kw)
+if DATABASE_URL.startswith("sqlite"):
+    from sqlalchemy import event as _event
+
+    @_event.listens_for(engine, "connect")
+    def _register_casefold(dbapi_conn, _rec):  # pragma: no cover - exercised via query tests
+        """Give SQLite the Unicode case folding Postgres already has.
+
+        PAIR-FILTER compares a typed party name to a linked record's title case-insensitively, and
+        SQLite's own `lower()` folds ASCII ONLY — `Ångström` and `ångström` do not match, measured.
+        Postgres `lower()` folds the full range, so without this the SAME filter returns DIFFERENT
+        rows on the two backends: the API test gate runs SQLite and production runs Postgres, which
+        means the tested behaviour would not be the shipped behaviour. That is worse than either
+        result on its own, and it is exactly the class of defect a test cannot show you.
+
+        `deterministic=True` lets SQLite use the function in an index or a WHERE clause; it is safe
+        because `str.casefold` is pure. Python 3.8+ only, which the 3.12 floor guarantees.
+        """
+        dbapi_conn.create_function(
+            "aec_casefold", 1, lambda x: None if x is None else str(x).casefold(), deterministic=True)
+
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
