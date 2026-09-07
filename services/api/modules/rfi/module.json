@@ -75,6 +75,14 @@
       "fieldset": "Routing"
     },
     {
+      "name": "rfi_manager_contact",
+      "label": "RFI Manager (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The RFI manager as a contact record, so routing resolves to a person rather than a typed name.",
+      "fieldset": "Routing"
+    },
+    {
       "name": "received_from",
       "label": "Asked By",
       "type": "text",

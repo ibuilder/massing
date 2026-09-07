@@ -59,6 +59,14 @@
       "fieldset": "Identification"
     },
     {
+      "name": "responsible_contractor_company",
+      "label": "Responsible Contractor (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The contractor responsible for the submittal, as a record — so a review turnaround can be attributed to the party that owes it.",
+      "fieldset": "Identification"
+    },
+    {
       "name": "disposition",
       "label": "Disposition",
       "type": "select",

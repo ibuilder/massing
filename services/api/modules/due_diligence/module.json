@@ -40,6 +40,14 @@
       "fieldset": "Item"
     },
     {
+      "name": "consultant_company",
+      "label": "Consultant / Firm (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The consultant as a company record, so every report a firm produced across a diligence period resolves to one party.",
+      "fieldset": "Item"
+    },
+    {
       "name": "findings",
       "label": "Findings",
       "type": "textarea",

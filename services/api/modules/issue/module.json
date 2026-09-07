@@ -51,6 +51,14 @@
       "fieldset": "Parties"
     },
     {
+      "name": "assignee_contact",
+      "label": "Assigned To (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The assignee as a contact record, so open issues can be listed per person rather than per spelling of their name.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "description",
       "label": "Description",
       "type": "textarea",

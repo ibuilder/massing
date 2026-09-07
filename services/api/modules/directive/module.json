@@ -28,6 +28,14 @@
       "fieldset": "Directive"
     },
     {
+      "name": "to_company_ref",
+      "label": "Directed To (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The company the directive is issued to, as a record rather than a typed name — so a directive can be counted against the party bound by it.",
+      "fieldset": "Directive"
+    },
+    {
       "name": "mode",
       "label": "Mode",
       "type": "select",

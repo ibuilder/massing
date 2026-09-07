@@ -73,6 +73,14 @@
       "fieldset": "Parties"
     },
     {
+      "name": "owner_contact",
+      "label": "Owner (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The risk owner as a contact record, so a register can answer who carries which risk.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "due_date",
       "label": "Review Date",
       "type": "date",

@@ -314,6 +314,21 @@ which reads exactly like a pass):
 PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe -X utf8 -u run_tests.py
 ```
 
+⚠️ **One at a time, and nothing heavy beside it.** Two concurrent runs share the same test-database
+pool, and the second one does not fail cleanly — it produces
+`sqlite3.OperationalError: disk I/O error` and `attempt to write a readonly database` scattered across
+unrelated suites, which reads as a real regression in whatever happened to be running. Measured
+2026-09-07: a contaminated run reported **12 failures, all `OperationalError`, 0 `AssertionError`**,
+and re-running the same tree alone gave **675/675**. Two tells that it is contention rather than code:
+every failure is an `OperationalError` and the log carries **two tally lines**. It also leaks a test
+database past the sweep, which the runner reports as its own `FAIL`.
+
+The way it happens is not "deliberately starting two". A backgrounded run whose log is still empty
+looks like it never started — it is buffering — so the natural next move is to start it again. **Check
+for the process, not for output**, and if a run's log has been at zero bytes for a minute, that is
+buffering, not failure. A heavy `vitest run` or `vite build` alongside the backend suite is enough to
+cause the same errors on its own.
+
 **Web** — Node **24+** (`export PATH="/c/Program Files/nodejs:$PATH"`; the default `node` on PATH is v18
 and breaks the build). Typecheck with `npx tsc --noEmit` from `apps/web`. For the suite, run the
 workspace command — **not a bare `vitest run` from the repo root**, which collects `.claude/worktrees/`

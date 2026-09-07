@@ -106,6 +106,14 @@
       "fieldset": "Responsibility"
     },
     {
+      "name": "verifying_party_company",
+      "label": "Verifying Party (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The verifying party as a company record, so an inspection-and-test plan names who signs it off rather than describing them.",
+      "fieldset": "Responsibility"
+    },
+    {
       "name": "record_form",
       "label": "Record / Form Required",
       "type": "text",

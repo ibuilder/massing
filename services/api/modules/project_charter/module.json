@@ -34,6 +34,14 @@
       "fieldset": "Charter"
     },
     {
+      "name": "project_manager_contact",
+      "label": "Project Manager (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The project manager as a contact record, so the charter names a person the directory knows.",
+      "fieldset": "Charter"
+    },
+    {
       "name": "authorized_date",
       "label": "Authorized Date",
       "type": "date",

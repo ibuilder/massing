@@ -2037,8 +2037,10 @@ stakes we are missing.
 
   **The rest of the class, derived rather than guessed — 22 fields, and the next step is a judgement,
   not a sweep.** Scanning all 139 registers for a `text`/`textarea` field whose name contains a party
-  word and which has no `*_company`/`*_contact` reference beside it leaves 22 after this change (51
-  party-named text fields in total, 29 already paired):
+  word and which has no `*_company`/`*_contact` reference beside it left 22 after ⑦ (51
+  party-named text fields in total, 29 already paired). **⑧ below closed 19 of the 22**; the table is
+  kept as written because it is the derivation, and a table rewritten to match its own outcome stops
+  being evidence of anything:
 
   | it names an ORGANISATION → `company` | it names a PERSON → `contact` | it names NEITHER, leave alone |
   |---|---|---|
@@ -2049,6 +2051,48 @@ stakes we are missing.
   client. A name-keyed sweep gets those wrong silently, which is the failure mode ⑥'s own
   ⚠️ note warns about one paragraph up. Each row is cheap on its own; none of them should be done by
   regex.
+
+  ⑧ **PARTY-REFS — the 22 above, decided one at a time, shipped 2026-09-07.** Nineteen references
+  added; two confirmed as leave-alone; one deliberately held back. Reference fields **178 → 197**,
+  islands **44 → 41** (`due_diligence`, `risk` and `lessons_learned` could point at nothing at all —
+  a risk had an owner in the sense that a spreadsheet cell has one). Additive beside the text as
+  MOD-SWEEP requires; no engine changed, for ⑥'s reason.
+
+  **The judgement the table said a script could not make, made.** `incident.reported_to` is the one
+  the ⑦ note singled out — "OSHA/Owner", an agency *or* the client — and it takes `company`, because
+  `company.type` already offers `Authority` and a client is a company too; the person who filed it is
+  not the party it was reported to. `info_requirement` took **three** references rather than one:
+  ISO 19650 names appointing, appointed and lead appointed party, and closing the island with one of
+  them would have left two thirds of the standard's own vocabulary in prose while every count said
+  done. `asset_register` took two, pointing at different registers — who *made* it (`company`) and
+  who *services* it (`contact`) are rarely the same party.
+
+  **Held back, and named so it does not read as an oversight: `company.contact_name`.** Two measured
+  reasons. `contact.company` already exists, so a company's people already come back from
+  `related_records` as `incoming` — the reference would be a second copy of a fact the first one
+  owns, which is the exact defect ⑥ found in `transmittal.items`. And it would create the module
+  graph's **first mutual 2-cycle** (there are none today). `related_records` is one-hop so nothing
+  would break, but that makes it a decision about the data model rather than a row in a sweep. It is
+  asserted *absent* in `services/api/test_module_fields.py`, with the reasoning beside the assertion,
+  so deciding it later means editing a check rather than noticing a gap.
+
+  **The gate found a hole in itself.** MOD-SWEEP's pair rule strips a suffix off the *reference* and
+  looks for that stem, so `issue.assignee_name` beside `assignee_contact` matched nothing: one of
+  the nineteen was silently exempt from every adjacency, fieldset and workflow-gate check in the
+  file, and **nothing went red** — the summary counted 18 pairs where 19 existed. `text_half()` is
+  now one definition shared by the pair rule and the workflow-trap rule, because a pair one can see
+  and the other cannot is a trap reported by nothing. A derived rule was added with it: a `_company`
+  suffix must resolve against `company`, `_contact` against `contact`, `_loc` against `location` —
+  the suffix is the only promise a reader of the form has about which picker they will get.
+
+  **And the mutation harness lied first.** All nineteen assertions were checked by deleting the
+  field and confirming *that* assertion fires — but the first probe neutralised the count floors with
+  an edit that left an unbalanced paren, so the file did not parse and all nineteen mutations
+  "failed" with a `SyntaxError`. **A harness whose baseline is red reports every mutation as
+  caught.** Same shape as a scanner whose regex matches nothing: the output is indistinguishable
+  from a clean pass. The rerun asserts the unmutated baseline is green before believing a kill —
+  and it also showed that three mutations had been dying on the *count* floor rather than on the
+  named assertion, so the earlier ratchet was masking whether the specific check worked at all.
 
   📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
   entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
