@@ -2,7 +2,7 @@
 semantics (a changed quantity changes the row). Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_element_5d.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_el5d_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_el5d_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_el5d")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_el5d_test.db"):

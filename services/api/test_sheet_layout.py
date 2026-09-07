@@ -3,7 +3,7 @@ per-viewport class freeze, fit fallback, SVG/PDF render, endpoint.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_sheet_layout.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_sheetlay_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_sheetlay_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_sheetlay")
 os.environ.setdefault("AEC_GEOM_WORKERS", "1")
 os.environ.setdefault("IFC_DIR", "./_ifc_sheetlay")   # writable; default /app/ifc is read-only in the CI container

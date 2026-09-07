@@ -3,7 +3,7 @@ hand-computed on a synthetic index + endpoint smoke (404 without a model).
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_carbon_compliance.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_carboncomp_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_carboncomp_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_carboncomp")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_carboncomp_test.db"):

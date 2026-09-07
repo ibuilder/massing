@@ -23,6 +23,11 @@ import os
 import sys
 
 os.environ.pop("AEC_ADMIN_EMAILS", None)
+# Declared BEFORE `aec_api.db` is imported, because that module reads DATABASE_URL once at import
+# and builds the engine from it. Without this line the engine is whatever the shell happens to
+# carry — and this file calls `create_all`, so running it directly with DATABASE_URL exported
+# (the variable `db.py` documents for prod) builds 173 tables in that database and still exits 0.
+os.environ["DATABASE_URL"] = "sqlite:///./_bootstrap_admin.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 

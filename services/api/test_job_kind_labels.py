@@ -32,7 +32,7 @@ import os
 import pathlib
 import re
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_job_kind_labels.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_job_kind_labels.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_job_kind_labels")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./test_job_kind_labels.db"):

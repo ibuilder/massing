@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_tcobie.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_tcobie.db"
 os.environ.setdefault("STORAGE_DIR", "./_stcobie")
 
 import ifcopenshell  # noqa: E402

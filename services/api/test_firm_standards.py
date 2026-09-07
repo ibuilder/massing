@@ -2,7 +2,7 @@
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_firm_standards.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_firmstd_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_firmstd_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_firmstd")
 if os.path.exists("./_firmstd_test.db"):
     os.remove("./_firmstd_test.db")

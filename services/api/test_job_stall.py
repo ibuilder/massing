@@ -19,7 +19,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_job_stall.py
 """
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_job_stall_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_job_stall_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_job_stall")
 os.environ.setdefault("IFC_DIR", "./_ifc_job_stall")
 os.environ.pop("AEC_RBAC", None)

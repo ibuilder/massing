@@ -4,7 +4,7 @@ exposure. DB-backed; states set directly to test the aggregation math, not the w
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_changeorders.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_changeorders_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_changeorders_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_changeorders")
 os.environ.pop("AEC_RBAC", None)
 _db = os.environ["DATABASE_URL"]

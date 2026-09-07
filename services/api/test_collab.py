@@ -5,7 +5,7 @@ import os
 
 # setdefault so the parallel test runner's unique per-test db/storage (which it cleans each run) wins;
 # fall back to fixed names for a standalone run.
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_collab.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_collab.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_collab")
 os.environ.setdefault("IFC_DIR", "./test_ifc_collab")
 os.environ.pop("AEC_RBAC", None)

@@ -15,7 +15,7 @@ import os
 import time
 from pathlib import Path
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_inbox_jobs.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_inbox_jobs.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_test_inbox_jobs")
 os.environ.setdefault("IFC_DIR", "./test_ifc_inbox_jobs")
 os.environ["AEC_TRUST_XUSER"] = "1"

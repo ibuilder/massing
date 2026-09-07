@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_plugreg_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_plugreg_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_plugreg")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_plugreg_test.db"):

@@ -4,7 +4,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_edit_undo.py"""
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_undo_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_undo_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_undo")
 os.environ.setdefault("AEC_TRUST_XUSER", "1")
 # /model/blank writes the source IFC under IFC_DIR (defaults to /app/ifc, which is read-only in the CI

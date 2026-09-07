@@ -37,7 +37,7 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_dm_beside.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_dm_beside.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_dm_beside")
 
 # `setdefault`, so `run_tests.py` keeps control of the per-test database it already assigns -- but

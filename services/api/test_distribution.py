@@ -4,7 +4,7 @@ import json
 import os
 
 # setdefault so the parallel runner's unique per-test db (cleaned each run) wins; fixed names standalone
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_dist.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_dist.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_dist")
 os.environ.pop("AEC_RBAC", None)
 os.environ["AEC_WEBHOOK_URLS"] = "http://hook.example/x"

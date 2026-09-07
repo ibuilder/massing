@@ -41,7 +41,7 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_view_config.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_view_config.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_view_config")
 for _f in ("./_view_config.db",):
     if os.path.exists(_f):

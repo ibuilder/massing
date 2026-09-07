@@ -3,7 +3,7 @@ dev_property (acquisition/tax summary, incl. divide-by-zero guards).
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_engines.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from aec_api import dev_property as dp  # noqa: E402
 from aec_api import tiers as ent  # noqa: E402

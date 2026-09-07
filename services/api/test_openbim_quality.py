@@ -3,7 +3,7 @@ Pure functions over a synthetic properties index (no live model needed).
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_openbim_quality.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_openbim.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_openbim.db"
 os.environ.pop("AEC_RBAC", None)
 
 from aec_api import ids_authoring, openbim_quality  # noqa: E402

@@ -4,7 +4,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_jobs.py"""
 import os
 import time
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_jobs_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_jobs_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_jobs")
 os.environ.setdefault("IFC_DIR", "./_ifc_jobs")   # writable; default /app/ifc is read-only in the CI container
 os.environ.pop("AEC_RBAC", None)

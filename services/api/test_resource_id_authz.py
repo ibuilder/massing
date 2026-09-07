@@ -66,7 +66,7 @@ import os
 import re
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_resource_id_authz.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_resource_id_authz.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_resource_id_authz")
 os.environ.pop("AEC_RBAC", None)
 

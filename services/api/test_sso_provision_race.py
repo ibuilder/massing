@@ -63,7 +63,7 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_sso_provision_race.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_sso_provision_race.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_sso_provision_race")
 os.environ.pop("AEC_OAUTH_NO_AUTOPROVISION", None)
 

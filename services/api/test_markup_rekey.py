@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_markup_rekey.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_markup_rekey.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_markup_rekey")
 for _f in ("./_markup_rekey.db",):
     if os.path.exists(_f):

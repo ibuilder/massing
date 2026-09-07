@@ -16,7 +16,7 @@ import os
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_qto_class_match.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_qto_class_match.db"
 for _f in ("./test_qto_class_match.db",):
     if os.path.exists(_f):
         os.remove(_f)
