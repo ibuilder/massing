@@ -1192,6 +1192,27 @@ The engine work is done either way; only the naming is open.
   result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
   — **run their conformance suite against our live API.**
 
+  ✅ **DECIDED 2026-09-07: THEY move, not us. This item is no longer open work on this side.**
+  The three renames and the `/edit` body shape were always *"a decision about which side moves"*, and
+  the decision is that the kernel conforms to us. `recipe` is the GUID-stable edit vocabulary two of
+  this repository's non-negotiables rest on; `{op, params}` is a thinner contract that cannot carry
+  that guarantee, and accepting it beside `recipe` would mean maintaining two edit vocabularies, one
+  of which can express edits we cannot make stable. Project-scoped `jobs` is a tenancy boundary here,
+  not a URL style.
+
+  It also follows from the facade decision already recorded above: `@massing/embed` was evaluated and
+  declined on 2026-08-23 because its load path parses IFC in the browser. **Conforming our API to a
+  kernel we are not adopting buys nothing** — the only reason to move would be to make adoption
+  cheaper, and adoption is the thing that was declined.
+
+  ⚠️ **The issue is drafted but NOT filed, and this session could not file it.** `add_repo` refuses
+  cross-owner attachment — *"cross-tier adds are not supported in v1: requested
+  massingcloud/massingviewer but session already has repos from owner(s) [ibuilder]"* — so the text
+  was handed to the maintainer to paste rather than posted. **Until it is filed this is
+  awaiting-upstream, which is not the same as done**, and an entry that says "decided" while nobody
+  outside this repository has been told would be the same false-completion shape the ⑥ note above
+  records.
+
   **BOTH ABSENT ENDPOINTS SHIPPED v0.3.1055** — `GET /projects/{pid}/spatial-tree` and
   `POST /projects/{pid}/elements/properties`, held by `services/api/test_spatial_tree.py`. What
   remains is the three renames/rescopes and the `/edit` body shape, every one of which is a
@@ -3063,7 +3084,21 @@ removed. Remaining, in priority order:
   **CC0 seed** ✅ — **57 packs** under `services/data/families/external/`, every one declaring
   `CC0-1.0` in its `manifest.json`, reachable server-side through
   `services/data/src/aec_data/family_packs.py` rather than only downloadable.
-  **UX-4** one-shell layout (a11y/mobile pass) is what remains of this ring.
+  **UX-4** one-shell layout (a11y/mobile pass) is what remains of this ring. **One measured defect
+  out of it shipped 2026-09-07:** `#pinned-rail` asked for `grid-area: pins` and nothing defined a
+  `pins` area, so since v0.3.764 the rail rendered in the bottom-**right** corner (its own CSS gives
+  it a `border-right`, i.e. a LEFT rail), took 126px of height off the model viewport, and pushed
+  `#statusbar` up to y=742 in a 900px-tall window. Fixed in `apps/web/src/style.css` and gated by
+  `apps/web/src/shell/gridAreas.ts` + `apps/web/src/shell/gridAreas.test.ts`.
+
+  **The framing of this line was wrong and that is the part worth keeping.** "a11y/mobile pass"
+  said the risk was on phones. The defect was **desktop-only** — below 900px the rail is
+  `display: none`, so phones were the one viewport rendering correctly. It also read as
+  unverifiable without a browser, and that premise was false too: **Playwright and Chromium are
+  present in the agent environment**, so the boxes above are measured (`getBoundingClientRect` at
+  1440x900 and 375x812, rail empty and populated) rather than reasoned from the CSS spec. *A task
+  labelled by the pass it needs, rather than by what was measured, points at the wrong viewport and
+  discourages the measurement that would have said so.*
 
   *"H1" is dropped from the line because nobody now knows what it meant* — it appears in no commit,
   no test and no other entry. An unresolvable token inside a checklist is worse than an absent one:

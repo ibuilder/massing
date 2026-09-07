@@ -4,7 +4,159 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased — a test run the way its own docstring says could build a schema in your database
+## Unreleased
+
+Everything below ships in the next release. **These were 34 separate `## Unreleased` headings**
+until 2026-09-07 — one per change, each a peer of a real version — so the word had stopped
+meaning anything as a heading and the file read as 34 pending releases rather than one. The
+titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
+added or dropped in the fold.
+
+### the pinned rail has been rendering in the bottom-right corner since July
+
+`#pinned-rail` carried `grid-area: pins` from v0.3.764 (2026-07-28) and **no `grid-template-areas`
+anywhere in the tree ever defined a `pins` area.** `#app`'s template was `"topbar" "stage"
+"statusbar"` in a single column, so the rail was auto-placed into implicit tracks instead of beside
+the stage. Measured in Chromium at 1440x900 with the rail populated, before the fix:
+
+| | before | after |
+|---|---|---|
+| `#pinned-rail` | x=1368 y=774, 72x126 — the bottom-**right** corner | x=0 y=44, 72x824 — a full-height left rail |
+| `#stage` | 1368x698 | 1368x824 |
+| `#statusbar` | y=742, width 1368 — **detached from the bottom of the window** | y=868, width 1440 |
+| `#app` tracks | rows `44 698.156 32 0 125.844`, cols `1368 0 72` | rows `44 824 32`, cols `72 1368` |
+
+The rail's own CSS gives it `width: 72px` and a `border-right`, which is a left rail; it was drawn
+on the opposite side, and it took 126px of height away from the model viewport and pushed the status
+bar 126px up into the middle of the window.
+
+**It survived six weeks because a first run looks perfect.** The rail is `hidden` until the user has
+a favourite or a recent, so the session that shipped it saw nothing wrong — and every session after
+it was wrong. There was no console error and nothing to go red: jsdom performs no layout, so a DOM
+test would have passed too.
+
+`#app` now defines `"topbar topbar" / "pins stage" / "statusbar statusbar"` over
+`auto minmax(0, 1fr)`. `auto` rather than a flat `72px` is the load-bearing choice: the rail is
+`display: none` both when nothing is pinned and below 900px, and an auto track holding only a
+`display: none` item collapses to zero — so the stage keeps the full width in exactly the cases the
+rail is absent. Verified in all four states (desktop/phone x rail-empty/rail-populated); the two
+rail-absent states measure **byte-identical before and after**, which is the half that proves the
+fix is inert when the rail is not there.
+
+New gate `apps/web/src/shell/gridAreas.ts` + `apps/web/src/shell/gridAreas.test.ts`: every
+`grid-area` must name an area some `grid-template-areas` defines, **in both directions** — an area
+used but undefined fails, and an area defined but claimed by nothing fails too, which is what would
+catch the reverse edit. Population is derived, not listed: 4 `grid-area` declarations, 3 defined
+names, and before the fix exactly 1 orphan. It fails closed — a value the parser cannot classify is
+reported as UNKNOWN and reds the build rather than being dropped quietly.
+
+The self-test mutates the **live** stylesheet back to its pre-fix shape rather than asserting
+against a hand-written fixture, and asserts the mutation actually applied before trusting the
+result: a regex that stopped matching would otherwise turn the self-test green by doing nothing.
+
+**Review found three defects in the gate's own parser, and the first was fail-open** — in the check
+whose entire purpose is to catch fail-open checks. Each was reproduced against the old code before
+being believed:
+
+1. The property name was matched by substring, so the CUSTOM PROPERTY `--grid-template-areas: "pins"`
+   **defined** a phantom `pins` area and the orphan went unreported. A declaration that changes
+   nothing in a browser could silence the check.
+2. Declaration text inside a string was read as a declaration, so `content: "grid-area: ghost;"`
+   invented an orphan that is not there.
+3. `/*` and `*/` inside strings were treated as real comment delimiters, so one `content: "/*"`
+   could blank every declaration after it.
+
+All three are gone: the three regexes are replaced by a single-pass scanner that tracks comment and
+string state and only reports a property when the text before the colon is a bare identifier inside
+a block — which also keeps `@media (max-width: 900px)` and `a:hover` out. `--grid-template-areas` is
+now rejected by exact match rather than by substring.
+
+**The scanner's first draft found nothing at all**, and said so cleanly: its identifier pattern was
+written `--?`, which *requires* a leading hyphen, so it matched only custom properties and rejected
+`grid-area` itself. Every answer it gave was clean because it had looked at nothing — caught by
+running the three reproductions rather than by the suite.
+
+Four mutations were then run against the finished gate: revert the CSS; make `verdict()` always
+report no orphans; restore the substring property match; and remove string tracking from the
+scanner's main loop. **The fourth initially survived** — all three regressions above put their
+string in a declaration *value*, which a different code path handles, so the prelude branch was
+never exercised and deleting it looked harmless. It is not: `[title="/*"]` in a selector opens a
+comment that never closes and discards the rest of the stylesheet. That case is now a test, and all
+four mutations red the tests they should.
+
+What the gate does **not** do is stated in its docstring rather than left to be assumed: it does not
+know which grid an element belongs to, so an area defined on some *other* grid would satisfy it.
+Closing that needs a DOM. It is a lower bound that cannot raise a false alarm, and it catches the
+shape that actually occurred. The out-of-scope axis — named grid *lines* — is empty in this tree,
+and a test re-measures that on every run so the scope claim cannot quietly go stale.
+
+### dependabot's Python updates were unmergeable by construction, and nobody had said so
+
+`services/api/requirements.lock` has **19 commits and 0 by dependabot**. The npm lock has **17 of
+503**. That gap is not neglect and it is not a policy anyone chose — the lane was closed.
+
+`requirements.in` is compiled into the lock by `pip-compile --generate-hashes`, which dependabot
+cannot run. So it bumps the `.in`, `lockfile.yml` recompiles, finds the committed lock stale, and
+**fails**. Every pip PR it has ever opened was red before a human looked at it. The workflow already
+did the hard part — it compiles in `python:3.12-slim`, the prod base image, so the resolution matches
+production — but carried `permissions: contents: read`, so all it could do was publish an artifact for
+someone to download and commit by hand. Nobody did that 19 times.
+
+It now commits the recompiled lock back on `dependabot/pip/**` branches. **Scoped there
+deliberately:** on a human's branch a stale lock is a mistake worth being told about, and silently
+fixing it would hide the `requirements.in` edit that caused it.
+
+**The failure branch is the part that needed care.** Dependabot-triggered runs get a restricted
+`GITHUB_TOKEN`, and whether it carries `contents: write` is a repository setting this file cannot
+assert. A naive write-back would commit locally, fail to push, leave a clean working tree — and the
+staleness gate below it would then **pass**, letting a PR merge carrying a stale lock. That is
+strictly worse than the red build it replaces, so a refused push fails the job explicitly and names
+the setting to check.
+
+**Two review findings on this step were both real, and one of them made a comment here false.**
+
+*Security.* `contents: write` cannot be scoped below the job, and `actions/checkout` persists the
+token into `.git/config` by default — while this very job installs `build-essential` so that
+`pip-compile` can **build source distributions** to hash them, which executes `setup.py` / PEP 517
+hooks from the dependency being locked. That is third-party code, and raising the permission put it
+alongside a write-capable credential. Checkout now sets `persist-credentials: false`, and the token
+is attached to the remote inside the push step — *after* the compile is done. So the exposure is
+closed by ordering rather than by a two-job split, which would have required reordering the Verify
+gate (it must not run before the write-back on a dependabot branch, or it fails on the very
+staleness the step exists to fix) — a behaviour change nothing here can test.
+
+*And the workflow's own comment claimed a mechanism that does not exist.* It said the write-back
+push "triggers one more run. That run finds the lock current, commits nothing, and stops." **GitHub
+raises no events for pushes made with `GITHUB_TOKEN`** — the anti-recursion rule, nothing to do with
+this workflow's path filter. The good half is that the write-back cannot loop. The bad half, now
+stated in the file instead of contradicted by it: **the commit it pushes carries no CI or security
+check runs of its own**, and `ci.yml` has no `workflow_dispatch` trigger, so it cannot even be
+dispatched at it. A maintainer must re-trigger checks before merging, and closing that properly
+needs a GitHub App or PAT whose pushes do raise events — a repository secret, not a change to this
+file. *The claim was plausible, specific, and wrong, and it was load-bearing for how safe the step
+looked.*
+
+*This was going to be a new workflow.* The premise-check found the machinery already existed and the
+whole task was one permission and one step — the fourth time in this stretch that a plan survived
+until somebody read the code it assumed.
+
+### the CHANGELOG had 34 `## Unreleased` headings, so the word meant nothing
+
+Each change had been landing as its own `## Unreleased — title`, a peer of every real version, so the
+file read as 34 pending releases. They are now one `## Unreleased` with the titles at `###` beneath
+it, in the same order. **No text was edited, added or dropped** — asserted rather than eyeballed: the
+bodies are byte-identical after normalising heading markers, 27,508 lines either side.
+
+### the @thatopen/ui bump was closed rather than merged
+
+`scripts/check-fragments-version.mjs` pins a KNOWN_GOOD trio and the bump tripped the coupling guard
+**by design** — that guard exists because a green build does not prove the viewer still renders a
+model, so moving the pin needs a human with a browser. 3.4.10 → 3.4.11 does not earn that. Closed on
+the maintainer's call; dependabot re-proposes the group when a change worth the verification appears.
+**Nothing was defective and nothing was worked around** — this is the guard's intended outcome for a
+low-value bump, which is worth recording because a closed dependency PR usually is not.
+
+### a test run the way its own docstring says could build a schema in your database
 
 `services/api/src/aec_api/db.py` reads `DATABASE_URL` **once, at import**, and its own first line
 documents that variable as how you point this service at production Postgres. 44 tests declared
@@ -50,7 +202,7 @@ rather than only in the body, because a five-item line is scanned, not parsed. T
 open and pointing at the wrong directory; lanes are assigned by directory, so a citation that
 resolves is not the same as one that is right.
 
-## Unreleased — the Draft form shows you the thing you are about to place, at its actual size
+### the Draft form shows you the thing you are about to place, at its actual size
 
 Type 8.0 where you meant 0.8 and the desk you place is eight metres wide. Nothing said so until it
 was in the model. The Draft panel now draws a **scaled section of the element above the fields**,
@@ -95,7 +247,7 @@ letting the frame rescale to fit them (4 fail), and dropping one `NO_PREVIEW` re
 assertions are about ratio, not appearance — doubling the metres must double the drawn height —
 because `expect(preview).toBeTruthy()` would pass against a function that never reads the form.
 
-## Unreleased — two publishes could take the same model version number, and a signed certificate points at one of them
+### two publishes could take the same model version number, and a signed certificate points at one of them
 
 `versions.snapshot()` allocates `version = last.version + 1` after reading the maximum, over an index
 on `project_id` alone. Two publishes to one project — two uploads, a retried convert — both read 7
@@ -134,7 +286,7 @@ number and got `+0/-0`. And the retry, once actually exercised, turned out to re
 parameter, pinning the first attempt's `+1/-0` onto a row computed against a different baseline.
 *A check that asserts a value catches what a check that asserts "it ran" does not.*
 
-## Unreleased — a BCF re-import duplicated everything, and one snapshot read crossed projects
+### a BCF re-import duplicated everything, and one snapshot read crossed projects
 
 **Re-importing a `.bcfzip` made a second copy of every topic instead of updating it.**
 `bcf_io.import_bcfzip` blind-inserted `Topic(guid=te.get("Guid"))` with no lookup at all, and threw
@@ -185,7 +337,7 @@ of which `Viewpoint(guid)` was one. *The ambiguity question — can this return 
 authorisation question — can this return someone else's row? — turn out to be the same reading of the
 same line.*
 
-## Unreleased — removing a member from a project reported success and did not remove them
+### removing a member from a project reported success and did not remove them
 
 `project_members` has carried two SEPARATE non-unique indexes since the schema baseline — one on
 `project_id`, one on `user`, nothing spanning the pair — and `rbac.grant` is a read-decide-insert on
@@ -240,7 +392,7 @@ schema refuses the second row; `grant` run twice updates rather than inserting; 
 the winner's row; the migration's dedupe exercised against a seeded dirty database, keeping the admin
 row and carrying `party_role` forward off a losing one; `alembic check` reports no drift.
 
-## Unreleased — the reads that demand one row, asked whether anything guarantees it
+### the reads that demand one row, asked whether anything guarantees it
 
 The other half of this morning's seeding work. That fixed the WRITERS — conditional inserts with
 nothing holding the world still. `services/api/test_unique_read_guard.py` walks the READERS:
@@ -272,7 +424,7 @@ Uniqueness is asked of SQLAlchemy's metadata, never of the source text: `UniqueC
 `Index(..., unique=True)` are both in use deliberately, and a grep for the former would have called
 `uq_element_verifications_project_guid` unprotected.
 
-## Unreleased — the palette rows have a shape now, and it is not the shape the roadmap asked for
+### the palette rows have a shape now, and it is not the shape the roadmap asked for
 
 UX-3's last unshipped item was "thumbnails". Every Draft-palette row now carries a line-art glyph
 for its IFC class, so a ~90-row list is scannable by shape rather than only by reading. **That is
@@ -321,7 +473,7 @@ reads the list the panel last DREW rather than recomputing one, so the key canno
 list from the one on screen. A filter matching nothing arms nothing and says so. Three mutations:
 removing the handler, firing it on every key, and arming `listed[0]` without the empty guard.
 
-## Unreleased — the gate shipped that morning was blind to a read done through a helper
+### the gate shipped that morning was blind to a read done through a helper
 
 `test_seeding_sweep` landed a few hours ago reporting **0 unguarded** seeding sites. It was not
 looking at all of them. To decide whether a conditional insert was a get-or-create, it required the
@@ -350,7 +502,7 @@ The gate now also states what it still cannot see — an insert guarded by an ea
 `try/except` rather than a branch — because the next blind spot will look exactly like this one did:
 a clean report.
 
-## Unreleased — a field engineer could put an element permanently beyond verifying, by tapping twice
+### a field engineer could put an element permanently beyond verifying, by tapping twice
 
 Two people marking the same element installed in the same second — or one person on a flaky site
 connection whose phone retried — wrote **two rows** for that element. `element_verifications` is
@@ -400,7 +552,7 @@ inside one. So the gate now runs itself against the pre-fix SAML door and requir
 is allowed to report anything: a completeness verdict from an unvalidated detector is confident and
 unfounded.
 
-## Unreleased — wall joins had a route, a client method, and no way for anyone to use it
+### wall joins had a route, a client method, and no way for anyone to use it
 
 Walls are authored to their **centrelines**, so an L or T meeting leaves the corner open or the stub
 running through the other wall — right as a diagram, wrong as geometry, and it is what a quantity
@@ -475,7 +627,7 @@ itself refuses when forced to run — and the mutation the original could not ca
 equal []"*. *A test can state the right rule and exercise none of it, which is this entry's own
 subject one layer further in.*
 
-## Unreleased — a failed reload threw away the only correct geometry on screen
+### a failed reload threw away the only correct geometry on screen
 
 `deltaCommit.consolidate()` republishes the model, reloads it, and then clears the delta store. Its own
 docstring explains the ordering in detail:
@@ -531,7 +683,7 @@ lives, which is the same failure the two entries below are about.* Corrected on 
 reviewer had recorded a repo learning partly on that claim; the learning's advice stands, the
 justification did not.
 
-## Unreleased — the reachability gate counted a docstring as a caller
+### the reachability gate counted a docstring as a caller
 
 `test_recipe_reach.py` strips `#`, `//` and `/* */` before deciding whether anything invokes a recipe,
 on the stated principle that **"a mention in a comment is not a call"**. That principle is right. Its
@@ -588,7 +740,7 @@ fix is to DERIVE THE COMPLEMENT, not to be more careful" — and it recurred her
 gate that miscounted. **Stating a cardinal and then enumerating is the tell**: the number and the list
 are two separate claims, and only the list had been checked.*
 
-## Unreleased — you could put a window in a wall but not a skylight in a roof
+### you could put a window in a wall but not a skylight in a roof
 
 `add_roof_window` cuts a full-depth `IfcOpeningElement` through a host `IfcRoof` and fills it with an
 `IfcWindow` of PredefinedType `SKYLIGHT`. It has worked since the R17 DORMER slice, it is covered by
@@ -627,7 +779,7 @@ a list — the failure mode is somebody adding a button and forgetting the secon
 a control asserting the derivation still finds all three interfaces, because a regex that stops
 matching passes every assertion vacuously.
 
-## Unreleased — MEP runs could only be joined two elements at a time, and a system's discipline could never be corrected
+### MEP runs could only be joined two elements at a time, and a system's discipline could never be corrected
 
 Two of the ten recipes the entry below named as reachable from nothing are real capabilities, and both
 are now on the MEP systems panel.
@@ -683,7 +835,7 @@ leaked" and "the predicate stopped working" equally, and a narrowing is exactly 
 likely.* (Written first over the whole archive, which reported 6 missed — all 6 of which had never
 matched: that assertion was testing the archive's filing, not the predicate.)
 
-## Unreleased — the coverage matrix counted ten capabilities no user could invoke
+### the coverage matrix counted ten capabilities no user could invoke
 
 `edit.RECIPES` holds **96** authoring recipes, and `authoring_matrix.py` publishes them as the
 authoring-coverage matrix. Its docstring calls that *"an honest, single-source answer to 'what can
@@ -731,7 +883,7 @@ silently inflating a maturity claim; it also pins the two false sentences verbat
 Mutation-checked: unwiring `extrude_profile` puts it straight back on the derived list, restoring the
 old sentence fails by name, and a one-number edit to the doc fails the comparison.
 
-## Unreleased — a tree, a crane and a desk could not be placed where you were pointing
+### a tree, a crane and a desk could not be placed where you were pointing
 
 **And the entry below contains a claim that was wrong, corrected here.** It said thumbnails and
 drag-to-place were "genuinely unshipped". Drag-to-place **ships** — RAIL-DRAG makes every Draw-rail
@@ -788,7 +940,7 @@ new flattener had been inserted *between* `contentToDraftElement`'s doc comment 
 leaving that comment documenting the wrong function. That is precisely the residue DOC-STRAND exists
 to find, found on its author rather than months later.
 
-## Unreleased — everything placed from the library landed on the ground floor
+### everything placed from the library landed on the ground floor
 
 **Found while premise-checking UX-3's five-item line, and worse than anything on it.**
 `edit_core._first_storey(model, None)` returns the **lowest** storey by elevation, and
@@ -836,7 +988,7 @@ appendable IFC libraries), thumbnails and drag-to-place do not, and the door/win
 storey is a **clean negative** — `add_opening` declares a `storey` it never reads, because an opening
 takes its position from the host wall.
 
-## Unreleased — the permitting chain could not name the authority it was applying to
+### the permitting chain could not name the authority it was applying to
 
 **The entry above closed half of one sentence.** Its roadmap paragraph said a transmittal's recipient
 *"cannot be the agency an `entitlement` names, since that field is free text too"* — and then gave the
@@ -910,7 +1062,7 @@ The class rule is **derived, not a list of the two known cases**: `test_module_f
 walks every transition in all 139 modules and fails if a `requires` entry names the text half of an
 additive pair without offering its reference. A pair added next year is covered the day it is added.
 
-## Unreleased — a transmittal could not name its recipient, and could not carry a drawing at all
+### a transmittal could not name its recipient, and could not carry a drawing at all
 
 **R22-ENTITLEMENT's remaining item was the outbound package, and the blocker the entry named was the
 wrong one.** It said assembling a package to send was impossible because `transmittal.items` is a
@@ -961,7 +1113,7 @@ product defect it was not.* The check now asserts the POST succeeded before asse
 free-text `recipients`, a purpose, a sheet count — and is still an island. Whether it should link to
 `transmittal`, be fed by it, or be retired is a modelling decision, not a gap to close in passing.
 
-## Unreleased — the scheduled package now reaches the people it was assembled for
+### the scheduled package now reaches the people it was assembled for
 
 **R24-REPORTS-BY-MOMENT's last remainder, in its own words: *"Delivery (email on a date) is still
 open; this is the assemble half."*** A routine assembled the owner's monthly package and left it in
@@ -1015,7 +1167,7 @@ changelog entry. Only the *library* half was ever true — no APScheduler, croni
 against the same grep.* The released entry keeps its wording with a dated correction beneath it,
 because a shipped changelog is a record rather than a place to rewrite history.
 
-## Unreleased — a report package can now be scheduled, and the blocker was in the browser
+### a report package can now be scheduled, and the blocker was in the browser
 
 **Closes the gap the entry below named as the honest remaining work.** "The owner's monthly package,
 every month" is the plainest thing anyone wants from a scheduler sitting on a 56-report catalog, and
@@ -1093,7 +1245,7 @@ renaming a report id, reordering the moments and deleting one each fail the web 
 *The exemption in the entry below is gone because the gap it described was closed, not because the
 argument stopped applying.* An exemption named in a gate is a promissory note; this one was paid.
 
-## Unreleased — every routine kind a user could pick was unrunnable
+### every routine kind a user could pick was unrunnable
 
 **Fixes a fully-built feature that could never run once.** `modules/routine/module.json` offered five
 `kind` options — `progress_report`, `schedule_risk_scan`, `cost_variance_scan`, `provenance_check`,
@@ -1142,7 +1294,7 @@ kind fails.
 refused, so nothing regresses, and silently changing what a user configured would be a worse fault
 than the one being fixed.
 
-## Unreleased — the app.ts figure was wrong in four places, and the gate that was supposed to stop that reached one of them
+### the app.ts figure was wrong in four places, and the gate that was supposed to stop that reached one of them
 
 **Corrects `docs/roadmap.md`, and widens `services/api/test_claude_md_gates.py` to the class rather
 than the instance.**
@@ -1176,7 +1328,7 @@ count to 0 and exposed it. That is precisely the per-doc vacuity failure this sa
 ratchet was built to prevent, repeated one screen further down. The floor is now **per-doc**, and
 `CLAUDE.md` is covered by name rather than by assumption.
 
-## Unreleased — SCALE-SEAM (104): coverage maps
+### SCALE-SEAM (104): coverage maps
 
 Extracts `spineTraceability` and `scopeRegister` from `client.ts` (**572 → 554**) into
 `apps/web/src/api/coverageMaps.ts` — *how completely is this project's chain of records linked, and
@@ -1215,7 +1367,7 @@ already has one.** `tsc` reports the orphan as `TS6196`, and it caught every ins
 reached a commit. Proposing a gate for a class the toolchain already gates is how a checklist grows
 without getting safer; the follow-up is withdrawn.
 
-## Unreleased — SCALE-SEAM (103): acceptance gates
+### SCALE-SEAM (103): acceptance gates
 
 Extracts `permitReadiness`, `diligenceReadiness`, `handoverAcceptance` and `validate` from
 `client.ts` (**589 → 572**) into `apps/web/src/api/acceptanceGates.ts` — *will an outside party
@@ -1252,7 +1404,7 @@ asking for it to be placed *by what it answers rather than by what it sits next 
 **narrowed to two entries, not deleted** — the other two are still genuinely unfiled, and a note
 that silently loses entries is how earlier slices lost methods.
 
-## Unreleased — review fixes, and a gate for the number that keeps drifting
+### review fixes, and a gate for the number that keeps drifting
 
 **Four review findings on the same pull request, and the second one was self-referential.** The PR
 corrected `CLAUDE.md`'s stale `apps/web/src/viewer/app.ts` line count from "3,444" to **2,570** —
@@ -1284,7 +1436,7 @@ merged, and a review bot found it rather than the author.
   re-measure command its argument — an instruction to verify that hangs on stdin is one nobody runs
   twice.
 
-## Unreleased — SCALE-SEAM (102): counterparty risk
+### SCALE-SEAM (102): counterparty risk
 
 **Extracts** `prequalScores`, `coiExpiry` and `lienExposure` out of `client.ts` (**603 → 589**) into
 `apps/web/src/api/counterpartyRisk.ts` — *which trade partner is a risk on this job, and why.*
@@ -1305,7 +1457,7 @@ is not a relationship.
 Found on the way out: an orphaned `PrequalScores` type import, the same residue slice (101) left
 with `EnergyResult`.
 
-## Unreleased — Roadmap truth pass + R39-DECOMP-VIEWER ⑰
+### Roadmap truth pass + R39-DECOMP-VIEWER ⑰
 
 **Two stale claims corrected, both found by testing the entry against the tree rather than reading it.**
 
@@ -1339,7 +1491,7 @@ it, the drift the roadmap cell already documents from another lane touching the 
 now runs 2,571 → 2,508 and says which line is the stray, rather than starting at a number nobody can
 reproduce.
 
-## Unreleased — Portfolio resourcing
+### Portfolio resourcing
 
 `GET /portfolio/resourcing` (`resource_portfolio.py`) sums weekly **concurrent** resource demand per
 trade across projects. `?cap=` flags weeks where one trade is over-committed across the book and
@@ -1368,7 +1520,7 @@ Found on the way in: the field named `resourced` made `test_route_reachability` 
 `resourced` contains `sourced`. Renamed to `assigned`; the second instance of that collision is
 recorded in the gate's own notes.
 
-## Unreleased — Cross-project Gantt
+### Cross-project Gantt
 
 The Programme card (`/projects/{pid}/schedule/portfolio`) now draws a bar per project on a shared
 span: start, finish, duration, which project drives the programme finish, and which are named by an
@@ -1397,7 +1549,7 @@ Writing the test also found that an external link must name activities by **reco
 `ref` are aliases resolved only for a project's own predecessor tokens, so a link written in WBS
 terms is refused as "no such activity". Recorded next to the link that uses it.
 
-## Unreleased — Portfolio risk heat map
+### Portfolio risk heat map
 
 `GET /portfolio/risk` (`risk_portfolio.py`) grids `risk_board` across the book: projects down, the
 five risk engines across (Monte-Carlo schedule risk · predictive alerts · EVM · pre-flight gate ·
@@ -1425,7 +1577,7 @@ alone fails rather than rendering as a column that never lights up.
 Both claims mutation-checked: emitting zeros for an error cell, and dropping a lane from `LANES`,
 each fail with the shape named.
 
-## Unreleased — SCALE-SEAM (101): design-phase predicted performance
+### SCALE-SEAM (101): design-phase predicted performance
 
 Six methods out of `client.ts` (**642 → 603**). Five to a new
 `apps/web/src/api/designPerformance.ts` — `energy`, `energyModel`, `energyExportUrl`,
@@ -1451,7 +1603,7 @@ inventing a home on a guess is what produced this file's UNFILED banner.
 The DOC-STRAND gate caught the extraction stranding `unitRates`' doc comment above the inserted
 block; reunited rather than deleted.
 
-## Unreleased — only committed capital owns anything (cap table + waterfall)
+### only committed capital owns anything (cap table + waterfall)
 
 `capital.cap_table` summed `commitment` across every investor whatever their workflow state. A
 `prospect` carrying a $10M interest and $0 contributed took 50% of a $10M cap table and halved a real
@@ -1469,7 +1621,7 @@ The decision rides on each row as `counts_toward_ownership` so the seven consume
 Mutation-checking found `test_distwaterfall` passed even with the waterfall ignoring the flag — its
 fixture has no prospect — so `test_cap_table_state.py` covers that case through the real API.
 
-## Unreleased — R24-REPORTS-BY-MOMENT: a finished pack can be sent, not only downloaded
+### R24-REPORTS-BY-MOMENT: a finished pack can be sent, not only downloaded
 
 `POST /projects/{pid}/jobs/{job_id}/deliver` emails any finished job's artifact to named
 recipients, surfaced as **Send** beside **Download** in the job tray.
