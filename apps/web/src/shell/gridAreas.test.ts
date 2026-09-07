@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { areaUses, definedAreas, namedLineUsages, stripComments, verdict } from "./gridAreas";
+import { areaUses, definedAreas, namedLineUsages, scanDeclarations, stripComments, verdict } from "./gridAreas";
 
 /**
  * UX-4 SHELL-GRID. `#pinned-rail` asked for `grid-area: pins` and no `grid-template-areas` in the
@@ -106,6 +106,64 @@ describe("the reader", () => {
 
   it("does not mistake a longhand like `grid-template-areas` for the `grid-area` shorthand", () => {
     expect(areaUses(`x { grid-template-areas: "a"; }`).uses).toEqual([]);
+  });
+});
+
+describe("it reads CSS, not text that happens to contain CSS", () => {
+  // Three regressions from review. Each was reproduced against the old regex parser BEFORE being
+  // believed, and the first is the one that mattered: it was FAIL-OPEN, in the gate whose whole
+  // purpose is to catch fail-open checks.
+
+  it("a CUSTOM PROPERTY defines no area — `--grid-template-areas` is not `grid-template-areas`", () => {
+    // The old parser matched the property name by substring, so this DEFINED a phantom `pins` area
+    // and the orphan below went unreported. A check silenced by a declaration that changes nothing
+    // in the browser is the worst shape available.
+    const css = `:root { --grid-template-areas: "pins"; }  #x { grid-area: pins; }`;
+    expect([...definedAreas(css)]).toEqual([]);
+    expect(verdict(css).orphans.map((o) => o.name)).toEqual(["pins"]);
+  });
+
+  it("declaration text inside a STRING is not a declaration", () => {
+    // Fails closed rather than open — a false orphan is noise, not silence — but a gate that cries
+    // wolf gets switched off, which ends in the same place.
+    const css = `#x { content: "grid-area: ghost;"; }`;
+    expect(areaUses(css).uses).toEqual([]);
+    expect(verdict(css).orphans).toEqual([]);
+  });
+
+  it("comment markers inside a STRING do not eat the declarations after them", () => {
+    // `content: "/*"` anywhere above would otherwise blank every declaration until a `"*/"`.
+    const css = `#a { content: "/*"; } #b { grid-template-areas: "real"; } `
+      + `#c { content: "*/"; } #d { grid-area: real; }`;
+    expect([...definedAreas(css)]).toEqual(["real"]);
+    expect(verdict(css).orphans).toEqual([]);
+  });
+
+  it("ignores the colon in an at-rule prelude and in a selector", () => {
+    // `@media (max-width: 900px)` and `a:hover` both contain a colon at a point where the text
+    // before it is not a bare identifier inside a block. style.css is full of both.
+    const css = `@media (max-width: 900px) { .x:hover { grid-area: pins; } } `
+      + `y { grid-template-areas: "pins"; }`;
+    expect(verdict(css).orphans).toEqual([]);
+    expect(verdict(css).unused).toEqual([]);
+  });
+
+  it("a comment marker inside a SELECTOR's string does not swallow the rest of the file", () => {
+    // Added because a mutation that removed string tracking from the scanner's main loop — the one
+    // that runs OUTSIDE a declaration value — survived every other test here. All three regressions
+    // above put their string in a VALUE, which a different code path handles, so the prelude branch
+    // was never exercised and its removal looked harmless.
+    //
+    // Here it is not: without it the `/*` inside the attribute selector opens a comment that never
+    // closes, and every declaration in the rest of the stylesheet is silently discarded.
+    const css = `[title="/*"] { grid-template-areas: "pins"; } #x { grid-area: pins; }`;
+    expect([...definedAreas(css)]).toEqual(["pins"]);
+    expect(verdict(css).orphans).toEqual([]);
+  });
+
+  it("a `;` inside a string does not end the declaration early", () => {
+    expect(scanDeclarations(`#x { content: "a;b"; grid-area: pins; }`).map((d) => d.prop))
+      .toEqual(["content", "grid-area"]);
   });
 });
 

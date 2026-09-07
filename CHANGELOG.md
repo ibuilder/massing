@@ -53,8 +53,36 @@ reported as UNKNOWN and reds the build rather than being dropped quietly.
 The self-test mutates the **live** stylesheet back to its pre-fix shape rather than asserting
 against a hand-written fixture, and asserts the mutation actually applied before trusting the
 result: a regex that stopped matching would otherwise turn the self-test green by doing nothing.
-Three mutations were run against the finished gate — reverting the CSS, making `verdict()` always
-report no orphans, and dropping comment-stripping — and each reds the tests it should.
+
+**Review found three defects in the gate's own parser, and the first was fail-open** — in the check
+whose entire purpose is to catch fail-open checks. Each was reproduced against the old code before
+being believed:
+
+1. The property name was matched by substring, so the CUSTOM PROPERTY `--grid-template-areas: "pins"`
+   **defined** a phantom `pins` area and the orphan went unreported. A declaration that changes
+   nothing in a browser could silence the check.
+2. Declaration text inside a string was read as a declaration, so `content: "grid-area: ghost;"`
+   invented an orphan that is not there.
+3. `/*` and `*/` inside strings were treated as real comment delimiters, so one `content: "/*"`
+   could blank every declaration after it.
+
+All three are gone: the three regexes are replaced by a single-pass scanner that tracks comment and
+string state and only reports a property when the text before the colon is a bare identifier inside
+a block — which also keeps `@media (max-width: 900px)` and `a:hover` out. `--grid-template-areas` is
+now rejected by exact match rather than by substring.
+
+**The scanner's first draft found nothing at all**, and said so cleanly: its identifier pattern was
+written `--?`, which *requires* a leading hyphen, so it matched only custom properties and rejected
+`grid-area` itself. Every answer it gave was clean because it had looked at nothing — caught by
+running the three reproductions rather than by the suite.
+
+Four mutations were then run against the finished gate: revert the CSS; make `verdict()` always
+report no orphans; restore the substring property match; and remove string tracking from the
+scanner's main loop. **The fourth initially survived** — all three regressions above put their
+string in a declaration *value*, which a different code path handles, so the prelude branch was
+never exercised and deleting it looked harmless. It is not: `[title="/*"]` in a selector opens a
+comment that never closes and discards the rest of the stylesheet. That case is now a test, and all
+four mutations red the tests they should.
 
 What the gate does **not** do is stated in its docstring rather than left to be assumed: it does not
 know which grid an element belongs to, so an area defined on some *other* grid would satisfy it.

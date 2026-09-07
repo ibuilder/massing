@@ -44,25 +44,149 @@ export interface AreaUnknown {
 /** CSS-wide keywords and grid keywords that are never an area name. */
 const NOT_AN_AREA = new Set(["auto", "none", "inherit", "initial", "unset", "revert", "revert-layer", "span"]);
 
-/**
- * Strip `/* ... *\/` comments, preserving newlines so reported line numbers stay true.
- *
- * Load-bearing: a commented-out `grid-template-areas` would otherwise define an area that no
- * browser has ever seen, which is the fail-open direction — the check would go quiet on exactly the
- * edit most likely to introduce the bug.
- */
-export function stripComments(css: string): string {
-  return css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+/** One CSS declaration, as the scanner found it. */
+export interface Decl {
+  /** The property name exactly as written — `grid-area`, or `--grid-area` for a custom property. */
+  prop: string;
+  value: string;
+  line: number;
 }
 
-const lineOf = (css: string, index: number): number => css.slice(0, index).split("\n").length;
+// `(--)?` — an OPTIONAL custom-property prefix. Written `--?` at first, which requires a LEADING
+// hyphen and therefore matched only custom properties, rejecting `grid-area` itself: the scanner
+// found nothing at all and every "clean" answer it gave was clean because it had looked at nothing.
+const IDENT = /^(--)?[A-Za-z_][-\w]*$/;
 
-/** Every area name defined by any `grid-template-areas` in `css`. */
+/**
+ * Walk `css` once and yield its declarations, tracking comment and string state as it goes.
+ *
+ * **This replaced three regexes, and each of them had a distinct bug** — found by review, then
+ * reproduced before being believed:
+ *
+ *  1. `/grid-template-areas\s*:/` also matched the CUSTOM PROPERTY `--grid-template-areas`, so
+ *     `:root { --grid-template-areas: "pins" }` DEFINED a phantom `pins` area and the orphan check
+ *     went silent. **That is the fail-open direction** — the same shape this whole gate exists to
+ *     catch, in the gate itself.
+ *  2. Declaration text inside a *string* was read as a declaration, so `content: "grid-area: ghost;"`
+ *     invented an orphan that is not there.
+ *  3. `/*` and `*\/` inside strings were treated as real comment delimiters, so a `content: "/*"`
+ *     anywhere above could erase every live declaration until the next `content: "*\/"`.
+ *
+ * A property name is only recognised inside a block (`depth > 0`) and only when the text before the
+ * colon is a bare identifier — which is what keeps `@media (max-width: 900px)` and selectors out.
+ * `--grid-template-areas` is an identifier too, and `prop` keeps the leading dashes precisely so the
+ * callers below can reject it by exact match rather than by substring.
+ */
+export function scanDeclarations(css: string): Decl[] {
+  const out: Decl[] = [];
+  let i = 0, line = 1, depth = 0, buf = "";
+  const n = css.length;
+
+  /** Consume a quoted string starting at `i` (on the quote); returns the index after it. */
+  const skipString = (from: number): number => {
+    const quote = css[from];
+    let j = from + 1;
+    while (j < n) {
+      const c = css[j];
+      if (c === "\\") { if (css[j + 1] === "\n") line++; j += 2; continue; }
+      if (c === "\n") { line++; j++; continue; }   // unterminated string: CSS ends it at the newline
+      if (c === quote) return j + 1;
+      j++;
+    }
+    return j;
+  };
+
+  while (i < n) {
+    const c = css[i];
+
+    if (c === "/" && css[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(css[i] === "*" && css[i + 1] === "/")) { if (css[i] === "\n") line++; i++; }
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'") { buf += css.slice(i, (i = skipString(i))); continue; }
+    if (c === "\n") { line++; buf += c; i++; continue; }
+
+    if (c === "{") { depth++; buf = ""; i++; continue; }
+    if (c === "}") { depth = Math.max(0, depth - 1); buf = ""; i++; continue; }
+    if (c === ";") { buf = ""; i++; continue; }
+
+    if (c === ":" && depth > 0 && IDENT.test(buf.trim())) {
+      const prop = buf.trim();
+      const declLine = line;
+      // Collect the value up to `;` or `}`, honouring strings so a `;` inside one does not end it.
+      let value = "";
+      i++;
+      while (i < n) {
+        const v = css[i];
+        if (v === '"' || v === "'") { value += css.slice(i, (i = skipString(i))); continue; }
+        if (v === "/" && css[i + 1] === "*") {
+          i += 2;
+          while (i < n && !(css[i] === "*" && css[i + 1] === "/")) { if (css[i] === "\n") line++; i++; }
+          i += 2;
+          continue;
+        }
+        if (v === ";" || v === "}") break;
+        if (v === "\n") line++;
+        value += v;
+        i++;
+      }
+      out.push({ prop, value: value.trim(), line: declLine });
+      buf = "";
+      continue;
+    }
+
+    buf += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Strip `/* ... *\/` comments, preserving newlines so reported line numbers stay true — and NOT
+ * treating comment markers inside strings as delimiters, which is bug 3 above.
+ *
+ * Load-bearing in the other direction too: a commented-out `grid-template-areas` would otherwise
+ * define an area no browser has ever seen, silencing the check on exactly the edit most likely to
+ * introduce the bug.
+ */
+export function stripComments(css: string): string {
+  let out = "", i = 0;
+  const n = css.length;
+  while (i < n) {
+    const c = css[i];
+    if (c === "/" && css[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(css[i] === "*" && css[i + 1] === "/")) { out += css[i] === "\n" ? "\n" : " "; i++; }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      out += c; i++;
+      while (i < n) {
+        if (css[i] === "\\") { out += css.slice(i, i + 2); i += 2; continue; }
+        if (css[i] === "\n" || css[i] === quote) break;
+        out += css[i]; i++;
+      }
+      if (i < n) { out += css[i]; i++; }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+/** Every area name defined by any real `grid-template-areas` declaration in `css`. */
 export function definedAreas(css: string): Set<string> {
-  const src = stripComments(css);
   const out = new Set<string>();
-  for (const m of src.matchAll(/grid-template-areas\s*:([^;}]*)/g)) {
-    for (const row of (m[1] ?? "").matchAll(/"([^"]*)"|'([^']*)'/g)) {
+  for (const d of scanDeclarations(css)) {
+    // EXACT match. `--grid-template-areas` is a custom property and defines no area; matching it by
+    // substring is what made this function report phantom definitions.
+    if (d.prop !== "grid-template-areas") continue;
+    for (const row of d.value.matchAll(/"([^"]*)"|'([^']*)'/g)) {
       for (const tok of (row[1] ?? row[2] ?? "").trim().split(/\s+/)) {
         // A run of dots is a null cell, not a name. So is an empty token from a blank row.
         if (tok && !/^\.+$/.test(tok)) out.add(tok);
@@ -78,34 +202,31 @@ export function definedAreas(css: string): Set<string> {
  * mutation to the judgement cannot hide behind an assertion that the site was merely *found*.
  */
 export function areaUses(css: string): { uses: AreaUse[]; unknown: AreaUnknown[] } {
-  const src = stripComments(css);
   const uses: AreaUse[] = [];
   const unknown: AreaUnknown[] = [];
-  for (const m of src.matchAll(/(?<![-\w])grid-area\s*:([^;}]*)/g)) {
-    const value = (m[1] ?? "").trim();
-    const line = lineOf(src, m.index);
+  for (const d of scanDeclarations(css)) {
+    if (d.prop !== "grid-area") continue;
+    const value = d.value;
     if (/^[A-Za-z_][-\w]*$/.test(value)) {
-      // A bare custom-ident. `auto`/`none`/`inherit`/... place nothing and name nothing.
-      if (!NOT_AN_AREA.has(value)) uses.push({ name: value, line });
+      if (!NOT_AN_AREA.has(value)) uses.push({ name: value, line: d.line });
       continue;
     }
     // Line-based placement (`1 / 2 / 3 / 4`, `span 2 / auto`) references no area name. Anything else
-    // — a var(), a name this regex does not recognise — is UNKNOWN and reds the build, because a
+    // — a var(), a name this parser does not recognise — is UNKNOWN and reds the build, because a
     // parser that quietly drops what it cannot read is a check that can only report good news.
     if (/^[\d\s/]+$/.test(value) || /^[-\w\s/]*$/.test(value)) continue;
-    unknown.push({ value, line });
+    unknown.push({ value, line: d.line });
   }
-  return { uses, unknown };
+  return uses.length || unknown.length ? { uses, unknown } : { uses, unknown };
 }
 
 /** `grid-row`/`grid-column` values that reference a NAMED line rather than a number. */
 export function namedLineUsages(css: string): { value: string; line: number }[] {
-  const src = stripComments(css);
   const out: { value: string; line: number }[] = [];
-  for (const m of src.matchAll(/(?<![-\w])grid-(?:row|column)(?:-start|-end)?\s*:([^;}]*)/g)) {
-    const value = (m[1] ?? "").trim();
-    const idents = value.split(/[\s/]+/).filter((t) => /^[A-Za-z_][-\w]*$/.test(t) && !NOT_AN_AREA.has(t));
-    if (idents.length) out.push({ value, line: lineOf(src, m.index) });
+  for (const d of scanDeclarations(css)) {
+    if (!/^grid-(row|column)(-start|-end)?$/.test(d.prop)) continue;
+    const idents = d.value.split(/[\s/]+/).filter((t) => /^[A-Za-z_][-\w]*$/.test(t) && !NOT_AN_AREA.has(t));
+    if (idents.length) out.push({ value: d.value, line: d.line });
   }
   return out;
 }
