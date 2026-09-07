@@ -1192,6 +1192,27 @@ The engine work is done either way; only the naming is open.
   result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
   — **run their conformance suite against our live API.**
 
+  ✅ **DECIDED 2026-09-07: THEY move, not us. This item is no longer open work on this side.**
+  The three renames and the `/edit` body shape were always *"a decision about which side moves"*, and
+  the decision is that the kernel conforms to us. `recipe` is the GUID-stable edit vocabulary two of
+  this repository's non-negotiables rest on; `{op, params}` is a thinner contract that cannot carry
+  that guarantee, and accepting it beside `recipe` would mean maintaining two edit vocabularies, one
+  of which can express edits we cannot make stable. Project-scoped `jobs` is a tenancy boundary here,
+  not a URL style.
+
+  It also follows from the facade decision already recorded above: `@massing/embed` was evaluated and
+  declined on 2026-08-23 because its load path parses IFC in the browser. **Conforming our API to a
+  kernel we are not adopting buys nothing** — the only reason to move would be to make adoption
+  cheaper, and adoption is the thing that was declined.
+
+  ⚠️ **The issue is drafted but NOT filed, and this session could not file it.** `add_repo` refuses
+  cross-owner attachment — *"cross-tier adds are not supported in v1: requested
+  massingcloud/massingviewer but session already has repos from owner(s) [ibuilder]"* — so the text
+  was handed to the maintainer to paste rather than posted. **Until it is filed this is
+  awaiting-upstream, which is not the same as done**, and an entry that says "decided" while nobody
+  outside this repository has been told would be the same false-completion shape the ⑥ note above
+  records.
+
   **BOTH ABSENT ENDPOINTS SHIPPED v0.3.1055** — `GET /projects/{pid}/spatial-tree` and
   `POST /projects/{pid}/elements/properties`, held by `services/api/test_spatial_tree.py`. What
   remains is the three renames/rescopes and the `/edit` body shape, every one of which is a
