@@ -85,6 +85,29 @@ staleness gate below it would then **pass**, letting a PR merge carrying a stale
 strictly worse than the red build it replaces, so a refused push fails the job explicitly and names
 the setting to check.
 
+**Two review findings on this step were both real, and one of them made a comment here false.**
+
+*Security.* `contents: write` cannot be scoped below the job, and `actions/checkout` persists the
+token into `.git/config` by default — while this very job installs `build-essential` so that
+`pip-compile` can **build source distributions** to hash them, which executes `setup.py` / PEP 517
+hooks from the dependency being locked. That is third-party code, and raising the permission put it
+alongside a write-capable credential. Checkout now sets `persist-credentials: false`, and the token
+is attached to the remote inside the push step — *after* the compile is done. So the exposure is
+closed by ordering rather than by a two-job split, which would have required reordering the Verify
+gate (it must not run before the write-back on a dependabot branch, or it fails on the very
+staleness the step exists to fix) — a behaviour change nothing here can test.
+
+*And the workflow's own comment claimed a mechanism that does not exist.* It said the write-back
+push "triggers one more run. That run finds the lock current, commits nothing, and stops." **GitHub
+raises no events for pushes made with `GITHUB_TOKEN`** — the anti-recursion rule, nothing to do with
+this workflow's path filter. The good half is that the write-back cannot loop. The bad half, now
+stated in the file instead of contradicted by it: **the commit it pushes carries no CI or security
+check runs of its own**, and `ci.yml` has no `workflow_dispatch` trigger, so it cannot even be
+dispatched at it. A maintainer must re-trigger checks before merging, and closing that properly
+needs a GitHub App or PAT whose pushes do raise events — a repository secret, not a change to this
+file. *The claim was plausible, specific, and wrong, and it was load-bearing for how safe the step
+looked.*
+
 *This was going to be a new workflow.* The premise-check found the machinery already existed and the
 whole task was one permission and one step — the fourth time in this stretch that a plan survived
 until somebody read the code it assumed.

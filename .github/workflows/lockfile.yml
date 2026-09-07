@@ -13,8 +13,9 @@ on:
       - ".github/workflows/lockfile.yml"
 
 permissions:
-  # write is used by exactly one step — the dependabot write-back below. Every other path in this
-  # job only reads; the compile happens in a container and publishes an artifact.
+  # write is used by exactly one step — the dependabot write-back below. Permissions cannot be
+  # scoped below the job, so the checkout is told NOT to persist the credential (see below) and the
+  # write-capable token is materialised only in the push step, after pip-compile has finished.
   contents: write
 
 jobs:
@@ -32,7 +33,15 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends git
           rm -rf /var/lib/apt/lists/*
 
+      # `persist-credentials: false` is load-bearing now that this workflow holds `contents: write`.
+      # By default checkout writes the token into .git/config for the whole job — and the very next
+      # steps install build-essential so that `pip-compile` can BUILD SOURCE DISTRIBUTIONS to hash
+      # them, which executes setup.py / PEP 517 hooks from the dependency being locked. That is
+      # third-party code, and it must not run alongside a write-capable repository credential.
+      # The push step below re-attaches the token deliberately, after the compile is done.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # build tooling in case a dep only ships an sdist and pip-compile must build it to hash
       - name: System deps
@@ -85,6 +94,8 @@ jobs:
       # caused it. On a dependabot branch there is nobody to tell.
       - name: Commit the recompiled lock (dependabot pip branches only)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/dependabot/pip/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if git diff --quiet -- services/api/requirements.lock; then
@@ -95,6 +106,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add services/api/requirements.lock
           git commit -m "chore(deps): recompile requirements.lock for this bump"
+          # Re-attach the credential HERE rather than at checkout, so a write-capable token never
+          # coexists with the third-party build code pip-compile may have executed above.
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
           # THE PUSH CAN BE REFUSED, and the failure branch matters more than the success one.
           # Runs triggered by Dependabot receive a restricted GITHUB_TOKEN, and whether it carries
           # contents:write is a repository setting this file cannot assert. If the push fails we
@@ -102,9 +118,18 @@ jobs:
           # and the Verify step below would otherwise pass and let a PR merge carrying a STALE
           # LOCK — strictly worse than the red build this step replaces.
           if git push origin "HEAD:${GITHUB_REF#refs/heads/}"; then
-            # This push touches requirements.lock, which is in this workflow's own path filter, so
-            # it triggers one more run. That run finds the lock current, commits nothing, and stops.
-            echo "::notice::recompiled requirements.lock and committed it to this branch"
+            # NO WORKFLOW RUNS ON THE COMMIT THIS PUSHES. GitHub does not raise events for pushes
+            # made with GITHUB_TOKEN — that is the anti-recursion rule, not a path-filter question,
+            # so this workflow's own `push` filter is irrelevant to it. An earlier version of this
+            # comment claimed the opposite ("it triggers one more run ... finds the lock current
+            # and stops"); that mechanism does not exist.
+            #
+            # The good half: this cannot loop. The bad half, stated plainly because nothing here
+            # can fix it — the new head SHA carries NO ci.yml / security.yml check runs, so a
+            # maintainer may have to re-trigger them (ci.yml has no workflow_dispatch trigger, so
+            # it cannot even be dispatched). Closing that properly needs a GitHub App or PAT whose
+            # pushes do raise events, which is a repository secret, not a change to this file.
+            echo "::notice::recompiled requirements.lock and committed it to this branch. NOTE: pushes made with GITHUB_TOKEN do not start workflow runs, so this commit has no CI checks of its own — re-run them before merging."
           else
             echo "::error::could not push the recompiled lock. Dependabot-triggered runs get a restricted token; if contents:write is not granted for Dependabot in this repository's Actions settings, download the 'requirements-lock' artifact from this run and commit it by hand."
             exit 1
