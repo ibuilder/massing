@@ -360,7 +360,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         const dots = r.scenarios.map((s) => {
           const x = px(s.cost).toFixed(1), y = py(s.duration_days).toFixed(1);
           if (s.rank === rec.rank) return `<circle cx="${x}" cy="${y}" r="5.5" fill="none" stroke="var(--status-good)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="2" fill="var(--status-good)"/>`;
-          if (s.is_baseline) return `<rect x="${(+x - 3).toFixed(1)}" y="${(+y - 3).toFixed(1)}" width="6" height="6" fill="none" stroke="var(--fg)" stroke-width="1.4"/>`;
+          if (s.is_baseline) return `<rect x="${(+x - 3).toFixed(1)}" y="${(+y - 3).toFixed(1)}" width="6" height="6" fill="none" stroke="var(--text)" stroke-width="1.4"/>`;
           return `<circle cx="${x}" cy="${y}" r="${s.pareto ? 3 : 2}" fill="${s.pareto ? "var(--accent, #4a90d9)" : "var(--muted, #999)"}" ${s.pareto ? "" : 'opacity="0.5"'}/>`;
         }).join("");
         const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;font-size:9px" role="img" aria-label="Cost vs duration scatter with Pareto frontier">`

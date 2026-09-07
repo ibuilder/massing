@@ -73,7 +73,7 @@ export async function renderMargin(ctx: PanelContext) {
   body.innerHTML = `<div class="meta">Reconciling budget vs committed vs actual…</div>`;
   ctx.root.appendChild(body);
 
-  const marginCol = (n: number) => n < 0 ? "var(--status-crit)" : n > 0 ? "var(--status-good)" : "var(--fg)";
+  const marginCol = (n: number) => n < 0 ? "var(--status-crit)" : n > 0 ? "var(--status-good)" : "var(--text)";
 
   try {
     const m = await ctx.host.api.marginByCostCode(pid);

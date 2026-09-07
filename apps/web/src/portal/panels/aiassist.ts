@@ -293,7 +293,7 @@ export async function renderAiAssist(ctx: PanelContext) {
                 const over = g.packages_without_model_scope.length
                   ? `<div class="meta">Over-scoped (no model elements): ${g.packages_without_model_scope.map(esc).join(", ")}</div>` : "";
                 out.insertAdjacentHTML("beforeend",
-                  `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:4px"><b>Model coverage</b> <span class="meta">${g.covered_pct}% of ${g.element_count} elements in a package</span>${gapRow}${over}</div>`);
+                  `<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:4px"><b>Model coverage</b> <span class="meta">${g.covered_pct}% of ${g.element_count} elements in a package</span>${gapRow}${over}</div>`);
               }
             } catch { /* no source IFC (409) — scope-gap needs a model; skip silently */ }
           } catch (e) { out.textContent = `leveling failed: ${(e as Error).message}`; }

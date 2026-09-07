@@ -25,7 +25,7 @@ export async function renderSelections(ctx: PanelContext) {
 
       // headline: net over/under
       const head = document.createElement("div"); head.className = "dash-card"; head.style.marginBottom = "10px";
-      const dirCol = s.direction === "over" ? "var(--status-crit)" : s.direction === "under" ? "var(--status-good)" : "var(--fg)";
+      const dirCol = s.direction === "over" ? "var(--status-crit)" : s.direction === "under" ? "var(--status-good)" : "var(--text)";
       const dirLabel = s.direction === "over" ? "over allowance" : s.direction === "under" ? "under allowance (credit)" : "on allowance";
       // UX-CHIPS — the shared chip vocabulary rather than hand-rolled spans. On a cost line an
       // overage is bad and a credit is good, hence goodWhenNegative. The unpriced remainder is
@@ -53,7 +53,7 @@ export async function renderSelections(ctx: PanelContext) {
         const cat = document.createElement("div"); cat.className = "dash-card"; cat.style.marginBottom = "10px";
         cat.innerHTML = `<div class="section-title" style="margin:0 0 4px">By category</div>`
           + s.by_category.map((c) => {
-            const col = c.delta > 0 ? "var(--status-crit)" : c.delta < 0 ? "var(--status-good)" : "var(--fg)";
+            const col = c.delta > 0 ? "var(--status-crit)" : c.delta < 0 ? "var(--status-good)" : "var(--text)";
             return `<div class="meta" style="display:flex;justify-content:space-between;margin:1px 0"><span>${esc(c.category)} <span style="opacity:.6">(${c.count})</span></span>`
               + `<span style="color:${col};font-variant-numeric:tabular-nums">${c.delta >= 0 ? "+" : "−"}${usd(Math.abs(c.delta))}</span></div>`;
           }).join("");

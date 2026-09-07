@@ -12,6 +12,61 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a file dropzone with no outline, and a chart marker that was never drawn
+
+Found by asking the pinned-rail question the other way round: **what else does this CSS name that
+nothing defines?** `apps/web/src/style.css` referenced `var(--border)` at six sites, and TypeScript
+referenced five void tokens at thirteen more — none with a fallback, none defined anywhere in the
+tree or set through `setProperty`.
+
+**A `var()` that resolves to nothing does not skip the property.** It makes the declaration invalid
+at computed-value time, so the property takes its *unset* value — inherited for an inherited
+property, initial for everything else. What that costs depends on the **property**, not the token,
+and the two halves came out opposite. Measured in Chromium:
+
+| | before | after |
+|---|---|---|
+| `.att-drop` — the **file dropzone** | `border-style: none`, `width: 0px` | `dashed 1px` |
+| `.att-drop.over` — drag-over feedback | accent colour computed, **0px painted** | `dashed 1px` accent |
+| `.pf-addopt` — outline *is* the button (`background: transparent`) | `none 0px` | `dashed 1px` |
+| `.att-cell`, `.pnav-khint kbd`, `.portal-fieldset-head` | `none 0px` | `solid 1px` |
+| QA/repair row separators (×6, inline in `.ts`) | `none 0px` | `solid 1px` |
+| profile row `background` | `rgba(0, 0, 0, 0)` — none at all | `#25272b` |
+| "Sign out" `color: var(--danger)` | the body colour — **not danger red** | `#d9534f` |
+| Pareto baseline `stroke="var(--fg)"` on a `fill="none"` rect | `none` — **invisible** | `#e7e7e7` |
+
+**Six sites were not defects, and saying so mattered.** `color: var(--fg)` is an *inherited*
+property, so it landed on the ancestor's colour — which is exactly `--text`, which is what it
+wanted. The same token as an SVG `stroke` inherited `none` and erased a chart's baseline marker
+entirely. *Same token, opposite severity, decided by the property.* A rename sweep would have been
+right by luck and wrong in every word of its description.
+
+Tokens mapped to the ones the palette actually defines: `--border`/`--border-subtle` → `--line`,
+`--fg` → `--text`, `--danger` → `--err`, `--bg-elev` → `--panel2`. Only the last is a judgement
+call — the palette has no "elevated" tone, and `--panel2` is its second surface. The dropzone's
+outline is now `--line` as the design system specifies; if it wants more prominence than the system
+border, that is a separate design decision and not this fix's to make.
+
+New gate `apps/web/src/shell/cssVars.ts` + `apps/web/src/shell/cssVars.test.ts`: every `var()`
+without a fallback must name a defined token, and every defined token must be referenced. A
+fallback is always safe and never reported — `var(--x, #ccc)` renders the fallback, and seven tokens
+exist only in that form.
+
+**Its scope is CSS *and* TypeScript, and that is the load-bearing part.** A CSS-only sweep is a
+predicate deciding what to look at: `--err` is declared in `style.css` and referenced only from
+`accountUI.ts`, so a CSS-only "unused token" pass would have called it dead and invited deleting a
+token used in eight places — while thirteen of the nineteen void sites live in `.ts` files, where
+it could not see them at all. Both directions need both sources.
+
+**The first draft of the scan excluded the palette itself and reported every token undefined.** Its
+glob was `apps/web/src/**.css`, which does not match `apps/web/src/style.css` — no intervening
+directory — so `--status-crit`, `--mono` and the rest came back "void". The population now comes
+from `git ls-files`, and the test asserts the file count and that `style.css` is in it, because a
+glob that matches nothing reports a clean tree. Four mutations were run against the finished gate:
+revert the stylesheet fix; make `voidVars()` always return clean; stop treating a fallback as safe;
+narrow the scope back to CSS only. Each reds the tests it should — the last one by flagging `--err`
+as unreferenced, which is the trap it exists to prevent.
+
 ### the pinned rail has been rendering in the bottom-right corner since July
 
 `#pinned-rail` carried `grid-area: pins` from v0.3.764 (2026-07-28) and **no `grid-template-areas`

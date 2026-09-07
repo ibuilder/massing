@@ -139,7 +139,7 @@ export function buildQaSection(d: QaDeps): void {
             for (const t of r!.templates) {
               const row = document.createElement("div");
               row.className = "meta";
-              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--line);cursor:pointer";
               row.innerHTML = `<b>${escapeHtml(t.name)}</b>`
                 + (t.isolate ? ` · isolate ${escapeHtml(t.isolate)}` : "")
                 + (t.hide_classes?.length ? ` · hides ${t.hide_classes.length}` : "")
@@ -197,7 +197,7 @@ export function buildQaSection(d: QaDeps): void {
             for (const a of list) {
               const row = document.createElement("div");
               row.className = "meta";
-              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--line)";
               row.innerHTML = `<b>${escapeHtml(a.name || "unnamed")}</b> · ${a.element_count} element(s) · `
                 + `${a.thickness_m}m · R ${a.r_value} (${a.r_value_imperial} imp)`;
               if (a.guids?.length) {
@@ -322,7 +322,7 @@ export function buildQaSection(d: QaDeps): void {
             for (const c of r!.connections.slice(0, 50)) {
               const row = document.createElement("div");
               row.className = "meta";
-              row.style.cssText = "padding:2px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.style.cssText = "padding:2px 0;border-bottom:1px solid var(--line);cursor:pointer";
               row.innerHTML = `${escapeHtml(c.a_class)} ↔ ${escapeHtml(c.b_class)}`
                 + (c.description ? ` · ${escapeHtml(c.description)}` : "");
               row.title = "Select both ends";
@@ -389,7 +389,7 @@ export function buildQaSection(d: QaDeps): void {
             for (const i of r!.issues.slice(0, 100)) {
               const row = document.createElement("div");
               row.className = "meta";
-              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--line);cursor:pointer";
               row.innerHTML = `${i.severity === "error" ? "🔴" : "🟡"} <b>${escapeHtml(i.name || i.guid)}</b> `
                 + `· ${escapeHtml(i.ifc_class)} — ${escapeHtml(i.detail)}`;
               row.title = "Select this element";
@@ -513,7 +513,7 @@ export function buildQaSection(d: QaDeps): void {
               const guids = guidsFromSample(w.sample);
               const row = document.createElement("div");
               row.className = "meta";
-              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--line)";
               row.innerHTML = `${sev[w.severity] || "⚪"} <b>${escapeHtml(w.label)}</b> · ${w.count}`
                 + (w.note ? ` <span class="meta">${escapeHtml(w.note)}</span>` : "");
               // Only rows that CAN be zoomed to get the affordance. `overlapping_duplicates` groups

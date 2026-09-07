@@ -53,7 +53,7 @@ interface Section { id: string; label: string; build: (body: HTMLElement) => voi
 function row(title: string, detail: string, actionLabel?: string, onClick?: () => void): HTMLElement {
   const el = document.createElement("div");
   el.style.cssText = "display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid var(--line);"
-    + "border-radius:7px;background:var(--bg-elev)";
+    + "border-radius:7px;background:var(--panel2)";
   const col = document.createElement("div");
   col.style.cssText = "display:flex;flex-direction:column;gap:2px;min-width:0;flex:1";
   const t = document.createElement("span");
@@ -136,7 +136,7 @@ export function openProfileSettings(deps: ProfileDeps, initial = "profile"): voi
   signOut.className = "tool-btn";
   signOut.textContent = "Sign out";
   signOut.style.cssText = "justify-content:flex-start;width:100%;text-align:left;border:none;"
-    + "background:transparent;margin-top:auto;color:var(--danger)";
+    + "background:transparent;margin-top:auto;color:var(--err)";
   signOut.onclick = () => { close(); actions.signOut(); };
   nav.append(signOut);
 
