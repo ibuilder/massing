@@ -2204,6 +2204,16 @@ stakes we are missing.
   than an ugly key), and fields that store what they show are untouched, so grouping a status field
   cannot start folding `Open` into `open`.
 
+  🔒 **A review of ⑬ found spreadsheet formula injection in the export — and the fix is wider than the
+  finding.** Excel executes a cell beginning `=`, `+`, `-` or `@`. The review scoped it to the new
+  label cell; measured, `title`, `description` and every text field already carried a live formula, so
+  the export was injectable before ⑬ touched it. Guarding one column beside twelve unguarded ones
+  reads as though the file were safe, so every cell now uses the guard
+  `services/api/src/aec_api/routers/standards.py` already had — **lifted into one shared function**
+  rather than copied, because two spellings of a security guard is how one stops being applied.
+  The same review caught a second real gap: a `join` switched the display grouping off, so the fix
+  applied everywhere except reports that joined — correct in every test anyone had happened to write.
+
   ⚠️ **A gate from ⑩ was passing vacuously and this is how it was found.** `REGISTRY` loads on app
   STARTUP, not on import, so `services/api/test_pair_filter.py`'s collision precondition — written at
   module scope — swept an empty dict, found nothing, and printed a clean result. The identical

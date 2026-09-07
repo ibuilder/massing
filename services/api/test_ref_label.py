@@ -25,6 +25,7 @@ not argued from the suffix** — a header that did collide would be silently mis
 Run: PYTHONPATH=src ./.venv/bin/python test_ref_label.py
 """
 import os
+import pathlib
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_reflabel.db"
 os.environ["STORAGE_DIR"] = "./test_reflabel_storage"
@@ -171,6 +172,51 @@ with TestClient(app) as c:
           f"leaked {xcells[header.index('supplier_company__label')]!r} — the foreign record's title")
     check("...and the row still carries its id, so the broken link stays visible",
           xcells[header.index("supplier_company")] == foreign)
+
+    # ---- review finding 1: a JOIN must not switch the display treatment off ------------------------
+    #
+    # The first version guarded on `join_key is None`, so a report that joined anything fell back to
+    # uuid keys — the fix applied exactly where nobody had added a join yet, which is the shape of
+    # bug that looks fixed in every test you happen to write.
+    r = c.get(f"/projects/{pid}/modules/delivery/aggregate",
+              params={"group_by": "supplier_company", "agg": "count", "join": "commitment"})
+    check("a joined report still groups by the TITLE", r.status_code == 200, r.text[:200])
+    if r.status_code == 200:
+        jk = {g["key"] for g in r.json()["groups"]}
+        check("...not by the stored uuid", "Acme Electrical" in jk,
+              f"keys: {sorted(k for k in jk if k)}")
+        check("...and a join does not drop the base rows either",
+              sum(g["count"] for g in r.json()["groups"]) == len(made) + 2,
+              "AGG-OUTER's invariant, re-checked through the grouping path")
+
+    # ---- review finding 2: CSV formula injection ---------------------------------------------------
+    #
+    # Excel executes a cell beginning = + - or @, so a company NAME is code in the reader's
+    # spreadsheet. The review scoped this to the new label column; the exposure measured wider —
+    # `title`, `description` and every text field already carried it, so this export was injectable
+    # before the label existed. Guarding one column and leaving twelve beside it would read as though
+    # the file were safe, so every cell goes through the guard and both directions are asserted.
+    evil = mk("company", {"name": "=cmd|'/c calc'!A1", "type": "Subcontractor"})["id"]
+    mk("delivery", {"description": "=1+1", "supplier": "+SUM(A1)",
+                    "supplier_company": evil, "date": "2026-03-01"})
+    r = c.get(f"/projects/{pid}/modules/delivery/export.csv")
+    ev = next(ln for ln in r.text.split("\n") if "calc" in ln)
+    check("a formula lead in a LABEL cell is neutralised", "'=cmd" in ev, ev[:100])
+    check("...and in an ordinary text field, which was injectable before this change",
+          "'=1+1" in ev and "'+SUM(A1)" in ev, ev[:140])
+    check("nothing un-escaped survives on that row",
+          not [x for x in ev.split(",") if x[:1] in ("=", "+", "@")],
+          f"{[x for x in ev.split(',') if x[:1] in ('=', '+', '@')]}")
+    # One guard, not two: `standards.roundtrip_export` had this logic first and now imports the same
+    # function. A second spelling of a security guard is how one of them stops being applied.
+    from aec_api.modules_query import csv_cell  # noqa: PLC0415
+    import aec_api.routers.standards as _std  # noqa: PLC0415
+    check("csv_cell escapes each executable lead", [csv_cell(x + "1") for x in "=+-@"]
+          == ["'=1", "'+1", "'-1", "'@1"])
+    check("...and leaves ordinary text alone", csv_cell("Acme Electrical") == "Acme Electrical")
+    check("the other CSV writer uses the SAME guard, not a copy",
+          "csv_cell" in pathlib.Path(_std.__file__).read_text(),
+          "roundtrip_export imports it rather than re-spelling it")
 
     # ---- THE round-trip claim, asserted through the real importer ---------------------------------
     #

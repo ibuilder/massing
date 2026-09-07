@@ -24,6 +24,14 @@ equal to the record's title, case-insensitively, never a substring), so the repo
 agree on what "this firm" means. Grouping folds case so variants merge; the label keeps the record's
 own casing, so a group reads `Acme Electrical` rather than `acme electrical`.
 
+🔒 **The module CSV export was open to spreadsheet formula injection, and still is not the column the
+review named.** Excel and Sheets execute a cell beginning `=`, `+`, `-` or `@`, so a company name is
+code in the reader's spreadsheet. A review flagged the new label cell; the exposure measured wider —
+`title`, `description` and every text field already carried `=1+1` and `+SUM(A1)` straight into the
+file, so this export was injectable before the label existed. Every cell now passes through the guard
+`roundtrip_export` already used, lifted into one shared function rather than copied: two spellings of
+a security guard is how one of them stops being applied.
+
 **The CSV export** put the uuid in the reference column, so the sheet forwarded to accounting read an
 id where a firm name belongs. Each reference column now gains a read-only `__label` companion
 carrying the referenced record's title.

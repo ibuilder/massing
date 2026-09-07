@@ -304,6 +304,23 @@ def _display_expr(db: Session, t, mod: dict, name: str, project_id: str | None, 
     return expr, joins, False
 
 
+def csv_cell(v) -> str:
+    """One CSV cell, with the spreadsheet formula-injection lead neutralised.
+
+    Excel and Sheets execute a cell beginning `=`, `+`, `-` or `@`, so any user-supplied text written
+    into a CSV is code in the reader's spreadsheet — `=cmd|'/c calc'!A1` in a company name is the
+    classic shape. Prefixing an apostrophe forces the cell to text; `standards.roundtrip_export`'s
+    diff parser strips exactly one, which is why that is the escape used rather than a quote or a
+    space.
+
+    **Lifted from `roundtrip_export`, which already had it, rather than copied.** Two spellings of a
+    security guard is how one of them stops being applied — the same drift this repo keeps finding in
+    duplicated rules — so both CSV writers now call this one, and `test_ref_label.py` asserts it.
+    """
+    s = "" if v is None else str(v)
+    return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+
+
 def resolve_titles(db: Session, module_key: str, ids: set[str], project_id: str) -> dict[str, str]:
     """`{id: title}` for `ids` **within `project_id`**, or `{}` when the module is unknown.
 
@@ -505,10 +522,18 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     # unfolded one, so the group reads "Acme Electrical" rather than "acme electrical". Fields that
     # store what they show are untouched: `is_pair_display` is false for them and this whole branch
     # is skipped, so grouping a select field cannot start folding "Open" into "open".
+    # A join must not switch the display treatment off. The first version guarded on
+    # `join_key is None`, so "cost by supplier, joined to change orders" fell back to uuid keys while
+    # the same report without the join read firm names — the fix applied exactly where nobody had
+    # added a join yet. Resolve which SIDE the field is on instead, and give each side its own alias
+    # prefix so a report grouping a joined field cannot collide with one grouping a base field.
     gjoins: list = []
     glabel = None
-    if join_key is None and is_pair_display(mod, group_by):
-        gdisp, gjoins, _gnum = _display_expr(db, t, mod, group_by, project_id, tag="grp")
+    gside_t, gside_mod, gname, gtag = t, mod, group_by, "grp"
+    if join_key and group_by.startswith(join_key + JOIN_SEP):
+        gside_t, gside_mod, gname, gtag = join_t, (join_mod or {}), group_by[len(join_key) + 1:], "grpj"
+    if gside_t is not None and is_pair_display(gside_mod, gname):
+        gdisp, gjoins, _gnum = _display_expr(db, gside_t, gside_mod, gname, project_id, tag=gtag)
         gexpr, glabel = _fold(db, gdisp), func.min(gdisp)
     else:
         gexpr, _gf = side(group_by)

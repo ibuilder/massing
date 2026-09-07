@@ -38,6 +38,7 @@ from .modules_query import (  # noqa: F401
     available_actions,
     count_records,
     court_party,
+    csv_cell,
     list_records,
     resolve_titles,
     state_counts,
@@ -1043,12 +1044,19 @@ def iter_csv(db: Session, key: str, project_id: str, page: int = 1000):
             labels[fn] = resolve_titles(db, target, ids, project_id)
         for r in rows:
             d = r.get("data") or {}
-            cells: list = [r["ref"], r["title"], r["workflow_state"], r["party_owner"], r["created_by"]]
+            # EVERY cell goes through `csv_cell`, not just the new label. The review that found this
+            # scoped it to the label column, but the exposure was measured wider: `title`,
+            # `description` and any text field already carried `=1+1` and `+SUM(A1)` straight into
+            # the sheet, so this export was injectable before the label existed. Guarding one column
+            # and leaving twelve beside it would be worse than not guarding at all — it reads as
+            # though the file is safe.
+            cells: list = [csv_cell(x) for x in (r["ref"], r["title"], r["workflow_state"],
+                                                 r["party_owner"], r["created_by"])]
             for fn in field_names:
                 v = d.get(fn, "")
-                cells.append(v)
+                cells.append(csv_cell(v))
                 if fn in ref_targets:
-                    cells.append(labels[fn].get(str(v), "") if v else "")
+                    cells.append(csv_cell(labels[fn].get(str(v), "")) if v else "")
             w.writerow(cells)
         if offset == 0 or rows:
             yield buf.getvalue()
