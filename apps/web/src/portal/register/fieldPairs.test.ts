@@ -2,9 +2,10 @@
  * COL-PAIR — the pair rule, and the two ways it can go quietly wrong.
  *
  * The first is DRIFT: the suffix list exists twice, here and in
- * `services/api/test_module_fields.py`, and a pair the two disagree about is simply not detected —
- * no error, the column just goes back to showing one era. So the list is read out of the Python file
- * and compared, rather than trusted.
+ * `services/api/src/aec_api/modules_registry.py`, and a pair the two disagree about is simply not
+ * detected — no error, the column just goes back to showing one era. Since PAIR-FILTER the Python
+ * copy also decides which ROWS a filtered query returns, so a drift is no longer only cosmetic. The
+ * list is read out of that file and compared, rather than trusted.
  *
  * The second is POPULATION: this rule earns its place only if registers really do list one half of a
  * pair. That is asserted against the shipped manifests, not against a number written down here, and
@@ -19,7 +20,7 @@ import { type PairField, REF_SUFFIXES, pairedValue, referenceHalf, textHalf } fr
 
 // happy-dom gives `import.meta.url` no `file:` scheme, so resolve from cwd (which is `apps/web`)
 const REPO = join(process.cwd(), "..", "..");
-const PY_GATE = join(REPO, "services", "api", "test_module_fields.py");
+const PY_RULE = join(REPO, "services", "api", "src", "aec_api", "modules_registry.py");
 
 const by = (fields: PairField[]) => new Map(fields.map((f) => [f.name, f]));
 
@@ -36,10 +37,10 @@ function manifests(): Manifest[] {
 }
 
 describe("the suffix list does not drift from the Python rule", () => {
-  it("names exactly the suffixes services/api/test_module_fields.py names", () => {
-    const py = readFileSync(PY_GATE, "utf8");
+  it("names exactly the suffixes src/aec_api/modules_registry.py names", () => {
+    const py = readFileSync(PY_RULE, "utf8");
     const m = /^REF_SUFFIXES = \(([^)]*)\)/m.exec(py);
-    if (!m) throw new Error("REF_SUFFIXES not found in test_module_fields.py — did it get renamed?");
+    if (!m) throw new Error("REF_SUFFIXES not found in modules_registry.py — did it get renamed?");
     const pySuffixes = [...(m[1] ?? "").matchAll(/"([^"]+)"/g)].map((x) => x[1] ?? "");
     // sorted: the ORDER is not the contract, the SET is. Order matters only within `textHalf`, where
     // a name ending in two of them takes the first — and no shipped field does.

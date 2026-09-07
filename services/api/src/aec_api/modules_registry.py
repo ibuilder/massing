@@ -37,6 +37,41 @@ def reference_fields(mod: dict) -> list[dict]:
     return [f for f in mod.get("fields", []) if f.get("type") == "reference" and f.get("module")]
 
 
+#: Suffixes a reference field carries over the free text it was added BESIDE.
+#:
+#: MOD-SWEEP's additive pattern never converts a text field; it adds a reference next to it, so a
+#: register in use across the change holds both eras at once. Anything that answers a question about
+#: "the party" therefore has to know the two fields are one concept.
+#:
+#: This lived only in `services/api/test_module_fields.py` until PAIR-FILTER, which is the point the
+#: rule stopped being an assertion about the manifests and started deciding which ROWS a query
+#: returns. A rule that shapes results is production code. The test now imports it from here, and
+#: `apps/web/src/portal/register/fieldPairs.ts` mirrors it in TypeScript with a test that reads this
+#: file and fails if the two lists disagree — three copies would drift, and a drift is silent: the
+#: pair simply stops being detected.
+REF_SUFFIXES = ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id")
+
+
+def text_half(name: str, by_name: dict[str, dict]) -> str | None:
+    """The free-text field the reference `name` was added beside, or None if it stands alone.
+
+    Two spellings, because the registers use both: `supplier` beside `supplier_company`, and
+    `assignee_name` beside `assignee_contact`. The `_name` form was invisible to the first version of
+    this rule, so it is spelled out rather than left to be rediscovered.
+    """
+    f = by_name.get(name)
+    if not f or f.get("type") != "reference":
+        return None
+    for suf in REF_SUFFIXES:
+        if not name.endswith(suf):
+            continue
+        stem = name[: -len(suf)]
+        for cand in (stem, f"{stem}_name"):
+            if by_name.get(cand, {}).get("type") in ("text", "textarea"):
+                return cand
+    return None
+
+
 def rollup_fields(mod: dict) -> list[dict]:
     """Computed fields that aggregate a numeric field across incoming related records.
     e.g. {"type":"rollup","source_module":"pco_request","source_field":"rough_cost","op":"sum"}"""

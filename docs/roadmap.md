@@ -2119,6 +2119,33 @@ stakes we are missing.
   ratchet doing this and the remedy was the one that file states: `refCell` moved out to
   `apps/web/src/portal/register/refCell.ts` (2,505 → 2,467), never headroom.
 
+  ⑩ **PAIR-FILTER — the register can now be ASKED the question, shipped 2026-09-07.** ⑧ made
+  "everything open with this subcontractor" representable and ⑨ made it visible; the filter still
+  answered it with a **short list**. Filtering on the reference matched only rows that linked the
+  company record; rows still carrying the typed name were absent, and **a short filtered list is
+  indistinguishable from "there are none"** — the failure `modules_query` already names for sorting,
+  *the wrong 200 rows*, except nothing on screen looks wrong at all.
+
+  An `eq` filter on a reference now also matches a text twin **equal to the linked record's title**,
+  case-insensitively. **Exact, never a substring**, and that is the whole judgement: `contains` would
+  pull "Acme Electrical Supply" into a filter for "Acme Electrical" — a different firm, on a register
+  people ask money questions against. A typed *variant* is therefore still missed; a deliberate limit,
+  and the honest fix for it is linking the record. `services/api/test_pair_filter.py` asserts both
+  directions, because a positive-only filter test cannot tell a correct widening from a filter that
+  never ran — which is exactly what happened: its first draft used the wrong query-parameter spelling,
+  applied no filter at all, and the headline assertion passed on a list of every row.
+
+  **The rule moved into `services/api/src/aec_api/modules_registry.py`.** It stopped being an
+  assertion about the manifests and became a decision about which ROWS a query returns, and a rule
+  that shapes results is production code. `services/api/test_module_fields.py` imports it rather than
+  restating it; the TypeScript mirror's drift gate reads the new home.
+
+  ⚠️ **A gate in this repository failed on this change's own code, and that is the good outcome.**
+  The first version resolved the title with its own `scalar_one_or_none()`;
+  `services/api/test_unique_read_guard.py` reported it as an unresolvable unique-demanding read and
+  reds the build, exactly as its fail-closed design intends. Folding the lookup into a scalar
+  subquery on the primary key beat arguing an exemption, and costs one query rather than two.
+
   📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
   entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
   broad statement of scope and calling it closed is a product judgement, not a measurement.

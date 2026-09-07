@@ -21,7 +21,7 @@ from sqlalchemy import Float, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import REGISTRY, TABLES, reference_fields
+from .modules_registry import REGISTRY, TABLES, reference_fields, text_half
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -62,6 +62,22 @@ def _json_text(db: Session, col, jkey: str):
     if _is_postgres(db):
         return col.op("->>")(jkey)
     return func.json_extract(col, f"$.{jkey}")
+
+
+def _fold(db: Session, expr):
+    """Case-fold `expr` the same way on every backend.
+
+    Postgres `lower()` folds the full Unicode range; SQLite's folds ASCII only, so `Ångström` and
+    `ångström` compare unequal there — measured, not assumed. The two backends therefore returned
+    DIFFERENT rows for the same filter, and since the API test gate runs SQLite while production runs
+    Postgres, the tested behaviour was not the shipped behaviour. `db.py` registers `aec_lower` on
+    every SQLite connection so both sides agree.
+
+    It registers `str.lower` and NOT `str.casefold` on purpose — see that function's docstring. The
+    first attempt used casefold, which folds ß to ss where Postgres `lower()` leaves it, and so
+    swapped an Å divergence for a ß one. Parity with the production backend is the contract.
+    """
+    return func.aec_lower(expr) if not _is_postgres(db) else func.lower(expr)
 
 
 # ---- MOD-FILTER: per-field filtering and sorting over the JSON `data` column ----------------------
@@ -122,7 +138,8 @@ def _field_expr(db: Session, t, mod: dict, name: str):
     return expr, f
 
 
-def _apply_filters(db: Session, stmt, t, mod: dict, filters: list[tuple[str, str, str]]):
+def _apply_filters(db: Session, stmt, t, mod: dict, filters: list[tuple[str, str, str]],
+                   project_id: str | None = None):
     """Add one WHERE clause per (field, op, value). Unknown field or op -> 400, never ignored:
     a filter that is silently dropped shows MORE rows than the user asked for and looks like data."""
     for name, op, value in filters:
@@ -152,8 +169,59 @@ def _apply_filters(db: Session, stmt, t, mod: dict, filters: list[tuple[str, str
             stmt = stmt.where(func.lower(cast(text_expr, String)).like(f"%{str(value).lower()}%"))
             continue
         v = _coerce(value, numeric)
-        stmt = stmt.where({"eq": expr == v, "ne": expr != v, "gte": expr >= v, "lte": expr <= v}[op])
+        if op == "eq":
+            stmt = stmt.where(_eq_or_pair(db, t, mod, name, f, expr, v, project_id))
+            continue
+        stmt = stmt.where({"ne": expr != v, "gte": expr >= v, "lte": expr <= v}[op])
     return stmt
+
+
+def _eq_or_pair(db: Session, t, mod: dict, name: str, f: dict, expr, v,
+                project_id: str | None = None):
+    """`field == v`, widened to the pair's TEXT half when `name` is a reference with one beside it.
+
+    PAIR-FILTER. "Everything open with this subcontractor" is the question the reference fields were
+    added to make askable, and the additive pattern means a register in use across the change holds
+    both eras: some rows point at the company record, some still carry the name somebody typed. A
+    filter that matches only the linked rows returns a SHORT list, and a short filtered list is
+    indistinguishable from "there are none" — the same failure this file's own sort note describes as
+    *the wrong 200 rows*, and worse here because nothing on screen looks wrong.
+
+    **Exact title, never a substring.** The widened clause matches a text twin equal to the linked
+    record's title, case-insensitively. That is strictly more matches and every one of them is right.
+    A `contains` match would also catch "Acme Electrical Inc" — and would catch "Acme Electrical
+    Supply", a different firm, which on a register people ask money questions against is a filter
+    that quietly over-reports. **A row whose typed name is a variant is still missed**; that is a
+    known and deliberate limit, not an oversight, and the honest fix for it is linking the record.
+    """
+    if f.get("_system") or f.get("type") != "reference" or not f.get("module"):
+        return expr == v
+    twin = text_half(name, {x.get("name"): x for x in mod.get("fields", [])})
+    if not twin:
+        return expr == v
+    target = TABLES.get(f["module"])
+    if target is None:
+        return expr == v
+    # A scalar SUBQUERY, not a second round trip and not a join. `id` is the primary key, so it
+    # yields at most one row by construction — which is also why this reads cleanly to
+    # `test_unique_read_guard`: the first draft resolved the title with its own
+    # `scalar_one_or_none()`, and that gate correctly reported it as an unresolvable
+    # unique-demanding read, because `target` comes from `TABLES` at runtime and no analyser can see
+    # which column it filtered on. The gate failing CLOSED on my own new code is it working; folding
+    # the lookup into the clause is a better answer than arguing an exemption, and it costs one
+    # query rather than two.
+    # SCOPED TO THE PROJECT, not to the id alone. Every module table carries `project_id`, and the
+    # filter VALUE is caller-supplied: resolving a title by id only lets a record id from another
+    # project decide what a text twin in THIS project matches against (IDOR — found in review). The
+    # id is a uuid4 so guessing one is not the threat; leaking a title across a tenant boundary is.
+    title_q = select(_fold(db, target.c.title)).where(target.c.id == v)
+    if project_id is not None:
+        title_q = title_q.where(target.c.project_id == project_id)
+    title = title_q.scalar_subquery()
+    twin_expr = _fold(db, cast(_json_text(db, t.c.data, twin), String))
+    # A NULL title (no such record, or an untitled one) makes the right side NULL, which is not
+    # TRUE — so the clause degrades to `expr == v` rather than matching every row with a blank twin.
+    return or_(expr == v, twin_expr == title)
 
 
 def _coerce(value: str, numeric: bool):
@@ -194,7 +262,7 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
     # filtering a page after fetching it answers a different question than the user asked, and looks
     # identical to the right answer.
     if filters:
-        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters)
+        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters, project_id)
     stmt, _explicit_sort = _apply_sort(db, stmt, t, REGISTRY.get(key) or {}, sort, sort_dir)
     # `created_at` stays as the last ordering key even when an explicit sort is given, so a page is
     # STABLE across requests. Without a tiebreak, two rows with equal sort values can swap between
@@ -316,7 +384,7 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     if state:
         stmt = stmt.where(t.c.workflow_state == state)
     if filters:
-        stmt = _apply_filters(db, stmt, t, mod, filters)
+        stmt = _apply_filters(db, stmt, t, mod, filters, project_id)
     # One past the cap, so "there were more" is observed rather than inferred from a full page.
     stmt = stmt.group_by(gexpr).order_by(func.count().desc()).limit(MAX_GROUPS + 1)
 
@@ -357,7 +425,7 @@ def count_records(db: Session, key: str, project_id: str, state: str | None = No
     if since is not None:
         stmt = stmt.where(t.c.created_at > since)
     if filters:
-        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters)
+        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters, project_id)
     if exclude_states:
         stmt = stmt.where(or_(t.c.workflow_state.is_(None),
                               t.c.workflow_state.notin_(exclude_states)))
