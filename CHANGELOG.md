@@ -62,10 +62,27 @@ it could not see them at all. Both directions need both sources.
 glob was `apps/web/src/**.css`, which does not match `apps/web/src/style.css` — no intervening
 directory — so `--status-crit`, `--mono` and the rest came back "void". The population now comes
 from `git ls-files`, and the test asserts the file count and that `style.css` is in it, because a
-glob that matches nothing reports a clean tree. Four mutations were run against the finished gate:
-revert the stylesheet fix; make `voidVars()` always return clean; stop treating a fallback as safe;
-narrow the scope back to CSS only. Each reds the tests it should — the last one by flagging `--err`
-as unreferenced, which is the trap it exists to prevent.
+glob that matches nothing reports a clean tree. **And then the gate failed CI by flagging its own docstring.** The table above writes
+`color: var(--fg)` as prose; a scan of raw text counts that as a reference to a token nothing
+defines. It had passed locally first, which is the part worth keeping: `git ls-files` lists only
+**tracked** files, and when the test first ran `cssVars.ts` was not yet `git add`ed — **so the
+population excluded the one file that would have failed it.** A test now asserts the gate is in its
+own population, because "it passed locally" meant "it never looked at itself".
+
+**The first fix was a character-level comment stripper, and it was worse than the bug.** It tracked
+`'`/`"` strings, and the regex literal `SET_VIA_JS` contains the character class `["']` — so the
+lone `'` opened a "string" that ran on to the next apostrophe several lines away, swallowing a real
+`//` comment inside it. Over 582 TypeScript files a naive tokenizer mis-classifies in *both*
+directions, and the fail-open one — silently eating a live reference — is the one you never see. It
+is replaced by a rule with no string tracking at all: a line whose first non-space characters are
+`//` or `*` is documentation, every other line is scanned as written. Nothing that ships is written
+on such a line.
+
+Four mutations were run against the finished gate: stop ignoring comment lines (this reproduces the
+CI failure); ignore *every* line rather than only comments (the fail-open direction); count test
+fixtures as real sites; and make `voidVars()` always return clean. Each reds the tests it should.
+The earlier round — reverting the stylesheet fix, and narrowing scope back to CSS only, which trips
+on `--err` — still holds.
 
 ### the pinned rail has been rendering in the bottom-right corner since July
 

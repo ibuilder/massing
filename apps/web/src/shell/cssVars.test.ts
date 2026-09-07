@@ -52,6 +52,14 @@ describe("every var() names a custom property something defines", () => {
     expect(src.some((s) => s.file === "apps/web/src/style.css")).toBe(true);
   });
 
+  it("scans its OWN source — the file that broke it was invisible to it", () => {
+    // This gate passed locally and failed CI on its first push. `git ls-files` lists only TRACKED
+    // files, and cssVars.ts was not `git add`ed when the test first ran, so the scan never saw the
+    // docstring that was about to fail it. The population must contain the gate itself.
+    expect(src.some((s) => s.file === "apps/web/src/shell/cssVars.ts")).toBe(true);
+    expect(src.some((s) => s.file === "apps/web/src/shell/cssVars.test.ts")).toBe(true);
+  });
+
   it("finds the palette's tokens", () => {
     const d = definedVars(src);
     for (const t of ["--text", "--line", "--panel2", "--err", "--accent"]) expect(d.has(t)).toBe(true);
@@ -99,6 +107,25 @@ describe("the reader", () => {
   it("accepts a token set at runtime through setProperty", () => {
     expect(voidVars([{ file: "b.ts", text: `el.style.setProperty("--rail-w", w); const s = "var(--rail-w)";` }]))
       .toEqual([]);
+  });
+
+  it("does not read a doc example as a usage", () => {
+    // Both comment shapes, because the docstrings here use both.
+    expect(voidVars([{ file: "a.ts", text: `// see color: var(--example)\nconst x = 1;` }])).toEqual([]);
+    expect(voidVars([{ file: "a.ts", text: ` * a table row: var(--example)\nconst x = 1;` }])).toEqual([]);
+  });
+
+  it("still reads a real usage on a normal line", () => {
+    // The half that proves the rule above refuses rather than always refusing.
+    expect(voidVars([{ file: "a.ts", text: `el.style.color = "var(--example)";` }]).map((u) => u.name))
+      .toEqual(["--example"]);
+  });
+
+  it("does not lose a live reference to a regex literal containing a quote", () => {
+    // The character-level stripper this replaced tracked quotes, and `["']` in a regex opened a
+    // string that swallowed everything to the next apostrophe — silently hiding real references.
+    const text = `const R = /setProperty\\(\\s*["'](--[-\\w]+)["']/g;\nel.style.color = "var(--example)";`;
+    expect(voidVars([{ file: "a.ts", text }]).map((u) => u.name)).toEqual(["--example"]);
   });
 
   it("ignores commented-out CSS definitions, via the shared scanner", () => {

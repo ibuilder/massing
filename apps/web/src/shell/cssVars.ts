@@ -32,6 +32,38 @@
  */
 import { scanDeclarations } from "./gridAreas";
 
+/**
+ * Drop the lines that are documentation, so a doc example is not read as a usage.
+ *
+ * **This gate failed CI by flagging its own docstring** — the table above writes
+ * `color: var(--fg)` as prose, and a scan of raw text counts it as a reference to a token nothing
+ * defines. It passed *locally* first, which is the more interesting half: `git ls-files` lists only
+ * TRACKED files, and when the test first ran these two files were not yet `git add`ed, **so the
+ * population excluded the one file that would have failed it.**
+ *
+ * **The first fix was a character-level comment stripper, and it was worse.** It tracked `'`/`"`
+ * strings, and the regex literal `SET_VIA_JS` below contains the character class `["']` — so the
+ * lone `'` opened a "string" that ran on until the next apostrophe, several lines away, hiding a
+ * real `//` comment inside it. A naive tokenizer over 582 TypeScript files can mis-classify in
+ * *either* direction, and the fail-open one — swallowing a live reference — is silent.
+ *
+ * So: no tokenizer. A line whose first non-space characters are `//` or `*` is documentation; every
+ * other line is scanned exactly as written. Nothing that ships is written on such a line.
+ */
+export function withoutCommentLines(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => (/^\s*(\/\/|\*|\/\*)/.test(line) ? "" : line))
+    .join("\n");
+}
+
+/** A test file's fixtures are not shipped styles — see `varRefs`. */
+const isTest = (file: string) => /\.test\.[cm]?tsx?$/.test(file);
+
+/** Source as the scanners should see it: TypeScript with its comments removed. */
+const readable = (s: { file: string; text: string }) =>
+  s.file.endsWith(".ts") ? withoutCommentLines(s.text) : s.text;
+
 /** A `var()` reference that supplies no fallback, so the token must exist. */
 export interface VarUse {
   name: string;
@@ -46,11 +78,11 @@ const SET_VIA_JS = /setProperty\(\s*["'](--[-\w]+)["']/g;
 /** Custom properties a stylesheet declares, plus any set at runtime through `setProperty`. */
 export function definedVars(sources: { file: string; text: string }[]): Set<string> {
   const out = new Set<string>();
-  for (const { file, text } of sources) {
-    if (file.endsWith(".css")) {
-      for (const d of scanDeclarations(text)) if (d.prop.startsWith("--")) out.add(d.prop);
+  for (const s of sources) {
+    if (s.file.endsWith(".css")) {
+      for (const d of scanDeclarations(s.text)) if (d.prop.startsWith("--")) out.add(d.prop);
     }
-    for (const m of text.matchAll(SET_VIA_JS)) out.add(m[1] as string);
+    for (const m of readable(s).matchAll(SET_VIA_JS)) out.add(m[1] as string);
   }
   return out;
 }
@@ -59,11 +91,14 @@ export function definedVars(sources: { file: string; text: string }[]): Set<stri
 export function varRefs(sources: { file: string; text: string }[]): { needed: VarUse[]; withFallback: Set<string> } {
   const needed: VarUse[] = [];
   const withFallback = new Set<string>();
-  for (const { file, text } of sources) {
-    for (const m of text.matchAll(VAR_REF)) {
+  for (const s of sources) {
+    // A test file's `var(--nope)` is a FIXTURE, not a style the product ships, so it cannot be a
+    // defect — but it is still a genuine reference, which is why `unreferencedVars` below counts it
+    // and this does not. The asymmetry is deliberate: a token used only by a test is not dead.
+    for (const m of readable(s).matchAll(VAR_REF)) {
       const name = m[1] as string;
       if (m[2]) withFallback.add(name);
-      else needed.push({ name, file });
+      else if (!isTest(s.file)) needed.push({ name, file: s.file });
     }
   }
   return { needed, withFallback };
@@ -83,6 +118,6 @@ export function voidVars(sources: { file: string; text: string }[]): VarUse[] {
 export function unreferencedVars(sources: { file: string; text: string }[]): string[] {
   const defined = definedVars(sources);
   const seen = new Set<string>();
-  for (const { text } of sources) for (const m of text.matchAll(VAR_REF)) seen.add(m[1] as string);
+  for (const s of sources) for (const m of readable(s).matchAll(VAR_REF)) seen.add(m[1] as string);
   return [...defined].filter((d) => !seen.has(d)).sort();
 }
