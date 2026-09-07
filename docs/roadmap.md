@@ -3091,6 +3091,18 @@ removed. Remaining, in priority order:
   `#statusbar` up to y=742 in a 900px-tall window. Fixed in `apps/web/src/style.css` and gated by
   `apps/web/src/shell/gridAreas.ts` + `apps/web/src/shell/gridAreas.test.ts`.
 
+  **Asking that question in the other direction found nineteen more sites the same day.**
+  `var(--border)`, `--border-subtle`, `--fg`, `--danger` and `--bg-elev` are referenced without a
+  fallback and defined nowhere, so those declarations are invalid at computed-value time: a file
+  dropzone lost the dashed outline that is its whole affordance (and its drag-over highlight
+  computed the accent colour while painting zero pixels of it), a settings row lost its background,
+  a "Sign out" button rendered in body colour rather than danger red, and a Pareto chart's baseline
+  marker — `fill="none"` with a `stroke` that resolved to `none` — was drawn invisibly. Six further
+  sites were NOT defects: `color` is inherited, so they landed on `--text`, which is what they
+  wanted. *Same token, opposite severity, decided by the property.* Gated by
+  `apps/web/src/shell/cssVars.ts` + `apps/web/src/shell/cssVars.test.ts`, over CSS **and**
+  TypeScript — thirteen of the nineteen sites are inline styles a CSS-only scan cannot see.
+
   **The framing of this line was wrong and that is the part worth keeping.** "a11y/mobile pass"
   said the risk was on phones. The defect was **desktop-only** — below 900px the rail is
   `display: none`, so phones were the one viewport rendering correctly. It also read as

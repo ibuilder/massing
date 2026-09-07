@@ -945,9 +945,9 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .pnav-room > summary.pnav-stage .meta { flex: 1 0 100%; font-size: 10px; font-weight: 400;
   text-transform: none; letter-spacing: 0; color: var(--muted); padding-left: 12px; }
 .pnav-khint { font-size: 11px; color: var(--muted); padding: 8px 4px 4px; user-select: none; }
-.pnav-khint kbd { font: inherit; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
-.pnav-showall { margin-top: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); border-radius: 0; padding-top: 8px; }
-.pnav-showall:hover { color: var(--fg); }
+.pnav-khint kbd { font: inherit; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.pnav-showall { margin-top: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); border-radius: 0; padding-top: 8px; }
+.pnav-showall:hover { color: var(--text); }
 .pnav-showall.active { color: var(--accent); }
 .pnav-filter { margin: 6px 0 4px; width: 100%; }
 .pnav-group { margin-top: 2px; }
@@ -999,18 +999,18 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 /* F1 — labeled fieldset header inside a module form (groups long forms) */
 .portal-fieldset-head { margin: 14px 0 4px; padding-bottom: 3px; font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
-  border-bottom: 1px solid var(--border); }
+  border-bottom: 1px solid var(--line); }
 .portal-fieldset-head:first-child { margin-top: 2px; }
 
 /* E1 — "＋ option" button to extend a select enum inline (admin, no JSON edit) */
 .pf-addopt { margin-top: 3px; align-self: flex-start; font-size: 10px; padding: 1px 7px;
-  border: 1px dashed var(--border); border-radius: 6px; background: transparent;
+  border: 1px dashed var(--line); border-radius: 6px; background: transparent;
   color: var(--muted); cursor: pointer; }
 .pf-addopt:hover { color: var(--accent); border-color: var(--accent); }
 
 /* attachments — image thumbnail gallery + bulk drag-drop dropzone (builder-friendly) */
 .att-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
-.att-cell { display: block; width: 78px; height: 78px; border: 1px solid var(--border); border-radius: 6px;
+.att-cell { display: block; width: 78px; height: 78px; border: 1px solid var(--line); border-radius: 6px;
   overflow: hidden; background: var(--surface, #1a1a1a); text-decoration: none; }
 .att-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .att-cell.att-file { display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1019,7 +1019,7 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .att-file .att-name { font-size: 9px; color: var(--muted); word-break: break-word; line-height: 1.1;
   max-height: 28px; overflow: hidden; }
 .att-drop { display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center;
-  padding: 12px; margin: 4px 0; border: 1.5px dashed var(--border); border-radius: 8px; cursor: pointer;
+  padding: 12px; margin: 4px 0; border: 1.5px dashed var(--line); border-radius: 8px; cursor: pointer;
   color: var(--text); transition: border-color .12s, background .12s; }
 .att-drop:hover { border-color: var(--accent); }
 .att-drop .meta { font-size: 10px; }
@@ -1138,8 +1138,8 @@ body.embed #workspaces { display: none; }
   white-space: nowrap;
 }
 .home-signpost:hover, .home-signpost:focus-visible {
-  color: var(--fg);
-  border-color: var(--fg);
+  color: var(--text);
+  border-color: var(--text);
   background: var(--bg-elev, transparent);
 }
 

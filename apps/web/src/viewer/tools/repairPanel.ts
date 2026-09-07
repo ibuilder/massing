@@ -137,7 +137,7 @@ export function wallJoinsButton(d: RepairDeps): HTMLButtonElement {
         for (const j of r.joins.slice(0, 200)) {
           const line = document.createElement("div");
           line.className = "meta";
-          line.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+          line.style.cssText = "padding:3px 0;border-bottom:1px solid var(--line);cursor:pointer";
           line.innerHTML = `<b>${escapeHtml(j.kind)}</b> at ${j.corner.map((n) => n.toFixed(2)).join(", ")} m`
             + ` — stub <code>${escapeHtml(j.stub)}</code> butts into <code>${escapeHtml(j.through)}</code>`;
           line.title = "Select both walls";
