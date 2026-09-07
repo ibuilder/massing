@@ -23,6 +23,9 @@
 
     { "name": "recommendation", "label": "Recommendation (feed forward)", "type": "textarea", "fieldset": "Recommendation" },
     { "name": "owner", "label": "Owner", "type": "text", "fieldset": "Recommendation" },
+    { "name": "owner_contact", "label": "Owner (linked)", "type": "reference", "module": "contact",
+      "help": "The owner as a contact record, so a lesson has someone accountable for carrying it forward.",
+      "fieldset": "Recommendation" },
     { "name": "feed_forward", "label": "Carry to standards / templates", "type": "checkbox", "fieldset": "Recommendation" }
   ],
   "workflow": {

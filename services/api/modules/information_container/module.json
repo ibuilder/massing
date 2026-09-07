@@ -88,6 +88,14 @@
       "fieldset": "Status"
     },
     {
+      "name": "reviewer_contact",
+      "label": "Reviewer (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The reviewer as a contact record, so a container's review history resolves to a person.",
+      "fieldset": "Status"
+    },
+    {
       "name": "linked_document",
       "label": "Linked Document",
       "type": "reference",

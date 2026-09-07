@@ -89,15 +89,39 @@
       "fieldset": "Parties"
     },
     {
+      "name": "appointing_party_company",
+      "label": "Appointing Party (Client) (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The appointing party (ISO 19650 client) as a company record, so the information chain names real parties.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "lead_appointed_party",
       "label": "Lead Appointed Party",
       "type": "text",
       "fieldset": "Parties"
     },
     {
+      "name": "lead_appointed_party_company",
+      "label": "Lead Appointed Party (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The lead appointed party as a company record, so the information chain names real parties.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "appointed_party",
       "label": "Appointed Party",
       "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "appointed_party_company",
+      "label": "Appointed Party (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The appointed party as a company record, so the information chain names real parties.",
       "fieldset": "Parties"
     },
     {

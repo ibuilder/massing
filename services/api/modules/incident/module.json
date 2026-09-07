@@ -180,6 +180,14 @@
       "fieldset": "OSHA"
     },
     {
+      "name": "reported_to_company",
+      "label": "Reported To (OSHA/Owner) (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The body the incident was reported to — an agency or the client — as a record, so reporting obligations resolve to one party.",
+      "fieldset": "OSHA"
+    },
+    {
       "name": "root_cause",
       "label": "Root Cause",
       "type": "textarea",

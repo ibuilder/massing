@@ -27,6 +27,14 @@
       "fieldset": "Identity"
     },
     {
+      "name": "supplier_company",
+      "label": "Supplier (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The supplier as a company record, so deliveries can be counted and chased against the same firm the purchase order names.",
+      "fieldset": "Identity"
+    },
+    {
       "name": "received_by",
       "label": "Received By",
       "type": "text",

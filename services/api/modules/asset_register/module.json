@@ -46,6 +46,14 @@
       "fieldset": "Asset"
     },
     {
+      "name": "manufacturer_company",
+      "label": "Manufacturer (linked)",
+      "type": "reference",
+      "module": "company",
+      "help": "The manufacturer as a company record, so warranty and recall questions reach every asset from one firm.",
+      "fieldset": "Asset"
+    },
+    {
       "name": "model",
       "label": "Model",
       "type": "text",
@@ -73,6 +81,14 @@
       "name": "service_contact",
       "label": "Service Contact",
       "type": "text",
+      "fieldset": "Service"
+    },
+    {
+      "name": "service_contact_ref",
+      "label": "Service Contact (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The service contact as a contact record, so a fault can reach the person who services the asset.",
       "fieldset": "Service"
     },
     {

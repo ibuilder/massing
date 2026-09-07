@@ -83,24 +83,70 @@ assert len(with_ref) >= 30, f"only {len(with_ref)} registers surface a reference
 # with its first 8 characters — a control that looked resolved and opened nothing. The codebase already
 # had the safe pattern in three places (investor+investor_company, lease+tenant_company,
 # subcontract+vendor_company): add the reference BESIDE the text, backfill, retire the text later.
+REF_SUFFIXES = ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id")
+
+
+def text_half(name, by):
+    """The free-text field a reference was added BESIDE, or None if the reference stands alone.
+
+    ONE definition, because rule 4 (adjacency and fieldset) and rule 7 (the workflow-gate trap) must
+    agree about what a pair is: a pair one of them can see and the other cannot is a trap that gets
+    reported by nothing.
+
+    Two spellings, because the registers use both — `supplier` beside `supplier_company`, and
+    `assignee_name` beside `assignee_contact`. The `_name` form was invisible to the first version of
+    this rule, which stripped a suffix off the REFERENCE and looked for exactly that stem. So
+    PARTY-REFS' `issue.assignee_contact` was the one new reference of nineteen that no rule below
+    applied to, and the summary line counted 18 pairs where 19 had been added. **Nothing went red**:
+    an undetected pair is silently exempt from every check in this file, which is the fail-open shape
+    the seeding gates above were rebuilt twice to remove. `issue` has no `requires` today, so the
+    trap was latent rather than live — the next transition added to it would have sprung it.
+    """
+    f = by.get(name)
+    if f is None or f["type"] != "reference":
+        return None
+    for suf in REF_SUFFIXES:
+        if not name.endswith(suf):
+            continue
+        stem = name[: -len(suf)]
+        for cand in (stem, stem + "_name"):
+            if by.get(cand, {}).get("type") in ("text", "textarea"):
+                return cand
+    return None
+
+
 pairs = []
 for k, m in mods.items():
     by = {f["name"]: f for f in m.get("fields", [])}
+    fl = [x["name"] for x in m["fields"]]
     for n, f in by.items():
+        stem = text_half(n, by)
+        if stem is None:
+            continue
+        pairs.append((k, stem, n))
+        # the pair must be ADJACENT, or the form renders them in different places and nobody
+        # sees that one is the link for the other (same rule as fieldset contiguity)
+        assert abs(fl.index(stem) - fl.index(n)) == 1, \
+            f"{k}: {stem!r} and its reference {n!r} are not adjacent"
+        assert by[stem].get("fieldset") == f.get("fieldset"), \
+            f"{k}: {stem!r} and {n!r} are in different fieldsets"
+assert len(pairs) >= 84, (
+    f"only {len(pairs)} additive text+reference pairs; the sweep created 54, and PARTY-REFS took it "
+    "to 84 — 83 of which this rule could see before `text_half` learned the `_name` spelling"
+)
+
+# The suffix is a PROMISE about the target, and it is the only thing a reader of the form has to go
+# on: a field called `..._company` that resolves against `contact` offers the wrong picker and files
+# the row against the wrong register. Derived, not listed, so it covers a reference added next year.
+for k, m in mods.items():
+    for f in m.get("fields", []):
         if f["type"] != "reference":
             continue
-        for suf in ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id"):
-            stem = n[: -len(suf)] if n.endswith(suf) else None
-            if stem and stem in by and by[stem]["type"] in ("text", "textarea"):
-                pairs.append((k, stem, n))
-                # the pair must be ADJACENT, or the form renders them in different places and nobody
-                # sees that one is the link for the other (same rule as fieldset contiguity)
-                fl = [x["name"] for x in m["fields"]]
-                assert abs(fl.index(stem) - fl.index(n)) == 1, \
-                    f"{k}: {stem!r} and its reference {n!r} are not adjacent"
-                assert by[stem].get("fieldset") == f.get("fieldset"), \
-                    f"{k}: {stem!r} and {n!r} are in different fieldsets"
-assert len(pairs) >= 50, f"only {len(pairs)} additive text+reference pairs; the sweep created 54"
+        for suf, want in (("_company", "company"), ("_contact", "contact"), ("_loc", "location")):
+            if f["name"].endswith(suf):
+                assert f.get("module") == want, (
+                    f"{k}.{f['name']} ends {suf!r} but points at {f.get('module')!r}, not {want!r}"
+                )
 
 # every reference points at a module that exists (config test covers it; asserted here for the pairs)
 for k, m in mods.items():
@@ -111,18 +157,23 @@ for k, m in mods.items():
 refs = sum(1 for m in mods.values() for f in m.get("fields", []) if f["type"] == "reference")
 islands = [k for k, m in mods.items()
            if not any(f["type"] == "reference" for f in m.get("fields", []))]
-assert refs >= 176, (
-    f"only {refs} reference fields; the sweep took it from 98 to 152, TRANSMIT-REFS to 173 and "
-    "PERMIT-AUTHORITY to 178"
+# The floor said 176 while its own message said 178, which is the number the run had actually
+# reached — a ratchet that trails the work by two lets two references be deleted silently. It is the
+# same class as the viewer line-count in CLAUDE.md: a number written beside the thing it counts, in
+# prose, drifts away from it. Both halves are now computed from the same measurement.
+assert refs >= 197, (
+    f"only {refs} reference fields; the sweep took it from 98 to 152, TRANSMIT-REFS to 173, "
+    "PERMIT-AUTHORITY to 178 and PARTY-REFS to 197"
 )
-assert len(islands) <= 44, (
+assert len(islands) <= 41, (
     f"{len(islands)} modules have no reference at all (was 69, then 49). A record that points at "
     "nothing cannot take part in a chain, which is most of what separates a register from a "
     "spreadsheet. TRANSMIT-REFS took three more off the list — `transmittal` itself, which could not "
     "name the company it was addressed to, and `document` and `drawing_set`, which had no reference "
     "of any kind and so could not be put in a package. PERMIT-AUTHORITY took two more — `permit` "
     "and `entitlement`, the two ends of the approval chain, neither of which could point at the "
-    "authority it was applying to."
+    "authority it was applying to. PARTY-REFS took three — `due_diligence`, `risk` and "
+    "`lessons_learned`, each of which named the party responsible for it and could point at nobody."
 )
 
 
@@ -225,13 +276,10 @@ for k, m in mods.items():
     # its length. Shadowing it here reported "0 additive pairs" while 65 were sitting in the file,
     # which is the summary lying about the check directly above it.
     pair_map = {}
-    for n, f in by.items():
-        if f["type"] != "reference":
-            continue
-        for suf in ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id"):
-            stem = n[: -len(suf)] if n.endswith(suf) else None
-            if stem and stem in by and by[stem]["type"] in ("text", "textarea"):
-                pair_map[stem] = n
+    for n in by:
+        stem = text_half(n, by)
+        if stem is not None:
+            pair_map[stem] = n
     for t in (m.get("workflow") or {}).get("transitions", []):
         for entry in t.get("requires") or []:
             alts = entry.split("|")
@@ -252,6 +300,96 @@ alternated = sorted(f"{k}.{t.get('action')}"
                     for t in (m.get("workflow") or {}).get("transitions", [])
                     for e in (t.get("requires") or []) if "|" in e)
 assert len(alternated) >= 2, f"expected the two known alternation gates, found {alternated}"
+
+# ---- 8. PARTY-REFS: a register that names a party must be able to POINT at it -------------------
+#
+# R22-ENTITLEMENT's last item, and the roadmap called it "the largest hole in the product's own
+# story". #448 and #449 closed the transmittal and the permitting chain; this closes the rest. The
+# shape is the same one every time: a register names the firm or the person the work is with, in a
+# text field, and `company` and `contact` are sitting there as registers with nothing pointing at
+# them. The cost is the same too — a party typed two ways is two parties, so "everything open with
+# this subcontractor" and "what is assigned to this person" cannot be asked at all, and three of
+# these modules were ISLANDS: `due_diligence`, `risk` and `lessons_learned` pointed at nothing
+# whatsoever, so a risk had an owner in the sense that a spreadsheet cell has one.
+#
+# NAMED, not derived, for the reason PERMIT-AUTHORITY gives above. A rule keyed on the field name
+# would sweep in `asset_register.manufacturer_url` (a URL, asserted below to stay text) and
+# `drawing_issuance.recipients` (plural — a distribution list is not a reference, and turning it
+# into one would silently drop everyone after the first).
+PARTY_NAMED = {
+    # organisation -> company
+    "delivery": ("supplier_company", "company", "who delivered it, so deliveries can be counted and chased against one firm"),
+    "due_diligence": ("consultant_company", "company", "the consultant who produced the finding; was an island"),
+    "directive": ("to_company_ref", "company", "a directive is issued TO someone, and that someone can be invoiced"),
+    "asset_register": ("manufacturer_company", "company", "the manufacturer of record, for recalls and warranty"),
+    "submittal": ("responsible_contractor_company", "company", "who owes the submittal, so a late one has an addressee"),
+    "itp": ("verifying_party_company", "company", "the party whose signature closes an inspection point"),
+    "incident": ("reported_to_company", "company", "the body an incident was reported to — often the AHJ"),
+    "info_requirement": ("appointing_party_company", "company", "ISO 19650's appointing party, by name and not by prose"),
+    # person -> contact
+    "action_item": ("assignee_contact", "contact", "who owes the action"),
+    "issue": ("assignee_contact", "contact", "who owes the issue"),
+    "risk": ("owner_contact", "contact", "a risk with no nameable owner is a risk nobody owns; was an island"),
+    "assumption": ("owner_contact", "contact", "who has to confirm or retire it"),
+    "lessons_learned": ("owner_contact", "contact", "who carries the lesson forward; was an island"),
+    "project_charter": ("project_manager_contact", "contact", "the PM as a record, not a name typed once"),
+    "rfi": ("rfi_manager_contact", "contact", "who routes RFIs, so a stalled one has an owner"),
+    "information_container": ("reviewer_contact", "contact", "who reviewed the container"),
+}
+# Each of the 19 was mutation-checked by deleting it and confirming THIS assertion fires — which
+# needed a second attempt, because the first probe neutralised the count floors above with an edit
+# that left an unbalanced paren, so the file did not parse and all 19 mutations "failed" with a
+# SyntaxError. **A mutation harness whose baseline is red reports every mutation as caught**, which
+# is the same fail-open shape as a scanner whose regex matches nothing: the output looks like a full
+# pass. Assert the unmutated baseline PASSES before believing a single kill.
+for _k, (_ref, _target, _why) in PARTY_NAMED.items():
+    _by = {f["name"]: f for f in mods[_k]["fields"]}
+    _f = _by.get(_ref)
+    assert _f is not None and _f["type"] == "reference" and _f.get("module") == _target, (
+        f"{_k}.{_ref} must be a reference to {_target} ({_why}). Without it the register names a "
+        "party it cannot point at, which is the whole of R22-ENTITLEMENT's remaining hole."
+    )
+
+# ISO 19650 names three parties, not one. `info_requirement` carried all three as text; a single
+# reference would have closed the island and left two thirds of the standard's own vocabulary
+# unlinked, which is exactly the kind of partial fix a floor-only ratchet reports as done.
+for _ref in ("appointing_party_company", "appointed_party_company", "lead_appointed_party_company"):
+    assert any(f["name"] == _ref and f["type"] == "reference" and f.get("module") == "company"
+               for f in mods["info_requirement"]["fields"]), \
+        f"info_requirement.{_ref} must link an ISO 19650 party to `company`"
+
+# `asset_register` names two different parties: who made it and who services it. They are rarely the
+# same firm and the service one is a person, so it takes both halves.
+assert any(f["name"] == "service_contact_ref" and f["type"] == "reference"
+           and f.get("module") == "contact" for f in mods["asset_register"]["fields"]), \
+    "asset_register.service_contact_ref must link the servicing person to `contact`"
+
+# The two deliberate NON-conversions, pinned so a later sweep does not "finish the job" and break
+# them. Both are party-shaped by NAME and neither is a reference.
+_ar = {f["name"]: f for f in mods["asset_register"]["fields"]}
+assert _ar["manufacturer_url"]["type"] == "text", (
+    "asset_register.manufacturer_url is a link to product data, not a party — it sits beside "
+    "manufacturer_company, which is the reference."
+)
+_di = {f["name"]: f for f in mods["drawing_issuance"]["fields"]}
+assert _di["recipients"]["type"] == "text", (
+    "drawing_issuance.recipients is PLURAL: a distribution list. A single reference would keep the "
+    "first recipient and silently lose the rest, which is worse than the free text it replaced."
+)
+
+# HELD BACK, deliberately, and recorded here because a later reader will otherwise see `company` on
+# the island list and assume it was missed: `company` has no `contact_name` reference. `contact`
+# already carries `contact.company`, so a company's people already come back from `related_records`
+# as incoming — the reference would be a second copy of a fact the first one owns. It would also
+# create the module graph's first mutual 2-cycle (there are none today), which `related_records`
+# tolerates because it is one-hop, but which is a decision about the data model rather than a row in
+# a sweep. Left for the maintainer.
+assert not any(f["type"] == "reference" and f.get("module") == "contact"
+               for f in mods["company"]["fields"]), (
+    "company now points at contact. That may well be right, but it is the graph's first 2-cycle "
+    "(contact.company points back) and needs deciding, not sweeping — update this assertion "
+    "deliberately when it is decided."
+)
 
 print(f"MOD-SWEEP OK - {len(mods)} modules, {refs} reference fields ({len(islands)} still islands), "
       f"{len(united)} fields carry a declared unit, {len(pairs)} additive text+reference pairs are "

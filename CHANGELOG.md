@@ -12,6 +12,51 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### nineteen registers can now point at the firm or the person they name
+
+Nineteen registers named a party — a supplier, a consultant, an assignee, a risk owner — in a text
+field, while `company` and `contact` sat there as registers with nothing pointing at them. A party
+typed two ways is two parties, so *everything open with this subcontractor* and *what is assigned to
+this person* could not be asked at all. Three of the nineteen were **islands**: `due_diligence`,
+`risk` and `lessons_learned` pointed at nothing whatsoever.
+
+Reference fields 178 → 197, islands 44 → 41. Each reference is added **beside** the text it names,
+never converting it, so existing records keep whatever somebody typed. No engine changed:
+`REVERSE_REFS` is derived from `reference_fields()` at registry load, so a new reference flows into
+`related_records`, the "Referenced by" panel and the rollups by itself.
+
+The population was derived by scanning all 139 registers, but the split was made by hand, because it
+is the part a script gets silently wrong: `owner` is a person on a risk and an organisation on a
+lease. `incident.reported_to` — "OSHA/Owner" — takes `company`, since `company.type` already offers
+`Authority` and a client is a company too. `info_requirement` took **three** references, not one:
+ISO 19650 names appointing, appointed and lead appointed party, and closing the island with one of
+them would have left two thirds of the standard's vocabulary in prose while every count said done.
+
+Two fields are confirmed as leave-alone and pinned so a later sweep cannot "finish the job":
+`asset_register.manufacturer_url` is a link to product data, and `drawing_issuance.recipients` is
+**plural** — a single reference would keep the first recipient and silently drop the rest.
+
+One is held back deliberately: `company.contact_name`. `contact.company` already exists, so a
+company's people already come back as `incoming`, and adding the reverse would create the module
+graph's first mutual 2-cycle. It is asserted *absent*, with the reasoning beside the assertion, so
+deciding it later means editing a check rather than noticing a gap.
+
+**The gate had a hole in itself.** Its pair rule strips a suffix off the reference and looks for that
+stem, so `issue.assignee_name` beside `assignee_contact` matched nothing — one of the nineteen was
+silently exempt from every adjacency, fieldset and workflow-trap check in the file, and nothing went
+red: the summary counted 18 pairs where 19 existed. The stem resolution is now one function shared by
+both rules, since a pair one can see and the other cannot is a trap reported by nothing. A derived
+rule joins it: a `_company` suffix must resolve against `company`, `_contact` against `contact`,
+`_loc` against `location` — the suffix is the only promise the form makes about which picker opens.
+
+**And the mutation harness lied first.** Each of the nineteen assertions was checked by deleting its
+field and confirming that assertion fires — but the first probe neutralised the count floors with an
+edit that left an unbalanced paren, so the file did not parse and all nineteen mutations "failed"
+with a `SyntaxError`. A harness whose baseline is red reports every mutation as caught. The rerun
+asserts the unmutated baseline is green first, and that exposed a second thing: three mutations had
+been dying on the count floor rather than on the named assertion, so the earlier ratchet was hiding
+whether the specific check worked.
+
 ### a file dropzone with no outline, and a chart marker that was never drawn
 
 Found by asking the pinned-rail question the other way round: **what else does this CSS name that

@@ -36,6 +36,14 @@
       "fieldset": "Parties"
     },
     {
+      "name": "owner_contact",
+      "label": "Owner (linked)",
+      "type": "reference",
+      "module": "contact",
+      "help": "The assumption owner as a contact record, so an assumption has someone to test it with.",
+      "fieldset": "Parties"
+    },
+    {
       "name": "cost_impact",
       "label": "Cost Impact / Allowance",
       "type": "currency",
