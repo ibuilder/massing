@@ -22,8 +22,14 @@
  * `fill="none"` rect — made a chart's baseline marker disappear entirely. **Same token, opposite
  * severity, decided by the property.**
  *
- * **A fallback makes it safe**, so `var(--x, #ccc)` is never reported: the fallback is what renders,
- * which is a deliberate and widely used pattern here (7 tokens exist only in that form).
+ * **A fallback is not reported, and that is a statement about THIS GATE, not about CSS.**
+ * `var(--x, #ccc)` carries a fallback, so the token's absence is not what breaks it and the gate
+ * stays quiet. It does **not** follow that the declaration is valid: if the substituted value is
+ * wrong for the property, the declaration is still invalid at computed-value time. Measured —
+ * `border: 1px solid var(--nope, #3a3f47)` computes `solid 1px`, while
+ * `border: 1px solid var(--nope, notacolor)` computes `none 0px`. Checking that a fallback is
+ * *usable by its property* needs a browser, and this gate does not do it. (Seven tokens here exist
+ * only in fallback form.)
  *
  * **Scope is CSS *and* TypeScript, and that is load-bearing.** A CSS-only sweep is a predicate
  * deciding what to look at: `--err` is defined in `style.css` and referenced only from
@@ -70,7 +76,8 @@ export interface VarUse {
   file: string;
 }
 
-/** `var(--name` optionally followed by a comma — the comma is the fallback, and makes it safe. */
+/** `var(--name` optionally followed by a comma — the comma means a fallback, so the token's
+ *  absence cannot be what breaks it. Whether the fallback SUITS the property is not checked here. */
 const VAR_REF = /var\(\s*(--[-\w]+)\s*(,)?/g;
 /** `--name:` at the top of a declaration — only meaningful in CSS, which is why sources differ. */
 const SET_VIA_JS = /setProperty\(\s*["'](--[-\w]+)["']/g;

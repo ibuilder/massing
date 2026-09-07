@@ -49,8 +49,12 @@ border, that is a separate design decision and not this fix's to make.
 
 New gate `apps/web/src/shell/cssVars.ts` + `apps/web/src/shell/cssVars.test.ts`: every `var()`
 without a fallback must name a defined token, and every defined token must be referenced. A
-fallback is always safe and never reported — `var(--x, #ccc)` renders the fallback, and seven tokens
-exist only in that form.
+reference carrying a fallback is not reported — the token's absence is then not what breaks it, and
+seven tokens here exist only in that form. **That is a claim about the gate, not about CSS:** a
+fallback does not make a declaration valid. Measured — `border: 1px solid var(--nope, #3a3f47)`
+computes `solid 1px`, but `border: 1px solid var(--nope, notacolor)` computes `none 0px`, because
+the substituted value is still checked against the property at computed-value time. Whether a
+fallback suits its property needs a browser, and this gate does not check it.
 
 **Its scope is CSS *and* TypeScript, and that is the load-bearing part.** A CSS-only sweep is a
 predicate deciding what to look at: `--err` is declared in `style.css` and referenced only from
