@@ -125,7 +125,7 @@ with TestClient(app) as c:
     # SQLite `lower()` folds ASCII only — measured: lower('Ångström') = lower('ångström') is 0 —
     # while Postgres folds the full range. The same filter therefore returned DIFFERENT rows on the
     # two backends, and since this gate runs SQLite while production runs Postgres, the tested
-    # behaviour was not the shipped behaviour. `db.py` now registers `aec_casefold` on SQLite so both
+    # behaviour was not the shipped behaviour. `db.py` now registers `aec_lower` on SQLite so both
     # agree. This case FAILS without that registration.
     nordic = mk("company", {"name": "Ångström Kraft", "type": "Subcontractor"})
     nordic_typed = mk("delivery", {"description": "Transformer", "supplier": "ångström kraft",
@@ -135,7 +135,23 @@ with TestClient(app) as c:
     nrows = nrows.get("items", nrows) if isinstance(nrows, dict) else nrows
     check("a non-ASCII name differing only in CASE still matches",
           nordic_typed["id"] in {x["id"] for x in nrows},
-          "SQLite lower() folds ASCII only; aec_casefold is what makes this pass")
+          "SQLite lower() folds ASCII only; aec_lower is what makes this pass")
+
+    # The ß case, which is what the FIRST attempt at this got wrong. `str.casefold` folds ß to ss and
+    # Postgres `lower()` does not, so registering casefold on SQLite fixed the Å divergence and
+    # created a ß one — the same defect, in the same function, in the commit claiming to remove it.
+    # The contract is PARITY WITH POSTGRES, so `Straße` must NOT match `STRASSE` on either backend;
+    # asserting the non-match is what pins the contract, because casefold would make it match.
+    strasse = mk("company", {"name": "Straße Bau", "type": "Subcontractor"})
+    shouty = mk("delivery", {"description": "Rebar", "supplier": "STRASSE BAU", "date": "2026-09-07"})
+    exact = mk("delivery", {"description": "Mesh", "supplier": "straße bau", "date": "2026-09-08"})
+    r = c.get(f"/projects/{pid}/modules/delivery", params={"f.supplier_company": strasse["id"]})
+    srows = {x["id"] for x in (r.json().get("items", r.json()) if isinstance(r.json(), dict) else r.json())}
+    check("ss is NOT folded to ß — parity with Postgres lower(), not casefold",
+          shouty["id"] not in srows,
+          "casefold would match this and Postgres would not, which is the divergence being avoided")
+    check("a simple-lowercase difference still matches", exact["id"] in srows,
+          "'straße bau' vs 'Straße Bau' differ only by simple lowercasing")
 
     # ---- review finding 2: the title must be resolved INSIDE the requested project -----------------
     #

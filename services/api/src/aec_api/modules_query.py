@@ -70,11 +70,14 @@ def _fold(db: Session, expr):
     Postgres `lower()` folds the full Unicode range; SQLite's folds ASCII only, so `Ångström` and
     `ångström` compare unequal there — measured, not assumed. The two backends therefore returned
     DIFFERENT rows for the same filter, and since the API test gate runs SQLite while production runs
-    Postgres, the tested behaviour was not the shipped behaviour. `db.py` registers `aec_casefold` on
-    every SQLite connection so both sides agree; `str.casefold` is also stricter than `lower` (it
-    folds ß to ss), which is what a case-insensitive NAME comparison actually wants.
+    Postgres, the tested behaviour was not the shipped behaviour. `db.py` registers `aec_lower` on
+    every SQLite connection so both sides agree.
+
+    It registers `str.lower` and NOT `str.casefold` on purpose — see that function's docstring. The
+    first attempt used casefold, which folds ß to ss where Postgres `lower()` leaves it, and so
+    swapped an Å divergence for a ß one. Parity with the production backend is the contract.
     """
-    return func.aec_casefold(expr) if not _is_postgres(db) else func.lower(expr)
+    return func.aec_lower(expr) if not _is_postgres(db) else func.lower(expr)
 
 
 # ---- MOD-FILTER: per-field filtering and sorting over the JSON `data` column ----------------------

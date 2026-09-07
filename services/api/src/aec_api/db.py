@@ -39,8 +39,8 @@ if DATABASE_URL.startswith("sqlite"):
     from sqlalchemy import event as _event
 
     @_event.listens_for(engine, "connect")
-    def _register_casefold(dbapi_conn, _rec):  # pragma: no cover - exercised via query tests
-        """Give SQLite the Unicode case folding Postgres already has.
+    def _register_lower(dbapi_conn, _rec):  # pragma: no cover - exercised via query tests
+        """Give SQLite the Unicode lowercasing Postgres already has.
 
         PAIR-FILTER compares a typed party name to a linked record's title case-insensitively, and
         SQLite's own `lower()` folds ASCII ONLY — `Ångström` and `ångström` do not match, measured.
@@ -49,11 +49,19 @@ if DATABASE_URL.startswith("sqlite"):
         means the tested behaviour would not be the shipped behaviour. That is worse than either
         result on its own, and it is exactly the class of defect a test cannot show you.
 
+        **`str.lower`, NOT `str.casefold`, and the difference is the whole point.** The first draft
+        used `casefold` and justified it as "stricter, which is what a name comparison wants" — but
+        casefold folds ß to ss and Postgres `lower()` does not, so `Straße` matched `STRASSE` on
+        SQLite and not on Postgres. That FIXED the Å divergence and INTRODUCED a ß one: the same
+        defect, in the same function, in the commit that claimed to have removed it. Measured:
+        `'Straße'.casefold() == 'STRASSE'.casefold()` is True while `.lower()` on both is False.
+        Matching Postgres is the contract; being cleverer than it is what broke parity.
+
         `deterministic=True` lets SQLite use the function in an index or a WHERE clause; it is safe
-        because `str.casefold` is pure. Python 3.8+ only, which the 3.12 floor guarantees.
+        because `str.lower` is pure.
         """
         dbapi_conn.create_function(
-            "aec_casefold", 1, lambda x: None if x is None else str(x).casefold(), deterministic=True)
+            "aec_lower", 1, lambda x: None if x is None else str(x).lower(), deterministic=True)
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
