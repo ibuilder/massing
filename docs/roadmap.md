@@ -2094,6 +2094,31 @@ stakes we are missing.
   and it also showed that three mutations had been dying on the *count* floor rather than on the
   named assertion, so the earlier ratchet was masking whether the specific check worked at all.
 
+  ⑨ **COL-PAIR — the register TABLE caught up with the pattern, shipped 2026-09-07.** ⑧ gave sixteen
+  registers a reference beside their free text; the tables kept listing whichever half they always
+  had. Measured across all 139: **19 registers list the text half** while its reference exists and is
+  not a column, and one (`subcontract`) the reverse. Four of the 19 are ⑧'s own — `delivery.supplier`,
+  `asset_register.manufacturer`, `assumption.owner`, `project_charter.project_manager` — so the help
+  text added in ⑧ was steering users toward the input that blanks the column.
+
+  **The obvious repair is wrong and that is the whole finding.** Swapping which half is the column
+  only moves which era goes blank: linked records under a text column, typed names under a reference
+  column. So the column renders the **pair** — the linked record when the reference is set, the typed
+  name when it is not — and **no manifest changed**, which is why this covers all twenty rather than
+  the four this ring created. `apps/web/src/portal/register/fieldPairs.ts`.
+
+  Read-only by construction: while inline editing is on each half stays its own editor, because a
+  cell that silently edits a different field than its header names is worse than a blank one. The
+  resolve set widened with it — a text column can now render its reference twin, so that twin's
+  module is fetched too; without that the rule would look wired and report every linked record as
+  unresolvable, leaving the 19 **worse** than the blank they had.
+
+  The suffix list now exists in TypeScript and Python, so `fieldPairs.test.ts` reads it out of
+  `services/api/test_module_fields.py` and fails if they disagree — a drift there is silent, the pair
+  simply stops being detected. `apps/web/src/portal/register/register.ts` crossed its extraction
+  ratchet doing this and the remedy was the one that file states: `refCell` moved out to
+  `apps/web/src/portal/register/refCell.ts` (2,505 → 2,467), never headroom.
+
   📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
   entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
   broad statement of scope and calling it closed is a product judgement, not a measurement.
