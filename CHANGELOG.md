@@ -12,6 +12,40 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a report and a spreadsheet stop naming a firm by its UUID
+
+REF-SORT made a register *order* by what it renders. Two consumers still rendered the stored value,
+both outside the web register where the cell renderer does the resolving.
+
+**A grouped report** returned category keys like `730b6f2e-38ec-…` — a chart of opaque ids — and
+split one firm in two: rows that linked the company record grouped under its id, rows that typed the
+name grouped under blank. Groups now merge on the rule the filter already uses (a typed name exactly
+equal to the record's title, case-insensitively, never a substring), so the report and the filter
+agree on what "this firm" means. Grouping folds case so variants merge; the label keeps the record's
+own casing, so a group reads `Acme Electrical` rather than `acme electrical`.
+
+**The CSV export** put the uuid in the reference column, so the sheet forwarded to accounting read an
+id where a firm name belongs. Each reference column now gains a read-only `__label` companion
+carrying the referenced record's title.
+
+**The two fixes are deliberately different shapes.** A group key is display-only, so it is replaced.
+A CSV column is not: the importer maps headers back onto fields, so export → edit → re-import is a
+supported round-trip, and writing the title into the reference column would read better while
+silently turning a linked record into loose text on the way back. So the export *adds* and never
+substitutes — and that claim is asserted by running the real importer over the real export, not by
+reasoning about the suffix.
+
+Two limits kept deliberately. A reference this project cannot resolve still groups under its stored
+id rather than merging into the blank group: an unresolvable link is a data problem, and a report
+that hides it behind a tidier chart is worse than an ugly key. And fields that store what they show
+are untouched, so grouping a status field does not start folding `Open` into `open`.
+
+⚠️ **A gate shipped two releases ago was passing vacuously, and this change is how it was found.**
+The module registry loads on application startup, not on import — so a precondition sweep written at
+module scope iterated an empty dictionary, found nothing, and reported the tree clean. The same
+mistake here failed loudly with a `KeyError` instead, which is the only reason it surfaced. Both
+files now assert the registry is populated *before* anything is computed from it.
+
 ### sorting a register by a party column stops answering in UUIDs
 
 PARTY-REFS made *"which deliveries are Acme's"* representable, COL-PAIR made it visible and

@@ -2184,6 +2184,34 @@ stakes we are missing.
   was correct and sat directly above the clause defeating it, so reading the file could not find
   this. Running it did.
 
+  ⑬ **REF-LABEL — the report and the spreadsheet stop naming a firm by its uuid, shipped
+  2026-09-07.** ⑪ made a register ORDER by what it renders; two consumers still rendered the stored
+  value, both outside the web register where `apps/web/src/portal/register/refCell.ts` resolves.
+  A grouped report returned keys like `730b6f2e-38ec-…` and split one firm in two (linked rows under
+  its id, typed rows under blank); the CSV export put the uuid in the reference column, so the sheet
+  forwarded to accounting read an id where a name belongs. `services/api/test_ref_label.py`.
+
+  **The two fixes are deliberately different shapes, and that is the finding.** A group key is
+  display-only, so it is REPLACED — merged on PAIR-FILTER's exact-title rule, folded so case variants
+  merge, labelled with `min()` of the unfolded value so casing survives. A CSV column is NOT
+  display-only: `services/api/src/aec_api/imports.py` maps headers back onto fields, so
+  export → edit → re-import is a supported round-trip and substituting the title would silently turn
+  a linked record into loose text. The export therefore ADDS a `__label` column, and the claim that
+  this is inert on re-import is asserted **by running the real importer over the real export**.
+
+  Two limits kept on purpose: an unresolvable reference still groups under its id rather than merging
+  into the blank group (a broken link is a data problem, and hiding it behind a tidier chart is worse
+  than an ugly key), and fields that store what they show are untouched, so grouping a status field
+  cannot start folding `Open` into `open`.
+
+  ⚠️ **A gate from ⑩ was passing vacuously and this is how it was found.** `REGISTRY` loads on app
+  STARTUP, not on import, so `services/api/test_pair_filter.py`'s collision precondition — written at
+  module scope — swept an empty dict, found nothing, and printed a clean result. The identical
+  mistake here raised `KeyError` instead, which is the only reason anyone looked. **A sweep whose
+  population is empty passes for the same reason a correct one does**, so both files now assert the
+  population BEFORE the property computed from it. That is the seventh instance this cycle of a check
+  that could only report good news, and the first found by a *luckier* copy of itself.
+
   📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
   entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
   broad statement of scope and calling it closed is a product judgement, not a measurement.

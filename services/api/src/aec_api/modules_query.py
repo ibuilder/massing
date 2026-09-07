@@ -239,10 +239,14 @@ def _coerce(value: str, numeric: bool):
         raise HTTPException(400, f"{value!r} is not a number, but the field is numeric") from None
 
 
-def _sort_key(db: Session, stmt, t, mod: dict, name: str, project_id: str | None):
-    """`(stmt, expr, numeric)` — order a column by WHAT IT RENDERS, not by what it stores.
+def _display_expr(db: Session, t, mod: dict, name: str, project_id: str | None, tag: str = "disp"):
+    """`(expr, joins, numeric)` — the value a column RENDERS, not the value it stores.
 
-    REF-SORT. `_field_expr` compares a `reference` field as the uuid4 sitting in the JSON blob, which
+    `joins` is a list of `(alias, onclause)` the caller must LEFT JOIN onto its statement. Returning
+    them rather than mutating a statement handed in is what lets `aggregate` use this: there the
+    expression is needed to BUILD the select, so there is no statement to mutate yet.
+
+    REF-SORT / REF-LABEL. `_field_expr` compares a `reference` field as the uuid4 sitting in the JSON blob, which
     is the right expression for `eq` and a meaningless one for ORDER BY: measured before this
     existed, sorting `delivery` by `supplier_company` ascending returned Delta, Mid Atlantic, Acme,
     Zeta — the stored ids in lexical order, under an ascending arrow. 33 register columns are
@@ -269,34 +273,74 @@ def _sort_key(db: Session, stmt, t, mod: dict, name: str, project_id: str | None
     """
     f = _resolve_field(mod, name)
     if f.get("_system"):
-        return stmt, t.c[name], False
+        return t.c[name], [], False
     by_name = {x.get("name"): x for x in mod.get("fields", [])}
     twin = (text_half(name, by_name) if f.get("type") == "reference"
             else reference_half(name, by_name))
     # A pair is always text+reference, so a numeric field is never half of one. Handling it here
     # keeps `_fold` (which is for names) away from a float, rather than sniffing the type afterwards.
     if f.get("type") in _NUMERIC_FIELD_TYPES:
-        return stmt, cast(func.nullif(_json_text(db, t.c.data, name), ""), Float), True
+        return cast(func.nullif(_json_text(db, t.c.data, name), ""), Float), [], True
+
+    joins: list = []
 
     def half(fname: str):
         """The display expression for one half, joining its target when the half is a reference."""
-        nonlocal stmt
         fd = by_name.get(fname) or {}
         raw = func.nullif(cast(_json_text(db, t.c.data, fname), String), "")
         target = TABLES.get(fd.get("module") or "") if fd.get("type") == "reference" else None
         if target is None:
             return raw
-        a = target.alias(f"sort_{fname}")
+        a = target.alias(f"{tag}_{fname}")
         on = _json_text(db, t.c.data, fname) == a.c.id
         if project_id is not None:
             on = and_(on, a.c.project_id == project_id)
-        stmt = stmt.join(a, on, isouter=True)
+        joins.append((a, on))
         return func.coalesce(a.c.title, raw)
 
     expr = half(name)
     if twin:
         expr = func.coalesce(expr, half(twin))
-    return stmt, _fold(db, expr), False
+    return expr, joins, False
+
+
+def resolve_titles(db: Session, module_key: str, ids: set[str], project_id: str) -> dict[str, str]:
+    """`{id: title}` for `ids` **within `project_id`**, or `{}` when the module is unknown.
+
+    Scoped to the project for the reason PAIR-FILTER was: a record id is caller-supplied data, and a
+    lookup by id alone lets a row created with another project's id pull that project's title across
+    the boundary. Chunked because SQLite caps the number of bound parameters in one statement, and a
+    CSV page is 1,000 rows — an unchunked `IN` over a full page is a query that works in tests and
+    raises on a real export.
+    """
+    t = TABLES.get(module_key)
+    if t is None or not ids:
+        return {}
+    out: dict[str, str] = {}
+    todo = [i for i in ids if i]
+    for i in range(0, len(todo), 500):
+        chunk = todo[i:i + 500]
+        rows = db.execute(select(t.c.id, t.c.title)
+                          .where(t.c.project_id == project_id, t.c.id.in_(chunk)))
+        out.update({r[0]: r[1] for r in rows if r[1]})
+    return out
+
+
+def is_pair_display(mod: dict, name: str) -> bool:
+    """Does `name` render as something other than its stored value? REF-LABEL's population test.
+
+    True for a reference field (it renders the referenced record's title) and for the text half of a
+    pair (it renders the linked record when the text is empty). Everything else stores what it shows,
+    so the display treatment is a no-op and is not applied — which keeps `group_by` on an ordinary
+    select field byte-for-byte as it was.
+    """
+    by_name = {x.get("name"): x for x in mod.get("fields", [])}
+    f = by_name.get(name)
+    if not f:
+        return False
+    if f.get("type") == "reference" and f.get("module"):
+        return True
+    return reference_half(name, by_name) is not None
 
 
 def _apply_sort(db: Session, stmt, t, mod: dict, sort: str | None, sort_dir: str | None,
@@ -310,7 +354,11 @@ def _apply_sort(db: Session, stmt, t, mod: dict, sort: str | None, sort_dir: str
     """
     if not sort:
         return stmt, False
-    stmt, expr, _numeric = _sort_key(db, stmt, t, mod, sort, project_id)
+    expr, joins, numeric = _display_expr(db, t, mod, sort, project_id, tag="sort")
+    for a, on in joins:
+        stmt = stmt.join(a, on, isouter=True)
+    if not numeric:
+        expr = _fold(db, expr)
     desc = str(sort_dir or "asc").lower() == "desc"
     blanks_last = case((expr.is_(None), 1), else_=0)
     return stmt.order_by(blanks_last, expr.desc() if desc else expr.asc()), True
@@ -325,7 +373,7 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
     filtering or sorting a page after fetching it answers a different question than the one asked and
     looks identical to the right answer.
 
-    **Sorting on a reference field adds a LEFT JOIN** (see `_sort_key`), because the order has to be
+    **Sorting on a reference field adds a LEFT JOIN** (see `_display_expr`), because the order has to be
     the referenced record's title rather than the uuid stored in the JSON blob. It is an outer join
     scoped in its ON clause, so it can neither drop a row nor multiply one — the target id is a
     primary key — but it is a second table in the plan, and a caller sizing a query should know it is
@@ -444,7 +492,26 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     def side(name: str):
         return _side_field_expr(db, t, mod, join_key, join_t, join_mod, name)
 
-    gexpr, _gf = side(group_by)
+    # REF-LABEL — group by WHAT THE COLUMN RENDERS when it renders something other than it stores.
+    #
+    # Grouping a reference field by its stored value produced categories labelled with uuid4s ("cost
+    # by supplier" as a chart of opaque ids), and split ONE firm in two: the rows that linked the
+    # company record grouped under its id, the rows that typed the name grouped under NULL. Merging
+    # them uses the rule PAIR-FILTER already applies — a typed name EXACTLY equal to the record's
+    # title, case-insensitively, never a substring — so the report and the filter agree about what
+    # "this firm" means.
+    #
+    # Grouping is on the FOLDED expression so case variants merge, while the label is `min()` of the
+    # unfolded one, so the group reads "Acme Electrical" rather than "acme electrical". Fields that
+    # store what they show are untouched: `is_pair_display` is false for them and this whole branch
+    # is skipped, so grouping a select field cannot start folding "Open" into "open".
+    gjoins: list = []
+    glabel = None
+    if join_key is None and is_pair_display(mod, group_by):
+        gdisp, gjoins, _gnum = _display_expr(db, t, mod, group_by, project_id, tag="grp")
+        gexpr, glabel = _fold(db, gdisp), func.min(gdisp)
+    else:
+        gexpr, _gf = side(group_by)
     value_expr = None
     if agg != "count":
         if not agg_field:
@@ -456,7 +523,7 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
         value_expr = {"sum": func.sum, "avg": func.avg,
                       "min": func.min, "max": func.max}[agg](aexpr)
 
-    cols = [gexpr.label("key"), func.count().label("count")]
+    cols = [(glabel if glabel is not None else gexpr).label("key"), func.count().label("count")]
     if value_expr is not None:
         cols.append(value_expr.label("value"))
     stmt = select(*cols).where(t.c.project_id == project_id)
@@ -481,6 +548,8 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
                  join_t.c.project_id == project_id),
             isouter=True,
         )
+    for a, on in gjoins:
+        stmt = stmt.join(a, on, isouter=True)
     if state:
         stmt = stmt.where(t.c.workflow_state == state)
     if filters:
