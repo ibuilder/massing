@@ -71,13 +71,24 @@ check("REF_SUFFIXES is non-trivial", len(REF_SUFFIXES) > 4, f"{len(REF_SUFFIXES)
 from aec_api.modules_query import SYSTEM_COLUMNS  # noqa: E402
 from aec_api.modules_registry import REGISTRY  # noqa: E402
 
-_collisions = [f"{k}.{f['name']}" for k, m in REGISTRY.items() for f in m.get("fields", [])
-               if f.get("name") in SYSTEM_COLUMNS and f.get("type") == "reference"]
-check("no module declares a REFERENCE named like a system column", not _collisions,
-      "the _eq_or_pair system guard is redundant only while this holds; "
-      f"found {_collisions}" if _collisions else "none, so the guard stays as belt-and-braces")
-
 with TestClient(app) as c:
+    # REGISTRY is loaded by the app's STARTUP, not by importing it — and the first version of this
+    # block ran at module scope, over 139 modules that were not there yet. It iterated an empty dict,
+    # found no collisions, and printed "none, so the guard stays as belt-and-braces". **A check whose
+    # population is empty passes for the same reason a correct one does**, and this file's own
+    # docstring is about that exact class of defect. Shipped in #469, found in #471.
+    #
+    # The population is therefore asserted BEFORE the property computed from it. A sweep is only
+    # worth its output if something proves it looked at anything.
+    check("the module registry is loaded before anything is swept over it", len(REGISTRY) > 130,
+          f"{len(REGISTRY)} modules — at import time this is 0 and every sweep below is vacuous")
+    _collisions = [f"{k}.{f['name']}" for k, m in REGISTRY.items() for f in m.get("fields", [])
+                   if f.get("name") in SYSTEM_COLUMNS and f.get("type") == "reference"]
+    check("no module declares a REFERENCE named like a system column", not _collisions,
+          "the _eq_or_pair system guard is redundant only while this holds; "
+          f"found {_collisions}" if _collisions else
+          f"none across {len(REGISTRY)} modules, so the guard stays as belt-and-braces")
+
     pid = c.post("/projects", json={"name": "Pair Filter"}).json()["id"]
 
     def mk(key, data):

@@ -671,10 +671,10 @@ def roundtrip_export(pid: str, props: str, db: Session = Depends(get_db),
         raise HTTPException(422, "name at least one Pset.Prop column via ?props=")
     idx = _idx_for(pid) or {}
 
-    def _cell(v) -> str:
-        s = "" if v is None else str(v)
-        # CSV formula-injection guard: Excel executes =+-@ leads; the diff parser strips one "'".
-        return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+    # CSV formula-injection guard: Excel executes =+-@ leads; the diff parser strips one "'".
+    # Lifted to `modules_query.csv_cell` so the module export uses the SAME one — two spellings of a
+    # security guard is how one of them stops being applied.
+    from ..modules_query import csv_cell as _cell
 
     buf = io.StringIO()
     w = csv.writer(buf)

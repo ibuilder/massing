@@ -38,7 +38,9 @@ from .modules_query import (  # noqa: F401
     available_actions,
     count_records,
     court_party,
+    csv_cell,
     list_records,
+    resolve_titles,
     state_counts,
     state_counts_all,
     view_filters,
@@ -1007,8 +1009,26 @@ def iter_csv(db: Session, key: str, project_id: str, page: int = 1000):
     import io
 
     mod = get_module(key)
-    field_names = [f["name"] for f in mod.get("fields", [])]
-    headers = ["ref", "title", "workflow_state", "party_owner", "created_by"] + field_names
+    fields = mod.get("fields", [])
+    field_names = [f["name"] for f in fields]
+    # REF-LABEL — a reference column exports the uuid it stores, so the spreadsheet somebody forwards
+    # to accounting reads `730b6f2e-38ec-…` where a firm name belongs. Each reference field therefore
+    # gains a READ-ONLY companion column carrying the referenced record's title.
+    #
+    # **Additive, never a replacement**, and that is the whole of the judgement. `imports.py` maps a
+    # sheet's headers back onto fields, so export -> edit -> re-import is a supported round-trip;
+    # writing the title into the reference column itself would look better and silently break the
+    # link on the way back in, turning a linked record into loose text. The `__label` suffix survives
+    # `imports._norm` (which strips non-alphanumerics) as `…label`, so it matches no field name and
+    # the importer ignores it rather than mis-mapping it — asserted in `test_ref_label.py`, because
+    # a header that DID collide would be silently mapped rather than refused.
+    ref_targets = {f["name"]: f.get("module") for f in fields
+                   if f.get("type") == "reference" and f.get("module")}
+    headers = ["ref", "title", "workflow_state", "party_owner", "created_by"]
+    for fn in field_names:
+        headers.append(fn)
+        if fn in ref_targets:
+            headers.append(f"{fn}__label")
     offset = 0
     while True:
         buf = io.StringIO()
@@ -1016,10 +1036,28 @@ def iter_csv(db: Session, key: str, project_id: str, page: int = 1000):
         if offset == 0:
             w.writerow(headers)
         rows = list_records(db, key, project_id, limit=page, offset=offset)
+        # One lookup per referenced module per PAGE, not per row: a 200k export must not become
+        # 200k queries, and the page bound is what keeps each `IN (...)` list finite.
+        labels: dict[str, dict[str, str]] = {}
+        for fn, target in ref_targets.items():
+            ids = {str(v) for r in rows if (v := (r.get("data") or {}).get(fn))}
+            labels[fn] = resolve_titles(db, target, ids, project_id)
         for r in rows:
             d = r.get("data") or {}
-            w.writerow([r["ref"], r["title"], r["workflow_state"], r["party_owner"], r["created_by"]]
-                       + [d.get(fn, "") for fn in field_names])
+            # EVERY cell goes through `csv_cell`, not just the new label. The review that found this
+            # scoped it to the label column, but the exposure was measured wider: `title`,
+            # `description` and any text field already carried `=1+1` and `+SUM(A1)` straight into
+            # the sheet, so this export was injectable before the label existed. Guarding one column
+            # and leaving twelve beside it would be worse than not guarding at all — it reads as
+            # though the file is safe.
+            cells: list = [csv_cell(x) for x in (r["ref"], r["title"], r["workflow_state"],
+                                                 r["party_owner"], r["created_by"])]
+            for fn in field_names:
+                v = d.get(fn, "")
+                cells.append(csv_cell(v))
+                if fn in ref_targets:
+                    cells.append(csv_cell(labels[fn].get(str(v), "")) if v else "")
+            w.writerow(cells)
         if offset == 0 or rows:
             yield buf.getvalue()
         if len(rows) < page:
