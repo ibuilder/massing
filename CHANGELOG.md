@@ -12,13 +12,19 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
-### nineteen registers can now point at the firm or the person they name
+### sixteen registers can now point at the firm or the person they name
 
-Nineteen registers named a party — a supplier, a consultant, an assignee, a risk owner — in a text
-field, while `company` and `contact` sat there as registers with nothing pointing at them. A party
-typed two ways is two parties, so *everything open with this subcontractor* and *what is assigned to
-this person* could not be asked at all. Three of the nineteen were **islands**: `due_diligence`,
-`risk` and `lessons_learned` pointed at nothing whatsoever.
+Sixteen registers named a party — a supplier, a consultant, an assignee, a risk owner — across
+**nineteen** text fields, while `company` and `contact` sat there as registers with nothing pointing
+at them. A party typed two ways is two parties, so *everything open with this subcontractor* and
+*what is assigned to this person* could not be asked at all. Three of the sixteen were **islands**:
+`due_diligence`, `risk` and `lessons_learned` pointed at nothing whatsoever.
+
+*(Sixteen registers, nineteen fields: `info_requirement` takes three and `asset_register` two. This
+entry said "nineteen registers" until review caught it — a change whose whole subject is a count
+that drifted from the thing it counts, shipped with exactly that defect in its own release note.
+The roadmap entry said "nineteen references", which is right; the two numbers are different
+questions and only one of them is 19.)*
 
 Reference fields 178 → 197, islands 44 → 41. Each reference is added **beside** the text it names,
 never converting it, so existing records keep whatever somebody typed. No engine changed:
