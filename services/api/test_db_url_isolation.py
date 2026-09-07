@@ -156,13 +156,43 @@ def _aec_targets(node: ast.AST) -> list[str]:
     return []
 
 
+def _os_aliases(tree: ast.AST) -> set[str]:
+    """Module-level names bound to the `os` module — `os`, plus any `import os as _os`.
+
+    Needed because real files in this suite do alias it: `test_provenance_report.py` and
+    `test_routines.py` both write `_os.environ["DATABASE_URL"]`. Without this the gate would either
+    miss them or, worse, accept `anything.environ["DATABASE_URL"]` as a declaration.
+    """
+    out: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "os":
+                    out.add(alias.asname or "os")
+    return out
+
+
 def _declares_own_db(tree: ast.AST) -> bool:
-    """Is there an `os.environ["DATABASE_URL"] = ...` before the engine can be built?
+    """Is there an unconditional `os.environ["DATABASE_URL"] = ...` before the engine can be built?
 
     "Before the engine can be built" means before the first import that transitively reaches
     `aec_api.db` — that module reads the variable once, at import, and an assignment after it is
-    inert. An import of an `aec_api` module that never touches the database does not count, which
-    is the whole difference between this and the draft `_reaches_db` describes.
+    inert. An import of an `aec_api` module that never touches the database does not count.
+
+    **Three things this deliberately refuses, each of which the first draft accepted** — a review bot
+    found all three, and every one was the gate reporting good news it had not earned:
+
+    * an assignment **inside a function**. The draft used `_module_level` for the imports and
+      `ast.walk` for the assignment, which is an asymmetry with no defence: a `def` body does not run
+      at import, so an assignment there cannot beat the engine.
+    * an assignment **inside `if` or `try`**. It may not execute, and a declaration that might not
+      happen is not a declaration. Only direct statements of `tree.body` count.
+    * an assignment to **something that is not `os.environ`** — `fake.environ["DATABASE_URL"]` was
+      accepted because the draft matched on the attribute name alone.
+
+    *The asymmetry is the lesson.* Having reasoned carefully about which imports execute at import
+    time, the draft then asked a completely different question of the assignment, in the same
+    function, three lines later.
     """
     first_db_import: int | None = None
     for node in _module_level(tree):
@@ -171,12 +201,16 @@ def _declares_own_db(tree: ast.AST) -> bool:
                 first_db_import = (node.lineno if first_db_import is None
                                    else min(first_db_import, node.lineno))
 
-    for node in ast.walk(tree):
+    aliases = _os_aliases(tree)
+    for node in tree.body:                      # direct statements only: unconditional, top level
         if not isinstance(node, ast.Assign):
             continue
         for tgt in node.targets:
             if (isinstance(tgt, ast.Subscript)
-                    and isinstance(tgt.value, ast.Attribute) and tgt.value.attr == "environ"
+                    and isinstance(tgt.value, ast.Attribute)
+                    and isinstance(tgt.value.value, ast.Name)
+                    and tgt.value.value.id in aliases
+                    and tgt.value.attr == "environ"
                     and isinstance(tgt.slice, ast.Constant) and tgt.slice.value == "DATABASE_URL"):
                 if first_db_import is None or node.lineno < first_db_import:
                     return True
@@ -237,6 +271,44 @@ from aec_api import models
 models.Base.metadata.create_all(engine)
 '''
 
+#: Three shapes the FIRST DRAFT accepted, each a fail-open a review bot found. They are fixtures
+#: rather than prose because the draft's own author had already reasoned about which imports execute
+#: at import time and then asked a different question of the assignment three lines later.
+_ASSIGN_IN_FUNCTION = '''
+import os
+def go():
+    from aec_api.db import engine
+    from aec_api import models
+    os.environ["DATABASE_URL"] = "sqlite:///./_x.db"
+from aec_api.db import engine as e2
+from aec_api import models as m2
+m2.Base.metadata.create_all(e2)
+'''
+_ASSIGN_CONDITIONAL = '''
+import os
+if os.environ.get("CI"):
+    os.environ["DATABASE_URL"] = "sqlite:///./_x.db"
+from aec_api.db import engine
+from aec_api import models
+models.Base.metadata.create_all(engine)
+'''
+_ASSIGN_NOT_OS = '''
+import os
+import fake
+fake.environ["DATABASE_URL"] = "sqlite:///./_x.db"
+from aec_api.db import engine
+from aec_api import models
+models.Base.metadata.create_all(engine)
+'''
+#: ...and the alias that REAL files use, which must still be accepted.
+_ALIASED_OS = '''
+import os as _os
+_os.environ["DATABASE_URL"] = "sqlite:///./_x.db"
+from aec_api.db import engine
+from aec_api import models
+models.Base.metadata.create_all(engine)
+'''
+
 for _label, _src, _want in (
     ("the undeclared original is caught", _PRE_FIX, "NEEDS-DECLARATION"),
     ("declaring AFTER the aec_api import is caught — the engine is already built",
@@ -247,6 +319,14 @@ for _label, _src, _want in (
      _FIXED, "SAFE"),
     ("an aec_api import that does NOT reach the database at import time is not a violation",
      _FUNCTION_LOCAL_IMPORT_IS_NOT_AN_IMPORT, "SAFE"),
+    ("an assignment inside a def does not run at import, so it declares nothing",
+     _ASSIGN_IN_FUNCTION, "NEEDS-DECLARATION"),
+    ("an assignment inside `if` might not run, and a maybe-declaration is not one",
+     _ASSIGN_CONDITIONAL, "NEEDS-DECLARATION"),
+    ("`fake.environ[...]` is not os.environ, however much it looks like it",
+     _ASSIGN_NOT_OS, "NEEDS-DECLARATION"),
+    ("...but `import os as _os` IS os, and two real files in this suite write it that way",
+     _ALIASED_OS, "SAFE"),
 ):
     got = verdict(_src)
     check(f"self-test: {_label}", got == _want, f"got {got}")
