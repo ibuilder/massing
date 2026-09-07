@@ -36,9 +36,9 @@ for f in ("./test_reflabel.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import imports  # noqa: E402
+from aec_api import imports, routers  # noqa: E402
 from aec_api.main import app  # noqa: E402
-from aec_api.modules_query import is_pair_display  # noqa: E402
+from aec_api.modules_query import csv_cell, is_pair_display  # noqa: E402
 from aec_api.modules_registry import REGISTRY  # noqa: E402
 
 FAILED: list[str] = []
@@ -209,13 +209,11 @@ with TestClient(app) as c:
           f"{[x for x in ev.split(',') if x[:1] in ('=', '+', '@')]}")
     # One guard, not two: `standards.roundtrip_export` had this logic first and now imports the same
     # function. A second spelling of a security guard is how one of them stops being applied.
-    from aec_api.modules_query import csv_cell  # noqa: PLC0415
-    import aec_api.routers.standards as _std  # noqa: PLC0415
     check("csv_cell escapes each executable lead", [csv_cell(x + "1") for x in "=+-@"]
           == ["'=1", "'+1", "'-1", "'@1"])
     check("...and leaves ordinary text alone", csv_cell("Acme Electrical") == "Acme Electrical")
     check("the other CSV writer uses the SAME guard, not a copy",
-          "csv_cell" in pathlib.Path(_std.__file__).read_text(),
+          "csv_cell" in pathlib.Path(routers.__file__).parent.joinpath("standards.py").read_text(),
           "roundtrip_export imports it rather than re-spelling it")
 
     # ---- THE round-trip claim, asserted through the real importer ---------------------------------
