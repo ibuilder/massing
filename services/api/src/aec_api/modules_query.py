@@ -319,6 +319,18 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
                  q: str | None = None, limit: int = 200, offset: int = 0,
                  filters: list[tuple[str, str, str]] | None = None,
                  sort: str | None = None, sort_dir: str | None = None) -> list[dict]:
+    """One page of a module's register: state + full-text + per-field filters + sort, all in SQL.
+
+    Everything narrowing or ordering the result happens BEFORE the limit, which is the whole point —
+    filtering or sorting a page after fetching it answers a different question than the one asked and
+    looks identical to the right answer.
+
+    **Sorting on a reference field adds a LEFT JOIN** (see `_sort_key`), because the order has to be
+    the referenced record's title rather than the uuid stored in the JSON blob. It is an outer join
+    scoped in its ON clause, so it can neither drop a row nor multiply one — the target id is a
+    primary key — but it is a second table in the plan, and a caller sizing a query should know it is
+    there.
+    """
     if key not in TABLES:
         raise HTTPException(404, f"unknown module {key!r}")
     t = TABLES[key]
