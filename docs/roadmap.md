@@ -2146,6 +2146,44 @@ stakes we are missing.
   reds the build, exactly as its fail-closed design intends. Folding the lookup into a scalar
   subquery on the primary key beat arguing an exemption, and costs one query rather than two.
 
+  ⑪ **REF-SORT — and the order agrees with the screen, shipped 2026-09-07.** ⑧ made the question
+  representable, ⑨ visible, ⑩ askable; **ordering still answered in uuid4s.** Measured on a live
+  client before the fix: sorting `delivery` by its supplier reference ascending returned Delta, Mid
+  Atlantic, Acme, Zeta — the stored ids in lexical order, beneath an ascending arrow. 33 register
+  columns are reference fields.
+
+  **The paired direction was worse, and ⑨ is what made it so.** Sorting the *text* half put every
+  linked row first as a NULL — into cells that COL-PAIR now fills with company names. The column
+  showed a list of firms in no order at all under a sort indicator, across ~19 more registers. Fixing
+  the display without the order left the two disagreeing, which is the cost of shipping one layer of
+  a stack at a time and worth naming.
+
+  A sorted column is now keyed on **what it renders** — resolved title, else the stored value
+  verbatim (a legacy free-text value is text, not a blank), else the pair twin — which is
+  `pairedValue` + `refCell` expressed in SQL, so the two cannot drift apart.
+  `services/api/test_ref_sort.py`. Blanks also sort last in **both** directions now; the web register
+  documented that rule and the server disagreed with it, so a register ordered differently depending
+  on which column you clicked.
+
+  ⚠️ **The load-bearing assertion is not any particular order — it is that sorting never changes
+  WHICH rows come back.** Resolving a title needs a join, and a join is one WHERE clause away from
+  deleting rows.
+
+  ⑫ **AGG-OUTER — a joined report was silently dropping records, shipped 2026-09-07.** Found while
+  building ⑪ and independent of it. `aggregate()` LEFT-joined the reference target and then filtered
+  `project_id` in a trailing `WHERE`. A base row joined to a record in **another** project satisfied
+  neither arm of that clause and was deleted: **a predicate on the nullable side of an outer join is
+  an inner join** — exactly what the code's own comment said it must not be (*"a base record with no
+  related record still counts"*). Measured: three deliveries in a register, the joined report counted
+  **two**, with no error and no `truncated` flag.
+
+  Reachable rather than theoretical: nothing validates a reference *value* on write —
+  `services/api/src/aec_api/module_schema.py` checks the manifest's shape, not whether an id exists
+  or is local — and a cross-project id was accepted in the probe. The scope moved into the `ON`
+  clause. **Worth carrying forward as a shape**, not just a fix: the comment describing the intent
+  was correct and sat directly above the clause defeating it, so reading the file could not find
+  this. Running it did.
+
   📌 **The marker is still ◧ and this does not change it.** All of ①–⑦ ship and every item this
   entry's scope sentence names now has an implementation, but "permit & entitlement workflow" is a
   broad statement of scope and calling it closed is a product judgement, not a measurement.

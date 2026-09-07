@@ -12,6 +12,41 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### sorting a register by a party column stops answering in UUIDs
+
+PARTY-REFS made *"which deliveries are Acme's"* representable, COL-PAIR made it visible and
+PAIR-FILTER made it askable. **Ordering was the half still answering in uuid4s.** Sorting `delivery`
+by its supplier reference, ascending, returned Delta, Mid Atlantic, Acme, Zeta — the stored ids in
+lexical order, under an ascending arrow. 33 register columns are reference fields.
+
+**The paired direction was worse.** Sorting the *text* half put every linked row first as a NULL —
+while COL-PAIR renders company names into those very cells. The column showed a list of firms in no
+order at all, beneath a sort indicator, across ~19 more registers.
+
+A sorted column is now ordered by **what it renders**: the referenced record's title when the link
+resolves, the stored value verbatim when it does not (a legacy free-text value is text, not a blank,
+and it is the only handle anyone has for re-linking the record), and the pair twin when the column's
+own half is empty. That is the rule the register's cell renderer already draws, expressed in SQL, so
+the order and the screen cannot disagree.
+
+**Blanks now sort last in both directions.** The web register documented that rule for the columns
+the server cannot order, and the server disagreed with it, so the same register ordered differently
+depending on which column was clicked.
+
+### a joined report stops dropping records whose reference crosses a project
+
+Found while building the sort above, and independent of it. A grouped report over a joined reference
+LEFT-joined the target and then filtered `project_id` in a trailing `WHERE`. A base row joined to a
+record in **another** project satisfied neither arm of that clause and was deleted from the result:
+**a predicate on the nullable side of an outer join is an inner join** — precisely what the code's
+own comment said it must not be (*"a base record with no related record still counts"*).
+
+Measured: three deliveries in a register, the joined report counted **two**, with no error and no
+truncation flag. Nothing validates a reference *value* on write — the schema check covers the
+manifest's shape, not whether an id exists or is local — so a cross-project id is reachable rather
+than theoretical. The scope moved into the `ON` clause: the reference simply fails to resolve, and
+the row keeps its place under the empty group.
+
 ### filtering a register by a firm stops hiding the rows that typed its name
 
 *"Everything open with this subcontractor"* is the question the reference fields were added to make

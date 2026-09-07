@@ -150,6 +150,17 @@ describe("the register renderer actually uses the rule", () => {
     expect(build).toContain("referenceHalf(");
   });
 
+  // REF-SORT — the server now orders a reference column by the referenced record's TITLE. That is
+  // only reachable if the client keeps sending such a column to the server: `serverSortField`
+  // returns null for the types the server cannot order (rollup, signature) and the register then
+  // falls back to its in-browser comparator, which sorts THE FETCHED PAGE. Adding `reference` to
+  // that exclusion list would compile, look tidy, and silently restore "the wrong 200 rows".
+  it("keeps reference columns on the SERVER sort path, not the page-local comparator", () => {
+    const fn = src.slice(src.indexOf("private serverSortField"), src.indexOf("private filterableFields"));
+    expect(fn).toContain('f.type !== "rollup"');
+    expect(fn).not.toContain('"reference"');
+  });
+
   it("leaves the editing path alone", () => {
     // A cell that edits a different field than its header names is worse than a blank one, so the
     // fallback is read-only by construction. If `pairedValue` ever appears inside an `editing`

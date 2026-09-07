@@ -17,11 +17,17 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import HTTPException
-from sqlalchemy import Float, String, cast, func, or_, select
+from sqlalchemy import Float, String, and_, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import REGISTRY, TABLES, reference_fields, text_half
+from .modules_registry import (
+    REGISTRY,
+    TABLES,
+    reference_fields,
+    reference_half,
+    text_half,
+)
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -233,19 +239,98 @@ def _coerce(value: str, numeric: bool):
         raise HTTPException(400, f"{value!r} is not a number, but the field is numeric") from None
 
 
-def _apply_sort(db: Session, stmt, t, mod: dict, sort: str | None, sort_dir: str | None):
+def _sort_key(db: Session, stmt, t, mod: dict, name: str, project_id: str | None):
+    """`(stmt, expr, numeric)` — order a column by WHAT IT RENDERS, not by what it stores.
+
+    REF-SORT. `_field_expr` compares a `reference` field as the uuid4 sitting in the JSON blob, which
+    is the right expression for `eq` and a meaningless one for ORDER BY: measured before this
+    existed, sorting `delivery` by `supplier_company` ascending returned Delta, Mid Atlantic, Acme,
+    Zeta — the stored ids in lexical order, under an ascending arrow. 33 register columns are
+    reference fields. The paired direction was worse: sorting the TEXT half put every linked row
+    first as a NULL while COL-PAIR renders company names into those very cells, so the column read as
+    visibly unsorted text under a sort indicator.
+
+    So the key mirrors `pairedValue` + `refCell` in the web register — the order has to agree with the
+    column the user is looking at. Per half, in order:
+
+      * a reference that RESOLVES  -> the referenced record's title (what the link reads)
+      * a reference that does not  -> the stored value verbatim. A legacy free-text value is TEXT,
+                                      not a blank; it is the only handle anyone has for re-linking
+                                      the record, and burying it under the empty rows is how it stops
+                                      being noticed.
+      * anything else              -> its own value
+
+    and the column's own half wins whenever it has something to say, falling back to its pair twin
+    when it does not. That is `pairedValue`'s rule, expressed in SQL.
+
+    The join is LEFT and its project scope is in the **ON clause**. A predicate on the nullable side
+    of an outer join in the WHERE clause turns it back into an inner join and deletes rows — see
+    `aggregate`, where exactly that shipped. A sort orders rows; it must never choose them.
+    """
+    f = _resolve_field(mod, name)
+    if f.get("_system"):
+        return stmt, t.c[name], False
+    by_name = {x.get("name"): x for x in mod.get("fields", [])}
+    twin = (text_half(name, by_name) if f.get("type") == "reference"
+            else reference_half(name, by_name))
+    # A pair is always text+reference, so a numeric field is never half of one. Handling it here
+    # keeps `_fold` (which is for names) away from a float, rather than sniffing the type afterwards.
+    if f.get("type") in _NUMERIC_FIELD_TYPES:
+        return stmt, cast(func.nullif(_json_text(db, t.c.data, name), ""), Float), True
+
+    def half(fname: str):
+        """The display expression for one half, joining its target when the half is a reference."""
+        nonlocal stmt
+        fd = by_name.get(fname) or {}
+        raw = func.nullif(cast(_json_text(db, t.c.data, fname), String), "")
+        target = TABLES.get(fd.get("module") or "") if fd.get("type") == "reference" else None
+        if target is None:
+            return raw
+        a = target.alias(f"sort_{fname}")
+        on = _json_text(db, t.c.data, fname) == a.c.id
+        if project_id is not None:
+            on = and_(on, a.c.project_id == project_id)
+        stmt = stmt.join(a, on, isouter=True)
+        return func.coalesce(a.c.title, raw)
+
+    expr = half(name)
+    if twin:
+        expr = func.coalesce(expr, half(twin))
+    return stmt, _fold(db, expr), False
+
+
+def _apply_sort(db: Session, stmt, t, mod: dict, sort: str | None, sort_dir: str | None,
+                project_id: str | None = None):
     """Order by a declared field. Returns the statement unchanged when `sort` is absent, so the
-    caller's default ordering still applies."""
+    caller's default ordering still applies.
+
+    **Blanks sort LAST in BOTH directions.** `register.ts` states that rule for the columns the
+    server cannot order, and the server disagreed with it (SQLite puts NULL first ascending), so the
+    same register ordered differently depending on which column was clicked.
+    """
     if not sort:
         return stmt, False
-    expr, _f = _field_expr(db, t, mod, sort)
+    stmt, expr, _numeric = _sort_key(db, stmt, t, mod, sort, project_id)
     desc = str(sort_dir or "asc").lower() == "desc"
-    return stmt.order_by(expr.desc() if desc else expr.asc()), True
+    blanks_last = case((expr.is_(None), 1), else_=0)
+    return stmt.order_by(blanks_last, expr.desc() if desc else expr.asc()), True
 
 def list_records(db: Session, key: str, project_id: str, state: str | None = None,
                  q: str | None = None, limit: int = 200, offset: int = 0,
                  filters: list[tuple[str, str, str]] | None = None,
                  sort: str | None = None, sort_dir: str | None = None) -> list[dict]:
+    """One page of a module's register: state + full-text + per-field filters + sort, all in SQL.
+
+    Everything narrowing or ordering the result happens BEFORE the limit, which is the whole point —
+    filtering or sorting a page after fetching it answers a different question than the one asked and
+    looks identical to the right answer.
+
+    **Sorting on a reference field adds a LEFT JOIN** (see `_sort_key`), because the order has to be
+    the referenced record's title rather than the uuid stored in the JSON blob. It is an outer join
+    scoped in its ON clause, so it can neither drop a row nor multiply one — the target id is a
+    primary key — but it is a second table in the plan, and a caller sizing a query should know it is
+    there.
+    """
     if key not in TABLES:
         raise HTTPException(404, f"unknown module {key!r}")
     t = TABLES[key]
@@ -263,7 +348,8 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
     # identical to the right answer.
     if filters:
         stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters, project_id)
-    stmt, _explicit_sort = _apply_sort(db, stmt, t, REGISTRY.get(key) or {}, sort, sort_dir)
+    stmt, _explicit_sort = _apply_sort(db, stmt, t, REGISTRY.get(key) or {}, sort, sort_dir,
+                                      project_id)
     # `created_at` stays as the last ordering key even when an explicit sort is given, so a page is
     # STABLE across requests. Without a tiebreak, two rows with equal sort values can swap between
     # pages and a row is then either shown twice or never — the classic pagination hole.
@@ -378,9 +464,23 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
         # LEFT join: a base record with no related record still counts, under a NULL group. An inner
         # join would silently drop it, and "RFIs by change-order trade" that omits every RFI without
         # a change order answers a narrower question than the one asked — while looking complete.
+        #
+        # AGG-OUTER — the project scope belongs in the **ON clause**, and used to sit in a trailing
+        # `.where(or_(join_t.project_id == project_id, join_t.id.is_(None)))`. A base row joined to a
+        # record in ANOTHER project satisfies neither arm of that `or_`, so it was DELETED from the
+        # result: **a predicate on the nullable side of an outer join is an inner join**, which is
+        # precisely what the paragraph above says this must not be. Measured: three deliveries in the
+        # register, the joined report counted two, with no error and no `truncated` flag — and a
+        # short answer is indistinguishable from the right one. Nothing validates a reference VALUE
+        # on write (`module_schema` checks the manifest's shape, not that an id exists or is local),
+        # so a cross-project id is reachable rather than theoretical. Scoped here, it simply fails to
+        # match: the reference resolves to NULL and the row keeps its place under the NULL group.
         stmt = stmt.select_from(t).join(
-            join_t, _json_text(db, t.c.data, join) == join_t.c.id, isouter=True,
-        ).where(or_(join_t.c.project_id == project_id, join_t.c.id.is_(None)))
+            join_t,
+            and_(_json_text(db, t.c.data, join) == join_t.c.id,
+                 join_t.c.project_id == project_id),
+            isouter=True,
+        )
     if state:
         stmt = stmt.where(t.c.workflow_state == state)
     if filters:

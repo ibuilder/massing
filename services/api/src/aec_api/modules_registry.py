@@ -72,6 +72,25 @@ def text_half(name: str, by_name: dict[str, dict]) -> str | None:
     return None
 
 
+def reference_half(name: str, by_name: dict[str, dict]) -> str | None:
+    """The reference field added beside the free-text field `name`, or None if nothing claims it.
+
+    The inverse of `text_half`, and deliberately NOT derived by string-building a candidate name: a
+    text field is half of a pair only if some reference claims it, so this asks the references.
+    Building `name + "_company"` and testing for it would miss `assignee_name`/`assignee_contact`
+    (whose stems differ) and would invent a pair for any text field that merely shares a prefix with
+    a reference. `apps/web/src/portal/register/fieldPairs.ts` makes the same choice for the same
+    reason.
+    """
+    f = by_name.get(name)
+    if not f or f.get("type") not in ("text", "textarea"):
+        return None
+    for other, of in by_name.items():
+        if of.get("type") == "reference" and text_half(other, by_name) == name:
+            return other
+    return None
+
+
 def rollup_fields(mod: dict) -> list[dict]:
     """Computed fields that aggregate a numeric field across incoming related records.
     e.g. {"type":"rollup","source_module":"pco_request","source_field":"rough_cost","op":"sum"}"""
