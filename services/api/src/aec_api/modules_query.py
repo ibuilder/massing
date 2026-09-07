@@ -21,7 +21,7 @@ from sqlalchemy import Float, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import REGISTRY, TABLES, reference_fields
+from .modules_registry import REGISTRY, TABLES, reference_fields, text_half
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -152,8 +152,51 @@ def _apply_filters(db: Session, stmt, t, mod: dict, filters: list[tuple[str, str
             stmt = stmt.where(func.lower(cast(text_expr, String)).like(f"%{str(value).lower()}%"))
             continue
         v = _coerce(value, numeric)
-        stmt = stmt.where({"eq": expr == v, "ne": expr != v, "gte": expr >= v, "lte": expr <= v}[op])
+        if op == "eq":
+            stmt = stmt.where(_eq_or_pair(db, t, mod, name, f, expr, v))
+            continue
+        stmt = stmt.where({"ne": expr != v, "gte": expr >= v, "lte": expr <= v}[op])
     return stmt
+
+
+def _eq_or_pair(db: Session, t, mod: dict, name: str, f: dict, expr, v):
+    """`field == v`, widened to the pair's TEXT half when `name` is a reference with one beside it.
+
+    PAIR-FILTER. "Everything open with this subcontractor" is the question the reference fields were
+    added to make askable, and the additive pattern means a register in use across the change holds
+    both eras: some rows point at the company record, some still carry the name somebody typed. A
+    filter that matches only the linked rows returns a SHORT list, and a short filtered list is
+    indistinguishable from "there are none" — the same failure this file's own sort note describes as
+    *the wrong 200 rows*, and worse here because nothing on screen looks wrong.
+
+    **Exact title, never a substring.** The widened clause matches a text twin equal to the linked
+    record's title, case-insensitively. That is strictly more matches and every one of them is right.
+    A `contains` match would also catch "Acme Electrical Inc" — and would catch "Acme Electrical
+    Supply", a different firm, which on a register people ask money questions against is a filter
+    that quietly over-reports. **A row whose typed name is a variant is still missed**; that is a
+    known and deliberate limit, not an oversight, and the honest fix for it is linking the record.
+    """
+    if f.get("_system") or f.get("type") != "reference" or not f.get("module"):
+        return expr == v
+    twin = text_half(name, {x.get("name"): x for x in mod.get("fields", [])})
+    if not twin:
+        return expr == v
+    target = TABLES.get(f["module"])
+    if target is None:
+        return expr == v
+    # A scalar SUBQUERY, not a second round trip and not a join. `id` is the primary key, so it
+    # yields at most one row by construction — which is also why this reads cleanly to
+    # `test_unique_read_guard`: the first draft resolved the title with its own
+    # `scalar_one_or_none()`, and that gate correctly reported it as an unresolvable
+    # unique-demanding read, because `target` comes from `TABLES` at runtime and no analyser can see
+    # which column it filtered on. The gate failing CLOSED on my own new code is it working; folding
+    # the lookup into the clause is a better answer than arguing an exemption, and it costs one
+    # query rather than two.
+    title = select(func.lower(target.c.title)).where(target.c.id == v).scalar_subquery()
+    twin_expr = func.lower(cast(_json_text(db, t.c.data, twin), String))
+    # A NULL title (no such record, or an untitled one) makes the right side NULL, which is not
+    # TRUE — so the clause degrades to `expr == v` rather than matching every row with a blank twin.
+    return or_(expr == v, twin_expr == title)
 
 
 def _coerce(value: str, numeric: bool):

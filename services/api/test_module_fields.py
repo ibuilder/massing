@@ -19,6 +19,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_module_fields.py
 """
 import json
 import os
+import sys
 
 MODULES_DIR = os.path.join(os.path.dirname(__file__), "modules")
 
@@ -83,37 +84,12 @@ assert len(with_ref) >= 30, f"only {len(with_ref)} registers surface a reference
 # with its first 8 characters — a control that looked resolved and opened nothing. The codebase already
 # had the safe pattern in three places (investor+investor_company, lease+tenant_company,
 # subcontract+vendor_company): add the reference BESIDE the text, backfill, retire the text later.
-REF_SUFFIXES = ("_company", "_loc", "_spec", "_system", "_contact", "_package", "_ref", "_id")
-
-
-def text_half(name, by):
-    """The free-text field a reference was added BESIDE, or None if the reference stands alone.
-
-    ONE definition, because rule 4 (adjacency and fieldset) and rule 7 (the workflow-gate trap) must
-    agree about what a pair is: a pair one of them can see and the other cannot is a trap that gets
-    reported by nothing.
-
-    Two spellings, because the registers use both — `supplier` beside `supplier_company`, and
-    `assignee_name` beside `assignee_contact`. The `_name` form was invisible to the first version of
-    this rule, which stripped a suffix off the REFERENCE and looked for exactly that stem. So
-    PARTY-REFS' `issue.assignee_contact` was the one new reference of nineteen that no rule below
-    applied to, and the summary line counted 18 pairs where 19 had been added. **Nothing went red**:
-    an undetected pair is silently exempt from every check in this file, which is the fail-open shape
-    the seeding gates above were rebuilt twice to remove. `issue` has no `requires` today, so the
-    trap was latent rather than live — the next transition added to it would have sprung it.
-    """
-    f = by.get(name)
-    if f is None or f["type"] != "reference":
-        return None
-    for suf in REF_SUFFIXES:
-        if not name.endswith(suf):
-            continue
-        stem = name[: -len(suf)]
-        for cand in (stem, stem + "_name"):
-            if by.get(cand, {}).get("type") in ("text", "textarea"):
-                return cand
-    return None
-
+# COL-PAIR's rule moved to `src/aec_api/modules_registry.py` in PAIR-FILTER, the change that made it
+# decide which ROWS a query returns rather than only what this file asserts about the manifests. It
+# is imported rather than restated: a rule that shapes results and a rule that checks manifests being
+# two different texts is how they stop agreeing.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+from aec_api.modules_registry import text_half  # noqa: E402
 
 pairs = []
 for k, m in mods.items():

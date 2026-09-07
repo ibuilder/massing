@@ -12,6 +12,37 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### filtering a register by a firm stops hiding the rows that typed its name
+
+*"Everything open with this subcontractor"* is the question the reference fields were added to make
+askable. The filter answered it with a **short list**: rows that linked the company record matched,
+rows still carrying the name somebody typed did not. Nothing on screen looked wrong — the count was
+simply lower than the truth, and **a short filtered list is indistinguishable from "there are none"**.
+`modules_query` already names this failure for sorting (*"the wrong 200 rows"*); the filter had it too.
+
+Filtering a reference field by a record now also matches a text twin **equal to that record's title**,
+case-insensitively. Strictly more matches, every one of them right.
+
+**Exact, never a substring** — that is the whole of the judgement. A `contains` match would also catch
+`"Acme Electrical Supply"` in a filter for `"Acme Electrical"`: a different firm, on a register people
+ask money questions against. A row whose typed name is a *variant* is therefore still missed; that is
+a deliberate limit, and the honest fix for it is linking the record.
+
+The pair rule moved from `services/api/test_module_fields.py` to
+`services/api/src/aec_api/modules_registry.py`. It now decides which **rows** a query returns rather
+than only asserting about the manifests, and a rule that shapes results is production code. The test
+imports it instead of restating it; the TypeScript mirror's drift gate reads the new home.
+
+**Two things this change got wrong first, both worth keeping.** The test's first draft used
+`f_supplier_company` where the convention is `f.<field>` — so no filter ran, every row came back, and
+the headline assertion passed on a list that proved nothing. The *negative* assertions caught it, and
+there is now an explicit check that the filter narrows at all: a positive-only filter test cannot tell
+"widened correctly" from "never ran". And `services/api/test_unique_read_guard.py` **failed on this
+change's own code** — the first version resolved the title with its own `scalar_one_or_none()`, which
+that gate correctly reported as an unresolvable unique-demanding read. It fails closed, which is it
+working. Folding the lookup into a scalar subquery on the primary key was a better answer than
+arguing an exemption, and costs one query rather than two.
+
 ### a register column stops going blank when a record links the party instead of typing it
 
 MOD-SWEEP's additive pattern adds a reference **beside** the free text it names rather than
