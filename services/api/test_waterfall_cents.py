@@ -55,7 +55,7 @@ import os
 import sys
 from datetime import date
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_waterfall_cents.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_waterfall_cents.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_waterfall_cents")
 
 from aec_api import money  # noqa: E402

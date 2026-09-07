@@ -2,7 +2,7 @@
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_appraisal.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_appraisal.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_test_appraisal.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_test_appraisal")
 
 from aec_api import appraisal as ap  # noqa: E402

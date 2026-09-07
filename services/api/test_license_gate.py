@@ -20,7 +20,7 @@ import os
 import re
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_license_gate.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_license_gate.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_license_gate")
 
 _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")

@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — a test run the way its own docstring says could build a schema in your database
+
+`services/api/src/aec_api/db.py` reads `DATABASE_URL` **once, at import**, and its own first line
+documents that variable as how you point this service at production Postgres. 44 tests declared
+theirs with `os.environ.setdefault`, which looks like a declaration and is not one: it yields to
+whatever the shell is carrying.
+
+Under `run_tests.py` that never showed, because the runner injects `DATABASE_URL` per test. But every
+one of those files says in its docstring *"Run: cd services/api && PYTHONPATH=src ./.venv/bin/python
+test_x.py"* — and run that way with the variable exported, **`test_view_config.py` created 173 tables
+in the ambient database, wrote rows, and exited 0.** Measured, not reasoned about. The passing exit
+is the whole problem: nothing announces it, and the tables turn up later as a mystery.
+
+Every test that can build a schema now decides its own database, and
+`services/api/test_db_url_isolation.py` holds it there: **27 schema-creating tests, all declaring; 0
+inheriting the shell; 645 that create no schema and are not required to.** `loadtest.py`,
+`mcp_server.py` and `seed_scale.py` keep `setdefault` deliberately — aiming a load test or the seeder
+at a real database is what they are for.
+
+**The population was re-derived four times and was wrong three of them, each by a different
+mechanism**, which is the part worth keeping since the fix itself is one line per file:
+
+| derivation | said | wrong because |
+|---|---|---|
+| grep for `setdefault` | 48 | one had an earlier assignment shadowing it |
+| ...minus the 3 tools | 44 to convert | right answer, wrong QUESTION |
+| `create_all` with no declaration | +1 file | the risk is schema-creation, not `setdefault` — a grep for one cannot see the other |
+| "any `aec_api` import before the assignment" | +3 defects | **none was a defect** |
+
+That last one is the sharpest. `ast.walk` reaches inside function bodies, where an import does not run
+until called — and `aec_api.deal_memory` imports the database module only inside a function, so it
+builds no engine at import time. The analyser called three safe files defects. *Over-reporting is the
+safe direction and it is still wrong: a gate that cries wolf gets edited to be quiet, and the edit is
+where the real rule dies.* Reachability is now computed over module-level statements only, with a
+self-test for that exact shape.
+
+The gate is keyed on the **risk**, not the syntax the sweep started from: *a test that can create a
+schema must decide its own `DATABASE_URL`, by assignment, before anything reaching `aec_api.db` is
+imported.* And `run_tests.py`'s cleanup docstring — which credited this property to declarations that
+44 files were not making — now says which check actually holds it.
+
+Also: **UX-3 is closed.** All five of its items ship, and the roadmap says so at the top of the line
+rather than only in the body, because a five-item line is scanned, not parsed. The lane table had it
+open and pointing at the wrong directory; lanes are assigned by directory, so a citation that
+resolves is not the same as one that is right.
+
 ## Unreleased — the Draft form shows you the thing you are about to place, at its actual size
 
 Type 8.0 where you meant 0.8 and the desk you place is eight metres wide. Nothing said so until it

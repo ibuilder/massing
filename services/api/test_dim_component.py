@@ -18,7 +18,7 @@ import re
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_dim_component.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_dim_component.db"
 if os.path.exists("./test_dim_component.db"):
     os.remove("./test_dim_component.db")
 

@@ -10,7 +10,7 @@ Run: cd services/api && PYTHONPATH=src DATABASE_URL=sqlite:///./_test_alembic_mi
 import os
 from pathlib import Path
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_alembic_migrations.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_test_alembic_migrations.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_test_alembic_migrations")
 
 HERE = Path(__file__).resolve().parent

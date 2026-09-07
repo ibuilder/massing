@@ -4,7 +4,7 @@ import os
 import sys
 import tempfile
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_roundtrip_qa_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_roundtrip_qa_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_roundtrip_qa")
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./_roundtrip_qa_test.db",):

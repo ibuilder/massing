@@ -6,7 +6,7 @@ Run: AEC_RBAC=1 PYTHONPATH=src ./.venv/Scripts/python.exe test_tenant_scoping.py
 import os
 
 os.environ["AEC_RBAC"] = "1"
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_tenant_scope_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_tenant_scope_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_tenant_scope")
 os.environ.setdefault("AEC_TRUST_XUSER", "1")
 _f = "./_tenant_scope_test.db"

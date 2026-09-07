@@ -6,7 +6,7 @@ table (SQLite + Postgres), and a new index backfills — idempotently, never dro
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_migrate.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_test_migrate.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_test_migrate.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_test_migrate")
 for f in ("./_test_migrate.db",):
     if os.path.exists(f):

@@ -16,7 +16,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_vitals.py
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_vitals.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_vitals.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_vitals")
 
 from aec_api import vitals  # noqa: E402

@@ -2,7 +2,7 @@
 compliance gating. Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_option_score.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_optscore_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_optscore_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_optscore")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_optscore_test.db"):

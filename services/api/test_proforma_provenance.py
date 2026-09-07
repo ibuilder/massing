@@ -8,7 +8,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_proforma_provenance.py
 """
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_proforma_provenance.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_proforma_provenance.db"
 for _f in ("./test_proforma_provenance.db",):
     if os.path.exists(_f):
         os.remove(_f)

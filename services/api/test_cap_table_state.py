@@ -16,7 +16,7 @@ distribution — returned 0.0. `workflow_in_use` is the distinction that makes t
 Run: PYTHONPATH=src ./.venv/bin/python test_cap_table_state.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_cap_table_state.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_cap_table_state.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_test_cap_table_state")
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_cap_table_state.db",):

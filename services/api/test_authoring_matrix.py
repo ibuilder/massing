@@ -4,7 +4,7 @@ recipe is added without a category (so the coverage doc can't silently drift).
 Run: PYTHONPATH=src;../data/src ./.venv/Scripts/python.exe test_authoring_matrix.py"""
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_authmatrix_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_authmatrix_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_authmatrix")
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_authmatrix_test.db"):

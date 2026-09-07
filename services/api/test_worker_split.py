@@ -22,7 +22,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_worker_split.py
 import os
 import time
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_worker_split_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_worker_split_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_worker_split")
 os.environ.setdefault("IFC_DIR", "./_ifc_worker_split")
 os.environ.pop("AEC_RBAC", None)

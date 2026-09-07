@@ -3,7 +3,7 @@ Register-only first, then with a modeled project. Run: PYTHONPATH=src;../data/sr
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_drawqa_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_drawqa_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_drawqa")
 os.environ.setdefault("IFC_DIR", os.path.join(os.path.dirname(__file__), "_ifc_drawqa"))
 os.environ.pop("AEC_RBAC", None)

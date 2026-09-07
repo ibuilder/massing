@@ -300,6 +300,52 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 
 
 
+- ✅ **DB-URL-AMBIENT — a test run the way its own docstring tells you to could build a schema in
+  the operator's database** *(S — Lane C; **CLOSED**, fix in this change; gated by
+  `services/api/test_db_url_isolation.py`)*
+
+  `services/api/src/aec_api/db.py` reads `DATABASE_URL` **once, at import**, and its own first line
+  documents that variable as how you point this service at production Postgres. 44 tests declared
+  theirs with `os.environ.setdefault`, which looks like a declaration and is not one: it yields to
+  whatever the shell carries.
+
+  Under `services/api/run_tests.py` this was invisible — the runner injects `DATABASE_URL` per test,
+  so nothing ambient survives. But every one of those files says in its docstring
+  *"Run: cd services/api && PYTHONPATH=src ./.venv/bin/python test_x.py"*, and run that way with the
+  variable exported, **`test_view_config.py` created 173 tables in the ambient database, wrote rows,
+  and exited 0.** Measured, not reasoned about. A passing test is the whole problem: nothing
+  announces it, and the tables are found later by someone wondering where they came from.
+
+  **The population was re-derived four times and was wrong three of them, each time by a different
+  mechanism.** This is the entry's real content, because the fix itself is one line per file:
+
+  | derivation | said | wrong because |
+  |---|---|---|
+  | grep for `setdefault` | 48 files | 1 had an earlier assignment that shadowed it — 47 |
+  | ...minus the 3 tools | 44 to convert | correct, but the wrong QUESTION |
+  | `create_all` with no declaration | +1 (`test_bootstrap_admin.py`) | the risk is schema-creation, not `setdefault`; a grep for one cannot see the other |
+  | "any `aec_api` import before the assignment" | +3 defects | **none was a defect** — `aec_api.deal_memory` imports the database module only inside a function, so it builds no engine at import time |
+
+  The last one is the sharpest. `ast.walk` reaches into function bodies, where an import does not run
+  until called — so the analyser called three safe files defects. *Over-reporting is the safe
+  direction and it is still wrong: a gate that cries wolf gets edited to be quiet, and the edit is
+  where the real rule dies.* The gate now computes import-graph reachability over **module-level**
+  statements only, and carries a self-test for that exact shape.
+
+  **The gate is keyed on the risk, not on the syntax that started the sweep.** *A test that can
+  create a schema must decide its own `DATABASE_URL`, by assignment, before anything reaching
+  `aec_api.db` is imported.* `setdefault` fails it because it decides nothing; declaring after the
+  import fails it because the engine already exists. Today: **27 schema-creating tests, all
+  declaring; 0 inheriting; 645 that create no schema and are not required to** — counted and printed
+  rather than silently excluded, because a population you cannot see is one you cannot argue with.
+
+  `loadtest.py`, `mcp_server.py` and `seed_scale.py` keep `setdefault` deliberately: pointing a load
+  test or the seeder at a real database is what they are for. They are not `test_*.py`, so they sit
+  outside the population by construction rather than by exemption.
+
+  *This band's own note says the next entry would come from a sweep, and it did.* It also said the
+  three named axes were spent — true, and this was a fourth nobody had named.
+
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
 Seven of eleven engines once shipped with no route. The R32 filing-spine entries that occupied this
@@ -1302,7 +1348,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -3008,8 +3054,33 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
-  libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
+- ✅ **UX-3 library depth — the five items all ship as of 2026-09-06**, each with what backs it:
+  **thumbnails** ✅ (`apps/web/src/viewer/draft/draftGlyph.ts` class glyphs ◧ +
+  `apps/web/src/viewer/draft/draftPreview.ts` parametric preview ◨) ·
+  **drag-to-place** ✅ (`apps/web/src/viewer/railDrag.ts`) ·
+  **pick-host→auto-build** ✅ (the ◧/◨ pair in `apps/web/src/viewer/app.ts`) ·
+  **appendable IFC libraries** ✅ (`import_types_from_ifc` in `services/data/src/aec_data/families.py`) ·
+  **CC0 seed** ✅ — **57 packs** under `services/data/families/external/`, every one declaring
+  `CC0-1.0` in its `manifest.json`, reachable server-side through
+  `services/data/src/aec_data/family_packs.py` rather than only downloadable.
+  **UX-4** one-shell layout (a11y/mobile pass) is what remains of this ring.
+
+  *"H1" is dropped from the line because nobody now knows what it meant* — it appears in no commit,
+  no test and no other entry. An unresolvable token inside a checklist is worse than an absent one:
+  it can never be ticked, so the line can never close, and it silently outlives everyone who could
+  say what it was.
+
+  **This line is marked closed at the TOP, where a reader stops.** Two of the five shipped before
+  anyone wrote that down, and the cost is the entry's whole lesson below — so leaving the headline
+  reading like five open items while the body says otherwise would repeat the mistake in the one
+  place that is read at a glance. *A five-item line is scanned, not parsed.*
+
+  ⚠️ **And the first draft of this very correction ticked "CC0 seed" without checking it.** The
+  five-item line had never mentioned that item anywhere in its body, so there was nothing to read it
+  off — the tick came from the pleasing shape of five ✅ in a row. It happens to be true, and the 57
+  packs above are the evidence found afterwards. *A claim that turns out correct was still made
+  blind*, and the habit is the defect, not the outcome: this is the same session in which a clamp
+  reported a fit it had not measured.
 
   **Premise-checked 2026-09-05, because a five-item line is exactly the shape that hides shipped work
   behind unshipped work.** Two of the five already ship and the bullet did not say so:

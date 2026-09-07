@@ -49,7 +49,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_route_reach.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_route_reach.db"
 os.environ.setdefault("STORAGE_DIR", "./_route_reach_store")
 
 from aec_api.main import app  # noqa: E402

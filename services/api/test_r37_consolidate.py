@@ -35,7 +35,7 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_r37_consolidate.db")
+os.environ["DATABASE_URL"] = "sqlite:///./test_r37_consolidate.db"
 os.environ.setdefault("STORAGE_DIR", "./test_storage_r37_consolidate")
 os.environ["AEC_TRUST_XUSER"] = "1"
 os.environ.pop("AEC_RBAC", None)

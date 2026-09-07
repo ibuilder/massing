@@ -4,7 +4,7 @@ Run: PYTHONPATH=src;../data/src ./.venv/Scripts/python.exe test_permit_check.py"
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./_permit_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///./_permit_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_permit")
 os.environ.setdefault("IFC_DIR", os.path.join(os.path.dirname(__file__), "_ifc_permit"))
 os.environ.pop("AEC_RBAC", None)
