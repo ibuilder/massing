@@ -100,8 +100,15 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
   --rail-w: 300px;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);   /* track = viewport width, not content width */
-  grid-template-areas: "topbar" "stage" "statusbar";
+  /* Column 1 is the pinned rail. `auto` rather than a flat 72px: the rail is `display: none` when
+     the user has pinned nothing AND below 900px, and an auto track whose only item is `display:
+     none` collapses to zero — so the stage keeps the whole width in exactly the cases the rail is
+     absent. Measured both ways in Chromium, not assumed. */
+  grid-template-columns: auto minmax(0, 1fr);   /* stage track = viewport width, not content width */
+  grid-template-areas:
+    "topbar    topbar"
+    "pins      stage"
+    "statusbar statusbar";
   height: 100vh;
   max-width: 100vw;
 }

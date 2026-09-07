@@ -3084,7 +3084,21 @@ removed. Remaining, in priority order:
   **CC0 seed** ✅ — **57 packs** under `services/data/families/external/`, every one declaring
   `CC0-1.0` in its `manifest.json`, reachable server-side through
   `services/data/src/aec_data/family_packs.py` rather than only downloadable.
-  **UX-4** one-shell layout (a11y/mobile pass) is what remains of this ring.
+  **UX-4** one-shell layout (a11y/mobile pass) is what remains of this ring. **One measured defect
+  out of it shipped 2026-09-07:** `#pinned-rail` asked for `grid-area: pins` and nothing defined a
+  `pins` area, so since v0.3.764 the rail rendered in the bottom-**right** corner (its own CSS gives
+  it a `border-right`, i.e. a LEFT rail), took 126px of height off the model viewport, and pushed
+  `#statusbar` up to y=742 in a 900px-tall window. Fixed in `apps/web/src/style.css` and gated by
+  `apps/web/src/shell/gridAreas.ts` + `apps/web/src/shell/gridAreas.test.ts`.
+
+  **The framing of this line was wrong and that is the part worth keeping.** "a11y/mobile pass"
+  said the risk was on phones. The defect was **desktop-only** — below 900px the rail is
+  `display: none`, so phones were the one viewport rendering correctly. It also read as
+  unverifiable without a browser, and that premise was false too: **Playwright and Chromium are
+  present in the agent environment**, so the boxes above are measured (`getBoundingClientRect` at
+  1440x900 and 375x812, rail empty and populated) rather than reasoned from the CSS spec. *A task
+  labelled by the pass it needs, rather than by what was measured, points at the wrong viewport and
+  discourages the measurement that would have said so.*
 
   *"H1" is dropped from the line because nobody now knows what it meant* — it appears in no commit,
   no test and no other entry. An unresolvable token inside a checklist is worse than an absent one:

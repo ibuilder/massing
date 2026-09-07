@@ -12,6 +12,56 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### the pinned rail has been rendering in the bottom-right corner since July
+
+`#pinned-rail` carried `grid-area: pins` from v0.3.764 (2026-07-28) and **no `grid-template-areas`
+anywhere in the tree ever defined a `pins` area.** `#app`'s template was `"topbar" "stage"
+"statusbar"` in a single column, so the rail was auto-placed into implicit tracks instead of beside
+the stage. Measured in Chromium at 1440x900 with the rail populated, before the fix:
+
+| | before | after |
+|---|---|---|
+| `#pinned-rail` | x=1368 y=774, 72x126 — the bottom-**right** corner | x=0 y=44, 72x824 — a full-height left rail |
+| `#stage` | 1368x698 | 1368x824 |
+| `#statusbar` | y=742, width 1368 — **detached from the bottom of the window** | y=868, width 1440 |
+| `#app` tracks | rows `44 698.156 32 0 125.844`, cols `1368 0 72` | rows `44 824 32`, cols `72 1368` |
+
+The rail's own CSS gives it `width: 72px` and a `border-right`, which is a left rail; it was drawn
+on the opposite side, and it took 126px of height away from the model viewport and pushed the status
+bar 126px up into the middle of the window.
+
+**It survived six weeks because a first run looks perfect.** The rail is `hidden` until the user has
+a favourite or a recent, so the session that shipped it saw nothing wrong — and every session after
+it was wrong. There was no console error and nothing to go red: jsdom performs no layout, so a DOM
+test would have passed too.
+
+`#app` now defines `"topbar topbar" / "pins stage" / "statusbar statusbar"` over
+`auto minmax(0, 1fr)`. `auto` rather than a flat `72px` is the load-bearing choice: the rail is
+`display: none` both when nothing is pinned and below 900px, and an auto track holding only a
+`display: none` item collapses to zero — so the stage keeps the full width in exactly the cases the
+rail is absent. Verified in all four states (desktop/phone x rail-empty/rail-populated); the two
+rail-absent states measure **byte-identical before and after**, which is the half that proves the
+fix is inert when the rail is not there.
+
+New gate `apps/web/src/shell/gridAreas.ts` + `apps/web/src/shell/gridAreas.test.ts`: every
+`grid-area` must name an area some `grid-template-areas` defines, **in both directions** — an area
+used but undefined fails, and an area defined but claimed by nothing fails too, which is what would
+catch the reverse edit. Population is derived, not listed: 4 `grid-area` declarations, 3 defined
+names, and before the fix exactly 1 orphan. It fails closed — a value the parser cannot classify is
+reported as UNKNOWN and reds the build rather than being dropped quietly.
+
+The self-test mutates the **live** stylesheet back to its pre-fix shape rather than asserting
+against a hand-written fixture, and asserts the mutation actually applied before trusting the
+result: a regex that stopped matching would otherwise turn the self-test green by doing nothing.
+Three mutations were run against the finished gate — reverting the CSS, making `verdict()` always
+report no orphans, and dropping comment-stripping — and each reds the tests it should.
+
+What the gate does **not** do is stated in its docstring rather than left to be assumed: it does not
+know which grid an element belongs to, so an area defined on some *other* grid would satisfy it.
+Closing that needs a DOM. It is a lower bound that cannot raise a false alarm, and it catches the
+shape that actually occurred. The out-of-scope axis — named grid *lines* — is empty in this tree,
+and a test re-measures that on every run so the scope claim cannot quietly go stale.
+
 ### dependabot's Python updates were unmergeable by construction, and nobody had said so
 
 `services/api/requirements.lock` has **19 commits and 0 by dependabot**. The npm lock has **17 of
