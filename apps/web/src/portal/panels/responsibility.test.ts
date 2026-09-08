@@ -1,0 +1,129 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { PanelContext } from "../panelContext";
+import { renderResponsibility } from "./responsibility";
+
+/**
+ * RESP-ORPHAN — the claim about the SCREEN, not about the rule.
+ *
+ * `raciValidation.test.ts` proves the verdict is computed over visible columns. That is a claim
+ * about a FUNCTION. This is the claim about the PANEL: a validator that returns the right answer
+ * into a banner still painting "✅ Every activity has exactly one Accountable" would satisfy the
+ * first test completely and leave the user looking at the same lie.
+ *
+ * The distinction has bitten this repo before — a button built, returned, destructured and appended
+ * to nothing typechecks perfectly — so these assertions drive the real DOM and read what is on it.
+ */
+
+const el = () => document.createElement("div");
+
+const ORPHANED = {
+  mode: "RACI", letters: ["R", "A", "C", "I"], doer: "R",
+  roles: ["Client", "Task Team"],
+  rows: [{ id: "1", ref: "RESP-001", activity: "Author models",
+    phase: null, category: null, milestone: null, reference: null,
+    assignments: { "Architect/EOR": "A", "GC / PM": "R" } }],
+  count: 1,
+  validation: { missing_accountable: [], no_responsible: [], unknown_role: [],
+    accountable_load: {}, clean: true },
+  summary: { activities: 1, clean: true, issues: 0 },
+};
+
+/**
+ * The row satisfies the rule on its VISIBLE columns and still carries a letter on one that is gone.
+ *
+ * Added because the first draft of this file could not express it: `ORPHANED` has every letter
+ * orphaned, so `clean` is already false and the early return is never reached — mutating the
+ * banner's orphan guard away left all four tests green. A fixture that cannot reach the branch
+ * reports the check as passing, which is the same shape as the defect under test.
+ */
+const CLEAN_BUT_ORPHANED = {
+  ...ORPHANED,
+  rows: [{ ...ORPHANED.rows[0]!,
+    assignments: { Client: "A", "Task Team": "R", "Architect/EOR": "C" } }],
+};
+
+const CLEAN = {
+  ...ORPHANED,
+  roles: ["Client", "Task Team"],
+  rows: [{ ...ORPHANED.rows[0]!, assignments: { Client: "A", "Task Team": "R" } }],
+};
+
+const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+
+function ctx(matrix: unknown, over: Record<string, unknown> = {}) {
+  const api = {
+    responsibilityMatrix: vi.fn().mockResolvedValue(structuredClone(matrix)),
+    responsibilityTemplates: vi.fn().mockResolvedValue({ templates: [] }),
+    setResponsibilityConfig: vi.fn().mockResolvedValue({ roles: [], mode: "RACI" }),
+    applyResponsibilityTemplate: vi.fn().mockResolvedValue({ created: 0 }),
+    updateModuleRecord: vi.fn().mockResolvedValue({}),
+    createModuleRecord: vi.fn().mockResolvedValue({ id: "x" }),
+    deleteModuleRecord: vi.fn().mockResolvedValue({}),
+    ...over,
+  };
+  const c: PanelContext = {
+    root: el(),
+    host: { projectId: () => "p1", api } as unknown as PanelContext["host"],
+    mods: [], activeKey: "responsibility",
+    bar: (title: string) => { const b = el(); b.textContent = title; return b; },
+    buildNav: () => undefined, renderHome: async () => undefined, openModule: async () => undefined,
+    navigate: () => undefined, hasDest: () => true,
+  } as unknown as PanelContext;
+  return { c, api };
+}
+
+describe("the RACI banner answers for assignments the grid cannot show", () => {
+  it("does NOT claim the matrix is complete when every letter is on a removed column", async () => {
+    // This is the defect verbatim: `apply_template` swapped the columns under an existing row, so
+    // the row rendered blank and the banner called it complete.
+    const { c } = ctx(ORPHANED);
+    await renderResponsibility(c); await flush();
+    const text = c.root.textContent ?? "";
+    expect(text, "the banner asserted completeness over an unshowable row")
+      .not.toContain("✅ Every activity has exactly one Accountable");
+    expect(text).toContain("Architect/EOR");
+    expect(text).toContain("GC / PM");
+    expect(text).toMatch(/no longer has/);
+  });
+
+  it("does NOT claim completeness when the rule passes but an orphan remains", async () => {
+    // The narrow branch: `clean` is true and there is still a letter the grid cannot draw. The
+    // ✅ has to answer for it, or the panel is silently dropping a "C" the user assigned.
+    const { c } = ctx(CLEAN_BUT_ORPHANED);
+    await renderResponsibility(c); await flush();
+    const text = c.root.textContent ?? "";
+    expect(text, "the ✅ was painted over an assignment the grid cannot show")
+      .not.toContain("✅ Every activity has exactly one Accountable");
+    expect(text).toContain("Architect/EOR");
+  });
+
+  it("still shows the ✅ when the matrix really is clean", async () => {
+    // Without this the test above passes for the wrong reason — a banner that never says ✅ at all
+    // would satisfy it, and that is a different defect rather than a fix.
+    const { c } = ctx(CLEAN);
+    await renderResponsibility(c); await flush();
+    expect(c.root.textContent ?? "").toContain("✅ Every activity has exactly one Accountable");
+  });
+
+  it("offers to restore the missing columns, and asks for exactly them", async () => {
+    const { c, api } = ctx(ORPHANED);
+    await renderResponsibility(c); await flush();
+    const restore = [...c.root.querySelectorAll("button")]
+      .find((b) => (b.textContent ?? "").includes("Restore"));
+    expect(restore, "no restore control was rendered").toBeTruthy();
+    restore!.click(); await flush();
+    expect(api.setResponsibilityConfig).toHaveBeenCalledTimes(1);
+    const [, roles] = api.setResponsibilityConfig.mock.calls[0]!;
+    // the existing columns are kept and the orphans are appended — restoring must not drop columns
+    expect(roles).toEqual(["Client", "Task Team", "Architect/EOR", "GC / PM"]);
+  });
+
+  it("does not offer a repair when there is nothing to repair", async () => {
+    const { c } = ctx(CLEAN);
+    await renderResponsibility(c); await flush();
+    const buttons = [...c.root.querySelectorAll("button")].map((b) => b.textContent ?? "");
+    expect(buttons.some((t) => t.includes("Restore"))).toBe(false);
+    expect(buttons.some((t) => t.includes("Clear them"))).toBe(false);
+  });
+});

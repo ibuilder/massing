@@ -1,4 +1,5 @@
 import type { ResponsibilityMatrix, RespRow } from "../../api/client";
+import { orphanedRoles, validateMatrix } from "./raciValidation";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { noProjectHtml } from "../../ui/empty";
@@ -55,25 +56,14 @@ export async function renderResponsibility(ctx: PanelContext) {
     render(m);
   };
 
-  // patch one record's assignments (a cell edit) — local re-validate keeps the banner instant.
+  // patch one record's assignments (a cell edit). The banner repaints from `validateMatrix`
+  // rather than a round-trip, which is why that rule exists client-side at all — see
+  // `raciValidation.ts` for why it is a shared-fixture parity problem rather than duplication.
   const saveCell = async (row: RespRow, role: string, letter: string) => {
     if (letter) row.assignments[role] = letter; else delete row.assignments[role];
     try { await api.updateModuleRecord(pid, "responsibility", row.id, { assignments: row.assignments }); }
     catch { toast("Couldn't save that change", "error"); }
   };
-
-  function localValidation(m: ResponsibilityMatrix) {
-    const missing: { activity: string; count: number }[] = [];
-    const noR: { activity: string }[] = [];
-    for (const r of m.rows) {
-      const vals = Object.values(r.assignments);
-      const a = vals.filter((v) => v === "A").length;
-      const d = vals.filter((v) => v === m.doer).length;
-      if (a !== 1) missing.push({ activity: r.activity, count: a });
-      if (d < 1) noR.push({ activity: r.activity });
-    }
-    return { missing, noR, clean: !missing.length && !noR.length };
-  }
 
   function render(m: ResponsibilityMatrix) {
     const isRaci = m.mode === "RACI";
@@ -172,11 +162,52 @@ export async function renderResponsibility(ctx: PanelContext) {
     tb.append(csvBtn);
     body.append(tb);
 
+    // --- RESP-ORPHAN repair ----------------------------------------------------------------------
+    // Two ways out, and restoring is offered first because it is the non-destructive one: the
+    // letters are still on the records, so bringing the columns back makes them visible again with
+    // nothing lost. Clearing is the deliberate discard, and it says how many it will drop.
+    function orphanRepair(m: ResponsibilityMatrix, orphans: string[]): HTMLElement {
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+      const restore = el("button", "tool-btn") as HTMLButtonElement;
+      restore.textContent = `↩ Restore ${orphans.length} column(s)`;
+      restore.title = `Add ${orphans.join(", ")} back as columns so their assignments show again`;
+      restore.onclick = async () => {
+        restore.disabled = true;
+        try { await api.setResponsibilityConfig(pid, [...m.roles, ...orphans], m.mode); void load(); }
+        catch { toast("Couldn't restore those columns", "error"); restore.disabled = false; }
+      };
+      const clear = el("button", "tool-btn") as HTMLButtonElement;
+      clear.textContent = "🗑 Clear them";
+      clear.title = "Delete the assignments on those columns from every row";
+      clear.onclick = async () => {
+        if (!(await confirmModal(`Clear assignments on ${orphans.length} removed column(s)?`,
+          "The letters on those columns are deleted from every row. This cannot be undone."))) return;
+        clear.disabled = true;
+        try {
+          for (const r of m.rows) {
+            const keep = Object.fromEntries(
+              Object.entries(r.assignments).filter(([role]) => !orphans.includes(role)));
+            if (Object.keys(keep).length !== Object.keys(r.assignments).length) {
+              r.assignments = keep;
+              await api.updateModuleRecord(pid, "responsibility", r.id, { assignments: keep });
+            }
+          }
+          void load();
+        } catch { toast("Couldn't clear those assignments", "error"); clear.disabled = false; }
+      };
+      row.append(restore, clear);
+      return row;
+    }
+
     // --- validation banner ----------------------------------------------------------------------
     const banner = el("div"); banner.id = "resp-banner"; body.append(banner);
     const paintBanner = () => {
-      const v = localValidation(m);
-      if (v.clean) {
+      const v = validateMatrix(m);
+      const orphans = orphanedRoles(v);
+      // The ✅ has to answer for the orphans too. A row can satisfy the rule on its visible cells
+      // and still carry letters on columns that are gone; calling that "complete" without saying so
+      // is the same silence the count itself used to keep.
+      if (v.clean && !orphans.length) {
         banner.className = "meta"; banner.style.cssText = "margin-bottom:8px;color:var(--status-good)";
         banner.textContent = m.rows.length ? "✅ Every activity has exactly one Accountable and at least one Responsible."
           : "";
@@ -189,7 +220,16 @@ export async function renderResponsibility(ctx: PanelContext) {
       if (none.length) parts.push(`<div>⚠️ <b>No ${isRaci ? "Accountable" : "Approver"}</b> — every row needs exactly one: ${none.join(", ")}</div>`);
       if (dup.length) parts.push(`<div>⚠️ <b>More than one ${isRaci ? "Accountable" : "Approver"}</b>: ${dup.join(", ")}</div>`);
       if (v.noR.length) parts.push(`<div>⚠️ <b>No ${isRaci ? "Responsible" : "Driver"}</b> — needs at least one doer: ${v.noR.map((x) => esc(x.activity)).join(", ")}</div>`);
+      // RESP-ORPHAN — the finding that explains a blank row. Without it the grid shows an empty
+      // line and nothing anywhere says the letters still exist.
+      if (orphans.length) {
+        parts.push(`<div>⚠️ <b>${v.unknown.length} assignment(s) on ${orphans.length} column(s) `
+          + `this matrix no longer has</b> — they are stored but cannot be shown: `
+          + `${orphans.map(esc).join(", ")}. Restore the columns to see them, or clear them to drop `
+          + `them for good.</div>`);
+      }
       banner.innerHTML = `<div class="meta" style="font-size:12px">${parts.join("")}</div>`;
+      if (orphans.length) banner.appendChild(orphanRepair(m, orphans));
     };
     paintBanner();
 

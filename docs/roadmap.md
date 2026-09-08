@@ -352,6 +352,80 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ◧ **DEAD-FIELD — a route with no caller is caught by a gate; a PAYLOAD with no reader is caught by
+  nobody** *(one instance CLOSED in this change; the sweep is NOT done)*
+
+  `test_route_reachability` asks whether a route is called. Nothing asks whether the answer it
+  returns is *read*. PROP-OVERRIDE was found by hand: the route and the client method each had a
+  caller, so every reachability check passed, and the single caller discarded the fields that
+  mattered. The population was then derived rather than guessed — every field of every
+  `export interface` under `apps/web/src/api/`, against every reference anywhere in
+  `apps/web/src`, minus the declaring file:
+
+  | | |
+  |---|---|
+  | declared response fields with **no reader** in the web tree | **43** |
+  | ├ **live defect** — a wrong answer rather than a gap | **4** *(closed here)* |
+  | ├ finding-shaped — silence degrades an answer without inverting it | ~8 |
+  | └ detail — legitimately not displayed | ~31 |
+
+  **The four were `ResponsibilityMatrix.validation.*`, and they were the load-bearing kind: the
+  panel asserted the OPPOSITE of the truth.** See RESP-ORPHAN below.
+
+  **The ~8 share a signature worth naming: each is the CAVEAT on a number that IS shown.**
+  `ReviewCycles.rounds_undated` sits beside a days-split computed only over dated rounds — and
+  `apps/web/src/portal/panels/design.ts` handles the sibling `rounds_open` with exactly the right
+  care (*"counted but not scored"*) and misses this one. `MakeReady.window_days` is the denominator
+  of a ready/blocked pair. `BidLevelingDetail.recommendation.responsiveness` is the caveat on an
+  apparent-low recommendation. `PrequalScores.not_in_pool` names who was excluded from a pool whose
+  size is displayed. `PreflightSummary.blocking_checks` names what a HOLD override just bypassed.
+
+  **Deliberately NOT gated yet, and that is a judgement rather than an omission.** A gate over this
+  axis needs an allowlist of the ~31 legitimate cases, and an allowlist nobody has triaged is a
+  freeze list that rots — the exact failure the `KNOWN_UNCALLED` heading recorded when four of its
+  entries turned out to have callers. Triage the ~8 first; the allowlist is only honest once the
+  remainder has been read. **The 43 is reproducible, not remembered:** it is a field-vs-reference
+  scan over `apps/web/src`, and re-deriving it is cheaper than trusting this number.
+
+- ✅ **RESP-ORPHAN — the RACI banner said "complete" over a grid with nothing in it** *(S — Lane C;
+  **CLOSED**, fix in this change)*
+
+  The first DEAD-FIELD instance found by derivation rather than by reading, and the worst kind: not
+  a missing detail but an inverted verdict.
+
+  `apply_template` appends rows and **replaced** the role columns, and the ISO-19650 template ships
+  its own. Load a second template into a matrix that already has rows and every earlier assignment
+  is keyed to a column that no longer exists. The grid iterates the current roles, so those rows
+  render as blank lines — while `_validate` counted `assignments.values()` entire, so the banner
+  reported *"Every activity has exactly one Accountable and at least one Responsible."* The panel's
+  own confirm dialog promises *"Existing rows are kept."* **The rows were kept; their content was
+  not.**
+
+  `unknown_role` — computed since the engine was written, read by nobody — is the finding that
+  explains the blank row, and was the only place that explanation existed. `accountable_load` was
+  worse than unread: it *credited* roles that are not columns, overstating a real person's
+  ownership.
+
+  Fixed at three levels, because one was not enough. Validity is counted over visible columns
+  (server and client). The columns are merged rather than replaced when rows exist — and the merge
+  **refuses before mutating** when the union would exceed the sixteen-column cap, since
+  `set_config` truncates and the union puts the template's new columns last, so a silent truncation
+  would orphan exactly the rows the call was creating. The banner names the stranded columns and
+  offers to restore them (nothing was deleted) or clear them.
+
+  **Two lessons, both about fixtures rather than checks.** `services/api/test_responsibility.py`
+  already *created* the orphaned state — it swaps role columns on a project that has rows — and
+  never re-asserted validation afterwards; *a fixture can cross the path and look away.* And the
+  panel's first DOM test could not express its own subject: every letter in its fixture was
+  orphaned, so `clean` was already false and the banner's orphan guard was never the branch under
+  test — **mutating that guard away left all four tests green.** A third fixture, clean on visible
+  cells and still carrying one orphan, is what reaches it.
+
+  The rule now exists in two languages that cannot be deduplicated, so parity is asserted instead:
+  `apps/web/src/portal/panels/raciValidationCases.json` is read by **both**
+  `apps/web/src/portal/panels/raciValidation.test.ts` and `services/api/test_responsibility.py`. A
+  divergence only that loop covers — folding orphans into `clean` — was mutation-checked and caught.
+
 - ✅ **PORTAL-SHOWMODEL — the public 3D viewer shipped, and nothing could mint a token that reached
   it** *(S — Lane C; **CLOSED**, fix in this change)*
 
@@ -1366,7 +1440,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |

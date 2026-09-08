@@ -1,0 +1,64 @@
+{
+  "_comment": "RESP-ORPHAN parity fixture. The RACI rule exists in TWO implementations that cannot be deduplicated across the language boundary: services/api/src/aec_api/responsibility.py::_validate and apps/web/src/portal/panels/raciValidation.ts::validateMatrix. They already disagreed once — the client counted every assignment while the grid renders only the current columns — so these cases are the shared ground both must land on. Add a case here when the rule changes, and change both sides.",
+  "cases": [
+    {
+      "name": "clean row",
+      "roles": ["Owner", "GC / PM"],
+      "doer": "R",
+      "rows": [{ "ref": "R-1", "activity": "Shop drawings", "assignments": { "Owner": "A", "GC / PM": "R" } }],
+      "expect": { "clean": true, "missing": [], "noR": [], "unknown": [], "load": { "Owner": 1 } }
+    },
+    {
+      "name": "every letter orphaned onto removed columns",
+      "roles": ["Client", "Task Team"],
+      "doer": "R",
+      "rows": [{ "ref": "R-1", "activity": "Author models", "assignments": { "Architect/EOR": "A", "Sub": "R" } }],
+      "expect": {
+        "clean": false,
+        "missing": [{ "ref": "R-1", "activity": "Author models", "count": 0 }],
+        "noR": [{ "ref": "R-1", "activity": "Author models" }],
+        "unknown": ["Architect/EOR", "Sub"],
+        "load": {}
+      }
+    },
+    {
+      "name": "rule satisfied on visible cells but an orphan remains",
+      "roles": ["Owner", "GC / PM"],
+      "doer": "R",
+      "rows": [{ "ref": "R-1", "activity": "RFIs", "assignments": { "Owner": "A", "GC / PM": "R", "Sub": "C" } }],
+      "expect": {
+        "clean": true,
+        "missing": [],
+        "noR": [],
+        "unknown": ["Sub"],
+        "load": { "Owner": 1 }
+      }
+    },
+    {
+      "name": "two Accountables on visible columns",
+      "roles": ["Owner", "GC / PM"],
+      "doer": "R",
+      "rows": [{ "ref": "R-1", "activity": "Budget", "assignments": { "Owner": "A", "GC / PM": "A" } }],
+      "expect": {
+        "clean": false,
+        "missing": [{ "ref": "R-1", "activity": "Budget", "count": 2 }],
+        "noR": [{ "ref": "R-1", "activity": "Budget" }],
+        "unknown": [],
+        "load": { "Owner": 1, "GC / PM": 1 }
+      }
+    },
+    {
+      "name": "DACI — the doer letter is D, and an orphaned D does not count",
+      "roles": ["Approver", "Driver"],
+      "doer": "D",
+      "rows": [{ "ref": "R-1", "activity": "Pick a facade", "assignments": { "Approver": "A", "Old Driver": "D" } }],
+      "expect": {
+        "clean": false,
+        "missing": [],
+        "noR": [{ "ref": "R-1", "activity": "Pick a facade" }],
+        "unknown": ["Old Driver"],
+        "load": { "Approver": 1 }
+      }
+    }
+  ]
+}
