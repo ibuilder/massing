@@ -12,6 +12,23 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### you can now see which property values this element overrides — and put them back
+
+The viewer has always let you set a property on a selected element. It has never shown you that a
+value you were looking at was **this element's own**, written over what its type says — and once you
+had done it, there was no way back. Both halves are here now.
+
+Properties that override their type are marked, and the panel prints the value the type carries
+underneath, because a badge saying "overridden" without saying *what it replaced* is half an answer.
+Next to it is **Reset to type**, which drops this element's value so the type's shows through again.
+It appears only on properties that actually override something, since that is exactly when it can
+work.
+
+If the panel cannot find out which values are overridden — a request that fails, an index still
+rebuilding — it **says so** rather than showing an unmarked list. An unmarked list would look
+identical to "nothing here is overridden", which is a different and much more reassuring claim than
+the one we can actually make.
+
 ### a project can change its units, and move a far-flung model back to the origin
 
 Two things a modelling tool is expected to do had no control anywhere in the app. Both engines were
