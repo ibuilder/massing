@@ -11,6 +11,24 @@ const DEFAULT_API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http
 /** Handle for a resilient SSE subscription (see `HttpCore.liveStream`). */
 export interface LiveStream { readonly connected: boolean; close(): void }
 
+/** An HTTP failure that still carries its STATUS, not only a message describing it.
+ *
+ *  `json()` has always thrown `Error("POST /path -> 400")`, which puts the status somewhere only a
+ *  string parse can reach. A caller that needs to tell a PERMANENT rejection from a transient one —
+ *  the offline field queue is the first, and re-queueing a 400 forever is what it did — would have
+ *  had to match on the message text. That is the same brittleness MONEY-SCOPE removed from a
+ *  different scan: a predicate keyed on a spelling breaks the moment the spelling changes.
+ *
+ *  It extends `Error` and keeps the identical message, so every existing `catch` keeps working and
+ *  nothing has to be migrated. Callers that care about the status opt in.
+ */
+export class HttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
 export class HttpCore {
   private token = localStorage.getItem("aec-token") || "";
   constructor(protected baseUrl = DEFAULT_API) {}
@@ -60,7 +78,7 @@ export class HttpCore {
       ...init,
       headers: { "Content-Type": "application/json", ...this.authHeaders(), ...(init?.headers || {}) },
     });
-    if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${path} -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`${init?.method ?? "GET"} ${path} -> ${res.status}`, res.status);
     return res.json() as Promise<T>;
   }
 

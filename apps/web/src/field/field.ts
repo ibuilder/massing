@@ -5,6 +5,7 @@
  * (and on load). Pairs with the PWA/Capacitor build so it's usable as an installed app in the field.
  */
 import type { ApiClient } from "../api/client";
+import { HttpError } from "../api/httpCore";
 import { currentIdentity, ownedByMe } from "../api/identity";
 import { toast } from "./../ui/feedback";
 import { attachDictation } from "./dictate";
@@ -22,6 +23,9 @@ export interface QueuedCapture {
   filename?: string;
   label?: string;      // human type label, for the queue-review list
   owner?: string;      // who captured this; absent on entries from before scoping
+  /** Why the server refused this permanently. Set only for a rejection that RETRYING CANNOT FIX,
+   *  so the review sheet can say what happened instead of showing it as forever-pending. */
+  rejected?: string;
 }
 
 interface GeoFix { lat: number; lon: number; acc: number; }
@@ -240,14 +244,22 @@ export class FieldCapture {
       + "border-radius:14px 14px 0 0;padding:18px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:8px;max-height:92vh;overflow:auto";
     const render = () => {
       const q = loadQueue();
-      card.innerHTML = `<div style="font-weight:650;font-size:16px">🗂 Offline queue — ${q.length} pending</div>`;
+      const pending = q.filter((x) => !x.rejected).length;
+      const refused = q.length - pending;
+      card.innerHTML = `<div style="font-weight:650;font-size:16px">🗂 Offline queue — ${pending} pending`
+        + `${refused ? ` · ${refused} refused` : ""}</div>`;
       if (!q.length) card.insertAdjacentHTML("beforeend", `<div class="meta">All caught up — nothing queued.</div>`);
       for (const it of q) {
         const rowEl = document.createElement("div");
         rowEl.style.cssText = "display:flex;align-items:center;gap:8px;border-top:1px solid var(--line,#2b2d31);padding:8px 0";
         const geo = it.data.gps_lat ? ` · 📍 ${it.data.gps_lat},${it.data.gps_lon}` : "";
-        rowEl.innerHTML = `<span style="font-size:18px">${it.photo ? "🖼" : "📝"}</span>`
-          + `<span style="flex:1;font-size:13px">${(it.label || it.module)} — ${String(it.data.subject || "").slice(0, 60)}${geo}</span>`;
+        // A refused capture says WHY. It is still here — never discarded on the worker's behalf —
+        // but it is no longer retried, so it cannot hold the rest of the queue behind it.
+        const why = it.rejected
+          ? `<div style="font-size:12px;color:var(--danger,#e5534b)">⚠ ${it.rejected} — retrying will not help</div>`
+          : "";
+        rowEl.innerHTML = `<span style="font-size:18px">${it.rejected ? "⚠" : it.photo ? "🖼" : "📝"}</span>`
+          + `<span style="flex:1;font-size:13px">${(it.label || it.module)} — ${String(it.data.subject || "").slice(0, 60)}${geo}${why}</span>`;
         const del = document.createElement("button"); del.className = "tool-btn"; del.textContent = "✕"; del.title = "Discard";
         del.onclick = () => { saveQueue(loadQueue().filter((x) => x.id !== it.id)); this.refreshBadge(); render(); };
         rowEl.append(del); card.append(rowEl);
@@ -255,7 +267,7 @@ export class FieldCapture {
       const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:8px";
       const close = document.createElement("button"); close.className = "tool-btn"; close.textContent = "Close"; close.onclick = () => ov.remove();
       const sync = document.createElement("button"); sync.className = "file-btn"; sync.textContent = navigator.onLine ? "Sync now" : "Offline";
-      sync.disabled = !navigator.onLine || !q.length;
+      sync.disabled = !navigator.onLine || !pending;
       sync.onclick = async () => { sync.disabled = true; sync.textContent = "Syncing…"; await this.flush(); render(); };
       actions.append(close, sync); card.append(actions);
     };
@@ -272,18 +284,42 @@ export class FieldCapture {
     if (!q.length) return;
     const remaining: QueuedCapture[] = [];
     let synced = 0;
-    for (const item of q) {
+    let rejected = 0;
+    for (const item of q.filter((x) => !x.rejected)) {
       try {
         const rec = await this.api.createModuleRecord(item.pid, item.module, { data: item.data });
         if (item.photo) await this.api.uploadAttachment(item.pid, item.module, rec.id,
           dataUrlToFile(item.photo, item.filename || "field.jpg"));
         synced++;
-      } catch { remaining.push(item); }
+      } catch (e) {
+        const why = permanentRejection(e);
+        if (why) { remaining.push({ ...item, rejected: why }); rejected++; }
+        else remaining.push(item);
+      }
     }
-    saveQueue(remaining);
+    // Items already marked rejected are carried through untouched: not retried, not discarded.
+    saveQueue([...q.filter((x) => x.rejected), ...remaining]);
     this.refreshBadge();
     if (synced) toast(`Synced ${synced} field capture${synced > 1 ? "s" : ""}`, "success");
+    if (rejected) toast(`${rejected} capture${rejected > 1 ? "s" : ""} refused — open the queue to see why`, "error");
   }
+}
+
+/** Why the server will NEVER accept this capture, or null if the failure is worth retrying.
+ *
+ *  4xx means the request itself is wrong — a validation failure, or the capturer no longer has
+ *  access to the project — and repeating it byte for byte cannot change the answer. 408 and 429 are
+ *  the exceptions: both explicitly invite a retry. Everything else (offline, DNS, 5xx, a proxy
+ *  eating the connection) is transient by default, because **guessing "permanent" wrongly loses a
+ *  field worker's capture, and guessing "transient" wrongly only costs another attempt.** The
+ *  asymmetry decides the default.
+ */
+function permanentRejection(e: unknown): string | null {
+  const status = e instanceof HttpError ? e.status : 0;
+  if (status < 400 || status >= 500 || status === 408 || status === 429) return null;
+  if (status === 403 || status === 401) return "No longer permitted on this project";
+  if (status === 404) return "The project or module no longer exists";
+  return `Refused by the server (${status})`;
 }
 
 function label(text: string, control: HTMLElement): HTMLElement {
