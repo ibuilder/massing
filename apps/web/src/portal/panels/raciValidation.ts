@@ -44,6 +44,15 @@ export interface RaciVerdict {
   clean: boolean;
 }
 
+/**
+ * Role columns a matrix may carry. **Mirrors `MAX_ROLES` in
+ * `services/api/src/aec_api/responsibility.py`**, which truncates any longer list rather than
+ * refusing it — so a caller that sends more silently loses the tail. `test_responsibility.py`
+ * asserts the two constants agree, because a client guard set to the wrong number is worse than
+ * no guard: it would refuse valid restores while still letting the real overflow through.
+ */
+export const MAX_ROLES = 16;
+
 export function validateMatrix(m: ResponsibilityMatrix): RaciVerdict {
   const roles = new Set(m.roles ?? []);
   const missing: RaciVerdict["missing"] = [];

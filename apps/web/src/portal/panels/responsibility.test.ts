@@ -15,6 +15,14 @@ import { renderResponsibility } from "./responsibility";
  * to nothing typechecks perfectly — so these assertions drive the real DOM and read what is on it.
  */
 
+// The clear path is behind a confirmation. jsdom never clicks it, so the real `confirmModal`
+// leaves a promise pending forever and the test reads as "the button did nothing" — which is
+// indistinguishable from the defect. Auto-confirm so the assertions are about the clear itself.
+vi.mock("../../ui/modal", () => ({
+  confirmModal: () => Promise.resolve(true),
+  promptModal: () => Promise.resolve(null),
+}));
+
 const el = () => document.createElement("div");
 
 const ORPHANED = {
@@ -117,6 +125,56 @@ describe("the RACI banner answers for assignments the grid cannot show", () => {
     const [, roles] = api.setResponsibilityConfig.mock.calls[0]!;
     // the existing columns are kept and the orphans are appended — restoring must not drop columns
     expect(roles).toEqual(["Client", "Task Team", "Architect/EOR", "GC / PM"]);
+  });
+
+  it("refuses a Restore that would overflow the column cap, rather than truncating", async () => {
+    // Raised in review, and it is this item's own defect through its own repair button: set_config
+    // TRUNCATES a longer list and returns 200 with the visible roles first, so the orphans fall off
+    // the tail and the banner reloads clean over assignments that are still stranded.
+    const WIDE = {
+      ...ORPHANED,
+      roles: Array.from({ length: 16 }, (_, i) => `Role ${i}`),   // exactly at the cap
+    };
+    const { c, api } = ctx(WIDE);
+    await renderResponsibility(c); await flush();
+    const restore = [...c.root.querySelectorAll("button")]
+      .find((b) => (b.textContent ?? "").includes("Restore")) as HTMLButtonElement | undefined;
+    expect(restore, "the restore control should still be shown, explaining why it cannot run")
+      .toBeTruthy();
+    expect(restore!.disabled, "restore must not be armed when it cannot fit").toBe(true);
+    expect(restore!.title).toMatch(/16-column limit/);
+    restore!.click(); await flush();
+    expect(api.setResponsibilityConfig, "an over-long restore must not reach the server")
+      .not.toHaveBeenCalled();
+  });
+
+  it("re-reads after a partial clear instead of showing state the server refused", async () => {
+    // Each row is its own PATCH. On a mid-loop failure the panel must not keep rendering the
+    // in-memory assignments it optimistically emptied. Raised in review.
+    const TWO_ROWS = {
+      ...ORPHANED,
+      rows: [
+        { ...ORPHANED.rows[0]!, id: "1", ref: "RESP-001" },
+        { ...ORPHANED.rows[0]!, id: "2", ref: "RESP-002" },
+      ],
+      count: 2,
+    };
+    let calls = 0;
+    const { c, api } = ctx(TWO_ROWS, {
+      updateModuleRecord: vi.fn().mockImplementation(() => {
+        calls += 1;
+        return calls === 1 ? Promise.resolve({}) : Promise.reject(new Error("500"));
+      }),
+    });
+    await renderResponsibility(c); await flush();
+    const reads = api.responsibilityMatrix.mock.calls.length;
+    const clear = [...c.root.querySelectorAll("button")]
+      .find((b) => (b.textContent ?? "").includes("Clear them")) as HTMLButtonElement | undefined;
+    expect(clear).toBeTruthy();
+    clear!.click(); await flush(); await flush();
+    expect(api.responsibilityMatrix.mock.calls.length,
+      "a partial failure must re-read, not leave the panel ahead of the server")
+      .toBeGreaterThan(reads);
   });
 
   it("does not offer a repair when there is nothing to repair", async () => {

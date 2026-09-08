@@ -3,6 +3,7 @@ Accountable, at least one Responsible), role-column config, starter templates, a
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_responsibility.py"""
 import json
 import os
+import re
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_responsibility.db"
 os.environ["STORAGE_DIR"] = "./test_storage_responsibility"
@@ -175,6 +176,20 @@ with TestClient(app) as c:
         assert sorted({u["role"] for u in got["unknown_role"]}) == sorted(want["unknown"]), \
             (case["name"], got["unknown_role"])
         assert got["accountable_load"] == want["load"], (case["name"], got["accountable_load"])
+
+    # --- RESP-ORPHAN: the client's copy of the column cap matches this one --------------------
+    # The panel disables Restore when the union would overflow, because `set_config` TRUNCATES
+    # rather than refusing and the orphans sit at the tail. A client guard set to the wrong number
+    # is worse than none: it would refuse valid restores AND still let the real overflow through.
+    # Raised in review; gated here because a constant duplicated across a language boundary drifts.
+    raci_ts = os.path.join(os.path.dirname(__file__),
+                           "../../apps/web/src/portal/panels/raciValidation.ts")
+    with open(raci_ts, encoding="utf-8") as fh:
+        ts_src = fh.read()
+    m_cap = re.search(r"export const MAX_ROLES = (\d+);", ts_src)
+    assert m_cap, "raciValidation.ts no longer declares MAX_ROLES — the guard or this gate moved"
+    assert int(m_cap.group(1)) == responsibility.MAX_ROLES, \
+        (int(m_cap.group(1)), responsibility.MAX_ROLES)
 
 print("RESPONSIBILITY OK - grid assembly, single-A / >=1-R validation, role config, RACI<->DACI, templates + "
       "remap, the ROLES-BIM ISO 19650 template (own BIM-org persona columns, 9 info-mgmt duties, clean), and "

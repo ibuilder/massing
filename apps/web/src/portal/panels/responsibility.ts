@@ -1,5 +1,5 @@
 import type { ResponsibilityMatrix, RespRow } from "../../api/client";
-import { orphanedRoles, validateMatrix } from "./raciValidation";
+import { MAX_ROLES, orphanedRoles, validateMatrix } from "./raciValidation";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { noProjectHtml } from "../../ui/empty";
@@ -171,7 +171,19 @@ export async function renderResponsibility(ctx: PanelContext) {
       const restore = el("button", "tool-btn") as HTMLButtonElement;
       restore.textContent = `↩ Restore ${orphans.length} column(s)`;
       restore.title = `Add ${orphans.join(", ")} back as columns so their assignments show again`;
+      // REFUSE RATHER THAN OVERFLOW. `set_config` TRUNCATES a longer list and returns 200, and the
+      // visible roles go first — so an over-long restore drops the orphans off the tail, reloads
+      // clean, and leaves the assignments exactly as stranded as before. That is this whole item's
+      // defect arriving through its own repair button; the server-side merge in `apply_template`
+      // refuses for the same reason. Raised in review.
+      const fits = m.roles.length + orphans.length <= MAX_ROLES;
+      restore.disabled = !fits;
+      restore.title = fits
+        ? `Add ${orphans.join(", ")} back as columns so their assignments show again`
+        : `Restoring ${orphans.length} column(s) would need ${m.roles.length + orphans.length} of a `
+          + `${MAX_ROLES}-column limit — remove unused columns first, or clear these assignments.`;
       restore.onclick = async () => {
+        if (!fits) return;
         restore.disabled = true;
         try { await api.setResponsibilityConfig(pid, [...m.roles, ...orphans], m.mode); void load(); }
         catch { toast("Couldn't restore those columns", "error"); restore.disabled = false; }
@@ -193,7 +205,14 @@ export async function renderResponsibility(ctx: PanelContext) {
             }
           }
           void load();
-        } catch { toast("Couldn't clear those assignments", "error"); clear.disabled = false; }
+        } catch {
+          // Each row is its own PATCH, so a failure part-way leaves earlier rows cleared. Re-read
+          // rather than leaving the panel showing in-memory state the server never accepted: the
+          // banner then reports what is actually still stranded, and clearing again is idempotent.
+          // Raised in review — see the reply for why this is not a transactional bulk endpoint.
+          toast("Couldn't clear all of those — reloading to show what remains", "error");
+          void load();
+        }
       };
       row.append(restore, clear);
       return row;
