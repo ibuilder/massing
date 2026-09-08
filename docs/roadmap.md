@@ -2651,7 +2651,7 @@ is recorded. Filed under Decisions below.
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
 | 11 | density | R24-DENSITY | ✅ **SHIPPED v0.3.996** — three steps on registers (`DENSITY_ROW_PX`), not dashboards only |
-| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001–1008** — mode, 56 px, strip, dictation, capture landing, **room tabs hidden in field mode**. Portal home rewrite still Lane A |
+| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001–1008** — mode, 56 px, strip, dictation, capture landing, **room tabs hidden in field mode**, **a refused capture no longer jams the offline queue**. Portal home rewrite still Lane A |
 | 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
 | 15 | charts have no grammar | *(none)* | ✅ **SHIPPED v0.3.1002** — no-data, ticks/legend/currency, then series vs status (`SERIES_PALETTE` / `STATUS_*` in `apps/web/src/ui/charts.ts`) |
@@ -2711,6 +2711,27 @@ refute one, so this goes first even though it is the least visible.
   Slice ②: field-mode CSS beats the FAB's inline 52 px. Slice ③: with a project open, field mode
   **lands on the capture sheet** (`shouldOpenCaptureHome`). Slice ④: `#workspaces` is hidden while
   the mode is on, so the seven-room tablist is not field home. Replacing the portal shell is Lane A.
+  **Slice ⑤ — FIELD-POISON: the offline queue could not be emptied.** Premise-checking this entry
+  found `apps/web/src/field/field.ts`'s flush doing `catch { remaining.push(item) }` — every failure
+  re-queued, with **no distinction between a server that was unreachable and a server that had
+  answered "no"**. One capture the server will never accept (a validation failure, or a worker
+  removed from the project between capturing and reconnecting) was resent on every reconnect
+  forever; the badge never cleared, and the review sheet showed it as *pending* with no reason, so
+  the only recourse was discarding captures one at a time until the badge went away. A permanent
+  refusal is now recorded on the item with its reason and not retried — **and not discarded**: the
+  worker decides. `apps/web/src/field/fieldQueue.test.ts` gates the behaviour, not the spelling: a
+  400 must not hold good captures behind it, a refused item must be neither retried nor lost, and
+  5xx/408/429 must stay retries.
+  **The design is decided by an asymmetry, not by a probability**: guessing "permanent" wrongly
+  loses a field worker's capture; guessing "transient" wrongly costs one more attempt. So the
+  permanent set is the narrow one (4xx except 408/429) and everything else defaults to retry.
+  It needed a *structural* signal first. `json()` threw ``Error(`POST /path -> 400`)``, putting the
+  status where only a string match could reach it — the exact spelling-dependence MONEY-SCOPE had
+  just removed from the rounding scan, one directory over. `apps/web/src/api/httpCore.ts` now
+  exports `HttpError`, carrying `status` as a field while extending `Error` with the identical
+  message, so it is purely additive and none of the ~50 existing `catch` sites changed. *A
+  classifier is only as good as the signal it is allowed to see; parsing a message would have
+  shipped the same brittleness under a new name.*
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
   now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above

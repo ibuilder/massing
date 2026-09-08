@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a field capture the server refuses no longer blocks the ones behind it
+
+Offline field capture queued everything and retried everything. Any failure re-queued the item
+unchanged, with no distinction between a server that was unreachable and a server that had answered
+"no". So a capture the server will never accept — a validation failure, or a worker removed from the
+project between capturing and reconnecting — was resent on every reconnect for as long as the app
+was installed. The sync badge never cleared, the queue sheet showed the item as merely "pending"
+with no reason, and the worker's only recourse was to discard captures one at a time until the badge
+went away, guessing which one was poisoned.
+
+A permanent refusal is now recorded on the item with the reason, and that item is not retried again.
+It is **not discarded** — the capture stays in the queue, marked, so the person who took it decides
+what happens to it. The sheet counts pending and refused separately and says why each refusal
+happened; **Sync now** stops being blocked by items that cannot sync.
+
+The rule for "permanent" is deliberately narrow: a 4xx other than 408 and 429, both of which
+explicitly invite a retry. Everything else — offline, DNS, 5xx, a proxy dropping the connection —
+stays a retry, because **guessing "permanent" wrongly loses a field worker's capture, and guessing
+"transient" wrongly only costs another attempt.** The asymmetry sets the default, not a judgement
+about which failures are more likely.
+
+The status had to become reachable first. The API client threw `Error("POST /path -> 400")`, which
+puts the status somewhere only a string match can read; a classifier keyed on that spelling is the
+brittleness the rounding-scan work had just finished removing elsewhere. `HttpError` now carries the
+status as a field, extends `Error`, and keeps the identical message — so it is additive and no
+existing `catch` had to change.
+
 ### six more money figures round the way an invoice rounds — and a 0% retainage stays 0%
 
 The previous entry fixed one line. The check that was supposed to cover the whole tree could not
