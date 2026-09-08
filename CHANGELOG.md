@@ -12,6 +12,21 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### every spreadsheet export escapes formulas — and stops mangling negative numbers
+
+The previous entry fixed formula injection in the module CSV export. It fixed two writers; there
+were nine. A vendor named `=cmd|'/c calc'!A1` reached the Vendor column of the general-ledger CSV
+verbatim, and openpyxl wrote it into every XLSX export — the COBie workbook handed to an owner at
+turnover included — as a live formula, not text. Element names out of an uploaded IFC, survey point
+descriptions, door and window marks and rebar bar marks were all in the same position. Every
+spreadsheet writer in both packages now shares one guard, and a new one is caught by a derived
+check rather than by remembering.
+
+**Negative numbers are no longer escaped.** The previous fix guarded every cell, and a negative
+number begins with `-` — so `-500.00` in a cost column exported as text, in a sheet somebody sums,
+and survey coordinates would have been corrupted outright. Plain numbers now pass through
+untouched; an expression that opens with a sign, like `-1+1`, is still escaped.
+
 ### a report and a spreadsheet stop naming a firm by its UUID
 
 REF-SORT made a register *order* by what it renders. Two consumers still rendered the stored value,

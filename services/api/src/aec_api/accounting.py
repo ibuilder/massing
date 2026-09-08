@@ -16,6 +16,8 @@ import io
 
 from sqlalchemy.orm import Session
 
+from aec_data.cells import cell as _cell
+
 from . import modules as me
 
 # Default account mapping — a deployment can override via cost-code / settings later.
@@ -94,13 +96,25 @@ def journal(db: Session, project_id: str) -> list[dict]:
 
 
 def to_gl_csv(entries: list[dict]) -> str:
-    """Double-entry GL: each cost debits Construction Costs and credits AP (universal import format)."""
+    """Double-entry GL: each cost debits Construction Costs and credits AP (universal import format).
+
+    CSV-SWEEP — `vendor` and `memo` come straight off the record (`d.get("vendor")`, the invoice
+    description), so they are user text landing in a file an accountant opens in Excel. Measured
+    before the guard: a vendor named `=cmd|'/c calc'!A1` reached the Vendor column verbatim. Amounts
+    are formatted floats and the accounts are constants, so only the text columns need guarding —
+    but the whole row goes through it anyway, because a guard applied per-column is one column away
+    from being forgotten.
+    """
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Date", "Ref", "Account", "Vendor", "CostCode", "Memo", "Debit", "Credit"])
     for e in entries:
-        w.writerow([e["date"], e["ref"], COST_ACCOUNT, e["vendor"], e["cost_code"], e["memo"], f"{e['amount']:.2f}", ""])
-        w.writerow([e["date"], e["ref"], AP_ACCOUNT, e["vendor"], e["cost_code"], e["memo"], "", f"{e['amount']:.2f}"])
+        w.writerow([_cell(x) for x in
+                    (e["date"], e["ref"], COST_ACCOUNT, e["vendor"], e["cost_code"], e["memo"],
+                     f"{e['amount']:.2f}", "")])
+        w.writerow([_cell(x) for x in
+                    (e["date"], e["ref"], AP_ACCOUNT, e["vendor"], e["cost_code"], e["memo"],
+                     "", f"{e['amount']:.2f}")])
     return buf.getvalue()
 
 
@@ -177,7 +191,16 @@ def trial_balance(db: Session, project_id: str) -> dict:
 
 
 def to_iif_bills(entries: list[dict]) -> str:
-    """QuickBooks IIF bills (AP): one BILL transaction per sub invoice, cost split by cost code."""
+    """QuickBooks IIF bills (AP): one BILL transaction per sub invoice, cost split by cost code.
+
+    CSV-SWEEP looked at this and deliberately left it alone; the note is here so the next sweep
+    does not "fix" it. IIF carries the same `vendor` and `memo` text as `to_gl_csv`, but it is
+    consumed by QuickBooks, not by a spreadsheet — nothing evaluates a leading `=`, and prefixing
+    an apostrophe would corrupt the vendor name **on import**, turning a safety measure into a data
+    defect. Its real exposure is a different class: a tab or newline inside `vendor` or `memo`
+    would break the record structure, since IIF is tab-delimited with no quoting. That is worth
+    fixing, and the fix is neutralising the delimiters, not the formula lead.
+    """
     lines = ["\t".join(["!TRNS", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "\t".join(["!SPL", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "!ENDTRNS"]

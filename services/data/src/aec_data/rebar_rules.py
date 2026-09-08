@@ -161,6 +161,9 @@ def bbs_csv(bbs: dict) -> str:
     """The schedule as CSV (the format a fabricator or 5D estimate ingests)."""
     import csv
     import io
+
+    from .cells import cell as _cell
+
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Mark", "Size", "Dia (mm)", "Shape", "Bends", "Legs (mm)", "Bend angles (deg)",
@@ -168,9 +171,12 @@ def bbs_csv(bbs: dict) -> str:
     for r in bbs["rows"]:
         legs = "; ".join(str(x) for x in r.get("legs_mm", []))
         angs = "; ".join(str(x) for x in r.get("bend_angles_deg", []))
-        w.writerow([r["mark"], r["size"] or "", r["diameter_mm"], r.get("shape_family", r["shape"]),
-                    r.get("bends", ""), legs, angs, r["cut_length_m"],
-                    r["count"], r["unit_mass_kg_m"], r["total_length_m"], r["total_kg"]])
+        # `mark`, `size` and `shape_family` are model text; the rest are numbers, which `_cell`
+        # leaves alone so the fabricator's totals column still sums.
+        w.writerow([_cell(x) for x in
+                    (r["mark"], r["size"] or "", r["diameter_mm"], r.get("shape_family", r["shape"]),
+                     r.get("bends", ""), legs, angs, r["cut_length_m"],
+                     r["count"], r["unit_mass_kg_m"], r["total_length_m"], r["total_kg"])])
     w.writerow([])
     w.writerow(["TOTAL", "", "", "", "", "", "", "", bbs["bars"], "", bbs["total_length_m"], bbs["total_kg"]])
     return buf.getvalue()
