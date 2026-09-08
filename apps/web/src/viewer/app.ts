@@ -325,6 +325,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // the panel can also act on the answer; `null` is a FAILED read and the panel says so rather
     // than showing an unmarked list, which would assert that nothing is overridden.
     const effective = hooks ? await readEffectiveProps(api, projectId!, el.guid) : undefined;
+    if (selectedGuid !== el.guid) return;                 // selection moved on while we waited
     // Revit-style identity header: the Type (the family/type it's an instance of) sits above the
     // instance parameters + property sets, so "what is this" reads before "its values".
     const head = document.createElement("div");
