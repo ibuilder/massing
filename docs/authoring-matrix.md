@@ -4,7 +4,7 @@
 
 **96 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass. **What can invoke one differs per recipe**, and the Reach column says which: `cad+ai` — dispatchable from the CAD command line and the AI planner (12 of 96, the curated `nlauthor.RECIPE_SPECS`); `ui` — invoked by a tool panel, a router or MCP; `superseded` — nothing calls it and nothing should, a reachable recipe authors the same result; `none` — the engine can run it and no surface asks it to.
 
-> ⚠ **9 recipes are reachable from no surface**: `add_connection_assembly`, `batch_tag`, `convert_length_unit`, `derive_representations`, `place_type`, `program_fit`, `rebase_origin`, `reset_prop_to_type`, `set_spec_link`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
+> ⚠ **7 recipes are reachable from no surface**: `add_connection_assembly`, `batch_tag`, `derive_representations`, `place_type`, `program_fit`, `reset_prop_to_type`, `set_spec_link`. They are implemented and tested; they are not something a user can invoke, so they are not coverage. Pinned by `services/api/test_recipe_reach.py`.
 
 > **Superseded** — uncalled, and correctly so: `add_sprinkler` → `add_fire_equipment`. A reachable recipe authors the identical result, so these are duplicate spellings rather than gaps. The equivalence is asserted in `services/api/test_recipe_reach.py`, so an entry stops being true if the two recipes stop agreeing.
 
@@ -174,8 +174,8 @@
 
 | Recipe | Produces | Reach |
 | --- | --- | --- |
-| `convert_length_unit` | convert the project length unit | none |
+| `convert_length_unit` | convert the project length unit | ui |
 | `purge_empty_groups` | purge empty groups | ui |
 | `purge_orphan_psets` | purge orphaned property sets | ui |
-| `rebase_origin` | shift model origin (georeference-preserving) | none |
+| `rebase_origin` | shift model origin (georeference-preserving) | ui |
 

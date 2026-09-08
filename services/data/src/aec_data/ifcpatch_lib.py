@@ -173,6 +173,130 @@ def _map_conversion(model):
     return convs[0] if convs else None
 
 
+def _assigned_length_units(model) -> list:
+    """The `LENGTHUNIT` entities actually REFERENCED by an `IfcUnitAssignment`, deduplicated.
+
+    **A file contains named units it does not use, and they are not the project's unit.** An
+    `IfcConversionBasedUnit` needs an `IfcMeasureWithUnit`, which needs a unit of its own; an import
+    can leave a superseded definition behind. `model.by_type("IfcNamedUnit")` returns all of them,
+    so a question asked over that set is answered by entities the project does not measure in:
+
+      * a metric file carrying an unused foot definition was refused as unconvertible — a REGRESSION
+        introduced by the conversion-based guard three commits ago, which scoped its population to
+        every named unit rather than the assigned one;
+      * the ``length_unit`` fallback took ``[0]`` of that list, so which unit it NAMED depended on
+        entity ordering — the foot fixture asserted FOOT and passed by luck;
+      * and the rewrite in ``convert_length_unit`` rescaled the unit of an ``IfcMeasureWithUnit``
+        conversion factor: ``0.9144 METRE`` became ``0.9144 MILLIMETRE``, the factor's meaning
+        changed by 1000x while its number stayed put. That one predates the guard entirely.
+
+    `ifcopenshell.util.unit.calculate_unit_scale` has always read the ASSIGNMENT; everything here
+    now agrees with it. *Same scope-is-the-fiction shape as the gate this PR widened, one layer in.*
+    """
+    seen: set[int] = set()
+    out = []
+    for assignment in model.by_type("IfcUnitAssignment"):
+        for u in (getattr(assignment, "Units", None) or ()):
+            if getattr(u, "UnitType", None) == "LENGTHUNIT" and u.id() not in seen:
+                seen.add(u.id())
+                out.append(u)
+    return out
+
+
+def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
+    """MODEL-SETUP — what a project's units and origin ARE, so the two repairs below can be offered
+    honestly rather than as a guess.
+
+    ``rebase_origin`` and ``convert_length_unit`` have been in the recipe registry, and reachable
+    through ``POST /projects/{pid}/edit``, the whole time — `authoring_matrix.UNREACHED` lists both as
+    "a capability no user can reach", which that file calls a defect rather than a gap. The reason a
+    control could not simply be added is here: **nothing exposed the current state**. Offering
+    "convert to millimetres" without saying what the units are now is a coin flip the user is asked
+    to call, and a control whose state cannot be seen is the shape this codebase keeps repairing.
+
+    So this reports what the repair needs to be *decided*, not merely what it would do:
+
+    ``targets`` is sent BY THE SERVER rather than hardcoded in a client. The converter accepts three
+    units and raises on anything else, so a dropdown that offered feet would render a 400. The same
+    reason the maintenance scan sends recipe names as data.
+
+    ``distance_from_origin`` is measured over the ROOT placements — exactly the set ``rebase_origin``
+    shifts — so the number shown is the number the repair acts on, rather than a bounding box that
+    happens to correlate with it.
+
+    ``convertible`` is false when the file carries no ``LENGTHUNIT`` assignment, which is the one
+    input that makes the converter raise rather than no-op.
+    """
+    import ifcopenshell.util.unit as uunit
+
+    try:
+        metres = float(uunit.calculate_unit_scale(model))
+    except Exception:                                       # noqa: BLE001 — a file with no unit assignment
+        metres = None
+    named = _assigned_length_units(model)
+    # Name the unit the way the CONVERTER names it when we can, so the current value and the target
+    # list are drawn from one vocabulary; fall back to the file's own spelling when it is something
+    # the converter does not model (a foot, an inch, a conversion-based unit).
+    unit_name = None
+    if metres is not None:
+        for label, (_n, _p, m) in _UNIT_SCALES.items():
+            if abs(metres - m) < 1e-12:
+                unit_name = label
+                break
+    if unit_name is None and named:
+        u = named[0]
+        prefix = getattr(u, "Prefix", None)
+        base = getattr(u, "Name", None)
+        unit_name = f"{prefix}{base}" if prefix and base else (base or None)
+
+    mc = _map_conversion(model)
+    georeference = None
+    if mc is not None:
+        georeference = {
+            "eastings": getattr(mc, "Eastings", None),
+            "northings": getattr(mc, "Northings", None),
+            "orthogonal_height": getattr(mc, "OrthogonalHeight", None),
+        }
+
+    # The root placements, and how far the furthest one sits from the file origin. A model authored
+    # against a survey grid can sit millions of units out, which is what wrecks depth precision in a
+    # renderer — the problem `rebase_origin` exists for.
+    seen: set[int] = set()
+    roots = 0
+    furthest = 0.0
+    for placement in model.by_type("IfcLocalPlacement"):
+        if getattr(placement, "PlacementRelTo", None) is not None:
+            continue
+        rel = getattr(placement, "RelativePlacement", None)
+        loc = getattr(rel, "Location", None) if rel is not None else None
+        if loc is None or loc.id() in seen:
+            continue
+        seen.add(loc.id())
+        roots += 1
+        c = list(getattr(loc, "Coordinates", ()) or ()) + [0.0, 0.0, 0.0]
+        furthest = max(furthest, (float(c[0]) ** 2 + float(c[1]) ** 2 + float(c[2]) ** 2) ** 0.5)
+
+    return {
+        "length_unit": unit_name,
+        "length_unit_metres": metres,
+        # `convertible` is the ENGINE's precondition restated, not a looser one: `bool(named)` alone
+        # said yes to a foot-based file that `convert_length_unit` now refuses. The panel reads this
+        # to decide whether to offer the control at all, so the two must agree — a control offered
+        # for something the server will refuse is the "dropdown holding FOOT" failure one field down,
+        # arriving through the SOURCE unit instead of the target.
+        "convertible": bool(named) and all(u.is_a("IfcSIUnit") for u in named),
+        "unconvertible_reason": (
+            None if not named else
+            None if all(u.is_a("IfcSIUnit") for u in named) else
+            "conversion-based unit (e.g. feet) — this recipe rewrites SI assignments only"),
+        "targets": sorted(_UNIT_SCALES),
+        "georeference": georeference,
+        "root_placements": roots,
+        "distance_from_origin": furthest,
+        "distance_from_origin_m": (furthest * metres) if metres is not None else None,
+    }
+
+
 def rebase_origin(model: ifcopenshell.file, point=(0.0, 0.0, 0.0)) -> dict[str, Any]:
     """Move the model so the given MODEL point becomes the origin, preserving real-world position.
 
@@ -252,10 +376,33 @@ def convert_length_unit(model: ifcopenshell.file, to: str = "MILLIMETRE") -> dic
         return {"from_scale": current, "to": target, "ratio": 1.0, "converted": {},
                 "note": "already in the requested unit"}
 
-    unit_entities = [u for u in model.by_type("IfcNamedUnit")
-                     if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+    # ASSIGNED units only — the rewrite below mutates these, and an unassigned SI length unit is
+    # very often an `IfcMeasureWithUnit` conversion factor. Rewriting one changes what the factor
+    # MEANS (0.9144 METRE -> 0.9144 MILLIMETRE) while leaving its number alone.
+    unit_entities = _assigned_length_units(model)
     if not unit_entities:
         raise ValueError("no LENGTHUNIT assignment found in this file")
+
+    # **REFUSE BEFORE MUTATING, not after.** Every target in `_UNIT_SCALES` is an `IfcSIUnit`
+    # (metre with a prefix), and the rewrite below is guarded by `u.is_a("IfcSIUnit")` — so on a file
+    # whose LENGTHUNIT is an `IfcConversionBasedUnit` (a foot, an inch: normal in a US survey model)
+    # the rescale ran and the assignment did NOT change. The geometry moved, the declared unit did
+    # not, and the report said *"unit assignment rewritten"*: a 10 ft wall came out 3.048 FEET, the
+    # model silently 30.48% of its real size, with a success message. Reproduced before this guard
+    # was written, not reasoned about.
+    #
+    # Refusing is the asymmetric choice. Refusing a convertible file costs the user one message;
+    # converting an unconvertible one corrupts the model of record and says it worked. Replacing a
+    # conversion-based unit with an SI one is a real feature — it has to rewrite the
+    # `IfcUnitAssignment` and dispose of the `IfcMeasureWithUnit` behind it — and it is not this
+    # change; the refusal names it rather than pretending the file is unsupported outright.
+    unrewriteable = [u for u in unit_entities if not u.is_a("IfcSIUnit")]
+    if unrewriteable:
+        kinds = ", ".join(sorted({str(getattr(u, "Name", None) or u.is_a()) for u in unrewriteable}))
+        raise ValueError(
+            f"this file's length unit ({kinds}) is a conversion-based unit, which this recipe "
+            "cannot rewrite — converting it would rescale the geometry and leave the declared unit "
+            "unchanged. Nothing was changed.")
 
     converted: dict[str, int] = {}
     for cls, (lin, area, vol) in _LENGTH_ATTRS.items():

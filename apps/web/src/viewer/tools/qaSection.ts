@@ -10,6 +10,7 @@ import { sharedParamsButton } from "./sharedParamsPanel";
 import { projectModelsButton } from "./projectModelsPanel";
 import { modelReviewButton } from "./modelReviewPanel";
 import { modelCleanupButton, wallJoinsButton } from "./repairPanel";
+import { georeferencingButton, projectOriginButton, projectUnitsButton } from "./projectSetupPanel";
 import { runIdsValidate } from "./idsValidate";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
@@ -454,46 +455,14 @@ export function buildQaSection(d: QaDeps): void {
         // level (0/10/20/40/50) "so a coordinator can see at a glance how well-georeferenced a model
         // is", and it had no client caller: the project non-negotiable is to preserve real
         // coordinates for export, and there was no way to find out whether they were there.
-        b.appendChild(toolBtn2("🌍 Georeferencing (survey basis / LoGeoRef)", () => withLoading(container, "Reading survey basis", async () => {
-          let r;
-          try { r = await api.modelGeoreferencing(pid); }
-          catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = r.level_label;
-          showResult("Georeferencing", (body) => {
-            // The level IS the verdict — a bare "georeferenced: true" hides the difference between an
-            // elevation-only model and a projected CRS, and those export very differently.
-            body.appendChild(resultNote(
-              `<b>${escapeHtml(r!.level_label)}</b>${r!.note ? " — " + escapeHtml(r!.note) : ""}`,
-              r!.level >= 40 ? "ok" : r!.level === 0 ? "bad" : ""));
-            const rows: { k: string; v: string }[] = [];
-            const mc = r!.map_conversion, crs = r!.crs, site = r!.site;
-            // Every field is rendered as "not set" rather than omitted when absent. An absent row and
-            // a zero row look identical once one is missing, and eastings of 0 is a real value.
-            const num = (v: number | null | undefined) => (typeof v === "number" ? String(v) : "not set");
-            if (mc) {
-              rows.push({ k: "Eastings", v: num(mc.eastings) }, { k: "Northings", v: num(mc.northings) },
-                { k: "Orthogonal height", v: num(mc.orthogonal_height) },
-                { k: "True north bearing", v: mc.true_north_bearing_deg == null ? "not set" : `${mc.true_north_bearing_deg}°` },
-                { k: "Scale", v: num(mc.scale) });
-            }
-            if (crs) {
-              rows.push({ k: "CRS", v: crs.name || "not set" }, { k: "Geodetic datum", v: crs.geodetic_datum || "not set" },
-                { k: "Vertical datum", v: crs.vertical_datum || "not set" },
-                { k: "Map projection", v: crs.map_projection || "not set" }, { k: "Map zone", v: crs.map_zone || "not set" });
-            }
-            if (site) {
-              const dms = (v: number[] | null) => (Array.isArray(v) && v.length ? v.join("° ") : "not set");
-              rows.push({ k: "Site latitude", v: dms(site.ref_latitude) }, { k: "Site longitude", v: dms(site.ref_longitude) },
-                { k: "Site elevation", v: num(site.ref_elevation) });
-            }
-            if (!rows.length) {
-              body.appendChild(resultNote("No IfcMapConversion, projected CRS or IfcSite reference — "
-                + "the model carries no survey basis at all.", "bad"));
-              return;
-            }
-            body.appendChild(kvTable(rows));
-          });
-        })));
+        // MODEL-SETUP — the survey-basis READ moved to `projectSetupPanel.ts` to sit beside the
+        // two repairs for the condition it diagnoses (units and origin), which is the same
+        // argument `repairPanel.ts` makes for wall joins. Taking it along is also what PAYS
+        // for the two new controls: this file is exactly on its size ratchet.
+        const setupDeps = { api, pid, toolBtn2, out, container, notify, authorAndReload };
+        b.appendChild(georeferencingButton(setupDeps));
+        b.appendChild(projectUnitsButton(setupDeps));
+        b.appendChild(projectOriginButton(setupDeps));
         // WARN-1 — the punch list BEHIND the health badge. `modelHealth` above scores the model and
         // says "warn"; until now nothing could answer "warn about what, and where?". The feed's own
         // words: "Where the model-CI badge says pass/warn/fail, this is the actionable list behind

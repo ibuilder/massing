@@ -1142,6 +1142,22 @@ def model_wall_joins(pid: str, tol: float = 0.05, db: Session = Depends(get_db),
     return wall_joins.find(open_source_ifc(db, pid), tol=max(0.005, min(float(tol), 0.5)))
 
 
+@router.get("/projects/{pid}/model/setup")
+def model_setup(pid: str, db: Session = Depends(get_db),
+                _sec: str = Depends(require_role("viewer"))):
+    """MODEL-SETUP — the project's length unit and how far its geometry sits from the file origin.
+
+    The read half of two repairs that were already reachable through `POST /projects/{pid}/edit` and
+    that no screen offered: `convert_length_unit` and `rebase_origin`. Both were listed in
+    `authoring_matrix.UNREACHED`, which that module calls a defect rather than a gap.
+
+    A read, not a report on the repair: `targets` is the converter's own accepted list so a client
+    cannot offer a unit the recipe would 400 on, and `distance_from_origin` is measured over the same
+    root placements `rebase_origin` shifts, so the number shown is the number the repair acts on."""
+    from aec_data import ifcpatch_lib  # type: ignore
+    return ifcpatch_lib.setup_facts(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/model/roundtrip")
 def model_roundtrip(pid: str, db: Session = Depends(get_db),
                     _sec: str = Depends(require_role("viewer"))):

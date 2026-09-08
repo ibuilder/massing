@@ -94,6 +94,175 @@ with TestClient(app) as c:
     r = c.get(f"/projects/{pid}/model/split-plan")
     assert r.status_code == 200 and "Level 1" in r.json()["storeys"], r.text
 
+# --- MODEL-SETUP: setup_facts — the READ that makes the two repairs above offerable ---------------
+#
+# Both recipes were in the registry and reachable through POST /projects/{pid}/edit the whole time,
+# and `authoring_matrix.UNREACHED` listed both as "a capability no user can reach". A control could
+# not simply be added because nothing exposed the CURRENT state: "convert to millimetres" with no
+# statement of the present unit is a coin flip the user is asked to call.
+_ifc2 = Path(tempfile.gettempdir()) / "ifcpatch_setup_facts.ifc"
+massing.generate_blank_ifc(str(_ifc2), name="PS", storeys=2, storey_height=3.0, ground_size=40.0)
+m2 = open_model(str(_ifc2))
+edit.add_wall(m2, [1000, 2000], [1008, 2000], 3.0, 0.2, "Level 1")   # authored far from the origin
+
+facts = ifcpatch_lib.setup_facts(m2)
+assert facts["length_unit"] == "METRE" and abs(facts["length_unit_metres"] - 1.0) < 1e-12, facts
+assert facts["convertible"] is True, facts
+# The accepted list comes from the CONVERTER, not from a constant a client could drift from — a
+# dropdown offering FOOT would render a 400, so the server names what it will take.
+assert facts["targets"] == sorted(ifcpatch_lib._UNIT_SCALES), facts
+assert set(facts["targets"]) == {"CENTIMETRE", "METRE", "MILLIMETRE"}, facts
+# `distance_from_origin` is measured over the ROOT placements — the same set rebase_origin shifts —
+# so the number shown is the number the repair acts on.
+assert facts["root_placements"] > 0 and facts["distance_from_origin"] > 1000.0, facts
+
+# ...and ROOTS specifically, which needs a NESTED placement to be assertable at all. An
+# authored-from-scratch file has none — `rebase_origin`'s own docstring says its element placements
+# ARE the roots — so a mutation measuring every placement instead of the roots SURVIVED the check
+# above until this was added. The distinction is the whole claim: a nested placement rides its
+# parent, so counting it would report a distance the repair does not act on and shift nothing.
+_root_before = facts["root_placements"]
+_dist_before = facts["distance_from_origin"]
+_parent = next(x for x in m2.by_type("IfcLocalPlacement")
+               if getattr(x, "PlacementRelTo", None) is None)
+_far = m2.createIfcCartesianPoint((9.0e6, 9.0e6, 0.0))
+m2.createIfcLocalPlacement(_parent, m2.createIfcAxis2Placement3D(_far, None, None))
+_nested = ifcpatch_lib.setup_facts(m2)
+assert _nested["root_placements"] == _root_before, (_root_before, _nested["root_placements"])
+assert abs(_nested["distance_from_origin"] - _dist_before) < 1e-9, (_dist_before, _nested)
+assert abs(facts["distance_from_origin_m"] - facts["distance_from_origin"]) < 1e-9, facts
+assert facts["georeference"] is None, facts        # blank file carries no IfcMapConversion
+
+# The read TRACKS the repair: rebasing to the far point brings the distance down.
+far_before = facts["distance_from_origin"]
+_roots_read = _nested["root_placements"]
+_rebased = ifcpatch_lib.rebase_origin(m2, [1000.0, 2000.0, 0.0])
+after = ifcpatch_lib.setup_facts(m2)
+assert after["distance_from_origin"] < far_before, (far_before, after["distance_from_origin"])
+# **The count the panel SHOWS is the count the repair MOVED, asserted rather than asserted-in-prose.**
+# `setup_facts` and `rebase_origin` walk the placement graph with the same three conditions (skip a
+# non-root, skip a missing Location, skip a Location already seen — two roots can share one
+# IfcCartesianPoint, and shifting it twice would double the offset). Those are two copies of one
+# rule, and a copy is what drifts: the docstring's claim that the distance is measured over
+# "exactly the set rebase_origin shifts" would then be false with every other assertion here still
+# green. Comparing the two OUTPUTS binds them by behaviour, so the loops may be rewritten but not
+# diverge.
+#
+# **It guards the direction the nested-placement check above CANNOT see.** That one asserts the READ
+# stays root-only; this one catches the REPAIR loosening — dropping `rebase_origin`'s root filter
+# leaves every assertion above green and fails here with (2, placements_shifted=3). Verified by
+# mutation, after a first attempt (making the read skip roots that sit at the origin) SURVIVED:
+# neither root in this fixture is at the origin, so the mutation changed nothing. *A surviving
+# mutation can mean the fixture cannot express it rather than that the check is weak* — the same
+# thing that happened one assertion up, and the reason both are recorded rather than just the one
+# that worked.
+assert _roots_read == _rebased["placements_shifted"], (_roots_read, _rebased)
+
+# ...and it tracks the OTHER repair too, in the vocabulary the converter uses.
+ifcpatch_lib.convert_length_unit(m2, "MILLIMETRE")
+mm = ifcpatch_lib.setup_facts(m2)
+assert mm["length_unit"] == "MILLIMETRE" and abs(mm["length_unit_metres"] - 0.001) < 1e-12, mm
+# metres are the comparable figure across a unit change; file units are not
+assert abs(mm["distance_from_origin_m"] - after["distance_from_origin_m"]) < 1e-6, (mm, after)
+# --- A CONVERSION-BASED LENGTH UNIT IS REFUSED, NOT HALF-CONVERTED -------------------------------
+#
+# Found by review on the PR that made `convert_length_unit` reachable, and REPRODUCED before it was
+# fixed. The recipe rescales the whitelisted attributes, then rewrites the assignment guarded by
+# `u.is_a("IfcSIUnit")` — so on a foot-based file (an `IfcConversionBasedUnit`, ordinary in a US
+# survey model) the geometry moved and the declared unit did not. A 10 ft wall came out 3.048 FEET:
+# the model silently at 30.48% of its real size, with a report saying "unit assignment rewritten".
+#
+# *The defect predates the control; the control is what made it reachable.* That is the standing
+# hazard in wiring an UNREACHED recipe — the engine's own preconditions have never been exercised by
+# a caller, so "it is implemented and tested" is not the same as "it is safe to offer".
+_ifc3 = Path(tempfile.gettempdir()) / "ifcpatch_foot_unit.ifc"
+massing.generate_blank_ifc(str(_ifc3), name="FT", storeys=1, storey_height=3.0, ground_size=20.0)
+m3 = open_model(str(_ifc3))
+edit.add_wall(m3, [0, 0], [10, 0], 3.0, 0.2, "Level 1")
+_si = [u for u in m3.by_type("IfcNamedUnit") if getattr(u, "UnitType", None) == "LENGTHUNIT"][0]
+_metre = m3.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
+_foot = m3.createIfcConversionBasedUnit(
+    m3.createIfcDimensionalExponents(1, 0, 0, 0, 0, 0, 0), "LENGTHUNIT", "FOOT",
+    m3.createIfcMeasureWithUnit(m3.createIfcLengthMeasure(0.3048), _metre))
+for _ua in m3.by_type("IfcUnitAssignment"):
+    _ua.Units = tuple(_foot if u == _si else u for u in _ua.Units)
+assert abs(uunit.calculate_unit_scale(m3) - 0.3048) < 1e-12, "fixture is not actually in feet"
+
+# ① the READ refuses to advertise it, and says WHY — "no LENGTHUNIT at all" and "a unit we cannot
+#    rewrite" are different files and the panel prints different sentences for them.
+_ft = ifcpatch_lib.setup_facts(m3)
+assert _ft["convertible"] is False, _ft
+assert _ft["unconvertible_reason"] and "conversion-based" in _ft["unconvertible_reason"], _ft
+assert _ft["length_unit"] == "FOOT", _ft          # still NAMED honestly, just not offered
+
+# ② the ENGINE refuses too, and refuses BEFORE it touches anything. The read is a convenience; the
+#    recipe is reachable through POST /edit directly, so a guard that lived only in `setup_facts`
+#    would protect the panel and leave the door open. Both, and the geometry is byte-identical after.
+_before = sorted(tuple(e.Coordinates) for e in m3.by_type("IfcCartesianPoint"))
+try:
+    ifcpatch_lib.convert_length_unit(m3, "METRE")
+    raise AssertionError("convert_length_unit accepted a conversion-based unit")
+except ValueError as e:
+    assert "conversion-based" in str(e), e
+_after = sorted(tuple(e.Coordinates) for e in m3.by_type("IfcCartesianPoint"))
+assert _before == _after, "REFUSED AND STILL MUTATED — the guard is in the wrong place"
+assert abs(uunit.calculate_unit_scale(m3) - 0.3048) < 1e-12, "the unit changed on a refused convert"
+
+# ③ and an SI file is untouched by the guard — a refusal that refuses everything is not a fix.
+assert ifcpatch_lib.setup_facts(m2)["convertible"] is True
+assert ifcpatch_lib.setup_facts(m2)["unconvertible_reason"] is None
+
+# ④ **THE QUESTION IS ASKED OF THE ASSIGNED UNIT, NEVER OF EVERY NAMED UNIT IN THE FILE.** Raised in
+#    review against the guard in ③, which had scoped its population to `by_type("IfcNamedUnit")` —
+#    and a file contains length units it does not measure in. `_foot` above needs an
+#    `IfcMeasureWithUnit`, which needs a metre of its own, and the metre it replaced is still in the
+#    file; three LENGTHUNIT entities, one assigned.
+_all_named = [u for u in m3.by_type("IfcNamedUnit") if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+_assigned = ifcpatch_lib._assigned_length_units(m3)
+assert len(_all_named) == 3 and len(_assigned) == 1, (len(_all_named), len(_assigned))
+assert _assigned[0].is_a("IfcConversionBasedUnit"), _assigned[0]
+# the read NAMES the assigned unit, not `[0]` of an incidentally-ordered list — the assertion in ①
+# passed by luck of entity order before this.
+assert ifcpatch_lib.setup_facts(m3)["length_unit"] == "FOOT"
+
+# ⑤ THE REGRESSION THE GUARD INTRODUCED: a genuinely METRIC project that merely CARRIES an unused
+#    foot definition (an import leftover, a factor for some other quantity) was refused. The guard
+#    was right and its population was wrong — the same shape as the gate this PR widened.
+_ifc4 = Path(tempfile.gettempdir()) / "ifcpatch_unused_foot.ifc"
+massing.generate_blank_ifc(str(_ifc4), name="MU", storeys=1, storey_height=3.0, ground_size=20.0)
+m4 = open_model(str(_ifc4))
+edit.add_wall(m4, [0, 0], [10, 0], 3.0, 0.2, "Level 1")
+_m4metre = m4.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
+m4.createIfcConversionBasedUnit(                       # defined, NOT assigned
+    m4.createIfcDimensionalExponents(1, 0, 0, 0, 0, 0, 0), "LENGTHUNIT", "FOOT",
+    m4.createIfcMeasureWithUnit(m4.createIfcLengthMeasure(0.3048), _m4metre))
+assert abs(uunit.calculate_unit_scale(m4) - 1.0) < 1e-12, "fixture is not metric"
+_f4 = ifcpatch_lib.setup_facts(m4)
+assert _f4["convertible"] is True, _f4          # an unused foot does not make a metric file foot-based
+assert _f4["length_unit"] == "METRE", _f4
+ifcpatch_lib.convert_length_unit(m4, "MILLIMETRE")     # and it converts, rather than being refused
+
+# ⑥ ...and the conversion left the UNASSIGNED factor unit alone. This one predates the guard: the
+#    rewrite loop set Name/Prefix on every SI length unit it found, so a factor meaning
+#    `0.9144 METRE` silently became `0.9144 MILLIMETRE` — the number kept, the meaning multiplied by
+#    a thousand. Nothing pointed at it because nothing had ever converted a file that had one.
+assert _m4metre.Name == "METRE" and _m4metre.Prefix is None, (_m4metre.Name, _m4metre.Prefix)
+#    (Mutation notes. Reverting `_assigned_length_units` to `by_type` reds ④ with (3, 3). Scoping the
+#    READ but not the CONVERTER reds ⑤ — a ValueError, not an assert, because the unused foot refuses
+#    the whole conversion — which is why the mutation sweep greps for failure rather than for
+#    "AssertionError"; the first pass filtered on the latter and called this one SURVIVED.
+#    Dropping the DEDUPE survives: no fixture here puts one unit in two `IfcUnitAssignment`s, so the
+#    fixture cannot express it. Kept anyway — it is cheap, and a federated file can — but recorded as
+#    unproven rather than counted as covered.)
+assert abs(uunit.calculate_unit_scale(m4) - 0.001) < 1e-12, "the assigned unit did not convert"
+if _ifc4.exists():
+    _ifc4.unlink()
+if _ifc3.exists():
+    _ifc3.unlink()
+
+if _ifc2.exists():
+    _ifc2.unlink()
+
 if _ifc.exists():
     _ifc.unlink()
 
@@ -103,4 +272,7 @@ print("IFCPATCH-TRANSFORMS OK - rebase_origin shifts every ROOT placement plus t
       "georeference; convert_length_unit rewrites the unit assignment AND rescales the whitelisted "
       "attributes so a 3 m storey reads 3000 mm at the SAME real elevation (ratio 1000, idempotent, "
       "unknown unit refused, round-trips back to metres); split_by_storey plans deterministic "
-      "per-storey slices and GET /model/split-plan serves them.")
+      "per-storey slices and GET /model/split-plan serves them; setup_facts reads the unit, the "
+      "converter's OWN accepted target list and the distance of the ROOT placements from the origin, "
+      "so both repairs can be offered against stated state rather than guessed at, and it tracks "
+      "each one (rebase lowers the distance, convert renames the unit at an unchanged real size).")
