@@ -1848,6 +1848,34 @@ the only item here with real scope.
 
   **The requisition half is untouched** and still needs the per-site decision described below.
 
+  ✅ **PENNY-SPLIT — the v0.3.969 money fix missed a line IN A FUNCTION IT EDITED, shipped
+  2026-09-08.** This entry records that `round()` on floats disagreed with `payapp`'s HALF-UP and
+  that `cost.py` and `routers/cost.py` were converted. `routers/cost.py::subcontractor_billing` was
+  converted **on its `retainage` line and not on its `paid` line four lines below**, so one row of
+  the subcontractor billing summary carried both conventions at once. Measured through the route:
+  $2.50 at 5% held **0.13** retainage and paid **2.38**, which implies 0.12 — `billed - retainage`
+  and `paid` a penny apart, with neither number wrong on its own.
+
+  **Why nothing caught it.** `services/api/test_project_budget.py` bills 400,000 at 10% — exactly
+  40,000, where the two roundings coincide. Every fixture in that file is a round number, which is
+  the same blindness `cost.py`'s own comment records for the zero-rate case. *A money test whose
+  inputs are round is a test of arithmetic, not of convention.*
+
+  **`services/api/test_penny_split.py` gates the INVARIANT, not the spelling**: for a subcontract
+  whose every invoice is paid, `billed - retainage == paid`. That cannot be satisfied by accident,
+  and it survives any correct refactor — where asserting "the code calls `money`" would fail on one
+  and pass on a wrong one. Its precondition asserts each fixture *would have been wrong before the
+  fix*, computed with the pre-fix expression: **the first draft of that precondition compared the
+  wrong expression** (retainage rather than `paid`) and failed, correctly, on 2 of 3 fixtures.
+  *A precondition must reproduce the defective expression, not one that resembles it.*
+
+  ⚠️ **One mutation SURVIVES and that is recorded rather than fixed.** The same change moves
+  `billed` and `remaining` onto `money.q2`; reverting those to `round()` fails nothing. Correct —
+  both add or subtract two values already at 2dp, which cannot land on a half-cent, so the two
+  roundings provably agree (exhaustive over 140k pairs, 0 disagreements). Only `paid` was wrong.
+  The note is in the test so a later reader does not mistake the survival for a hole and "strengthen"
+  the gate to chase it.
+
 - ◧ **The original R43-MASSINGBILL-CORE review** *(kit reviewed 2026-08-10 at their pin `3af9124c`;
   **not a second item** — this is the evidence the entry above rests on, and it opened with the
   item code until 2026-08-25, so the extractor parsed one item as two. It could not FAIL on it:

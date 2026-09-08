@@ -12,6 +12,16 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a subcontractor billing row no longer contradicts itself by a penny
+
+The subcontractor billing summary reported `billed`, `retainage` and `paid` for each subcontract,
+and the row's own `paid` disagreed with its own `billed − retainage`. Retainage was computed exactly
+and rounded half-up, the way an invoice rounds; `paid` was computed on floats with Python's
+`round()`, which rounds half to even. Two conventions in one row: a subcontract billing $2.50 at 5%
+retainage held $0.13 and was paid $2.38, which implies $0.12. `paid` is now derived from the same
+retainage the row reports, so the two cannot diverge however the rate rounds. Totals are quantized
+once more, since summing rounded values drifts on its own.
+
 ### every spreadsheet export escapes formulas — and stops mangling negative numbers
 
 The previous entry fixed formula injection in the module CSV export. It fixed two writers; there

@@ -556,17 +556,34 @@ def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depe
         state = r.get("workflow_state")
         row["applications"] += 1
         if state in ("approved", "paid"):
-            row["billed"] = round(row["billed"] + amt, 2)
+            # `billed` and `remaining` below are ONE CONVENTION, NOT A FIX, and the difference is
+            # worth naming: they add or subtract two values that are already 2dp, which can never
+            # land on a half-cent, so HALF-UP and HALF-EVEN provably agree (checked exhaustively
+            # over 140k pairs; a mutation reverting these two to `round()` SURVIVES the gate, and
+            # that survival is correct rather than a hole in it). They are moved anyway so one
+            # function speaks one convention — but only `paid` below was actually wrong.
+            row["billed"] = money.q2(row["billed"] + amt)
             # v0.3.969 — same fix as cost.py: exact retainage, quantized HALF-UP once, then
             # accumulated. The float form disagreed with `payapp` by a penny and drifted as well.
             row["retainage"] = money.q2(
                 money.retainage(amt, ret_pct) + row["retainage"])
         if state == "paid":
-            row["paid"] = round(row["paid"] + amt * (1 - ret_pct / 100), 2)
+            # PENNY-SPLIT — this line was left on floats when the retainage line above was fixed,
+            # so ONE ROW carried TWO ROUNDING CONVENTIONS: `retainage` HALF-UP through `money`,
+            # `paid` HALF-EVEN through `round()`. Measured, 3 of 3 sampled rates disagreed: 2.50 at
+            # 5% held 0.13 retainage and paid 2.38, which implies 0.12. The row contradicted
+            # itself, and a sub checking `billed - retainage` against `paid` finds the GC's own
+            # summary a penny out with neither number wrong on its own.
+            #
+            # `paid` is now DERIVED from the same retainage the row reports, not recomputed from
+            # the rate, so the two cannot diverge again however the rate rounds.
+            row["paid"] = money.q2(row["paid"] + amt - money.retainage(amt, ret_pct))
     for row in rows.values():
-        row["remaining"] = round(row["contract_value"] - row["billed"], 2)
+        row["remaining"] = money.q2(row["contract_value"] - row["billed"])
     out = sorted(rows.values(), key=lambda x: -x["billed"])
-    tot = {k: round(sum(_n(r[k]) for r in out), 2) for k in ("contract_value", "billed", "retainage", "paid", "remaining")}
+    # Summing already-quantized floats still drifts (0.1 + 0.2), so the totals quantize once more.
+    tot = {k: money.q2(sum(_n(r[k]) for r in out))
+           for k in ("contract_value", "billed", "retainage", "paid", "remaining")}
     return {"subs": out, "totals": tot, "subcontract_count": len(subs), "invoice_count": len(invs)}
 
 
