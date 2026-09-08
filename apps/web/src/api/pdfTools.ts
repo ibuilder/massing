@@ -12,7 +12,7 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { ProfessionalLicense, StampTemplate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -24,7 +24,7 @@ export function withPdfTools<TBase extends Ctor<HttpCore>>(Base: TBase) {
   async pdfInfo(file: File) {
     const fd = new FormData(); fd.append("file", file);
     const r = await fetch(this.url("/pdf/info"), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<{ pages: number; encrypted: boolean }>;
   }
   /** Merge several uploaded PDFs into one (order = list order). */
@@ -61,7 +61,7 @@ export function withPdfTools<TBase extends Ctor<HttpCore>>(Base: TBase) {
     fd.append("page", String(o.page ?? 1)); fd.append("x", String(o.x ?? 36)); fd.append("y", String(o.y ?? 36));
     fd.append("sign", String(o.sign ?? true));
     const r = await fetch(this.url("/pdf/seal"), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return { blob: await r.blob(), sealed: r.headers.get("X-Seal-Sealed") === "true", compliance: r.headers.get("X-Seal-Compliance") || "" };
   }
   /** The signed-in user's own verified PE/RA licenses — what the seal dialog offers. */

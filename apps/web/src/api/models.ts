@@ -11,7 +11,7 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -116,7 +116,7 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }
     const fd = new FormData(); fd.append("file", file); fd.append("discipline", discipline);
     const res = await fetch(this.url(`/projects/${pid}/models`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `add model -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `add model -> ${res.status}`, res.status); }
     return { ...(await res.json()) as { id: string; discipline: string; size: number },
              deduplicated: false };
   }

@@ -10,7 +10,7 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -26,7 +26,7 @@ export function withIds<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const res = await fetch(this.url(`/ids/${kind}`), {
       method: "POST", body: JSON.stringify(body),
       headers: { "Content-Type": "application/json", ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`ids ${kind} -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`ids ${kind} -> ${res.status}`, res.status);
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = filename; a.click();
@@ -38,7 +38,7 @@ export function withIds<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const res = await fetch(this.url(`/ids/build`), {
       method: "POST", body: JSON.stringify({ use_case: useCase }),
       headers: { "Content-Type": "application/json", ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`ids build -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`ids build -> ${res.status}`, res.status);
     return res.blob();
   }
   /** Whether a project has a pinned IDS (+ its size). */
@@ -50,7 +50,7 @@ export function withIds<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", ids, filename);
     const res = await fetch(this.url(`/projects/${pid}/ids`),
       { method: "PUT", body: fd, headers: { ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`pin IDS -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`pin IDS -> ${res.status}`, res.status);
     return res.json() as Promise<{ stored: boolean; bytes: number }>;
   }
   unpinProjectIds(pid: string) {

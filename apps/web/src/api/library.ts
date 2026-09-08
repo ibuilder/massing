@@ -8,7 +8,7 @@
  *  Two calls, matching the server exactly: list what is packaged, and open one as a new project.
  *  Opening runs through `bundle.import_bundle` server-side, the same path a user's own `.mass` takes.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -48,7 +48,7 @@ export function withLibrary<TBase extends Ctor<HttpCore>>(Base: TBase) {
       const res = await fetch(this.url(`/samples/${encodeURIComponent(sampleId)}/open`), {
         method: "POST", body: fd, headers: this.authHeaders(),
       });
-      if (!res.ok) throw new Error(`open sample -> ${res.status}`);
+      if (!res.ok) throw new HttpError(`open sample -> ${res.status}`, res.status);
       return res.json() as Promise<{ id: string; name: string }>;
     }
 
@@ -62,7 +62,7 @@ export function withLibrary<TBase extends Ctor<HttpCore>>(Base: TBase) {
       if (!res.ok) {
         const e = await res.json().catch(() => ({ detail: res.statusText })) as { detail?: unknown };
         const detail = typeof e.detail === "string" ? e.detail : `preview -> ${res.status}`;
-        throw new Error(detail);
+        throw new HttpError(detail, res.status);
       }
       return res.json() as Promise<{
         readable: boolean; importable: boolean; format?: string; version?: number;

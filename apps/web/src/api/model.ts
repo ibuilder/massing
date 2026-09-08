@@ -175,6 +175,7 @@
  *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
  *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
+import { HttpError } from "./httpCore";
 import type { LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEditIfc } from "./types";
 
@@ -445,7 +446,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   async roundtripExport(pid: string, props: string[]) {
     const q = encodeURIComponent(props.join(","));
     const res = await fetch(this.url(`/projects/${pid}/model/roundtrip.csv?props=${q}`), { headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `export -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `export -> ${res.status}`, res.status); }
     const a = document.createElement("a");
     a.href = URL.createObjectURL(await res.blob()); a.download = "properties.csv"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -454,7 +455,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   async roundtripDiff(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/model/roundtrip/diff`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `diff -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `diff -> ${res.status}`, res.status); }
     return res.json() as Promise<{ checked: number; changes: { guid: string; pset: string; prop: string; old: string | null; new: string }[];
       unknown_guids: string[]; unchanged: number }>;
   }
@@ -698,7 +699,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   async convertE57(file: File): Promise<Blob> {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.text()) || `convert failed (${res.status})`, res.status);
     return res.blob();
   }
   /** MODEL-PUBLISH — the review gate over model versions: submit | approve | reject (409 on an
@@ -803,7 +804,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/source-ifc?publish=${publish}`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `upload -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `upload -> ${res.status}`, res.status); }
     return res.json() as Promise<{ source_ifc: string; publish?: string }>;
   }
   /** Import a native .rvt via the paid APS bridge (must confirm cost). 501 off · 402 unconfirmed. */
@@ -811,7 +812,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/import/rvt?confirm_cost=${confirmCost}`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `rvt import -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `rvt import -> ${res.status}`, res.status); }
     return res.json() as Promise<{ source_ifc: string; size: number; source: string; publish?: string }>;
   }
   /** Is the optional paid Revit→IFC bridge configured? (+ cost warning / free alternative text). */

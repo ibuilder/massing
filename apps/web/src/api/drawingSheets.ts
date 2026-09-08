@@ -9,7 +9,7 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore, type LiveStream } from "./httpCore";
+import { HttpCore, HttpError, type LiveStream } from "./httpCore";
 import type { SheetLayout } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -97,7 +97,7 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     fd.append("create", opts.create ? "true" : "false");
     const res = await fetch(this.url(`/projects/${pid}/extract/sheets`),
       { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Extract sheets -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Extract sheets -> ${res.status}`, res.status);
     return res.json() as Promise<{ sheets: { number: string; title: string; discipline: string }[];
       method: string; has_text_layer?: boolean; note?: string; created?: string[] }>;
   }

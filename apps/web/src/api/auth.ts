@@ -32,7 +32,7 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it: moving
  *  a method is invisible to it, losing one fails it by number.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { AccountUser, AuditEntry, IntegrationGroup, ProjectMember, ProjectRole } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -210,7 +210,7 @@ export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
     if (name) fd.append("name", name);
     const res = await fetch(this.url(`/projects/import-bundle`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`import -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`import -> ${res.status}`, res.status);
     return res.json() as Promise<{ id: string; name: string; model_kind?: string | null }>;
   }
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */

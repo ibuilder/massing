@@ -16,7 +16,7 @@
  *  A mixin, so every call site resolves unchanged. The surface ratchet in `api/surface.test.ts`
  *  (`>= 696`) is what proves that: moving a method is invisible to it, losing one fails it by number.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { Takeoff2dScopeOpts, TakeoffScope } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -60,7 +60,7 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/takeoff/dxf`), {
       method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `takeoff failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.json().catch(() => ({}))).detail || `takeoff failed (${res.status})`, res.status);
     return res.json() as Promise<{ units: string; unitless: boolean; layer_count: number; entity_count: number;
       total_length_m: number; total_area_m2: number;
       layers: { layer: string; entities: number; length_m: number; area_m2: number; inserts: number }[];

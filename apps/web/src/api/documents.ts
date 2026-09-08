@@ -28,7 +28,7 @@
  *
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { DocFile, DocFolderNode, ModuleRecord, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -67,7 +67,7 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
     for (const [k, v] of Object.entries(meta)) if (v) fd.append(k, v);
     const res = await fetch(this.url(`/projects/${pid}/documents/upload`),
       { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `upload failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.text()) || `upload failed (${res.status})`, res.status);
     return res.json() as Promise<{ entry: DocFile; naming: { valid: boolean; issues: string[] };
       superseded: string | null }>;
   }
@@ -75,7 +75,7 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("path", path);
     const res = await fetch(this.url(`/projects/${pid}/documents/${fid}/move`),
       { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `move failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.text()) || `move failed (${res.status})`, res.status);
     return res.json() as Promise<DocFile>;
   }
   deleteDocument(pid: string, fid: string, hard = false) {
@@ -105,7 +105,7 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
     fd.append("title", title);
     const res = await fetch(this.url(`/projects/${pid}/documents/file-model`),
       { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `file model failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.text()) || `file model failed (${res.status})`, res.status);
     return res.json() as Promise<Record<string, unknown>>;
   }
 

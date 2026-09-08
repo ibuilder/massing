@@ -16,7 +16,7 @@
  *  `askModel` (`/ask`) and `askProject` (`/assistant`). They are not `/ai` routes.
  *  `uploadVerificationPhoto` and `preflight` stayed.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -85,7 +85,7 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
     for (const [k, v] of Object.entries(fields)) if (v != null) fd.append(k, v);
     const res = await fetch(this.url(`/projects/${pid}/draft/${kind}`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Draft ${kind} -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Draft ${kind} -> ${res.status}`, res.status);
     return res.json() as Promise<T>;
   }
   /** Draft an RFI from a short note (+ optional source PDF/text) — editable before you create it. */

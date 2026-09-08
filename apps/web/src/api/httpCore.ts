@@ -25,8 +25,42 @@ export interface LiveStream { readonly connected: boolean; close(): void }
 export class HttpError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
-    this.name = "HttpError";
+    // `new.target`, not the literal "HttpError": `CloudError` extends this, and a subclass that
+    // reported its parent's name in a stack trace would be harder to place, not easier.
+    this.name = new.target.name;
   }
+}
+
+/**
+ * Why the server will NEVER accept this request, or `null` if the failure is worth retrying.
+ *
+ * 4xx means the request itself is wrong — a validation failure, or the sender no longer has access
+ * to the project — and repeating it byte for byte cannot change the answer. 408 and 429 are the
+ * exceptions: both explicitly invite a retry. Everything else (offline, DNS, 5xx, a proxy eating
+ * the connection) is transient by default, because **guessing "permanent" wrongly destroys work
+ * somebody did, and guessing "transient" wrongly only costs another attempt.** The asymmetry
+ * decides the default, not a judgement about which failures are more likely.
+ *
+ * Lives here, beside `HttpError`, because it is the POLICY that reading a status is for, and it now
+ * has two callers that must not drift apart: the field capture queue and the portal's offline
+ * upload queue. It began inside `field/field.ts` with one caller — which is exactly how the pair of
+ * queues came to disagree about everything else, each re-deriving "should I try this again" from
+ * whatever its own `catch` happened to see.
+ *
+ * A non-`HttpError` reaches here as status 0 and is therefore transient, which is correct: an
+ * offline `fetch` rejects with a `TypeError`, and that is the single most retryable failure there is.
+ */
+export function permanentRejection(e: unknown): string | null {
+  const status = e instanceof HttpError ? e.status : 0;
+  if (status < 400 || status >= 500 || status === 408 || status === 429) return null;
+  // 401 is NOT permanent, and treating it as such was this rule's first real mistake: the token
+  // expired, the person signs in again, and the very same request succeeds. Marking it refused
+  // strands work that one ordinary user action would have sent. 403 stays permanent — the server
+  // authenticated the caller and still said no, so a fresh token changes nothing.
+  if (status === 401) return null;
+  if (status === 403) return "No longer permitted on this project";
+  if (status === 404) return "The project or record no longer exists";
+  return `Refused by the server (${status})`;
 }
 
 export class HttpCore {
@@ -86,7 +120,7 @@ export class HttpCore {
   protected async _pdfPost(path: string, build: (fd: FormData) => void): Promise<Blob> {
     const fd = new FormData(); build(fd);
     const r = await fetch(this.url(path), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.blob();
   }
 
@@ -137,7 +171,7 @@ export class HttpCore {
         const r = await fetch(this.baseUrl + path, {
           method: "PUT", body: data, headers: { ...this.authHeaders(), ...headers },
         });
-        if (!r.ok) throw new Error((await r.text()) || `PUT ${path} -> ${r.status}`);
+        if (!r.ok) throw new HttpError((await r.text()) || `PUT ${path} -> ${r.status}`, r.status);
         return r.json();
       },
     });
