@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# TypeScript source always diffs as TEXT, whatever bytes it happens to contain.
+# `apps/web/src/viewer/propsView.ts` carried two NUL bytes as a search separator, and git
+# therefore rendered every change to it as `Bin N -> M bytes`: no reviewable diff, and nothing for
+# a review tool to read. The separator moved to \x1f, but a base blob still holding NULs makes the
+# diff binary from ONE side, so the attribute is what actually restores review for the change that
+# fixes it. An unreviewable source file is one whose next defect nobody can see.
+*.ts diff
+*.tsx diff

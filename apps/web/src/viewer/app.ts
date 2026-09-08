@@ -31,6 +31,7 @@ import { buildFederationSection } from "./tools/federationSection";
 import { buildEnvelopeSection } from "./tools/envelopeSection";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
+import { propsEditHooks, readEffectiveProps } from "./propsHooks";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "../ui/lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
@@ -298,7 +299,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (guid) { void render5D(guid); void renderVerify(guid); void renderLinkedRecords(guid); }
     else { props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); }
     if (connected && projectId && guid) {
-      try { renderProps(await api.element(projectId, guid)); return; } catch { /* fall through */ }
+      try { await renderProps(await api.element(projectId, guid)); return; } catch { /* fall */ }
     }
     const [modelId, ids] = Object.entries(map)[0] ?? [];
     if (!modelId) return;
@@ -313,19 +314,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     propsBody.replaceChildren(buildRawProps(data));
   }
 
-  function renderProps(el: ElementProps) {
+  async function renderProps(el: ElementProps) {
     // structured property + classification editor — only when we can write (connected + project);
     // each edit applies a server recipe and re-publishes, then we re-fetch the element's props.
-    const hooks = (connected && projectId) ? {
-      setProp: async (pset: string, prop: string, value: string, dtype: string) => {
-        await api.editIfc(projectId!, "set_element_pset", { guid: el.guid, pset, prop, value, dtype }, true);
-        try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index still rebuilding */ }
-      },
-      classify: async (system: string, code: string, name: string) => {
-        await api.editIfc(projectId!, "set_classification", { guid: el.guid, system, code, name }, true);
-        try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index still rebuilding */ }
-      },
-    } : undefined;
+    const hooks = (connected && projectId)
+      ? propsEditHooks({ api, pid: projectId, guid: el.guid, reload: async () => {
+        try { await renderProps(await api.element(projectId!, el.guid)); } catch { /* rebuilding */ }
+      } }) : undefined;
+    // PROP-OVERRIDE — which values are the TYPE's and which this element overrides. Only read when
+    // the panel can also act on the answer; `null` is a FAILED read and the panel says so rather
+    // than showing an unmarked list, which would assert that nothing is overridden.
+    const effective = hooks ? await readEffectiveProps(api, projectId!, el.guid) : undefined;
+    if (selectedGuid !== el.guid) return;                 // selection moved on while we waited
     // Revit-style identity header: the Type (the family/type it's an instance of) sits above the
     // instance parameters + property sets, so "what is this" reads before "its values".
     const head = document.createElement("div");
@@ -335,7 +335,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       + `<div class="meta" style="font-size:11px;margin-top:2px">Type: <b>${escapeHtml(el.type_name || "—")}</b></div>`
       + `<div class="meta" style="font-size:11px">Class: ${escapeHtml(cls)}${el.storey ? ` · Level: ${escapeHtml(el.storey)}` : ""}</div>`;
     const wrap = document.createElement("div");
-    const propsView = buildElementProps(el, hooks);
+    const propsView = buildElementProps(el, hooks, null, effective);
     // R38-LIVE-PARAMS (slices 1+2) — the element's one server-editable GEOMETRIC parameter today:
     // extrusion depth (wall height / slab thickness / mass rise), the same commit path as the
     // push/pull gesture. Slice 1 is the number field; slice 2 is the SLIDER with a live
@@ -395,7 +395,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         dropGhost();
         if (!Number.isFinite(depth) || depth <= 0) { notify("enter a positive depth in metres", "error"); return; }
         await authorAndReload("set_extrusion_depth", { guid: el.guid, depth }, "depth edit");
-        try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index rebuilding */ }
+        try { await renderProps(await api.element(projectId!, el.guid)); } catch { /* rebuild */ }
       };
       slider.oninput = () => { inp.value = slider.value; previewDepth(Number(slider.value)); };
       slider.onchange = () => { void commit(Number(slider.value)); };   // release = the decision
@@ -425,7 +425,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           if (!v.value || !Number.isFinite(val) || val <= 0) return;   // empty chip edits nothing
           const r = await authorAndReload("set_profile_dims", { guid: el.guid, [param]: val }, `${label} edit`);
           if (r.applied) {
-            try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index rebuilding */ }
+            try { await renderProps(await api.element(projectId!, el.guid)); } catch { /* rebuild */ }
           } else if (r.refused) {
             // the recipe refused (non-rectangular profile) — grey both chips for this selection.
             // A publish flake (neither applied nor refused) leaves the chips editable to retry.

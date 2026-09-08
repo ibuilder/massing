@@ -3648,6 +3648,46 @@ removed. Remaining, in priority order:
   by RUNNING both recipes and comparing (class, PredefinedType, system, system type), not by reading
   them — so it fails the moment the two stop agreeing, and the recipe becomes a real gap again.
 
+  ✅ **PROP-OVERRIDE, shipped 2026-09-08 — the type-vs-instance answer was computed for nobody, and
+  the undo was unreachable.** `UNREACHED` 7 → 6. The viewer's properties panel ships
+  `set_element_pset` — writing an occurrence-level property override — and shipped no way to see that
+  a value WAS overridden and no way to undo it: `reset_prop_to_type` sat in `UNREACHED`, implemented
+  and covered by `services/api/test_instance_props.py`. *A one-way door with the return trip built
+  and tested.*
+
+  **The read half is the finding, because no reachability gate here could have caught it.**
+  `GET /projects/{pid}/model/element/{guid}/effective-props` computes, per property, whether the
+  value is the type's or an instance override and what that override shadows — its own docstring
+  calls it *"the properties panel's type-vs-instance answer"*. The route had a caller and
+  `api.elementEffectiveProps` had a caller, so `test_reachable` and the uncalled-method ratchet were
+  both satisfied; the ONE caller is the dimensional-lock solver in
+  `apps/web/src/viewer/tools/authoringSection.ts`, which reads `.value` for numbers and drops
+  `source`, `overridden` and `type_value`. **A route with no caller is caught by a gate; a PAYLOAD
+  WITH NO READER is caught by nobody** — a new axis, and the reason this was found by reading the
+  route's docstring against its consumers rather than by anything going red.
+
+  Three details are load-bearing. **The shadowed type value is shown, not just badged** — "overridden"
+  without saying what it replaced is half an answer. **Reset is offered only where `overridden` is
+  true**, which is exactly when the recipe has something to fall back on; offering a control that
+  must refuse is the failure being fixed. And **a FAILED provenance read says so**: `undefined` (never
+  asked) and `null` (asked, failed) render differently, because an unmarked list would otherwise
+  assert *"nothing here is overridden"* — a claim the panel cannot back, indistinguishable from the
+  absence of an answer.
+
+  *Provenance is matched BY KEY, never by row index.* The first draft walked `Object.keys(props)` and
+  marked `rows[i]`, correct only while `rowsFromObj` emits one row per key in key order — the day it
+  filters or sorts, every row is labelled with its neighbour's provenance and offers a Reset for the
+  wrong property. Silent mis-attribution, and destructive. Rows now carry `data-k`.
+
+  **A mutation SURVIVED and the fixture was the reason**: deleting the `overridden` guard left the
+  Reset count at 1 because the only non-overridden property in the provenance fixture was one the
+  element does not carry, so nothing overlapped. Fixed by giving the fixture a property that is in
+  both — *a fixture that cannot express the failure reports the check as passing.* Five mutations now
+  caught. `apps/web/src/viewer/app.ts` paid for the addition at 2,508 → 2,507 by extracting the
+  panel's API wiring to `apps/web/src/viewer/propsHooks.ts`, and **the DOC-STRAND gate caught the
+  insertion orphaning `ModelSetupFacts`'s docstring** — my insertion point was chosen by a heuristic
+  that did not know a comment sat above it.
+
   ✅ **MODEL-SETUP, shipped 2026-09-08 — a project could not change its units or its origin.**
   `convert_length_unit` and `rebase_origin` sat in `UNREACHED` while being runnable through
   `POST /projects/{pid}/edit` the entire time. `rebase_origin` is the sharper loss: it shifts every

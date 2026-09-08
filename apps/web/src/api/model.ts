@@ -204,6 +204,35 @@ export interface ModelSetupFacts {
   distance_from_origin_m: number | null;
 }
 
+/** FAMILY-DEPTH ② — one element's properties with WHERE EACH VALUE CAME FROM.
+ *
+ *  The route's own docstring calls this *"the properties panel's type-vs-instance answer, straight
+ *  from the model"*. It was answering nobody: the only caller read `value` for numbers and dropped
+ *  `source`, `overridden` and `type_value` on the floor, so the panel that ships the OVERRIDE half
+ *  (`set_element_pset`) could not show that a value was overridden, and `reset_prop_to_type` — the
+ *  undo — was reachable from nothing. Named here because the panel is now a second consumer, and
+ *  because a shape with two readers should not be re-typed inline at each of them. */
+export interface ElementEffectiveProps {
+  guid: string;
+  type_guid: string | null;
+  type_name: string | null;
+  /** How many properties carry an instance value that SHADOWS a different type value. */
+  override_count: number;
+  psets: Record<string, Record<string, EffectiveProp>>;
+}
+
+/** One property's effective value and its provenance. */
+export interface EffectiveProp {
+  value: unknown;
+  /** `"instance"` = written on this occurrence; `"type"` = inherited from the IfcTypeObject. */
+  source: "instance" | "type";
+  /** True only when an instance value exists AND differs from a type value — i.e. there is
+   *  something to reset TO. `reset_prop_to_type` refuses when there is not. */
+  overridden: boolean;
+  /** The value the type carries, shadowed by the override. `null`/absent when the type has none. */
+  type_value: unknown;
+}
+
 
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
@@ -415,10 +444,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   }
   /** FAMILY-DEPTH ② — the effective (instance-over-type) property view for one element. */
   elementEffectiveProps(pid: string, guid: string) {
-    return this.json<{ guid: string; type_guid: string | null; type_name: string | null;
-      override_count: number;
-      psets: Record<string, Record<string, { value: unknown; source: "instance" | "type";
-        overridden: boolean; type_value: unknown }>> }>(
+    return this.json<ElementEffectiveProps>(
       `/projects/${pid}/model/element/${encodeURIComponent(guid)}/effective-props`);
   }
   // --- model analysis (capabilities / query / LOD / envelope / MEP-extract / naming) --------------

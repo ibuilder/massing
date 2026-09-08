@@ -199,9 +199,18 @@ _MAP: dict[str, tuple[str, str]] = {
 # the panel reads before it offers. `rebase_origin` is the sharper of the two — it shifts the site
 # placement AND pushes the same offset into the IfcMapConversion, which is this project's stated
 # georeferencing rule, implemented correctly and reachable by nobody.
+#
+# PROP-OVERRIDE took `reset_prop_to_type` off this list, and the pairing is the point: the viewer's
+# properties panel has shipped `set_element_pset` — WRITING an occurrence-level override — all along,
+# while the undo that drops it so the type's value shows through was reachable from nothing. *A
+# one-way door with the return trip built and tested.* The panel could not even SAY a value was
+# overridden: `GET /model/element/{guid}/effective-props` computes exactly that and its only caller,
+# the dimensional-lock solver, read `.value` and discarded `source`/`overridden`/`type_value`. Route
+# and client method both had callers, so every reachability check here was satisfied — *a route with
+# no caller is caught by a gate; a PAYLOAD WITH NO READER is caught by nobody.*
 UNREACHED: frozenset[str] = frozenset({
     "add_connection_assembly", "batch_tag", "derive_representations",
-    "place_type", "program_fit", "reset_prop_to_type", "set_spec_link",
+    "place_type", "program_fit", "set_spec_link",
 })
 
 # Recipes that nothing invokes AND nothing should: a reachable recipe already authors the identical
