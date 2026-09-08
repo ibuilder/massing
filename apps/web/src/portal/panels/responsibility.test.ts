@@ -59,9 +59,20 @@ const CLEAN = {
 
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
 
-function ctx(matrix: unknown, over: Record<string, unknown> = {}) {
+/**
+ * A FRESH clone on every read, because the panel mutates what it was handed.
+ *
+ * `mockResolvedValue(structuredClone(m))` captures ONE object and hands the same instance back to
+ * every read. The clear handler assigns `r.assignments = keep` before awaiting, so a reload after a
+ * failed PATCH re-read the row the client had already emptied — and a test asserting "the panel
+ * shows what the server has" could not fail, because the mock had no server state distinct from the
+ * client's. Raised in review. Cloning per call means client mutation can never leak back, and
+ * `queue` lets a test state what the server holds on the NEXT read.
+ */
+function ctx(matrix: unknown, over: Record<string, unknown> = {}, queue: unknown[] = []) {
   const api = {
-    responsibilityMatrix: vi.fn().mockResolvedValue(structuredClone(matrix)),
+    responsibilityMatrix: vi.fn().mockImplementation(() =>
+      Promise.resolve(structuredClone(queue.length ? queue.shift() : matrix))),
     responsibilityTemplates: vi.fn().mockResolvedValue({ templates: [] }),
     setResponsibilityConfig: vi.fn().mockResolvedValue({ roles: [], mode: "RACI" }),
     applyResponsibilityTemplate: vi.fn().mockResolvedValue({ created: 0 }),
@@ -159,13 +170,23 @@ describe("the RACI banner answers for assignments the grid cannot show", () => {
       ],
       count: 2,
     };
+    // What the SERVER holds after the first PATCH commits and the second is rejected: row 1 cleared,
+    // row 2 still carrying its orphaned letters. Queued as a distinct response, because asserting
+    // only that a re-read happened proves nothing about what the re-read showed — raised in review.
+    const AFTER_PARTIAL = {
+      ...TWO_ROWS,
+      rows: [
+        { ...TWO_ROWS.rows[0]!, assignments: {} },
+        { ...TWO_ROWS.rows[1]! },
+      ],
+    };
     let calls = 0;
     const { c, api } = ctx(TWO_ROWS, {
       updateModuleRecord: vi.fn().mockImplementation(() => {
         calls += 1;
         return calls === 1 ? Promise.resolve({}) : Promise.reject(new Error("500"));
       }),
-    });
+    }, [TWO_ROWS, AFTER_PARTIAL]);
     await renderResponsibility(c); await flush();
     const reads = api.responsibilityMatrix.mock.calls.length;
     const clear = [...c.root.querySelectorAll("button")]
@@ -175,6 +196,13 @@ describe("the RACI banner answers for assignments the grid cannot show", () => {
     expect(api.responsibilityMatrix.mock.calls.length,
       "a partial failure must re-read, not leave the panel ahead of the server")
       .toBeGreaterThan(reads);
+    // ...and the re-read must be what is RENDERED: the row the server still holds is still reported.
+    const text = c.root.textContent ?? "";
+    expect(text, "the banner must still report the orphan the server did not clear")
+      .toMatch(/no longer has/);
+    expect(text).toContain("Architect/EOR");
+    expect(text, "a partial clear is not a clean matrix")
+      .not.toContain("✅ Every activity has exactly one Accountable");
   });
 
   it("does not offer a repair when there is nothing to repair", async () => {
