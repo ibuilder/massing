@@ -241,9 +241,12 @@ def gmp_budget(db: Session, pid: str, proforma_hard: float | None = None) -> dic
     oh_pct, fee_pct, cont_pct = _n(pcd.get("overhead_pct")), _n(pcd.get("fee_pct")), _n(pcd.get("contingency_pct"))
     gmp_value = _n(pcd.get("value"))
 
-    overhead_amt = round(cost_of_work * oh_pct / 100, 2)
-    fee_amt = round((cost_of_work + overhead_amt) * fee_pct / 100, 2)
-    contingency_amt = round(direct["budget"] * cont_pct / 100, 2)
+    # MONEY-SCOPE — these are the GMP's own markup lines, and `fee_amt` COMPOUNDS on `overhead_amt`,
+    # so a half-cent taken the wrong way propagates rather than staying local. `round()` is
+    # ROUND_HALF_EVEN; a contract rounds half away from zero, which is what `money.retainage` does.
+    overhead_amt = money.retainage(cost_of_work, oh_pct)
+    fee_amt = money.retainage(cost_of_work + overhead_amt, fee_pct)
+    contingency_amt = money.retainage(direct["budget"], cont_pct)
     overhead = _category("overhead", f"Overhead ({oh_pct}%)", [_line("Home-office overhead", overhead_amt)])
     fee = _category("fee", f"Fee / Profit ({fee_pct}%)", [_line("Fee", fee_amt)])
     contingency = _category("contingency", f"GC Contingency ({cont_pct}%)", [_line("Contingency", contingency_amt)])

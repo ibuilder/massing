@@ -1848,6 +1848,53 @@ the only item here with real scope.
 
   **The requisition half is untouched** and still needs the per-site decision described below.
 
+  ✅ **MONEY-SCOPE — the gate that was supposed to catch PENNY-SPLIT could not SEE it, shipped
+  2026-09-08.** `services/api/test_money_spine.py` opens *"One rounding convention for retainage,
+  asserted at every site that computes it."* Both halves of that were false:
+
+  * it scanned a **hardcoded list of three files** — `cost.py`, `routers/cost.py`, `payapp.py`;
+  * its predicate required the literal substring **`retain` on the line**, and the surviving site
+    reads `round(row["paid"] + amt * (1 - ret_pct / 100), 2)`. It matched `round(` and `/ 100` and
+    was missed, because **`ret_pct` does not contain `retain`**.
+
+  **The third term was a spelling, and the site that survived used an abbreviation.** Measured, not
+  inferred: the predicate was run against both historical lines and reports MISSED on one, SEEN on
+  the other.
+
+  A name-free AST scan — `round(<expression dividing by 100>, 2)`, over every file — found **five
+  more sites in three files the old list never named**: `project_budget.py` ×3 (the GMP's overhead,
+  fee and contingency, where fee COMPOUNDS on overhead), `evm.py` (earned value in dollars, and its
+  severity is stated as LOW rather than implied — `model_pct` is already 1dp, so the penny sits
+  below its own input's precision), and `wip.py` — **retainage, this gate's own subject, in a file
+  it did not read.**
+
+  ⚠️ **And `wip.py` carried a second, worse defect the rounding sweep walked into.** It computed
+  `g703_retainage or (DEFAULT_RETAINAGE / 100 * billed)`, and `or` treats an EXPLICIT 0% as absent.
+  `cost.py:49` records this exact shape under the name FIN-SUITE-BLIND and fixed it there; **this is
+  the instance that survived**, in the engine whose own comment says `billed` drives over/under-
+  billing and posts back to the ledger. Mutation-measured: a 0%-retainage contract billing $40,000
+  reported **$2,000** held. *A named, already-fixed class is not closed until its population is
+  derived — three sweeps in a row have now found a survivor of one.*
+
+  🔒 **The gate now asserts its own SCOPE, not just its verdict.** With the tree clean, narrowing
+  the scan back to three files would pass silently — which is precisely how it spent two releases
+  reporting a tree it was not reading. It pins the population to every `.py` under `aec_api` and
+  names the six modules that must be inside it, so a narrowing reds the build. Three probes prove
+  the predicate in both directions: it must find the form that defeated the old scan, still find the
+  form the old scan caught, and NOT flag a display percentage rounded to 1dp.
+
+  ⚠️ **And the replacement scan repeated the lesson one layer along, caught in review.** The old
+  predicate depended on a NAME (`retain`) and the site that survived used an abbreviation. The
+  structural replacement dropped the name — and still depended on a syntactic FORM, reading
+  `n.args[1]`, so `round(x, ndigits=2)` slipped through. That is valid Python and returns the *same*
+  HALF-EVEN answer (measured: `round(2.675, ndigits=2)` is 2.67), so a site written that way would
+  be exactly the defect, invisible to the gate written to catch it. `_ndigits` now reads the
+  argument **however it was passed**, and the keyword form is a fourth probe.
+
+  *Dropping one kind of brittleness is not the same as being robust.* Three drafts of this predicate
+  now: lexical → structural-but-positional → structural. Each was a real improvement and each still
+  had a spelling in it.
+
   ✅ **PENNY-SPLIT — the v0.3.969 money fix missed a line IN A FUNCTION IT EDITED, shipped
   2026-09-08.** This entry records that `round()` on floats disagreed with `payapp`'s HALF-UP and
   that `cost.py` and `routers/cost.py` were converted. `routers/cost.py::subcontractor_billing` was

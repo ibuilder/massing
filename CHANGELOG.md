@@ -12,6 +12,19 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### six more money figures round the way an invoice rounds — and a 0% retainage stays 0%
+
+The previous entry fixed one line. The check that was supposed to cover the whole tree could not
+see it: it scanned three named files and required the word "retain" on the line, and the line it
+missed said `ret_pct`. Reading the source structurally instead found five more places computing
+money to the cent with the wrong rounding — the GMP budget's overhead, fee and contingency lines,
+earned value against the model, and work-in-progress retainage.
+
+**A contract that holds no retainage now reports none.** Work-in-progress treated an explicit 0%
+retainage as a missing one and substituted the 5% default, so a project the owner agreed to hold
+nothing on showed retainage held — on a $40,000 billing, $2,000 that does not exist. That figure
+drives over- and under-billing, which posts to the ledger.
+
 ### a subcontractor billing row no longer contradicts itself by a penny
 
 The subcontractor billing summary reported `billed`, `retainage` and `paid` for each subcontract,

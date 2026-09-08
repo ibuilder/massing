@@ -70,28 +70,100 @@ def main() -> int:
           not mismatch,
           f"{len(CASES)} cases, no disagreement" if not mismatch else f"DIVERGED on {mismatch}")
 
-    # --- every site now uses it, read from the source ------------------------------------------------
+    # --- every site now uses it, DERIVED from the source ---------------------------------------
     #
     # The point of this file is that ONE site kept the old arithmetic for two releases while the
-    # release note said the tree was done. So the population is read, not remembered.
+    # release note said the tree was done. So the population is read, not remembered — and until
+    # MONEY-SCOPE it was remembered anyway, twice over:
+    #
+    #   1. It scanned a HARDCODED list of three files. Five more sites lived outside them —
+    #      `evm.py`, `project_budget.py` (x3) and `wip.py`, the last of them computing retainage,
+    #      which is this file's own subject.
+    #   2. Its predicate required the literal substring "retain" ON THE LINE. The site PENNY-SPLIT
+    #      fixed reads `round(row["paid"] + amt * (1 - ret_pct / 100), 2)` — it matched `round(`
+    #      and `/ 100` and was MISSED, because `ret_pct` does not contain "retain".
+    #
+    # **The third term was a spelling, and the site that survived used an abbreviation.** The scan
+    # is now structural: `round(<expression containing a division by 100>, 2)`, over every file,
+    # naming nothing. A variable rename cannot hide from it.
+    import ast
     from pathlib import Path
-    src = Path(__file__).resolve().parent / "src" / "aec_api"
-    offenders = []
-    for rel in ("cost.py", "routers/cost.py", "payapp.py"):
-        for i, line in enumerate((src / rel).read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"'):
-                continue                  # a comment describing the old form is not the old form
-            if "round(" in line and "/ 100" in line and "retain" in line.lower():
-                offenders.append(f"{rel}:{i}")
-    check("no site computes retainage with float round() any more",
-          not offenders,
-          f"{offenders}" if offenders else "cost.py, routers/cost.py and payapp.py all quantize")
 
-    planted = "x = round(amt * retainage_pct / 100, 2)"
-    check("...and the scan can still SEE that form — the twin",
-          "round(" in planted and "/ 100" in planted and "retain" in planted.lower(),
-          "a source scan that matches nothing reports every tree as clean")
+    def _divides_by_100(node: ast.AST) -> bool:
+        return any(isinstance(n, ast.BinOp) and isinstance(n.op, ast.Div)
+                   and isinstance(n.right, ast.Constant) and n.right.value == 100
+                   for n in ast.walk(node))
+
+    def _ndigits(call: ast.Call):
+        """`round()`'s second argument, however it was PASSED — positionally or as `ndigits=`.
+
+        `round(x, ndigits=2)` is valid Python and returns the same HALF-EVEN answer as
+        `round(x, 2)` (measured: `round(2.675, ndigits=2)` is 2.67). The first version of this scan
+        read `n.args[1]` and missed it — **which is this file's own lesson one turn later.** The old
+        predicate depended on a NAME and the surviving site used an abbreviation; the replacement
+        dropped the name and still depended on a syntactic FORM. A reviewer caught it.
+        """
+        for kw in call.keywords:
+            if kw.arg == "ndigits":
+                return kw.value
+        return call.args[1] if len(call.args) >= 2 else None
+
+    def scan(text: str) -> list[int]:
+        """Line numbers where money is quantized to cents by `round()` over a percentage."""
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return []
+        out = []
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "round" and n.args):
+                continue
+            nd = _ndigits(n)
+            if isinstance(nd, ast.Constant) and nd.value == 2 and _divides_by_100(n.args[0]):
+                out.append(n.lineno)
+        return out
+
+    # **Prove the scan before believing it.** A clean report over a clean tree is indistinguishable
+    # from a broken detector, and this exact file already shipped one that could not see the defect
+    # it was named for. Both historical forms must be found; a display percentage must not be.
+    PRE_FIX_PAID = 'x = round(paid + amt * (1 - ret_pct / 100), 2)'      # PENNY-SPLIT, no "retain"
+    PRE_FIX_RETAINAGE = 'x = round(completed * retainage_pct / 100, 2)'  # what the old scan caught
+    DISPLAY_PCT = 'x = round(100 * done / total, 1)'                     # a percentage, not money
+    KEYWORD_FORM = 'x = round(amt * pct / 100, ndigits=2)'               # same result, other spelling
+    check("the scan finds the form that DEFEATED the old lexical one",
+          scan(PRE_FIX_PAID) == [1],
+          "`ret_pct` contains no 'retain'; the old predicate required that substring and missed it")
+    check("...and the KEYWORD form, which the first structural draft also missed",
+          scan(KEYWORD_FORM) == [1],
+          "round(x, ndigits=2) is valid Python and returns the same HALF-EVEN answer — "
+          "a reviewer caught this file repeating its own lesson one layer along")
+    check("...and still finds the form the old one did catch — the twin",
+          scan(PRE_FIX_RETAINAGE) == [1])
+    check("...and does NOT flag a display percentage rounded to 1dp",
+          scan(DISPLAY_PCT) == [],
+          "a scan that matches everything is as useless as one that matches nothing")
+
+    src = Path(__file__).resolve().parent / "src" / "aec_api"
+    files = sorted(src.rglob("*.py"))
+    offenders = [f"{f.relative_to(src)}:{ln}" for f in files
+                 for ln in scan(f.read_text(encoding="utf-8"))]
+    check("no site in aec_api quantizes money to cents with float round()",
+          not offenders,
+          f"{offenders}" if offenders
+          else f"scanned {len(files)} files, structurally, naming nothing")
+
+    # **Assert the SCOPE, not only the verdict.** With the tree clean, narrowing this scan back to a
+    # handful of files would pass silently — which is exactly how it spent two releases reporting a
+    # tree it was not reading. So the population is pinned to the whole package: every module that
+    # holds money must be inside it, and the four that historically did are named as a floor.
+    scanned = {str(f.relative_to(src)) for f in files}
+    must_reach = {"cost.py", "routers/cost.py", "payapp.py", "wip.py",
+                  "evm.py", "project_budget.py"}
+    check("the scan reaches every module, not a remembered handful",
+          must_reach <= scanned and len(files) > 100,
+          f"{len(files)} files; missing {sorted(must_reach - scanned)}" if must_reach - scanned
+          else f"{len(files)} files, including the 3 the old scan listed and the 3 it did not")
 
     # --- the absence rule a truthiness test breaks -----------------------------------------------------
     check("an explicit 0% rate is honoured, not replaced by the default",

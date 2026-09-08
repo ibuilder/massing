@@ -140,5 +140,31 @@ with TestClient(app) as c:
           partly["billed"] == 2.50 and partly["retainage"] == 0.13 and partly["paid"] == 0.0,
           f"{partly} — the identity above is scoped to fully-paid subs, not universal")
 
+# ---- MONEY-SCOPE: a 0% retainage contract, in a second engine ---------------------------------
+#
+# Lives here rather than in its own file because it is the same claim one layer along — a money row
+# must report what the project actually holds. `wip.py` computed
+#
+#     round(g703_totals.get("retainage", 0.0) or (DEFAULT_RETAINAGE / 100 * billed), 2)
+#
+# and `or` treats an EXPLICIT 0% as an absent one. `cost.py:49` records this exact shape under the
+# name FIN-SUITE-BLIND and fixed it there; this is the instance that survived, in the engine whose
+# own comment says `billed` drives over/under-billing and posts back to the ledger. The SOV's answer
+# is now used whenever an SOV exists; the estimate is a fallback for having no schedule of values,
+# not for a schedule that legitimately holds nothing.
+zpid = c.post("/projects", json={"name": "Zero Retainage", "number": "ZR-1"}).json()["id"]
+mk(c, zpid, "sov", {"item_no": "01", "description": "Sitework", "scheduled_value": 100_000,
+                    "completed_this": 40_000, "retainage_pct": 0})
+mk(c, zpid, "owner_invoice", {"number": "INV-1", "amount": 40_000, "period": "2026-01"})
+wip = c.get(f"/projects/{zpid}/wip").json()
+check("the WIP fixture actually billed something",
+      wip.get("billed_to_date") == 40_000.0,
+      f"billed_to_date={wip.get('billed_to_date')} — with nothing billed the 5% fallback would be "
+      "0 anyway and the assertion below would pass on the broken code")
+check("WIP honours an explicit 0% retainage instead of substituting the 5% default",
+      wip.get("retainage") == 0.0,
+      f"retainage={wip.get('retainage')} on a 0%-retainage contract billing "
+      f"{wip.get('billed_to_date')} — the pre-fix `or` would report 5% of billed")
+
 print(("FAILED: " + "; ".join(FAILED)) if FAILED else "test_penny_split OK")
 raise SystemExit(1 if FAILED else 0)
