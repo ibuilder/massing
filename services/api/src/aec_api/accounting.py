@@ -16,6 +16,8 @@ import io
 
 from sqlalchemy.orm import Session
 
+from aec_data.cells import cell as _cell
+
 from . import modules as me
 
 # Default account mapping — a deployment can override via cost-code / settings later.
@@ -94,13 +96,25 @@ def journal(db: Session, project_id: str) -> list[dict]:
 
 
 def to_gl_csv(entries: list[dict]) -> str:
-    """Double-entry GL: each cost debits Construction Costs and credits AP (universal import format)."""
+    """Double-entry GL: each cost debits Construction Costs and credits AP (universal import format).
+
+    CSV-SWEEP — `vendor` and `memo` come straight off the record (`d.get("vendor")`, the invoice
+    description), so they are user text landing in a file an accountant opens in Excel. Measured
+    before the guard: a vendor named `=cmd|'/c calc'!A1` reached the Vendor column verbatim. Amounts
+    are formatted floats and the accounts are constants, so only the text columns need guarding —
+    but the whole row goes through it anyway, because a guard applied per-column is one column away
+    from being forgotten.
+    """
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Date", "Ref", "Account", "Vendor", "CostCode", "Memo", "Debit", "Credit"])
     for e in entries:
-        w.writerow([e["date"], e["ref"], COST_ACCOUNT, e["vendor"], e["cost_code"], e["memo"], f"{e['amount']:.2f}", ""])
-        w.writerow([e["date"], e["ref"], AP_ACCOUNT, e["vendor"], e["cost_code"], e["memo"], "", f"{e['amount']:.2f}"])
+        w.writerow([_cell(x) for x in
+                    (e["date"], e["ref"], COST_ACCOUNT, e["vendor"], e["cost_code"], e["memo"],
+                     f"{e['amount']:.2f}", "")])
+        w.writerow([_cell(x) for x in
+                    (e["date"], e["ref"], AP_ACCOUNT, e["vendor"], e["cost_code"], e["memo"],
+                     "", f"{e['amount']:.2f}")])
     return buf.getvalue()
 
 
@@ -176,16 +190,49 @@ def trial_balance(db: Session, project_id: str) -> dict:
                     "journal (job cost + billing + WIP adjustment)."}
 
 
+def _iif(v) -> str:
+    """One IIF field with the record delimiters neutralised.
+
+    Tab and newline are IIF's field and record separators. They are REPLACED by a space rather than
+    rejected: an export must not fail because somebody pasted a multi-line address into a memo, and
+    dropping the row silently would lose a bill. The value stays readable and can no longer end a
+    field or a record early.
+    """
+    out = "" if v is None else str(v)
+    for d in ("\r\n", "\t", "\r", "\n"):
+        out = out.replace(d, " ")
+    return out
+
+
 def to_iif_bills(entries: list[dict]) -> str:
-    """QuickBooks IIF bills (AP): one BILL transaction per sub invoice, cost split by cost code."""
+    """QuickBooks IIF bills (AP): one BILL transaction per sub invoice, cost split by cost code.
+
+    **The formula guard deliberately does NOT apply here**, and the note is kept so the next sweep
+    does not "fix" it. IIF carries the same `vendor` and `memo` text as `to_gl_csv`, but it is
+    consumed by QuickBooks, not by a spreadsheet — nothing evaluates a leading `=`, and prefixing
+    an apostrophe would corrupt the vendor name **on import**, turning a safety measure into a data
+    defect.
+
+    **Its own class of exposure is the delimiters, and that IS fixed here** (`_iif`). IIF is
+    tab-separated with newline-terminated records and no quoting, so a tab or a newline inside
+    `vendor`, `memo` or `cost_code` does not corrupt one field — it **forges a record**. A vendor
+    named `Acme<TAB>BILL<TAB>...` writes columns the operator never entered, into an accounting system,
+    on an import nobody reads line by line. CSV-SWEEP identified this and deferred it as a
+    different class; a review agreed independently, which is the argument for fixing it in the same
+    pass rather than leaving a named exposure behind a correct explanation of why it is not the
+    other one.
+    """
     lines = ["\t".join(["!TRNS", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "\t".join(["!SPL", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "!ENDTRNS"]
     for e in (x for x in entries if x["kind"] == "bill"):
         amt = e["amount"]
-        lines.append("\t".join(["TRNS", "BILL", e["date"], AP_ACCOUNT, e["vendor"], f"-{amt:.2f}", e["memo"]]))
-        lines.append("\t".join(["SPL", "BILL", e["date"], COST_ACCOUNT, e["vendor"], f"{amt:.2f}",
-                                f"{e['cost_code']} {e['memo']}".strip()]))
+        lines.append("\t".join(_iif(x) for x in
+                                ("TRNS", "BILL", e["date"], AP_ACCOUNT, e["vendor"],
+                                 f"-{amt:.2f}", e["memo"])))
+        lines.append("\t".join(_iif(x) for x in
+                                ("SPL", "BILL", e["date"], COST_ACCOUNT, e["vendor"],
+                                 f"{amt:.2f}", f"{e['cost_code']} {e['memo']}".strip())))
         lines.append("ENDTRNS")
     return "\n".join(lines) + "\n"
 

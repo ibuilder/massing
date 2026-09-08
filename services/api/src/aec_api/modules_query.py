@@ -20,6 +20,11 @@ from fastapi import HTTPException
 from sqlalchemy import Float, String, and_, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
+# CSV-SWEEP — the single spreadsheet-cell guard. It is defined in `aec_data` because that is the
+# LOWER package (aec_api imports aec_data, never the reverse), so the API's CSV writers and
+# aec_data's XLSX writer share ONE definition. Re-exported under the name the API already used.
+from aec_data.cells import cell as csv_cell  # noqa: F401
+
 from . import rbac
 from .modules_registry import (
     REGISTRY,
@@ -302,23 +307,6 @@ def _display_expr(db: Session, t, mod: dict, name: str, project_id: str | None, 
     if twin:
         expr = func.coalesce(expr, half(twin))
     return expr, joins, False
-
-
-def csv_cell(v) -> str:
-    """One CSV cell, with the spreadsheet formula-injection lead neutralised.
-
-    Excel and Sheets execute a cell beginning `=`, `+`, `-` or `@`, so any user-supplied text written
-    into a CSV is code in the reader's spreadsheet — `=cmd|'/c calc'!A1` in a company name is the
-    classic shape. Prefixing an apostrophe forces the cell to text; `standards.roundtrip_export`'s
-    diff parser strips exactly one, which is why that is the escape used rather than a quote or a
-    space.
-
-    **Lifted from `roundtrip_export`, which already had it, rather than copied.** Two spellings of a
-    security guard is how one of them stops being applied — the same drift this repo keeps finding in
-    duplicated rules — so both CSV writers now call this one, and `test_ref_label.py` asserts it.
-    """
-    s = "" if v is None else str(v)
-    return "'" + s if s[:1] in ("=", "+", "-", "@") else s
 
 
 def resolve_titles(db: Session, module_key: str, ids: set[str], project_id: str) -> dict[str, str]:

@@ -21,6 +21,8 @@ import io
 import math
 from typing import Any
 
+from aec_data.cells import cell as _cell
+
 # Element classes whose object-placement is a useful field setout point, with a short code for the
 # Description (surveyors read the code to know what they're staking).
 LAYOUT_CLASSES: dict[str, str] = {
@@ -156,8 +158,12 @@ def to_penzd_csv(pts: list[dict], order: str = "PENZD", delimiter: str = ",", he
     w = csv.writer(buf, delimiter=delimiter, lineterminator="\n")
     if header:
         w.writerow([label[c] for c in cols])
+    # CSV-SWEEP — the description is user text, but Easting/Northing/Elevation are routinely
+    # NEGATIVE and a negative number opens with a formula lead. `cells.cell` passes plain numbers
+    # through untouched, which is the only reason it is safe to apply to a survey points file at
+    # all: escaping a coordinate would corrupt the import this format exists for.
     for p in pts:
-        w.writerow([p[get[c]] for c in cols])
+        w.writerow([_cell(p[get[c]]) for c in cols])
     return buf.getvalue()
 
 

@@ -2214,6 +2214,70 @@ stakes we are missing.
   The same review caught a second real gap: a `join` switched the display grouping off, so the fix
   applied everywhere except reports that joined — correct in every test anyone had happened to write.
 
+  🔒 **CSV-SWEEP — ⑬'s fix was two instances of a class with nine members, shipped 2026-09-08.**
+  ⑬ guarded the module export and lifted the guard beside `roundtrip_export`. It did not ask *how
+  many other functions write a spreadsheet*, so four more shipped unguarded, each measured live:
+  `accounting.to_gl_csv` put `=cmd|'/c calc'!A1` in the Vendor column of a general-ledger CSV an
+  accountant opens; `aec_data.xlsx.write_sheets` wrote it into every XLSX export — including the
+  COBie workbook handed to an owner at turnover — where openpyxl stores it with `data_type='f'`, a
+  **live formula in the file**; `model_query.to_csv` and `layout.to_penzd_csv` carry names and
+  descriptions straight out of an uploaded IFC. Then the derived gate found two more the manual
+  list had missed: `drawing_schedules.schedule_csv` (door and window marks) and
+  `rebar_rules.bbs_csv` (bar marks, in the schedule a fabricator ingests). **Six of the nine, and
+  the last two were found by the deriver rather than by the person writing it** — which is the
+  argument for deriving a population instead of listing one.
+
+  ⚠️ **And the sweep found a regression ⑬ ITSELF shipped.** ⑬ guarded *every* cell on the reasoning
+  that "a guard applied per-column is one column away from being forgotten". The reasoning is right
+  and the guard was wrong: **a negative number begins with a formula lead**, so `cost_impact =
+  -500.0` exported as `'-500.0` — a text cell where a number belongs, in a column somebody sums.
+  Survey coordinates are the same shape and would have been corrupted outright. The guard is now
+  number-aware: `-1+1` still escapes, `-500.00` does not, because the danger is an *expression*
+  opening with a lead, not a signed value. **A sound reason for a broad rule is not evidence the
+  rule is right.**
+
+  🔒 **The IIF sibling was deferred as "a different class", and the review disagreed — correctly.**
+  CSV-SWEEP guarded nine spreadsheet writers and left `accounting.to_iif_bills` alone with the
+  reasoning recorded beside it: QuickBooks does not evaluate a leading `=`, and an apostrophe would
+  corrupt the vendor name on import, so the formula guard is the wrong tool. That half is right and
+  still stands. **What was wrong was stopping there.** The same docstring named the real exposure —
+  IIF is tab-separated with newline-terminated records and no quoting — and then left it, on the
+  grounds that it belonged to another sweep. CodeRabbit raised it independently as CWE-74, Major.
+
+  It is not a field-corruption bug, it is **record forgery**: measured on the pre-fix code, one
+  hostile vendor name turned a single bill into **five records**, writing columns the operator never
+  entered into an accounting import nobody reads line by line. `_iif` replaces each delimiter with a
+  space — replaced, not stripped, so `Acme<TAB>BILL` stays legible rather than becoming `AcmeBILL`,
+  and not rejected, so a pasted multi-line address cannot make an export fail or silently drop a
+  bill. Three assertions in `services/api/test_csv_sweep.py` pin it by COUNT (a fixed number of
+  input rows must yield a fixed number of physical lines and tabs, whatever the text contains), and
+  three mutations are caught, including the pre-fix identity.
+
+  **"Correctly identified, correctly explained, and left in the tree" is its own failure mode** —
+  the explanation of why one guard does not apply reads as a decision that nothing applies. A named
+  exposure should leave with a fix or with a filed follow-up, never with only a paragraph.
+
+  ✅ **⑬'s OWN test caught the regression, by pinning the wrong contract.** `test_ref_label.py`
+  asserted `csv_cell("-1") == "'-1"` — it demanded the defect. That is the check working: the full
+  suite went red on the guard change and named the exact claim that had to be re-decided, rather
+  than letting a behaviour change through silently. The lead-escaping property is unchanged; only
+  the probe moved off values that are numbers, and two assertions were added in its place — a plain
+  number is not escaped, an expression opening with a lead still is. **A test that fails when you
+  fix a bug has done its job; the mistake would be to relax it instead of restating the contract.**
+
+  🔒 **The gate is `services/api/test_csv_sweep.py`, and its predicate took four wrong drafts.**
+  It derives the population by AST — a `.writerow`/`.writerows` call, or a `.append` in a function
+  that both holds an openpyxl worksheet and `save`s it — so a writer added next year is in scope
+  without anyone remembering. Each draft's error was in the same direction, **the dangerous one**:
+  bare `.append` matched ~200 `list.append` functions; adding `save` to disambiguate reported two
+  reportlab PDF canvases; matching the worksheet source alone reported two openpyxl *readers*,
+  because an import path is not an export. So the six shapes — two authoring, four near-miss — are
+  now probes the gate runs against itself, in **both** directions: the authoring ones must be
+  reported and the near-misses must stay silent. A predicate that decides what to *look at* hides
+  everything it excludes from its own output, and only the two-directional probe catches that.
+  The guard-detection side had the same flaw one layer down: a worksheet carries its own `.cell`
+  attribute, so a *mention* of the guard was not evidence of a *call* to it.
+
   ⚠️ **A gate from ⑩ was passing vacuously and this is how it was found.** `REGISTRY` loads on app
   STARTUP, not on import, so `services/api/test_pair_filter.py`'s collision precondition — written at
   module scope — swept an empty dict, found nothing, and printed a clean result. The identical

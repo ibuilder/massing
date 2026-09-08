@@ -99,10 +99,14 @@ def to_csv(idx: dict[str, dict] | None) -> str:
     import csv
     import io
     buf = io.StringIO()
+    from aec_data.cells import cell as _cell
     w = csv.DictWriter(buf, fieldnames=_EXPORT_COLS)
     w.writeheader()
+    # CSV-SWEEP — element names and properties come out of an uploaded IFC, so they are attacker
+    # -reachable text landing in a spreadsheet. The guard leaves plain numbers alone, so quantity
+    # columns stay numeric.
     for row in export_rows(idx):
-        w.writerow(row)
+        w.writerow({k: _cell(v) for k, v in row.items()})
     return buf.getvalue()
 
 

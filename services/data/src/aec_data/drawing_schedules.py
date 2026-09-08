@@ -99,6 +99,8 @@ def schedule_csv(model: ifcopenshell.file, kind: str | None = None) -> str:
     import csv
     import io
 
+    from .cells import cell as _cell
+
     data = schedules(model)
     kinds = [kind] if kind in data else list(data)
     buf = io.StringIO()
@@ -107,9 +109,17 @@ def schedule_csv(model: ifcopenshell.file, kind: str | None = None) -> str:
         if i:
             w.writerow([])
         w.writerow([_SCHED_TITLE.get(k, k.upper())])
-        w.writerow(data[k]["columns"])
+        # The HEADER is not all code-defined: `_cols` appends the labels of the project's registered
+        # shared parameters, which are user text. No live hole today — `schedule_csv` calls
+        # `schedules(model)` with no `extra`, so only the literal headers reach here — but the
+        # argument exists one caller away, and a header the guard skips is the column somebody adds
+        # it to later. Literal headers pass through `_cell` unchanged.
+        w.writerow([_cell(c) for c in data[k]["columns"]])
         for row in data[k]["rows"]:
-            w.writerow(row)
+            # Every value here is model text — a door mark or type name out of an uploaded IFC — so
+            # it is attacker-controlled by anyone who can hand the project a file. `_cell` passes
+            # plain numbers through untouched, so widths and areas stay numeric.
+            w.writerow([_cell(v) for v in row])
     return buf.getvalue()
 
 

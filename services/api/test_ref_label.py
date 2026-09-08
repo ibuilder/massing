@@ -209,9 +209,18 @@ with TestClient(app) as c:
           f"{[x for x in ev.split(',') if x[:1] in ('=', '+', '@')]}")
     # One guard, not two: `standards.roundtrip_export` had this logic first and now imports the same
     # function. A second spelling of a security guard is how one of them stops being applied.
-    check("csv_cell escapes each executable lead", [csv_cell(x + "1") for x in "=+-@"]
-          == ["'=1", "'+1", "'-1", "'@1"])
+    check("csv_cell escapes each executable lead", [csv_cell(x + "cmd") for x in "=+-@"]
+          == ["'=cmd", "'+cmd", "'-cmd", "'@cmd"])
     check("...and leaves ordinary text alone", csv_cell("Acme Electrical") == "Acme Electrical")
+    # CSV-SWEEP corrected this contract, and this assertion caught the change rather than the other
+    # way round: the payload here was `x + "1"`, so it demanded that `-1` and `+1` be escaped. They
+    # are NUMBERS, and escaping them is a data defect — `cost_impact = -500.0` was exporting as
+    # `'-500.0`, a text cell in a column somebody sums. The lead-escaping property above is unchanged;
+    # only the probe moved off values that are numbers. See `services/api/test_csv_sweep.py`.
+    check("...and does NOT escape a plain number, which this test used to demand",
+          [csv_cell(v) for v in ("-500.00", "+5", "-1")] == ["-500.00", "+5", "-1"],
+          f"{[csv_cell(v) for v in ('-500.00', '+5', '-1')]}")
+    check("...while an EXPRESSION opening with a lead is still escaped", csv_cell("-1+1") == "'-1+1")
     check("the other CSV writer uses the SAME guard, not a copy",
           "csv_cell" in pathlib.Path(routers.__file__).parent.joinpath("standards.py").read_text(),
           "roundtrip_export imports it rather than re-spelling it")
