@@ -21,7 +21,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from . import cost
+from . import cost, money
 from . import modules as me
 from .models import Project
 
@@ -121,11 +121,23 @@ def schedule(db: Session, pid: str, method: str = "cost-to-cost", with_model: bo
     # over/under-billing, which `accounting.journal_entries` then posts back as the WIP-ADJ revenue-
     # recognition line, so one refused invoice moves the ledger twice by two different routes.
     from .project_budget import OWNER_INVOICE_NOT_BILLED
-    billed = round(me.sum_field(db, "owner_invoice", pid, "amount",
-                                exclude_states=list(OWNER_INVOICE_NOT_BILLED))
-                   if "owner_invoice" in me.TABLES else 0.0, 2)
-    retainage = round(cost.g703(db, pid)["totals"].get("retainage", 0.0)
-                      or (cost.DEFAULT_RETAINAGE / 100 * billed), 2)
+    billed = money.q2(me.sum_field(db, "owner_invoice", pid, "amount",
+                                   exclude_states=list(OWNER_INVOICE_NOT_BILLED))
+                      if "owner_invoice" in me.TABLES else 0.0)
+    # MONEY-SCOPE — `or` treated an EXPLICIT 0% retainage as an absent one (cost.py:49 records the
+    # same shape under the name FIN-SUITE-BLIND), so a contract the owner agreed to hold nothing on
+    # reported 5% of everything billed as retainage held. The comment above says `billed` drives
+    # over/under-billing, which posts to the ledger, so an invented figure moves it twice.
+    #
+    # The condition is COMPLETED WORK, not the mere existence of an SOV: retainage is withheld from
+    # what has been earned, so a schedule of values with nothing completed has no basis to state one
+    # and the estimate is the only answer available. With work completed, the SOV's figure is
+    # authoritative INCLUDING when it is zero. (The first draft of this keyed on `sov["lines"]` and
+    # broke `test_wip`, which bills against an SOV that records no progress — an existing test
+    # catching a predicate that was right about the defect and too broad about the remedy.)
+    sov = cost.g703(db, pid)
+    retainage = (money.q2(sov["totals"].get("retainage", 0.0)) if sov["totals"].get("completed")
+                 else money.q2(cost.DEFAULT_RETAINAGE / 100 * billed))
 
     cost_pct = cost_to_date / estimated_cost if estimated_cost else 0.0
     cost_pct = max(0.0, min(1.0, cost_pct))

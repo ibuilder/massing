@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import modules as me
+from . import money
 from .timeutil import utc_today
 
 _PERIOD_DAYS = {"week": 7.0, "month": 30.44}
@@ -284,8 +285,12 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     snap = snapshot(db, pid, data_date)
     bac = snap["totals"]["bac"]
     ev_sched = snap["totals"]["ev"]
-    ev_model = round(bac * model_pct / 100, 2)
-    divergence = round(ev_sched - ev_model, 2)                 # + = schedule ahead of physical install
+    # MONEY-SCOPE — `bac` is money, so this quantizes to cents under one convention like the rest of
+    # the tree. Severity here is LOW and worth saying so: `model_pct` is already rounded to 1dp
+    # above, so the penny sits well below the precision of its own input, and the `> 0.05 * bac`
+    # flag below cannot turn on it. It is moved for one convention, not because it was wrong.
+    ev_model = money.retainage(bac, model_pct)
+    divergence = money.q2(ev_sched - ev_model)                 # + = schedule ahead of physical install
     # Only compare against the model once field verification exists — with zero verified elements the
     # model EV is 0 by definition, and flagging "front-loaded" then would falsely accuse an un-surveyed job.
     has_field_data = tracked > 0
