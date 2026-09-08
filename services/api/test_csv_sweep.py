@@ -117,6 +117,37 @@ check("XLSX: numbers are still NUMBERS, not stringified",
       f"{types['C2']} {types['C3']} — stringifying every cell would break every numeric column")
 os.remove(path)
 
+# ---- the OTHER class: IIF delimiter injection ------------------------------------------------------
+#
+# The QuickBooks IIF export carries the same record text and is deliberately NOT formula-guarded —
+# QuickBooks does not evaluate a leading `=`, and an apostrophe would corrupt the vendor name on
+# import. Its own exposure is the delimiters: IIF is tab-separated with newline-terminated records
+# and no quoting, so a tab or newline in `vendor`/`memo`/`cost_code` does not corrupt a field, it
+# FORGES A RECORD. The count is the assertion — a fixed number of input rows must produce a fixed
+# number of physical lines, whatever the text contains.
+FORGE = "Acme\tBILL\t2026-01-01\t01-100\tEvil\t-9999.00\tinjected\nTRNS\tBILL"
+
+# `amount` is an invoice amount and is positive here on purpose — `journal()` builds it from
+# `sub_invoice.amount`, and `to_iif_bills` supplies the AP sign itself.
+clean = accounting.to_iif_bills([{"date": "2026-01-01", "ref": "CR-1", "vendor": "Acme Electrical",
+                                  "cost_code": "01-100", "memo": "ok", "amount": 500.00,
+                                  "kind": "bill"}])
+forged = accounting.to_iif_bills([{"date": "2026-01-01", "ref": "CR-1", "vendor": FORGE,
+                                   "cost_code": "01-100", "memo": "line1\nline2", "amount": 500.00,
+                                   "kind": "bill"}])
+check("IIF: hostile text cannot add a physical RECORD",
+      len(forged.split("\n")) == len(clean.split("\n")),
+      f"clean={len(clean.split(chr(10)))} forged={len(forged.split(chr(10)))} lines")
+check("IIF: hostile text cannot add a FIELD to any record",
+      [ln.count("\t") for ln in forged.split("\n")] == [ln.count("\t") for ln in clean.split("\n")],
+      f"{[ln.count(chr(9)) for ln in forged.split(chr(10))]}")
+# ...and the vendor is still legible. Replacing each delimiter with a SPACE rather than deleting it
+# is what keeps this true: stripping would run the words together into `AcmeBILL`, and rejecting the
+# row would lose a real bill because somebody pasted a multi-line address into a memo.
+check("IIF: the vendor survives as text, delimiters replaced rather than stripped",
+      "Acme BILL 2026-01-01" in forged and "AcmeBILL" not in forged,
+      f"{[ln for ln in forged.split(chr(10)) if 'Acme' in ln][:1]}")
+
 # ---- the population, DERIVED ----------------------------------------------------------------------
 #
 # Listing the writers would make this a checklist that a new export silently escapes. But a

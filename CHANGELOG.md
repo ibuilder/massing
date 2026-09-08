@@ -22,6 +22,13 @@ descriptions, door and window marks and rebar bar marks were all in the same pos
 spreadsheet writer in both packages now shares one guard, and a new one is caught by a derived
 check rather than by remembering.
 
+**The QuickBooks IIF export can no longer be made to forge a record.** IIF is tab-separated with
+newline-terminated records and no quoting, so a tab or newline in a vendor name, memo or cost code
+did not corrupt a field — it wrote extra rows into an accounting import. Measured before the fix: a
+single hostile vendor name turned one bill into five records. The formula guard deliberately still
+does *not* apply here, because QuickBooks does not evaluate a leading `=` and an apostrophe would
+corrupt the vendor name on import; the delimiters are the exposure, and they are what is fixed.
+
 **Negative numbers are no longer escaped.** The previous fix guarded every cell, and a negative
 number begins with `-` — so `-500.00` in a cost column exported as text, in a sheet somebody sums,
 and survey coordinates would have been corrupted outright. Plain numbers now pass through

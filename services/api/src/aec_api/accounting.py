@@ -190,25 +190,49 @@ def trial_balance(db: Session, project_id: str) -> dict:
                     "journal (job cost + billing + WIP adjustment)."}
 
 
+def _iif(v) -> str:
+    """One IIF field with the record delimiters neutralised.
+
+    Tab and newline are IIF's field and record separators. They are REPLACED by a space rather than
+    rejected: an export must not fail because somebody pasted a multi-line address into a memo, and
+    dropping the row silently would lose a bill. The value stays readable and can no longer end a
+    field or a record early.
+    """
+    out = "" if v is None else str(v)
+    for d in ("\r\n", "\t", "\r", "\n"):
+        out = out.replace(d, " ")
+    return out
+
+
 def to_iif_bills(entries: list[dict]) -> str:
     """QuickBooks IIF bills (AP): one BILL transaction per sub invoice, cost split by cost code.
 
-    CSV-SWEEP looked at this and deliberately left it alone; the note is here so the next sweep
+    **The formula guard deliberately does NOT apply here**, and the note is kept so the next sweep
     does not "fix" it. IIF carries the same `vendor` and `memo` text as `to_gl_csv`, but it is
     consumed by QuickBooks, not by a spreadsheet — nothing evaluates a leading `=`, and prefixing
     an apostrophe would corrupt the vendor name **on import**, turning a safety measure into a data
-    defect. Its real exposure is a different class: a tab or newline inside `vendor` or `memo`
-    would break the record structure, since IIF is tab-delimited with no quoting. That is worth
-    fixing, and the fix is neutralising the delimiters, not the formula lead.
+    defect.
+
+    **Its own class of exposure is the delimiters, and that IS fixed here** (`_iif`). IIF is
+    tab-separated with newline-terminated records and no quoting, so a tab or a newline inside
+    `vendor`, `memo` or `cost_code` does not corrupt one field — it **forges a record**. A vendor
+    named `Acme<TAB>BILL<TAB>...` writes columns the operator never entered, into an accounting system,
+    on an import nobody reads line by line. CSV-SWEEP identified this and deferred it as a
+    different class; a review agreed independently, which is the argument for fixing it in the same
+    pass rather than leaving a named exposure behind a correct explanation of why it is not the
+    other one.
     """
     lines = ["\t".join(["!TRNS", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "\t".join(["!SPL", "TRNSTYPE", "DATE", "ACCNT", "NAME", "AMOUNT", "MEMO"]),
              "!ENDTRNS"]
     for e in (x for x in entries if x["kind"] == "bill"):
         amt = e["amount"]
-        lines.append("\t".join(["TRNS", "BILL", e["date"], AP_ACCOUNT, e["vendor"], f"-{amt:.2f}", e["memo"]]))
-        lines.append("\t".join(["SPL", "BILL", e["date"], COST_ACCOUNT, e["vendor"], f"{amt:.2f}",
-                                f"{e['cost_code']} {e['memo']}".strip()]))
+        lines.append("\t".join(_iif(x) for x in
+                                ("TRNS", "BILL", e["date"], AP_ACCOUNT, e["vendor"],
+                                 f"-{amt:.2f}", e["memo"])))
+        lines.append("\t".join(_iif(x) for x in
+                                ("SPL", "BILL", e["date"], COST_ACCOUNT, e["vendor"],
+                                 f"{amt:.2f}", f"{e['cost_code']} {e['memo']}".strip())))
         lines.append("ENDTRNS")
     return "\n".join(lines) + "\n"
 

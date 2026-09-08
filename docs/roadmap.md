@@ -2236,6 +2236,27 @@ stakes we are missing.
   opening with a lead, not a signed value. **A sound reason for a broad rule is not evidence the
   rule is right.**
 
+  🔒 **The IIF sibling was deferred as "a different class", and the review disagreed — correctly.**
+  CSV-SWEEP guarded nine spreadsheet writers and left `accounting.to_iif_bills` alone with the
+  reasoning recorded beside it: QuickBooks does not evaluate a leading `=`, and an apostrophe would
+  corrupt the vendor name on import, so the formula guard is the wrong tool. That half is right and
+  still stands. **What was wrong was stopping there.** The same docstring named the real exposure —
+  IIF is tab-separated with newline-terminated records and no quoting — and then left it, on the
+  grounds that it belonged to another sweep. CodeRabbit raised it independently as CWE-74, Major.
+
+  It is not a field-corruption bug, it is **record forgery**: measured on the pre-fix code, one
+  hostile vendor name turned a single bill into **five records**, writing columns the operator never
+  entered into an accounting import nobody reads line by line. `_iif` replaces each delimiter with a
+  space — replaced, not stripped, so `Acme<TAB>BILL` stays legible rather than becoming `AcmeBILL`,
+  and not rejected, so a pasted multi-line address cannot make an export fail or silently drop a
+  bill. Three assertions in `services/api/test_csv_sweep.py` pin it by COUNT (a fixed number of
+  input rows must yield a fixed number of physical lines and tabs, whatever the text contains), and
+  three mutations are caught, including the pre-fix identity.
+
+  **"Correctly identified, correctly explained, and left in the tree" is its own failure mode** —
+  the explanation of why one guard does not apply reads as a decision that nothing applies. A named
+  exposure should leave with a fix or with a filed follow-up, never with only a paragraph.
+
   ✅ **⑬'s OWN test caught the regression, by pinning the wrong contract.** `test_ref_label.py`
   asserted `csv_cell("-1") == "'-1"` — it demanded the defect. That is the check working: the full
   suite went red on the guard change and named the exact claim that had to be re-decided, rather
