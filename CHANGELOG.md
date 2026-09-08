@@ -12,6 +12,25 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### the responsibility matrix stops telling you it is complete when it is not
+
+Load a second starter template into a RACI matrix that already has rows and the columns changed
+under them. The earlier rows survived — the dialog promises they will — but every letter on them was
+now keyed to a role column that no longer existed, so those rows rendered as blank lines. And the
+validation banner still said **"Every activity has exactly one Accountable and at least one
+Responsible"**, because it counted assignments the grid had no cell to draw.
+
+Validity is now counted over the columns you can actually see, so a row whose letters have been
+orphaned reads as what it is: no Accountable, no Responsible. The letters are not lost — the banner
+names the columns they are stranded on, and offers to **restore those columns** (nothing was
+deleted, so bringing them back makes the assignments visible again) or to **clear them** if they are
+genuinely finished with.
+
+Applying a template no longer replaces your columns either: when the matrix already has rows, the
+template's roles are merged in after yours instead of taking their place. If that would push past
+the sixteen-column limit the whole thing is refused before anything is written, rather than
+truncating and orphaning the very rows it was about to create.
+
 ### you can now see which property values this element overrides — and put them back
 
 The viewer has always let you set a property on a selected element. It has never shown you that a

@@ -31,6 +31,9 @@ DEFAULT_ROLES = ["Owner", "Architect/EOR", "GC / PM", "Superintendent",
                  "Subcontractor", "Consultant", "Cx Agent"]
 
 
+MAX_ROLES = 16          # role columns a matrix may carry; `set_config` truncates at it
+
+
 def _rows_and_config(db: Session, pid: str) -> tuple[list[dict], dict]:
     recs = mod.list_records(db, KEY, pid, limit=1000)
     config = None
@@ -56,7 +59,7 @@ def config(db: Session, pid: str) -> dict:
 def set_config(db: Session, pid: str, roles: list[str], mode: str, actor: str) -> dict:
     """Upsert the single config row (role columns + mode)."""
     mode = mode if mode in MODES else "RACI"
-    roles = [str(r).strip() for r in roles if str(r).strip()][:16] or DEFAULT_ROLES
+    roles = [str(r).strip() for r in roles if str(r).strip()][:MAX_ROLES] or DEFAULT_ROLES
     _, cfg = _rows_and_config(db, pid)
     data = {"kind": "config", "activity": "· matrix settings", "roles": roles, "mode": mode}
     if cfg:
@@ -67,14 +70,26 @@ def set_config(db: Session, pid: str, roles: list[str], mode: str, actor: str) -
 
 
 def _validate(rows: list[dict], roles: set[str], mode: str) -> dict:
-    """Per-row rule checks + role load. Exactly one Accountable, at least one doer (R/D)."""
+    """Per-row rule checks + role load. Exactly one Accountable, at least one doer (R/D).
+
+    **Counted over the CURRENT columns only, and that is the whole point.** An assignment keyed by
+    a role that is not a column is invisible: the grid renders `roles`, so the cell has nowhere to
+    appear. Counting it toward "exactly one Accountable" reported a row as complete while the user
+    looked at an empty line — and `apply_template` produces exactly that state, because it appends
+    rows and *replaces* the role columns, so a second template orphans every earlier row.
+
+    The orphans are not discarded, they are reported: `unknown_role` is what explains a blank row,
+    and it is the only place that explanation exists. `accountable_load` is likewise a load across
+    the columns that exist — crediting a role nobody can see overstates a real person's ownership.
+    """
     doer = DOER[mode]
     missing_accountable, no_responsible, unknown_role = [], [], []
     a_load: dict[str, int] = {}
     for r in rows:
         a = r["assignments"]
-        n_acc = sum(1 for v in a.values() if v == "A")
-        n_doer = sum(1 for v in a.values() if v == doer)
+        visible = {k: v for k, v in a.items() if k in roles}
+        n_acc = sum(1 for v in visible.values() if v == "A")
+        n_doer = sum(1 for v in visible.values() if v == doer)
         if n_acc != 1:
             missing_accountable.append({"ref": r["ref"], "activity": r["activity"], "count": n_acc})
         if n_doer < 1:
@@ -82,7 +97,7 @@ def _validate(rows: list[dict], roles: set[str], mode: str) -> dict:
         for role, v in a.items():
             if role not in roles:
                 unknown_role.append({"ref": r["ref"], "role": role})
-            if v == "A":
+            elif v == "A":
                 a_load[role] = a_load.get(role, 0) + 1
     return {
         "missing_accountable": missing_accountable,
@@ -217,14 +232,43 @@ def templates() -> list[dict]:
 
 
 def apply_template(db: Session, pid: str, key: str, mode: str, actor: str) -> dict:
-    """Create matrix rows from a starter template; also (re)sets the config to the default roles."""
+    """Append a starter template's rows, and give it the columns its cells are keyed by.
+
+    **The columns are MERGED into the existing set, not swapped for it, whenever rows already
+    exist.** This function appends rows and the panel's own dialog promises *"Existing rows are
+    kept"* — but it used to replace the role columns outright, and `bim_iso19650` ships its own.
+    Loading a second template therefore kept every earlier row and orphaned all of its assignments
+    onto columns that no longer existed: the rows rendered blank, and the assignments survived only
+    in `_validate`'s `unknown_role`. Keeping the rows and discarding what they say is not keeping
+    them.
+
+    On an empty matrix there is nothing to orphan, so the template's roles are adopted as-is and a
+    fresh project still gets exactly the columns its template describes.
+    """
     tpl = TEMPLATES.get(key)
     if not tpl:
         return {"error": f"unknown template {key!r}", "created": 0}
     mode = mode if mode in MODES else "RACI"
     # DACI reuses the same cell letters except the doer: R→D.
     remap = (lambda v: "D" if v == "R" else v) if mode == "DACI" else (lambda v: v)
-    set_config(db, pid, tpl.get("roles") or DEFAULT_ROLES, mode, actor)
+    tpl_roles = list(tpl.get("roles") or DEFAULT_ROLES)
+    existing_rows, _ = _rows_and_config(db, pid)
+    if existing_rows:
+        # union, existing columns first so the grid the user knows does not reshuffle under them
+        have = config(db, pid)["roles"]
+        roles = have + [r for r in tpl_roles if r not in have]
+        if len(roles) > MAX_ROLES:
+            # REFUSE BEFORE MUTATING. `set_config` truncates at the cap, and the union puts the
+            # TEMPLATE's new columns last — so a silent truncation would orphan the very rows this
+            # call is about to create, which is the defect this merge exists to prevent, arriving
+            # by a second door. Nothing is written.
+            return {"error": f"this matrix already has {len(have)} role columns and the "
+                             f"{key!r} template needs {len(roles) - len(have)} more, over the "
+                             f"{MAX_ROLES}-column limit — remove unused columns first. "
+                             "Nothing was changed.", "created": 0}
+    else:
+        roles = tpl_roles
+    set_config(db, pid, roles, mode, actor)
     created = 0
     for r in tpl["rows"]:
         data = {
