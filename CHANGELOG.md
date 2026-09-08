@@ -43,6 +43,16 @@ The existing **Georeferencing** report moved to sit beside them. It is the diagn
 condition rebasing repairs, and this codebase has already paid once for keeping a detector and its
 fix on opposite sides of the app — each looks complete on its own.
 
+**Converting a project measured in feet would have shrunk the building to a third of its size.**
+Found in review, on this entry's own change, and reproduced before it was fixed. The converter
+rescales the geometry and then rewrites the length unit — but it only knows how to rewrite metric
+unit declarations, so on a foot-based file (ordinary in a US survey model) the geometry moved and the
+declared unit did not. A 10 ft wall came out as 3.048 **feet**, and the report said it had worked.
+The engine now refuses such a file before touching anything, saying why, and the panel no longer
+offers the control at all — it also stops claiming the file "carries no length unit", which was
+simply untrue of it. *The flaw was older than the button; putting a button on it is what would have
+let anyone reach it.*
+
 **The check that was supposed to catch an inert button could not see any of these.**
 `apps/web/src/viewer/tools/sectionButtonsWired.test.ts` exists for one failure — a tool that is built,
 returned, and never put on screen, which typechecks and passes its own unit test and is

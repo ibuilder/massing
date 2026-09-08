@@ -188,7 +188,12 @@ type Ctor<T> = new (...args: any[]) => T;
 export interface ModelSetupFacts {
   length_unit: string | null;
   length_unit_metres: number | null;
+  /** The ENGINE's precondition, restated — not a looser one. False for a conversion-based unit
+   *  (feet, inches), which `convert_length_unit` refuses because it rewrites SI assignments only. */
   convertible: boolean;
+  /** Why not, when `convertible` is false — `null` when it is true. The panel shows this rather
+   *  than guessing: "no LENGTHUNIT at all" and "a unit we cannot rewrite" are different files. */
+  unconvertible_reason: string | null;
   /** The converter's OWN accepted list, sent by the server — never a client-side guess. */
   targets: string[];
   georeference: { eastings: number | null; northings: number | null;

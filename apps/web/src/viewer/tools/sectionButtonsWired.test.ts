@@ -144,6 +144,22 @@ describe("every button a section module returns is wired into the app", () => {
     expect(args, "the append scan reported a button that is in no append").not.toMatch(/\borphan\b/);
   });
 
+  it("does not count a builder that is REFERENCED in an append but never called", () => {
+    // The builder check asks for `name(`, not merely `name`. `appendChild(projectUnitsButton)`
+    // appends the FUNCTION, not the button it makes — nothing renders — and a word-boundary match
+    // would have called that wired. Raised in review; `tsc` happens to reject it too, but a gate
+    // that leans on another check to cover its own subject is exactly the scope fiction this file
+    // was widened to correct.
+    const called = appendArgs("b.appendChild(projectUnitsButton(deps));");
+    const bare = appendArgs("b.appendChild(projectUnitsButton);");
+    const wired = (src: string) => new RegExp("\\bprojectUnitsButton\\s*\\(").test(src);
+    expect(wired(called), "a called builder is wired").toBe(true);
+    expect(wired(bare), "a bare reference is NOT wired").toBe(false);
+    // ...and the loose form this replaced could not tell them apart, which is why it changed.
+    const loose = (src: string) => new RegExp("\\bprojectUnitsButton\\b").test(src);
+    expect(loose(bare), "the old word-boundary rule accepted the bare reference").toBe(true);
+  });
+
   for (const [name, { path, fields }] of sets) {
     it(`${name}: every button is destructured and appended`, () => {
       const named = namedOutside(path), appended = appendedOutside(path);
@@ -161,7 +177,12 @@ describe("every button a section module returns is wired into the app", () => {
   for (const [file, { path, names }] of builders) {
     it(`${file}: every exported *Button() builder is called inside an append`, () => {
       const appended = appendedOutside(path);
-      const notAppended = names.filter((n) => !new RegExp(`\\b${n}\\b`).test(appended));
+      // `\b<name>\s*\(` — the name must be CALLED inside the append, not merely mentioned.
+      // A word-boundary match alone accepts `container.appendChild(projectUnitsButton)`, which
+      // appends the builder FUNCTION rather than the button it makes; `tsc` would reject that
+      // today, but a gate that leans on another check to cover its own subject is the scope
+      // fiction this file exists to correct. Found in review.
+      const notAppended = names.filter((n) => !new RegExp(`\\b${n}\\s*\\(`).test(appended));
       expect(notAppended, `${file} exports these builders, but their result reaches no append() — `
         + `a button nobody puts in a DOM tree is indistinguishable from one that was never `
         + `written: ${notAppended.join(", ")}`).toEqual([]);

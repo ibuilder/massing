@@ -3681,6 +3681,23 @@ removed. Remaining, in priority order:
   own is attributed to whichever one precedes it, so the new module sits inside the `qa` run or its
   three controls read as having changed sides.
 
+  **REVIEW FOUND THE ONE THAT DAMAGES A MODEL, and it was older than this change.**
+  `convert_length_unit` rescales the whitelisted attributes and then rewrites the unit assignment
+  under `u.is_a("IfcSIUnit")` — every target in `_UNIT_SCALES` is an `IfcSIUnit`, so on a file whose
+  `LENGTHUNIT` is an `IfcConversionBasedUnit` (a foot: ordinary in a US survey model) **the geometry
+  moved and the declared unit did not**. Reproduced before fixing: a 10 ft wall came out 3.048 FEET,
+  the model at 30.48% of real size, with a report reading *"unit assignment rewritten"*. The engine
+  now refuses before it mutates — the guard's position is the point, and a mutation moving it after
+  the rescale reds with *"REFUSED AND STILL MUTATED"*. `setup_facts` restates the same precondition
+  in `convertible` (plus an `unconvertible_reason`, because *"no LENGTHUNIT at all"* and *"a unit we
+  cannot rewrite"* are different files and the panel had been asserting the first about both).
+  **The defect predates the control; the control is what makes it reachable** — which is the standing
+  hazard in wiring anything out of `UNREACHED`. *An engine's preconditions have never been exercised
+  by a caller, so "implemented and tested" is not "safe to offer".* Reviewers also caught the new
+  gate's builder check accepting `appendChild(projectUnitsButton)` — the function, not the button —
+  because a word boundary is not a call; it now requires `name(`, with a fixture that would have
+  passed under the old rule.
+
   **A second finding, in my own diff, from re-reading it rather than from anything going red.** The
   first draft left both panels showing the figures they were opened with after the edit had landed,
   and said in a comment that they were *"re-read rather than reused after the edit lands"*. They were

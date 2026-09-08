@@ -250,7 +250,16 @@ def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
     return {
         "length_unit": unit_name,
         "length_unit_metres": metres,
-        "convertible": bool(named),
+        # `convertible` is the ENGINE's precondition restated, not a looser one: `bool(named)` alone
+        # said yes to a foot-based file that `convert_length_unit` now refuses. The panel reads this
+        # to decide whether to offer the control at all, so the two must agree — a control offered
+        # for something the server will refuse is the "dropdown holding FOOT" failure one field down,
+        # arriving through the SOURCE unit instead of the target.
+        "convertible": bool(named) and all(u.is_a("IfcSIUnit") for u in named),
+        "unconvertible_reason": (
+            None if not named else
+            None if all(u.is_a("IfcSIUnit") for u in named) else
+            "conversion-based unit (e.g. feet) — this recipe rewrites SI assignments only"),
         "targets": sorted(_UNIT_SCALES),
         "georeference": georeference,
         "root_placements": roots,
@@ -342,6 +351,27 @@ def convert_length_unit(model: ifcopenshell.file, to: str = "MILLIMETRE") -> dic
                      if getattr(u, "UnitType", None) == "LENGTHUNIT"]
     if not unit_entities:
         raise ValueError("no LENGTHUNIT assignment found in this file")
+
+    # **REFUSE BEFORE MUTATING, not after.** Every target in `_UNIT_SCALES` is an `IfcSIUnit`
+    # (metre with a prefix), and the rewrite below is guarded by `u.is_a("IfcSIUnit")` — so on a file
+    # whose LENGTHUNIT is an `IfcConversionBasedUnit` (a foot, an inch: normal in a US survey model)
+    # the rescale ran and the assignment did NOT change. The geometry moved, the declared unit did
+    # not, and the report said *"unit assignment rewritten"*: a 10 ft wall came out 3.048 FEET, the
+    # model silently 30.48% of its real size, with a success message. Reproduced before this guard
+    # was written, not reasoned about.
+    #
+    # Refusing is the asymmetric choice. Refusing a convertible file costs the user one message;
+    # converting an unconvertible one corrupts the model of record and says it worked. Replacing a
+    # conversion-based unit with an SI one is a real feature — it has to rewrite the
+    # `IfcUnitAssignment` and dispose of the `IfcMeasureWithUnit` behind it — and it is not this
+    # change; the refusal names it rather than pretending the file is unsupported outright.
+    unrewriteable = [u for u in unit_entities if not u.is_a("IfcSIUnit")]
+    if unrewriteable:
+        kinds = ", ".join(sorted({str(getattr(u, "Name", None) or u.is_a()) for u in unrewriteable}))
+        raise ValueError(
+            f"this file's length unit ({kinds}) is a conversion-based unit, which this recipe "
+            "cannot rewrite — converting it would rescale the geometry and leave the declared unit "
+            "unchanged. Nothing was changed.")
 
     converted: dict[str, int] = {}
     for cls, (lin, area, vol) in _LENGTH_ATTRS.items():

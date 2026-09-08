@@ -122,8 +122,15 @@ export function projectUnitsButton(d: ProjectSetupDeps): HTMLButtonElement {
           + "numbers change. GUID-stable: pins, RFIs and clashes survive.",
           f.convertible ? "" : "bad"));
         if (!f.convertible) {
-          body.appendChild(resultNote("This file carries no LENGTHUNIT assignment, so there is nothing "
-            + "to convert from. Nothing was changed.", "bad"));
+          // Two different files reach here and they need different sentences. The original text
+          // asserted "no LENGTHUNIT assignment" for BOTH — which is false for a foot-based model,
+          // where the assignment exists and is simply one this recipe cannot rewrite. The server
+          // says which; the panel does not guess.
+          body.appendChild(resultNote(f.unconvertible_reason
+            ? `This project's length unit cannot be converted: ${escapeHtml(f.unconvertible_reason)}. `
+              + "Nothing was changed."
+            : "This file carries no LENGTHUNIT assignment, so there is nothing to convert from. "
+              + "Nothing was changed.", "bad"));
           return;
         }
         const row = document.createElement("div");

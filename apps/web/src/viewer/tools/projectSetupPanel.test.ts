@@ -31,6 +31,7 @@ const bodyText = () => (document.querySelector(".result-card") as HTMLElement).t
 
 const FACTS = (over: Partial<ModelSetupFacts> = {}): ModelSetupFacts => ({
   length_unit: "METRE", length_unit_metres: 1, convertible: true,
+  unconvertible_reason: null,
   targets: ["CENTIMETRE", "METRE", "MILLIMETRE"],
   georeference: { eastings: 100, northings: 200, orthogonal_height: 0 },
   root_placements: 4, distance_from_origin: 9000, distance_from_origin_m: 9000,
@@ -119,6 +120,22 @@ describe("project units: the panel names the unit the project reads in NOW", () 
     expect(document.querySelector("select"), "no dropdown when there is nothing to convert from")
       .toBeNull();
     expect(bodyText()).toContain("no LENGTHUNIT assignment");
+  });
+
+  it("names the REASON for a unit it cannot convert, rather than claiming there is none", async () => {
+    // A foot-based model (an `IfcConversionBasedUnit`, ordinary in a US survey file) HAS a length
+    // unit — the recipe simply cannot rewrite it, and converting anyway rescales the geometry while
+    // leaving the declared unit in place. Two different files reach the not-convertible branch and
+    // the original text asserted "no LENGTHUNIT assignment" for both, which is false for this one.
+    const { deps } = harness(FACTS({
+      length_unit: "FOOT", length_unit_metres: 0.3048, convertible: false,
+      unconvertible_reason: "conversion-based unit (e.g. feet) — this recipe rewrites SI assignments only",
+    }));
+    await open(projectUnitsButton, deps);
+    expect(document.querySelector("select"), "still no dropdown — it cannot be converted").toBeNull();
+    expect(bodyText(), "the server's reason is shown").toContain("conversion-based unit");
+    expect(bodyText(), "and the false claim is not").not.toContain("no LENGTHUNIT assignment");
+    expect(bodyText(), "the unit is still named honestly").toContain("FOOT");
   });
 });
 

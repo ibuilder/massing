@@ -164,6 +164,56 @@ mm = ifcpatch_lib.setup_facts(m2)
 assert mm["length_unit"] == "MILLIMETRE" and abs(mm["length_unit_metres"] - 0.001) < 1e-12, mm
 # metres are the comparable figure across a unit change; file units are not
 assert abs(mm["distance_from_origin_m"] - after["distance_from_origin_m"]) < 1e-6, (mm, after)
+# --- A CONVERSION-BASED LENGTH UNIT IS REFUSED, NOT HALF-CONVERTED -------------------------------
+#
+# Found by review on the PR that made `convert_length_unit` reachable, and REPRODUCED before it was
+# fixed. The recipe rescales the whitelisted attributes, then rewrites the assignment guarded by
+# `u.is_a("IfcSIUnit")` — so on a foot-based file (an `IfcConversionBasedUnit`, ordinary in a US
+# survey model) the geometry moved and the declared unit did not. A 10 ft wall came out 3.048 FEET:
+# the model silently at 30.48% of its real size, with a report saying "unit assignment rewritten".
+#
+# *The defect predates the control; the control is what made it reachable.* That is the standing
+# hazard in wiring an UNREACHED recipe — the engine's own preconditions have never been exercised by
+# a caller, so "it is implemented and tested" is not the same as "it is safe to offer".
+_ifc3 = Path(tempfile.gettempdir()) / "ifcpatch_foot_unit.ifc"
+massing.generate_blank_ifc(str(_ifc3), name="FT", storeys=1, storey_height=3.0, ground_size=20.0)
+m3 = open_model(str(_ifc3))
+edit.add_wall(m3, [0, 0], [10, 0], 3.0, 0.2, "Level 1")
+_si = [u for u in m3.by_type("IfcNamedUnit") if getattr(u, "UnitType", None) == "LENGTHUNIT"][0]
+_metre = m3.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
+_foot = m3.createIfcConversionBasedUnit(
+    m3.createIfcDimensionalExponents(1, 0, 0, 0, 0, 0, 0), "LENGTHUNIT", "FOOT",
+    m3.createIfcMeasureWithUnit(m3.createIfcLengthMeasure(0.3048), _metre))
+for _ua in m3.by_type("IfcUnitAssignment"):
+    _ua.Units = tuple(_foot if u == _si else u for u in _ua.Units)
+assert abs(uunit.calculate_unit_scale(m3) - 0.3048) < 1e-12, "fixture is not actually in feet"
+
+# ① the READ refuses to advertise it, and says WHY — "no LENGTHUNIT at all" and "a unit we cannot
+#    rewrite" are different files and the panel prints different sentences for them.
+_ft = ifcpatch_lib.setup_facts(m3)
+assert _ft["convertible"] is False, _ft
+assert _ft["unconvertible_reason"] and "conversion-based" in _ft["unconvertible_reason"], _ft
+assert _ft["length_unit"] == "FOOT", _ft          # still NAMED honestly, just not offered
+
+# ② the ENGINE refuses too, and refuses BEFORE it touches anything. The read is a convenience; the
+#    recipe is reachable through POST /edit directly, so a guard that lived only in `setup_facts`
+#    would protect the panel and leave the door open. Both, and the geometry is byte-identical after.
+_before = sorted(tuple(e.Coordinates) for e in m3.by_type("IfcCartesianPoint"))
+try:
+    ifcpatch_lib.convert_length_unit(m3, "METRE")
+    raise AssertionError("convert_length_unit accepted a conversion-based unit")
+except ValueError as e:
+    assert "conversion-based" in str(e), e
+_after = sorted(tuple(e.Coordinates) for e in m3.by_type("IfcCartesianPoint"))
+assert _before == _after, "REFUSED AND STILL MUTATED — the guard is in the wrong place"
+assert abs(uunit.calculate_unit_scale(m3) - 0.3048) < 1e-12, "the unit changed on a refused convert"
+
+# ③ and an SI file is untouched by the guard — a refusal that refuses everything is not a fix.
+assert ifcpatch_lib.setup_facts(m2)["convertible"] is True
+assert ifcpatch_lib.setup_facts(m2)["unconvertible_reason"] is None
+if _ifc3.exists():
+    _ifc3.unlink()
+
 if _ifc2.exists():
     _ifc2.unlink()
 
