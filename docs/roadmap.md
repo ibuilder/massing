@@ -1883,6 +1883,18 @@ the only item here with real scope.
   the predicate in both directions: it must find the form that defeated the old scan, still find the
   form the old scan caught, and NOT flag a display percentage rounded to 1dp.
 
+  ⚠️ **And the replacement scan repeated the lesson one layer along, caught in review.** The old
+  predicate depended on a NAME (`retain`) and the site that survived used an abbreviation. The
+  structural replacement dropped the name — and still depended on a syntactic FORM, reading
+  `n.args[1]`, so `round(x, ndigits=2)` slipped through. That is valid Python and returns the *same*
+  HALF-EVEN answer (measured: `round(2.675, ndigits=2)` is 2.67), so a site written that way would
+  be exactly the defect, invisible to the gate written to catch it. `_ndigits` now reads the
+  argument **however it was passed**, and the keyword form is a fourth probe.
+
+  *Dropping one kind of brittleness is not the same as being robust.* Three drafts of this predicate
+  now: lexical → structural-but-positional → structural. Each was a real improvement and each still
+  had a spelling in it.
+
   ✅ **PENNY-SPLIT — the v0.3.969 money fix missed a line IN A FUNCTION IT EDITED, shipped
   2026-09-08.** This entry records that `round()` on floats disagreed with `payapp`'s HALF-UP and
   that `cost.py` and `routers/cost.py` were converted. `routers/cost.py::subcontractor_billing` was

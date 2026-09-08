@@ -94,16 +94,35 @@ def main() -> int:
                    and isinstance(n.right, ast.Constant) and n.right.value == 100
                    for n in ast.walk(node))
 
+    def _ndigits(call: ast.Call):
+        """`round()`'s second argument, however it was PASSED — positionally or as `ndigits=`.
+
+        `round(x, ndigits=2)` is valid Python and returns the same HALF-EVEN answer as
+        `round(x, 2)` (measured: `round(2.675, ndigits=2)` is 2.67). The first version of this scan
+        read `n.args[1]` and missed it — **which is this file's own lesson one turn later.** The old
+        predicate depended on a NAME and the surviving site used an abbreviation; the replacement
+        dropped the name and still depended on a syntactic FORM. A reviewer caught it.
+        """
+        for kw in call.keywords:
+            if kw.arg == "ndigits":
+                return kw.value
+        return call.args[1] if len(call.args) >= 2 else None
+
     def scan(text: str) -> list[int]:
         """Line numbers where money is quantized to cents by `round()` over a percentage."""
         try:
             tree = ast.parse(text)
         except SyntaxError:
             return []
-        return [n.lineno for n in ast.walk(tree)
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "round"
-                and len(n.args) == 2 and isinstance(n.args[1], ast.Constant) and n.args[1].value == 2
-                and _divides_by_100(n.args[0])]
+        out = []
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "round" and n.args):
+                continue
+            nd = _ndigits(n)
+            if isinstance(nd, ast.Constant) and nd.value == 2 and _divides_by_100(n.args[0]):
+                out.append(n.lineno)
+        return out
 
     # **Prove the scan before believing it.** A clean report over a clean tree is indistinguishable
     # from a broken detector, and this exact file already shipped one that could not see the defect
@@ -111,9 +130,14 @@ def main() -> int:
     PRE_FIX_PAID = 'x = round(paid + amt * (1 - ret_pct / 100), 2)'      # PENNY-SPLIT, no "retain"
     PRE_FIX_RETAINAGE = 'x = round(completed * retainage_pct / 100, 2)'  # what the old scan caught
     DISPLAY_PCT = 'x = round(100 * done / total, 1)'                     # a percentage, not money
+    KEYWORD_FORM = 'x = round(amt * pct / 100, ndigits=2)'               # same result, other spelling
     check("the scan finds the form that DEFEATED the old lexical one",
           scan(PRE_FIX_PAID) == [1],
           "`ret_pct` contains no 'retain'; the old predicate required that substring and missed it")
+    check("...and the KEYWORD form, which the first structural draft also missed",
+          scan(KEYWORD_FORM) == [1],
+          "round(x, ndigits=2) is valid Python and returns the same HALF-EVEN answer — "
+          "a reviewer caught this file repeating its own lesson one layer along")
     check("...and still finds the form the old one did catch — the twin",
           scan(PRE_FIX_RETAINAGE) == [1])
     check("...and does NOT flag a display percentage rounded to 1dp",
