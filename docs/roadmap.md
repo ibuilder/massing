@@ -3648,6 +3648,67 @@ removed. Remaining, in priority order:
   by RUNNING both recipes and comparing (class, PredefinedType, system, system type), not by reading
   them — so it fails the moment the two stop agreeing, and the recipe becomes a real gap again.
 
+  ✅ **MODEL-SETUP, shipped 2026-09-08 — a project could not change its units or its origin.**
+  `convert_length_unit` and `rebase_origin` sat in `UNREACHED` while being runnable through
+  `POST /projects/{pid}/edit` the entire time. `rebase_origin` is the sharper loss: it shifts every
+  root placement **and pushes the same offset into the `IfcMapConversion`**, which is the
+  georeferencing rule this project states as a non-negotiable — *implemented correctly, and reachable
+  by nobody*. `UNREACHED` 9 → 7.
+
+  **The reason a button could not simply be added is the finding.** Nothing exposed the CURRENT
+  state: the model's length unit was readable nowhere in the web app (the one `units` field in the
+  API is `raise_plan`'s DXF→IFC report, which is a different thing). *"Convert to millimetres"*
+  without saying what the units are now is a coin flip the user is asked to call — the same
+  state-invisible shape this codebase keeps repairing — so
+  `GET /projects/{pid}/model/setup` came first and the panel reads before it offers.
+  Two details of that read are load-bearing. **The accepted unit list is sent by the server**, from
+  the converter's own table, so a dropdown cannot offer a unit the recipe would refuse. And
+  **`distance_from_origin` is measured over the ROOT placements** — precisely the set `rebase_origin`
+  shifts — so the number shown is the number the repair acts on. *A mutation measuring every
+  placement instead SURVIVED the first draft of the test*, because an authored-from-scratch file has
+  no nested placements at all; the check now constructs one, which is what makes the claim assertable.
+
+  **The georeferencing report moved with them, and that is what paid for the addition.**
+  `apps/web/src/viewer/tools/qaSection.ts` was exactly on its size ratchet, so two controls could not
+  be appended — the remedy is extraction, never headroom. Taking the survey-basis read along makes it
+  an extraction rather than a relocation, and it belongs beside them on the merits: it is the
+  diagnosis for the condition rebasing repairs, which is the same argument
+  `apps/web/src/viewer/tools/repairPanel.ts` makes about wall joins. 1,305 → 1,274, into
+  `apps/web/src/viewer/tools/projectSetupPanel.ts`.
+
+  *The ordering hazard in `apps/web/src/viewer/toolsSplit.test.ts` had to be honoured rather than
+  discovered:* that list looks like a set and is an order — a file opening no `section("key")` of its
+  own is attributed to whichever one precedes it, so the new module sits inside the `qa` run or its
+  three controls read as having changed sides.
+
+  **A second finding, in my own diff, from re-reading it rather than from anything going red.** The
+  first draft left both panels showing the figures they were opened with after the edit had landed,
+  and said in a comment that they were *"re-read rather than reused after the edit lands"*. They were
+  not — *a claim in a comment the code does not back*, which is this session's own subject arriving in
+  its own work. It is sharp for the origin, because **`rebase_origin` is not idempotent by point**:
+  the form asks for a point in the coordinates the model has NOW, so a second press against the first
+  reading moves the building a second time and the `IfcMapConversion` absorbs the second offset too —
+  a defect visible only when somebody opens the model against the survey. Both panels now redraw from
+  a fresh read, a failed re-read replaces the form rather than re-enabling it, and
+  `apps/web/src/viewer/tools/projectSetupPanel.test.ts` drives both through the DOM they build. Each
+  regression is mutation-checked: removing either re-read reds its own test and only its own.
+
+  **And the gate built for exactly this failure could not see any of the three new buttons.**
+  `apps/web/src/viewer/tools/sectionButtonsWired.test.ts` is SKYLIGHT's answer to *"a button that is
+  BUILT is not a button a user can press"*. Its docstring claimed to derive its population *"from the
+  interfaces rather than from a list"* one line above `["envelopeSection.ts", "fabricationSection.ts",
+  "mepSection.ts"]`, and it read appends out of `apps/web/src/viewer/app.ts` alone — so the eight
+  buttons wired from `qaSection.ts` (both `repairPanel.ts` controls, `sharedParamsPanel.ts`,
+  `projectModelsPanel.ts`, `modelReviewPanel.ts`, and these three) were outside it entirely. *The gate
+  was real; the SCOPE was the fiction* — the fifth instance of that shape in three days. Both halves
+  are derived now: every non-test module under `tools/` is a candidate, both hand-over shapes are
+  recognised (the `*Buttons` record AND the exported `*Button()` builder, which the first draft could
+  not see at all), and appends are read across the whole viewer tree. **Widening it is a clean
+  negative** — all eight were already wired — and that is the entry worth keeping: *a scope gap that
+  happens to contain no defect is indistinguishable from a check that works.* Three mutations confirm
+  it now reaches: un-appending one builder reds it, and either derivation collapsing reds the
+  population control rather than passing vacuously.
+
   ✅ **SKYLIGHT, shipped 2026-09-05 — a window in a wall, but never a skylight in a roof.**
   `add_roof_window` voids a host `IfcRoof` and fills the opening with an `IfcWindow`/`SKYLIGHT`. It
   has worked since R17 DORMER and `services/api/test_roof_window.py` covers it down to the void/fill

@@ -181,6 +181,25 @@ import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEdi
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** MODEL-SETUP — the whole-model setup state behind `modelSetup()`.
+ *
+ *  Named rather than inline because `apps/web/src/viewer/tools/projectSetupPanel.ts` REDRAWS its two
+ *  panels from a fresh read after an edit lands, so the shape has a second caller: the re-measure. */
+export interface ModelSetupFacts {
+  length_unit: string | null;
+  length_unit_metres: number | null;
+  convertible: boolean;
+  /** The converter's OWN accepted list, sent by the server — never a client-side guess. */
+  targets: string[];
+  georeference: { eastings: number | null; northings: number | null;
+                  orthogonal_height: number | null } | null;
+  root_placements: number;
+  /** Measured over the ROOT placements — exactly the set `rebase_origin` shifts. */
+  distance_from_origin: number;
+  distance_from_origin_m: number | null;
+}
+
+
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
@@ -371,6 +390,15 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     return this.json<{ joins: { kind: "L" | "T"; corner: number[]; through: string; stub: string;
       walls: string[] }[]; wall_count: number; counts: { L: number; T: number } }>(
       `/projects/${pid}/model/wall-joins${tol ? `?tol=${tol}` : ""}`);
+  }
+  /** MODEL-SETUP — the project's length unit and how far its geometry sits from the file origin.
+   *
+   *  The read half of `convert_length_unit` and `rebase_origin`, both of which have been runnable
+   *  through `POST /projects/{pid}/edit` all along with no control anywhere. `targets` is the
+   *  converter's OWN accepted list, so this client never decides which units are offerable — a
+   *  dropdown holding FOOT would render a 400. */
+  modelSetup(pid: string) {
+    return this.json<ModelSetupFacts>(`/projects/${pid}/model/setup`);
   }
   /** INTEROP-RT — round-trip fidelity: serialize → reparse → compare, with a single verdict. */
   modelRoundtrip(pid: string) {

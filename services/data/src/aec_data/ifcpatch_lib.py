@@ -173,6 +173,92 @@ def _map_conversion(model):
     return convs[0] if convs else None
 
 
+def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
+    """MODEL-SETUP — what a project's units and origin ARE, so the two repairs below can be offered
+    honestly rather than as a guess.
+
+    ``rebase_origin`` and ``convert_length_unit`` have been in the recipe registry, and reachable
+    through ``POST /projects/{pid}/edit``, the whole time — `authoring_matrix.UNREACHED` lists both as
+    "a capability no user can reach", which that file calls a defect rather than a gap. The reason a
+    control could not simply be added is here: **nothing exposed the current state**. Offering
+    "convert to millimetres" without saying what the units are now is a coin flip the user is asked
+    to call, and a control whose state cannot be seen is the shape this codebase keeps repairing.
+
+    So this reports what the repair needs to be *decided*, not merely what it would do:
+
+    ``targets`` is sent BY THE SERVER rather than hardcoded in a client. The converter accepts three
+    units and raises on anything else, so a dropdown that offered feet would render a 400. The same
+    reason the maintenance scan sends recipe names as data.
+
+    ``distance_from_origin`` is measured over the ROOT placements — exactly the set ``rebase_origin``
+    shifts — so the number shown is the number the repair acts on, rather than a bounding box that
+    happens to correlate with it.
+
+    ``convertible`` is false when the file carries no ``LENGTHUNIT`` assignment, which is the one
+    input that makes the converter raise rather than no-op.
+    """
+    import ifcopenshell.util.unit as uunit
+
+    try:
+        metres = float(uunit.calculate_unit_scale(model))
+    except Exception:                                       # noqa: BLE001 — a file with no unit assignment
+        metres = None
+    named = [u for u in model.by_type("IfcNamedUnit")
+             if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+    # Name the unit the way the CONVERTER names it when we can, so the current value and the target
+    # list are drawn from one vocabulary; fall back to the file's own spelling when it is something
+    # the converter does not model (a foot, an inch, a conversion-based unit).
+    unit_name = None
+    if metres is not None:
+        for label, (_n, _p, m) in _UNIT_SCALES.items():
+            if abs(metres - m) < 1e-12:
+                unit_name = label
+                break
+    if unit_name is None and named:
+        u = named[0]
+        prefix = getattr(u, "Prefix", None)
+        base = getattr(u, "Name", None)
+        unit_name = f"{prefix}{base}" if prefix and base else (base or None)
+
+    mc = _map_conversion(model)
+    georeference = None
+    if mc is not None:
+        georeference = {
+            "eastings": getattr(mc, "Eastings", None),
+            "northings": getattr(mc, "Northings", None),
+            "orthogonal_height": getattr(mc, "OrthogonalHeight", None),
+        }
+
+    # The root placements, and how far the furthest one sits from the file origin. A model authored
+    # against a survey grid can sit millions of units out, which is what wrecks depth precision in a
+    # renderer — the problem `rebase_origin` exists for.
+    seen: set[int] = set()
+    roots = 0
+    furthest = 0.0
+    for placement in model.by_type("IfcLocalPlacement"):
+        if getattr(placement, "PlacementRelTo", None) is not None:
+            continue
+        rel = getattr(placement, "RelativePlacement", None)
+        loc = getattr(rel, "Location", None) if rel is not None else None
+        if loc is None or loc.id() in seen:
+            continue
+        seen.add(loc.id())
+        roots += 1
+        c = list(getattr(loc, "Coordinates", ()) or ()) + [0.0, 0.0, 0.0]
+        furthest = max(furthest, (float(c[0]) ** 2 + float(c[1]) ** 2 + float(c[2]) ** 2) ** 0.5)
+
+    return {
+        "length_unit": unit_name,
+        "length_unit_metres": metres,
+        "convertible": bool(named),
+        "targets": sorted(_UNIT_SCALES),
+        "georeference": georeference,
+        "root_placements": roots,
+        "distance_from_origin": furthest,
+        "distance_from_origin_m": (furthest * metres) if metres is not None else None,
+    }
+
+
 def rebase_origin(model: ifcopenshell.file, point=(0.0, 0.0, 0.0)) -> dict[str, Any]:
     """Move the model so the given MODEL point becomes the origin, preserving real-world position.
 

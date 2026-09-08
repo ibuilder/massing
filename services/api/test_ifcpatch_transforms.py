@@ -94,6 +94,79 @@ with TestClient(app) as c:
     r = c.get(f"/projects/{pid}/model/split-plan")
     assert r.status_code == 200 and "Level 1" in r.json()["storeys"], r.text
 
+# --- MODEL-SETUP: setup_facts — the READ that makes the two repairs above offerable ---------------
+#
+# Both recipes were in the registry and reachable through POST /projects/{pid}/edit the whole time,
+# and `authoring_matrix.UNREACHED` listed both as "a capability no user can reach". A control could
+# not simply be added because nothing exposed the CURRENT state: "convert to millimetres" with no
+# statement of the present unit is a coin flip the user is asked to call.
+_ifc2 = Path(tempfile.gettempdir()) / "ifcpatch_setup_facts.ifc"
+massing.generate_blank_ifc(str(_ifc2), name="PS", storeys=2, storey_height=3.0, ground_size=40.0)
+m2 = open_model(str(_ifc2))
+edit.add_wall(m2, [1000, 2000], [1008, 2000], 3.0, 0.2, "Level 1")   # authored far from the origin
+
+facts = ifcpatch_lib.setup_facts(m2)
+assert facts["length_unit"] == "METRE" and abs(facts["length_unit_metres"] - 1.0) < 1e-12, facts
+assert facts["convertible"] is True, facts
+# The accepted list comes from the CONVERTER, not from a constant a client could drift from — a
+# dropdown offering FOOT would render a 400, so the server names what it will take.
+assert facts["targets"] == sorted(ifcpatch_lib._UNIT_SCALES), facts
+assert set(facts["targets"]) == {"CENTIMETRE", "METRE", "MILLIMETRE"}, facts
+# `distance_from_origin` is measured over the ROOT placements — the same set rebase_origin shifts —
+# so the number shown is the number the repair acts on.
+assert facts["root_placements"] > 0 and facts["distance_from_origin"] > 1000.0, facts
+
+# ...and ROOTS specifically, which needs a NESTED placement to be assertable at all. An
+# authored-from-scratch file has none — `rebase_origin`'s own docstring says its element placements
+# ARE the roots — so a mutation measuring every placement instead of the roots SURVIVED the check
+# above until this was added. The distinction is the whole claim: a nested placement rides its
+# parent, so counting it would report a distance the repair does not act on and shift nothing.
+_root_before = facts["root_placements"]
+_dist_before = facts["distance_from_origin"]
+_parent = next(x for x in m2.by_type("IfcLocalPlacement")
+               if getattr(x, "PlacementRelTo", None) is None)
+_far = m2.createIfcCartesianPoint((9.0e6, 9.0e6, 0.0))
+m2.createIfcLocalPlacement(_parent, m2.createIfcAxis2Placement3D(_far, None, None))
+_nested = ifcpatch_lib.setup_facts(m2)
+assert _nested["root_placements"] == _root_before, (_root_before, _nested["root_placements"])
+assert abs(_nested["distance_from_origin"] - _dist_before) < 1e-9, (_dist_before, _nested)
+assert abs(facts["distance_from_origin_m"] - facts["distance_from_origin"]) < 1e-9, facts
+assert facts["georeference"] is None, facts        # blank file carries no IfcMapConversion
+
+# The read TRACKS the repair: rebasing to the far point brings the distance down.
+far_before = facts["distance_from_origin"]
+_roots_read = _nested["root_placements"]
+_rebased = ifcpatch_lib.rebase_origin(m2, [1000.0, 2000.0, 0.0])
+after = ifcpatch_lib.setup_facts(m2)
+assert after["distance_from_origin"] < far_before, (far_before, after["distance_from_origin"])
+# **The count the panel SHOWS is the count the repair MOVED, asserted rather than asserted-in-prose.**
+# `setup_facts` and `rebase_origin` walk the placement graph with the same three conditions (skip a
+# non-root, skip a missing Location, skip a Location already seen — two roots can share one
+# IfcCartesianPoint, and shifting it twice would double the offset). Those are two copies of one
+# rule, and a copy is what drifts: the docstring's claim that the distance is measured over
+# "exactly the set rebase_origin shifts" would then be false with every other assertion here still
+# green. Comparing the two OUTPUTS binds them by behaviour, so the loops may be rewritten but not
+# diverge.
+#
+# **It guards the direction the nested-placement check above CANNOT see.** That one asserts the READ
+# stays root-only; this one catches the REPAIR loosening — dropping `rebase_origin`'s root filter
+# leaves every assertion above green and fails here with (2, placements_shifted=3). Verified by
+# mutation, after a first attempt (making the read skip roots that sit at the origin) SURVIVED:
+# neither root in this fixture is at the origin, so the mutation changed nothing. *A surviving
+# mutation can mean the fixture cannot express it rather than that the check is weak* — the same
+# thing that happened one assertion up, and the reason both are recorded rather than just the one
+# that worked.
+assert _roots_read == _rebased["placements_shifted"], (_roots_read, _rebased)
+
+# ...and it tracks the OTHER repair too, in the vocabulary the converter uses.
+ifcpatch_lib.convert_length_unit(m2, "MILLIMETRE")
+mm = ifcpatch_lib.setup_facts(m2)
+assert mm["length_unit"] == "MILLIMETRE" and abs(mm["length_unit_metres"] - 0.001) < 1e-12, mm
+# metres are the comparable figure across a unit change; file units are not
+assert abs(mm["distance_from_origin_m"] - after["distance_from_origin_m"]) < 1e-6, (mm, after)
+if _ifc2.exists():
+    _ifc2.unlink()
+
 if _ifc.exists():
     _ifc.unlink()
 
@@ -103,4 +176,7 @@ print("IFCPATCH-TRANSFORMS OK - rebase_origin shifts every ROOT placement plus t
       "georeference; convert_length_unit rewrites the unit assignment AND rescales the whitelisted "
       "attributes so a 3 m storey reads 3000 mm at the SAME real elevation (ratio 1000, idempotent, "
       "unknown unit refused, round-trips back to metres); split_by_storey plans deterministic "
-      "per-storey slices and GET /model/split-plan serves them.")
+      "per-storey slices and GET /model/split-plan serves them; setup_facts reads the unit, the "
+      "converter's OWN accepted target list and the distance of the ROOT placements from the origin, "
+      "so both repairs can be offered against stated state rather than guessed at, and it tracks "
+      "each one (rebase lowers the distance, convert renames the unit at an unchanged real size).")

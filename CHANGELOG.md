@@ -12,6 +12,46 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a project can change its units, and move a far-flung model back to the origin
+
+Two things a modelling tool is expected to do had no control anywhere in the app. Both engines were
+built, tested, and reachable through the edit API the whole time; the coverage matrix listed them
+under *"a capability no user can reach"*, which is that file's own words for a defect.
+
+**Project units.** A project can now be converted between metres, millimetres and centimetres. The
+building does not move or change size — only the numbers do — and the panel names the unit the
+project reads in *now* before offering to change it. That last part is why this could not just be a
+button: nothing exposed the current unit, so "convert to millimetres" was a coin flip the user was
+being asked to call. The list of units offered comes from the converter itself, so the app cannot
+offer one the engine would refuse.
+
+**Project origin.** A model authored against a survey grid can sit kilometres from the file origin,
+which costs precision in the viewer and is a common complaint about federated models. Rebasing moves
+the geometry near the origin **and pushes the same offset into the georeference**, so the real-world
+position of every element is unchanged — the whole point, since moving geometry without fixing the
+survey basis is how a building quietly ends up in the wrong place. Nothing is created or destroyed,
+so pins, RFIs and clashes keyed by GlobalId all survive. The panel first reports how far out the
+model actually is, so the repair is offered against a measurement rather than a hunch.
+
+Both panels **re-measure after the change lands** rather than leaving the figures they opened with on
+screen. That matters most for the origin: the point you give it is in the coordinates the model has
+*now*, so pressing Rebase a second time against the first reading would move the building twice — and
+the georeference would absorb the second offset too, which is the failure that shows up only when
+somebody opens the model against the survey.
+
+The existing **Georeferencing** report moved to sit beside them. It is the diagnosis for exactly the
+condition rebasing repairs, and this codebase has already paid once for keeping a detector and its
+fix on opposite sides of the app — each looks complete on its own.
+
+**The check that was supposed to catch an inert button could not see any of these.**
+`apps/web/src/viewer/tools/sectionButtonsWired.test.ts` exists for one failure — a tool that is built,
+returned, and never put on screen, which typechecks and passes its own unit test and is
+indistinguishable from a tool nobody wrote. It claimed to be *"derived from the interfaces rather than
+from a list"* one line above a hardcoded list of three modules, and it read the wiring out of one file.
+Every button in this entry, plus five that shipped earlier, sat outside it. Both halves are derived now
+and the scan covers the whole viewer. **Widening it found nothing broken** — which is the point worth
+recording: a gate whose scope happens to contain no defect today looks exactly like a gate that works.
+
 ### a queued site photo the server refuses stops holding up the ones behind it
 
 The previous entry fixed this for field capture. The portal's offline **attachment** queue had the

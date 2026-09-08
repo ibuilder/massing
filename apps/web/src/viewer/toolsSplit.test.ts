@@ -59,6 +59,11 @@ const SECTION_SOURCES = [
   // changed sides; sitting directly after `qaSection.ts` it reads as `qa`, which is where the
   // buttons actually mount. *A list that looks like a set can still be an order.*
   "src/viewer/tools/repairPanel.ts",
+  // MODEL-SETUP: same shape and the SAME ordering constraint as the entry above — this file
+  // opens no `const b = section("key"` of its own either, so it is attributed to whichever
+  // section precedes it. It must stay inside the `qa` run: its three controls (the survey-basis
+  // read moved out of `qaSection.ts`, plus project units and project origin) mount there.
+  "src/viewer/tools/projectSetupPanel.ts",
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",

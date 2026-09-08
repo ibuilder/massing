@@ -191,9 +191,17 @@ _MAP: dict[str, tuple[str, str]] = {
 # with no caller anywhere in the app. *A route and a client method are two thirds of a feature, and
 # counting either one reports it as shipped.* Both halves are now one QA tool: scan, list the joins
 # (clicking one selects both walls by GlobalId), butt-join, re-scan to confirm.
+# MODEL-SETUP took `convert_length_unit` and `rebase_origin` out of this set on 2026-09-08. Both had
+# been in the RECIPES registry — and so runnable through `POST /projects/{pid}/edit` — the whole
+# time; what was missing was a control, and the reason one could not simply be added is worth keeping:
+# **nothing exposed the current state.** "Convert to millimetres" without saying what the units are
+# now is a coin flip the user is asked to call, so `GET /projects/{pid}/model/setup` came first and
+# the panel reads before it offers. `rebase_origin` is the sharper of the two — it shifts the site
+# placement AND pushes the same offset into the IfcMapConversion, which is this project's stated
+# georeferencing rule, implemented correctly and reachable by nobody.
 UNREACHED: frozenset[str] = frozenset({
-    "add_connection_assembly", "batch_tag", "convert_length_unit", "derive_representations",
-    "place_type", "program_fit", "rebase_origin", "reset_prop_to_type", "set_spec_link",
+    "add_connection_assembly", "batch_tag", "derive_representations",
+    "place_type", "program_fit", "reset_prop_to_type", "set_spec_link",
 })
 
 # Recipes that nothing invokes AND nothing should: a reachable recipe already authors the identical
