@@ -78,7 +78,7 @@
  *  The SSE methods cannot follow yet: they call the `private` `liveStream`, and a mixin cannot see a
  *  sibling's private member — that has to move into HttpCore first.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { AssemblyRow, EditMacro, GroupRow, TypeDetail, TypeRow } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -108,7 +108,7 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       if (opts.preview) fd.append("preview", "true");
       const res = await fetch(this.url(`/projects/${pid}/raise-plan`), {
         method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `raise failed (${res.status})`);
+      if (!res.ok) throw new HttpError((await res.json().catch(() => ({}))).detail || `raise failed (${res.status})`, res.status);
       return res.json() as Promise<{ id?: string; discipline?: string; units: string;
         wall_count: number; space_count?: number; room_count?: number;
         total_wall_length_m: number; total_floor_area_m2: number;
@@ -234,7 +234,7 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       const fd = new FormData(); fd.append("file", file);
       const res = await fetch(this.url(`/projects/${pid}/families/import?publish=${publish}`), {
         method: "POST", body: fd, headers: this.authHeaders() });
-      if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `import -> ${res.status}`); }
+      if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `import -> ${res.status}`, res.status); }
       return res.json() as Promise<{ imported: { guid: string; name: string; ifc_class: string }[]; count: number; publish?: string }>;
     }
     /**
@@ -445,7 +445,7 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const r = await fetch(this.url(`/projects/${pid}/content/import?${q.toString()}`),
       { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
   }
   };

@@ -6,7 +6,7 @@
  *
  *  SCALE-SEAM ⓴ adds clash-report ingest — *can we bring this clash report in?* XLSX plus native XML. Routes are `/coordination/import-*`, not `/clash`. Grouped by ANSWER. Attachment URLs stayed.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { Vec3 } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -79,7 +79,7 @@ export function withClash<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/coordination/import-xlsx`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Clash import -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Clash import -> ${res.status}`, res.status);
     return res.json() as Promise<{ imported: number; detected_columns: string[]; sheet: string; rows_parsed: number }>;
   }
   /** CLASH-TRIAGE — import a native Navisworks clash-report XML -> coordination_issue records (GUID-anchored). */
@@ -87,7 +87,7 @@ export function withClash<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/coordination/import-xml`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Clash XML import -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Clash XML import -> ${res.status}`, res.status);
     return res.json() as Promise<{ imported: number; sheet: string; rows_parsed: number; truncated: boolean }>;
   }
   };

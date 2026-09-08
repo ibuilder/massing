@@ -16,7 +16,7 @@
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
-import { HttpCore, type LiveStream } from "./httpCore";
+import { HttpCore, HttpError, type LiveStream } from "./httpCore";
 import type { LogisticsResource, MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -221,14 +221,14 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   async scheduleSvg(pid: string, kind: "gantt" | "lob") {
     if (IS_DEMO) return demoTextOr(`/projects/${pid}/schedule/${kind}.svg`, "");
     const res = await fetch(this.url(`/projects/${pid}/schedule/${kind}.svg`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`schedule ${kind}: ${res.status}`);
+    if (!res.ok) throw new HttpError(`schedule ${kind}: ${res.status}`, res.status);
     return res.text();
   }
   /** The takt line-of-balance chart with the ACTUAL ascent overlaid (dashed) on the plan. */
   async taktSvg(pid: string) {
     if (IS_DEMO) return demoTextOr(`/projects/${pid}/schedule/takt.svg`, "");
     const res = await fetch(this.url(`/projects/${pid}/schedule/takt.svg`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`takt svg: ${res.status}`);
+    if (!res.ok) throw new HttpError(`takt svg: ${res.status}`, res.status);
     return res.text();
   }
   /** Actual-vs-takt production tracking for the project (per-trade variance + rates) + bundled PPC. */
@@ -240,7 +240,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   async importXer(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/schedule/import-xer`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `import -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `import -> ${res.status}`, res.status); }
     return res.json() as Promise<{ count: number; start: string | null; finish: string | null; preview: { activity_id: string; name: string; start: string; finish: string }[] }>;
   }
   clearXer(pid: string) {
@@ -250,7 +250,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    *  or MS-Project XML (MSPDI). Reflects the current edited state, keyed by the P6 activity code. */
   async exportSchedule(pid: string, fmt: "xer" | "msp") {
     const res = await fetch(this.url(`/projects/${pid}/schedule/export?fmt=${fmt}`), { headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `export -> ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `export -> ${res.status}`, res.status); }
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = fmt === "msp" ? "schedule.xml" : "schedule.xer"; a.click();

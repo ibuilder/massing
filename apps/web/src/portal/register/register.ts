@@ -7,11 +7,11 @@ import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { type PairField, pairedValue, referenceHalf } from "./fieldPairs";
 import { REF_RESOLVE_LIMIT, UUID_RE, refCell } from "./refCell";
+import { UploadQueue, renderQueueNotice } from "./uploadQueue";
 import { mountRecordComments } from "./recordComments";
 import { unmetRequires } from "./requiresGate";
 import { confidenceReading } from "../../ui/confidenceReading";
 import { confirmModal, modalShell, promptModal } from "../../ui/modal";
-import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offlineQueue";
 import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
 import { schemaStaleBanner } from "./schemaStale";
@@ -161,8 +161,20 @@ export class RegisterUI {
   constructor(private ctx: PanelContext) {}
 
   // field/offline: uploads attempted while offline are persisted in IndexedDB (offlineQueue) so they
-  // survive a reload, and flushed on reconnect / next launch.
-  private onlineHooked = false;
+  // survive a reload, and flushed on reconnect / next launch. The queue itself — including the rule
+  // for when a refusal is permanent — lives in `uploadQueue.ts`; this holds the instance because
+  // the shell calls `hookOnline`/`flushUploads` on the register, and moving those would be a
+  // second change for no gain.
+  private _uploads?: UploadQueue;
+  /** Lazy because a field initializer cannot read `this.ctx` — it is a constructor parameter
+   *  property, so it does not exist yet when field initializers run. */
+  private get uploads(): UploadQueue {
+    return (this._uploads ??= new UploadQueue({
+      api: this.ctx.host.api,
+      setStatus: (m) => this.ctx.host.setStatus(m),
+      onPinsChanged: () => this.ctx.host.onPinsChanged(),
+    }));
+  }
 
   // --- record list (sortable / filterable data table + bulk actions) ---------
   /** Sort state per module. Public because the dashboard's saved-view links set it before opening
@@ -2377,38 +2389,18 @@ export class RegisterUI {
     this.ctx.root.append(file, cam, drop, camBtn);
     const qWarn = document.createElement("div"); qWarn.className = "meta"; qWarn.style.cssText = "color:var(--status-warn);margin-top:3px";
     this.ctx.root.appendChild(qWarn);
-    void queuedCountForRecord(rid).then((queued) => {
-      qWarn.textContent = queued
-        ? `⏳ ${queued} file${queued > 1 ? "s" : ""} queued (offline) — will upload when back online` : "";
-    });
+    void renderQueueNotice(qWarn, rid);
   }
 
   /** Persist an upload that couldn't go out (offline) and flush when the connection returns. */
-  private async queueUpload(pid: string, key: string, rid: string, files: File[]) {
-    await enqueueUpload({ pid, key, rid, files });
-    this.ctx.host.setStatus(`offline — ${files.length} file${files.length > 1 ? "s" : ""} queued, will upload on reconnect`);
-    this.hookOnline();
+  private queueUpload(pid: string, key: string, rid: string, files: File[]) {
+    return this.uploads.queue(pid, key, rid, files);
   }
 
   /** Register the reconnect flush once (also called at startup to drain a prior session's queue). */
-  hookOnline() {
-    if (this.onlineHooked) return;
-    this.onlineHooked = true;
-    window.addEventListener("online", () => void this.flushUploads());
-  }
+  hookOnline() { this.uploads.hookOnline(); }
 
-  async flushUploads() {
-    if (!navigator.onLine) return;
-    let done = 0;
-    for (const q of await allQueued()) {
-      try {
-        if (q.files.length === 1) await this.ctx.host.api.uploadAttachment(q.pid, q.key, q.rid, q.files[0]!); // safe: q.files.length === 1 checked
-        else await this.ctx.host.api.uploadAttachmentsBulk(q.pid, q.key, q.rid, q.files);
-        await dequeue(q.id); done += q.files.length;
-      } catch { /* leave it queued for the next reconnect */ }
-    }
-    if (done) { this.ctx.host.setStatus(`back online — uploaded ${done} queued file${done > 1 ? "s" : ""}`); this.ctx.host.onPinsChanged(); }
-  }
+  flushUploads() { return this.uploads.flush(); }
 
   // --- kanban / "scrum" board: columns by workflow state, drag to transition --
   private async renderBoard(m: ModuleDef) {

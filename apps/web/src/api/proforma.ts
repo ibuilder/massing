@@ -33,7 +33,7 @@
  *  lease-management depth. They sat above the investor stack in `client.ts` and did **not** go
  *  with ㉙ (capital is ownership, this is occupancy). `askProject` stayed.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { Appraisal, DevBudgetLine, DevBudgetResponse, DevBudgetSummary, FinancialStatements,
   MonteCarloResult, ProformaForecast, ProformaResult } from "./types";
 
@@ -141,7 +141,7 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** Lender draw-request PDF (the bank-facing submission) as an auth'd blob. */
   async loanDrawRequestPdf(pid: string, appNo = 1) {
     const res = await fetch(this.url(`/projects/${pid}/loan-draws/request.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`draw request PDF -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`draw request PDF -> ${res.status}`, res.status);
     return res.blob();
   }
 

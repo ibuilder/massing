@@ -19,7 +19,7 @@ import type {
 
 import type { Cached } from "./recordCache";
 
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -88,7 +88,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/import/preview`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Import preview -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Import preview -> ${res.status}`, res.status);
     return res.json() as Promise<{ headers: string[]; row_count: number; unmapped_required: string[];
       suggested_mapping: Record<string, string>; sample: Record<string, unknown>[];
       fields: { name: string; label: string; type: string; required: boolean }[] }>;
@@ -98,7 +98,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file); fd.append("mapping", JSON.stringify(mapping));
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/import`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Import -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`Import -> ${res.status}`, res.status);
     return res.json() as Promise<{ imported: number; error_count: number;
       errors: { row: number; error: string }[]; truncated: boolean }>;
   }
@@ -231,13 +231,13 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/${rid}/attachments`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`upload -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`upload -> ${res.status}`, res.status);
     return res.json() as Promise<RecordAttachmentMeta>;
   }
   /** Export a module's records as a BCF .bcfzip (auth'd blob, for coordination-issue interop). */
   async downloadModuleBcf(pid: string, key: string) {
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/export`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`BCF export -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`BCF export -> ${res.status}`, res.status);
     return res.blob();
   }
   /** Import a BCF .bcfzip as records in a module. */
@@ -245,7 +245,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/import`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`BCF import -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`BCF import -> ${res.status}`, res.status);
     return res.json() as Promise<{ count: number; ids: string[] }>;
   }
   /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
@@ -259,7 +259,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     for (const f of Array.from(files)) fd.append("files", f);
     const res = await fetch(this.url(`/projects/${pid}/modules/${key}/${rid}/attachments/bulk`), {
       method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`bulk upload -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`bulk upload -> ${res.status}`, res.status);
     return res.json() as Promise<{ count: number; attachments: RecordAttachmentMeta[] }>;
   }
   saveTemplate(pid: string, key: string, name: string) {

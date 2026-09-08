@@ -15,6 +15,7 @@
  *  the browser fetches **without** an Authorization header (`openModelBytes` below).
  */
 import type { ApiClient } from "./client";
+import { HttpError } from "./httpCore";
 
 /** What `/auth/cloud/status` reports. Never includes a token. */
 export interface CloudStatus {
@@ -60,9 +61,15 @@ export interface CloudModel {
   updated?: string | null;
 }
 
-/** A refusal the user can act on: 402 = needs a paid plan, 403 = not linked, 409 = plan limit. */
-export class CloudError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+/** A refusal the user can act on: 402 = needs a paid plan, 403 = not linked, 409 = plan limit.
+ *
+ *  Extends `HttpError` rather than `Error` directly. This class already carried its status as a
+ *  field — it is the precedent UPLOAD-POISON generalised, written before there was anywhere shared
+ *  to put it. Now that there is, sitting under it means one `instanceof HttpError` classifier reads
+ *  a cloud refusal and an ordinary one alike; the argument order and the two getters are unchanged,
+ *  so every existing `catch (e) { if (e instanceof CloudError) … }` keeps working. */
+export class CloudError extends HttpError {
+  constructor(status: number, message: string) { super(message, status); }
   /** True when the fix is "upgrade", which the UI renders as a link rather than an error toast. */
   get needsUpgrade() { return this.status === 402; }
   get notLinked() { return this.status === 403; }

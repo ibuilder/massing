@@ -5,7 +5,7 @@
  * (and on load). Pairs with the PWA/Capacitor build so it's usable as an installed app in the field.
  */
 import type { ApiClient } from "../api/client";
-import { HttpError } from "../api/httpCore";
+import { permanentRejection } from "../api/httpCore";
 import { currentIdentity, ownedByMe } from "../api/identity";
 import { toast } from "./../ui/feedback";
 import { attachDictation } from "./dictate";
@@ -303,23 +303,6 @@ export class FieldCapture {
     if (synced) toast(`Synced ${synced} field capture${synced > 1 ? "s" : ""}`, "success");
     if (rejected) toast(`${rejected} capture${rejected > 1 ? "s" : ""} refused — open the queue to see why`, "error");
   }
-}
-
-/** Why the server will NEVER accept this capture, or null if the failure is worth retrying.
- *
- *  4xx means the request itself is wrong — a validation failure, or the capturer no longer has
- *  access to the project — and repeating it byte for byte cannot change the answer. 408 and 429 are
- *  the exceptions: both explicitly invite a retry. Everything else (offline, DNS, 5xx, a proxy
- *  eating the connection) is transient by default, because **guessing "permanent" wrongly loses a
- *  field worker's capture, and guessing "transient" wrongly only costs another attempt.** The
- *  asymmetry decides the default.
- */
-function permanentRejection(e: unknown): string | null {
-  const status = e instanceof HttpError ? e.status : 0;
-  if (status < 400 || status >= 500 || status === 408 || status === 429) return null;
-  if (status === 403 || status === 401) return "No longer permitted on this project";
-  if (status === 404) return "The project or module no longer exists";
-  return `Refused by the server (${status})`;
 }
 
 function label(text: string, control: HTMLElement): HTMLElement {

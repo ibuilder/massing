@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### a queued site photo the server refuses stops holding up the ones behind it
+
+The previous entry fixed this for field capture. The portal's offline **attachment** queue had the
+identical defect and it was worse, because these entries hold the actual files. Anything that failed
+was re-queued unchanged — a validation refusal and an unreachable server were the same event — so a
+photo the server would never accept was resent on every reconnect, sat in front of the good ones on
+every pass, and **never left the device**, since nothing in the UI could discard a single queued
+upload. The record's notice went on saying "will upload when back online" about a file that would not.
+
+A permanent refusal is now recorded with its reason and skipped from then on. The attachment notice
+counts pending and refused separately, says why each refusal happened, and offers a Discard —
+previously the only way to reclaim that storage was to clear the site's data. Nothing is discarded
+automatically: the person who took the photo decides.
+
+**In private browsing it was also dropping the wrong file.** Without IndexedDB the queue falls back
+to memory, and those entries carried no id, so removing one fell back to position — it discarded
+whichever entry was *first*. With two queued files where the earlier one fails and the later one
+uploads, the file that never reached the server was thrown away and the one already stored was
+queued to upload again. Fallback entries now carry ids and every operation addresses them by id.
+
+**Every HTTP failure this app raises now carries its status.** The previous entry gave one call path
+an error with a `status` field; the other fifty threw a plain error whose only record of the status
+was the wording of its message, which is why the upload queue could not be fixed at the time. All of
+them now carry it, with their messages unchanged so nothing else had to move, and the cloud-model
+error — which had been carrying its own status privately — sits under the same type. A test derives
+the list of failure sites from the source and fails the build if a new one buries its status again.
+
 ### a field capture the server refuses no longer blocks the ones behind it
 
 Offline field capture queued everything and retried everything. Any failure re-queued the item

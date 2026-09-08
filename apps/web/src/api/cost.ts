@@ -20,7 +20,7 @@
  *  SCALE-SEAM ❶ adds certified payroll — *what labor was certified this week?* WH-347
  *  summary plus the PDF URL. `preflight` stayed (issuance gate, not payroll).
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import type { ModuleRecord, ResolveAction } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -203,7 +203,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** The owner pay application (G702 certificate + G703 continuation) as a signable PDF blob. */
   async payAppPdf(pid: string, appNo = 1) {
     const res = await fetch(this.url(`/projects/${pid}/cost/g702.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`pay-app PDF -> ${res.status}`);
+    if (!res.ok) throw new HttpError(`pay-app PDF -> ${res.status}`, res.status);
     return res.blob();
   }
   /** Create an owner-invoice record from the current pay application (amount = current payment due). */

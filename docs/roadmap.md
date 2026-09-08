@@ -2732,6 +2732,31 @@ refute one, so this goes first even though it is the least visible.
   message, so it is purely additive and none of the ~50 existing `catch` sites changed. *A
   classifier is only as good as the signal it is allowed to see; parsing a message would have
   shipped the same brittleness under a new name.*
+  **Slice ⑤ fixed the busiest call path and LEFT THE CLASS OPEN — UPLOAD-POISON is the survivor.**
+  Sweeping for the same shape found `apps/web/src/portal/register/register.ts` flushing the portal's
+  offline *attachment* queue through the identical `catch { /* leave it queued */ }`, and worse in
+  three ways: those entries hold real `File` objects in IndexedDB, so an un-droppable upload is
+  storage held forever rather than a queue slot; the record's notice kept promising *"will upload
+  when back online"*; and there was **no per-entry discard anywhere in the UI**, so the only cure was
+  clearing the site's data. It could not have been fixed by slice ⑤ either, because
+  `uploadAttachment` uses a raw `fetch` and threw a bare `Error` — **50 of the 51 `!res.ok` guards
+  in `apps/web/src/api/` did**, and exactly one carried its status. All 51 now do, message-identical
+  so no `catch` had to migrate, and `apps/web/src/api/cloud.ts`'s `CloudError` — which had been
+  carrying a status privately, the precedent this generalises — extends `HttpError` instead of
+  sitting beside it. `apps/web/src/api/httpStatus.test.ts` derives the failure sites from the source
+  and reds the build when a new one buries its status; `apps/web/src/portal/register/uploadQueue.ts`
+  is the extracted queue (`register.ts` 2_467 → 2_459) and `apps/web/src/portal/register/uploadQueue.test.ts`
+  drives it against the real store.
+  *The lesson is the one three PRs in a row have now paid for: **fixing the trafficked instance is
+  not closing the class.** Slice ⑤ shipped a correct fix, a gate for its own queue, and a defect
+  class fully intact one directory away.*
+  **And a second defect surfaced only because the test refused to mock the store.** The environment
+  has no `indexedDB`, so the tests run `apps/web/src/portal/offlineQueue.ts`'s in-memory fallback —
+  the path a real device takes in **private browsing**. Fallback entries carried no id, so every
+  id-addressed operation degraded to POSITION: `dequeue` did `memFallback.shift()`. Flush a queue
+  where the first entry fails transiently and the second uploads, and it discarded the file that
+  never reached the server while leaving the one that did to be uploaded again. *A mock of that
+  store would have been perfectly green.*
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
   now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above

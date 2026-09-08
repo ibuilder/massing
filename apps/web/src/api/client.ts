@@ -41,7 +41,7 @@ import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { withAssetRights } from "./assetRights";
 import { withDocQa } from "./docqa";
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 import { withModel } from "./model";
 import { withEstimate } from "./estimate";
 import { withProcurement } from "./procurement";
@@ -91,14 +91,14 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
     const fd = new FormData(); fd.append("file", file, name);
     const r = await fetch(this.url(`/projects/${pid}/verification/${encodeURIComponent(guid)}/photo`),
       { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
   }
   /** 3D-HERO: pin a captured viewer screenshot as the project's hero image (page 2 of the package PDF). */
   async uploadHero(pid: string, image: Blob) {
     const fd = new FormData(); fd.append("file", image, "hero.png");
     const r = await fetch(this.url(`/projects/${pid}/hero`), { method: "PUT", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
   }
   meta(pid: string) {
@@ -202,7 +202,7 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
   async convertCityGml(file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/convert/citygml`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
+    if (!res.ok) throw new HttpError((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`, res.status);
     return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
   }
   /** SUBSET-EXPORT: download URL for an IFC of just the elements matching a QUERY-DSL selector. */
@@ -301,7 +301,7 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/scan/deviation?tolerance=${tolerance}`),
       { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `scan -> ${res.status}`);
+    if (!res.ok) throw new HttpError((await res.json().catch(() => ({ detail: res.status }))).detail || `scan -> ${res.status}`, res.status);
     return res.json() as Promise<{ point_count: number; reference_count: number; tolerance: number;
       within_tolerance: number; within_pct: number | null; out_of_tolerance: number;
       mean_deviation: number; max_deviation: number; p95_deviation: number;
@@ -409,7 +409,7 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/convert/vim/inspect`),
       { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
+    if (!res.ok) throw new HttpError((await res.text()) || `inspect failed (${res.status})`, res.status);
     return res.json() as Promise<Record<string, unknown>>;
   }
 

@@ -24,7 +24,7 @@
  *  both compile clean.
  */
 import type { DocCitation } from "./types";
-import { HttpCore } from "./httpCore";
+import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -39,7 +39,7 @@ export function withDocQa<TBase extends Ctor<HttpCore>>(Base: TBase) {
       if (opts.question != null) fd.append("question", opts.question);
       const res = await fetch(this.url(`/projects/${pid}/review/${kind}`), {
         method: "POST", body: fd, headers: this.authHeaders() });
-      if (!res.ok) throw new Error(`Review ${kind} -> ${res.status}`);
+      if (!res.ok) throw new HttpError(`Review ${kind} -> ${res.status}`, res.status);
       return res.json() as Promise<T>;
     }
 
@@ -69,7 +69,7 @@ export function withDocQa<TBase extends Ctor<HttpCore>>(Base: TBase) {
     async doctextSource(pid: string, docId: string): Promise<Blob> {
       const res = await fetch(this.url(`/projects/${pid}/doctext/${encodeURIComponent(docId)}/source`),
         { headers: this.authHeaders() });
-      if (!res.ok) throw new Error(`doctext source -> ${res.status}`);
+      if (!res.ok) throw new HttpError(`doctext source -> ${res.status}`, res.status);
       return res.blob();
     }
   };

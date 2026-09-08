@@ -1,11 +1,12 @@
 /** POST a PDF and save it. Cookie-bearing GET is how SameSite=Lax leaks a session. */
+import { HttpError } from "./httpCore";
 export async function downloadPostedPdf(
   api: { url(path: string): string; authHeaders(): Record<string, string> },
   path: string,
   fallbackName: string,
 ): Promise<void> {
   const r = await fetch(api.url(path), { method: "POST", headers: api.authHeaders() });
-  if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+  if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
   const blob = await r.blob();
   const a = document.createElement("a");
   const cd = r.headers.get("Content-Disposition") || "";
