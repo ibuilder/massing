@@ -2756,7 +2756,13 @@ refute one, so this goes first even though it is the least visible.
   authenticated the caller and refused anyway. The durable answer is not a better table of status
   codes but **reversibility** — every refused entry now offers *Try again* beside *Discard*, so a
   wrong verdict costs a tap instead of somebody's photo. *A judgement a person cannot overturn is a
-  worse design than one that is occasionally wrong.* `markRejected` also now reports whether the
+  worse design than one that is occasionally wrong.* **And the escape hatch had the defect it exists
+  to catch**: the first draft cleared the mark and re-rendered without flushing, so on an already
+  online device the button said *Try again* and attempted nothing. Its test did not notice because
+  **the test ran the flush itself** after clicking — proving the entry went back to pending and never
+  that the button sends. That is `services/api/test_mcp_attribution.py`'s lesson in a second place:
+  *a test that supplies a caller's arguments cannot notice the caller omitting them.* The flush now
+  belongs to the button, and the test asserts the send rather than performing it. `markRejected` also now reports whether the
   mark actually persisted, and `flush` counts a refusal only then — both its IndexedDB handlers had
   resolved as success, so a failed write was reported to the worker as a refusal that had not
   happened.

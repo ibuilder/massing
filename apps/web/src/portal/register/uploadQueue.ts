@@ -108,7 +108,8 @@ export class UploadQueue {
  * — the only way, before this, to get a permanently-refused file off the device was to clear the
  * site's storage. Nothing is discarded automatically: the person who took the photo decides.
  */
-export async function renderQueueNotice(el: HTMLElement, rid: string): Promise<void> {
+export async function renderQueueNotice(el: HTMLElement, rid: string,
+                                        retryNow?: () => Promise<void>): Promise<void> {
   const [pending, refused] = await Promise.all([queuedCountForRecord(rid), refusedForRecord(rid)]);
   el.textContent = "";
   if (pending) {
@@ -128,12 +129,18 @@ export async function renderQueueNotice(el: HTMLElement, rid: string): Promise<v
     const retry = document.createElement("button");
     retry.className = "tool-btn";
     retry.textContent = "Try again";
-    retry.onclick = async () => { await clearRejection(q.id); await renderQueueNotice(el, rid); };
+    retry.onclick = async () => {
+      retry.disabled = true;
+      await clearRejection(q.id);
+      // Send it, do not merely un-mark it. `clearRejection` returns the entry to the pending set;
+      // the attempt is what the button promises.
+      try { await retryNow!(); } finally { await renderQueueNotice(el, rid, retryNow); }
+    };
     const drop = document.createElement("button");
     drop.className = "tool-btn";
     drop.textContent = "Discard";
-    drop.onclick = async () => { await dequeue(q.id); await renderQueueNotice(el, rid); };
-    row.append(what, retry, drop);
+    drop.onclick = async () => { await dequeue(q.id); await renderQueueNotice(el, rid, retryNow); };
+    row.append(what, ...(retryNow ? [retry] : []), drop);
     el.appendChild(row);
   }
 }

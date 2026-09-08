@@ -131,19 +131,22 @@ describe("UPLOAD-POISON — a queued file the server refuses", () => {
     await new UploadQueue(h).flush();
     expect(await queuedCountForRecord("r1")).toBe(0);
 
+    const h2 = host(() => null);                                 // a server that now accepts it
     const el = document.createElement("div");
-    await renderQueueNotice(el, "r1");
+    await renderQueueNotice(el, "r1", () => new UploadQueue(h2).flush());
     const [retry] = [...el.querySelectorAll("button")].filter((b) => b.textContent === "Try again");
     expect(retry, "a refused entry must offer more than Discard").toBeDefined();
 
+    // **The click must SEND, not merely un-mark.** The first version of this test cleared the mark
+    // and then ran the flush ITSELF, so it proved the entry became pending and never proved the
+    // button attempts anything — a test supplying what the caller omitted, which is exactly the
+    // failure `services/api/test_mcp_attribution.py` was written for. Review caught it; the flush
+    // now belongs to the button.
     retry!.click();
     await new Promise((r) => setTimeout(r, 0));
+    expect(h2.sent, "Try again must attempt the upload, not just clear the mark").toEqual(["r1"]);
     expect(await refusedForRecord("r1")).toHaveLength(0);
-    expect(await queuedCountForRecord("r1")).toBe(1);           // pending again
-
-    const h2 = host(() => null);                                 // and genuinely re-sent
-    await new UploadQueue(h2).flush();
-    expect(h2.sent).toEqual(["r1"]);
+    expect(await allQueued()).toHaveLength(0);                   // sent, so gone
   });
 
   it("an offline failure — a bare TypeError, no status — is a retry, not a refusal", async () => {

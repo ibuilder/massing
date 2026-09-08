@@ -36,7 +36,8 @@ queued to upload again. Fallback entries now carry ids and every operation addre
 and review of this change caught it getting one wrong: an expired sign-in (401) was being treated as
 final, stranding work that signing in again would have sent. That is fixed — but the more useful
 answer is that the judgement is no longer the last word. Each refused entry now offers **Try again**
-beside Discard, so a wrong call costs a tap rather than a photo. A refusal is also only reported once
+beside Discard — which sends it, rather than merely un-marking it and waiting for a reconnect that
+on an already-online device may never come — so a wrong call costs a tap rather than a photo. A refusal is also only reported once
 it has actually been stored, so the count a worker sees matches what is on the device.
 
 **Every HTTP failure this app raises now carries its status.** The previous entry gave one call path

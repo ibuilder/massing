@@ -2389,7 +2389,7 @@ export class RegisterUI {
     this.ctx.root.append(file, cam, drop, camBtn);
     const qWarn = document.createElement("div"); qWarn.className = "meta"; qWarn.style.cssText = "color:var(--status-warn);margin-top:3px";
     this.ctx.root.appendChild(qWarn);
-    void renderQueueNotice(qWarn, rid);
+    void renderQueueNotice(qWarn, rid, () => this.uploads.flush());
   }
 
   /** Persist an upload that couldn't go out (offline) and flush when the connection returns. */
