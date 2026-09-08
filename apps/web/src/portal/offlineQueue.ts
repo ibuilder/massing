@@ -23,8 +23,9 @@ let memFallback: QueuedUpload[] | null = null;   // used only if IndexedDB can't
 //: `dequeue(undefined)` did `memFallback.shift()`. That is not a weaker fallback, it is a wrong
 //: one: flushing a queue where entry 0 fails transiently and entry 1 uploads would `shift()` away
 //: entry 0, DISCARDING a file that never reached the server while leaving the one that did to be
-//: uploaded a second time. Private browsing is not an exotic configuration for a site worker on a
-//: shared tablet, which is exactly who this queue is for.
+//: uploaded a second time. The fallback is reached whenever `indexedDB` is UNAVAILABLE — storage
+//: blocked by policy, a locked-down browser, an embedded webview. (Not private browsing: modern
+//: private modes do provide IndexedDB, they just discard it when the session ends.)
 let memSeq = 0;
 
 function openDb(): Promise<IDBDatabase> {
@@ -84,23 +85,72 @@ async function everyQueued(): Promise<QueuedUpload[]> {
  * means the bytes reached the server and may go, this means they never will and must STAY until
  * their owner decides. Silently dropping refused work is the one outcome neither queue may have.
  */
-export async function markRejected(id: number | undefined, why: string): Promise<void> {
-  if (id == null) return;              // as in `dequeue`: no id means no entry, not "the first one"
+export async function markRejected(id: number | undefined, why: string): Promise<boolean> {
+  if (id == null) return false;        // as in `dequeue`: no id means no entry, not "the first one"
   if (memFallback && id < 0) {
     const hit = memFallback.find((q) => q.id === id);
     if (hit) hit.rejected = why;
+    return !!hit;
+  }
+  try {
+    const s = await store("readwrite");
+    // Read and write inside ONE request callback rather than `await`ing between them. Two reasons,
+    // and only the second is about correctness of the report: an IndexedDB transaction commits once
+    // control returns to the event loop with no pending request, so awaiting between `get` and
+    // `put` can leave the `put` on a transaction that has already closed. And resolving on
+    // `onerror` — which the first draft did, twice — reports a write that never happened as a
+    // success, so `flush` would tell somebody N files were refused while the mark did not persist
+    // and every one of them was about to be retried.
+    return await new Promise<boolean>((res, rej) => {
+      const r = s.get(id);
+      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const cur = r.result as QueuedUpload | undefined;
+        if (!cur) return res(false);           // already gone — nothing to mark, and not an error
+        const w = s.put({ ...cur, rejected: why });
+        w.onerror = () => rej(w.error);
+        w.onsuccess = () => res(true);
+      };
+    });
+  } catch {
+    const hit = memFallback?.find((q) => q.id === id);
+    if (hit) hit.rejected = why;
+    return !!hit;
+  }
+}
+
+/**
+ * Undo a refusal, so the entry is offered to the next flush again.
+ *
+ * The classifier decides "permanent" from a status code, and this PR's review found it getting one
+ * wrong (401). **A verdict a person cannot overturn is a worse design than a verdict that is
+ * occasionally wrong**, because the cost of being wrong is somebody's photo. This is the escape
+ * hatch: the reason is shown, and Try again clears it.
+ */
+export async function clearRejection(id: number | undefined): Promise<void> {
+  if (id == null) return;
+  if (memFallback && id < 0) {
+    const hit = memFallback.find((q) => q.id === id);
+    if (hit) delete hit.rejected;
     return;
   }
   try {
     const s = await store("readwrite");
-    const cur = await new Promise<QueuedUpload | undefined>((res) => {
-      const r = s.get(id); r.onsuccess = () => res(r.result as QueuedUpload | undefined); r.onerror = () => res(undefined);
+    await new Promise<void>((res, rej) => {
+      const r = s.get(id);
+      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const cur = r.result as QueuedUpload | undefined;
+        if (!cur) return res();
+        const { rejected: _dropped, ...rest } = cur;
+        const w = s.put(rest);
+        w.onerror = () => rej(w.error);
+        w.onsuccess = () => res();
+      };
     });
-    if (!cur) return;
-    await new Promise<void>((res) => { const r = s.put({ ...cur, rejected: why }); r.onsuccess = () => res(); r.onerror = () => res(); });
   } catch {
     const hit = memFallback?.find((q) => q.id === id);
-    if (hit) hit.rejected = why;
+    if (hit) delete hit.rejected;
   }
 }
 

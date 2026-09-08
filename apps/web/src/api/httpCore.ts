@@ -53,7 +53,12 @@ export class HttpError extends Error {
 export function permanentRejection(e: unknown): string | null {
   const status = e instanceof HttpError ? e.status : 0;
   if (status < 400 || status >= 500 || status === 408 || status === 429) return null;
-  if (status === 403 || status === 401) return "No longer permitted on this project";
+  // 401 is NOT permanent, and treating it as such was this rule's first real mistake: the token
+  // expired, the person signs in again, and the very same request succeeds. Marking it refused
+  // strands work that one ordinary user action would have sent. 403 stays permanent — the server
+  // authenticated the caller and still said no, so a fresh token changes nothing.
+  if (status === 401) return null;
+  if (status === 403) return "No longer permitted on this project";
   if (status === 404) return "The project or record no longer exists";
   return `Refused by the server (${status})`;
 }

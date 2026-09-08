@@ -2750,9 +2750,20 @@ refute one, so this goes first even though it is the least visible.
   *The lesson is the one three PRs in a row have now paid for: **fixing the trafficked instance is
   not closing the class.** Slice ⑤ shipped a correct fix, a gate for its own queue, and a defect
   class fully intact one directory away.*
+  **Review then found the classifier's own first mistake, in the direction its asymmetry names as
+  costly**: 401 was being treated as permanent. An expired token is undone by signing in again, so
+  that stranded work behind one ordinary user action; 403 stays permanent, since the server
+  authenticated the caller and refused anyway. The durable answer is not a better table of status
+  codes but **reversibility** — every refused entry now offers *Try again* beside *Discard*, so a
+  wrong verdict costs a tap instead of somebody's photo. *A judgement a person cannot overturn is a
+  worse design than one that is occasionally wrong.* `markRejected` also now reports whether the
+  mark actually persisted, and `flush` counts a refusal only then — both its IndexedDB handlers had
+  resolved as success, so a failed write was reported to the worker as a refusal that had not
+  happened.
   **And a second defect surfaced only because the test refused to mock the store.** The environment
   has no `indexedDB`, so the tests run `apps/web/src/portal/offlineQueue.ts`'s in-memory fallback —
-  the path a real device takes in **private browsing**. Fallback entries carried no id, so every
+  the path a browser takes **when `indexedDB` is unavailable** (storage blocked by policy, a
+  locked-down browser, an embedded webview). Fallback entries carried no id, so every
   id-addressed operation degraded to POSITION: `dequeue` did `memFallback.shift()`. Flush a queue
   where the first entry fails transiently and the second uploads, and it discarded the file that
   never reached the server while leaving the one that did to be uploaded again. *A mock of that

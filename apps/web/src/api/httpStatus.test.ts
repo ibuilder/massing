@@ -79,7 +79,10 @@ describe("every HTTP failure this client raises carries its status", () => {
 describe("permanentRejection — the shared retry policy", () => {
   const cases: [unknown, boolean][] = [
     [new HttpError("bad", 400), true],
-    [new HttpError("nope", 401), true],
+    // 401 is deliberately RETRYABLE: the token expired, they sign in again, the same request works.
+    // Calling it permanent strands work behind one ordinary user action — the review of this PR
+    // caught exactly that, and it is the direction this module's own asymmetry calls the costly one.
+    [new HttpError("expired", 401), false],
     [new HttpError("nope", 403), true],
     [new HttpError("gone", 404), true],
     [new HttpError("teapot", 418), true],

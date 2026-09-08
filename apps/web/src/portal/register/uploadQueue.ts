@@ -23,8 +23,8 @@
  */
 import { permanentRejection } from "../../api/httpCore";
 import {
-  type QueuedUpload, allQueued, dequeue, enqueueUpload, markRejected, queuedCountForRecord,
-  refusedForRecord,
+  type QueuedUpload, allQueued, clearRejection, dequeue, enqueueUpload, markRejected,
+  queuedCountForRecord, refusedForRecord,
 } from "../offlineQueue";
 
 /** The three things moving a queued file needs from the shell. Deliberately not `PanelContext`:
@@ -78,8 +78,9 @@ export class UploadQueue {
       } catch (e) {
         const why = permanentRejection(e);
         if (!why) continue;              // transient — stays queued, untouched, for the next pass
-        await markRejected(q.id, why);
-        refused += q.files.length;
+        // Only count it once the mark is STORED. If the write failed the entry is still pending,
+        // and telling somebody it was refused would be a report about a state that does not exist.
+        if (await markRejected(q.id, why)) refused += q.files.length;
       }
     }
     if (done) {
@@ -121,11 +122,18 @@ export async function renderQueueNotice(el: HTMLElement, rid: string): Promise<v
     const what = document.createElement("span");
     what.style.flex = "1";
     what.textContent = `⚠ ${q.files.length} file${plural(q.files.length)} refused — ${q.rejected}; retrying will not help`;
+    // Try again before Discard, deliberately. The refusal is a JUDGEMENT made from a status code,
+    // and this PR's review caught that judgement being wrong about 401 — so the person holding the
+    // photo gets to overrule it, and the destructive option is not the only one offered.
+    const retry = document.createElement("button");
+    retry.className = "tool-btn";
+    retry.textContent = "Try again";
+    retry.onclick = async () => { await clearRejection(q.id); await renderQueueNotice(el, rid); };
     const drop = document.createElement("button");
     drop.className = "tool-btn";
     drop.textContent = "Discard";
     drop.onclick = async () => { await dequeue(q.id); await renderQueueNotice(el, rid); };
-    row.append(what, drop);
+    row.append(what, retry, drop);
     el.appendChild(row);
   }
 }

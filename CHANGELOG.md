@@ -26,11 +26,18 @@ counts pending and refused separately, says why each refusal happened, and offer
 previously the only way to reclaim that storage was to clear the site's data. Nothing is discarded
 automatically: the person who took the photo decides.
 
-**In private browsing it was also dropping the wrong file.** Without IndexedDB the queue falls back
-to memory, and those entries carried no id, so removing one fell back to position — it discarded
+**Where IndexedDB is unavailable it was also dropping the wrong file.** Without it the queue falls
+back to memory, and those entries carried no id, so removing one fell back to position — it discarded
 whichever entry was *first*. With two queued files where the earlier one fails and the later one
 uploads, the file that never reached the server was thrown away and the one already stored was
 queued to upload again. Fallback entries now carry ids and every operation addresses them by id.
+
+**A refusal can be overturned.** The rule for "permanent" is a judgement made from a status code,
+and review of this change caught it getting one wrong: an expired sign-in (401) was being treated as
+final, stranding work that signing in again would have sent. That is fixed — but the more useful
+answer is that the judgement is no longer the last word. Each refused entry now offers **Try again**
+beside Discard, so a wrong call costs a tap rather than a photo. A refusal is also only reported once
+it has actually been stored, so the count a worker sees matches what is on the device.
 
 **Every HTTP failure this app raises now carries its status.** The previous entry gave one call path
 an error with a `status` field; the other fifty threw a plain error whose only record of the status
