@@ -173,6 +173,36 @@ def _map_conversion(model):
     return convs[0] if convs else None
 
 
+def _assigned_length_units(model) -> list:
+    """The `LENGTHUNIT` entities actually REFERENCED by an `IfcUnitAssignment`, deduplicated.
+
+    **A file contains named units it does not use, and they are not the project's unit.** An
+    `IfcConversionBasedUnit` needs an `IfcMeasureWithUnit`, which needs a unit of its own; an import
+    can leave a superseded definition behind. `model.by_type("IfcNamedUnit")` returns all of them,
+    so a question asked over that set is answered by entities the project does not measure in:
+
+      * a metric file carrying an unused foot definition was refused as unconvertible — a REGRESSION
+        introduced by the conversion-based guard three commits ago, which scoped its population to
+        every named unit rather than the assigned one;
+      * the ``length_unit`` fallback took ``[0]`` of that list, so which unit it NAMED depended on
+        entity ordering — the foot fixture asserted FOOT and passed by luck;
+      * and the rewrite in ``convert_length_unit`` rescaled the unit of an ``IfcMeasureWithUnit``
+        conversion factor: ``0.9144 METRE`` became ``0.9144 MILLIMETRE``, the factor's meaning
+        changed by 1000x while its number stayed put. That one predates the guard entirely.
+
+    `ifcopenshell.util.unit.calculate_unit_scale` has always read the ASSIGNMENT; everything here
+    now agrees with it. *Same scope-is-the-fiction shape as the gate this PR widened, one layer in.*
+    """
+    seen: set[int] = set()
+    out = []
+    for assignment in model.by_type("IfcUnitAssignment"):
+        for u in (getattr(assignment, "Units", None) or ()):
+            if getattr(u, "UnitType", None) == "LENGTHUNIT" and u.id() not in seen:
+                seen.add(u.id())
+                out.append(u)
+    return out
+
+
 def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
     """MODEL-SETUP — what a project's units and origin ARE, so the two repairs below can be offered
     honestly rather than as a guess.
@@ -203,8 +233,7 @@ def setup_facts(model: ifcopenshell.file) -> dict[str, Any]:
         metres = float(uunit.calculate_unit_scale(model))
     except Exception:                                       # noqa: BLE001 — a file with no unit assignment
         metres = None
-    named = [u for u in model.by_type("IfcNamedUnit")
-             if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+    named = _assigned_length_units(model)
     # Name the unit the way the CONVERTER names it when we can, so the current value and the target
     # list are drawn from one vocabulary; fall back to the file's own spelling when it is something
     # the converter does not model (a foot, an inch, a conversion-based unit).
@@ -347,8 +376,10 @@ def convert_length_unit(model: ifcopenshell.file, to: str = "MILLIMETRE") -> dic
         return {"from_scale": current, "to": target, "ratio": 1.0, "converted": {},
                 "note": "already in the requested unit"}
 
-    unit_entities = [u for u in model.by_type("IfcNamedUnit")
-                     if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+    # ASSIGNED units only — the rewrite below mutates these, and an unassigned SI length unit is
+    # very often an `IfcMeasureWithUnit` conversion factor. Rewriting one changes what the factor
+    # MEANS (0.9144 METRE -> 0.9144 MILLIMETRE) while leaving its number alone.
+    unit_entities = _assigned_length_units(model)
     if not unit_entities:
         raise ValueError("no LENGTHUNIT assignment found in this file")
 

@@ -211,6 +211,52 @@ assert abs(uunit.calculate_unit_scale(m3) - 0.3048) < 1e-12, "the unit changed o
 # ③ and an SI file is untouched by the guard — a refusal that refuses everything is not a fix.
 assert ifcpatch_lib.setup_facts(m2)["convertible"] is True
 assert ifcpatch_lib.setup_facts(m2)["unconvertible_reason"] is None
+
+# ④ **THE QUESTION IS ASKED OF THE ASSIGNED UNIT, NEVER OF EVERY NAMED UNIT IN THE FILE.** Raised in
+#    review against the guard in ③, which had scoped its population to `by_type("IfcNamedUnit")` —
+#    and a file contains length units it does not measure in. `_foot` above needs an
+#    `IfcMeasureWithUnit`, which needs a metre of its own, and the metre it replaced is still in the
+#    file; three LENGTHUNIT entities, one assigned.
+_all_named = [u for u in m3.by_type("IfcNamedUnit") if getattr(u, "UnitType", None) == "LENGTHUNIT"]
+_assigned = ifcpatch_lib._assigned_length_units(m3)
+assert len(_all_named) == 3 and len(_assigned) == 1, (len(_all_named), len(_assigned))
+assert _assigned[0].is_a("IfcConversionBasedUnit"), _assigned[0]
+# the read NAMES the assigned unit, not `[0]` of an incidentally-ordered list — the assertion in ①
+# passed by luck of entity order before this.
+assert ifcpatch_lib.setup_facts(m3)["length_unit"] == "FOOT"
+
+# ⑤ THE REGRESSION THE GUARD INTRODUCED: a genuinely METRIC project that merely CARRIES an unused
+#    foot definition (an import leftover, a factor for some other quantity) was refused. The guard
+#    was right and its population was wrong — the same shape as the gate this PR widened.
+_ifc4 = Path(tempfile.gettempdir()) / "ifcpatch_unused_foot.ifc"
+massing.generate_blank_ifc(str(_ifc4), name="MU", storeys=1, storey_height=3.0, ground_size=20.0)
+m4 = open_model(str(_ifc4))
+edit.add_wall(m4, [0, 0], [10, 0], 3.0, 0.2, "Level 1")
+_m4metre = m4.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
+m4.createIfcConversionBasedUnit(                       # defined, NOT assigned
+    m4.createIfcDimensionalExponents(1, 0, 0, 0, 0, 0, 0), "LENGTHUNIT", "FOOT",
+    m4.createIfcMeasureWithUnit(m4.createIfcLengthMeasure(0.3048), _m4metre))
+assert abs(uunit.calculate_unit_scale(m4) - 1.0) < 1e-12, "fixture is not metric"
+_f4 = ifcpatch_lib.setup_facts(m4)
+assert _f4["convertible"] is True, _f4          # an unused foot does not make a metric file foot-based
+assert _f4["length_unit"] == "METRE", _f4
+ifcpatch_lib.convert_length_unit(m4, "MILLIMETRE")     # and it converts, rather than being refused
+
+# ⑥ ...and the conversion left the UNASSIGNED factor unit alone. This one predates the guard: the
+#    rewrite loop set Name/Prefix on every SI length unit it found, so a factor meaning
+#    `0.9144 METRE` silently became `0.9144 MILLIMETRE` — the number kept, the meaning multiplied by
+#    a thousand. Nothing pointed at it because nothing had ever converted a file that had one.
+assert _m4metre.Name == "METRE" and _m4metre.Prefix is None, (_m4metre.Name, _m4metre.Prefix)
+#    (Mutation notes. Reverting `_assigned_length_units` to `by_type` reds ④ with (3, 3). Scoping the
+#    READ but not the CONVERTER reds ⑤ — a ValueError, not an assert, because the unused foot refuses
+#    the whole conversion — which is why the mutation sweep greps for failure rather than for
+#    "AssertionError"; the first pass filtered on the latter and called this one SURVIVED.
+#    Dropping the DEDUPE survives: no fixture here puts one unit in two `IfcUnitAssignment`s, so the
+#    fixture cannot express it. Kept anyway — it is cheap, and a federated file can — but recorded as
+#    unproven rather than counted as covered.)
+assert abs(uunit.calculate_unit_scale(m4) - 0.001) < 1e-12, "the assigned unit did not convert"
+if _ifc4.exists():
+    _ifc4.unlink()
 if _ifc3.exists():
     _ifc3.unlink()
 

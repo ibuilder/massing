@@ -3698,6 +3698,19 @@ removed. Remaining, in priority order:
   because a word boundary is not a call; it now requires `name(`, with a fixture that would have
   passed under the old rule.
 
+  **AND THE FIX FOR THAT WAS SCOPED WRONG — third instance of the shape in one PR.** The guard asked
+  its question of `by_type("IfcNamedUnit")`: every length unit DEFINED in the file, not the one it is
+  measured in. A file carries units it does not use — an `IfcConversionBasedUnit` needs an
+  `IfcMeasureWithUnit`, which needs a unit of its own, and an import leaves superseded definitions
+  behind. Three consequences, all verified: a genuinely METRIC project carrying an unused foot
+  definition was **refused** (a regression this PR introduced); `length_unit` fell back to `[0]` of
+  that list, so which unit it NAMED depended on entity ordering — *the foot fixture asserted FOOT and
+  passed by luck*; and, predating the guard entirely, the rewrite loop set `Name`/`Prefix` on every SI
+  length unit it found, so an `IfcMeasureWithUnit` factor meaning `0.9144 METRE` became
+  `0.9144 MILLIMETRE` — the number kept, the meaning multiplied by a thousand. Both now read
+  `IfcUnitAssignment.Units`, which is what `calculate_unit_scale` has always used. *The guard was
+  right and its POPULATION was wrong, which is this PR's own subject for the third time.*
+
   **A second finding, in my own diff, from re-reading it rather than from anything going red.** The
   first draft left both panels showing the figures they were opened with after the edit had landed,
   and said in a comment that they were *"re-read rather than reused after the edit lands"*. They were

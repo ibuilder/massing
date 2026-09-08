@@ -53,6 +53,13 @@ offers the control at all — it also stops claiming the file "carries no length
 simply untrue of it. *The flaw was older than the button; putting a button on it is what would have
 let anyone reach it.*
 
+That guard then had to be narrowed twice more, both found in review. It was asking about every length
+unit *defined* in the file rather than the one the project is actually measured in — so a metric
+project that merely carried an unused foot definition (an import leftover) was refused a conversion it
+should have been allowed. The same mistake had an older half: converting a project could rewrite a
+stray unit definition used as a conversion factor elsewhere in the file, changing what that factor
+meant by a thousandfold while leaving its number alone.
+
 **The check that was supposed to catch an inert button could not see any of these.**
 `apps/web/src/viewer/tools/sectionButtonsWired.test.ts` exists for one failure — a tool that is built,
 returned, and never put on screen, which typechecks and passes its own unit test and is
