@@ -237,11 +237,36 @@ with TestClient(app) as c:
           "rate" not in rows(tid, "equipment_lines")[0], rows(tid, "equipment_lines")[0])
     check("...and the reason names the register's unit",
           any("per week" in (u.get("reason") or "") for u in rep["unpriced"]), rep["unpriced"])
+    # `column` must name the QUANTITY, not the rate: the panel renders it as
+    # "{quantity} {column} are NOT in the figures above", so `rate_col` here read as "8 rate".
+    # Asserting only the reason text missed it — raised in review, and the THIRD time in this item
+    # that a fixture checked less than the thing it was about.
+    check("...and `column` names the quantity the panel prints beside it",
+          [(u["column"], u["quantity"]) for u in rep["unpriced"]] == [("hours", 8.0)],
+          rep["unpriced"])
+    # Sequenced plainly rather than crammed into one expression: the walrus-and-tuple version put
+    # `price()` inside a short-circuit `and`, so a None from `stored()` would have SKIPPED the
+    # pricing rather than failing the check, and it carried no detail. Raised in review.
+    hourly_tid = ticket(equipment_lines=[{"equipment": "Scissor lift", "hours": 6}])
+    hourly_before = stored(hourly_tid)
+    price(hourly_tid)
+    hourly_row = rows(hourly_tid, "equipment_lines")[0]
     check("...while an explicitly hourly rate still prices",
-          stored(ticket_priced_hourly := ticket(
-              equipment_lines=[{"equipment": "Scissor lift", "hours": 6}])) is not None
-          and (price(ticket_priced_hourly),
-               rows(ticket_priced_hourly, "equipment_lines")[0].get("amount"))[1] == 180.0)
+          hourly_before is not None and hourly_row.get("amount") == 180.0,
+          {"before": hourly_before, "row": hourly_row})
+
+    # (iv-b) THE RATE COMPARISON ROUNDS LIKE MONEY. `round()` is HALF-EVEN and `money.q2` HALF-UP,
+    # so a line typed at 2.675 against a register at 2.68 AGREES to the cent under q2 and DISAGREES
+    # under round() — a variance reported over nothing, on the screen whose whole job is to flag a
+    # real disagreement. Raised in review; added here because reverting to round() left every other
+    # assertion green, which makes a consistency claim untestable rather than true.
+    c.post(f"/projects/{pid}/modules/material_rate", headers=H,
+           json={"data": {"material": "Half-cent stock", "rate": 2.68}})
+    tid = ticket(material_lines=[{"description": "Half-cent stock", "qty": 4, "unit_price": 2.675}])
+    rep = price(tid)
+    check("a typed rate that agrees with the register TO THE CENT reports no variance",
+          [v for v in rep["variance"] if v["field"] == "unit_price"] == [],
+          f"round() would call 2.675 vs 2.68 a disagreement; money.q2 makes both 2.68 — {rep['variance']}")
 
     # (v) A CLOSED RATE IS RETIRED. Both registers carry open/closed and list_records is oldest
     # first, so a superseded rate won the lookup and was SNAPSHOTTED onto the line permanently.

@@ -30,6 +30,12 @@ none of them was reachable from the original tests:
   needs a working day nobody stated.
 - **A closed (superseded) rate beat its live replacement** and was snapshotted onto the line.
 
+Review of those fixes found three more, also fixed here: an unpriced line labelled its quantity with
+the rate column (*"8 rate are NOT in the figures above"*), the rate comparison still rounded
+half-even while the amount beside it rounded half-up — which can report a rate variance over a
+figure that agrees to the cent — and one test sequenced its setup so a fixture failure would have
+skipped the pricing rather than failing.
+
 ### T&M tickets price themselves from the project rate registers
 
 **TM-RATES.** The eTicket register carries three line tables — labour, material, equipment — and the

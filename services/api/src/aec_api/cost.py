@@ -409,16 +409,24 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
             elif hours_based and entry[1] not in _HOURLY_UNITS:
                 # A per-Day/Week/Month rate against a quantity in hours. Converting needs a working
                 # day this system was never told, so it is named rather than guessed.
-                unpriced.append({"table": field, "name": name, "column": rate_col,
+                # `column` names the QUANTITY, matching the other producer below and the panel's
+                # `{quantity} {column}` rendering. It said `rate_col` here, which rendered as
+                # "8 rate are NOT in the figures above" — the label disagreeing with the number
+                # beside it. Raised in review.
+                unpriced.append({"table": field, "name": name, "column": qty_col,
                                  "quantity": _n(row.get(qty_col)),
                                  "reason": f"the register quotes this per {entry[1]}, and the line "
                                            f"is in hours"})
             elif not typed:
                 row[rate_col] = entry[0]
                 filled.append({"table": field, "name": name, "rate": entry[0]})
-            elif round(typed, 2) != round(entry[0], 2):
+            elif money.q2(typed) != money.q2(entry[0]):
+                # money.q2, not round(): a rate carries cents, and round() is HALF-EVEN while money
+                # is HALF-UP. The amount comparison below already used q2, so mixing the two here
+                # could report a rate variance that is only a rounding disagreement, or miss a real
+                # one at the half-cent. Raised in review — the same defect this PR's own subject is.
                 variance.append({"table": field, "name": name, "field": rate_col,
-                                 "typed": round(typed, 2), "register": round(entry[0], 2)})
+                                 "typed": money.q2(typed), "register": money.q2(entry[0])})
             rate = _n(row.get(rate_col))
             if rate:
                 extended = money.mul(rate, _n(row.get(qty_col)))

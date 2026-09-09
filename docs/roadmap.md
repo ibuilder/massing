@@ -428,6 +428,17 @@ instances:
   nothing — and each of the five is pinned by a fixture built from `module.json`'s real columns,
   with the reverting mutation red on all five.
 
+  **Review of the follow-up then found three more, and one of them is the same fixture failure a
+  THIRD time.** `column` on an unpriced entry carried the RATE column while its `quantity` came from
+  the quantity column, so the panel rendered *"8 rate are NOT in the figures above"* — and the test
+  asserted only the `reason` string, so it sailed through. The rate comparison also still used
+  `round()` while the amount beside it used `money.q2`; **that mutation initially SURVIVED**, which
+  is the more useful result — a consistency claim nothing can falsify is not true, it is untested.
+  The separating case is a line typed at `2.675` against a register at `2.68`: they agree to the
+  cent under `q2` and disagree under `round()`, so the screen whose only job is to flag a real
+  disagreement would have reported one over nothing. *Fixing a rounding inconsistency without a
+  fixture that distinguishes the two roundings leaves the same hole one layer along.*
+
   **A review finding widened the money spine, and named a gap in its gate.** The first draft extended
   a line as `round(rate * qty, 2)` — binary multiply, then HALF-EVEN — so a rate of `2.675` at
   quantity 1 extends to `2.67`, a cent short on the number a contractor is paid. This is exactly the
