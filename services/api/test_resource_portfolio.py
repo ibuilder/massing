@@ -176,6 +176,55 @@ with TestClient(app) as c:
     r = c.get("/portfolio/resourcing?group=NoColon", headers=HDR)
     assert r.status_code == 422 and "Name:trade1" in r.json()["detail"], r.text[:160]
 
+    # --- the 422 text is a RETURN VALUE, never a caught exception --------------------------------
+    # CodeQL's py/stack-trace-exposure fired on the first draft of this route, which put `str(e)`
+    # from a caught GroupingError into the response. This repository has been caught by that twice
+    # before and recorded both times that TYPING the exception does not clear it — a caught
+    # exception is tainted whatever its class. Those two could answer with a constant because their
+    # detail was an internal failure; here the detail is the whole point, so the route asks
+    # `plan_groups` for a problem STRING instead and nothing on the request path stringifies an
+    # exception. Pinned structurally, because the messages above would read identically either way.
+    # Structurally, by AST rather than by text: the first draft of THIS assertion searched the
+    # source for "except" and failed on the word "exception" inside the comment explaining why
+    # there is no except clause. A substring check cannot tell a construct from a mention of one.
+    import ast  # noqa: PLC0415
+    import inspect  # noqa: PLC0415
+    import textwrap  # noqa: PLC0415
+
+    from aec_api import resource_portfolio  # noqa: PLC0415
+    from aec_api.routers import dashboard  # noqa: PLC0415
+
+    def _nodes(fn, kind):
+        # textwrap.dedent: a nested function's source carries its indentation and would not parse.
+        src = textwrap.dedent(inspect.getsource(fn))
+        return [n for n in ast.walk(ast.parse(src)) if isinstance(n, kind)]
+
+    assert not _nodes(dashboard.portfolio_resourcing, ast.ExceptHandler), \
+        "the route caught something again — see the comment above"
+    for fn in (resource_portfolio._plan, resource_portfolio._check):
+        assert not _nodes(fn, ast.Raise), f"{fn.__name__} raises; it must RETURN the problem"
+    # ...and the probe finds what it is looking for when it IS there, or the three assertions above
+    # are three ways of saying nothing.
+    assert _nodes(resource_portfolio.check_groups, ast.Raise), "the probe cannot see a raise"
+
+    def _has_both():                      # the positive control, kept here so it cannot drift away
+        try:
+            raise ValueError("x")
+        except ValueError:
+            return None
+    assert _nodes(_has_both, ast.ExceptHandler), "the probe cannot see an except handler"
+    assert _nodes(_has_both, ast.Raise), "the probe cannot see a raise"
+
+    # ...and the raising wrapper still exists for callers that are not an HTTP boundary, which is
+    # what makes the missing `except` in the route safe rather than merely absent. `portfolio`
+    # re-checks, so a direct caller cannot smuggle a double-claim past the route's validation.
+    try:
+        resource_portfolio.portfolio(None, [], groups={"A": ["x"], "B": ["x"]})
+    except resource_portfolio.GroupingError as e:
+        assert "sum to more than the book" in str(e), str(e)
+    else:
+        raise AssertionError("portfolio accepted a trade claimed by two groups")
+
     # ungrouped/unknown are present and empty when no grouping is asked for, so a caller never has
     # to branch on whether the keys exist.
     base = c.get("/portfolio/resourcing", headers=HDR).json()

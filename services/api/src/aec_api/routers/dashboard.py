@@ -220,27 +220,31 @@ def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int =
     # book and says so in `groups_error`. Failing closed on your caller and open on your
     # configuration is the same rule, not two: the party who can act on the error is the one who
     # should see it.
-    groups: dict[str, list[str]] = {}
     groups_error: str | None = None
     if group:
-        try:
-            groups = resource_portfolio.parse_groups(list(group))
-        except resource_portfolio.GroupingError as e:
-            raise HTTPException(422, str(e)) from e
+        groups, problem = resource_portfolio.plan_groups(list(group))
+        if problem:
+            # Refused BEFORE the sweep, so a bad grouping costs nothing and the message names the
+            # pair. `problem` is a return value, never a caught exception's text: CodeQL's
+            # py/stack-trace-exposure treats a caught exception as tainted whatever its class, and
+            # the two places this repository learned that (`prefab_kit.resolve`,
+            # `routers/drawings.py`) could answer with a constant because their detail was an
+            # internal failure. Here the detail IS the answer, so the shape had to change instead.
+            raise HTTPException(422, problem)
     else:
         from .. import settings_store
-        try:
-            groups = resource_portfolio.parse_group_config(settings_store.get("AEC_RESOURCE_GROUPS") or "")
-        except resource_portfolio.GroupingError as e:
-            groups, groups_error = {}, f"configured grouping ignored — {e}"
-    try:
-        out = resource_portfolio.portfolio(
-            db, projects, cap=cap, limit=max(1, min(int(limit), 100)),
-            weeks=max(2, min(int(weeks), 260)),
-            groups=groups or None, group_cap=group_cap)
-    except resource_portfolio.GroupingError as e:
-        # Refused before the sweep, so a bad grouping costs nothing and the message names the pair.
-        raise HTTPException(422, str(e)) from e
+        groups, problem = resource_portfolio.plan_group_config(
+            settings_store.get("AEC_RESOURCE_GROUPS") or "")
+        if problem:
+            groups, groups_error = {}, f"configured grouping ignored — {problem}"
+    # No defensive catch around the sweep: `plan_*` ran the same `_check` these groups will meet
+    # inside `portfolio`, on the same already-normalised values, so a second refusal here is
+    # unreachable — and an except clause that cannot fire is worse than none, because it reads as a
+    # live path a reviewer must reason about.
+    out = resource_portfolio.portfolio(
+        db, projects, cap=cap, limit=max(1, min(int(limit), 100)),
+        weeks=max(2, min(int(weeks), 260)),
+        groups=groups or None, group_cap=group_cap)
     if groups_error:
         out["groups_error"] = groups_error
     return out

@@ -78,10 +78,9 @@ def _test_resource_groups() -> dict:
     if not raw.strip():
         return {"ok": True, "message": "Not set — the portfolio rolls up by trade."}
     from . import resource_portfolio
-    try:
-        groups = resource_portfolio.parse_group_config(raw)
-    except resource_portfolio.GroupingError as e:
-        return {"ok": False, "message": str(e)}
+    groups, problem = resource_portfolio.plan_group_config(raw)
+    if problem:
+        return {"ok": False, "message": problem}
     return {"ok": True, "message": "Parsed " + "; ".join(
         f"{g} ({len(t)} trade{'' if len(t) == 1 else 's'})" for g, t in sorted(groups.items()))}
 

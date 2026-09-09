@@ -61,8 +61,17 @@ class GroupingError(ValueError):
     """A declared grouping that cannot be rolled up honestly. Raised BEFORE any aggregation."""
 
 
-def check_groups(groups: dict[str, list[str]]) -> dict[str, list[str]]:
-    """Normalise a declared grouping, refusing the shapes whose totals would be a lie.
+def _check(groups: dict[str, list[str]]) -> tuple[dict[str, list[str]], str | None]:
+    """Normalise a declared grouping, or say in one sentence why it cannot be rolled up honestly.
+
+    **Returns the problem rather than raising it, and that is a security shape, not a style
+    preference.** The route puts this text in a 422, and CodeQL's py/stack-trace-exposure treats a
+    *caught exception* as tainted whatever its class — this repository has been caught by that twice
+    (`prefab_kit.resolve`, `routers/drawings.py`), and both times the recorded lesson was that typing
+    the exception does not help and the shape has to change. Those two could return a constant
+    because their detail was an internal failure. **Here the detail is the product** — an admin needs
+    to be told *which* trade is claimed twice — so instead the message is a RETURN VALUE built from
+    the caller's own group and trade names, and no exception is ever stringified into a response.
 
     Separate from the rollup on purpose, so a mutation can be aimed at the RULE rather than at the
     arithmetic that consumes it — the lesson `test_audit_commit` had to learn about analysers that
@@ -82,48 +91,62 @@ def check_groups(groups: dict[str, list[str]]) -> dict[str, list[str]]:
     for name, trades in groups.items():
         name = str(name).strip()
         if not name:
-            raise GroupingError("a group needs a name")
+            return {}, "a group needs a name"
         clean = sorted({str(t).strip() for t in trades if str(t).strip()})
         if not clean:
-            raise GroupingError(f"group {name!r} names no trades — an empty group reports a "
-                                "confident zero rather than nothing")
+            return {}, (f"group {name!r} names no trades — an empty group reports a "
+                        "confident zero rather than nothing")
         for t in clean:
             if t in seen and seen[t] != name:
-                raise GroupingError(
+                return {}, (
                     f"trade {t!r} is in both {seen[t]!r} and {name!r} — the group totals would then "
                     "sum to more than the book, and neither group is the right one to charge it to")
             seen[t] = name
         out[name] = clean
+    return out, None
+
+
+def check_groups(groups: dict[str, list[str]]) -> dict[str, list[str]]:
+    """`_check` for callers that want a refusal to be fatal — `portfolio` itself, and any direct
+    caller that is not an HTTP boundary. The route uses `plan_groups`/`plan_group_config` instead,
+    so nothing on the request path has an exception to stringify."""
+    out, problem = _check(groups)
+    if problem:
+        raise GroupingError(problem)
     return out
 
 
-def parse_groups(specs: list[str]) -> dict[str, list[str]]:
-    """Parse `["Structure:ironworker,concrete", "MEP:electrician"]` into the mapping `portfolio`
-    takes. One grammar, two callers — the `?group=` query parameter and the install-wide default an
+def _plan(specs: list[str]) -> tuple[dict[str, list[str]], str | None]:
+    """Parse `["Structure:ironworker,concrete", "MEP:electrician"]` and validate it, returning
+    `(grouping, problem)`. **No exception is raised or caught anywhere on this path**, for the
+    reason `_check` records.
+
+    One grammar, two entry points — the `?group=` query parameter and the install-wide default an
     admin configures — because a grouping that parses in the URL and not in the settings box (or the
     reverse) is a difference nobody would think to test for.
-
-    Malformed input raises `GroupingError` like every other refusal here, so a caller has one
-    exception to catch rather than one per stage.
     """
-    out: dict[str, list[str]] = {}
+    raw: dict[str, list[str]] = {}
     for spec in specs:
         name, sep, trades = str(spec).partition(":")
         if not sep:
-            raise GroupingError(f"group {spec!r} must be 'Name:trade1,trade2'")
-        out.setdefault(name.strip(), []).extend(trades.split(","))
-    return out
+            return {}, f"group {spec!r} must be 'Name:trade1,trade2'"
+        raw.setdefault(name.strip(), []).extend(trades.split(","))
+    return _check(raw)
 
 
-def parse_group_config(raw: str) -> dict[str, list[str]]:
-    """The same grammar from one configured string: groups separated by `;` or newlines.
+def plan_groups(specs: list[str]) -> tuple[dict[str, list[str]], str | None]:
+    """The `?group=` form: one repeated parameter per declared group."""
+    return _plan(specs)
+
+
+def plan_group_config(raw: str) -> tuple[dict[str, list[str]], str | None]:
+    """The configured form: the same grammar in one string, groups separated by `;` or newlines.
 
     `Structure:ironworker,concrete; MEP:electrician,plumber`
 
-    Returns `{}` for an empty/blank setting — an unconfigured install is not an error.
+    An empty or blank setting is an unconfigured install, not a problem.
     """
-    specs = [s.strip() for s in re.split(r"[;\n]", raw or "") if s.strip()]
-    return check_groups(parse_groups(specs)) if specs else {}
+    return _plan([t.strip() for t in re.split(r"[;\n]", raw or "") if t.strip()])
 
 
 def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = None,
