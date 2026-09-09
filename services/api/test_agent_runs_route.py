@@ -44,6 +44,11 @@ FAILED: list[str] = []
 
 
 def check(name: str, ok: bool, detail: object = "") -> None:
+    """Record one assertion, printing the measured value beside a failure.
+
+    `detail` carries what was actually seen, not a restatement of the expectation — a failure that
+    prints only its own name tells the next reader nothing they did not already have.
+    """
     print(("PASS  " if ok else "FAIL  ") + name + (f"   {detail}" if detail else ""))
     if not ok:
         FAILED.append(name)

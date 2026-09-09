@@ -566,6 +566,11 @@ function auditModal() {
   void render().finally(ready);
 }
 
+/** Settings ▸ Diagnostics ▸ **Agent runs** — every agent run across the estate.
+ *
+ *  Sits beside the audit-log modal deliberately: it reads the same rows, and the route behind it is
+ *  admin-only for that reason. The header states the TOTAL rather than what this window holds,
+ *  because on this screen "nothing ran" is an answer someone acts on, not a blank. */
 function agentRunsModal() {
   const { card, msg, ready } = modalShell("Agent runs", 700);
   msg.style.color = "var(--err)";

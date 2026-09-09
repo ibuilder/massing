@@ -30,10 +30,10 @@ exactly the claim someone acts on. The narrowing now happens in the query, and a
 how many runs there are in total beside how many it is showing.
 
 **Settings ▸ Diagnostics ▸ Agent runs** is new: every agent run across every project, who ran it,
-which pack it came through, and which failed — instead of opening each project's console in turn
-and adding them up. It is admin-only, because these are audit records and the audit log already is;
-a run nobody could attribute is listed as unattributed rather than hidden, since those are the ones
-worth looking at.
+which pack it came through, and which failed — instead of opening each project's console in turn and
+adding them up. It is admin-only because these are audit records, and the audit log is already
+restricted to administrators. A run nobody could attribute is listed as unattributed rather than
+hidden, since those are the ones worth looking at.
 
 ### Resourcing "by department" — the axis your firm defines, not one we invent
 
