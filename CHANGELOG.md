@@ -12,6 +12,24 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### T&M pricing: five corrections to the first cut
+
+Review of the merged TM-RATES change found the pricing engine wrong in five ways. All are fixed, and
+none of them was reachable from the original tests:
+
+- **Material never priced.** The line table's item name lives in `description`; the code looked for a
+  `material` column, which `material_lines` does not have. Labour and equipment happened to use the
+  same name on both sides, so one conflated field looked right in two cases out of three.
+- **A hand-entered amount was overwritten.** 8 hours plus 2 overtime written up at $1,045 became
+  $760, and a lump-sum line with no hours became $0. A typed amount is evidence for the same reason
+  a typed rate is — it may carry a premium or an allowance both parties agreed. It is now reported
+  when it disagrees with rate × quantity, never replaced.
+- **A register row with no rate priced the line at $0** and reported it as a success.
+- **A rate quoted per Day or Week was extended against hours** — a $1,200/week crane read as $9,600
+  for an eight-hour day. It is now reported unpriced, for the same reason overtime is: converting
+  needs a working day nobody stated.
+- **A closed (superseded) rate beat its live replacement** and was snapshotted onto the line.
+
 ### T&M tickets price themselves from the project rate registers
 
 **TM-RATES.** The eTicket register carries three line tables — labour, material, equipment — and the
