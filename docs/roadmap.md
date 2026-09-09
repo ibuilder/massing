@@ -352,6 +352,42 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ✅ **PARCEL-SHAPE — the feasibility tab can only describe a lot as a rectangle** *(M — Lane C for
+  the reader, D for the massing engine it feeds, B for the control; **CLOSED**, fix in this change)*
+
+  The second finding from REQUEST-GAP's optional list, and the one that gate's own note named as its
+  worked example of *"a real capability the client cannot reach"*: `lot_polygon` on
+  `POST /generate/massing`. Three pieces, none connected to the next.
+
+  | | |
+  |---|---|
+  | `services/api/src/aec_api/parcel_geometry.py` | parsed a GeoJSON/WKT boundary and projected it to metres — then returned area/perimeter/centroid/bbox and **threw the projected ring away** |
+  | `services/data/src/aec_data/massing.py` | accepted `lot_polygon` and did a **true inward polygon offset** for the buildable footprint — unreachable, because `MassingParams` had no such field |
+  | `apps/web/src/proforma/massingTab.ts` | built its request from numeric inputs only, so it could send `lot_width × lot_depth` and nothing else |
+
+  **The bias is one-directional and it compounds.** A bounding rectangle's area is always ≥ the
+  parcel's, and lot area sets max GFA → floors → units → rent → the acquisition proforma's IRR. On an
+  L-shaped 1,600 m² lot inside a 50 × 50 m box: **5,000 m² of buildable GFA on the rectangle against
+  3,200 on the parcel** — 56% more building, on the number a deal is priced from, with nothing on
+  screen to say which lot it came from. That number is asserted in `services/api/test_parcel_geometry.py`
+  by running both engines, not stated in prose here.
+
+  `analyze` now returns `ring_m` (metres, open, origin-shifted to its own bbox so the model renders
+  near the scene origin while `bbox`/`centroid` keep the real coordinates for export) plus the
+  bounding rectangle it replaces. `apps/web/src/proforma/parcelBoundary.ts` is the control: paste or
+  load a boundary, and it reports both areas and the percentage between them. Nothing is substituted
+  silently — the rectangle is one button away.
+
+  **A gate was wrong in the same direction, and this is the part worth carrying.**
+  `services/api/test_body_param_reach.py` decided "does the client send this key?" by matching
+  object-literal syntax only (`key:`). A body assembled field by field — `p.dome_radius = …`, which
+  is how this very tab has always sent its optionals — was invisible to it. So `dome_radius` sat on
+  the unsent list while a control on that tab had been sending it since it shipped: **two false
+  positives out of 27, in the direction the rule's own docstring calls the expensive one.** The rule
+  had been written from the shape of the code that happened to be in front of it. Assignments now
+  count; `==` and `=>` still do not, and a self-test pins that distinction because both counts are
+  printed rather than frozen, so a silent regression would show up only as a number nobody watches.
+
 - ✅ **TM-RATES / REQUEST-GAP — the mirror axis: a request parameter nothing SENDS** *(M — Lane C
   primary, with its own route in G, its control in B and its client method in I, which is the lane
   table's stated pattern rather than an exception; **CLOSED**, fix in this change)*
@@ -1577,7 +1613,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |

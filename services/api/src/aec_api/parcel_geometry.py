@@ -77,6 +77,14 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
     ring = parse_boundary(geojson, wkt)
     if ring[0] == ring[-1]:
         ring = ring[:-1]
+    # Drop CONSECUTIVE duplicates, including the wrap-around pair. Stripping the closing point is not
+    # enough: an interior repeat survives it, and `offset_polygon` divides by each edge's length, so
+    # a zero-length edge does not raise — `ln or 1e-9` makes the normal ~1e9 and the vertex is left
+    # UNMOVED while its neighbours inset. The result is a plausible-looking polygon with a wrong
+    # area, which is worse than a refusal: it becomes a buildable footprint nobody can see is wrong.
+    # This function's own comment already claimed the ring was safe for that reason, which was true
+    # of the closing vertex and false of every other one. Raised in review.
+    ring = [p for i, p in enumerate(ring) if p != ring[i - 1]] or ring[:1]
     if len(ring) < 3:
         raise ValueError("a parcel boundary needs at least 3 distinct points")
     m, was_lonlat = _to_metres(ring)
@@ -90,8 +98,27 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
         area2 += x1 * y2 - x2 * y1
         perim += math.hypot(x2 - x1, y2 - y1)
     area = abs(area2) / 2.0
+    # Distinct is not the same as ENCLOSING. Three collinear points survive the dedupe above and the
+    # >= 3 check, and shoelace them to exactly zero — while their bounding box is positive, so the
+    # panel would divide by zero and print "Infinity% larger" over a lot with no area at all, and
+    # `compute_massing` would then 422 on a boundary the control had already accepted. Refuse it
+    # here, where the reason can be stated, rather than downstream where it cannot. Raised in review.
+    if area <= 0:
+        raise ValueError("a parcel boundary must enclose an area — these points are collinear")
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
+
+    # PARCEL-SHAPE — the projected ring itself, which this function computed and then threw away.
+    # `massing.compute_massing` takes `lot_polygon` in metres and offsets it inward for the real
+    # buildable footprint; without the ring every caller had to fall back to lot_width × lot_depth,
+    # and a bounding rectangle's area is ALWAYS ≥ the parcel's. That bias runs the whole way down:
+    # lot area → max GFA → unit count → the acquisition proforma's IRR, optimistic at every step.
+    # Origin-shifted to its own bbox minimum so the polygon sits near (0,0) — the real coordinates
+    # stay in `bbox`/`centroid` for export, and the model renders near the scene origin.
+    # OPEN (no repeated closing vertex): `offset_polygon` divides by each edge's length, and a
+    # zero-length closing edge would hand it a meaningless normal.
+    ox, oy = min(q[0] for q in m), min(q[1] for q in m)
+    bw, bd = max(q[0] for q in m) - ox, max(q[1] for q in m) - oy
 
     out: dict[str, Any] = {
         "parcel_id": parcel_id,
@@ -101,8 +128,14 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
         "centroid": {"x": round(cx, 6), "y": round(cy, 6)},
         "bbox": {"minx": min(p[0] for p in ring), "miny": min(p[1] for p in ring),
                  "maxx": max(p[0] for p in ring), "maxy": max(p[1] for p in ring)},
+        "ring_m": [[round(x - ox, 3), round(y - oy, 3)] for x, y in m],
+        "lot_width_m": round(bw, 2), "lot_depth_m": round(bd, 2),
+        "bounding_rect_m2": round(bw * bd, 1),
         "note": "Parcel metrics from the uploaded boundary (GeoJSON/WKT — no government scraping). Lon/lat "
-                "rings are projected equirectangularly at the centroid latitude (~0.1% at parcel scale).",
+                "rings are projected equirectangularly at the centroid latitude (~0.1% at parcel scale). "
+                "`ring_m` is that boundary in metres, origin-shifted to its own bounding box — send it "
+                "to /generate/massing as `lot_polygon` to size a building on the real parcel rather than "
+                "on `lot_width_m` × `lot_depth_m`, which overstates the lot by `bounding_rect_m2` − `area_m2`.",
     }
 
     if zoning or proposal:

@@ -82,6 +82,55 @@ describe("renderMassing (characterization)", () => {
     expect(out).toContain("18.2%");                          // equity IRR formatted
   });
 
+  // PARCEL-SHAPE — the wiring claim, end to end through the real tab. `parcelBoundary.test.ts`
+  // proves the control; this proves the tab SENDS what the control holds. Deleting
+  // `if (parcel) p.lot_polygon = parcel.ring` leaves every assertion in this file green but one.
+  it("estimate with a parcel loaded: sends the RING, and says which lot the figures are on", async () => {
+    const previewMassing = vi.fn().mockResolvedValue(RESULT);
+    const parcelAnalyze = vi.fn().mockResolvedValue({
+      ring_m: [[0, 0], [50, 0], [50, 20], [20, 20], [20, 50], [0, 50]],
+      area_m2: 1600, area_acres: 0.395, bounding_rect_m2: 2500,
+      lot_width_m: 50, lot_depth_m: 50, vertices: 6, coordinates_were_lonlat: false,
+    });
+    const { root, ui } = mount({ previewMassing, parcelAnalyze });
+    ui.renderMassing();
+    const host = root.querySelector("#pf-massing") as HTMLElement;
+    (host.querySelector("textarea") as HTMLTextAreaElement).value =
+      '{"type":"Polygon","coordinates":[[[1000,2000],[1050,2000],[1050,2020],[1020,2020],[1020,2050],[1000,2050]]]}';
+    btn(host, "Use this parcel").click();
+    await flush();
+    expect(parcelAnalyze).toHaveBeenCalledTimes(1);
+    // The two rectangle inputs are superseded, not silently left showing a stale 50 x 40.
+    const nums = [...host.querySelectorAll(".pf-form input[type=number]")] as HTMLInputElement[];
+    expect(nums[0]?.value).toBe("50");
+    expect(nums[1]?.value, "lot depth becomes the parcel's own bbox extent").toBe("50");
+    expect(nums[0]?.disabled && nums[1]?.disabled, "and neither can be edited past the parcel")
+      .toBe(true);
+
+    btn(host, "Estimate yield").click();
+    await flush();
+    const sent = previewMassing.mock.calls[0]?.[0];
+    expect(sent.lot_polygon, "the ring is what makes the server offset a real parcel")
+      .toEqual([[0, 0], [50, 0], [50, 20], [20, 20], [20, 50], [0, 50]]);
+    const out = host.textContent ?? "";
+    expect(out, "a GFA on 1,600 m2 and one on 2,500 m2 look identical unless the panel says")
+      .toContain("on the real parcel");
+    expect(out).toContain("1,600 m²");
+    expect(out).toContain("2,500 m²");
+  });
+
+  it("estimate with NO parcel: no lot_polygon key at all, and no claim about a parcel", async () => {
+    // Without this the case above passes for the wrong reason: a tab that always sent some polygon
+    // would satisfy it, and would then overrule the rectangle the user actually typed.
+    const previewMassing = vi.fn().mockResolvedValue(RESULT);
+    const { root, ui } = mount({ previewMassing });
+    ui.renderMassing();
+    btn(root, "Estimate yield").click();
+    await flush();
+    expect(previewMassing.mock.calls[0]?.[0].lot_polygon).toBeUndefined();
+    expect(root.querySelector("#pf-massing")?.textContent ?? "").not.toContain("on the real parcel");
+  });
+
   it("generate without a project: guard message, api never called", async () => {
     const generateMassing = vi.fn();
     const { root, ui } = mount({ generateMassing }, null);

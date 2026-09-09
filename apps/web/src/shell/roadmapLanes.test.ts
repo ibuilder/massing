@@ -646,7 +646,7 @@ describe("the roadmap lane table", () => {
     // the assignment: drop `portal/register/` from Lane B and the directory has no owner, which
     // every session may then edit — the state the carve-out check above exists to forbid. So the
     // claim is named. Two paths, not a general coverage rule, because the lanes do NOT cover the
-    // tree today (`drawings/`, `proforma/`, `studio/` and others are unowned) and a rule that fails
+    // tree today (`studio/`, `tools/`, `pins/` and others are unowned) and a rule that fails
     // for reasons nobody has decided yet is a rule people turn off.
     const ownerOf = (path: string) =>
       LANES.filter((l) => l.paths.some((p) => p === path || p.endsWith(path))).map((l) => l.name);
@@ -715,7 +715,11 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 39;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+const UNOWNED_CEILING = 34;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+//: 39 → 34 (2026-09-09): Lane B claimed `apps/web/src/proforma/`. PARCEL-SHAPE added two files
+//: to that directory, this ratchet went red, and the remedy it names — a row, not a bigger
+//: number — took SEVEN files out of the unowned set rather than the two that tripped it. The
+//: gate found an unowned directory by being stepped on, which is the only way it can.
 //                             48 → 39: Lane E claimed `apps/web/src/tree/` (v0.3.1055), and the
 //                             ceiling is re-seated to the MEASURED number rather than lowered by
 //                             the size of that directory — 48 had slack in it that nobody had
@@ -760,8 +764,13 @@ describe("the lane table covers the tree it governs", () => {
     // The paired control. A matcher that is too loose returns zero unowned for any table at all,
     // which is indistinguishable from full coverage. `vendor/` is excluded by name above, so use a
     // real unclaimed source path: this must be found, and it must stop being found once a row lands.
-    expect(unowned.some((f) => f.startsWith("apps/web/src/proforma/")),
-      "proforma/ is unclaimed today — if this fails, either a row was added (update this test) " +
+    // Was `proforma/` until 2026-09-09, when PARCEL-SHAPE added a file there, the ratchet above
+    // went red, and Lane B claimed the directory — which is this whole mechanism working, and is
+    // why the control has to be re-pointed rather than relaxed. Note what it costs: the exemplar
+    // must be a path SOMEBODY has not yet decided about, so it decays by design, and the day the
+    // table covers the tree this assertion has to be deleted rather than repaired.
+    expect(unowned.some((f) => f.startsWith("apps/web/src/studio/")),
+      "studio/ is unclaimed today — if this fails, either a row was added (update this test) " +
       "or the matcher stopped working").toBe(true);
   });
 });

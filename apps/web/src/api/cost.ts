@@ -38,10 +38,18 @@ export interface TmPricingReport {
   /** Rows no register has a usable entry for. Left exactly as they are. */
   unmatched: { table: string; name: string; register: string }[];
   /**
-   * A real quantity nothing could price, with the reason. Overtime and idle hours (no OT or idle
-   * rate exists), and a register rate quoted per Day/Week/Month against a line measured in hours.
+   * A real quantity the RATE REGISTER could not price, with the reason. Overtime and idle hours (no
+   * OT or idle rate exists), and a register rate quoted per Day/Week/Month against a line measured
+   * in hours.
+   *
+   * `in_totals` says whether the LINE priced itself anyway, from a rate the user typed. Overtime
+   * and idle hours never do — nothing multiplies them — but a line whose register rate is quoted
+   * per Day/Week does, because its own `rate` column is `$/hr`. The panel must branch on it: this
+   * used to read "a real quantity NOTHING could price", which was true of one case and false of the
+   * other, and the panel printed the false sentence directly above the amount the engine had added.
    */
-  unpriced: { table: string; name: string; column: string; quantity: number; reason: string }[];
+  unpriced: { table: string; name: string; column: string; quantity: number; reason: string;
+              in_totals: boolean }[];
   /** How many rows this run actually changed. */
   priced: number;
   totals: { labor_total: number; material_total: number; equipment_total: number;

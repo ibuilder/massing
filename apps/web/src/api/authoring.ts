@@ -471,6 +471,11 @@ export interface ComputeGraph {
 export interface MassingParams {
   name?: string; use_type?: "residential" | "commercial";
   lot_width?: number | null; lot_depth?: number | null; lot_area?: number | null;
+  /** The real parcel ring, [[x,y],…] in metres and OPEN (no repeated closing vertex) — as
+   *  `parcelAnalyze` returns it in `ring_m`. When present the server offsets this polygon
+   *  inward for the true buildable footprint and ignores `lot_width`/`lot_depth`, whose
+   *  bounding rectangle always overstates the lot. */
+  lot_polygon?: number[][] | null;
   far?: number; coverage_max?: number; front_setback?: number; rear_setback?: number;
   side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
   efficiency?: number; avg_unit_m2?: number;

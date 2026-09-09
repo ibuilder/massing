@@ -91,8 +91,15 @@ export function renderTmReport(box: HTMLElement, rep: TmPricingReport): void {
       + " to price this line", "var(--status-warn)"));
   }
   for (const u of rep.unpriced) {
+    // Two different findings share this list, and printing them identically was a lie in one
+    // direction: a line whose register rate is quoted per week still prices itself from the $/hr
+    // rate the user typed, so "are NOT in the figures above" appeared directly beneath the amount
+    // the engine had just added. What the register could not do and what the TOTAL contains are
+    // separate questions; only the second one belongs in that sentence.
     box.appendChild(line(
-      `⏱ ${u.name}: ${u.quantity} ${u.column.replace("_", " ")} are NOT in the figures above — `
+      `⏱ ${u.name}: ${u.quantity} ${u.column.replace("_", " ")} `
+      + (u.in_totals ? "are in the figures above at the rate you entered, not the register's — "
+                     : "are NOT in the figures above — ")
       + u.reason, "var(--status-warn)"));
   }
 }

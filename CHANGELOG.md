@@ -12,6 +12,84 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Feasibility sizes the building on the real parcel, not on its bounding rectangle
+
+The "Generate from zoning" tab could describe a lot only as **lot width × lot depth**. For any parcel
+that is not a rectangle — a corner lot, a flag lot, anything with a cut corner — that describes a box
+*around* the lot, and a box's area is always larger. The error is not cosmetic: lot area sets max
+GFA, which sets floors, which sets the unit count, which sets rent and the acquisition proforma's
+IRR. Every one of those came out optimistic and none of them said so. On an L-shaped 1,600 m² lot
+inside a 50 × 50 m box, the rectangle yields **5,000 m² of buildable GFA against the parcel's true
+3,200** — 56% more building, on the number a deal gets priced from.
+
+Three pieces existed and had never been connected. The parcel reader parsed a real GeoJSON/WKT
+boundary and projected it to metres — then returned the area and threw the projected outline away.
+The massing engine had always accepted a `lot_polygon` and offset it inward for a true buildable
+footprint, and nothing could reach it: the request type had no such field. And the parcel reader
+itself had no caller on any screen.
+
+Now: paste a boundary (or load a `.geojson` / `.wkt` file) on the feasibility tab — one outer ring,
+so a WKT `MULTIPOLYGON` is refused by name rather than sent to an endpoint that would reject it, and
+a ring that encloses no area (repeated or collinear points) is refused with the reason rather than
+priced as a lot of zero square metres. It reports the
+parcel's area, the rectangle it replaces, and the percentage between them, and the width/depth boxes
+become the parcel's own bounding extents, disabled — so it is clear which figure the building is
+being sized on. The result summary says the same thing again beside the GFA. Nothing is substituted
+silently; a user who prefers the rectangle can clear the boundary and still have it.
+
+**A gate was wrong in the same direction.** `test_body_param_reach.py` decides whether the web app
+sends a given request field by looking for it in the source — and only recognised object-literal
+syntax (`key:`). A body assembled field by field (`p.dome_radius = …`, which is how this tab has
+always sent its optionals) was invisible to it, so `dome_radius` sat on the "nothing sends this" list
+while a control on that very tab had been sending it all along. Two false positives out of 27, in the
+direction its own docstring calls the expensive one. Assignments now count; comparisons and arrow
+parameters still do not, and a self-test pins the distinction.
+
+### Parcel boundaries and T&M reports: four corrections from review
+
+- **A line with no rate but an amount already entered was reported as excluded.** Only a line with a
+  *typed rate* was counted as being in the ticket total, but an amount entered directly never reaches
+  the rate-extension step at all — it survives untouched and is summed into the total regardless. The
+  same contradiction the previous entry fixed, one path over, and the fixture there could not see it
+  because it had a rate.
+- **A parcel boundary with a repeated point produced a wrong buildable footprint.** Stripping the
+  duplicated closing point is not enough; an interior repeat survives it. The setback offset divides
+  by each edge's length and guards against division by zero, so a zero-length edge does not fail —
+  it leaves that corner un-inset while its neighbours move, and returns a plausible polygon with the
+  wrong area. Repeated points are now removed before anything is measured, and a boundary with fewer
+  than three distinct points is refused.
+- **Clearing a parcel while it was still loading could bring it back.** Press "Use this parcel", then
+  Clear before the response arrives, and the late response republished the parcel just dismissed —
+  after which "Generate IFC model + apply" would save a model and a proforma for a lot the panel no
+  longer showed.
+- **A WKT `MULTIPOLYGON` was accepted by the panel and rejected by the server.** Refused locally now,
+  by name, with the export that works. Supporting it properly is a design question rather than a
+  cleanup: the buildable footprint comes from offsetting one outer ring, and a lot split by a
+  right-of-way has no single ring to offset.
+
+### T&M pricing: an unpriced line that was in the total after all
+
+A follow-up review found the pricing report contradicting the figure printed beside it. An equipment
+line with a rate the user typed, a blank amount, and a register rate quoted per Day/Week/Month was
+listed as unpriced — *"8 hours are NOT in the figures above"* — directly beneath the $800 the engine
+had just added to that line.
+
+Both halves were doing something defensible. The register genuinely cannot price the line: converting
+a weekly rate against hours needs a working day nobody stated. But `equipment_lines.rate` is declared
+in `$/hr`, so when a rate is typed, `rate × hours` is the **line's own** arithmetic and is computed
+like any other line — the register's unit is a fact about the register, not about the line, and
+refusing the sum would drop a line the superintendent priced out of the ticket total.
+
+So the sum was right and the sentence was wrong. A pricing run now says which of the two happened:
+a quantity nothing could price still reads "NOT in the figures above", while one the line priced
+itself reads "in the figures above at the rate you entered, not the register's". Overtime and idle
+hours are unchanged — nothing multiplies those, here or anywhere, because a 1.5× premium is a
+contract term rather than a default.
+
+The fixture that missed it gave the line no rate of its own, so the old sentence was true by
+accident. That is the fourth time in this item that the case distinguishing two behaviours was the
+case nobody wrote.
+
 ### T&M pricing: five corrections to the first cut
 
 Review of the merged TM-RATES change found the pricing engine wrong in five ways. All are fixed, and

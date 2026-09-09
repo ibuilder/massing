@@ -244,6 +244,51 @@ with TestClient(app) as c:
     check("...and `column` names the quantity the panel prints beside it",
           [(u["column"], u["quantity"]) for u in rep["unpriced"]] == [("hours", 8.0)],
           rep["unpriced"])
+    check("...and the entry says the quantity is NOT in the totals, because it is not",
+          [u["in_totals"] for u in rep["unpriced"]] == [False], rep["unpriced"])
+
+    # (iv-c) THE SAME LINE, WITH A RATE THE USER TYPED. The fixture above gives the line no rate of
+    # its own, so the engine had nothing to extend and the report's "these hours are NOT in the
+    # figures above" was true by accident. Add one and the two halves contradict each other: the
+    # register cannot price the line, but `equipment_lines.rate` is declared `"unit": "$/hr"` in
+    # module.json, so `rate x hours` is the LINE's own arithmetic and is computed — and the panel
+    # printed "8 hours are NOT in the figures above" directly beneath the $800 it had just added.
+    #
+    # The fix is to the CLAIM, not the sum. Refusing to extend a rate the user typed would drop a
+    # line they priced out of the ticket total, which is worse than the wrong sentence. Raised in
+    # review on #483 and missed before that PR merged.
+    #
+    # FOURTH time in this item that a fixture was narrower than the rule it covered, and the same
+    # shape every time: the case that distinguishes two behaviours was the case nobody wrote.
+    typed_tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8, "rate": 100}])
+    typed_rep = price(typed_tid)
+    typed_row = rows(typed_tid, "equipment_lines")[0]
+    check("a rate the USER typed still extends against hours — the register's unit is a fact about "
+          "the register, not the line",
+          typed_row.get("amount") == 800.0, typed_row)
+    check("...and the report says the hours ARE in the totals, instead of denying the amount above",
+          [u["in_totals"] for u in typed_rep["unpriced"]] == [True], typed_rep["unpriced"])
+    check("...with a reason about what the REGISTER could not do",
+          all("could not check the rate you entered" in (u.get("reason") or "")
+              for u in typed_rep["unpriced"]), typed_rep["unpriced"])
+    check("...and no rate variance, because $100/hr and $1,200/week are not comparable numbers",
+          not typed_rep["variance"], typed_rep["variance"])
+
+    # (iv-d) NO typed rate, but an amount already on the line. This never reaches the extension
+    # block — that needs a rate — so the amount survives untouched, and `apply_table_totals` sums the
+    # amount column into the ticket total regardless. `in_totals: bool(typed)` called it excluded
+    # while it sat in the figures: the same contradiction (iv-c) fixed, one path over, and the
+    # fixture there could not see it because it had a rate. Raised in review.
+    kept_tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8, "amount": 800}])
+    kept_rep = price(kept_tid)
+    assert rows(kept_tid, "equipment_lines")[0].get("amount") == 800, rows(kept_tid, "equipment_lines")[0]
+    check("an amount already on the line counts as IN the totals, rate or no rate",
+          [u["in_totals"] for u in kept_rep["unpriced"]] == [True], kept_rep["unpriced"])
+    # The negative case, so the check above cannot pass by always answering True.
+    bare_tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8}])
+    bare_rep = price(bare_tid)
+    check("...and neither rate nor amount really is excluded",
+          [u["in_totals"] for u in bare_rep["unpriced"]] == [False], bare_rep["unpriced"])
     # Sequenced plainly rather than crammed into one expression: the walrus-and-tuple version put
     # `price()` inside a short-circuit `and`, so a None from `stored()` would have SKIPPED the
     # pricing rather than failing the check, and it carried no detail. Raised in review.

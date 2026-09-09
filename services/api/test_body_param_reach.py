@@ -120,13 +120,25 @@ def body_params(spec: dict) -> list[tuple[str, str, str, bool]]:
 
 
 def names_key(code: str, key: str) -> bool:
-    """Does the web source name this wire key — as a JSON property, or as ES shorthand?
+    """Does the web source name this wire key — as a JSON property, ES shorthand, or an ASSIGNMENT?
 
     Deliberately coarse in the LENIENT direction, exactly like the leaf rule it mirrors: a key named
     anywhere counts as sent. Over-matching can only make this gate miss a gap; under-matching would
     invent work for somebody, which is the expensive mistake.
+
+    **And it made exactly that mistake from the day it shipped.** The first draft accepted only
+    `key:` / `key,` / `key}` — object-literal syntax. A request body assembled INCREMENTALLY is not
+    written that way: `massingTab.params()` builds `p` field by field (`p.dome_radius = ...`,
+    `p.parking = ...`) and stringifies it, which is an ordinary way to send an optional only when it
+    applies. So `dome_radius` sat on the unsent list while a control on the feasibility tab had been
+    sending it all along, and PARCEL-SHAPE's `lot_polygon` joined it the day it was wired. Two false
+    positives out of 27, in the direction the paragraph above calls expensive — because the rule was
+    written from the shape of the code that happened to be in front of it.
+
+    `=` is admitted, but not `==` / `===` (a comparison is a read, not a send) and not `=>` (an
+    arrow parameter that happens to be named for the key is not a send either).
     """
-    return re.search(rf'["\']?\b{re.escape(key)}\b["\']?\s*[:,}}]', code) is not None
+    return re.search(rf'["\']?\b{re.escape(key)}\b["\']?\s*(?:[:,}}]|=(?![=>]))', code) is not None
 
 
 def unsent(params, code: str, *, required: bool) -> list[tuple[str, str, str]]:
@@ -138,6 +150,17 @@ def unsent(params, code: str, *, required: bool) -> list[tuple[str, str, str]]:
     """
     return sorted((p, m, k) for p, m, k, r in params if r is required and not names_key(code, k))
 
+
+# --- the matcher's own blind spot, pinned ---------------------------------------------------------
+# Reverting `names_key` to object-literal syntax alone reds this. That matters because the fix is
+# invisible to every check below: both counts are printed and neither is frozen, so a silent
+# regression would show up as a number nobody was watching. A comparison and an arrow parameter must
+# NOT count — they are reads, not sends.
+_M = "const p = {}; p.lot_polygon = ring; if (x.foo === 1) {} const f = (bar) => bar;"
+assert names_key(_M, "lot_polygon"), "an incrementally assembled body is a SEND"
+assert names_key('{"lot_polygon": r}', "lot_polygon"), "...and so is an object literal"
+assert not names_key(_M, "foo"), "`foo === 1` is a comparison, not a send"
+assert not names_key(_M, "bar"), "`(bar) => bar` is an arrow parameter, not a send"
 
 SPEC = app.openapi()
 CODE = strip_comments(_web_source())
@@ -217,8 +240,11 @@ for p, m, k in MISSING_REQUIRED:
 print(f"  optional and unsent: {len(MISSING_OPTIONAL)} — an engine on a default nobody chose."
       "\n    UNTRIAGED, deliberately not frozen. Read one before calling it a defect: "
       "`/design/options/generate`'s\n    `far_steps` default (60/80/100% of base FAR) is right, "
-      "and `/generate/massing`'s `lot_polygon` is a\n    real capability the client cannot reach. "
-      "Same shape, opposite verdicts.")
+      "and `/generate/massing`'s `lot_area` is a\n    real capability the client cannot reach — it "
+      "is how you state a lot whose DIMENSIONS are unknown, and the tab\n    offers only width x depth "
+      "or a boundary. Same shape, opposite verdicts. (`lot_polygon` was\n    this line's example until "
+      "PARCEL-SHAPE wired it — an exemplar that gets FIXED is the good\n    outcome, and leaving it here "
+      "would have made this note a lie.)")
 
 print()
 if FAILED:

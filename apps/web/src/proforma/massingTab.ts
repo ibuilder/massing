@@ -5,6 +5,7 @@ import type { ApiClient, MassingParams, MassingResult } from "../api/client";
 import { escapeHtml } from "../ui/feedback";
 
 import { money, pct } from "./format";
+import { type LoadedParcel, parcelBoundaryControl } from "./parcelBoundary";
 
 export interface MassingTabCtx {
   api: ApiClient;
@@ -45,6 +46,27 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
     inputs[key] = inp; wrap.appendChild(inp); grid.appendChild(wrap);
   }
   host.appendChild(grid);
+
+  // PARCEL-SHAPE — the lot's real outline, when the user has one. The two numeric inputs above can
+  // only describe a rectangle, and `compute_massing` has always been able to offset a true polygon
+  // inward; nothing could reach it. While a parcel is loaded, width/depth are shown as the parcel's
+  // own bounding box and disabled, so it is clear which figure the building is being sized on.
+  let parcel: LoadedParcel | null = null;
+  const boundary = parcelBoundaryControl({ api: ctx.api }, (p) => {
+    parcel = p;
+    for (const key of ["lot_width", "lot_depth"] as const) {
+      const inp = inputs[key];
+      if (!inp) continue;
+      inp.disabled = !!p;
+      inp.title = p ? "superseded by the parcel boundary below — the building is sized on the real"
+        + " outline, and this is only its bounding box" : "";
+    }
+    if (p) {
+      if (inputs.lot_width) inputs.lot_width.value = String(p.widthM);
+      if (inputs.lot_depth) inputs.lot_depth.value = String(p.depthM);
+    }
+  });
+  host.appendChild(boundary.el);
 
   // shape: box (zoning massing) or a monolithic / earth dome (hemisphere by radius)
   const domeWrap = document.createElement("label");
@@ -103,6 +125,10 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
     if (corrChk.checked) { p.units = true; p.unit_layout = "corridor"; }
     const pk = parseInt(pkInput.value, 10); if (pk > 0) p.parking = pk;
     if (domeChk.checked) { p.shape = "dome"; p.dome_radius = parseFloat(domeR.value) || 8; }
+    // The ring wins over the rectangle. Both are sent: the server prefers `lot_polygon` when it has
+    // one, and leaving width/depth in keeps the request self-describing rather than making the
+    // rectangle vanish from the record of what was asked for.
+    if (parcel) p.lot_polygon = parcel.ring;
     return p;
   };
   const out = document.createElement("div"); out.style.marginTop = "6px";
@@ -112,6 +138,12 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
       `<div class="meta" style="margin-bottom:4px"><b>${m.floors} floors</b> · ${Math.round(m.building_height_m)} m · ` +
       `<b>${m.buildable_gfa_sf.toLocaleString()} sf</b> GFA · ${m.units} units · ${m.footprint_m2.toLocaleString()} m² plate ` +
       `<span class="meta">(bound by ${m.binding_constraint}, ${m.far_achieved} FAR)</span></div>` +
+      // Say which lot the figures above were computed on. A GFA sized on a real 1,600 m² parcel and
+      // one sized on its 2,500 m² bounding box look identical on screen, and differ by 56%.
+      (parcel
+        ? `<div class="meta">on the real parcel — ${Math.round(parcel.areaM2).toLocaleString()} m²,`
+          + ` not the ${Math.round(parcel.rectM2).toLocaleString()} m² bounding rectangle</div>`
+        : "") +
       (su ? `<div class="meta">Total cost ${money(su.total_uses ?? 0)} · equity ${money(su.equity ?? 0)} · ` +
             `IRR <b>${pct(ret?.equity_irr ?? null)}</b> · ${ret?.equity_multiple ?? "—"}× EM</div>` : "") +
       (r.proforma.solve_error ? `<div class="meta" style="color:var(--status-crit)">proforma: ${r.proforma.solve_error}</div>` : "") +
