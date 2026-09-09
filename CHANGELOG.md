@@ -26,8 +26,9 @@ blank and stayed blank, on the model and on every plan sheet, with no message.
 
 The test for "is this a pin" now runs in the database, before the limit, so the limit is spent on
 actual pins. The eleven registers that can also carry pins used to get 2,000 each and then have the
-combined list chopped back to 2,000, which could delete every register pin without a word; they now
-share one budget.
+combined list chopped back to 2,000. They now share one budget — which does not change which pins
+you see, but does mean the ones that did not fit are counted rather than quietly discarded, so the
+number beside them is the project's.
 
 And the count that comes back is the project's, not the screen's. Where the overlay has more pins
 than it can show it says how many there are — and where that number is an estimate rather than an

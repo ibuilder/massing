@@ -80,10 +80,14 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
     *dispatch* rather than a filter. **Which it is does not matter. What matters is which rows the
     cap can be spent on.**
 
-    The registers were capped at `_MAX_PINS` **each** and then the concatenation truncated to
-    `_MAX_PINS`, so topics filling the budget deleted every register pin without a word. One
-    shared budget now, spent in a fixed order, and what it could not reach is counted rather than
-    dropped.
+    The registers were capped at `_MAX_PINS` **each** and the concatenation then truncated to
+    `_MAX_PINS`. That does **not** change which pins come back — a per-source cap plus a final
+    slice keeps the same prefix a shared budget does, and an earlier draft of this docstring said
+    otherwise until the mutation written for it refused to fail. What it changes is that a source
+    the budget cannot reach is now **counted** rather than concatenated and sliced away uncounted,
+    so a project whose topics fill the window no longer reports that window as its whole. It also
+    bounds the work: the old shape could build up to twelve times `_MAX_PINS` rows in order to
+    return `_MAX_PINS` of them.
     """
     from sqlalchemy import func, select
 
@@ -99,7 +103,7 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
     # `_MAX_PINS + 1` rather than a second count query: one extra row is all it takes to know the
     # cap bit, and when it did not, `len(out)` is already the exact answer.
     rows = (db.query(Topic).filter(*where)
-            .order_by(Topic.created_at.asc()).limit(_MAX_PINS + 1).all())
+            .order_by(Topic.created_at.asc(), Topic.id.asc()).limit(_MAX_PINS + 1).all())
     if len(rows) > _MAX_PINS:
         truncated = True
         candidates += db.query(func.count()).select_from(Topic).filter(*where).scalar() or 0

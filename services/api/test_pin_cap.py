@@ -39,10 +39,15 @@ def check(name: str, ok: bool, detail: str = "") -> None:
         FAILED.append(f"{name} — {detail}")
 
 
+from aec_api import modules_registry as _mr  # noqa: E402
 from aec_api import pins as pin_engine  # noqa: E402
 from aec_api.db import Base, SessionLocal, engine  # noqa: E402
 from aec_api.models import Topic  # noqa: E402
 
+# BEFORE `create_all`. The eleven spatial register tables are built by `load_registry()` and only
+# then attached to `Base.metadata`, so creating the schema first leaves `mod_rfi` absent and the
+# cross-source fixture below cannot run at all.
+_mr.load_registry()
 Base.metadata.create_all(bind=engine)
 
 # The cap is lowered rather than 2,000 rows written: the assertion is about WHICH rows the cap is
@@ -99,6 +104,69 @@ try:
               f"honest negative for this flag is the uncapped case asserted above, which is what "
               f"stops it being a flag that is always on")
 
+        db.query(Topic).filter(Topic.project_id == PID).delete()
+        db.commit()
+
+    # ---------------------------------------------------------------------------------------
+    # THE SHARED BUDGET, across sources. Everything above writes only `Topic` rows, so none of
+    # it can tell whether the registers get their own cap, whether a final slice silently
+    # deletes them, or whether their read is ordered at all. Review caught that the roadmap
+    # claimed this file asserted the shared budget when the fixture could not reach it —
+    # a coverage claim its own coverage did not back, which is the class this PR is about.
+    # ---------------------------------------------------------------------------------------
+    rfi = _mr.TABLES["rfi"]
+    with SessionLocal() as db:
+        db.execute(rfi.delete().where(rfi.c.project_id == PID))
+        db.query(Topic).filter(Topic.project_id == PID).delete()
+        # 3 topic pins + 6 register pins, budget 5. Topics are resolved first, so the budget
+        # leaves room for exactly 2 register rows and the other 4 must be COUNTED, not dropped.
+        for i in range(3):
+            db.add(Topic(id=f"t-mix-{i}", project_id=PID, guid=f"G-mix-{i}", type="rfi",
+                         title=f"Placed {i}", status="open", anchor={"x": i, "y": i, "z": 0.0},
+                         created_at=__import__("datetime").datetime(2026, 8, 1, 0, i)))
+        for i in range(6):
+            db.execute(rfi.insert().values(
+                id=f"r-{i:02d}", project_id=PID, ref=f"RFI-{i:02d}", title=f"Register pin {i}",
+                element_guids=[f"E-{i}"], workflow_state="open"))
+        db.commit()
+
+        mixed = pin_engine.resolve_pins(db, PID)
+        ids = [p["id"] for p in mixed["pins"]]
+        check("topics and registers are resolved into one list under one budget",
+              ids == ["t-mix-0", "t-mix-1", "t-mix-2", "r-00", "r-01"],
+              f"got {ids} — 3 topic pins then 2 register pins under a budget of 5")
+        check("the register read is ordered, so a cap that bites is reproducible",
+              ids[3:] == ["r-00", "r-01"],
+              f"got {ids[3:]} — without an ORDER BY the two that survive differ between runs, "
+              f"so the same request draws different pins")
+        check("what the budget could not reach is COUNTED, not silently dropped",
+              (mixed["pin_total"], mixed["truncated"]) == (9, True),
+              f"total={mixed['pin_total']} truncated={mixed['truncated']} — 3 topics + 6 "
+              f"register rows exist and 5 fit")
+
+    # THE CASE THAT ACTUALLY DISTINGUISHES THE SHARED BUDGET, and the reason the assertion above
+    # is worded the way it is. **A per-source cap plus a final `out[:_MAX_PINS]` returns exactly
+    # the same pins as one shared budget** — both keep the same prefix — so no assertion on
+    # `pins` can tell them apart, and the first draft of this file claimed one could. What the
+    # shared budget changes is that a source the budget cannot reach at all is **counted** rather
+    # than concatenated and then sliced away uncounted. Fill the budget with topics and the
+    # registers become exactly that source.
+    with SessionLocal() as db:
+        db.query(Topic).filter(Topic.project_id == PID).delete()
+        for i in range(5):
+            db.add(Topic(id=f"t-full-{i}", project_id=PID, guid=f"G-full-{i}", type="rfi",
+                         title=f"Placed {i}", status="open", anchor={"x": i, "y": 0.0, "z": 0.0},
+                         created_at=__import__("datetime").datetime(2026, 8, 2, 0, i)))
+        db.commit()
+        full = pin_engine.resolve_pins(db, PID)
+        check("a source the budget cannot reach is counted, not silently skipped",
+              (len(full["pins"]), full["pin_total"], full["truncated"]) == (5, 11, True),
+              f"shown={len(full['pins'])} total={full['pin_total']} "
+              f"truncated={full['truncated']} — the 5 topic pins consume the whole budget and "
+              f"the 6 register rows are unreachable. Skipping them WITHOUT counting reports "
+              f"(5, 5, False): a full window that claims to be the whole project")
+
+        db.execute(rfi.delete().where(rfi.c.project_id == PID))
         db.query(Topic).filter(Topic.project_id == PID).delete()
         db.commit()
 finally:

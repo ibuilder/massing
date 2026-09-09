@@ -413,12 +413,24 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > and on every plan sheet — and a pin placed today never appeared, because the window never
 > advanced past the same 2,000 rows. It did not degrade as a project got busier; it went blank and
 > stayed blank. The registers were also capped at `_MAX_PINS` *each* before the concatenation was
-> truncated to `_MAX_PINS`, so topics filling the budget deleted every register pin silently.
+> truncated to `_MAX_PINS`. **That second one is NOT a selection defect, and this entry claimed it
+> was** — a per-source cap plus a final slice keeps the same prefix a shared budget does, so the
+> pins returned are identical. What it dropped silently was the *count*: a source the budget cannot
+> reach was concatenated and then sliced away uncounted, so a project whose topics fill the window
+> reported that window as its whole.
 >
 > The predicate is in SQL ahead of the LIMIT now, the budget is shared across sources, and the
 > envelope reports an exact total when nothing was capped and a candidate count **labelled as such**
 > when something was. `services/api/test_pin_cap.py` asserts the behaviour and is mutation-checked
-> against the pre-fix ordering, where it returns `[]` on a project that plainly has a pin.
+> three ways: the pre-fix ordering returns `[]` on a project that plainly has a pin; an unordered
+> register read returns different rows run to run; and skipping an unreachable source without
+> counting it reports a full window as the whole project.
+>
+> **Review found the shared-budget claim overstated, and it was corrected rather than defended.**
+> The first draft of that test asserted a per-source cap "returns the 3 topics and NO register
+> pins" — and **the mutation written to prove it passed**, because both shapes keep the same
+> prefix. *An assertion whose failure message describes a scenario it does not actually test is
+> worse than no assertion, because it reads as coverage.*
 >
 > **Still open, named rather than half-fixed:** a plan sheet cannot yet PRINT that its pins were
 > capped — the drawing engine takes positions and labels, not notes — so a capped project still
