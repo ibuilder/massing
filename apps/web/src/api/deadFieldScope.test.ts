@@ -42,6 +42,7 @@ import { describe, expect, it } from "vitest";
 const API = resolve(process.cwd(), "src/api");
 const WEB = resolve(process.cwd(), "src");
 
+/** Every `.ts`/`.tsx` under `dir`, recursively — the file set both halves of the scan run over. */
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
@@ -87,6 +88,9 @@ for (const f of files) {
 }
 const decls = declaredFields();
 
+/** Files mentioning `field` as a bare identifier, excluding the one that declares it.
+ *  This is the derivation's whole notion of "read", and the reason it cannot be trusted: the match
+ *  is on the NAME, so a file handling an unrelated type with a same-named field counts as a reader. */
 function readersOf(field: string, declaring: string): string[] {
   return files.filter((f) => f !== declaring && tokens.get(f)!.has(field));
 }
