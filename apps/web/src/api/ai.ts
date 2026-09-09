@@ -63,8 +63,26 @@ export function withAi<TBase extends Ctor<HttpCore>>(Base: TBase) {
         writes: boolean; write_tools: string[] }[];
       pack_count: number; read_only_count: number;
       runs: { ts: string | null; actor: string; tool: string | null; pack: string | null; ok: boolean | null }[];
-      run_count: number; failure_count: number;
+      run_count: number; run_total: number; truncated: boolean; failure_count: number;
+      by_tool: Record<string, number>; by_actor: Record<string, number>;
     }>(`/projects/${pid}/agent-packs`);
+  }
+  /** Every agent run across the estate — whose agent ran what, on which project.
+   *
+   *  The per-project call above answers "what ran here", which is the wrong altitude for the
+   *  question asked before granting an agent access or after an incident. **Admin only**, because
+   *  these rows come from the audit log and `/audit` is admin-only: a non-admin estate-wide view
+   *  would be a way to read audit rows without being an admin. */
+  agentPackRuns(limit = 200) {
+    return this.json<{
+      packs: { key: string; label: string; purpose: string; tool_count: number;
+        writes: boolean; write_tools: string[] }[];
+      pack_count: number; read_only_count: number;
+      runs: { ts: string | null; actor: string; tool: string | null; pack: string | null;
+        ok: boolean | null; project_id: string | null }[];
+      run_count: number; run_total: number; truncated: boolean; failure_count: number;
+      by_tool: Record<string, number>; by_actor: Record<string, number>; note: string;
+    }>(`/agent-packs/runs?limit=${limit}`);
   }
 
   /** askModel — a plain-English question about the model, grounded in the property-index snapshot. */

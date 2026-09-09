@@ -158,23 +158,49 @@ def run_log(db, project_id: str | None = None, limit: int = 200) -> dict[str, An
 
     q = db.query(AuditLog).filter(AuditLog.method == "MCP")
     if project_id:
-        q = q.filter(AuditLog.detail.isnot(None))
+        # THE PROJECT FILTER MUST RUN IN SQL, BEFORE THE LIMIT. It used to be a Python `continue`
+        # after `.limit(limit)` had already truncated to the newest rows across EVERY project, so a
+        # quiet project on a busy install reported **zero runs while runs existed** — measured: one
+        # run on project A, 250 newer runs on project B, and A's console answered "nothing ran".
+        # For a governance console that is not a blank, it is a wrong answer: "no agent touched this
+        # project" is exactly the claim someone relies on before granting access or after an
+        # incident. Busy projects lost rows too (B returned 200 of its 250).
+        #
+        # `detail["project_id"].as_string()` compiles to json_extract on SQLite and ->> on
+        # Postgres, so one expression covers the test dialect and the production one. A row whose
+        # detail carries no project_id yields NULL and is excluded, which is what the old Python
+        # comparison against "" did — the semantics are unchanged, only the stage they run at.
+        q = q.filter(AuditLog.detail["project_id"].as_string() == project_id)
+    # How many runs there ARE, before the window. A console that caps at `limit` and says nothing
+    # reports "these are the runs" when it means "these are the newest N" — the same
+    # partial-answer-wearing-a-complete-answer's-costume the fix above is about, one layer down.
+    total = q.count()
     rows = q.order_by(AuditLog.ts.desc()).limit(limit).all()
     runs = []
     for r in rows:
         d = r.detail or {}
-        if project_id and str(d.get("project_id") or "") != project_id:
-            continue
         runs.append({"ts": getattr(r.ts, "isoformat", lambda: None)(), "actor": r.actor,
                      "action": r.action, "tool": d.get("tool"), "pack": d.get("pack"),
                      "ok": d.get("ok"), "project_id": d.get("project_id")})
     by_tool: dict[str, int] = {}
+    # `by_actor` is the axis that only matters once the log spans projects: across an estate the
+    # governance question is *who ran an agent*, and a tally of tools cannot answer it. An
+    # unattributed run is counted under an explicit "(unattributed)" rather than dropped — the
+    # transport refuses to invent a person-shaped default, so those rows exist and hiding them
+    # would understate exactly the runs a reviewer most needs to see.
+    by_actor: dict[str, int] = {}
     for x in runs:
         if x.get("tool"):
             by_tool[x["tool"]] = by_tool.get(x["tool"], 0) + 1
+        who = x.get("actor") or "(unattributed)"
+        by_actor[who] = by_actor.get(who, 0) + 1
     failures = [x for x in runs if x.get("ok") is False]
-    return {"runs": runs, "run_count": len(runs), "by_tool": by_tool,
+    return {"runs": runs, "run_count": len(runs), "by_tool": by_tool, "by_actor": by_actor,
             "failure_count": len(failures),
+            # `run_total` counts every matching run; `run_count` is what this window holds. They
+            # differ only when `truncated`, and a caller that shows one while meaning the other is
+            # the reason both are here rather than just the list's length.
+            "run_total": total, "truncated": total > len(runs),
             "note": ("failures are included deliberately — a tool history that lists only successes "
                      "cannot answer what an agent attempted, which is the question asked after an "
                      "incident rather than before one."),

@@ -12,6 +12,29 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The agent trail said "nothing ran here" while runs existed
+
+Every AI agent run against a project is recorded — which tool, through which named pack, by whom,
+and whether it failed. That trail is the thing an organisation checks before letting an agent near
+its projects, and the thing it reads first after something goes wrong.
+
+It was quietly dropping runs. The console asked the database for the most recent activity and only
+*then* narrowed it to the project you were looking at — so on a deployment where one project is
+busier than the rest, a quieter project's console could report **no agent activity at all while
+activity existed**. Measured: one run on a quiet project, a few hundred newer runs elsewhere, and
+the quiet project's console showed nothing. The busy project lost older rows the same way, without
+saying so.
+
+For this screen that is not a blank, it is a wrong answer — "no agent touched this project" is
+exactly the claim someone acts on. The narrowing now happens in the query, and a capped view says
+how many runs there are in total beside how many it is showing.
+
+**Settings ▸ Diagnostics ▸ Agent runs** is new: every agent run across every project, who ran it,
+which pack it came through, and which failed — instead of opening each project's console in turn and
+adding them up. It is admin-only because these are audit records, and the audit log is already
+restricted to administrators. A run nobody could attribute is listed as unattributed rather than
+hidden, since those are the ones worth looking at.
+
 ### Resourcing "by department" — the axis your firm defines, not one we invent
 
 Portfolio resourcing already showed weekly demand per trade summed across every project, which is

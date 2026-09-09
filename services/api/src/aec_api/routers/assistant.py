@@ -9,6 +9,7 @@ from .. import agent_packs, assistant, routines
 from ..db import get_db
 from ..models import Project
 from ..rbac import require_identified, require_role
+from .auth import require_admin_user
 
 router = APIRouter()
 
@@ -132,3 +133,28 @@ def project_agent_packs(pid: str, db: Session = Depends(get_db),
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return {**agent_packs.catalog(), **agent_packs.run_log(db, project_id=pid)}
+
+
+@router.get("/agent-packs/runs")
+def agent_pack_runs(limit: int = 200, db: Session = Depends(get_db),
+                    _: object = Depends(require_admin_user)):
+    """R22-AGENT-PACKS — the governance console **across the estate**: every agent run, whoever ran
+    it and whichever project it touched.
+
+    The per-project route above answers "what ran here". That is the wrong altitude for the question
+    an enterprise actually asks before granting an agent access, and after an incident: *whose agent
+    ran what, anywhere.* A reviewer who has to open twenty project consoles and add them up is not
+    being governed by a console; and a run against a project they forgot to check is invisible.
+
+    **Admin-only, and that follows from an existing fact rather than from taste.** These rows come
+    from `audit_log`, and `GET /audit` is already admin-only — so a non-admin org-wide view here
+    would be a way to read audit rows without being an admin, which is a privilege-escalation
+    surface wearing the name of a governance feature. (The per-project route stays at project
+    `viewer`, because there the rows are scoped to a project the caller already has access to.)
+
+    `by_actor` is the axis that only earns its place here: within one project the interesting
+    tally is which tools ran, but across the estate the question is *who ran an agent*, and a tool
+    tally cannot answer it. An unattributed run is counted, not dropped.
+    """
+    return {**agent_packs.catalog(),
+            **agent_packs.run_log(db, project_id=None, limit=max(1, min(int(limit), 1000)))}

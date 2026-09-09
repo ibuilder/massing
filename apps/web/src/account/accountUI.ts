@@ -348,6 +348,7 @@ async function openProfile(platformAdmin: boolean, tier: string, initial = "prof
     actions: {
       manageUsers: adminModal,
       auditLog: auditModal,
+      agentRuns: agentRunsModal,
       errorLog: errorsModal,
       dataConnections: () => void import("../connections/connectionsUI")
         .then((m) => m.openConnectionsModal(D.api, D.getProjectId)),
@@ -563,6 +564,49 @@ function auditModal() {
   fAction.onkeydown = fActor.onkeydown = (e) => { if (e.key === "Enter") void render(); };
   card.append(filters, table, msg);
   void render().finally(ready);
+}
+
+/** Settings ▸ Diagnostics ▸ **Agent runs** — every agent run across the estate.
+ *
+ *  Sits beside the audit-log modal deliberately: it reads the same rows, and the route behind it is
+ *  admin-only for that reason. The header states the TOTAL rather than what this window holds,
+ *  because on this screen "nothing ran" is an answer someone acts on, not a blank. */
+function agentRunsModal() {
+  const { card, msg, ready } = modalShell("Agent runs", 700);
+  msg.style.color = "var(--err)";
+  const api = D.api;
+  const summary = document.createElement("div"); summary.className = "meta";
+  const table = document.createElement("div"); table.style.cssText = "max-height:55vh;overflow:auto;margin-top:8px";
+
+  void api.agentPackRuns(200).then((r) => {
+    // "Nothing ran" is an ANSWER here, so the header states the scope it is an answer about:
+    // how many runs exist, not merely how many this window holds.
+    const actors = Object.entries(r.by_actor).sort((a, b) => b[1] - a[1]);
+    summary.textContent = `${r.run_total} run(s) across the estate`
+      + (r.truncated ? ` · showing the newest ${r.run_count}` : "")
+      + (r.failure_count ? ` · ${r.failure_count} failed` : "")
+      + (actors.length ? ` · ${actors.map(([who, n]) => `${who} ${n}`).join(", ")}` : "");
+    if (!r.runs.length) { table.innerHTML = '<div class="meta">no agent has run yet</div>'; return; }
+    const cell = (x: string, extra = "") =>
+      `<td style="padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;${extra}">${x}</td>`;
+    table.innerHTML = `<table class="sens-table" style="width:100%;font-size:12px"><tr>`
+      + `<th style="text-align:left">When</th><th style="text-align:left">Who</th>`
+      + `<th style="text-align:left">Project</th><th style="text-align:left">Pack</th>`
+      + `<th style="text-align:left">Tool</th><th style="text-align:left">Result</th></tr>`
+      + r.runs.map((x) => `<tr>`
+        + cell(x.ts ? new Date(x.ts).toLocaleString() : "—")
+        // An unattributed run is shown as such rather than blank: the transport refuses to invent a
+        // name, and a blank cell reads as a rendering gap instead of the fact it is.
+        + cell(escapeHtml(x.actor || "(unattributed)"), x.actor ? "" : "color:var(--muted)")
+        + cell(escapeHtml(x.project_id ?? "—")) + cell(escapeHtml(x.pack ?? "—"))
+        + cell(escapeHtml(x.tool ?? "—"))
+        + cell(x.ok === false ? "failed" : x.ok === true ? "ok" : "—",
+               x.ok === false ? "color:var(--err)" : "")
+        + `</tr>`).join("") + `</table>`;
+  }).catch(() => { msg.textContent = "could not load agent runs (admin only)"; })
+    .finally(ready);
+
+  card.append(summary, table, msg);
 }
 
 function errorsModal() {

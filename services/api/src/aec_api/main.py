@@ -646,7 +646,15 @@ _CSP = "frame-ancestors 'none'" if not _CSP_ENV else (_CSP_STRICT if _CSP_ENV ==
 # that lacks its own require_role dependency still can't be reached anonymously. Public auth / health /
 # capability / catalog / stateless-compute paths stay open.
 _PROTECTED_PREFIXES = ("/projects", "/proforma", "/connections", "/settings", "/audit", "/auth/users",
-                       "/convert", "/interop", "/pipeline", "/routines", "/cloud")
+                       "/convert", "/interop", "/pipeline", "/routines", "/cloud", "/agent-packs")
+# `/agent-packs` (AGENT-TRAIL) is here for the same reason `/audit` is: the estate-wide agent console
+# reads `audit_log` rows spanning every project, which is tenant state at its most sensitive. It is
+# read-only, so `test_global_mutating_authz` would never have looked at it — the prefix gate is what
+# caught it, on exactly the shape its own note predicts ("adding a new prefix silently opts out of
+# the safety net and nothing fails"). As with `/cloud`, this is defence in depth and NOT the gate:
+# the route carries `require_admin_user` itself, because an armed middleware makes a guarded and an
+# unguarded route look identical from outside, and then nothing is testing the route's own guard.
+# `/projects/{pid}/agent-packs` is unaffected — it sits under `/projects`.
 # `/cloud` (CLOUD-LIBRARY) is here because every route under it reads one user's massing.cloud vault
 # — tenant state by definition. Note `/auth/cloud/*` is deliberately NOT covered: sign-in has to be
 # reachable by someone who is not signed in yet, which is the whole point of it. Those routes carry

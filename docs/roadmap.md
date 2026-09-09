@@ -1718,7 +1718,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
@@ -2729,7 +2729,7 @@ stakes we are missing.
   never noticing `approval_risk.py`, which the eventual build should probably feed. Third
   collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
   builder R22-REPORT-BUILDER describes).
-- ◧ **R22-AGENT-PACKS** *(M — **Lane C part COMPLETE**: `agent_packs.py` shipped, audit half CLOSED
+- ✅ **R22-AGENT-PACKS** *(M — CLOSED 2026-09-09; **Lane C part COMPLETE**: `agent_packs.py` shipped, audit half CLOSED
   2026-08-06, attribution fixed at the call site. **Dropped from the Lane C cell 2026-08-16** —
   its own text already said the remainder is the governance console, which is Lane A/E. Leaving a
   code in a lane that cannot finish it makes the lane look busier than it is)* — **named agent packs + org "Skills" + a governance console** over the
@@ -2750,7 +2750,36 @@ stakes we are missing.
   rather than recording them silently, and refuses to invent a person-shaped default (an unverified
   name in an audit trail is worse than an honest "the transport ran this").
   `services/api/test_mcp_attribution.py` asserts the **call site** forwards all three, mutation-checked
-  against the original defect. **What remains is the governance console itself — Lane A/E, not C.**
+  against the original defect.
+
+  ✅ **THE CONSOLE SHIPPED 2026-09-09 — and building it found the trail lying.** `run_log` applied
+  `limit` **before** the project filter: the filter was a Python `continue` running over rows the
+  database had already truncated to the newest 200 across *every* project. So a quiet project on a
+  busy install reported **zero runs while runs existed** — measured at the size that exposes it, one
+  run on project A and 250 newer on project B, and A's console answered "nothing ran". Busy projects
+  lost rows too (B returned 200 of its 250, silently).
+
+  **For a governance console that is not a blank, it is a wrong answer.** "No agent touched this
+  project" is precisely the claim someone relies on before granting access and after an incident,
+  and it degraded without an error. The filter now runs in SQL
+  (`detail["project_id"].as_string()`, one expression across SQLite and Postgres), and the window
+  reports `run_total` beside `run_count` so a capped view says so rather than presenting its slice
+  as the whole — the same partial-answer-in-a-complete-answer's-costume, one layer down.
+
+  **`GET /agent-packs/runs` is the estate-wide console**, and it is **admin-only because that
+  follows from an existing fact**: these rows come out of `audit_log` and `GET /audit` is already
+  admin-only, so a non-admin estate-wide view would be a way to read audit rows without being an
+  admin — a privilege-escalation surface wearing the name of a governance feature. The per-project
+  route stays at project `viewer`, where the rows are already in scope. `by_actor` is the axis that
+  only earns its place across projects: within one, the useful tally is which tools ran; across the
+  estate the question is *who*, and an unattributed run is counted under an explicit
+  "(unattributed)" rather than dropped, since the transport refuses to invent a name and those are
+  exactly the rows a reviewer needs. Reachable from Settings ▸ Diagnostics ▸ **Agent runs**.
+  `services/api/test_agent_runs_route.py` asserts the refusal against a **real non-admin session**
+  rather than by reading the dependency's name — `Depends(current_user)` identifies and reads like a
+  gate, which this repository's own SEC-GLOBAL-AUTHZ note records as how such a hole survives review.
+
+  **R22-AGENT-PACKS is now closed.**
 
 **Tier 2 — evidence, provenance and procurement**
 
