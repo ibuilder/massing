@@ -44,9 +44,22 @@ export function withResponsibility<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ templates: { key: string; name: string; description: string; rows: number }[] }>(
       `/projects/${pid}/responsibility/templates`);
   }
-  setResponsibilityConfig(pid: string, roles: string[], mode: "RACI" | "DACI") {
-    return this.json<{ roles: string[]; mode: string }>(`/projects/${pid}/responsibility/config`, {
-      method: "PUT", body: JSON.stringify({ roles, mode }) });
+  /** Set the role columns and the mode, and migrate every row's cells to match — server-side, in
+   *  one transaction.
+   *
+   *  `rename` maps an old column name to its new one and `drop` names columns whose cells are to be
+   *  cleared from every row; `roles` alone cannot tell a rename from a remove-plus-add, which is
+   *  why they are passed rather than inferred. A mode change remaps the doer letter (R↔D) on its
+   *  own. The panel used to do all of this from here — one PATCH per row, then this call — and a
+   *  failure part-way left the rows it had already reached committed against columns the config
+   *  update never got to. 400 if `roles`, `rename` and `drop` contradict each other; nothing is
+   *  written in that case. */
+  setResponsibilityConfig(pid: string, roles: string[], mode: "RACI" | "DACI",
+                          opts?: { rename?: Record<string, string>; drop?: string[] }) {
+    return this.json<{ roles: string[]; mode: string; rows_remapped: number }>(
+      `/projects/${pid}/responsibility/config`, {
+        method: "PUT",
+        body: JSON.stringify({ roles, mode, rename: opts?.rename, drop: opts?.drop }) });
   }
   applyResponsibilityTemplate(pid: string, key: string, mode: "RACI" | "DACI") {
     return this.json<{ applied: string; created: number; mode: string }>(

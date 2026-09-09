@@ -1071,7 +1071,15 @@ def to_csv(db: Session, key: str, project_id: str) -> str:
 
 
 def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
-                  actor: str, party: str | None, expected_modified_at: str | None = None) -> dict:
+                  actor: str, party: str | None, expected_modified_at: str | None = None,
+                  *, commit: bool = True) -> dict:
+    """Partial-update one record (and its audit-log row).
+
+    ``commit=False`` is the same contract `create_record` already offers, for the same reason: a
+    caller changing MANY rows as one logical edit owns the final ``db.commit()``, so a failure
+    part-way rolls the whole edit back instead of leaving the earlier rows written. `responsibility`
+    renames a role column across every row this way — half of that applied is worse than none of it,
+    because the rows left behind carry a role name that is no longer a column."""
     t = TABLES[key]
     rec = get_record(db, key, project_id, rid)
     # optimistic lock (opt-in): if the caller passes the modified_at it loaded and the record has since
@@ -1110,7 +1118,8 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
         vals["element_guids"] = sorted(col) or None
     db.execute(update(t).where(t.c.id == rid).values(**vals))
     _log(db, project_id, key, rid, actor, party, "update", {"fields": list(data.keys())})
-    db.commit()
+    if commit:
+        db.commit()
     return get_record(db, key, project_id, rid)
 
 

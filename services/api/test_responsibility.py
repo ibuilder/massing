@@ -191,7 +191,132 @@ with TestClient(app) as c:
     assert int(m_cap.group(1)) == responsibility.MAX_ROLES, \
         (int(m_cap.group(1)), responsibility.MAX_ROLES)
 
+    # --- BULK-PATCH: a column edit and the cells keyed by it are ONE transaction ---------------
+    # The panel used to send one PATCH per row and then the config update. A failure part-way
+    # committed the rows it had already reached, so a rename left one logical role under two names,
+    # only one of which was still a column — and re-running could not find the rows that had moved.
+    # Assert by RE-READING every row, never by trusting the response: a response describes what the
+    # server meant to do, and the whole defect is a gap between that and what is stored.
+    bp = c.post("/projects", json={"name": "Bulk"}).json()["id"]
+    c.post(f"/projects/{bp}/responsibility/apply-template", json={"key": "construction"})
+
+    def cells(pid_):
+        """role -> [activities carrying a letter on it], read back from the server."""
+        out = {}
+        for r in c.get(f"/projects/{pid_}/responsibility").json()["rows"]:
+            for role in r["assignments"]:
+                out.setdefault(role, []).append(r["activity"])
+        return out
+
+    before = cells(bp)
+    assert before.get("GC / PM"), "the construction template must key cells on 'GC / PM'"
+    n_gc = len(before["GC / PM"])
+    assert n_gc >= 3, n_gc      # >1 row, or "half-applied" has no meaning to test
+
+    # rename: cells move WITH the column, in one call
+    cur = c.get(f"/projects/{bp}/responsibility").json()["roles"]
+    r = c.put(f"/projects/{bp}/responsibility/config",
+              json={"roles": ["Project Manager" if x == "GC / PM" else x for x in cur],
+                    "mode": "RACI", "rename": {"GC / PM": "Project Manager"}})
+    assert r.status_code == 200, r.text[:200]
+    assert r.json()["rows_remapped"] == n_gc, (r.json(), n_gc)
+    after = cells(bp)
+    assert "GC / PM" not in after, f"rows left on the old name: {after.get('GC / PM')}"
+    assert sorted(after["Project Manager"]) == sorted(before["GC / PM"]), after["Project Manager"]
+
+    # ROLLBACK: a member the engine rejects rolls the WHOLE batch back, rows included.
+    import aec_api.modules as _mod
+    _real_update = _mod.update_record
+    _seen = {"n": 0}
+
+    def _fail_on_third(db, key, project_id, rid, data, actor, party, **kw):
+        _seen["n"] += 1
+        if _seen["n"] == 3:
+            raise RuntimeError("row 3 refused")
+        return _real_update(db, key, project_id, rid, data, actor, party, **kw)
+
+    _mod.update_record = _fail_on_third
+    try:
+        cur = c.get(f"/projects/{bp}/responsibility").json()["roles"]
+        try:
+            c.put(f"/projects/{bp}/responsibility/config",
+                  json={"roles": ["PM2" if x == "Project Manager" else x for x in cur],
+                        "mode": "RACI", "rename": {"Project Manager": "PM2"}})
+            raise AssertionError("the injected failure did not propagate")
+        except RuntimeError as e:
+            assert "row 3 refused" in str(e), e
+    finally:
+        _mod.update_record = _real_update
+    assert _seen["n"] == 3, f"the batch kept going past the failure: {_seen['n']} writes attempted"
+    rolled = cells(bp)
+    assert "PM2" not in rolled, f"a rejected batch left {len(rolled['PM2'])} row(s) renamed"
+    assert sorted(rolled["Project Manager"]) == sorted(after["Project Manager"]), rolled
+    assert c.get(f"/projects/{bp}/responsibility").json()["roles"] == cur, "the config row survived a rollback"
+
+    # drop: clearing a removed column's cells, also one call
+    cur = c.get(f"/projects/{bp}/responsibility").json()["roles"]
+    r = c.put(f"/projects/{bp}/responsibility/config",
+              json={"roles": [x for x in cur if x != "Project Manager"], "mode": "RACI",
+                    "drop": ["Project Manager"]})
+    assert r.status_code == 200, r.text[:200]
+    assert "Project Manager" not in cells(bp), "drop left cells on the removed column"
+
+    # REFUSE a self-contradicting request, before writing anything.
+    cur = c.get(f"/projects/{bp}/responsibility").json()["roles"]
+    snapshot = cells(bp)
+    # Each case must 400 for ITS OWN reason, so assert the message — the first draft of this loop
+    # used a rename whose source AND target were both wrong, so removing the source check still
+    # produced a 400 (from the target check) and the mutation survived. A test that asserts only
+    # the status code cannot tell which rule refused. The source case below therefore renames one
+    # LIVE column onto another live column, which is the merge that silently eats a column's cells.
+    for bad, why, msg in (
+        ({"roles": cur, "mode": "RACI", "rename": {"Owner": "Architect/EOR"}},
+         "source still a column", "still one of the role columns"),
+        ({"roles": cur, "mode": "RACI", "rename": {"Nobody": "Client"}},
+         "target is not a column", "is not a role column"),
+        ({"roles": cur, "mode": "RACI", "drop": ["Owner"]},
+         "dropping a live column's cells", "still a role column"),
+    ):
+        r = c.put(f"/projects/{bp}/responsibility/config", json=bad)
+        assert r.status_code == 400, (why, r.status_code, r.text[:160])
+        assert msg in r.json()["detail"], (why, r.json()["detail"])
+    assert cells(bp) == snapshot, "a refused request wrote something"
+
+    # --- BULK-PATCH: a mode change migrates the doer letter on EXISTING rows -------------------
+    # `matrix()` hides any letter not valid in the current mode, so a row left on the old doer does
+    # not render wrong — it renders EMPTY, and reports no Responsible. Reached here through
+    # apply-template, which is how the mode moves without anyone pressing the mode button.
+    md = c.post("/projects", json={"name": "Mode"}).json()["id"]
+    c.post(f"/projects/{md}/responsibility/apply-template", json={"key": "construction", "mode": "RACI"})
+    seeded = c.get(f"/projects/{md}/responsibility").json()
+    assert seeded["validation"]["clean"] is True, seeded["validation"]
+    n_before = seeded["count"]
+    r = c.post(f"/projects/{md}/responsibility/apply-template",
+               json={"key": "closeout", "mode": "DACI"})
+    assert r.status_code == 200, r.text[:200]
+    assert r.json()["rows_remapped"] == n_before, (r.json(), n_before)
+    flipped = c.get(f"/projects/{md}/responsibility").json()
+    assert flipped["mode"] == "DACI" and flipped["doer"] == "D", flipped["mode"]
+    assert flipped["validation"]["clean"] is True, \
+        f"rows stranded on the old doer letter: {flipped['validation']['no_responsible']}"
+    assert not any("R" in row["assignments"].values() for row in flipped["rows"]), \
+        "an 'R' survived the flip to DACI"
+
+    # --- BULK-PATCH: both routes' audit rows are actually COMMITTED ----------------------------
+    # `get_db` never commits, and the engine commits BEFORE the route records the audit row — so
+    # these two were writing an audit entry that was discarded when the session closed. The role
+    # columns are the one edit that can orphan a whole grid; it left no trace.
+    from aec_api.db import SessionLocal as _SL
+    from aec_api.models import AuditLog as _AL
+    with _SL() as _db:
+        _acts = {a.action for a in _db.query(_AL).all()}
+    assert "responsibility.config" in _acts, sorted(_acts)
+    assert "responsibility.apply_template" in _acts, sorted(_acts)
+
 print("RESPONSIBILITY OK - grid assembly, single-A / >=1-R validation, role config, RACI<->DACI, templates + "
       "remap, the ROLES-BIM ISO 19650 template (own BIM-org persona columns, 9 info-mgmt duties, clean), and "
       "RESP-ORPHAN: validity is counted over VISIBLE columns, unknown_role explains a blank row, a second "
-      "template merges its columns, and the merge refuses past the cap instead of truncating")
+      "template merges its columns, and the merge refuses past the cap instead of truncating; and "
+      "BULK-PATCH: a column rename/drop moves its cells in ONE transaction that rolls back whole, a "
+      "self-contradicting request is refused before writing, a mode change migrates the doer letter "
+      "on existing rows, and both routes' audit rows are committed")

@@ -88,17 +88,18 @@ export async function renderResponsibility(ctx: PanelContext) {
     modeBtn.title = "RACI is task-ownership; DACI is decision-making. The doer letter (R↔D) is remapped for you.";
     modeBtn.onclick = async () => {
       const to = isRaci ? "DACI" : "RACI";
-      const from = m.doer, toDoer = to === "DACI" ? "D" : "R";
-      // remap the doer letter across all rows so the matrix stays valid across the switch
-      for (const r of m.rows) {
-        let changed = false;
-        for (const k of Object.keys(r.assignments)) {
-          if (r.assignments[k] === from) { r.assignments[k] = toDoer; changed = true; }
-        }
-        if (changed) await api.updateModuleRecord(pid, "responsibility", r.id, { assignments: r.assignments });
+      modeBtn.disabled = true;
+      // The doer remap (R↔D) across every row is the SERVER's, in the same transaction as the mode
+      // itself. It has to be: `matrix()` hides any letter that is not valid in the current mode, so
+      // a row left on the old doer does not look wrong, it looks empty — and the row reports no
+      // Responsible at all. Doing it from here was also a PATCH per row, half-applied on a failure.
+      try {
+        await api.setResponsibilityConfig(pid, m.roles, to);
+        toast(`Switched to ${to}`, "info"); void load();
+      } catch (e) {
+        toast(`Couldn't switch to ${to}: ${(e as Error).message}`, "error");
+        modeBtn.disabled = false;
       }
-      await api.setResponsibilityConfig(pid, m.roles, to);
-      toast(`Switched to ${to}`, "info"); void load();
     };
     tb.append(modeBtn);
 
@@ -195,23 +196,16 @@ export async function renderResponsibility(ctx: PanelContext) {
         if (!(await confirmModal(`Clear assignments on ${orphans.length} removed column(s)?`,
           "The letters on those columns are deleted from every row. This cannot be undone."))) return;
         clear.disabled = true;
+        // One call: `drop` clears those columns' cells from every row inside the same transaction
+        // as the config write. This used to be a PATCH per row, and a failure part-way committed
+        // the rows it had already reached — the reason the catch below no longer has to reload to
+        // find out what actually happened. Nothing is written unless all of it is.
         try {
-          for (const r of m.rows) {
-            const keep = Object.fromEntries(
-              Object.entries(r.assignments).filter(([role]) => !orphans.includes(role)));
-            if (Object.keys(keep).length !== Object.keys(r.assignments).length) {
-              r.assignments = keep;
-              await api.updateModuleRecord(pid, "responsibility", r.id, { assignments: keep });
-            }
-          }
+          await api.setResponsibilityConfig(pid, m.roles, m.mode, { drop: orphans });
           void load();
-        } catch {
-          // Each row is its own PATCH, so a failure part-way leaves earlier rows cleared. Re-read
-          // rather than leaving the panel showing in-memory state the server never accepted: the
-          // banner then reports what is actually still stranded, and clearing again is idempotent.
-          // Raised in review — see the reply for why this is not a transactional bulk endpoint.
-          toast("Couldn't clear all of those — reloading to show what remains", "error");
-          void load();
+        } catch (e) {
+          toast(`Couldn't clear those: ${(e as Error).message}`, "error");
+          clear.disabled = false;
         }
       };
       row.append(restore, clear);
@@ -276,28 +270,25 @@ export async function renderResponsibility(ctx: PanelContext) {
           [{ name: "role", label: "Role name", value: role, required: true }]);
         const nn = res?.role?.trim();
         if (!nn || nn === role || m.roles.includes(nn)) return;
-        // remap assignments old→new across all rows, then update the role list
-        for (const r of m.rows) {
-          if (r.assignments[role] != null) {
-            r.assignments[nn] = r.assignments[role]; delete r.assignments[role];
-            await api.updateModuleRecord(pid, "responsibility", r.id, { assignments: r.assignments });
-          }
-        }
-        await api.setResponsibilityConfig(pid, m.roles.map((x) => x === role ? nn : x), m.mode);
-        void load();
+        // The remap old→new across every row goes WITH the new column list, in one transaction.
+        // Doing it here as a PATCH per row is what made a half-applied rename unrecoverable: the
+        // rows that had already moved carried a name that was not a column, and re-running the
+        // rename could not see them — indistinguishable from an orphaned column.
+        try {
+          await api.setResponsibilityConfig(pid, m.roles.map((x) => x === role ? nn : x), m.mode,
+                                            { rename: { [role]: nn } });
+          void load();
+        } catch (e) { toast(`Couldn't rename ${role}: ${(e as Error).message}`, "error"); }
       };
       const x = el("span"); x.textContent = " ✕"; x.style.cssText = "cursor:pointer;color:var(--muted)";
       x.title = `Remove ${role}`;
       x.onclick = async () => {
         if (!(await confirmModal(`Remove the “${role}” column?`, "Its assignments are cleared from every row."))) return;
-        for (const r of m.rows) {
-          if (r.assignments[role] != null) {
-            delete r.assignments[role];
-            await api.updateModuleRecord(pid, "responsibility", r.id, { assignments: r.assignments });
-          }
-        }
-        await api.setResponsibilityConfig(pid, m.roles.filter((x2) => x2 !== role), m.mode);
-        void load();
+        try {
+          await api.setResponsibilityConfig(pid, m.roles.filter((x2) => x2 !== role), m.mode,
+                                            { drop: [role] });
+          void load();
+        } catch (e) { toast(`Couldn't remove ${role}: ${(e as Error).message}`, "error"); }
       };
       th.append(span, x); htr.append(th);
     }

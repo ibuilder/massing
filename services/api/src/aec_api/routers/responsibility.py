@@ -40,12 +40,25 @@ def get_templates(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
 @router.put("/projects/{pid}/responsibility/config")
 def put_config(pid: str, roles: list[str] = Body(..., embed=True),
                mode: str = Body("RACI", embed=True),
+               rename: dict[str, str] | None = Body(None, embed=True),
+               drop: list[str] | None = Body(None, embed=True),
                db: Session = Depends(get_db), actor: str = Depends(require_role("reviewer"))):
-    """Set the project's role columns and the matrix mode (RACI or DACI)."""
+    """Set the project's role columns and the matrix mode (RACI or DACI), migrating the cells to
+    match **in one transaction**.
+
+    `rename` maps an old column name to its new one, `drop` names columns whose cells should be
+    cleared from every row; both are optional and describe how the cells move, since `roles` alone
+    cannot distinguish a rename from a remove-plus-add. A mode change remaps the doer letter (R↔D)
+    on its own. Nothing is written unless all of it can be."""
     _project(db, pid)
-    out = responsibility.set_config(db, pid, roles, mode, actor)
+    try:
+        out = responsibility.set_config(db, pid, roles, mode, actor, rename=rename, drop=drop)
+    except ValueError as e:
+        # Raised before any write — the message names which of `roles`/`rename`/`drop` disagrees.
+        raise HTTPException(400, str(e)) from e
     audit.record(db, action="responsibility.config", actor=actor, method="PUT",
                  path=f"/projects/{pid}/responsibility/config", detail=out)
+    db.commit()   # the engine committed the config + row migration; persist the audit row too
     return out
 
 
@@ -59,4 +72,5 @@ def apply_template(pid: str, key: str = Body(..., embed=True), mode: str = Body(
         raise HTTPException(400, out["error"])
     audit.record(db, action="responsibility.apply_template", actor=actor, method="POST",
                  path=f"/projects/{pid}/responsibility/apply-template", detail=out)
+    db.commit()   # ditto — `get_db` never commits, so an audit row alone would be dropped on close
     return out

@@ -56,17 +56,78 @@ def config(db: Session, pid: str) -> dict:
     return {"id": cfg["id"] if cfg else None, "roles": list(roles), "mode": mode}
 
 
-def set_config(db: Session, pid: str, roles: list[str], mode: str, actor: str) -> dict:
-    """Upsert the single config row (role columns + mode)."""
+def set_config(db: Session, pid: str, roles: list[str], mode: str, actor: str, *,
+               rename: dict[str, str] | None = None, drop: list[str] | None = None,
+               commit: bool = True) -> dict:
+    """Upsert the config row (role columns + mode) **and migrate every row to match, atomically.**
+
+    The columns and the cells keyed by them are one fact stored in two places, so changing the
+    columns without migrating the cells leaves the matrix self-contradictory. `rename` and `drop`
+    say how the cells move; the mode's doer letter (R↔D) is remapped whenever `mode` changes,
+    because `matrix()` hides any letter that is not valid in the current mode — a stranded "R"
+    under DACI does not look wrong, it looks *absent*, and the row simply reports no doer.
+
+    **Every write here shares one transaction.** The panel used to do this from the browser as one
+    PATCH per row followed by this call, and a failure part-way committed the rows it had already
+    reached: a half-applied rename leaves one logical role under two names, only one of which is
+    still a column, and re-running does not repair it because the rows that already moved no longer
+    match the name being renamed.
+
+    Refuses, before writing anything:
+      * a `rename` whose source is still a column, or whose target is not one — the caller's own
+        `roles` list disagreeing with its own `rename` is a bug, and guessing which half is right
+        would write the inconsistency rather than the intent;
+      * a `drop` naming a column that is still in `roles` — clearing a live column's cells while
+        leaving the column standing is silent data loss.
+    Raised as `ValueError`, not returned as an `{"error": ...}` dict, so a caller that forgets to
+    check cannot proceed as though it had succeeded — which is the exact failure this fixes.
+    """
     mode = mode if mode in MODES else "RACI"
     roles = [str(r).strip() for r in roles if str(r).strip()][:MAX_ROLES] or DEFAULT_ROLES
-    _, cfg = _rows_and_config(db, pid)
+    # Strip on both sides, because `roles` is stripped above: an untrimmed rename target would not
+    # be found in the stripped column list and the whole call would 400 on a legitimate rename.
+    rename = {k: v for k, v in ((str(k).strip(), str(v).strip()) for k, v in (rename or {}).items())
+              if k and v and k != v}
+    drop = [d for d in (str(d).strip() for d in (drop or [])) if d]
+    have = set(roles)
+    for src, dst in rename.items():
+        if src in have:
+            raise ValueError(f"cannot rename {src!r}: it is still one of the role columns")
+        if dst not in have:
+            raise ValueError(f"cannot rename {src!r} to {dst!r}: {dst!r} is not a role column")
+    for d in drop:
+        if d in have:
+            raise ValueError(f"cannot clear {d!r}: it is still a role column — remove it first")
+
+    rows, cfg = _rows_and_config(db, pid)
+    before = ((cfg.get("data") if cfg else None) or {}).get("mode")
+    before = before if before in MODES else "RACI"
+    # R→D (or D→R) only when the mode actually moves. Letters that are already correct, and letters
+    # that are neither doer, are left alone — this migrates the grid, it does not rewrite it.
+    old_doer, new_doer = DOER[before], DOER[mode]
+    remapped = 0
+    for r in rows:
+        cur = (r.get("data") or {}).get("assignments") or {}
+        nxt = {}
+        for role, letter in cur.items():
+            role = rename.get(role, role)
+            if role in drop:
+                continue
+            if before != mode and letter == old_doer:
+                letter = new_doer
+            nxt[role] = letter
+        if nxt != cur:
+            mod.update_record(db, KEY, pid, r["id"], {"assignments": nxt}, actor, None, commit=False)
+            remapped += 1
+
     data = {"kind": "config", "activity": "· matrix settings", "roles": roles, "mode": mode}
     if cfg:
-        mod.update_record(db, KEY, pid, cfg["id"], data, actor, None)
+        mod.update_record(db, KEY, pid, cfg["id"], data, actor, None, commit=False)
     else:
-        mod.create_record(db, KEY, pid, {"data": data}, actor, None)
-    return {"roles": roles, "mode": mode}
+        mod.create_record(db, KEY, pid, {"data": data}, actor, None, commit=False)
+    if commit:
+        db.commit()
+    return {"roles": roles, "mode": mode, "rows_remapped": remapped}
 
 
 def _validate(rows: list[dict], roles: set[str], mode: str) -> dict:
@@ -268,13 +329,18 @@ def apply_template(db: Session, pid: str, key: str, mode: str, actor: str) -> di
                              "Nothing was changed.", "created": 0}
     else:
         roles = tpl_roles
-    set_config(db, pid, roles, mode, actor)
+    # One transaction for the whole application: the config, the doer remap `set_config` performs on
+    # any EXISTING rows when the mode moves, and the template's own rows. Seeding half a template
+    # onto a matrix whose mode has already flipped is the same self-contradiction as a half rename.
+    cfg_out = set_config(db, pid, roles, mode, actor, commit=False)
     created = 0
     for r in tpl["rows"]:
         data = {
             "activity": r["activity"], "phase": r["phase"], "category": r["category"],
             "assignments": {role: remap(v) for role, v in r["assignments"].items()},
         }
-        mod.create_record(db, KEY, pid, {"data": data}, actor, None)
+        mod.create_record(db, KEY, pid, {"data": data}, actor, None, commit=False)
         created += 1
-    return {"applied": key, "created": created, "mode": mode}
+    db.commit()
+    return {"applied": key, "created": created, "mode": mode,
+            "rows_remapped": cfg_out["rows_remapped"]}
