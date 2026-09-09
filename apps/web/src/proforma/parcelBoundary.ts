@@ -128,6 +128,11 @@ export function parcelBoundaryControl(
   host: ParcelBoundaryHost, onChange: (p: LoadedParcel | null) => void,
 ): ParcelBoundaryControl {
   let loaded: LoadedParcel | null = null;
+  // Every read carries a sequence number, and only the newest may publish. Clear bumps it too.
+  // Without this a user can start a read, press Clear before it settles, and have the LATE
+  // response resurrect the parcel they just dismissed — after which "Generate IFC model" saves
+  // a model and a proforma for a lot the panel no longer shows. Raised in review.
+  let reads = 0;
 
   const wrap = document.createElement("div");
   wrap.style.cssText = "margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
@@ -172,10 +177,12 @@ export function parcelBoundaryControl(
 
   useBtn.onclick = async () => {
     useBtn.disabled = true;
+    const seq = ++reads;
     try {
       const body = parseBoundary(ta.value);
       say("reading the boundary…");
       const r = await host.api.parcelAnalyze(body);
+      if (seq !== reads) return;               // superseded or cleared while this was in flight
       loaded = {
         ring: r.ring_m, areaM2: r.area_m2, areaAcres: r.area_acres,
         rectM2: r.bounding_rect_m2, widthM: r.lot_width_m, depthM: r.lot_depth_m,
@@ -187,13 +194,14 @@ export function parcelBoundaryControl(
     } catch (e) {
       // The parcel is NOT adopted on a failure, and any previously loaded one is left alone — a
       // half-read boundary silently replacing a good one is worse than a rejected paste.
-      say((e as Error).message, "var(--status-crit)");
+      if (seq === reads) say((e as Error).message, "var(--status-crit)");
     } finally {
       useBtn.disabled = false;
     }
   };
 
   clearBtn.onclick = () => {
+    reads++;                                   // invalidate anything still in flight
     loaded = null;
     clearBtn.hidden = true;
     say("back to the width × depth rectangle.");

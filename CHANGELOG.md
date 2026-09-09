@@ -43,6 +43,28 @@ while a control on that very tab had been sending it all along. Two false positi
 direction its own docstring calls the expensive one. Assignments now count; comparisons and arrow
 parameters still do not, and a self-test pins the distinction.
 
+### Parcel boundaries and T&M reports: four corrections from review
+
+- **A line with no rate but an amount already entered was reported as excluded.** Only a line with a
+  *typed rate* was counted as being in the ticket total, but an amount entered directly never reaches
+  the rate-extension step at all — it survives untouched and is summed into the total regardless. The
+  same contradiction the previous entry fixed, one path over, and the fixture there could not see it
+  because it had a rate.
+- **A parcel boundary with a repeated point produced a wrong buildable footprint.** Stripping the
+  duplicated closing point is not enough; an interior repeat survives it. The setback offset divides
+  by each edge's length and guards against division by zero, so a zero-length edge does not fail —
+  it leaves that corner un-inset while its neighbours move, and returns a plausible polygon with the
+  wrong area. Repeated points are now removed before anything is measured, and a boundary with fewer
+  than three distinct points is refused.
+- **Clearing a parcel while it was still loading could bring it back.** Press "Use this parcel", then
+  Clear before the response arrives, and the late response republished the parcel just dismissed —
+  after which "Generate IFC model + apply" would save a model and a proforma for a lot the panel no
+  longer showed.
+- **A WKT `MULTIPOLYGON` was accepted by the panel and rejected by the server.** Refused locally now,
+  by name, with the export that works. Supporting it properly is a design question rather than a
+  cleanup: the buildable footprint comes from offsetting one outer ring, and a lot split by a
+  right-of-way has no single ring to offset.
+
 ### T&M pricing: an unpriced line that was in the total after all
 
 A follow-up review found the pricing report contradicting the figure printed beside it. An equipment

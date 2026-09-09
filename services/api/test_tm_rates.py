@@ -273,6 +273,22 @@ with TestClient(app) as c:
               for u in typed_rep["unpriced"]), typed_rep["unpriced"])
     check("...and no rate variance, because $100/hr and $1,200/week are not comparable numbers",
           not typed_rep["variance"], typed_rep["variance"])
+
+    # (iv-d) NO typed rate, but an amount already on the line. This never reaches the extension
+    # block — that needs a rate — so the amount survives untouched, and `apply_table_totals` sums the
+    # amount column into the ticket total regardless. `in_totals: bool(typed)` called it excluded
+    # while it sat in the figures: the same contradiction (iv-c) fixed, one path over, and the
+    # fixture there could not see it because it had a rate. Raised in review.
+    kept_tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8, "amount": 800}])
+    kept_rep = price(kept_tid)
+    assert rows(kept_tid, "equipment_lines")[0].get("amount") == 800, rows(kept_tid, "equipment_lines")[0]
+    check("an amount already on the line counts as IN the totals, rate or no rate",
+          [u["in_totals"] for u in kept_rep["unpriced"]] == [True], kept_rep["unpriced"])
+    # The negative case, so the check above cannot pass by always answering True.
+    bare_tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8}])
+    bare_rep = price(bare_tid)
+    check("...and neither rate nor amount really is excluded",
+          [u["in_totals"] for u in bare_rep["unpriced"]] == [False], bare_rep["unpriced"])
     # Sequenced plainly rather than crammed into one expression: the walrus-and-tuple version put
     # `price()` inside a short-circuit `and`, so a None from `stored()` would have SKIPPED the
     # pricing rather than failing the check, and it carried no detail. Raised in review.

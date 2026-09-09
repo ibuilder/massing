@@ -58,6 +58,31 @@ try:
 except ValueError as e:
     assert "too large" in str(e)
 
+# --- PARCEL-SHAPE: a repeated vertex must not reach offset_polygon ---------------------------------
+# Stripping the CLOSING duplicate is not enough — an interior repeat survives it. `offset_polygon`
+# divides by each edge's length and guards with `ln or 1e-9`, so a zero-length edge does not raise:
+# the normal becomes ~1e9 and that vertex is left UNMOVED while its neighbours inset. The result is
+# a plausible polygon with the wrong area, which is worse than a refusal because nothing looks
+# broken. Raised in review, and asserted through the real offset rather than on the ring alone.
+import sys as _sys0  # noqa: E402
+
+_sys0.path.insert(0, os.path.join("..", "data", "src"))
+from aec_data.massing import offset_polygon as _offset  # noqa: E402
+
+dup = {"type": "Polygon", "coordinates": [[[1000, 2000], [1000, 2000], [1050, 2000], [1050, 2050],
+                                           [1000, 2050], [1000, 2000]]]}
+d = pg.analyze(geojson=dup)
+assert d["ring_m"] == [[0.0, 0.0], [50.0, 0.0], [50.0, 50.0], [0.0, 50.0]], d["ring_m"]
+assert d["vertices"] == 4 and d["area_m2"] == 2500.0, d
+assert _offset(d["ring_m"], 5) == [[5.0, 5.0], [45.0, 5.0], [45.0, 45.0], [5.0, 45.0]], _offset(d["ring_m"], 5)
+# ...and a boundary that is only repeats is refused rather than emitted as a 1-point ring.
+for degenerate in ([[0, 0], [0, 0], [0, 0]], [[5, 5], [5, 5]]):
+    try:
+        pg.analyze(geojson={"type": "Polygon", "coordinates": [degenerate]})
+        raise AssertionError(f"expected ValueError for {degenerate!r}")
+    except ValueError:
+        pass
+
 # --- PARCEL-SHAPE: the projected ring comes BACK, and it sizes a smaller building ------------------
 # `analyze` computed the metric ring and threw it away, so the only lot a client could describe was
 # `lot_width × lot_depth` — a bounding rectangle, whose area is ALWAYS ≥ the parcel's. The bias runs

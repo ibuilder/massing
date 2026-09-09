@@ -428,7 +428,15 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
                 # the report contradicting the total beside it. Raised in review on #483, after
                 # that PR had merged.
                 unpriced.append({"table": field, "name": name, "column": qty_col,
-                                 "quantity": _n(row.get(qty_col)), "in_totals": bool(typed),
+                                 "quantity": _n(row.get(qty_col)),
+                                 # `typed OR a retained amount`. A line with no rate of its own but
+                                 # an amount already entered never reaches the extension block (that
+                                 # needs a rate), so the amount survives untouched — and
+                                 # `apply_table_totals` sums the amount column into the ticket
+                                 # total regardless. `bool(typed)` alone called that excluded while
+                                 # it was in the figures: the same contradiction this field was
+                                 # added to end, one path over. Raised in review.
+                                 "in_totals": bool(typed or _n(row.get("amount"))),
                                  "reason": f"the register quotes this per {entry[1]}, "
                                            + ("so it could not check the rate you entered"
                                               if typed else "and the line is in hours")})

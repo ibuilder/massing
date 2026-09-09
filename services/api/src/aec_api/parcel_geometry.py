@@ -77,6 +77,14 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
     ring = parse_boundary(geojson, wkt)
     if ring[0] == ring[-1]:
         ring = ring[:-1]
+    # Drop CONSECUTIVE duplicates, including the wrap-around pair. Stripping the closing point is not
+    # enough: an interior repeat survives it, and `offset_polygon` divides by each edge's length, so
+    # a zero-length edge does not raise — `ln or 1e-9` makes the normal ~1e9 and the vertex is left
+    # UNMOVED while its neighbours inset. The result is a plausible-looking polygon with a wrong
+    # area, which is worse than a refusal: it becomes a buildable footprint nobody can see is wrong.
+    # This function's own comment already claimed the ring was safe for that reason, which was true
+    # of the closing vertex and false of every other one. Raised in review.
+    ring = [p for i, p in enumerate(ring) if p != ring[i - 1]] or ring[:1]
     if len(ring) < 3:
         raise ValueError("a parcel boundary needs at least 3 distinct points")
     m, was_lonlat = _to_metres(ring)

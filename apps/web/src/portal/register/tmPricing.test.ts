@@ -38,7 +38,11 @@ const FULL: TmPricingReport = {
                reason: "the register quotes this per week, so it could not check the rate you"
                  + " entered", in_totals: true }],
   priced: 2,
-  totals: { labor_total: 760, material_total: 425, equipment_total: 0, grand_total: 1185 },
+  // The crane below carries `in_totals: true`, so the totals must CONTAIN its $800. They said
+  // equipment $0 / grand $1,185 — a fixture reproducing the exact contradiction the assertions
+  // beneath it exist to forbid, which is how a report and its own total come to disagree in
+  // the first place. Raised in review.
+  totals: { labor_total: 760, material_total: 425, equipment_total: 800, grand_total: 1985 },
 };
 
 function host(rep: TmPricingReport | Error) {
@@ -94,7 +98,7 @@ describe("the T&M pricing control", () => {
     expect(text, "an excluded quantity says so").toMatch(/2 ot hours are NOT in the figures above/);
     expect(text, "...and one the line priced itself must NOT deny the amount above it")
       .toMatch(/8 hours are in the figures above at the rate you entered/);
-    expect(text).toContain("$1,185");
+    expect(text).toContain("$1,985");
   });
 
   it("says so when a run changes nothing, instead of looking like a failure", async () => {

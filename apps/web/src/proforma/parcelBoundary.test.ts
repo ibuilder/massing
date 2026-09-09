@@ -136,6 +136,27 @@ describe("the parcel boundary control", () => {
     expect(c.parcel()).toBeNull();
   });
 
+  it("a read that lands after Clear does NOT resurrect the parcel", async () => {
+    // Press Use, press Clear before the request settles, and the late response used to publish the
+    // parcel the user had just dismissed — after which "Generate IFC model + apply" would save a
+    // model and a proforma for a lot the panel no longer showed. Raised in review.
+    let release: ((v: unknown) => void) | undefined;
+    const h = {
+      api: { parcelAnalyze: vi.fn().mockImplementation(() => new Promise((r) => { release = r; })) },
+    } as unknown as ParcelBoundaryHost;
+    const seen: (LoadedParcel | null)[] = [];
+    const c = parcelBoundaryControl(h, (p) => seen.push(p));
+    (c.el.querySelector("textarea") as HTMLTextAreaElement).value = '{"type":"Polygon"}';
+    (c.el.querySelector("button") as HTMLButtonElement).click();
+    const clear = [...c.el.querySelectorAll("button")]
+      .find((b) => (b.textContent ?? "") === "Clear") as HTMLButtonElement;
+    clear.click();
+    release?.(ELL);
+    await flush();
+    expect(c.parcel(), "the cleared parcel must stay cleared").toBeNull();
+    expect(seen.filter(Boolean), "and nothing may publish it after the fact").toEqual([]);
+  });
+
   it("can be cleared back to the rectangle", async () => {
     const seen: (LoadedParcel | null)[] = [];
     const c = parcelBoundaryControl(host(ELL), (p) => seen.push(p));
