@@ -93,6 +93,18 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
 
+    # PARCEL-SHAPE — the projected ring itself, which this function computed and then threw away.
+    # `massing.compute_massing` takes `lot_polygon` in metres and offsets it inward for the real
+    # buildable footprint; without the ring every caller had to fall back to lot_width × lot_depth,
+    # and a bounding rectangle's area is ALWAYS ≥ the parcel's. That bias runs the whole way down:
+    # lot area → max GFA → unit count → the acquisition proforma's IRR, optimistic at every step.
+    # Origin-shifted to its own bbox minimum so the polygon sits near (0,0) — the real coordinates
+    # stay in `bbox`/`centroid` for export, and the model renders near the scene origin.
+    # OPEN (no repeated closing vertex): `offset_polygon` divides by each edge's length, and a
+    # zero-length closing edge would hand it a meaningless normal.
+    ox, oy = min(q[0] for q in m), min(q[1] for q in m)
+    bw, bd = max(q[0] for q in m) - ox, max(q[1] for q in m) - oy
+
     out: dict[str, Any] = {
         "parcel_id": parcel_id,
         "vertices": len(ring), "coordinates_were_lonlat": was_lonlat,
@@ -101,8 +113,14 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
         "centroid": {"x": round(cx, 6), "y": round(cy, 6)},
         "bbox": {"minx": min(p[0] for p in ring), "miny": min(p[1] for p in ring),
                  "maxx": max(p[0] for p in ring), "maxy": max(p[1] for p in ring)},
+        "ring_m": [[round(x - ox, 3), round(y - oy, 3)] for x, y in m],
+        "lot_width_m": round(bw, 2), "lot_depth_m": round(bd, 2),
+        "bounding_rect_m2": round(bw * bd, 1),
         "note": "Parcel metrics from the uploaded boundary (GeoJSON/WKT — no government scraping). Lon/lat "
-                "rings are projected equirectangularly at the centroid latitude (~0.1% at parcel scale).",
+                "rings are projected equirectangularly at the centroid latitude (~0.1% at parcel scale). "
+                "`ring_m` is that boundary in metres, origin-shifted to its own bounding box — send it "
+                "to /generate/massing as `lot_polygon` to size a building on the real parcel rather than "
+                "on `lot_width_m` × `lot_depth_m`, which overstates the lot by `bounding_rect_m2` − `area_m2`.",
     }
 
     if zoning or proposal:

@@ -147,6 +147,12 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
       parcel_id: string | null; vertices: number; coordinates_were_lonlat: boolean;
       area_m2: number; area_acres: number; perimeter_m: number;
       centroid: { x: number; y: number }; bbox: { minx: number; miny: number; maxx: number; maxy: number };
+      /** The boundary in metres, origin-shifted to its own bounding box and OPEN — feed it
+       *  straight to `previewMassing`/`generateMassing` as `lot_polygon`. */
+      ring_m: number[][];
+      /** The bounding rectangle a user would otherwise have typed, and its area — always
+       *  ≥ `area_m2`, which is the whole reason the ring is worth sending. */
+      lot_width_m: number; lot_depth_m: number; bounding_rect_m2: number;
       compliance?: { checks: Check[]; ok: boolean | null; violations: string[] }; note: string;
     }>(`/parcels/analyze`, { method: "POST", body: JSON.stringify(body) });
   }

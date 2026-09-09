@@ -306,7 +306,7 @@ const UNCALLED: readonly string[] = [
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
   "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
   "mep", "modelAdjacency", "moduleCalc", "myWork",
-  "netEffectiveRent", "normalizeT12", "parcelAnalyze", "parcelsDataStatus",
+  "netEffectiveRent", "normalizeT12", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot",
   "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",

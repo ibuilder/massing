@@ -12,6 +12,36 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Feasibility sizes the building on the real parcel, not on its bounding rectangle
+
+The "Generate from zoning" tab could describe a lot only as **lot width × lot depth**. For any parcel
+that is not a rectangle — a corner lot, a flag lot, anything with a cut corner — that describes a box
+*around* the lot, and a box's area is always larger. The error is not cosmetic: lot area sets max
+GFA, which sets floors, which sets the unit count, which sets rent and the acquisition proforma's
+IRR. Every one of those came out optimistic and none of them said so. On an L-shaped 1,600 m² lot
+inside a 50 × 50 m box, the rectangle yields **5,000 m² of buildable GFA against the parcel's true
+3,200** — 56% more building, on the number a deal gets priced from.
+
+Three pieces existed and had never been connected. The parcel reader parsed a real GeoJSON/WKT
+boundary and projected it to metres — then returned the area and threw the projected outline away.
+The massing engine had always accepted a `lot_polygon` and offset it inward for a true buildable
+footprint, and nothing could reach it: the request type had no such field. And the parcel reader
+itself had no caller on any screen.
+
+Now: paste a boundary (or load a `.geojson` / `.wkt` file) on the feasibility tab. It reports the
+parcel's area, the rectangle it replaces, and the percentage between them, and the width/depth boxes
+become the parcel's own bounding extents, disabled — so it is clear which figure the building is
+being sized on. The result summary says the same thing again beside the GFA. Nothing is substituted
+silently; a user who prefers the rectangle can clear the boundary and still have it.
+
+**A gate was wrong in the same direction.** `test_body_param_reach.py` decides whether the web app
+sends a given request field by looking for it in the source — and only recognised object-literal
+syntax (`key:`). A body assembled field by field (`p.dome_radius = …`, which is how this tab has
+always sent its optionals) was invisible to it, so `dome_radius` sat on the "nothing sends this" list
+while a control on that very tab had been sending it all along. Two false positives out of 27, in the
+direction its own docstring calls the expensive one. Assignments now count; comparisons and arrow
+parameters still do not, and a self-test pins the distinction.
+
 ### T&M pricing: five corrections to the first cut
 
 Review of the merged TM-RATES change found the pricing engine wrong in five ways. All are fixed, and
