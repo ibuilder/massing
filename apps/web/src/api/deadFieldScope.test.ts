@@ -81,7 +81,16 @@ function declaredFields(): Map<string, string> {
   return out;
 }
 
-const files = walk(WEB);
+// THIS FILE IS NOT PART OF THE CORPUS, and leaving it in was a live defect caught in review.
+// The scan matches a bare identifier in raw text — comments and strings included — so the prose
+// below naming `elevation`, `elevationUnit` and `SpatialNode` counted as *readers* of those fields.
+// Measured: unread was 31 with this file in the corpus and 32 without, and the single field it
+// moved was `SpatialNode.elevationUnit` — precisely the one the roadmap holds up as the correctly
+// reported-unread half of the pair. **The file falsified its own worked example by existing**, and
+// the reported population would then drift with documentation edits rather than with product usage.
+// A measurement whose corpus contains the measurement is the same shape as the flaw it records.
+const AUDIT = resolve(API, "deadFieldScope.test.ts");
+const files = walk(WEB).filter((f) => f !== AUDIT);
 const tokens = new Map<string, Set<string>>();
 for (const f of files) {
   tokens.set(f, new Set(readFileSync(f, "utf-8").match(/[A-Za-z_]\w*/g) ?? []));
@@ -121,6 +130,19 @@ describe("DEAD-FIELD: what the derivation can and cannot see", () => {
     expect(typed,
       "a production file now handles SpatialNode — check whether it renders `elevation`, and "
       + "whether it renders `elevationUnit` beside it (the unit varies per model, often mm)")
+      .toEqual([]);
+  });
+
+  it("this file's own prose is not a reader — the exclusion above, asserted", () => {
+    // Pins the fix rather than trusting it: `elevationUnit` is named several times in the comments
+    // here, so it is unread ONLY while this file is out of the corpus. Delete the filter and this
+    // fails, which is the point — the roadmap's 32 and the number this test computes must agree.
+    const decl = decls.get("SpatialNode.elevationUnit");
+    expect(decl, "SpatialNode.elevationUnit is no longer declared — re-derive before trusting this")
+      .toBeTruthy();
+    expect(readersOf("elevationUnit", decl!),
+      "something now reads elevationUnit — if it is this audit file, the corpus filter has been "
+      + "removed and the population is drifting with prose rather than with product usage")
       .toEqual([]);
   });
 
