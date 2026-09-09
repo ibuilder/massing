@@ -44,10 +44,16 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
       fully_reconciled: boolean }>(
       `/projects/${pid}/finance/reconcile`);
   }
-  /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first. */
+  /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first.
+   *
+   *  An ENVELOPE, not a bare array: `import_total` is how many batches there are, `import_count`
+   *  how many this window holds. They differ only when `truncated`, and a caller that shows one
+   *  while meaning the other is why both are here. */
   financeImports(pid: string) {
-    return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
-      imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
+    return this.json<{ imports: { ts: string | null; actor: string | null; module: string;
+      filename: string; imported: number; error_count: number }[];
+      import_count: number; import_total: number; truncated: boolean }>(
+      `/projects/${pid}/finance/imports`);
   }
 
   /** Investor cap table — ownership by commitment + contributed/distributed totals. */

@@ -298,6 +298,74 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > because it forced every site to be read; it was not worth trusting, because what it predicted
 > matched only where it happened to be right.
 
+> ### 🔴 LIMIT-FILTER SWEEP RUN 2026-09-09 — **two live defects, and both answer "you have nothing"**
+>
+> `agent_packs.run_log` applied `limit` before the project filter, so a quiet project behind a busy
+> one reported zero runs while runs existed. That was fixed as an instance; this asks whether it was
+> a class. It was.
+>
+> **A cap is a promise about SIZE. A predicate applied after it turns that into a promise about
+> MEMBERSHIP the code cannot keep** — the matching rows may all sit outside the window, so what comes
+> back is not a short answer but an EMPTY one. Empty reads as "there are none", which is a different
+> claim and the one a person acts on. Nothing errors, no count looks wrong, and the defect is
+> invisible unless somebody independently knows the row exists. *The severity does not scale with the
+> cap; it scales with how busy the neighbours are.*
+>
+> Population derived by AST over `services/api/src/aec_api`: functions calling `.limit()` that then
+> filter rows in Python **after** the cap. Seven candidates, two live:
+>
+> | site | verdict |
+> |---|---|
+> | `fin_ingest.import_history` | 🔴 capped 100 across every project, then dropped the others in Python — **an empty import lineage** with one import on A behind 150 newer on B |
+> | `modules.notifications` | 🔴 project in SQL, but the newest 200 project-wide rows then filtered to *this user* in Python — **the bell feed went 1 → 0** behind 250 activities by other people |
+> | `agent_packs.run_log` | ✅ fixed 2026-09-09; still matches the analyser for an unrelated reason, below |
+> | `pins.resolve_pins` · `report._project_photos` · `routers/standards.py::load_timings` · `topic_lifecycle.timeline` | ✅ scope is already in SQL; the Python test classifies rather than scopes |
+>
+> **The fix for `notifications` was written ten lines below it the whole time.** `my_work` says so in
+> its own docstring — *"Filters in SQL … bounded on both axes"* — over the same registry and the same
+> two conditions. That is the argument for sweeping a class rather than fixing the instance somebody
+> reports: the correct version can be adjacent to the defect and still not reach it.
+>
+> **The per-module cap is `limit`, and that is lossless rather than a smaller guess.** The merged feed
+> keeps the newest `limit` rows, so no module can contribute more than `limit` of them. A cap applied
+> *before* the predicate has no such property — which is the whole distinction the sweep is about.
+>
+> ⚠️ **A mutation SURVIVED, and it disproved the engine's own docstring.** The new `notifications`
+> said the INNER join is what drops an activity whose record was deleted. Switching it to an outer
+> join changed nothing: the relevance predicate reads the RECORD's columns, which are NULL for a
+> missing record, so the `OR` is NULL and the row fails the `WHERE` under either join. That is
+> **`AGG-OUTER`'s lesson running the other way** — there a predicate on the nullable side silently
+> turned an outer join into an inner one and deleted rows; here the same effect is what makes the
+> behaviour correct. The claim was corrected rather than the mutation dropped. *A surviving mutation
+> is not always a missing assertion; sometimes it is a wrong explanation.*
+>
+> A mutation that did NOT survive is the one worth naming: the naive `actor != user` in SQL is
+> NULL-rejecting, while the Python `a.actor == user` it replaces is False for `None` — so a faithful-
+> looking rewrite would have silently stopped delivering every unattributed activity.
+>
+> **The gate is `services/api/test_limit_filter.py`, and it FAILS CLOSED.** Every site the analyser
+> finds must carry a hand-written verdict; an unclassified one reds the build. The analyser is
+> self-tested in **both** directions — three authoring shapes it must report, three near-misses it
+> must stay silent on, including one that separates *filter before cap* (correct) from *filter after
+> cap* (the defect), because ignoring line order would report the correct shape as a defect.
+>
+> **It immediately flagged code shipped hours earlier, and that was the right outcome.**
+> `run_log` matches on `failures = [x for x in runs if x.get("ok") is False]` — a tally over rows
+> already returned, which removes nothing. Teaching the analyser to skip it would mean teaching it
+> which comprehensions "produce the result", and **a predicate that decides what to LOOK at hides
+> everything it excludes from its own output** — the failure this repository has now hit four times.
+> Over-reporting costs a line in a table; under-reporting costs a defect nobody can see. It is
+> classified, not excluded.
+>
+> **Axis B is named and NOT done — undisclosed truncation**, a different class found while walking
+> this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns
+> `event_count` computed *after* capping at 500; `routers/standards.py::load_timings` reports
+> `loads` as the capped row count; `pins.resolve_pins` ends `return out[:_MAX_PINS]` **directly
+> beneath its own docstring saying "Silence is the failure mode"**, with `located()` adding *"a sheet
+> that draws 4 of 7 pins and says nothing is the bug"*. The principle is written above the line that
+> breaks it. `import_history` got its disclosure here because it was already being changed; the other
+> three are a separate, smaller piece of work and are recorded rather than half-done.
+
 
 
 - ✅ **DB-URL-AMBIENT — a test run the way its own docstring tells you to could build a schema in

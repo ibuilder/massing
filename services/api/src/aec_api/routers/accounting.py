@@ -120,6 +120,10 @@ def finance_reconcile(pid: str, db: Session = Depends(get_db),
 def finance_imports(pid: str, limit: int = 100, db: Session = Depends(get_db),
                     _: str = Depends(require_role("viewer"))):
     """FIN-INGEST lineage: the project's audit-logged import batches (file, module, counts,
-    who, when), newest first — where the numbers came from."""
+    who, when), newest first — where the numbers came from.
+
+    Returns an envelope rather than a bare list: `import_total` and `truncated` sit beside the
+    rows, because `limit` is a window and a window that cannot say so reads as the whole history.
+    """
     from .. import fin_ingest
     return fin_ingest.import_history(db, pid, limit=limit)

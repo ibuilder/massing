@@ -786,41 +786,89 @@ def bulk(db: Session, key: str, project_id: str, ids: list[str], action: str,
 def notifications(db: Session, project_id: str, user: str, party: str | None,
                   limit: int = 30) -> list[dict]:
     """Recent activity on records relevant to the user (assigned to them, or their party
-    can act on), excluding their own actions — drives the bell feed + unread badge."""
-    recent = (db.query(RecordActivity)
-              .filter(RecordActivity.project_id == project_id)
-              .order_by(RecordActivity.ts.desc()).limit(200).all())
-    cache: dict[tuple[str, str], dict | None] = {}
+    can act on), excluding their own actions — drives the bell feed + unread badge.
+
+    **THE RELEVANCE PREDICATE RUNS IN SQL.** It used to read the newest 200 activity rows for the
+    whole PROJECT and then ask, in Python, which of those concerned *this* user — so a person whose
+    assigned work was older than the project's last 200 events saw an empty bell while holding open
+    records. Measured: one RFI assigned to a user, buried under 250 newer activities by other
+    people, and the feed went **1 item → 0**. It is the same shape as the project filter that ran
+    after the limit in ``agent_packs.run_log``, one altitude up: the cap is applied to a population
+    far wider than the question.
+
+    ``my_work`` directly below already had the right shape — *"Filters in SQL … bounded on both
+    axes"* — over the same registry and the same two conditions. The correct version was ten lines
+    away the whole time, which is the argument for sweeping a class rather than fixing the instance
+    someone happens to report.
+
+    **Per-module cap = ``limit``, and that is lossless rather than a smaller guess.** The merged
+    feed keeps the newest ``limit`` rows, so no single module can contribute more than ``limit`` of
+    them; taking each module's newest ``limit`` therefore cannot drop a row the full scan would
+    have kept. A cap applied *before* the predicate has no such property — that is precisely the
+    defect being fixed, and the distinction is the whole point of the sweep.
+
+    Two semantics are preserved deliberately, and both would have changed under a naive
+    translation:
+
+    * **A NULL actor is KEPT.** ``a.actor == user`` is False for ``None``, so unattributed activity
+      reached the feed. A bare SQL ``actor != user`` is NULL-rejecting and would silently drop
+      those rows while looking like a faithful rewrite. Mutation-checked: the bare form fails the
+      assertion written for it.
+    * **An activity whose record was deleted is dropped**, as the old ``if not rec: continue`` did.
+      The join is INNER, but *that is not what drops it* — and the first draft of this docstring
+      claimed it was. The relevance predicate reads the RECORD's own columns, so for a missing
+      record both ``assignee == user`` and ``workflow_state IN (…)`` are NULL, the ``OR`` is NULL,
+      and the row fails the WHERE clause whichever join is used. Switching to an outer join was
+      mutated in and **survived**, which is how the wrong explanation was found. This is
+      `AGG-OUTER`'s lesson running the other way: there, a predicate on the nullable side silently
+      turned an outer join into an inner one and deleted rows; here the same effect is what makes
+      the behaviour correct. The join stays INNER because it says what is meant, not because
+      anything depends on it.
+    """
+    # Clamped, not because a caller supplies `limit` today (neither route does) but because this
+    # is now a per-module fan-out: wiring it to a query parameter later would otherwise multiply an
+    # attacker-chosen number by every module the project uses. `run_log` clamps for the same reason.
+    limit = max(1, min(int(limit), 200))
+    per_module = limit
+    # Only modules that actually have activity here — bounds the query count to what the project
+    # uses rather than to the ~139 registered registers.
+    active = [m for m in db.scalars(
+        select(RecordActivity.module).where(RecordActivity.project_id == project_id).distinct()
+    ).all() if m in TABLES]
+
+    rows: list[tuple] = []
+    for key in active:
+        t, mod = TABLES[key], REGISTRY.get(key, {})
+        # states from which `party` has at least one available action — the set form of
+        # `available_actions(mod, state, party)` being non-empty, computed without the DB.
+        actionable_states = {tr["from"] for tr in mod.get("workflow", {}).get("transitions", [])
+                             if rbac.party_allowed(party, tr.get("party", []))}
+        conds = [t.c.assignee == user]
+        if actionable_states:
+            conds.append(t.c.workflow_state.in_(actionable_states))
+        stmt = (select(RecordActivity.ts, RecordActivity.actor, RecordActivity.action,
+                       RecordActivity.record_id, t.c.ref, t.c.title, t.c.assignee)
+                .join(t, t.c.id == RecordActivity.record_id)
+                .where(RecordActivity.project_id == project_id,
+                       RecordActivity.module == key,
+                       or_(RecordActivity.actor.is_(None), RecordActivity.actor != user),
+                       or_(*conds))
+                .order_by(RecordActivity.ts.desc()).limit(per_module))
+        for r in db.execute(stmt):
+            rows.append((key, r._mapping))
+
+    rows.sort(key=lambda kr: kr[1]["ts"].isoformat() if kr[1]["ts"] else "", reverse=True)
     out = []
-    for a in recent:
-        if a.actor == user:                      # don't notify me about my own actions
-            continue
-        ckey = (a.module, a.record_id)
-        if ckey not in cache:
-            t = TABLES.get(a.module)
-            if t is None:
-                cache[ckey] = None
-            else:
-                r = db.execute(select(t.c.ref, t.c.title, t.c.assignee, t.c.workflow_state)
-                               .where(t.c.id == a.record_id)).first()
-                cache[ckey] = dict(r._mapping) if r else None
-        rec = cache[ckey]
-        if not rec:
-            continue
-        mine = rec["assignee"] == user
-        actionable = bool(available_actions(REGISTRY.get(a.module, {}), rec["workflow_state"], party))
-        if not (mine or actionable):
-            continue
+    for key, m in rows[:limit]:
+        mine = m["assignee"] == user
         out.append({
-            "module": a.module, "module_name": REGISTRY.get(a.module, {}).get("name", a.module),
-            "icon": REGISTRY.get(a.module, {}).get("icon", "•"),
-            "record_id": a.record_id, "ref": rec["ref"], "title": rec["title"],
-            "action": a.action, "actor": a.actor,
-            "ts": a.ts.isoformat() if a.ts else None,
+            "module": key, "module_name": REGISTRY.get(key, {}).get("name", key),
+            "icon": REGISTRY.get(key, {}).get("icon", "•"),
+            "record_id": m["record_id"], "ref": m["ref"], "title": m["title"],
+            "action": m["action"], "actor": m["actor"],
+            "ts": m["ts"].isoformat() if m["ts"] else None,
             "reason": "assigned" if mine else "your move",
         })
-        if len(out) >= limit:
-            break
     return out
 
 

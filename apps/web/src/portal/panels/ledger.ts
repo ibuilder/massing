@@ -277,12 +277,13 @@ async function renderFinanceGovernance(
 
   // --- where the numbers came from --------------------------------------------------------------
   try {
-    const imports = await api.financeImports(pid);
-    if (imports.length) {
+    const history = await api.financeImports(pid);
+    const heading = lineageHeading(history);
+    if (heading) {
       const h = el("div"); h.style.cssText = "margin-top:10px;font-weight:600;font-size:12.5px";
-      h.textContent = "Import lineage";
+      h.textContent = heading;
       root.appendChild(h);
-      for (const b of imports.slice(0, 8)) {
+      for (const b of history.imports.slice(0, 8)) {
         const d = el("div", "meta");
         d.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:3px 0";
         d.append(
@@ -295,4 +296,27 @@ async function renderFinanceGovernance(
       }
     }
   } catch { /* lineage is context, not a blocker — a project with no imports has none */ }
+}
+
+/** The Import lineage section's heading, or `null` when there is nothing to draw.
+ *
+ *  **Named and exported because the previous version of this decision was a live defect that
+ *  typechecked.** `GET /finance/imports` became an envelope; this panel still read
+ *  `imports.length`, which on an object is `undefined` — falsy — so the whole lineage section
+ *  disappeared while imports existed. Nothing caught it: the client's return type is a hand-written
+ *  claim about the server, so `tsc` had nothing to compare against, and a review bot found it.
+ *
+ *  That is the same defect the change it accompanied was fixing — a screen answering "nothing here"
+ *  while something is there — reintroduced one layer up, in the web client, by the fix itself.
+ *
+ *  The heading states the WINDOW when the server truncated, because "Import lineage" over 8 of 150
+ *  batches claims to be the lineage. `import_total` exists for exactly this. */
+export function lineageHeading(
+  history: { imports?: { filename: string }[]; import_total?: number; truncated?: boolean },
+): string | null {
+  const batches = history.imports ?? [];
+  if (!batches.length) return null;
+  return history.truncated
+    ? `Import lineage — newest ${batches.length} of ${history.import_total}`
+    : "Import lineage";
 }

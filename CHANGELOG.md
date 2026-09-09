@@ -12,6 +12,31 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two more screens that said "nothing here" while something was there
+
+Fixing the agent trail (below) raised an obvious question nobody had asked: *how many other screens
+answer a question by taking the most recent N of something and then narrowing?* Two more did, and
+both were reporting an empty answer to a person who had every reason to trust it.
+
+**Import history.** Finance ▸ where these numbers came from listed the newest hundred import
+batches across the whole installation and *then* kept the ones belonging to the project you were
+looking at. On a system where another project has been importing more recently, a project's import
+history came back **completely empty while imports existed** — measured with one import on a quiet
+project and 150 newer on a busy one. An empty lineage is the worst possible shape for that
+particular answer: somebody reading it is trying to find out where a figure came from, and "nothing
+was imported here" is a conclusion they will act on.
+
+**The notification bell.** The feed took the project's two hundred most recent events and then
+worked out which of them concerned *you*. On a busy project that window can be a single day, so a
+person whose assigned work was older than it saw **an empty bell while holding open records
+assigned to them** — measured going from one item to zero behind 250 events by other people. The
+"my work" list directly beside it had always done this correctly; the two now work the same way.
+
+Both now narrow first and cap second, so what you see is the newest N *of your things* rather than
+your things among the newest N. A capped import history also now says how many batches there are in
+total, so a hundred-of-a-hundred-and-fifty view stops reading as the whole file — the ledger's
+**Import lineage** heading reads "newest 100 of 150" when there is more than it is showing.
+
 ### The agent trail said "nothing ran here" while runs existed
 
 Every AI agent run against a project is recorded — which tool, through which named pack, by whom,
