@@ -18,9 +18,20 @@ import { renderResponsibility } from "./responsibility";
 // The clear path is behind a confirmation. jsdom never clicks it, so the real `confirmModal`
 // leaves a promise pending forever and the test reads as "the button did nothing" — which is
 // indistinguishable from the defect. Auto-confirm so the assertions are about the clear itself.
+// `prompted` is what the next promptModal resolves to; the rename tests set it. A constant `null`
+// would make every rename assertion pass by never starting a rename at all.
+const prompted: { value: unknown } = { value: null };
 vi.mock("../../ui/modal", () => ({
   confirmModal: () => Promise.resolve(true),
-  promptModal: () => Promise.resolve(null),
+  promptModal: () => Promise.resolve(prompted.value),
+}));
+
+// The failure paths toast rather than throw, and "did it warn?" is half the claim: a silent no-op
+// and a reported refusal look identical in the DOM.
+const toasts: string[] = [];
+vi.mock("../../ui/feedback", async (orig) => ({
+  ...(await orig<typeof import("../../ui/feedback")>()),
+  toast: (msg: string) => { toasts.push(msg); },
 }));
 
 const el = () => document.createElement("div");
@@ -159,50 +170,109 @@ describe("the RACI banner answers for assignments the grid cannot show", () => {
       .not.toHaveBeenCalled();
   });
 
-  it("re-reads after a partial clear instead of showing state the server refused", async () => {
-    // Each row is its own PATCH. On a mid-loop failure the panel must not keep rendering the
-    // in-memory assignments it optimistically emptied. Raised in review.
-    const TWO_ROWS = {
-      ...ORPHANED,
-      rows: [
-        { ...ORPHANED.rows[0]!, id: "1", ref: "RESP-001" },
-        { ...ORPHANED.rows[0]!, id: "2", ref: "RESP-002" },
-      ],
-      count: 2,
-    };
-    // What the SERVER holds after the first PATCH commits and the second is rejected: row 1 cleared,
-    // row 2 still carrying its orphaned letters. Queued as a distinct response, because asserting
-    // only that a re-read happened proves nothing about what the re-read showed — raised in review.
-    const AFTER_PARTIAL = {
-      ...TWO_ROWS,
-      rows: [
-        { ...TWO_ROWS.rows[0]!, assignments: {} },
-        { ...TWO_ROWS.rows[1]! },
-      ],
-    };
-    let calls = 0;
-    const { c, api } = ctx(TWO_ROWS, {
-      updateModuleRecord: vi.fn().mockImplementation(() => {
-        calls += 1;
-        return calls === 1 ? Promise.resolve({}) : Promise.reject(new Error("500"));
-      }),
-    }, [TWO_ROWS, AFTER_PARTIAL]);
+  it("clears a removed column in ONE call, and writes nothing when it fails", async () => {
+    // BULK-PATCH. This used to be a PATCH per row, and the test that stood here asserted the panel
+    // RE-READ after a mid-loop failure — the best available answer when half the rows were already
+    // committed. There is no half now: `drop` moves the cells inside the same transaction as the
+    // config write, so the claim is stronger and different. Kept as one test because the old one
+    // would now pass VACUOUSLY: with the loop gone, `updateModuleRecord` is never called and every
+    // assertion about a partial failure holds for a reason that no longer exists.
+    const { c, api } = ctx(ORPHANED, {
+      setResponsibilityConfig: vi.fn().mockRejectedValue(new Error("500 from the server")),
+    });
     await renderResponsibility(c); await flush();
-    const reads = api.responsibilityMatrix.mock.calls.length;
+    const before = c.root.textContent ?? "";
+    toasts.length = 0;
     const clear = [...c.root.querySelectorAll("button")]
       .find((b) => (b.textContent ?? "").includes("Clear them")) as HTMLButtonElement | undefined;
     expect(clear).toBeTruthy();
     clear!.click(); await flush(); await flush();
-    expect(api.responsibilityMatrix.mock.calls.length,
-      "a partial failure must re-read, not leave the panel ahead of the server")
-      .toBeGreaterThan(reads);
-    // ...and the re-read must be what is RENDERED: the row the server still holds is still reported.
-    const text = c.root.textContent ?? "";
-    expect(text, "the banner must still report the orphan the server did not clear")
-      .toMatch(/no longer has/);
-    expect(text).toContain("Architect/EOR");
-    expect(text, "a partial clear is not a clean matrix")
-      .not.toContain("✅ Every activity has exactly one Accountable");
+
+    expect(api.setResponsibilityConfig, "the clear must be one call, not one per row")
+      .toHaveBeenCalledTimes(1);
+    const [, roles, mode, opts] = api.setResponsibilityConfig.mock.calls[0]!;
+    expect(roles, "clearing orphans must not change the columns").toEqual(["Client", "Task Team"]);
+    expect(mode).toBe("RACI");
+    expect(opts).toEqual({ drop: ["Architect/EOR", "GC / PM"] });
+    expect(api.updateModuleRecord, "no row may be PATCHed directly any more")
+      .not.toHaveBeenCalled();
+    expect(toasts.join(" "), "a refused clear must say so").toMatch(/Couldn't clear/);
+    expect(c.root.textContent ?? "", "nothing was written, so nothing may change on screen")
+      .toBe(before);
+    expect(clear!.disabled, "the button must be re-armed so the user can retry").toBe(false);
+  });
+
+  it("renames a column and its cells in ONE call, never row by row", async () => {
+    // The dangerous one. Per-row PATCHes left the rows that had already moved carrying a name that
+    // was no longer a column — indistinguishable from an orphan, and a re-run could not find them
+    // because the name it was renaming was gone from the rows that mattered. The new column list
+    // and the cell remap now travel together, so there is no state in between.
+    prompted.value = { role: "Owner" };
+    const { c, api } = ctx(CLEAN);
+    await renderResponsibility(c); await flush();
+    const head = [...c.root.querySelectorAll("th span")]
+      .find((sp) => sp.textContent === "Client") as HTMLElement | undefined;
+    expect(head, "the 'Client' column header was not rendered").toBeTruthy();
+    head!.click(); await flush(); await flush();
+
+    expect(api.setResponsibilityConfig).toHaveBeenCalledTimes(1);
+    const [, roles, mode, opts] = api.setResponsibilityConfig.mock.calls[0]!;
+    expect(roles, "the renamed column replaces the old one in place")
+      .toEqual(["Owner", "Task Team"]);
+    expect(mode).toBe("RACI");
+    expect(opts, "the cell remap must ride WITH the column list")
+      .toEqual({ rename: { Client: "Owner" } });
+    expect(api.updateModuleRecord).not.toHaveBeenCalled();
+    prompted.value = null;
+  });
+
+  it("leaves every row on the original name when the rename is refused", async () => {
+    // The half-applied rename, stated as the panel can state it: one call, so a refusal means the
+    // whole thing did not happen. Asserting the DOM as well as the mock, because "the request was
+    // rejected" and "the screen still shows the old name" are different claims.
+    prompted.value = { role: "Owner" };
+    const { c, api } = ctx(CLEAN, {
+      setResponsibilityConfig: vi.fn().mockRejectedValue(new Error("row 3 refused")),
+    });
+    await renderResponsibility(c); await flush();
+    toasts.length = 0;
+    const head = [...c.root.querySelectorAll("th span")]
+      .find((sp) => sp.textContent === "Client") as HTMLElement | undefined;
+    head!.click(); await flush(); await flush();
+
+    expect(api.updateModuleRecord).not.toHaveBeenCalled();
+    const headers = [...c.root.querySelectorAll("th span")].map((sp) => sp.textContent);
+    expect(headers, "a refused rename must leave the columns exactly as they were")
+      .toContain("Client");
+    expect(headers).not.toContain("Owner");
+    expect(toasts.join(" ")).toMatch(/Couldn't rename Client/);
+    prompted.value = null;
+  });
+
+  it("removes a column by naming it in `drop`, and switches mode without touching rows", async () => {
+    // Two handlers, one claim: the cells that a column edit moves are the SERVER's to move. The
+    // mode toggle is here because `matrix()` hides any letter invalid in the current mode, so a row
+    // left on the old doer renders empty rather than wrong — the failure nobody would report.
+    const { c, api } = ctx(CLEAN);
+    await renderResponsibility(c); await flush();
+    const x = [...c.root.querySelectorAll("th span")]
+      .find((sp) => (sp.textContent ?? "").includes("✕")) as HTMLElement | undefined;
+    expect(x, "no remove control on the first column").toBeTruthy();
+    x!.click(); await flush(); await flush();
+    const [, roles, , opts] = api.setResponsibilityConfig.mock.calls[0]!;
+    expect(roles).toEqual(["Task Team"]);
+    expect(opts).toEqual({ drop: ["Client"] });
+
+    const mode = [...c.root.querySelectorAll("button")]
+      .find((b) => (b.textContent ?? "").includes("Switch to DACI")) as HTMLButtonElement;
+    expect(mode).toBeTruthy();
+    mode.click(); await flush(); await flush();
+    const [, mRoles, mMode, mOpts] = api.setResponsibilityConfig.mock.calls[1]!;
+    expect(mRoles, "switching mode must not change the columns").toEqual(["Client", "Task Team"]);
+    expect(mMode).toBe("DACI");
+    expect(mOpts, "the R→D remap is the server's, so no rename/drop is sent").toBeUndefined();
+    expect(api.updateModuleRecord, "no handler may PATCH a row to change a column or the mode")
+      .not.toHaveBeenCalled();
   });
 
   it("does not offer a repair when there is nothing to repair", async () => {

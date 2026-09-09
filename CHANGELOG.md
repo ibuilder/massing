@@ -12,6 +12,49 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Renaming a responsibility column moves its cells with it, or moves nothing
+
+The RACI/DACI matrix stores two halves of one fact in two places: the **role columns** in a config
+record, and the **letters keyed by those column names** on every activity row. The panel changed
+them separately — one `PATCH` per row from the browser, then the config update — so a failure
+anywhere in that sequence committed the rows it had already reached and abandoned the rest.
+
+A half-applied **rename** was the bad one. Some rows carried `GC / PM`, some carried
+`Project Manager`, and the column list still said `GC / PM` — one logical role under two names, one
+of which was no longer a column, so its cells rendered as blank and counted toward nothing. That is
+indistinguishable on screen from an orphaned column, and re-running the rename did not repair it:
+the rows that had already moved no longer matched the name being renamed. Reproduced at five rows
+splitting three-to-two.
+
+The column edit and the cell migration are now one server-side transaction.
+`PUT /projects/{pid}/responsibility/config` takes an optional `rename` map and a `drop` list
+alongside `roles` and `mode`; the rename moves cells with their column, `drop` clears a removed
+column's cells, and a mode change remaps the doer letter (R↔D) on every existing row. Nothing is
+written unless all of it can be, and a request whose `roles`, `rename` and `drop` contradict each
+other is refused with a 400 before anything is touched — renaming one live column onto another was
+a silent merge that ate a column's cells. The panel's four row loops are now four single calls.
+
+**A second, quieter instance of the same split, fixed with it.** Loading a starter template in the
+other mode moved the matrix to DACI without migrating the rows already on it. Those rows kept `R`,
+which is not a DACI letter — and the grid hides any letter invalid in the current mode, so they did
+not render *wrong*, they rendered **empty**, and five activities reported having nobody Responsible.
+
+**And a third, found by touching the transaction boundary rather than by looking for it.** Both
+responsibility write routes recorded an audit entry *after* the engine had already committed, into a
+session nothing commits again — so every change to the role columns, the one edit that can orphan an
+entire matrix, left no trace in the audit log. `audit.record` only `db.add()`s, and `get_db` closes
+without committing. The route now owns the only commit in the request, so the change and its trail
+land together or not at all.
+
+The class is a gate — `services/api/test_audit_commit.py`, which fails closed on any of the 106
+`audit.record` call sites it cannot resolve. **Its first version asked the wrong question**, and
+review caught it: "is there a `.commit()` at a later line in this function?" is not the same as "is
+a commit reached on every path out of here". `run_clash_federated` was a live third instance the
+whole time — its coordination branch records an audit row, and the only commit sat inside
+`if create_topics and not coordinate`, a branch that is mutually exclusive with it. Later in the
+file, never on the same path. The classifier now climbs out through enclosing blocks and counts only
+commits that always execute, and it is proved against that branch shape before it may report.
+
 ### Feasibility sizes the building on the real parcel, not on its bounding rectangle
 
 The "Generate from zoning" tab could describe a lot only as **lot width × lot depth**. For any parcel
