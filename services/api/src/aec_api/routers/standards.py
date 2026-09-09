@@ -5,7 +5,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .. import (
@@ -274,11 +274,11 @@ def load_timings(pid: str, days: int = 30, db: Session = Depends(get_db),
     drawn from its handful of survivors. The rate is what stops that reading as good news.
     """
     since = datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 365)))
-    rows = db.scalars(
-        select(models.ViewerLoadTiming)
-        .where(models.ViewerLoadTiming.project_id == pid, models.ViewerLoadTiming.ts >= since)
-        .order_by(models.ViewerLoadTiming.ts.desc()).limit(20_000)
-    ).all()
+    scoped = (select(models.ViewerLoadTiming)
+              .where(models.ViewerLoadTiming.project_id == pid,
+                     models.ViewerLoadTiming.ts >= since))
+    total = db.scalar(select(func.count()).select_from(scoped.subquery())) or 0
+    rows = db.scalars(scoped.order_by(models.ViewerLoadTiming.ts.desc()).limit(20_000)).all()
 
     def pct(vals: list[int], q: float) -> int | None:
         if not vals:
@@ -301,7 +301,12 @@ def load_timings(pid: str, days: int = 30, db: Session = Depends(get_db),
             "failed": sum(1 for r in rs if r.outcome == "failed"),
             "p50_ms": pct(done, 0.50), "p95_ms": pct(done, 0.95),
         })
-    return {"days": days, "loads": len(rows), "buckets": out}
+    # `loads` is what this window holds, `load_total` what the period recorded. The cap above
+    # bounds the in-memory percentile computation; before this it also silently bounded the
+    # ANSWER, so a busy month reported 20,000 loads whatever the real figure was — and every
+    # percentile below was computed from the newest slice while being labelled as the period's.
+    return {"days": days, "loads": len(rows), "load_total": total,
+            "truncated": total > len(rows), "buckets": out}
 
 
 @router.post("/projects/{pid}/answer/cited-query")

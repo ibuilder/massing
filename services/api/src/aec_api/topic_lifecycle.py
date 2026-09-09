@@ -91,9 +91,24 @@ def timeline(db: Session, topic: Topic) -> dict[str, Any]:
         events.append(ev)
 
     events.sort(key=lambda e: e["ts"] or "")
+    # COUNTED IN SQL, not from `events`. The two queries above are themselves capped at
+    # `_TIMELINE_CAP`, so the assembled list can never exceed 2×CAP however long the topic is —
+    # the first version of this disclosure used `len(events)` and therefore reported a total that
+    # was itself a window. That is the very defect this line exists to disclose, one layer down,
+    # and the assertion written for it is what caught it. `audit_count` is rows, not events: one
+    # `topic.update` carrying a status change AND field edits yields two, so the total is a floor.
+    assembled = (db.query(AuditLog).filter(AuditLog.topic_id == topic.id).count()
+                 + db.query(Comment).filter(Comment.topic_id == topic.id).count())
     if len(events) > _TIMELINE_CAP:
         events = events[-_TIMELINE_CAP:]              # keep the newest, chronological order preserved
+    # `event_count` is what this window holds; `event_total` is what the topic has. They used to be
+    # the same name for two different numbers — the count was computed AFTER the cap, so a topic
+    # with 800 events reported 500 and said nothing, and "the history" was silently the tail of it.
+    # A truncated timeline is the one place a reader is most likely to conclude something did not
+    # happen: the missing events are the OLDEST, which is where a decision's origin lives.
     return {"topic_id": topic.id, "title": topic.title, "type": topic.type, "status": topic.status,
             "events": events, "event_count": len(events),
+            "event_total": max(assembled, len(events)),
+            "truncated": max(assembled, len(events)) > len(events),
             "statuses": list(STATUSES),
             "allowed_next": sorted(_TRANSITIONS.get(str(topic.status or "").strip().lower(), set()))}

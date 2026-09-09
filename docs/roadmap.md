@@ -357,7 +357,47 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > Over-reporting costs a line in a table; under-reporting costs a defect nobody can see. It is
 > classified, not excluded.
 >
-> **Axis B is named and NOT done — undisclosed truncation**, a different class found while walking
+> **AXIS B RAN 2026-09-09 — three real, three false positives, three DIFFERENT predicate flaws.**
+> The population is `.limit()`/slice caps bound to a name whose `len()` is then reported as a dict
+> value, in a function disclosing nothing about the cap. Gate: `services/api/test_truncation_disclosed.py`,
+> 463 files, fails closed.
+>
+> | site | verdict |
+> |---|---|
+> | `equipment.schedule` | 🔴 an RFQ capped at `_MAX_LINES` reported the capped `line_count`, and `unit_count` summed only the surviving lines — a procurement document short in both the item list and the QUANTITY, in the direction that under-buys |
+> | `topic_lifecycle.timeline` | 🔴 `event_count` computed after the 500 cap; the dropped events are the OLDEST, where a decision's origin lives |
+> | `routers/standards.py::load_timings` | 🔴 `loads` was the capped row count, and every percentile beside it was drawn from the newest 20,000 while labelled as the period's |
+> | `parcel_geometry.analyze` | ✅ exempt — `ring[:-1]` strips a polygon's closing point and `… or ring[:1]` is a degenerate fallback; both are normalisation |
+> | `provenance_report._leg_answers` | ✅ the `[:120]` truncates a STRING inside a comprehension |
+> | `layout_options.optioneer` | ✅ already discloses, as `count`/`shown` |
+>
+> **The caps all stay.** A schedule is a document, the percentile computation is bounded in memory on
+> purpose, and a timeline of thousands is not a page. What changes is that the cap can be SEEN.
+>
+> ⚠️ **The first disclosure written for `timeline` was the same defect one layer down.** It reported
+> `len(events)` as the total — but both queries feeding `events` are themselves capped at
+> `_TIMELINE_CAP`, so the "total" could never exceed 2×CAP however long the topic was. The total is
+> now counted in SQL. **The assertion written for the defect is what caught its own fix**, which is
+> the argument for asserting the property rather than the patch.
+>
+> **Each false positive came from a different flaw, and all three OVER-reported** — the safe
+> direction, which is why reading every site caught them: a negative-constant upper bound is
+> normalisation; a slice inside a comprehension truncates the element, not the collection; and the
+> disclosure vocabulary did not know `count`/`shown`. All three are kept as probes the analyser must
+> stay silent on.
+>
+> 🔴 **The flaw that did NOT over-report is the one to remember.** The first predicate matched only
+> `x[:N]` and so missed `x[-N:]` — the keep-newest spelling — silently dropping `topic_lifecycle.timeline`,
+> a site already KNOWN to be real. *A narrowing hides exactly what it excludes*, and it was caught
+> only because the population had a known member to check against. Both spellings are now probed.
+>
+> **`pins.resolve_pins` is a DIFFERENT shape and deliberately out of scope**: `return out[:_MAX_PINS]`
+> reports no count at all, so there is no number to be wrong — the caller simply cannot tell. It is a
+> probe the analyser must stay silent on, and closing it means giving the function an envelope, which
+> is an API change rather than a disclosure. Its own docstring still says *"Silence is the failure
+> mode"*, and that remains the sharpest statement of this axis in the tree.
+>
+> **The original note, kept because it is the derivation:** undisclosed truncation, a different class found while walking
 > this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns
 > `event_count` computed *after* capping at 500; `routers/standards.py::load_timings` reports
 > `loads` as the capped row count; `pins.resolve_pins` ends `return out[:_MAX_PINS]` **directly
