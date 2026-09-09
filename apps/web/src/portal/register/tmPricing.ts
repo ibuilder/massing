@@ -47,6 +47,10 @@ export interface TmPricingHost {
   api: { priceTicket: PortalHost["api"]["priceTicket"] };
 }
 
+/**
+ * One report line. `tone` is a CSS variable, not a literal colour, so the three warning shades stay
+ * on the app's palette in both themes — the omission `cssVars` (CSS-VAR-VOID) was built to catch.
+ */
 function line(text: string, tone?: string): HTMLElement {
   const d = document.createElement("div");
   d.className = "meta";

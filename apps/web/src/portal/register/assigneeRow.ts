@@ -17,6 +17,10 @@ export interface AssigneeHost {
   setStatus: (s: string) => void;
 }
 
+/**
+ * The row: who the record is on, and a control to move it. Reloads through `onReload` rather than
+ * repainting itself, because the assignee is one field of a record view the caller owns.
+ */
 export function assigneeRow(
   host: AssigneeHost, pid: string, m: ModuleDef, r: ModuleRecord, rid: string,
   onReload: () => void,
