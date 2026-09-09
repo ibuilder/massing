@@ -107,12 +107,23 @@ export function parseBoundary(text: string): { geojson?: unknown; wkt?: string }
   throw new Error("expected GeoJSON (starting with '{') or WKT (starting with 'POLYGON')");
 }
 
+/** A flex row for the control strip — wrapping, so the file picker and buttons stay reachable
+ *  in the proforma panel's narrow column rather than overflowing it. */
 function row(): HTMLElement {
   const d = document.createElement("div");
   d.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap";
   return d;
 }
 
+/**
+ * The control. `onChange` fires with the loaded parcel, or `null` when it is cleared, so the
+ * caller can both send the ring and say which lot its figures came from — the massing tab uses
+ * it for exactly that, and for disabling the width/depth inputs the parcel supersedes.
+ *
+ * A failed read leaves any parcel already loaded ALONE. Half-replacing one is worse than
+ * refusing the paste: the panel would go on captioning its numbers "on the real parcel" for a
+ * parcel it no longer had.
+ */
 export function parcelBoundaryControl(
   host: ParcelBoundaryHost, onChange: (p: LoadedParcel | null) => void,
 ): ParcelBoundaryControl {
