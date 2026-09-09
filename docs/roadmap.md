@@ -319,7 +319,17 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > | `fin_ingest.import_history` | 🔴 capped 100 across every project, then dropped the others in Python — **an empty import lineage** with one import on A behind 150 newer on B |
 > | `modules.notifications` | 🔴 project in SQL, but the newest 200 project-wide rows then filtered to *this user* in Python — **the bell feed went 1 → 0** behind 250 activities by other people |
 > | `agent_packs.run_log` | ✅ fixed 2026-09-09; still matches the analyser for an unrelated reason, below |
-> | `pins.resolve_pins` · `report._project_photos` · `routers/standards.py::load_timings` · `topic_lifecycle.timeline` | ✅ scope is already in SQL; the Python test classifies rather than scopes |
+> | `report._project_photos` | ✅ scope is already in SQL; the Python test classifies rather than scopes |
+> | `routers/standards.py::load_timings` | ✅ scope is already in SQL |
+> | ~~`topic_lifecycle.timeline`~~ | 🔴 **the verdict was WRONG — fixed 2026-09-09 in #491.** `bcf.comment.create` / `markup.promote` / `record.comment.promote` are real actions the timeline renders nothing for, so a busy topic spent its whole 500-row window on them and answered EMPTY |
+> | ~~`pins.resolve_pins`~~ | 🔴 **the verdict was WRONG — fixed 2026-09-09 (PINS-CAP).** The topic query capped 2,000 rows OLDEST-first and dropped the non-pins afterwards, so a project whose 2,000 oldest topics are ordinary un-pinned issues drew **no topic pins at all**, and a pin placed today never appeared |
+>
+> 🔴 **Two of those four "✅ the Python test classifies rather than scopes" verdicts were wrong, and
+> they were wrong the same way.** Whether a Python `if` reads as a *filter* or as a *dispatch* is not
+> the question. The question is whether the cap can be spent on rows the `if` then throws away —
+> and in both cases it could. A verdict that answers the first question has not looked at the second.
+> Both are now bound by behavioural tests (`services/api/test_pin_cap.py`, and the timeline cases in
+> `services/api/test_truncation_disclosed.py`) rather than by a line in a table.
 >
 > **The fix for `notifications` was written ten lines below it the whole time.** `my_work` says so in
 > its own docstring — *"Filters in SQL … bounded on both axes"* — over the same registry and the same
@@ -391,11 +401,29 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > a site already KNOWN to be real. *A narrowing hides exactly what it excludes*, and it was caught
 > only because the population had a known member to check against. Both spellings are now probed.
 >
-> **`pins.resolve_pins` is a DIFFERENT shape and deliberately out of scope**: `return out[:_MAX_PINS]`
-> reports no count at all, so there is no number to be wrong — the caller simply cannot tell. It is a
-> probe the analyser must stay silent on, and closing it means giving the function an envelope, which
-> is an API change rather than a disclosure. Its own docstring still says *"Silence is the failure
-> mode"*, and that remains the sharpest statement of this axis in the tree.
+> **`pins.resolve_pins` was recorded here as a DIFFERENT shape, deliberately out of scope**:
+> `return out[:_MAX_PINS]` reports no count at all, so there is no number to be wrong — the caller
+> simply cannot tell. Closing it meant giving the function an envelope, an API change rather than a
+> disclosure.
+>
+> 🔴 **DONE 2026-09-09 (PINS-CAP), and the envelope was the small half.** Opening the function to add
+> it found a live Axis A defect above the line this entry was about: the topic query capped 2,000
+> rows ordered OLDEST-first and ran the "is this a pin" test in Python afterwards. A project whose
+> 2,000 oldest topics are ordinary un-pinned issues drew **no topic pins at all** — on the overlay
+> and on every plan sheet — and a pin placed today never appeared, because the window never
+> advanced past the same 2,000 rows. It did not degrade as a project got busier; it went blank and
+> stayed blank. The registers were also capped at `_MAX_PINS` *each* before the concatenation was
+> truncated to `_MAX_PINS`, so topics filling the budget deleted every register pin silently.
+>
+> The predicate is in SQL ahead of the LIMIT now, the budget is shared across sources, and the
+> envelope reports an exact total when nothing was capped and a candidate count **labelled as such**
+> when something was. `services/api/test_pin_cap.py` asserts the behaviour and is mutation-checked
+> against the pre-fix ordering, where it returns `[]` on a project that plainly has a pin.
+>
+> **Still open, named rather than half-fixed:** a plan sheet cannot yet PRINT that its pins were
+> capped — the drawing engine takes positions and labels, not notes — so a capped project still
+> under-reports on paper. And two write sites can persist `{}` / `[]` into `anchor` /
+> `element_guids`, which is the sole reason the capped total is an upper bound rather than exact.
 >
 > **The original note, kept because it is the derivation:** undisclosed truncation, a different class found while walking
 > this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns
