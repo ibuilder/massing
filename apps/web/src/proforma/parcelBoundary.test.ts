@@ -52,6 +52,12 @@ describe("reading a parcel boundary", () => {
     // file that was fine, when a trailing comma is the whole story.
     expect(() => parseBoundary("{oops")).toThrow(/not valid JSON/);
     expect(() => parseBoundary("LINESTRING (0 0, 1 1)")).toThrow(/GeoJSON.*or WKT/);
+    // MULTIPOLYGON was accepted here while the server takes POLYGON only, so the control shipped it
+    // and the user got a round trip and a generic 422. Refused locally, by name, with the reason —
+    // and asserted, because "the client accepts what the server accepts" is exactly the kind of
+    // claim that holds until someone widens one side. Raised in review.
+    expect(() => parseBoundary("MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)))"))
+      .toThrow(/MULTIPOLYGON is not supported/);
     expect(() => parseBoundary("   ")).toThrow(/paste a parcel boundary/);
   });
 });

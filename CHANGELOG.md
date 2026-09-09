@@ -28,7 +28,8 @@ The massing engine had always accepted a `lot_polygon` and offset it inward for 
 footprint, and nothing could reach it: the request type had no such field. And the parcel reader
 itself had no caller on any screen.
 
-Now: paste a boundary (or load a `.geojson` / `.wkt` file) on the feasibility tab. It reports the
+Now: paste a boundary (or load a `.geojson` / `.wkt` file) on the feasibility tab — one outer ring,
+so a WKT `MULTIPOLYGON` is refused by name rather than sent to an endpoint that would reject it. It reports the
 parcel's area, the rectangle it replaces, and the percentage between them, and the width/depth boxes
 become the parcel's own bounding extents, disabled — so it is clear which figure the building is
 being sized on. The result summary says the same thing again beside the GFA. Nothing is substituted

@@ -92,7 +92,18 @@ export function parseBoundary(text: string): { geojson?: unknown; wkt?: string }
       throw new Error(`that is not valid JSON: ${(e as Error).message}`, { cause: e });
     }
   }
-  if (/^(POLYGON|MULTIPOLYGON)/i.test(t)) return { wkt: t };
+  // MULTIPOLYGON is named so the refusal is specific, and it is refused here rather than sent: the
+  // server's `parse_boundary` takes POLYGON only, so accepting it locally bought a round trip and a
+  // generic 422 that never said why. The first draft of this function listed it as accepted syntax
+  // — a client advertising support the server does not have, which is the same drift in miniature
+  // that this whole item is about. Supporting it is a PRODUCT question, not a cleanup: the buildable
+  // footprint comes from offsetting ONE outer ring inward, and a lot split by a right-of-way has no
+  // single ring to offset, so which part is "the parcel" is somebody's decision to make.
+  if (/^MULTIPOLYGON/i.test(t)) {
+    throw new Error("MULTIPOLYGON is not supported — a parcel boundary is one outer ring. Export the"
+      + " lot on its own as POLYGON ((x y, x y, ...)).");
+  }
+  if (/^POLYGON/i.test(t)) return { wkt: t };
   throw new Error("expected GeoJSON (starting with '{') or WKT (starting with 'POLYGON')");
 }
 
