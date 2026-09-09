@@ -28,6 +28,7 @@ import os
 # in whatever database the operator happens to have exported. `test_db_url_isolation.py` enforces
 # it, and enforced it on this file the first time the suite ran it.
 os.environ["DATABASE_URL"] = "sqlite:///./test_pin_cap.db"
+os.environ.pop("AEC_RBAC", None)   # isolation: never inherit the operator's access mode
 
 import sys  # noqa: E402
 
@@ -127,22 +128,57 @@ try:
         for i in range(6):
             db.execute(rfi.insert().values(
                 id=f"r-{i:02d}", project_id=PID, ref=f"RFI-{i:02d}", title=f"Register pin {i}",
-                element_guids=[f"E-{i}"], workflow_state="open"))
+                element_guids=[f"E-{i}"], workflow_state="open",
+                # explicit, because NULL ordering under DESC is dialect-dependent and this
+                # fixture asserts WHICH rows survive the cap
+                created_at=__import__("datetime").datetime(2026, 8, 3, 0, i)))
         db.commit()
 
         mixed = pin_engine.resolve_pins(db, PID)
         ids = [p["id"] for p in mixed["pins"]]
-        check("topics and registers are resolved into one list under one budget",
-              ids == ["t-mix-0", "t-mix-1", "t-mix-2", "r-00", "r-01"],
-              f"got {ids} — 3 topic pins then 2 register pins under a budget of 5")
+        check("topics and registers are resolved into one list under one budget, NEWEST kept",
+              ids == ["t-mix-0", "t-mix-1", "t-mix-2", "r-04", "r-05"],
+              f"got {ids} — 3 topic pins then the 2 NEWEST of 6 register rows under a budget "
+              f"of 5, in display order. Keeping `r-00`/`r-01` means the read is ascending and a "
+              f"register pin filed today never reaches the sheet")
         check("the register read is ordered, so a cap that bites is reproducible",
-              ids[3:] == ["r-00", "r-01"],
+              ids[3:] == ["r-04", "r-05"],
               f"got {ids[3:]} — without an ORDER BY the two that survive differ between runs, "
               f"so the same request draws different pins")
         check("what the budget could not reach is COUNTED, not silently dropped",
               (mixed["pin_total"], mixed["truncated"]) == (9, True),
               f"total={mixed['pin_total']} truncated={mixed['truncated']} — 3 topics + 6 "
               f"register rows exist and 5 fit")
+
+    # PAST THE CAP, THE NEWEST PINS SURVIVE. Ordering ascending and cutting at the limit keeps
+    # the OLDEST, so a project past the cap never shows a pin placed today — the same symptom
+    # this function exists to fix, moved from "more than N topics" to "more than N pins". Review
+    # caught that the first fix inherited the ascending order it was replacing.
+    with SessionLocal() as db:
+        db.execute(rfi.delete().where(rfi.c.project_id == PID))   # topics only, for this one
+        db.query(Topic).filter(Topic.project_id == PID).delete()
+        for i in range(9):
+            db.add(Topic(id=f"t-age-{i}", project_id=PID, guid=f"G-age-{i}", type="rfi",
+                         title=f"Placed {i}", status="open", anchor={"x": i, "y": 0.0, "z": 0.0},
+                         created_at=__import__("datetime").datetime(2026, 8, 4, 0, i)))
+        db.commit()
+        aged = pin_engine.resolve_pins(db, PID)
+        check("a capped overlay keeps the NEWEST pins, in display order",
+              [p["id"] for p in aged["pins"]]
+              == ["t-age-4", "t-age-5", "t-age-6", "t-age-7", "t-age-8"],
+              f"got {[p['id'] for p in aged['pins']]} — ascending order returns t-age-0..4 and "
+              f"a pin placed today is invisible on a busy project, which is this defect again")
+        check("and still discloses the whole population",
+              (aged["pin_total"], aged["truncated"]) == (9, True),
+              f"total={aged['pin_total']} truncated={aged['truncated']}")
+        # NOT ASSERTED HERE, and said so rather than implied: each source's count comes from a
+        # `count(*) OVER ()` in the SAME statement as its window, so a concurrent write cannot
+        # leave `pin_total` describing a different population from `pins`. Replacing it with a
+        # second `SELECT count(*)` passes every assertion in this file, because a single-threaded
+        # test cannot open the window the fix closes. Proving it needs two sessions and a
+        # controlled commit between them. Recording the gap beats a comment claiming coverage.
+        db.query(Topic).filter(Topic.project_id == PID).delete()
+        db.commit()
 
     # THE CASE THAT ACTUALLY DISTINGUISHES THE SHARED BUDGET, and the reason the assertion above
     # is worded the way it is. **A per-source cap plus a final `out[:_MAX_PINS]` returns exactly
@@ -153,6 +189,13 @@ try:
     # registers become exactly that source.
     with SessionLocal() as db:
         db.query(Topic).filter(Topic.project_id == PID).delete()
+        # self-contained: re-seed the registers rather than depending on a previous block's rows
+        db.execute(rfi.delete().where(rfi.c.project_id == PID))
+        for i in range(6):
+            db.execute(rfi.insert().values(
+                id=f"u-{i:02d}", project_id=PID, ref=f"RFI-U{i:02d}", title=f"Unreachable {i}",
+                element_guids=[f"U-{i}"], workflow_state="open",
+                created_at=__import__("datetime").datetime(2026, 8, 5, 0, i)))
         for i in range(5):
             db.add(Topic(id=f"t-full-{i}", project_id=PID, guid=f"G-full-{i}", type="rfi",
                          title=f"Placed {i}", status="open", anchor={"x": i, "y": 0.0, "z": 0.0},

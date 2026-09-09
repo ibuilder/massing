@@ -100,16 +100,29 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
 
     # --- topics -------------------------------------------------------------------------------
     where = _topic_pin_where(pid)
-    # `_MAX_PINS + 1` rather than a second count query: one extra row is all it takes to know the
-    # cap bit, and when it did not, `len(out)` is already the exact answer.
-    rows = (db.query(Topic).filter(*where)
-            .order_by(Topic.created_at.asc(), Topic.id.asc()).limit(_MAX_PINS + 1).all())
-    if len(rows) > _MAX_PINS:
-        truncated = True
-        candidates += db.query(func.count()).select_from(Topic).filter(*where).scalar() or 0
-        rows = rows[:_MAX_PINS]
-    else:
-        candidates += len(rows)
+    # **NEWEST first, then reversed for display.** Ordering ascending and cutting at the cap keeps
+    # the OLDEST pins, so a project past the cap never shows a pin placed today — which is the
+    # symptom this whole function exists to fix, merely moved from "more than 2,000 topics" to
+    # "more than 2,000 pins". A capped overlay should drop the oldest, the way a capped timeline
+    # does not. `id` breaks ties, because `created_at` is not unique and an unordered boundary
+    # picks different rows per call.
+    #
+    # It also disposes of the residual below: a legacy row storing `{}` / `[]` passes the SQL
+    # predicate and is then dropped in Python, spending budget on a non-pin. Those rows are the
+    # OLD ones, so newest-first pushes them out of the window instead of letting them crowd out
+    # real pins. New writes are normalised at the source (see `modules.py`), so the class shrinks.
+    #
+    # `count(*) OVER ()` rather than a second statement: the count and the window then come from
+    # ONE snapshot, so a concurrent insert cannot leave `pin_total` describing a different
+    # population from `pins`. Exactly the fix #491 applied to `load_timings`, which was open in
+    # this session while this function was being written with the two-statement shape.
+    hits = (db.query(Topic, func.count().over().label("_n")).filter(*where)
+            .order_by(Topic.created_at.desc(), Topic.id.desc()).limit(_MAX_PINS).all())
+    rows = [h[0] for h in hits]
+    here = int(hits[0][1]) if hits else 0
+    candidates += here
+    truncated = truncated or here > len(rows)
+    rows.reverse()                  # back to oldest — newest for display
     for t in rows:
         a = t.anchor if isinstance(t.anchor, dict) and t.anchor else None
         guids = [g for g in (t.element_guids or []) if g]
@@ -129,24 +142,28 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
         budget = _MAX_PINS - len(out)
         cond = (table.c.project_id == pid, table.c.element_guids.isnot(None))
         try:
-            total_here = db.execute(
-                select(func.count()).select_from(table).where(*cond)).scalar() or 0
             if budget <= 0:
                 # No room left. Count it anyway — an unreachable source that says so beats a
-                # source that vanishes, which is what the old final slice did.
+                # source that vanishes, which is what the old final slice did. This is the one
+                # count with no window beside it, so there is nothing for it to disagree with.
+                total_here = db.execute(
+                    select(func.count()).select_from(table).where(*cond)).scalar() or 0
                 truncated = truncated or total_here > 0
                 candidates += total_here
                 continue
-            # `order_by(id)` because a cap without an order silently picks different rows per run.
-            rows = db.execute(
+            # Newest first and reversed, for the reason given on the topic query above; `id`
+            # breaks ties. `count(*) OVER ()` keeps this source's count and window in one
+            # snapshot rather than two statements a write can land between.
+            hits = db.execute(
                 select(table.c.id, table.c.ref, table.c.title, table.c.element_guids,
-                       table.c.workflow_state)
-                .where(*cond).order_by(table.c.id).limit(budget + 1)).all()
+                       table.c.workflow_state, func.count().over().label("_n"))
+                .where(*cond)
+                .order_by(table.c.created_at.desc(), table.c.id.desc()).limit(budget)).all()
         except Exception:           # noqa: BLE001 — a register without these columns simply has no pins
             continue
-        if len(rows) > budget:
-            truncated = True
-            rows = rows[:budget]
+        rows = list(reversed(hits))
+        total_here = int(hits[0]._mapping["_n"]) if hits else 0
+        truncated = truncated or total_here > len(rows)
         candidates += total_here
         for r in rows:
             guids = [g for g in (r.element_guids or []) if g]
