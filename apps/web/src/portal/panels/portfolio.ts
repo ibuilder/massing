@@ -157,8 +157,28 @@ export async function renderPortfolio(ctx: PanelContext) {
     //
     // So the panel invents nothing. It renders whatever grouping the install declares in the
     // Settings panel, and falls back to the trade table alone when none is configured.
+    // An admin's typo in the Settings box degrades this panel to the trade table rather than
+    // blanking it — but silently ignoring their configuration would be worse than the typo.
+    const groupingWarning = (why: string) => {
+      const w = document.createElement("div"); w.className = "meta";
+      w.style.marginTop = "4px"; w.style.color = "var(--status-warn)";
+      w.textContent = `Portfolio resource grouping not applied — ${why}`;
+      return w;
+    };
     void ctx.host.api.portfolioResourcing().then((rp) => {
-      if (!rp.available || !rp.trades.length) return;
+      const draw = resourcingCard(rp);
+      if (draw === "none") return;
+      if (draw === "warning-only") {
+        // No table to draw, but the broken grouping still has to be said: the warning outlives the
+        // table it was going to sit under. `resourcingCard` above records why.
+        const empty = document.createElement("div");
+        empty.className = "dash-card"; empty.style.marginTop = "10px";
+        empty.innerHTML = `<b>Resourcing across the book</b> `
+          + `<span class="meta">no resource demand in the book yet</span>`;
+        empty.appendChild(groupingWarning(rp.groups_error ?? ""));
+        ctx.root.appendChild(empty);
+        return;
+      }
       const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
       const f = rp.fidelity;
       card.innerHTML = `<b>Resourcing across the book</b> <span class="meta">`
@@ -232,14 +252,7 @@ export async function renderPortfolio(ctx: PanelContext) {
           card.appendChild(n);
         }
       }
-      if (rp.groups_error) {
-        // An admin's typo in the Settings box degrades this panel to the trade table rather than
-        // blanking it — but silently ignoring their configuration would be worse than the typo.
-        const w = document.createElement("div"); w.className = "meta";
-        w.style.marginTop = "4px"; w.style.color = "var(--status-warn)";
-        w.textContent = `Portfolio resource grouping not applied — ${rp.groups_error}`;
-        card.appendChild(w);
-      }
+      if (rp.groups_error) card.appendChild(groupingWarning(rp.groups_error));
       if (rp.projects_without_loads.length) {
         const u = document.createElement("div"); u.className = "meta"; u.style.marginTop = "4px";
         u.textContent = "No resourcing data — " + rp.projects_without_loads
@@ -369,4 +382,21 @@ export async function renderPortfolio(ctx: PanelContext) {
     }).catch(() => { /* funnel is best-effort — no deal register in this deployment */ });
   }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
 
+}
+
+/** What the "Resourcing across the book" card should draw for a given response.
+ *
+ *  Exported because it was WRONG once and the mistake was invisible: the guard was
+ *  `!rp.available || !rp.trades.length` alone, and a book with no resource demand yet returns
+ *  exactly that — while still carrying `groups_error` when the install's configured grouping is
+ *  malformed. So the one screen that would ever report an admin's typo stayed silent, on precisely
+ *  the install most likely to have it: the one being set up before any resourcing exists.
+ *
+ *  A guard that decides what to LOOK at is more dangerous than one that decides what to report,
+ *  because everything it excludes is invisible to its own output. Hence a named decision with a
+ *  test, rather than a boolean inside a `.then()`. */
+export function resourcingCard(rp: { available: boolean; trades: unknown[]; groups_error?: string }):
+  "full" | "warning-only" | "none" {
+  if (rp.available && rp.trades.length) return "full";
+  return rp.groups_error ? "warning-only" : "none";
 }
