@@ -1,7 +1,7 @@
 """Role-tailored dashboard endpoint (GC portal)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from .. import ai, dashboard, mailer, oauth, rbac, report
@@ -173,6 +173,8 @@ def portfolio_risk(limit: int = 25, db: Session = Depends(get_db),
 
 @router.get("/portfolio/resourcing")
 def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int = 26,
+                         group: list[str] | None = Query(None),
+                         group_cap: float | None = None,
                          db: Session = Depends(get_db), _: str = Depends(rbac.current_user)):
     """R22-PIPELINE — weekly resource demand per trade, summed **across** projects.
 
@@ -181,10 +183,23 @@ def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int =
     the book, so `?cap=` flags the weeks where a single trade is over-committed **across** projects
     and names which projects are competing for it.
 
-    `trade` is the dimension the schema carries — `resource_assignment.trade` is labelled
-    "Trade / discipline". There is no `department` field anywhere, so department reporting is a
-    product decision about what a department would be that a trade is not, not a filter over
-    existing data.
+    **"By department" is a grouping you declare, not a field we hold.** Repeat
+    `?group=Name:trade1,trade2` to roll the book up by it — `?group=Structure:ironworker,concrete`
+    `&group=MEP:electrician,plumber` — and `?group_cap=` flags the weeks a whole group is
+    over-committed. `resource_assignment.trade` is labelled "Trade / **discipline**", so a design
+    firm's axis is already the field's value; a GC's departments (preconstruction, estimating,
+    operations, safety) are office functions whose people are not in this data at all. The industry
+    tools model it the same way: Deltek Vantagepoint ships no `department` dimension, only a
+    firm-configured organisation breakdown whose labels the firm chooses. With no `?group=`, the
+    install-wide default from the **Portfolio resource grouping** setting is used, so a firm
+    declares its axis once instead of every caller repeating it; a malformed *configured* value
+    degrades to the ungrouped book and reports `groups_error`, where a malformed *query* one is a
+    422 — the error goes to whoever can act on it.
+
+    The rollup refuses a trade claimed by two groups (the totals would exceed the book) and an empty
+    group (a confident zero), and it reports `ungrouped_trades` — demand no group claimed — beside
+    `unknown_trades`, a group naming a trade the book does not have. Neither is silent, because a
+    group total that quietly omits work looks complete.
 
     Fidelity is reported, not blended: a project with no `resource_assignment` records falls back to
     `schedule_activity.crew_size`, which is a crew count rather than a resourced plan, and
@@ -198,9 +213,41 @@ def portfolio_resourcing(cap: float | None = None, limit: int = 25, weeks: int =
     # (name, id): `Project.name` is not unique, so name alone leaves tied rows in engine order and
     # the truncated prefix could differ run to run. Same fix as `/portfolio/risk`.
     projects = [(p.id, p.name) for p in _q.order_by(Project.name, Project.id).all()]
-    return resource_portfolio.portfolio(
+    # Two sources, and they FAIL DIFFERENTLY on purpose. An explicit `?group=` is this request's
+    # own input, so a bad one is a 422 — the caller can fix it. The configured default belongs to
+    # the install: refusing it would black out the resourcing panel for every user because an admin
+    # mistyped a trade name in a settings box, so a bad configuration degrades to the ungrouped
+    # book and says so in `groups_error`. Failing closed on your caller and open on your
+    # configuration is the same rule, not two: the party who can act on the error is the one who
+    # should see it.
+    groups_error: str | None = None
+    if group:
+        groups, problem = resource_portfolio.plan_groups(list(group))
+        if problem:
+            # Refused BEFORE the sweep, so a bad grouping costs nothing and the message names the
+            # pair. `problem` is a return value, never a caught exception's text: CodeQL's
+            # py/stack-trace-exposure treats a caught exception as tainted whatever its class, and
+            # the two places this repository learned that (`prefab_kit.resolve`,
+            # `routers/drawings.py`) could answer with a constant because their detail was an
+            # internal failure. Here the detail IS the answer, so the shape had to change instead.
+            raise HTTPException(422, problem)
+    else:
+        from .. import settings_store
+        groups, problem = resource_portfolio.plan_group_config(
+            settings_store.get("AEC_RESOURCE_GROUPS") or "")
+        if problem:
+            groups, groups_error = {}, f"configured grouping ignored — {problem}"
+    # No defensive catch around the sweep: `plan_*` ran the same `_check` these groups will meet
+    # inside `portfolio`, on the same already-normalised values, so a second refusal here is
+    # unreachable — and an except clause that cannot fire is worse than none, because it reads as a
+    # live path a reviewer must reason about.
+    out = resource_portfolio.portfolio(
         db, projects, cap=cap, limit=max(1, min(int(limit), 100)),
-        weeks=max(2, min(int(weeks), 260)))
+        weeks=max(2, min(int(weeks), 260)),
+        groups=groups or None, group_cap=group_cap)
+    if groups_error:
+        out["groups_error"] = groups_error
+    return out
 
 
 @router.get("/portfolio/prioritization")

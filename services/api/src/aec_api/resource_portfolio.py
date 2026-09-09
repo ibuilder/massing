@@ -7,10 +7,27 @@ portfolio axis. Half of that survives contact with the schema:
 
 * **The dimension already exists and is not called `department`.** `modules/resource_assignment/module.json`
   carries `trade`, labelled **"Trade / discipline"**, and the word "department" appears nowhere in
-  the backend except a comment in `rooms.py` and a fire-department scope clause. So a separate
-  department axis is a *product decision* about what a department would be that a trade is not —
-  field-vs-office for a GC, or Architecture/Structural/MEP for a design firm — not a build task. It
-  is raised rather than invented here: a dimension nobody has defined cannot be reported honestly.
+  the backend except a comment in `rooms.py` and a fire-department scope clause.
+
+  **ANSWERED 2026-09-09, and the answer is that "department" is not a field — it is a GROUPING the
+  firm declares.** Checked against how the industry's own tools model it rather than decided here:
+  Deltek Vantagepoint, the dominant AEC ERP, does not ship a `department` dimension at all. It gives
+  a configurable organisation breakdown of up to five levels whose labels the firm chooses — the
+  documented examples being *company, region, branch, discipline, principal*. The axis is
+  firm-defined, not vendor-defined, and that is the whole finding.
+
+  It also resolves the two readings the entry could not choose between, because they are different
+  POPULATIONS rather than different labels. For a **general contractor**, departments are the
+  office functions — preconstruction, estimating, operations, safety, business development — and
+  the people in them are salaried staff, not the field trades `resource_assignment` records; a
+  department axis over field labour has no members. For a **design firm**, the axis is *discipline*
+  — Architecture, Structural, MEP, Civil — which is already exactly what this field holds, since
+  the schema labels it "Trade / **discipline**".
+
+  So no field is added. `portfolio` takes an optional `groups` mapping — a caller-declared name to
+  the trades it covers — and rolls the book up by it. That serves the GC (*Structure*, *MEP*,
+  *Finishes* over real trades) and the design firm (discipline is already the trade value) without
+  inventing a dimension nobody has defined, which is what the entry rightly refused to do.
 * **The portfolio axis is real, and is the half that matters.** `resource_loading.loading` answers
   one project, and **a trade over-committed across three jobs looks comfortable on every one of
   them.** That is the same shape as the cross-project Gantt's finding — a project can look fine
@@ -31,6 +48,7 @@ A project contributing no loads at all is listed in `projects_without_loads`, ne
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 DEFAULT_LIMIT = 25
@@ -39,8 +57,102 @@ DEFAULT_LIMIT = 25
 DEFAULT_WEEKS = 26
 
 
+class GroupingError(ValueError):
+    """A declared grouping that cannot be rolled up honestly. Raised BEFORE any aggregation."""
+
+
+def _check(groups: dict[str, list[str]]) -> tuple[dict[str, list[str]], str | None]:
+    """Normalise a declared grouping, or say in one sentence why it cannot be rolled up honestly.
+
+    **Returns the problem rather than raising it, and that is a security shape, not a style
+    preference.** The route puts this text in a 422, and CodeQL's py/stack-trace-exposure treats a
+    *caught exception* as tainted whatever its class — this repository has been caught by that twice
+    (`prefab_kit.resolve`, `routers/drawings.py`), and both times the recorded lesson was that typing
+    the exception does not help and the shape has to change. Those two could return a constant
+    because their detail was an internal failure. **Here the detail is the product** — an admin needs
+    to be told *which* trade is claimed twice — so instead the message is a RETURN VALUE built from
+    the caller's own group and trade names, and no exception is ever stringified into a response.
+
+    Separate from the rollup on purpose, so a mutation can be aimed at the RULE rather than at the
+    arithmetic that consumes it — the lesson `test_audit_commit` had to learn about analysers that
+    find and classify in one pass.
+
+    Refused rather than resolved:
+
+    * **A trade in two groups.** The group totals would then sum to more than the book, and there is
+      no correct answer for which group owns the double-booked crew — picking one silently
+      understates the other. Same shape as the responsibility rename that merged two roles onto one
+      cell, and refused for the same reason.
+    * **An empty group.** A name with no trades reports a confident zero, which is the unmeasured
+      cell wearing a measured cell's costume — the rule the risk heat map already applies.
+    """
+    out: dict[str, list[str]] = {}
+    seen: dict[str, str] = {}
+    for name, trades in groups.items():
+        name = str(name).strip()
+        if not name:
+            return {}, "a group needs a name"
+        clean = sorted({str(t).strip() for t in trades if str(t).strip()})
+        if not clean:
+            return {}, (f"group {name!r} names no trades — an empty group reports a "
+                        "confident zero rather than nothing")
+        for t in clean:
+            if t in seen and seen[t] != name:
+                return {}, (
+                    f"trade {t!r} is in both {seen[t]!r} and {name!r} — the group totals would then "
+                    "sum to more than the book, and neither group is the right one to charge it to")
+            seen[t] = name
+        out[name] = clean
+    return out, None
+
+
+def check_groups(groups: dict[str, list[str]]) -> dict[str, list[str]]:
+    """`_check` for callers that want a refusal to be fatal — `portfolio` itself, and any direct
+    caller that is not an HTTP boundary. The route uses `plan_groups`/`plan_group_config` instead,
+    so nothing on the request path has an exception to stringify."""
+    out, problem = _check(groups)
+    if problem:
+        raise GroupingError(problem)
+    return out
+
+
+def _plan(specs: list[str]) -> tuple[dict[str, list[str]], str | None]:
+    """Parse `["Structure:ironworker,concrete", "MEP:electrician"]` and validate it, returning
+    `(grouping, problem)`. **No exception is raised or caught anywhere on this path**, for the
+    reason `_check` records.
+
+    One grammar, two entry points — the `?group=` query parameter and the install-wide default an
+    admin configures — because a grouping that parses in the URL and not in the settings box (or the
+    reverse) is a difference nobody would think to test for.
+    """
+    raw: dict[str, list[str]] = {}
+    for spec in specs:
+        name, sep, trades = str(spec).partition(":")
+        if not sep:
+            return {}, f"group {spec!r} must be 'Name:trade1,trade2'"
+        raw.setdefault(name.strip(), []).extend(trades.split(","))
+    return _check(raw)
+
+
+def plan_groups(specs: list[str]) -> tuple[dict[str, list[str]], str | None]:
+    """The `?group=` form: one repeated parameter per declared group."""
+    return _plan(specs)
+
+
+def plan_group_config(raw: str) -> tuple[dict[str, list[str]], str | None]:
+    """The configured form: the same grammar in one string, groups separated by `;` or newlines.
+
+    `Structure:ironworker,concrete; MEP:electrician,plumber`
+
+    An empty or blank setting is an unconfigured install, not a problem.
+    """
+    return _plan([t.strip() for t in re.split(r"[;\n]", raw or "") if t.strip()])
+
+
 def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = None,
-              limit: int = DEFAULT_LIMIT, weeks: int = DEFAULT_WEEKS) -> dict[str, Any]:
+              limit: int = DEFAULT_LIMIT, weeks: int = DEFAULT_WEEKS,
+              groups: dict[str, list[str]] | None = None,
+              group_cap: float | None = None) -> dict[str, Any]:
     """Weekly demand per trade, summed across `projects` — a list of `(id, name)` already scoped to
     the caller. `cap` flags weeks where a single trade's concurrent units across the whole book
     exceed it. Bounded by `limit`; `truncated` says when the sweep did not cover everything."""
@@ -51,6 +163,10 @@ def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = N
     # histogram could disagree about the same crew. Same reason the risk heat map calls `board`
     # unchanged. The leading underscore marks them private to the package, not unusable within it.
     from . import resource_loading
+
+    # BEFORE the sweep: a grouping that cannot be rolled up honestly must cost nothing, and a
+    # refusal after scanning 25 projects is the same answer an hour later.
+    grouping = check_groups(groups) if groups else {}
 
     scanned = projects[:max(0, int(limit))]
     rows: list[dict[str, Any]] = []
@@ -96,6 +212,8 @@ def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = N
                 "reason": "no project in range has resource assignments or crew-loaded activities",
                 "projects": rows, "projects_without_loads": without,
                 "weeks": [], "trades": [], "peak": None, "over_allocation": [],
+                "groups": [], "ungrouped_trades": [], "unknown_trades": {},
+                "group_cap": group_cap, "group_over_allocation": [],
                 "fidelity": {"by_source": by_source, "assigned": 0, "fallback": 0},
                 "cap": cap, "project_count": len(scanned), "projects_available": len(projects),
                 "truncated": len(projects) > len(scanned)}
@@ -132,6 +250,70 @@ def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = N
                                  # Named, because "who is double-booked" is the actionable half.
                                  "projects": dict(sorted(cell["projects"].items()))})
 
+    # --- group rollup ---------------------------------------------------------------------------
+    # Computed from `grid`, never from `trade_rows`, for the reason the risk heat map calls `board`
+    # unchanged: a second aggregation of the same numbers is a second thing that can disagree.
+    group_rows: list[dict[str, Any]] = []
+    ungrouped: list[str] = []
+    unknown: dict[str, list[str]] = {}
+    group_over: list[dict[str, Any]] = []
+    if grouping:
+        owner = {t: g for g, ts in grouping.items() for t in ts}
+        in_book = set(totals)
+        # A trade the book has and no group claims. Reported, because group totals that quietly
+        # omit it understate the book while looking complete.
+        ungrouped = sorted(in_book - set(owner))
+        # ...and the mirror: a trade a group declares that the book does not have. A typo in a
+        # grouping would otherwise shrink a group silently, which is the same defect pointed the
+        # other way.
+        for g, ts in grouping.items():
+            missing = sorted(t for t in ts if t not in in_book)
+            if missing:
+                unknown[g] = missing
+
+        gweeks: dict[str, dict[str, dict[str, Any]]] = {}
+        for wk, by_trade in grid.items():
+            for tr, cell in by_trade.items():
+                g = owner.get(tr)
+                if g is None:
+                    continue
+                acc = gweeks.setdefault(g, {}).setdefault(
+                    wk, {"units": 0.0, "cost": 0.0, "projects": {}})
+                acc["units"] += cell["units"]
+                acc["cost"] += cell["cost"]
+                for pid_, u in cell["projects"].items():
+                    acc["projects"][pid_] = round(acc["projects"].get(pid_, 0.0) + u, 2)
+
+        for g in grouping:
+            per_week = gweeks.get(g, {})
+            if not per_week:
+                # Declared, present in the response, and explicitly carrying NO counts — the
+                # unmeasured-cell rule again: a group whose trades are all absent must not read as
+                # a group with zero demand.
+                group_rows.append({"group": g, "trades": grouping[g], "state": "no_demand",
+                                   "reason": "no trade in this group appears in the book"})
+                continue
+            pk_wk, pk = max(((w, c["units"]) for w, c in per_week.items()),
+                            key=lambda x: (x[1], x[0]))
+            projs: set[str] = set()
+            for c in per_week.values():
+                projs.update(c["projects"])
+            group_rows.append({
+                "group": g, "state": "measured", "trades": grouping[g],
+                "peak_units": round(pk, 1), "peak_week": pk_wk,
+                "unit_weeks": round(sum(c["units"] for c in per_week.values()), 1),
+                "cost": round(sum(c["cost"] for c in per_week.values()), 2),
+                "project_count": len(projs), "cross_project": len(projs) > 1})
+            if group_cap:
+                for wk in sorted(per_week):
+                    c = per_week[wk]
+                    if c["units"] > group_cap:
+                        group_over.append({"week": wk, "group": g, "units": round(c["units"], 1),
+                                           "cap": group_cap,
+                                           "projects": dict(sorted(c["projects"].items()))})
+        group_rows.sort(key=lambda r: (-(r.get("peak_units") or 0.0), r["group"]))
+        group_over.sort(key=lambda r: (r["week"], r["group"]))
+
     trade_rows = sorted(
         ({"trade": t["trade"], "peak_units": round(t["peak_units"], 1), "peak_week": t["peak_week"],
           "unit_weeks": round(t["unit_weeks"], 1), "cost": round(t["cost"], 2),
@@ -154,6 +336,15 @@ def portfolio(db: Any, projects: list[tuple[str, str]], *, cap: float | None = N
         "peak": {"week": peak_wk, "units": peak_units},
         "over_allocation": over,
         "cap": cap,
+        # The "by department" half, as a grouping the caller declares rather than a field nobody
+        # defined. `ungrouped` and `unknown_trades` are what stop the rollup from looking complete
+        # when it is not: the first is demand no group claimed, the second is a group naming a trade
+        # the book does not have.
+        "groups": group_rows,
+        "ungrouped_trades": ungrouped,
+        "unknown_trades": unknown,
+        "group_cap": group_cap,
+        "group_over_allocation": group_over,
         "fidelity": {"by_source": by_source, "assigned": assigned, "fallback": fallback,
                      "note": "`resource_assignment` is a resourced plan; `schedule_activity.crew_size` "
                              "is a crew count on an activity. Both are summed, and the split is "

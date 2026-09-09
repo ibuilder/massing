@@ -1720,7 +1720,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2754,7 +2754,8 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- ◧ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; the backend is built, the remainder is mostly viz)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+- ✅ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; CLOSED 2026-09-09, the last item being the
+  department axis, which turned out to be a grouping the firm declares rather than a field)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
 
   **PREMISE-CHECKED (no build). Both halves the entry describes already exist.**
@@ -2777,7 +2778,8 @@ stakes we are missing.
 
   ✅ **Funnel viz SHIPPED v0.3.1135.** `GET /pipeline/funnel` had no caller; Portfolio now renders
   stage counts, derived win rates, weighted value with coverage, and closed cycle time beside
-  open age. Cross-project Gantt, risk heat map, and department resourcing remain.
+  open age. (The other three items — cross-project Gantt, risk heat map and department
+  resourcing — were open when this line was written and have all since shipped; see below.)
 
   ✅ **Risk heat map SHIPPED — `GET /portfolio/risk`, `services/api/src/aec_api/risk_portfolio.py`.**
   Projects down, the five `risk_board` engines across, intensity `3·high + 2·medium + 1·low`. Cells
@@ -2844,6 +2846,42 @@ stakes we are missing.
   rather than invented: a dimension nobody has defined cannot be reported honestly. **The portfolio
   axis was the half that mattered and it needed no new field.**
 
+  ✅ **ANSWERED AND SHIPPED 2026-09-09 — and the answer was that the question had no vendor.**
+  Checked against how the industry's own tools model it rather than decided here: **Deltek
+  Vantagepoint, the dominant AEC ERP, ships no `department` dimension at all.** It gives a
+  configurable organisation breakdown of up to five levels whose labels the firm chooses — the
+  documented examples being *company, region, branch, discipline, principal*. Unanet and BST are the
+  same shape. **The axis is firm-defined, not vendor-defined, and that is the whole finding.**
+
+  It also dissolves the either/or above, because the two readings are **different POPULATIONS, not
+  different labels.** For a GC, departments are the office functions — preconstruction, estimating,
+  operations, safety, business development — and the people in them are salaried staff, not the
+  field trades `resource_assignment` records; a department axis over field labour has no members at
+  all. For a design firm the axis *is* discipline, which is already exactly what the field holds.
+  **Neither reading wanted a new column.** So `portfolio` takes a declared `groups` mapping — a
+  name to the trades it covers — and rolls the book up by it: `?group=Structure:ironworker,concrete`,
+  with `?group_cap=` flagging a whole group over-committed where no single trade is.
+
+  **What it refuses, before the sweep, is the point.** A trade claimed by two groups (the group
+  totals would then sum to more than the book, and neither group is the right one to charge it to)
+  and an empty group (a name with no trades reports a confident zero). Both are checked in
+  `check_groups`, which is kept out of the rollup so a mutation can be aimed at the *rule* rather
+  than at the arithmetic consuming it. In both directions the rollup names what it did not cover:
+  `ungrouped_trades` is demand no group claimed, `unknown_trades` a group naming a trade the book
+  does not have, and a group whose trades are all absent carries `state: "no_demand"` with **no
+  counts** rather than a zero — *a group total that quietly omits work looks complete.*
+
+  **The firm declares it once, in Settings.** `AEC_RESOURCE_GROUPS` (`Structure:ironworker,concrete;
+  MEP:electrician,plumber`) is install-wide and admin-editable, so the Portfolio panel renders the
+  firm's axis without every caller retyping it. **The two sources fail differently on purpose:** an
+  explicit `?group=` is the request's own input, so a bad one is a 422; a bad *configured* value
+  degrades to the ungrouped book and reports `groups_error`, because refusing it would black out the
+  resourcing panel for every user over an admin's typo in a settings box. Failing closed on your
+  caller and open on your configuration is one rule, not two — *the error goes to the party who can
+  act on it.* That panel's Settings **Test** button is a parse rather than a probe for the same
+  reason: this group configures no connection, and the generic "no connection test available"
+  fallthrough would show a red ✗ on a correctly configured install.
+
   **Fidelity is reported, not blended.** `resource_loading` falls back to
   `schedule_activity.crew_size` when a project has no assignments; that is a crew count, not a
   resourced plan. Every project row carries its `source` and `fidelity` gives the split, so a book
@@ -2856,7 +2894,8 @@ stakes we are missing.
   The second instance of a class that file already records; the note there explains why the matcher
   is not the thing to change.
 
-  **R22-PIPELINE is now closed apart from the department question above, which is the user's.**
+  **R22-PIPELINE IS CLOSED.** The department question that was the user's is answered above and
+  shipped; nothing in this entry is outstanding.
 ## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
 
 **A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for

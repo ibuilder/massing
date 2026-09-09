@@ -45,6 +45,17 @@ CATALOG: list[dict[str, Any]] = [
         {"key": "MASSING_CLOUD_ADMIN_ROLES", "label": "Cloud roles that map to app admin",
          "secret": False, "default": "administrator,editor"},
     ]},
+    # R22-PIPELINE: "resource allocation by department". There is no `department` field and there
+    # should not be one — the industry's own tools model this as an axis the FIRM declares (Deltek
+    # Vantagepoint ships a configurable organisation breakdown, not a fixed department dimension).
+    # So it lives here, install-wide and admin-editable, rather than as a schema column: a GC groups
+    # real trades into Structure/MEP/Finishes, and a design firm's axis is already the trade value,
+    # since `resource_assignment.trade` is labelled "Trade / discipline".
+    {"group": "Portfolio resource grouping", "keys": [
+        {"key": "AEC_RESOURCE_GROUPS",
+         "label": "Groups — 'Structure:ironworker,concrete; MEP:electrician,plumber' (blank = by trade)",
+         "secret": False},
+    ]},
     {"group": "AI assist (Draft RFI)", "keys": [
         {"key": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "secret": True},
         {"key": "AEC_AI_MODEL", "label": "Model", "secret": False, "default": "claude-opus-4-8"},

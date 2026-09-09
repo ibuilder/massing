@@ -127,4 +127,176 @@ with TestClient(app) as c:
     assert c.get("/portfolio/resourcing?limit=0", headers=HDR).json()["project_count"] == 1
     assert c.get("/portfolio/resourcing?weeks=1", headers=HDR).json()["week_span"]["shown"] >= 1
 
-print("resource portfolio OK")
+    # --- "BY DEPARTMENT" — a grouping the caller declares, not a field we hold -------------------
+    # The book: Ironworkers 6+6 across two projects, Glaziers 3, and (from above) a crewed fallback.
+    # Group them the way a GC would and the group view must answer the question the trade view
+    # cannot: is STRUCTURE over-committed across the book, not just each trade within it.
+    g1 = c.get("/portfolio/resourcing?group=Structure:Ironworkers&group=Envelope:Glaziers"
+               "&group_cap=10", headers=HDR).json()
+    rows = {r["group"]: r for r in g1["groups"]}
+    assert set(rows) == {"Structure", "Envelope"}, list(rows)
+    # 6 + 6 concurrent in the same week — the cross-project sum, not either project's own 6.
+    assert rows["Structure"]["peak_units"] == 12.0, rows["Structure"]
+    assert rows["Structure"]["peak_week"] == WK, rows["Structure"]
+    assert rows["Structure"]["cross_project"] is True, rows["Structure"]
+    assert rows["Envelope"]["peak_units"] == 3.0, rows["Envelope"]
+    assert rows["Envelope"]["cross_project"] is False, rows["Envelope"]
+    # ...and the group cap catches Structure while no single project would have.
+    over = [o for o in g1["group_over_allocation"] if o["group"] == "Structure"]
+    assert over and over[0]["units"] == 12.0 and over[0]["week"] == WK, g1["group_over_allocation"]
+    assert len(over[0]["projects"]) == 2, over[0]
+    assert not [o for o in g1["group_over_allocation"] if o["group"] == "Envelope"], g1
+
+    # A group total that quietly omits work looks complete, so what no group claimed is NAMED.
+    assert "Glaziers" not in g1["ungrouped_trades"], g1["ungrouped_trades"]
+    g2 = c.get("/portfolio/resourcing?group=Structure:Ironworkers", headers=HDR).json()
+    assert "Glaziers" in g2["ungrouped_trades"], g2["ungrouped_trades"]
+
+    # ...and the mirror: a group naming a trade the book does not have would silently shrink it.
+    g3 = c.get("/portfolio/resourcing?group=Structure:Ironworkers,Millwrights", headers=HDR).json()
+    assert g3["unknown_trades"] == {"Structure": ["Millwrights"]}, g3["unknown_trades"]
+    # the group is still measured on the trade that IS there — unknown members do not void it
+    assert next(r for r in g3["groups"] if r["group"] == "Structure")["peak_units"] == 12.0, g3
+
+    # A group whose trades are ALL absent carries no counts, rather than a confident zero — the
+    # unmeasured-cell rule the risk heat map applies, arriving here for the same reason.
+    g4 = c.get("/portfolio/resourcing?group=Sitework:Excavators", headers=HDR).json()
+    row = next(r for r in g4["groups"] if r["group"] == "Sitework")
+    assert row["state"] == "no_demand" and "peak_units" not in row, row
+
+    # --- refused BEFORE the sweep, because neither total would be true --------------------------
+    # A trade in two groups: the group totals would sum to more than the book.
+    r = c.get("/portfolio/resourcing?group=A:Ironworkers&group=B:Ironworkers", headers=HDR)
+    assert r.status_code == 422, (r.status_code, r.text[:160])
+    assert "sum to more than the book" in r.json()["detail"], r.json()["detail"]
+    # An empty group reports a confident zero.
+    r = c.get("/portfolio/resourcing?group=Empty:", headers=HDR)
+    assert r.status_code == 422 and "names no trades" in r.json()["detail"], r.text[:160]
+    # A malformed spec is named rather than silently ignored.
+    r = c.get("/portfolio/resourcing?group=NoColon", headers=HDR)
+    assert r.status_code == 422 and "Name:trade1" in r.json()["detail"], r.text[:160]
+
+    # --- the 422 text is a RETURN VALUE, never a caught exception --------------------------------
+    # CodeQL's py/stack-trace-exposure fired on the first draft of this route, which put `str(e)`
+    # from a caught GroupingError into the response. This repository has been caught by that twice
+    # before and recorded both times that TYPING the exception does not clear it — a caught
+    # exception is tainted whatever its class. Those two could answer with a constant because their
+    # detail was an internal failure; here the detail is the whole point, so the route asks
+    # `plan_groups` for a problem STRING instead and nothing on the request path stringifies an
+    # exception. Pinned structurally, because the messages above would read identically either way.
+    # Structurally, by AST rather than by text: the first draft of THIS assertion searched the
+    # source for "except" and failed on the word "exception" inside the comment explaining why
+    # there is no except clause. A substring check cannot tell a construct from a mention of one.
+    import ast  # noqa: PLC0415
+    import inspect  # noqa: PLC0415
+    import textwrap  # noqa: PLC0415
+
+    from aec_api import resource_portfolio  # noqa: PLC0415
+    from aec_api.routers import dashboard  # noqa: PLC0415
+
+    def _nodes(fn, kind):
+        """Every AST node of `kind` in `fn`'s source.
+
+        `textwrap.dedent` because a nested function's source carries its indentation and would
+        otherwise raise IndentationError before the walk ever starts.
+        """
+        src = textwrap.dedent(inspect.getsource(fn))
+        return [n for n in ast.walk(ast.parse(src)) if isinstance(n, kind)]
+
+    assert not _nodes(dashboard.portfolio_resourcing, ast.ExceptHandler), \
+        "the route caught something again — see the comment above"
+    for fn in (resource_portfolio._plan, resource_portfolio._check):
+        assert not _nodes(fn, ast.Raise), f"{fn.__name__} raises; it must RETURN the problem"
+    # ...and the probe finds what it is looking for when it IS there, or the three assertions above
+    # are three ways of saying nothing.
+    assert _nodes(resource_portfolio.check_groups, ast.Raise), "the probe cannot see a raise"
+
+    def _has_both():
+        """The positive control: a function that demonstrably contains both node kinds.
+
+        Kept inline rather than pointed at some real function elsewhere, because a fixture that
+        lives somewhere else can lose the shape it was chosen for without anyone noticing here.
+        """
+        try:
+            raise ValueError("x")
+        except ValueError:
+            return None
+    assert _nodes(_has_both, ast.ExceptHandler), "the probe cannot see an except handler"
+    assert _nodes(_has_both, ast.Raise), "the probe cannot see a raise"
+
+    # ...and the raising wrapper still exists for callers that are not an HTTP boundary, which is
+    # what makes the missing `except` in the route safe rather than merely absent. `portfolio`
+    # re-checks, so a direct caller cannot smuggle a double-claim past the route's validation.
+    try:
+        resource_portfolio.portfolio(None, [], groups={"A": ["x"], "B": ["x"]})
+    except resource_portfolio.GroupingError as e:
+        assert "sum to more than the book" in str(e), str(e)
+    else:
+        raise AssertionError("portfolio accepted a trade claimed by two groups")
+
+    # ungrouped/unknown are present and empty when no grouping is asked for, so a caller never has
+    # to branch on whether the keys exist.
+    base = c.get("/portfolio/resourcing", headers=HDR).json()
+    assert base["groups"] == [] and base["ungrouped_trades"] == [] and base["unknown_trades"] == {}
+
+    # --- the grouping a FIRM declares once, not one every caller retypes -------------------------
+    # `?group=` is fine for an API caller, but the portfolio panel has no business inventing an
+    # organisation breakdown — so an install-wide default is configured in the Settings panel and
+    # used when the request names none. It must be in the catalog or an admin can never set it.
+    from aec_api import settings_store  # noqa: PLC0415 — after the app is built, like the tests above
+    assert "AEC_RESOURCE_GROUPS" in settings_store.ALL_KEYS, sorted(settings_store.ALL_KEYS)
+
+    os.environ["AEC_RESOURCE_GROUPS"] = "Structure:Ironworkers; Envelope:Glaziers"
+    try:
+        d1 = c.get("/portfolio/resourcing", headers=HDR).json()
+        assert {r["group"] for r in d1["groups"]} == {"Structure", "Envelope"}, d1["groups"]
+        assert next(r for r in d1["groups"] if r["group"] == "Structure")["peak_units"] == 12.0, d1
+        assert "groups_error" not in d1, d1.get("groups_error")
+        # an explicit grouping still WINS over the configured default — the request is more
+        # specific than the install, and a caller who asks for one axis must not silently get another
+        d2 = c.get("/portfolio/resourcing?group=All:Ironworkers,Glaziers", headers=HDR).json()
+        assert {r["group"] for r in d2["groups"]} == {"All"}, d2["groups"]
+
+        # THE ASYMMETRY. A bad *configured* grouping must not black out the resourcing panel for
+        # every user because an admin mistyped in a settings box: it degrades to the ungrouped book
+        # and says why. A bad *query* grouping is still a 422 — the party who can act on the error
+        # is the one who sees it.
+        os.environ["AEC_RESOURCE_GROUPS"] = "A:Ironworkers; B:Ironworkers"
+        d3 = c.get("/portfolio/resourcing", headers=HDR)
+        assert d3.status_code == 200, (d3.status_code, d3.text[:160])
+        d3 = d3.json()
+        assert d3["groups"] == [] and d3["trades"], d3["groups"]
+        assert "sum to more than the book" in d3.get("groups_error", ""), d3.get("groups_error")
+        # ...and the same text through `?group=` is the refusal it was before.
+        r = c.get("/portfolio/resourcing?group=A:Ironworkers&group=B:Ironworkers", headers=HDR)
+        assert r.status_code == 422, (r.status_code, r.text[:160])
+
+        # A malformed configured spec degrades the same way — one grammar, one exception type, so
+        # the caller catches one thing rather than one per parse stage.
+        os.environ["AEC_RESOURCE_GROUPS"] = "NoColon"
+        d4 = c.get("/portfolio/resourcing", headers=HDR).json()
+        assert d4["groups"] == [] and "Name:trade1" in d4.get("groups_error", ""), d4.get("groups_error")
+
+        # blank/whitespace-only is an UNCONFIGURED install, not a broken one
+        os.environ["AEC_RESOURCE_GROUPS"] = "  ;  "
+        d5 = c.get("/portfolio/resourcing", headers=HDR).json()
+        assert d5["groups"] == [] and "groups_error" not in d5, d5
+
+        # ...and the Settings panel's "Test" answers the only question this setting can fail. It
+        # is a parse, not a probe: this group configures no connection, so the generic fallthrough
+        # ("no connection test available") would show a red ✗ on a correctly configured install —
+        # a test that reports failure for the healthy case is worse than no test.
+        from aec_api import conntest  # noqa: PLC0415
+        os.environ["AEC_RESOURCE_GROUPS"] = "Structure:Ironworkers,Concrete"
+        t1 = conntest.test_group("Portfolio resource grouping")
+        assert t1["ok"] and "Structure (2 trades)" in t1["message"], t1
+        os.environ["AEC_RESOURCE_GROUPS"] = "A:Ironworkers; B:Ironworkers"
+        t2 = conntest.test_group("Portfolio resource grouping")
+        assert not t2["ok"] and "sum to more than the book" in t2["message"], t2
+        os.environ.pop("AEC_RESOURCE_GROUPS")
+        t3 = conntest.test_group("Portfolio resource grouping")
+        assert t3["ok"] and "rolls up by trade" in t3["message"], t3
+    finally:
+        os.environ.pop("AEC_RESOURCE_GROUPS", None)
+
+print("resource portfolio OK - cross-project trade demand, fidelity split, and the \"by department\" rollup: a caller-declared grouping with group caps, ungrouped and unknown trades named, and double-claimed/empty groups refused before the sweep — plus the install-wide default, which degrades rather than 422s because an admin's typo must not black out every user's panel")
