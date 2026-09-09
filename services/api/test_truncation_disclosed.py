@@ -280,32 +280,50 @@ try:
     equipment._MAX_LINES = 3
 
     class _Unit:
-        """A minimal element the schedule can group: distinct type per unit forces distinct lines."""
+        """A minimal element the schedule can group.
+
+        `is_a()` returns a DISTINCT class name per unit, so ten units become ten one-unit lines. The
+        names themselves are arbitrary — `schedule()` reaches an element through `model.by_type(sc)`
+        and then groups by whatever `is_a()` answers. What is NOT arbitrary is the argument
+        `by_type` recognises; see below.
+        """
 
         def __init__(self, i: int) -> None:
             self.GlobalId, self._i = f"guid-{i}", i
 
-        def is_a(self, *a: object) -> bool:
-            return True
+        def id(self) -> int:
+            return self._i
+
+        def is_a(self, *a: object) -> str:
+            return f"IfcFlowTerminalKind{self._i}"
 
     class _Model:
         def __init__(self, n: int) -> None:
             self._n = n
 
         def by_type(self, t: str) -> list[_Unit]:
-            return [_Unit(i) for i in range(self._n)] if t == "IfcProduct" else []
+            # `_EQUIP_CLASSES[0]`, NOT "IfcProduct". The first draft of this fixture answered only
+            # "IfcProduct", which `schedule()` never asks for — so it built ZERO groups, every
+            # inequality below held vacuously, and the gate reported the equipment disclosure
+            # verified while testing nothing. Indexing the real tuple means the fixture cannot
+            # drift away from the module again.
+            return [_Unit(i) for i in range(self._n)] if t == equipment._EQUIP_CLASSES[0] else []
 
     got = equipment.schedule(_Model(10))
     if "line_total" not in got:
         FAILED.append(f"equipment.schedule lost its disclosure keys: {sorted(got)}")
     else:
-        check("equipment.schedule: the RFQ says how many lines it is not showing",
-              got["line_count"] <= got["line_total"], f"{got['line_count']} of {got['line_total']}")
+        # EXACT values, not inequalities: ten one-unit lines under a cap of three. An inequality is
+        # what let the empty population pass.
+        check("equipment.schedule: the fixture really truncates",
+              (got["line_count"], got["line_total"]) == (3, 10),
+              f"line_count={got['line_count']} line_total={got['line_total']} — expected 3 of 10; "
+              f"if these are 0 the fixture built no groups and every assertion here is vacuous")
         check("equipment.schedule: `truncated` agrees with the two counts",
-              got["truncated"] == (got["line_total"] > got["line_count"]),
+              got["truncated"] is True and got["truncated"] == (got["line_total"] > got["line_count"]),
               f"truncated={got['truncated']} on {got['line_count']}/{got['line_total']}")
         check("equipment.schedule: the QUANTITY total is over every line, not the shown ones",
-              got["unit_total"] >= got["unit_count"],
+              (got["unit_count"], got["unit_total"]) == (3, 10),
               f"unit_count={got['unit_count']} unit_total={got['unit_total']} — a short quantity on "
               f"a procurement document under-buys, which the old code did silently")
 finally:
@@ -319,20 +337,64 @@ with SessionLocal() as db:
     topic = Topic(id="t-trunc", project_id="p1", guid="G-trunc", type="issue",
                   title="Long-running", status="open")
     db.add(topic)
-    over = topic_lifecycle._TIMELINE_CAP + 120
+    cap = topic_lifecycle._TIMELINE_CAP
+    over = cap + 120
     for i in range(over):
         db.add(AuditLog(action="topic.update", actor="bob", topic_id=topic.id,
-                        ts=NOW - timedelta(minutes=over - i), detail={"status": f"s{i}"}))
+                        ts=NOW - timedelta(minutes=over - i),
+                        detail={"status": f"s{i}", "assignee": f"a{i}"}))
     db.commit()
 
     tl = topic_lifecycle.timeline(db, topic)
     check("timeline: `event_count` is the window and `event_total` the history",
-          tl.get("event_total", 0) > tl["event_count"],
+          (tl["event_count"], tl.get("event_total")) == (cap, over * 2),
           f"count={tl['event_count']} total={tl.get('event_total')} — these were the same name for "
-          f"two different numbers, and the dropped events are the OLDEST")
+          f"two different numbers, and the dropped events are the OLDEST. Expected {cap} of "
+          f"{over * 2}: each of the {over} rows carries a status change AND a field edit, so it "
+          f"yields TWO events — a total counted in ROWS reads {over}")
     check("timeline: it says it truncated", tl.get("truncated") is True, repr(tl.get("truncated")))
-    check("timeline: the window is really capped", tl["event_count"] <= topic_lifecycle._TIMELINE_CAP,
-          f"{tl['event_count']} > {topic_lifecycle._TIMELINE_CAP}")
+    check("timeline: the window is really capped", tl["event_count"] <= cap,
+          f"{tl['event_count']} > {cap}")
+
+    # THE SHARP CASE a row-count total could not see: EXACTLY `cap` dual-event rows. The window
+    # holds `cap` events, the topic has 2*cap, and a total counted in ROWS reads `cap` — equal to
+    # the count, so `truncated` comes back FALSE on a timeline that dropped half its history. The
+    # disclosure then certifies itself complete, which is worse than the bug it replaced.
+    db.query(AuditLog).delete()
+    for i in range(cap):
+        db.add(AuditLog(action="topic.update", actor="bob", topic_id=topic.id,
+                        ts=NOW - timedelta(minutes=cap - i),
+                        detail={"status": f"s{i}", "assignee": f"a{i}"}))
+    db.commit()
+    edge = topic_lifecycle.timeline(db, topic)
+    check("timeline: a row-count total cannot certify a halved history as whole",
+          (edge["event_count"], edge.get("event_total"), edge.get("truncated")) == (cap, cap * 2, True),
+          f"count={edge['event_count']} total={edge.get('event_total')} "
+          f"truncated={edge.get('truncated')} — expected {cap}/{cap * 2}/True")
+
+    # AND THE OTHER HALF OF THE SAME CAP: the window is spent on rows the timeline renders NOTHING
+    # for. `bcf.comment.create`, `markup.promote` and `record.comment.promote` are all real actions
+    # written against a topic_id and rendered by none of the branches in `_expand`. Cap the audit
+    # rows before dropping them and a busy topic answers with an EMPTY timeline — the LIMIT-FILTER
+    # shape, one axis over from the one this file is about, and it reads as "nothing happened".
+    # Here the ONE rendered row is the OLDEST, behind `cap + 50` unrendered ones: it survives only
+    # because the action filter is in SQL, ahead of the LIMIT.
+    db.query(AuditLog).delete()
+    db.add(AuditLog(action="topic.create", actor="ann", topic_id=topic.id,
+                    ts=NOW - timedelta(days=9), detail={"type": "issue", "title": "Long-running"}))
+    for i in range(cap + 50):
+        db.add(AuditLog(action="bcf.comment.create", actor="ann", topic_id=topic.id,
+                        ts=NOW - timedelta(minutes=i + 1), detail={"who": f"u{i}"}))
+    db.commit()
+    quiet = topic_lifecycle.timeline(db, topic)
+    check("timeline: the cap is spent on rendered rows, not on rows that render nothing",
+          [e["kind"] for e in quiet["events"]] == ["created"],
+          f"events={[e['kind'] for e in quiet['events']]} — one rendered row sits behind "
+          f"{cap + 50} unrendered ones; an unfiltered LIMIT returns them and this comes back EMPTY")
+    check("timeline: unrendered actions are counted as no events either",
+          (quiet["event_count"], quiet.get("event_total"), quiet.get("truncated")) == (1, 1, False),
+          f"count={quiet['event_count']} total={quiet.get('event_total')} "
+          f"truncated={quiet.get('truncated')} — counting ROWS would claim {cap + 51}")
 
     # And the honest negative: a short topic must NOT claim truncation.
     db.query(AuditLog).delete()

@@ -5,7 +5,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func
 from sqlalchemy.orm import Session
 
 from .. import (
@@ -274,11 +274,23 @@ def load_timings(pid: str, days: int = 30, db: Session = Depends(get_db),
     drawn from its handful of survivors. The rate is what stops that reading as good news.
     """
     since = datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 365)))
-    scoped = (select(models.ViewerLoadTiming)
-              .where(models.ViewerLoadTiming.project_id == pid,
-                     models.ViewerLoadTiming.ts >= since))
-    total = db.scalar(select(func.count()).select_from(scoped.subquery())) or 0
-    rows = db.scalars(scoped.order_by(models.ViewerLoadTiming.ts.desc()).limit(20_000)).all()
+    # ONE statement for both numbers. `count(*) OVER ()` is evaluated across the whole filtered
+    # set before `LIMIT` applies, so `total` is the population and `rows` is the window — from a
+    # single snapshot. Two separate queries would be read under READ COMMITTED at two different
+    # instants, and a concurrent write between them can make `total < len(rows)`: `truncated` then
+    # reads False on a result that WAS truncated, which is exactly the disclosure this endpoint
+    # was changed to make. A cap disclosure has to be atomic with the thing it discloses.
+    # `db.query(...)`, not `db.execute(select(...))`: this is a GET, and `test_mutating_get.py`
+    # reports a GET that reaches `db.execute` unless a reason is written into its baseline. The
+    # baseline is deliberately not an allowlist that grows, and there is nothing to justify here —
+    # the read expresses itself perfectly well through the Query API.
+    hits = (db.query(models.ViewerLoadTiming, func.count().over().label("scoped_total"))
+            .filter(models.ViewerLoadTiming.project_id == pid,
+                    models.ViewerLoadTiming.ts >= since)
+            .order_by(models.ViewerLoadTiming.ts.desc())
+            .limit(20_000).all())
+    rows = [h[0] for h in hits]
+    total = int(hits[0][1]) if hits else 0
 
     def pct(vals: list[int], q: float) -> int | None:
         if not vals:

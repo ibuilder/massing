@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import AuditLog, Comment, Topic
@@ -58,57 +59,102 @@ def _event(ts: Any, kind: str, actor: str | None, summary: str,
             "kind": kind, "actor": actor, "summary": summary, **({"detail": detail} if detail else {})}
 
 
+#: The audit actions the timeline renders. **The cap is applied to these in SQL, not to every audit
+#: row on the topic** — a topic whose recent trail is `bcf.comment.create` / `markup.promote` /
+#: `record.comment.promote` (all real, all rendering nothing here) would otherwise spend its whole
+#: 500-row window on rows that produce no events, and the timeline would come back missing history
+#: it holds. That is the LIMIT-FILTER shape: cap first, drop after, answer looks like "nothing
+#: happened". `_expand` dispatches on exactly these names, so the two cannot disagree about what a
+#: rendered action is.
+_RENDERED_ACTIONS = ("topic.create", "topic.update", "viewpoint.create", "attachment.create")
+
+
+def _expand(ts: Any, action: str | None, actor: str | None,
+            detail: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """One audit row → the timeline events it yields. **The cardinality is not 1.**
+
+    A `topic.update` carrying a status change *and* other field edits yields TWO events; an action
+    outside the handled set yields NONE. That is why `_emitted_total` below calls this function
+    rather than counting rows: the expansion rule and the count are then the same code, and cannot
+    drift into disagreeing about what an event is.
+    """
+    det = detail or {}
+    out: list[dict[str, Any]] = []
+    if action == "topic.create":
+        out.append(_event(ts, "created", actor,
+                          f"created {det.get('type', 'topic')} \u201c{det.get('title', '')}\u201d"))
+    elif action == "topic.update":
+        if "status" in det:
+            out.append(_event(ts, "status", actor, f"status \u2192 {det['status']}",
+                              {k: v for k, v in det.items() if k != "status"} or None))
+        other = sorted(k for k in det if k != "status")
+        if other:
+            out.append(_event(ts, "update", actor, "updated " + ", ".join(other)))
+    elif action == "viewpoint.create":
+        out.append(_event(ts, "viewpoint", actor, "added a viewpoint"))
+    elif action == "attachment.create":
+        out.append(_event(ts, "attachment", actor,
+                          f"attached {det.get('filename', 'a file')}"))
+    return out
+
+
+def _emitted_total(db: Session, topic_id: str) -> int:
+    """How many events the whole topic yields — **counted in events, not in rows.**
+
+    The first version of this disclosure counted audit rows, and its own docstring said so: "one
+    `topic.update` carrying a status change AND field edits yields two, so the total is a floor."
+    A floor is not a total. With 500 such rows the count read 500, `event_count` also read 500, and
+    `truncated` came back **False** on a timeline that had dropped half its history — the disclosure
+    reporting *itself* complete. (It ran the other way too: an unhandled action counted as a row and
+    emitted nothing, so the total could over-report and claim a truncation that had not happened.)
+
+    Naming a defect in a comment and shipping it is the failure this repository has recorded before.
+    """
+    total = db.query(Comment).filter(Comment.topic_id == topic_id).count()
+    for action, detail in db.execute(select(AuditLog.action, AuditLog.detail)
+                                     .where(AuditLog.topic_id == topic_id,
+                                            AuditLog.action.in_(_RENDERED_ACTIONS))):
+        total += len(_expand(None, action, None, detail))
+    return total
+
+
 def timeline(db: Session, topic: Topic) -> dict[str, Any]:
-    """The topic's merged history, oldest→newest: creation, status moves, field edits, comments
-    (threaded via reply_to), viewpoints, attachments — assembled from the audit trail + comment rows."""
+    """The topic's merged history, oldest\u2192newest: creation, status moves, field edits, comments
+    (threaded via reply_to), viewpoints, attachments \u2014 assembled from the audit trail + comment rows."""
     events: list[dict[str, Any]] = []
 
-    audits = (db.query(AuditLog).filter(AuditLog.topic_id == topic.id)
+    audits = (db.query(AuditLog).filter(AuditLog.topic_id == topic.id,
+                                        AuditLog.action.in_(_RENDERED_ACTIONS))
               .order_by(AuditLog.ts.desc()).limit(_TIMELINE_CAP).all())
     for a in audits:
-        det = a.detail or {}
-        if a.action == "topic.create":
-            events.append(_event(a.ts, "created", a.actor,
-                                 f"created {det.get('type', 'topic')} “{det.get('title', '')}”"))
-        elif a.action == "topic.update":
-            if "status" in det:
-                events.append(_event(a.ts, "status", a.actor, f"status → {det['status']}",
-                                     {k: v for k, v in det.items() if k != "status"} or None))
-            other = sorted(k for k in det if k != "status")
-            if other:
-                events.append(_event(a.ts, "update", a.actor, "updated " + ", ".join(other)))
-        elif a.action == "viewpoint.create":
-            events.append(_event(a.ts, "viewpoint", a.actor, "added a viewpoint"))
-        elif a.action == "attachment.create":
-            events.append(_event(a.ts, "attachment", a.actor,
-                                 f"attached {det.get('filename', 'a file')}"))
+        events.extend(_expand(a.ts, a.action, a.actor, a.detail))
 
     comments = (db.query(Comment).filter(Comment.topic_id == topic.id)
                 .order_by(Comment.created_at.desc()).limit(_TIMELINE_CAP).all())
     for c in comments:
-        ev = _event(c.created_at, "comment", c.author, c.text,
-                    {"comment_id": c.id, **({"reply_to": c.reply_to} if c.reply_to else {})})
-        events.append(ev)
+        events.append(_event(c.created_at, "comment", c.author, c.text,
+                             {"comment_id": c.id, **({"reply_to": c.reply_to} if c.reply_to else {})}))
 
     events.sort(key=lambda e: e["ts"] or "")
-    # COUNTED IN SQL, not from `events`. The two queries above are themselves capped at
-    # `_TIMELINE_CAP`, so the assembled list can never exceed 2×CAP however long the topic is —
-    # the first version of this disclosure used `len(events)` and therefore reported a total that
-    # was itself a window. That is the very defect this line exists to disclose, one layer down,
-    # and the assertion written for it is what caught it. `audit_count` is rows, not events: one
-    # `topic.update` carrying a status change AND field edits yields two, so the total is a floor.
-    assembled = (db.query(AuditLog).filter(AuditLog.topic_id == topic.id).count()
-                 + db.query(Comment).filter(Comment.topic_id == topic.id).count())
+    # COUNTED OVER THE WHOLE TOPIC, not from `events`. Both queries above are capped at
+    # `_TIMELINE_CAP`, so the assembled list can never exceed 2\u00d7CAP however long the topic is \u2014 the
+    # first version of this disclosure used `len(events)` and therefore reported a total that was
+    # itself a window, which is the very defect this line exists to disclose, one layer down.
+    # The extra scan is skipped when the capped queries came back short, because a `LIMIT n` that
+    # returns fewer than n rows has already returned all of them.
+    assembled = (len(events) if len(audits) < _TIMELINE_CAP and len(comments) < _TIMELINE_CAP
+                 else _emitted_total(db, topic.id))
     if len(events) > _TIMELINE_CAP:
         events = events[-_TIMELINE_CAP:]              # keep the newest, chronological order preserved
     # `event_count` is what this window holds; `event_total` is what the topic has. They used to be
-    # the same name for two different numbers — the count was computed AFTER the cap, so a topic
+    # the same name for two different numbers \u2014 the count was computed AFTER the cap, so a topic
     # with 800 events reported 500 and said nothing, and "the history" was silently the tail of it.
     # A truncated timeline is the one place a reader is most likely to conclude something did not
     # happen: the missing events are the OLDEST, which is where a decision's origin lives.
+    total = max(assembled, len(events))
     return {"topic_id": topic.id, "title": topic.title, "type": topic.type, "status": topic.status,
             "events": events, "event_count": len(events),
-            "event_total": max(assembled, len(events)),
-            "truncated": max(assembled, len(events)) > len(events),
+            "event_total": total,
+            "truncated": total > len(events),
             "statuses": list(STATUSES),
             "allowed_next": sorted(_TRANSITIONS.get(str(topic.status or "").strip().lower(), set()))}

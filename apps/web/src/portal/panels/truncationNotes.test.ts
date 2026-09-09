@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { scheduleScope } from "./equipment";
+import { scheduleQuantity, scheduleScope } from "./equipment";
 import { earlierNote } from "./topicBoard";
 
 /** The two places a server-side cap becomes something a person can read.
@@ -22,6 +22,27 @@ describe("scheduleScope — the equipment RFQ header", () => {
 
   it("falls back to the plain count against a server that does not send the total", () => {
     expect(scheduleScope({ line_count: 7 })).toBe("7 lines");
+  });
+});
+
+describe("scheduleQuantity — the headline unit count on that same header", () => {
+  it("says only the count when the schedule is whole", () => {
+    expect(scheduleQuantity({ unit_count: 312, unit_total: 312, truncated: false })).toBe("312");
+  });
+
+  it("THE DEFECT: the big number was the SHORT quantity, next to an honest line caption", () => {
+    // `scheduleScope` shipped first and disclosed the line cap; this stayed on `unit_count`, the
+    // sum over returned lines only. The visible honesty about lines vouched for the wrong number.
+    expect(scheduleQuantity({ unit_count: 9800, unit_total: 11240, truncated: true }))
+      .toBe("9800 of 11240");
+  });
+
+  it("falls back to the plain count against a server that does not send the total", () => {
+    expect(scheduleQuantity({ unit_count: 7, truncated: true })).toBe("7");
+  });
+
+  it("does not print a no-op range when the totals agree", () => {
+    expect(scheduleQuantity({ unit_count: 40, unit_total: 40, truncated: true })).toBe("40");
   });
 });
 
