@@ -391,10 +391,20 @@ instances:
   | `ReviewCycles.{total_comments, mean_agency_turnaround_days}` | **Not a defect.** Detail rather than caveat — neither qualifies a number the card displays. |
 
   **THE FINDING-SHAPED SUBSET IS NOW CLOSED: 8 triaged, 1 real, 7 with a stated reason.** The
-  estimate first written here was "~8 finding-shaped", and reading them found **one**. Every
-  non-defect turned out to have the information on screen by another route — which is the
-  substantive result: *this codebase is more careful than the raw derivation suggested*, and
-  **a field with no reader is a candidate, not a defect.**
+  estimate first written here was "~8 finding-shaped", and reading them found **one**.
+
+  **The 7 non-defects are two kinds, and the distinction matters.** Six are *already answered
+  elsewhere* — the panel renders the same fact by another route, so the field is redundant rather
+  than unread. One, `ReviewCycles.{total_comments, mean_agency_turnaround_days}`, is **not on screen
+  at all and does not need to be**: it is ordinary detail that qualifies nothing the card displays.
+  A caveat that is missing and a datum that was never a caveat are different findings, and only the
+  first would have been a defect.
+
+  *That distinction was collapsed in the first draft of this paragraph, which claimed "every
+  non-defect turned out to have the information on screen by another route" — a generalisation that
+  swallowed the one case not fitting it. Caught in review, in the very passage written to correct an
+  over-claim.* The substantive result stands: *this codebase is more careful than the raw derivation
+  suggested*, and **a field with no reader is a candidate, not a defect.**
 
   **The axis is still NOT gateable, and the reason is worth being exact about.** The 8 above were
   read individually. The remaining **~35** were bucketed as "detail" in a single pass and have
