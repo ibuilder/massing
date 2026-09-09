@@ -219,6 +219,39 @@ check("the cap constant was restored", pin_engine._MAX_PINS == _real,
       f"{pin_engine._MAX_PINS} != {_real} — a test that leaks a lowered cap into the rest of the "
       f"suite makes every later pin assertion meaningless")
 
+# ------------------------------------------------------------------------------------------------
+# NULL ORDERING, asserted against the POSTGRES dialect rather than by behaviour.
+#
+# A register's `created_at` is nullable (`_table()` builds it as a bare Core column), and
+# **PostgreSQL sorts NULLs FIRST under DESC** — so in production an undated row is "newest" and
+# eats the capped window ahead of a pin filed today. That is this PR's own defect, one dialect over.
+#
+# **No behavioural test in this file can catch it**, because SQLite already puts NULLs last under
+# DESC: the fixture passes with or without the fix. So the check compiles the ordering against the
+# Postgres dialect and asserts the emitted SQL, the way `test_fts_index.py` checks its GIN
+# expression without a live Postgres. Asserting behaviour here would be a test that cannot fail.
+# ------------------------------------------------------------------------------------------------
+from sqlalchemy import select as _select  # noqa: E402
+from sqlalchemy.dialects import postgresql as _pg  # noqa: E402
+
+# `pin_engine.register_order(...)` — the function the query itself calls. The first draft of
+# this check rebuilt the ORDER BY expression here and so PASSED with `.nulls_last()` removed from
+# the source: a narrative copy of the code cannot test the code.
+_t = _mr.TABLES["rfi"]
+_sql = str(_select(_t.c.id).order_by(*pin_engine.register_order(_t))
+           .compile(dialect=_pg.dialect()))
+check("the register ordering pins NULL dates LAST in Postgres",
+      "NULLS LAST" in _sql.upper(),
+      f"compiled ORDER BY has no NULLS LAST: {_sql!r} — under Postgres a NULL `created_at` "
+      f"sorts FIRST on DESC, so undated register rows would consume the cap ahead of recent ones")
+# The negative, so the check above is known to be capable of failing: the bare `desc()` this
+# replaced must NOT satisfy it.
+_bare = str(_select(_t.c.id).order_by(_t.c.created_at.desc(), _t.c.id.desc())
+            .compile(dialect=_pg.dialect()))
+check("...and the assertion can fail: a bare desc() does not satisfy it",
+      "NULLS LAST" not in _bare.upper(),
+      f"a plain desc() already compiled to NULLS LAST, so the check above proves nothing: {_bare!r}")
+
 if FAILED:
     print("FAIL test_pin_cap")
     for f in FAILED:

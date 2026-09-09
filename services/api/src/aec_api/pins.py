@@ -40,6 +40,25 @@ def _record_tables(db: Session) -> dict:
     return {k: t for k, t in getattr(mod_engine, "TABLES", {}).items() if k in SPATIAL_MODULES}
 
 
+def register_order(table):
+    """The capped register read's ORDER BY, as one definition the test can compile.
+
+    Newest first (see `resolve_pins`), and **`nulls_last()` because PostgreSQL sorts NULLs FIRST
+    under DESC** while a register's `created_at` is nullable — `_table()` builds it as a bare
+    Core column. Without it an undated row is "newest" in production and eats the capped window
+    ahead of a pin filed today: this PR's own defect, one dialect over. SQLite already puts NULLs
+    last, so no behavioural test on SQLite can catch it; `test_pin_cap.py` compiles THIS function
+    against the Postgres dialect instead.
+
+    It is a function rather than an inline clause because the first version of that test rebuilt
+    the expression itself and therefore passed with the fix removed — a narrative copy of the
+    code, not a check of it.
+
+    `Topic.created_at` needs no such guard: it is `Mapped[datetime]`, hence NOT NULL.
+    """
+    return (table.c.created_at.desc().nulls_last(), table.c.id.desc())
+
+
 def _topic_pin_where(pid: str):
     """The "is this a pin" test, in SQL, so the cap is spent on CANDIDATES rather than on topics.
 
@@ -158,7 +177,7 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
                 select(table.c.id, table.c.ref, table.c.title, table.c.element_guids,
                        table.c.workflow_state, func.count().over().label("_n"))
                 .where(*cond)
-                .order_by(table.c.created_at.desc(), table.c.id.desc()).limit(budget)).all()
+                .order_by(*register_order(table)).limit(budget)).all()
         except Exception:           # noqa: BLE001 — a register without these columns simply has no pins
             continue
         rows = list(reversed(hits))
