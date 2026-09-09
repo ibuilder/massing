@@ -50,7 +50,27 @@ with TestClient(app) as c:
                                 '"amount":"amount","date":"date"}'})
     assert r.status_code == 200 and r.json()["imported"] == 2, r.text
     hist = c.get(f"/projects/{pid}/finance/imports").json()
-    assert hist and hist[0]["filename"] == "july-actuals.csv" and hist[0]["imported"] == 2, hist
+    # LIMIT-FILTER: an envelope, not a bare list — `import_total`/`truncated` sit beside the rows
+    # because `limit` is a window and a window that cannot say so reads as the whole history.
+    assert hist["imports"], hist
+    assert hist["imports"][0]["filename"] == "july-actuals.csv", hist
+    assert hist["imports"][0]["imported"] == 2, hist
+    assert hist["import_total"] == hist["import_count"] and hist["truncated"] is False, hist
+
+    # LIMIT-FILTER, the defect itself: the project filter must run in SQL, BEFORE the limit.
+    # A second project importing more recently used to push this project's lineage out of the
+    # window entirely, and the answer came back as an empty list rather than an error.
+    other = c.post("/projects", json={"name": "Noisy neighbour"}).json()["id"]
+    for i in range(3):
+        c.post(f"/projects/{other}/modules/direct_cost/import",
+               files={"file": (f"noise-{i}.csv", io.BytesIO(csv.encode()), "text/csv")},
+               data={"mapping": '{"description":"description","cost_code":"cost_code",'
+                                '"amount":"amount","date":"date"}'})
+    again = c.get(f"/projects/{pid}/finance/imports", params={"limit": 1}).json()
+    assert again["imports"][0]["filename"] == "july-actuals.csv", again
+    assert [x["filename"] for x in again["imports"]].count("noise-0.csv") == 0, again
+    neighbour = c.get(f"/projects/{other}/finance/imports").json()
+    assert neighbour["import_total"] == 3, neighbour
 
     # ---- the period lock reaches imports: locked-month rows land in errors, not the ledger
     fin_gov.set_lock(pid, "2026-06", "cfo")

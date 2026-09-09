@@ -67,17 +67,36 @@ def reconcile(db: Session, pid: str) -> dict[str, Any]:
     }
 
 
-def import_history(db: Session, pid: str, limit: int = 100) -> list[dict[str, Any]]:
+def import_history(db: Session, pid: str, limit: int = 100) -> dict[str, Any]:
     """The project's import batches, newest first — the data-lineage answer to 'where did these
-    numbers come from'."""
-    q = (db.query(AuditLog).filter(AuditLog.action == IMPORT_ACTION)
-         .order_by(AuditLog.ts.desc()).limit(max(1, min(int(limit), 500))))
+    numbers come from'.
+
+    **THE PROJECT FILTER RUNS IN SQL, BEFORE THE LIMIT.** It used to be a Python ``continue`` over
+    rows the database had already truncated to the newest 100 across *every* project, so a quiet
+    project behind a busy one answered with an empty lineage — measured, one import on project A
+    and 150 newer on project B, and A reported **0 imports while an import existed**. Silence is
+    the worst possible shape for this particular answer: "nothing was imported here" is what
+    somebody concludes when they are trying to find out where a number came from, and a blank
+    carries no hint that it is a window rather than the history.
+
+    ``detail["project_id"].as_string()`` compiles to ``json_extract`` on SQLite and ``->>`` on
+    Postgres, so one expression covers the test dialect and the production one. A row with no
+    ``project_id`` yields NULL and is excluded, which is what the Python ``!=`` comparison did —
+    the semantics are unchanged, only the stage they run at.
+
+    ``import_total`` and ``truncated`` ride beside the rows because a cap that reports its slice as
+    the whole is the same defect one layer down: 100 of 150 batches, presented as 150.
+    """
+    q = (db.query(AuditLog)
+         .filter(AuditLog.action == IMPORT_ACTION,
+                 AuditLog.detail["project_id"].as_string() == pid))
+    total = q.count()
+    rows = q.order_by(AuditLog.ts.desc()).limit(max(1, min(int(limit), 500))).all()
     out = []
-    for row in q.all():
+    for row in rows:
         d = row.detail or {}
-        if d.get("project_id") != pid:
-            continue
         out.append({"ts": row.ts.isoformat() if row.ts else None, "actor": row.actor,
                     "module": d.get("module"), "filename": d.get("filename"),
                     "imported": d.get("imported"), "error_count": d.get("error_count")})
-    return out
+    return {"imports": out, "import_count": len(out), "import_total": total,
+            "truncated": total > len(out)}
