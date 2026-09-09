@@ -34,7 +34,8 @@ assigned to them** — measured going from one item to zero behind 250 events by
 
 Both now narrow first and cap second, so what you see is the newest N *of your things* rather than
 your things among the newest N. A capped import history also now says how many batches there are in
-total, so a hundred-of-a-hundred-and-fifty view stops reading as the whole file.
+total, so a hundred-of-a-hundred-and-fifty view stops reading as the whole file — the ledger's
+**Import lineage** heading reads "newest 100 of 150" when there is more than it is showing.
 
 ### The agent trail said "nothing ran here" while runs existed
 
