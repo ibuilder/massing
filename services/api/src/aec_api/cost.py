@@ -291,30 +291,63 @@ def lien_waiver(db: Session, pid: str, kind: str = "conditional_progress", app_n
 
 #: The three T&M line tables an eTicket carries, and how each one prices.
 #:
-#: `(lines field, rate module, name column, quantity column, rate column, unpriceable column)`
+#: `(lines field, rate module, REGISTER name column, LINE name column, quantity column, rate column,
+#: unpriceable column)`
 #:
-#: The rate column differs across the three — labour and equipment are `$/hr` on `rate`, material is
-#: a `unit_price` — which is why this is a table rather than a naming convention. The last entry
-#: names a quantity the rate register **cannot** price: `labor_rate` has no overtime rate and
-#: `equipment_rate` no idle rate, anywhere. Those hours are therefore reported as unpriced rather
-#: than multiplied by an assumed factor — a 1.5x nobody agreed to is a contract term, not a default,
-#: and this is the number a contractor gets paid.
-TM_TABLES: tuple[tuple[str, str, str, str, str, str | None], ...] = (
-    ("labor_lines", "labor_rate", "trade", "hours", "rate", "ot_hours"),
-    ("material_lines", "material_rate", "material", "qty", "unit_price", None),
-    ("equipment_lines", "equipment_rate", "equipment", "hours", "rate", "idle_hours"),
+#: **The register's name column and the LINE's name column are different questions, and conflating
+#: them shipped a HIGH defect.** The first version carried one column for both. Labour and equipment
+#: happen to agree (`trade`, `equipment` on each side) — material does not: the register keys on
+#: `material`, the eTicket line names the thing in `description`, and `material_lines` has no
+#: `material` column at all. So every material line a user could actually create read as name `""`
+#: and material never priced. It passed review and a mutation sweep because the test fixture put a
+#: `material` key on the row — *a fixture describing a world the schema does not have*, which is the
+#: failure `test_tm_rates.py`'s own docstring names one line up. Two of three coinciding is exactly
+#: how a conflated field survives.
+#:
+#: The rate column also differs across the three — labour and equipment are `$/hr` on `rate`,
+#: material is a `unit_price`. The last entry names a quantity the register **cannot** price:
+#: `labor_rate` has no overtime rate and `equipment_rate` no idle rate. Those hours are reported
+#: unpriced rather than multiplied by an assumed factor — a 1.5x nobody agreed to is a contract
+#: term, not a default, and this is the number a contractor gets paid.
+TM_TABLES: tuple[tuple[str, str, str, str, str, str, str | None], ...] = (
+    ("labor_lines", "labor_rate", "trade", "trade", "hours", "rate", "ot_hours"),
+    ("material_lines", "material_rate", "material", "description", "qty", "unit_price", None),
+    ("equipment_lines", "equipment_rate", "equipment", "equipment", "hours", "rate", "idle_hours"),
 )
 
+#: Register `unit` values whose rate multiplies out against HOURS. `labor_rate` offers Hour|Day and
+#: `equipment_rate` Hour|Day|Week|Month, and the line's quantity is hours either way — so a Day or
+#: Week rate extended by hours is wrong by the length of a working day, a number this system is not
+#: entitled to assume. Blank counts as hourly: the field is optional and both columns are labelled
+#: `$/hr`. Anything else is reported and NOT priced, for the same reason overtime is not.
+_HOURLY_UNITS = {"", "hour", "hourly", "hr", "/hr", "$/hr"}
 
-def _rate_index(db: Session, pid: str, mod: str, name_field: str) -> dict[str, float]:
-    """`{lowercased name: rate}` for one rate register. One query, not one per line."""
+
+def _rate_index(db: Session, pid: str, mod: str, name_field: str) -> dict[str, tuple[float, str]]:
+    """`{lowercased name: (rate, unit)}` for one rate register. One query, not one per line.
+
+    Two exclusions, both of which the first version got wrong:
+
+    - **A row with no rate is not an entry.** `rate` is optional on all three registers, so a
+      half-filled row yielded `0.0` — which is not `None`, so the line matched, took a rate of zero,
+      was reported as successfully priced, and kept a stale amount because the recompute is guarded
+      on a truthy rate. A fabricated "the register says $0" is worse than saying nothing.
+    - **A `closed` row is a retired rate.** Both registers carry an open/closed workflow, and
+      `list_records` orders oldest-first, so a superseded rate won the lookup and was then
+      SNAPSHOTTED onto the line permanently. That is the REFUSAL-READERS class, in a register whose
+      whole purpose is to be superseded.
+    """
     if mod not in me.TABLES:
         return {}
-    out: dict[str, float] = {}
+    out: dict[str, tuple[float, str]] = {}
     for r in _records(db, mod, pid):
-        name = str((r["data"] or {}).get(name_field, "")).strip().lower()
-        if name and name not in out:
-            out[name] = _n((r["data"] or {}).get("rate"))
+        if r.get("workflow_state") == "closed":
+            continue
+        d = r["data"] or {}
+        name = str(d.get(name_field, "")).strip().lower()
+        rate = _n(d.get("rate"))
+        if name and rate > 0 and name not in out:
+            out[name] = (rate, str(d.get("unit", "")).strip().lower())
     return out
 
 
@@ -333,15 +366,18 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
     with the right number in its body. **The lines are the evidence and the total is the summary**,
     which `apply_table_totals` says in as many words; pricing therefore belongs in the evidence.
 
-    ## What it will and will not overwrite
+    ## One rule, applied to every cell: FILL a blank, REPORT a disagreement, overwrite nothing
 
-    - A row with **no rate** takes the register's — that is the whole feature.
-    - A row whose typed rate **differs** from the register keeps the typed one, and the difference
-      is reported. A T&M rate that disagrees with the rate table is the thing a GC wants to see
-      before signing, not something to correct behind their back.
-    - A row the register has **no entry for** is left exactly as it is, and named.
-    - `amount` IS recomputed wherever a rate is known, because amount is arithmetic over the rate
-      and the quantity, not a negotiated figure.
+    - a row with **no rate** takes the register's — that is the whole feature;
+    - a row whose typed rate **differs** from the register keeps the typed one, reported;
+    - a row whose typed **amount** differs from rate x quantity keeps the typed one, reported. The
+      first version recomputed `amount` unconditionally, which silently replaced a figure a human
+      had entered: 8h + 2h OT at $95 written up as $1,045 became $760, and a lump-sum line with no
+      hours became $0. **A typed amount is evidence for exactly the reason a typed rate is** — it
+      may carry a premium, a negotiated allowance, or a rounding both parties signed. Applying the
+      principle to the rate and not to the amount was an inconsistency, not a design;
+    - a row the register has **no usable entry** for is left exactly as it is, and named;
+    - a register rate quoted per Day/Week/Month is **not** extended against hours, and says so.
 
     The rate is copied into the row, never referenced: updating the register later must not change
     what is owed for work already done. `test_eticket_tm.py` pins that, and this respects it.
@@ -352,11 +388,12 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
     unmatched: list[dict] = []
     unpriced: list[dict] = []
     priced = 0
-    for field, mod, name_col, qty_col, rate_col, extra_col in TM_TABLES:
+    for field, mod, reg_col, line_col, qty_col, rate_col, extra_col in TM_TABLES:
         rows = data.get(field)
         if not isinstance(rows, list):
             continue                      # never filled in, or legacy free text
-        index = _rate_index(db, pid, mod, name_col)
+        index = _rate_index(db, pid, mod, reg_col)
+        hours_based = qty_col == "hours"
         out: list[Any] = []
         moved = 0
         for row in rows:
@@ -364,29 +401,46 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
                 out.append(row)
                 continue
             row, before = dict(row), row
-            name = str(row.get(name_col, "")).strip()
+            name = str(row.get(line_col, "")).strip()
             typed = _n(row.get(rate_col))
-            listed = index.get(name.lower())
-            if listed is None:
+            entry = index.get(name.lower())
+            if entry is None:
                 unmatched.append({"table": field, "name": name, "register": mod})
+            elif hours_based and entry[1] not in _HOURLY_UNITS:
+                # A per-Day/Week/Month rate against a quantity in hours. Converting needs a working
+                # day this system was never told, so it is named rather than guessed.
+                # `column` names the QUANTITY, matching the other producer below and the panel's
+                # `{quantity} {column}` rendering. It said `rate_col` here, which rendered as
+                # "8 rate are NOT in the figures above" — the label disagreeing with the number
+                # beside it. Raised in review.
+                unpriced.append({"table": field, "name": name, "column": qty_col,
+                                 "quantity": _n(row.get(qty_col)),
+                                 "reason": f"the register quotes this per {entry[1]}, and the line "
+                                           f"is in hours"})
             elif not typed:
-                row[rate_col] = listed
-                filled.append({"table": field, "name": name, "rate": listed})
-            elif round(typed, 2) != round(listed, 2):
-                variance.append({"table": field, "name": name, "typed": round(typed, 2),
-                                 "register": round(listed, 2)})
+                row[rate_col] = entry[0]
+                filled.append({"table": field, "name": name, "rate": entry[0]})
+            elif money.q2(typed) != money.q2(entry[0]):
+                # money.q2, not round(): a rate carries cents, and round() is HALF-EVEN while money
+                # is HALF-UP. The amount comparison below already used q2, so mixing the two here
+                # could report a rate variance that is only a rounding disagreement, or miss a real
+                # one at the half-cent. Raised in review — the same defect this PR's own subject is.
+                variance.append({"table": field, "name": name, "field": rate_col,
+                                 "typed": money.q2(typed), "register": money.q2(entry[0])})
             rate = _n(row.get(rate_col))
             if rate:
-                # money.mul, not round(rate * qty, 2): the latter rounds HALF-EVEN over a binary
-                # product, so 2.675 at qty 1 extends to 2.67. This is the line a contractor is paid
-                # on. Raised in review — and it is a shape `test_money_spine.py` cannot see, since
-                # its scan requires a division by 100 that a percentage has and a product does not.
-                amount = money.mul(rate, _n(row.get(qty_col)))
-                if money.q2(_n(row.get("amount"))) != amount:
-                    row["amount"] = amount
+                extended = money.mul(rate, _n(row.get(qty_col)))
+                current = _n(row.get("amount"))
+                if not current:
+                    row["amount"] = extended
+                elif money.q2(current) != extended:
+                    # Reported, NOT corrected — see the rule above.
+                    variance.append({"table": field, "name": name, "field": "amount",
+                                     "typed": money.q2(current), "register": extended})
             if extra_col and _n(row.get(extra_col)):
                 unpriced.append({"table": field, "name": name, "column": extra_col,
-                                 "quantity": _n(row.get(extra_col))})
+                                 "quantity": _n(row.get(extra_col)),
+                                 "reason": "the rate register holds no rate for these"})
             if row != before:
                 moved += 1
             out.append(row)

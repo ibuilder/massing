@@ -165,7 +165,7 @@ with TestClient(app) as c:
     # requires the expression to divide by 100, which a percentage does and a product does not.
     c.post(f"/projects/{pid}/modules/material_rate", headers=H,
            json={"data": {"material": "Half-cent widget", "rate": 2.675}})
-    tid = ticket(material_lines=[{"description": "w", "material": "Half-cent widget", "qty": 1}])
+    tid = ticket(material_lines=[{"description": "Half-cent widget", "qty": 1}])
     price(tid)
     check("an extended amount rounds half-UP at the half-cent, not half-even",
           rows(tid, "material_lines")[0].get("amount") == 2.68,
@@ -174,10 +174,118 @@ with TestClient(app) as c:
     check("...and the derived total carries the same cent", stored(tid).get("material_total") == 2.68,
           stored(tid).get("material_total"))
 
+    # ---- 4c. FIVE REVIEW FINDINGS, each a fixture the first version could not express ------------
+    # Every one of these passed the original suite. They are grouped because they share a cause: the
+    # fixtures described a world simpler than the schema, so the assertions could not reach the bug.
+
+    # (i) THE MATERIAL NAME COLUMN. `material_lines` has columns description/qty/unit/unit_price/
+    # amount — there is NO `material` column. The first TM_TABLES used one field for both the
+    # REGISTER's name column and the LINE's, which is right for labour and equipment by coincidence
+    # and wrong for material, so every material line a user could create priced as unmatched. The
+    # original test passed only because its fixture put a `material` key on the row.
+    # Its own fixture, deliberately: the first draft of THIS check read a `tid` left over from the
+    # section above and asserted 4.25 against a different ticket. Same error one layer up — an
+    # assertion whose subject is not the thing it names.
+    tid = ticket(material_lines=[{"description": "EMT 3/4", "qty": 10}])
+    price(tid)
+    check("a material line names its item in `description`, the column the schema actually has",
+          rows(tid, "material_lines")[0].get("unit_price") == 4.25,
+          rows(tid, "material_lines")[0])
+    check("...and it extends", rows(tid, "material_lines")[0].get("amount") == 42.5,
+          rows(tid, "material_lines")[0])
+    tid = ticket(material_lines=[{"description": "EMT 3/4", "qty": 10, "material": "nonsense"}])
+    price(tid)
+    check("...while a stray non-schema key on the row changes nothing",
+          rows(tid, "material_lines")[0].get("amount") == 42.5,
+          rows(tid, "material_lines")[0])
+
+    # (ii) A TYPED AMOUNT IS EVIDENCE, exactly as a typed rate is. 8h + 2h OT written up at $1,045
+    # must not become $760 because straight time is all this engine can derive.
+    tid = ticket(labor_lines=[{"worker": "A", "trade": "Electrician", "hours": 8, "ot_hours": 2,
+                               "rate": 95, "amount": 1045}])
+    rep = price(tid)
+    check("a typed amount is NOT overwritten by rate x quantity",
+          rows(tid, "labor_lines")[0].get("amount") == 1045, rows(tid, "labor_lines")[0])
+    check("...and the difference from straight time is reported instead",
+          [(v["field"], v["typed"], v["register"]) for v in rep["variance"]]
+          == [("amount", 1045.0, 760.0)], rep["variance"])
+    # A lump-sum line with no hours must not be zeroed either.
+    tid = ticket(labor_lines=[{"worker": "B", "trade": "Electrician", "amount": 500}])
+    price(tid)
+    check("a lump-sum line with no quantity keeps its amount",
+          rows(tid, "labor_lines")[0].get("amount") == 500, rows(tid, "labor_lines")[0])
+
+    # (iii) A REGISTER ROW WITH NO RATE IS NOT AN ENTRY. `rate` is optional, so a half-filled row
+    # gave 0.0 — not None — and the line took a rate of zero, was reported as priced, and kept a
+    # stale amount because the recompute is guarded on a truthy rate.
+    c.post(f"/projects/{pid}/modules/labor_rate", headers=H, json={"data": {"trade": "Rigger"}})
+    tid = ticket(labor_lines=[{"worker": "C", "trade": "Rigger", "hours": 6}])
+    rep = price(tid)
+    check("a register row with no rate reads as NO entry, not as $0",
+          [u["name"] for u in rep["unmatched"]] == ["Rigger"] and not rep["filled"], rep)
+    check("...so the line is left alone rather than priced at zero",
+          "rate" not in rows(tid, "labor_lines")[0], rows(tid, "labor_lines")[0])
+
+    # (iv) THE REGISTER'S UNIT. equipment_rate offers Hour|Day|Week|Month and the line's quantity is
+    # hours, so a $1,200/Week lift extended against an 8-hour day reads as $9,600 — reported as an
+    # ordinary success. Converting needs a working day nobody stated, so it is named, not guessed.
+    c.post(f"/projects/{pid}/modules/equipment_rate", headers=H,
+           json={"data": {"equipment": "Tower crane", "rate": 1200, "unit": "Week"}})
+    tid = ticket(equipment_lines=[{"equipment": "Tower crane", "hours": 8}])
+    rep = price(tid)
+    check("a per-week rate is NOT extended against hours",
+          "rate" not in rows(tid, "equipment_lines")[0], rows(tid, "equipment_lines")[0])
+    check("...and the reason names the register's unit",
+          any("per week" in (u.get("reason") or "") for u in rep["unpriced"]), rep["unpriced"])
+    # `column` must name the QUANTITY, not the rate: the panel renders it as
+    # "{quantity} {column} are NOT in the figures above", so `rate_col` here read as "8 rate".
+    # Asserting only the reason text missed it — raised in review, and the THIRD time in this item
+    # that a fixture checked less than the thing it was about.
+    check("...and `column` names the quantity the panel prints beside it",
+          [(u["column"], u["quantity"]) for u in rep["unpriced"]] == [("hours", 8.0)],
+          rep["unpriced"])
+    # Sequenced plainly rather than crammed into one expression: the walrus-and-tuple version put
+    # `price()` inside a short-circuit `and`, so a None from `stored()` would have SKIPPED the
+    # pricing rather than failing the check, and it carried no detail. Raised in review.
+    hourly_tid = ticket(equipment_lines=[{"equipment": "Scissor lift", "hours": 6}])
+    hourly_before = stored(hourly_tid)
+    price(hourly_tid)
+    hourly_row = rows(hourly_tid, "equipment_lines")[0]
+    check("...while an explicitly hourly rate still prices",
+          hourly_before is not None and hourly_row.get("amount") == 180.0,
+          {"before": hourly_before, "row": hourly_row})
+
+    # (iv-b) THE RATE COMPARISON ROUNDS LIKE MONEY. `round()` is HALF-EVEN and `money.q2` HALF-UP,
+    # so a line typed at 2.675 against a register at 2.68 AGREES to the cent under q2 and DISAGREES
+    # under round() — a variance reported over nothing, on the screen whose whole job is to flag a
+    # real disagreement. Raised in review; added here because reverting to round() left every other
+    # assertion green, which makes a consistency claim untestable rather than true.
+    c.post(f"/projects/{pid}/modules/material_rate", headers=H,
+           json={"data": {"material": "Half-cent stock", "rate": 2.68}})
+    tid = ticket(material_lines=[{"description": "Half-cent stock", "qty": 4, "unit_price": 2.675}])
+    rep = price(tid)
+    check("a typed rate that agrees with the register TO THE CENT reports no variance",
+          [v for v in rep["variance"] if v["field"] == "unit_price"] == [],
+          f"round() would call 2.675 vs 2.68 a disagreement; money.q2 makes both 2.68 — {rep['variance']}")
+
+    # (v) A CLOSED RATE IS RETIRED. Both registers carry open/closed and list_records is oldest
+    # first, so a superseded rate won the lookup and was SNAPSHOTTED onto the line permanently.
+    lr = c.get(f"/projects/{pid}/modules/labor_rate", headers=H, params={"limit": 100}).json()
+    lr = lr["records"] if isinstance(lr, dict) else lr
+    old = next(r for r in lr if r["data"]["trade"] == "Electrician")
+    c.post(f"/projects/{pid}/modules/labor_rate/{old['id']}/transition", headers=H,
+           json={"action": "close"})
+    c.post(f"/projects/{pid}/modules/labor_rate", headers=H,
+           json={"data": {"trade": "Electrician", "rate": 130}})
+    tid = ticket(labor_lines=[{"worker": "D", "trade": "Electrician", "hours": 2}])
+    price(tid)
+    check("a CLOSED register row does not win the lookup over its live replacement",
+          rows(tid, "labor_lines")[0].get("rate") == 130, rows(tid, "labor_lines")[0])
+
     # ---- 5. material prices off `unit_price`, not `rate` -----------------------------------------
     # The three tables do not share a rate column, which is why the mapping is a table and not a
     # naming convention: a loop assuming `rate` would silently price no material at all.
-    tid = ticket(material_lines=[{"description": "conduit", "material": "EMT 3/4", "qty": 100}])
+    tid = ticket(material_lines=[{"description": "EMT 3/4", "qty": 100}])
     price(tid)
     d = stored(tid)
     check("material takes the register's rate into unit_price",

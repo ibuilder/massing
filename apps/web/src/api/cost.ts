@@ -29,12 +29,19 @@ type Ctor<T> = new (...args: any[]) => T;
 export interface TmPricingReport {
   /** Rows whose blank rate the register supplied. */
   filled: { table: string; name: string; rate: number }[];
-  /** Rows whose typed rate disagrees with the register. Kept as typed — reported, not corrected. */
-  variance: { table: string; name: string; typed: number; register: number }[];
-  /** Rows no register has an entry for. Left exactly as they are. */
+  /**
+   * A cell whose typed value disagrees with what the register implies. Kept as typed — reported,
+   * never corrected. `field` says WHICH cell: the rate column, or `amount` when a hand-entered
+   * extension differs from rate x quantity (an overtime premium, a negotiated allowance).
+   */
+  variance: { table: string; name: string; field: string; typed: number; register: number }[];
+  /** Rows no register has a usable entry for. Left exactly as they are. */
   unmatched: { table: string; name: string; register: string }[];
-  /** Overtime / idle hours: real quantities with no rate anywhere to price them at. */
-  unpriced: { table: string; name: string; column: string; quantity: number }[];
+  /**
+   * A real quantity nothing could price, with the reason. Overtime and idle hours (no OT or idle
+   * rate exists), and a register rate quoted per Day/Week/Month against a line measured in hours.
+   */
+  unpriced: { table: string; name: string; column: string; quantity: number; reason: string }[];
   /** How many rows this run actually changed. */
   priced: number;
   totals: { labor_total: number; material_total: number; equipment_total: number;

@@ -76,9 +76,14 @@ export function renderTmReport(box: HTMLElement, rep: TmPricingReport): void {
   // A disagreement with the rate table is the finding this control exists to surface, so it is
   // stated in full — both numbers — and never quietly resolved in either direction.
   for (const v of rep.variance) {
-    box.appendChild(line(
-      `⚠ ${v.name}: this line is at ${rateFmt(v.typed)} and the register says ${rateFmt(v.register)}`
-      + " — left as entered", "var(--status-warn)"));
+    // `field` distinguishes the two: a rate that disagrees with the register, and an AMOUNT that
+    // disagrees with rate x quantity — which is usually an overtime premium or a negotiated
+    // allowance, and is exactly the figure that must not be silently recomputed away.
+    box.appendChild(line(v.field === "amount"
+      ? `⚠ ${v.name}: this line's amount is ${rateFmt(v.typed)} and rate × quantity is `
+        + `${rateFmt(v.register)} — left as entered`
+      : `⚠ ${v.name}: this line is at ${rateFmt(v.typed)} and the register says `
+        + `${rateFmt(v.register)} — left as entered`, "var(--status-warn)"));
   }
   for (const u of rep.unmatched) {
     box.appendChild(line(
@@ -87,8 +92,8 @@ export function renderTmReport(box: HTMLElement, rep: TmPricingReport): void {
   }
   for (const u of rep.unpriced) {
     box.appendChild(line(
-      `⏱ ${u.name}: ${u.quantity} ${u.column.replace("_", " ")} are NOT in the figures above —`
-      + " the rate register holds no rate for them", "var(--status-warn)"));
+      `⏱ ${u.name}: ${u.quantity} ${u.column.replace("_", " ")} are NOT in the figures above — `
+      + u.reason, "var(--status-warn)"));
   }
 }
 

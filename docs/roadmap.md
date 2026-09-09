@@ -405,6 +405,40 @@ instances:
   outside that directory. *Narrowing a search to remove noise removes evidence of a call, and absent
   evidence reads as absence.*
 
+  **FIVE MORE FINDINGS ON THE MERGED CODE, and the first one is this item's own lesson turned on
+  itself.** A review of `c6ccc435` found the pricing engine wrong in five ways, all in
+  `services/api/src/aec_api/cost.py`, all confirmed and fixed in the follow-up:
+
+  | | |
+  |---|---|
+  | **the material name column** | `TM_TABLES` used ONE field for both the register's name column and the LINE's. `material_lines` has columns `description/qty/unit/unit_price/amount` — **no `material` column at all** — so every material line a user could create read as name `""` and material never priced. Labour and equipment coincide (`trade`, `equipment` on both sides), which is exactly how a conflated field survives |
+  | **a typed amount was overwritten** | `amount` was recomputed unconditionally, so 8h + 2h OT written up at $1,045 became $760 and a lump-sum line with no hours became $0. The item's own rule — a typed rate is evidence — was applied to the rate and not to the amount. That was an inconsistency, not a design |
+  | **a blank register rate priced at $0** | `rate` is optional on all three registers, so a half-filled row gave `0.0`, which is not `None`; the line matched, took zero, was reported as **successfully priced**, and kept a stale amount because the recompute is guarded on a truthy rate |
+  | **the register's `unit` was dropped** | `equipment_rate` offers Hour/Day/Week/Month and the line's quantity is hours, so a $1,200/week crane extended against an 8-hour day read as **$9,600**, reported as an ordinary success |
+  | **a CLOSED rate won the lookup** | both registers carry open/closed and `list_records` is oldest-first, so a superseded rate beat its replacement and was then SNAPSHOTTED onto the line permanently — the REFUSAL-READERS class, in a register whose whole purpose is to be superseded |
+
+  **The first one passed a mutation sweep because the fixture put a `material` key on the row** — a
+  key the schema does not declare. *An assertion cannot be stronger than the world its fixture can
+  describe* is the sentence in this item's own test docstring, written about `test_cost.py`, and the
+  fixture one paragraph below it had the same defect. Writing the lesson down is not the same as
+  applying it, and a fixture that invents a column is the strongest form of the failure: it makes
+  the product look like the test's idea of it.
+
+  The follow-up prices only what it can defend — fill a blank, report a disagreement, overwrite
+  nothing — and each of the five is pinned by a fixture built from `module.json`'s real columns,
+  with the reverting mutation red on all five.
+
+  **Review of the follow-up then found three more, and one of them is the same fixture failure a
+  THIRD time.** `column` on an unpriced entry carried the RATE column while its `quantity` came from
+  the quantity column, so the panel rendered *"8 rate are NOT in the figures above"* — and the test
+  asserted only the `reason` string, so it sailed through. The rate comparison also still used
+  `round()` while the amount beside it used `money.q2`; **that mutation initially SURVIVED**, which
+  is the more useful result — a consistency claim nothing can falsify is not true, it is untested.
+  The separating case is a line typed at `2.675` against a register at `2.68`: they agree to the
+  cent under `q2` and disagree under `round()`, so the screen whose only job is to flag a real
+  disagreement would have reported one over nothing. *Fixing a rounding inconsistency without a
+  fixture that distinguishes the two roundings leaves the same hole one layer along.*
+
   **A review finding widened the money spine, and named a gap in its gate.** The first draft extended
   a line as `round(rate * qty, 2)` — binary multiply, then HALF-EVEN — so a rate of `2.675` at
   quantity 1 extends to `2.67`, a cent short on the number a contractor is paid. This is exactly the

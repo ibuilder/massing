@@ -29,9 +29,11 @@ const EMPTY: TmPricingReport = {
 
 const FULL: TmPricingReport = {
   filled: [{ table: "labor_lines", name: "Electrician", rate: 95 }],
-  variance: [{ table: "labor_lines", name: "Plumber", typed: 110, register: 95 }],
+  variance: [{ table: "labor_lines", name: "Plumber", field: "rate", typed: 110, register: 95 },
+             { table: "labor_lines", name: "Foreman", field: "amount", typed: 1045, register: 760 }],
   unmatched: [{ table: "labor_lines", name: "Glazier", register: "labor_rate" }],
-  unpriced: [{ table: "labor_lines", name: "Electrician", column: "ot_hours", quantity: 2 }],
+  unpriced: [{ table: "labor_lines", name: "Electrician", column: "ot_hours", quantity: 2,
+               reason: "the rate register holds no rate for these" }],
   priced: 2,
   totals: { labor_total: 760, material_total: 425, equipment_total: 0, grand_total: 1185 },
 };
@@ -71,9 +73,16 @@ describe("the T&M pricing control", () => {
     const text = el.textContent ?? "";
     expect(text, "the rate the register supplied").toContain("Electrician");
     expect(text, "a typed rate that disagrees with the register must be VISIBLE")
-      .toMatch(/\$110.*\$95|110.*register says.*95/);
+      .toMatch(/110.*register says.*95/);
+    // The amount variance reads differently on purpose: it is not the register disagreeing, it is
+    // the line's own arithmetic — an overtime premium the engine must report and not recompute away.
+    expect(text, "a typed AMOUNT that disagrees with rate x quantity must be visible, and must not "
+      + "be described as the register disagreeing")
+      .toMatch(/amount is \$1,045 and rate × quantity is \$760/);
     expect(text, "a trade the register does not know").toContain("Glazier");
     expect(text, "hours nothing could price").toContain("ot hours");
+    expect(text, "...and the REASON, since 'unpriced' now covers a per-week rate too")
+      .toContain("holds no rate for these");
     expect(text).toContain("$1,185");
   });
 
