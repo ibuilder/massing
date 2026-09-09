@@ -83,6 +83,20 @@ for degenerate in ([[0, 0], [0, 0], [0, 0]], [[5, 5], [5, 5]]):
     except ValueError:
         pass
 
+# A ring can be three DISTINCT points and still enclose nothing. Collinear vertices shoelace to
+# exactly zero while their bounding box stays positive, so `overstatement` in the web control divided
+# (rect - area) by area and rendered "Infinity% larger" over a lot with no area — and the massing
+# call behind it would then 422 on a boundary the control had already accepted. Distinct is not
+# enclosing; the >= 3 check above cannot tell the difference. Raised in review.
+for flat in ([[1000, 2000], [1010, 2010], [1020, 2020]],          # diagonal, positive bbox
+             [[0, 0], [10, 0], [20, 0]],                          # horizontal
+             [[0, 0], [0, 10], [0, 20], [0, 30]]):                # vertical, four points
+    try:
+        pg.analyze(geojson={"type": "Polygon", "coordinates": [flat]})
+        raise AssertionError(f"expected ValueError for collinear {flat!r}")
+    except ValueError as e:
+        assert "collinear" in str(e), e
+
 # --- PARCEL-SHAPE: the projected ring comes BACK, and it sizes a smaller building ------------------
 # `analyze` computed the metric ring and threw it away, so the only lot a client could describe was
 # `lot_width × lot_depth` — a bounding rectangle, whose area is ALWAYS ≥ the parcel's. The bias runs

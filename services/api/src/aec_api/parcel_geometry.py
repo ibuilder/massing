@@ -98,6 +98,13 @@ def analyze(geojson: Any = None, wkt: str | None = None, parcel_id: str | None =
         area2 += x1 * y2 - x2 * y1
         perim += math.hypot(x2 - x1, y2 - y1)
     area = abs(area2) / 2.0
+    # Distinct is not the same as ENCLOSING. Three collinear points survive the dedupe above and the
+    # >= 3 check, and shoelace them to exactly zero — while their bounding box is positive, so the
+    # panel would divide by zero and print "Infinity% larger" over a lot with no area at all, and
+    # `compute_massing` would then 422 on a boundary the control had already accepted. Refuse it
+    # here, where the reason can be stated, rather than downstream where it cannot. Raised in review.
+    if area <= 0:
+        raise ValueError("a parcel boundary must enclose an area — these points are collinear")
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
 

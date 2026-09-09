@@ -29,7 +29,9 @@ footprint, and nothing could reach it: the request type had no such field. And t
 itself had no caller on any screen.
 
 Now: paste a boundary (or load a `.geojson` / `.wkt` file) on the feasibility tab — one outer ring,
-so a WKT `MULTIPOLYGON` is refused by name rather than sent to an endpoint that would reject it. It reports the
+so a WKT `MULTIPOLYGON` is refused by name rather than sent to an endpoint that would reject it, and
+a ring that encloses no area (repeated or collinear points) is refused with the reason rather than
+priced as a lot of zero square metres. It reports the
 parcel's area, the rectangle it replaces, and the percentage between them, and the width/depth boxes
 become the parcel's own bounding extents, disabled — so it is clear which figure the building is
 being sized on. The result summary says the same thing again beside the GFA. Nothing is substituted
