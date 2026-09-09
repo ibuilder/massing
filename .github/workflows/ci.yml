@@ -59,15 +59,33 @@ jobs:
           # Drop the runner image's preinstalled Google Chrome apt source before updating. On
           # 2026-09-09 it served a Packages.gz whose hash disagreed with a Release file Google had
           # just republished; `apt-get update` exits 100 on a hash mismatch, so this job died
-          # before running anything. Twice, byte-identically, which is what ruled out a blip.
-          # Nothing here installs from that source, and removing the LIST only stops apt fetching
-          # its index — an already-installed Chrome is untouched. A third-party repository we do
-          # not use must not be able to fail our build.
+          # before running anything — three times, byte-identically, which is what ruled out a
+          # blip. Nothing here installs from that source, and removing the source FILE only stops
+          # apt fetching its index; an already-installed Chrome is untouched. A third-party
+          # repository we do not use must not be able to fail our build.
           #
-          # Only this one source: the runner carries others (Microsoft's, for instance) and the
-          # same hazard applies to them in principle, but nothing has been measured failing there
-          # and removing them would be fixing a hypothesis.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          # MATCHED BY CONTENT, NOT BY FILENAME. The first attempt at this fix removed
+          # `google-chrome.list` by name and changed nothing, because Ubuntu 24.04 images may
+          # define the same repository as deb822 `.sources` instead — a guessed path that silently
+          # matches nothing looks exactly like a working fix. Grep decides which files go.
+          #
+          # Only Google's: the runner carries other third-party sources and the same hazard applies
+          # to them in principle, but nothing has been measured failing there and removing them
+          # would be fixing a hypothesis.
+          # `|| true` because grep exits 1 when it matches nothing, which would sink the
+          # whole pipeline on an image that carries no Google source at all. Whether the
+          # source was there is the assertion's question, not the removal's.
+          { sudo grep -rlZ 'dl\.google\.com' /etc/apt/sources.list.d/ 2>/dev/null || true; } \
+            | sudo xargs -0 -r rm -f
+          # Prove the removal took, rather than assuming it did as the first attempt had to.
+          # Written as an `if`, NOT as `! grep ...`: bash's `set -e` explicitly exempts a
+          # command whose status is inverted with `!`, so the negated form would print
+          # nothing and carry on with the source still in place — a second check that
+          # cannot fail, which is the same defect as the guessed filename it is here to catch.
+          if sudo grep -rq 'dl\.google\.com' /etc/apt/sources.list.d/ 2>/dev/null; then
+            echo "::error::Google apt source survived removal; apt-get update is unguarded"
+            exit 1
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
 
