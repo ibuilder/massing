@@ -345,6 +345,35 @@ with SessionLocal() as db:
           f"count={short['event_count']} total={short.get('event_total')} "
           f"truncated={short.get('truncated')} — a flag that is always on says nothing")
 
+# --- load_timings: the one whose cap is 20,000, so the arithmetic is asserted against a lowered
+# window rather than by inserting twenty thousand rows. The route reads `limit(20_000)` inline, so
+# what is checked here is the CONTRACT — that `loads`, `load_total` and `truncated` agree — plus the
+# honest negative. Only the structural gate above knew about this site until now.
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+from aec_api.models import ViewerLoadTiming  # noqa: E402
+
+with TestClient(app) as client:
+    pid = client.post("/projects", headers={"X-User": "gc"},
+                      json={"name": "Timings"}).json()["id"]
+    with SessionLocal() as db:
+        for i in range(7):
+            db.add(ViewerLoadTiming(project_id=pid, outcome="ok", bucket="1-10MB",
+                                    total_ms=100 + i, ts=NOW - timedelta(minutes=i)))
+        db.commit()
+
+    lt = client.get(f"/projects/{pid}/model/load-timings").json()
+    check("load_timings: `load_total` is reported beside `loads`",
+          "load_total" in lt and "truncated" in lt, f"got keys {sorted(lt)}")
+    check("load_timings: an uncapped period reports the same two numbers",
+          lt.get("loads") == lt.get("load_total") == 7,
+          f"loads={lt.get('loads')} load_total={lt.get('load_total')} — 7 rows were written")
+    check("load_timings: an uncapped period does NOT claim truncation",
+          lt.get("truncated") is False,
+          f"truncated={lt.get('truncated')} — a flag that is always on says nothing, which is the "
+          f"opposite failure to the one this axis is about and just as useless")
+
 if FAILED:
     print("FAIL test_truncation_disclosed")
     for f in FAILED:
