@@ -69,6 +69,23 @@ def _test_license() -> dict:
             else {"ok": False, "message": "Licence key format invalid — expected MASS-XXXX-XXXX-XXXX-XXXX."})
 
 
+def _test_resource_groups() -> dict:
+    """Not a network probe — a PARSE. This group configures no connection; what an admin can get
+    wrong is the grammar, and finding out from a warning line on someone else's panel is exactly
+    the "find out later" this button exists to prevent. So Test answers the only question the
+    setting can fail: does it parse, and does it roll up honestly?"""
+    raw = settings_store.get("AEC_RESOURCE_GROUPS") or ""
+    if not raw.strip():
+        return {"ok": True, "message": "Not set — the portfolio rolls up by trade."}
+    from . import resource_portfolio
+    try:
+        groups = resource_portfolio.parse_group_config(raw)
+    except resource_portfolio.GroupingError as e:
+        return {"ok": False, "message": str(e)}
+    return {"ok": True, "message": "Parsed " + "; ".join(
+        f"{g} ({len(t)} trade{'' if len(t) == 1 else 's'})" for g, t in sorted(groups.items()))}
+
+
 def test_group(group: str) -> dict:
     """Dispatch a connection test by catalog group name (as shown in the Settings UI)."""
     g = (group or "").lower()
@@ -82,6 +99,8 @@ def test_group(group: str) -> dict:
         return _test_aps()
     if g.startswith("massing licence"):
         return _test_license()
+    if g.startswith("portfolio resource grouping"):
+        return _test_resource_groups()
     if g.startswith("sso"):
         for prov in ("google", "microsoft", "procore"):
             if prov in g:

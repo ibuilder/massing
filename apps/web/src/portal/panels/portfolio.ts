@@ -147,9 +147,16 @@ export async function renderPortfolio(ctx: PanelContext) {
     // because that trade looks comfortable on every one of them. Same shape as the cross-project
     // Gantt: the thing only visible once you sum.
     //
-    // `trade` is the dimension the schema carries (`resource_assignment.trade`, labelled
-    // "Trade / discipline"). There is no department field anywhere, so department reporting is a
-    // product decision rather than a filter — recorded in the roadmap, not invented here.
+    // "BY DEPARTMENT" is a GROUPING THE FIRM DECLARES, not a field the schema holds — answered
+    // 2026-09-09 against how the industry's own tools model it. Deltek Vantagepoint, the dominant
+    // AEC ERP, ships no `department` dimension at all: it gives a configurable organisation
+    // breakdown whose labels the firm chooses. The two readings the roadmap could not choose
+    // between are different POPULATIONS, not different labels — a GC's departments (preconstruction,
+    // estimating, operations, safety) are office staff who are not in this data, while a design
+    // firm's axis is discipline, which `resource_assignment.trade` already is ("Trade / discipline").
+    //
+    // So the panel invents nothing. It renders whatever grouping the install declares in the
+    // Settings panel, and falls back to the trade table alone when none is configured.
     void ctx.host.api.portfolioResourcing().then((rp) => {
       if (!rp.available || !rp.trades.length) return;
       const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
@@ -179,6 +186,60 @@ export async function renderPortfolio(ctx: PanelContext) {
         tb.appendChild(tr);
       }
       tbl.appendChild(tb); card.appendChild(tbl);
+      // The declared roll-up goes BELOW the trades it is made of, so the number a reader questions
+      // is next to its own arithmetic rather than a screen away.
+      if (rp.groups.length) {
+        const gt = document.createElement("table"); gt.className = "portal-table";
+        gt.style.cssText = "font-size:11px;margin-top:8px";
+        gt.innerHTML = `<thead><tr><th scope="col">Group</th>`
+          + `<th scope="col" style="text-align:right">Peak</th><th scope="col">Peak week</th>`
+          + `<th scope="col" style="text-align:right">Projects</th>`
+          + `<th scope="col" style="text-align:right">Unit-weeks</th></tr></thead>`;
+        const gb = document.createElement("tbody");
+        for (const g of rp.groups) {
+          const tr = document.createElement("tr");
+          const members = `<span class="meta"> ${esc(g.trades.join(", "))}</span>`;
+          if (g.state === "no_demand") {
+            // Not zero — unmeasured. A declared group whose trades are all absent must not render
+            // as an idle one, the same rule the risk heat map applies to a cell it could not run.
+            tr.innerHTML = `<td>${esc(g.group)}${members}</td>`
+              + `<td class="meta" colspan="4">${esc(g.reason)}</td>`;
+          } else {
+            const flag = g.cross_project
+              ? ` <span style="color:var(--status-warn)" title="on ${g.project_count} projects — can be double-booked">⇄</span>`
+              : "";
+            tr.innerHTML = `<td>${esc(g.group)}${flag}${members}</td>`
+              + `<td style="text-align:right;font-weight:600">${g.peak_units}</td>`
+              + `<td class="meta">${esc(g.peak_week ?? "—")}</td>`
+              + `<td style="text-align:right">${g.project_count}</td>`
+              + `<td style="text-align:right">${g.unit_weeks}</td>`;
+          }
+          gb.appendChild(tr);
+        }
+        gt.appendChild(gb); card.appendChild(gt);
+        // A group total that quietly omits work looks complete, so both directions are named:
+        // demand no group claimed, and a group naming a trade the book does not have.
+        const notes: string[] = [];
+        if (rp.ungrouped_trades.length) {
+          notes.push(`Not in any group — ${rp.ungrouped_trades.join(", ")}`);
+        }
+        for (const [g, t] of Object.entries(rp.unknown_trades)) {
+          notes.push(`${g} names ${t.join(", ")}, which the book does not have`);
+        }
+        if (notes.length) {
+          const n = document.createElement("div"); n.className = "meta";
+          n.style.marginTop = "4px"; n.textContent = notes.join(" · ");
+          card.appendChild(n);
+        }
+      }
+      if (rp.groups_error) {
+        // An admin's typo in the Settings box degrades this panel to the trade table rather than
+        // blanking it — but silently ignoring their configuration would be worse than the typo.
+        const w = document.createElement("div"); w.className = "meta";
+        w.style.marginTop = "4px"; w.style.color = "var(--status-warn)";
+        w.textContent = `Portfolio resource grouping not applied — ${rp.groups_error}`;
+        card.appendChild(w);
+      }
       if (rp.projects_without_loads.length) {
         const u = document.createElement("div"); u.className = "meta"; u.style.marginTop = "4px";
         u.textContent = "No resourcing data — " + rp.projects_without_loads

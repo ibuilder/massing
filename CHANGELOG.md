@@ -12,6 +12,34 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Resourcing "by department" — the axis your firm defines, not one we invent
+
+Portfolio resourcing already showed weekly demand per trade summed across every project, which is
+the only place a crew promised to three jobs in the same week is visible at all. It could not group
+those trades into the units a firm actually staffs by, because nothing in the schema is called a
+department — and rather than invent a column, that was left open as a product question.
+
+Checking how the industry's own tools model it settled it: the dominant AEC ERPs ship **no
+department dimension either.** They give a configurable organisation breakdown whose levels and
+labels the firm chooses. The axis is firm-defined, and the two readings the question was stuck
+between turn out to be different *populations* rather than different labels — a general
+contractor's departments are office functions (preconstruction, estimating, operations, safety)
+whose people are salaried staff, not the field trades on a resource plan, while a design firm's
+axis is discipline, which is already exactly what the field holds.
+
+So no field was added. **Settings ▸ Portfolio resource grouping** takes a declaration
+(`Structure:ironworker,concrete; MEP:electrician,plumber`) and the portfolio panel rolls the whole
+book up by it, beneath the trades it is made of. A group cap flags a department over-committed
+across projects where no single trade in it is. `Test` in that Settings group validates the
+grouping on the spot instead of leaving you to discover a typo on someone else's screen.
+
+The roll-up refuses two shapes outright, because a group total that is quietly wrong looks exactly
+like one that is right: a trade claimed by two groups (the totals would then sum to more than the
+book, and neither group is the right one to charge it to) and a group with no trades (which would
+report a confident zero). It also names what it did *not* cover in both directions — demand no
+group claimed, and a group naming a trade the book does not have — and a group whose trades are all
+absent is shown as carrying no demand rather than zero demand.
+
 ### The dead-field sweep was asking a question its method cannot answer
 
 An internal audit axis checks whether every field the API declares is actually *read* by the web

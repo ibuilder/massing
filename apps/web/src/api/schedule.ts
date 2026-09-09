@@ -166,6 +166,10 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   portfolioResourcing(opts: { cap?: number; limit?: number; weeks?: number } = {}) {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(opts)) if (v != null) q.set(k, String(v));
+    // No `group` parameter here on purpose. The REST endpoint takes a repeated `?group=` for API
+    // callers, but the grouping is a decision the FIRM makes once — it is configured install-wide
+    // in Settings and applied server-side — so a per-request override typed here would be surface
+    // no screen can reach.
     return this.json<{
       available: boolean; reason?: string;
       projects: { id: string; name: string; source: string; loads: number; trades: string[];
@@ -182,6 +186,22 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       fidelity: { by_source: Record<string, number>; assigned: number; fallback: number;
         note?: string };
       project_count: number; projects_available: number; truncated: boolean; note?: string;
+      // "By department" — a grouping the firm DECLARES, not a field the schema holds. With no
+      // `group`, the install-wide default from the Settings panel applies; `groups_error` says a
+      // configured one was ignored, which is why this is not simply an empty list.
+      // A group whose trades are all absent from the book carries NO counts rather than a zero —
+      // discriminate on `state` before reading `peak_units`, or an unmeasured group renders as an
+      // idle one.
+      groups: ({ group: string; trades: string[] } & (
+        { state: "no_demand"; reason: string } | {
+          state: "measured"; peak_units: number; peak_week: string | null; unit_weeks: number;
+          cost: number; project_count: number; cross_project: boolean }))[];
+      ungrouped_trades: string[];
+      unknown_trades: Record<string, string[]>;
+      group_cap: number | null;
+      group_over_allocation: { week: string; group: string; units: number; cap: number;
+        projects: Record<string, number> }[];
+      groups_error?: string;
     }>(`/portfolio/resourcing${q.toString() ? `?${q}` : ""}`);
   }
   /** Resource-leveling advisory: over-allocated work with CPM float that can be smoothed within float. */
