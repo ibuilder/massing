@@ -122,6 +122,56 @@ with SessionLocal() as db:
     check("  and surfacing the failures", log["failure_count"] >= 1, log["failure_count"])
     check("  saying why failures are included", "after an incident" in log["note"])
 
+    # --- AGENT-TRAIL: "nothing ran here" is an ANSWER, not a blank -------------------------------
+    # The project filter used to be a Python `continue` AFTER `.limit(limit)` had already truncated
+    # to the newest rows across every project, so a quiet project on a busy install reported zero
+    # runs while runs existed. Reproduced at the size that exposes it — one run on the quiet
+    # project, `limit`-worth of newer runs elsewhere — because at any smaller size the defect and
+    # the fix are indistinguishable, which is why nothing caught it for a release.
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+    t0 = datetime.now(timezone.utc)
+    db.add(AuditLog(ts=t0 - timedelta(hours=5), actor="alice", action="mcp.run", method="MCP",
+                    detail={"tool": "standards_check", "pack": "Submittal Review", "ok": True,
+                            "project_id": "QUIET"}))
+    for i in range(250):
+        db.add(AuditLog(ts=t0 - timedelta(minutes=250 - i), actor="bob", action="mcp.run",
+                        method="MCP", detail={"tool": "clash", "ok": True, "project_id": "BUSY"}))
+    db.commit()
+
+    quiet = ap.run_log(db, project_id="QUIET")
+    check("A QUIET PROJECT STILL REPORTS ITS RUN when a busier one fills the window",
+          quiet["run_count"] == 1, quiet["run_count"])
+    check("  and it is the right run, not merely a non-zero count",
+          quiet["runs"][0]["actor"] == "alice" and quiet["runs"][0]["project_id"] == "QUIET",
+          quiet["runs"][:1])
+    check("  a project with no runs at all still reports none",
+          ap.run_log(db, project_id="NOBODY")["run_count"] == 0)
+
+    # A capped window says so. Reporting 200 as though it were all of them is the same
+    # partial-answer-in-a-complete-answer's-costume one layer down.
+    busy = ap.run_log(db, project_id="BUSY", limit=200)
+    check("a capped window reports the TOTAL beside what it holds",
+          busy["run_count"] == 200 and busy["run_total"] == 250 and busy["truncated"] is True,
+          (busy["run_count"], busy["run_total"], busy["truncated"]))
+    check("  and an uncapped one is not marked truncated",
+          ap.run_log(db, project_id="QUIET")["truncated"] is False)
+
+    # ORG-WIDE: the axis a per-project console cannot have. `by_actor` counts WHO, and an
+    # unattributed run is counted rather than dropped — the transport refuses to invent a name, so
+    # those rows exist and are exactly the ones a reviewer needs to see.
+    db.add(AuditLog(ts=t0, actor=None, action="mcp.run", method="MCP",
+                    detail={"tool": "clash", "ok": True, "project_id": "BUSY"}))
+    db.commit()
+    org = ap.run_log(db, project_id=None, limit=1000)
+    check("the estate-wide log spans projects a per-project view would separate",
+          {r["project_id"] for r in org["runs"]} >= {"QUIET", "BUSY"},
+          sorted({r["project_id"] for r in org["runs"] if r["project_id"]}))
+    check("  counting runs per ACTOR, which is the estate-wide question",
+          org["by_actor"].get("alice") == 1 and org["by_actor"].get("bob", 0) >= 250,
+          org["by_actor"])
+    check("  an unattributed run is counted, never dropped",
+          org["by_actor"].get("(unattributed)") == 1, org["by_actor"])
+
 engine.dispose()
 for _f in ("./test_agent_packs.db",):
     if os.path.exists(_f):

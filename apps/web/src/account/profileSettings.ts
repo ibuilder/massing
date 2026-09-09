@@ -24,6 +24,7 @@ import type { CloudStatus } from "../api/cloud";
 export interface ProfileActions {
   manageUsers: () => void;
   auditLog: () => void;
+  agentRuns: () => void;
   errorLog: () => void;
   dataConnections: () => void;
   projectMembers: (() => void) | null;   // null when there is no project / not a project admin
@@ -261,5 +262,6 @@ function buildAdmin(body: HTMLElement, deps: ProfileDeps): void {
   server.append(row("Server settings", "Licence, integrations and API keys.", "Open…", a.appSettings));
   const logs = group(body, "Diagnostics");
   logs.append(row("Audit log", "Who did what, newest first.", "View…", a.auditLog));
+  logs.append(row("Agent runs", "Whose agent ran what, across every project.", "View…", a.agentRuns));
   logs.append(row("Errors", "Recent server-side errors.", "View…", a.errorLog));
 }

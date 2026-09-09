@@ -18,7 +18,7 @@ import type { CloudStatus } from "../api/cloud";
  */
 function actions(): ProfileActions {
   return {
-    manageUsers: vi.fn(), auditLog: vi.fn(), errorLog: vi.fn(), dataConnections: vi.fn(),
+    manageUsers: vi.fn(), auditLog: vi.fn(), agentRuns: vi.fn(), errorLog: vi.fn(), dataConnections: vi.fn(),
     projectMembers: null, changePassword: vi.fn(), twoFactor: vi.fn(), appSettings: vi.fn(),
     signOutEverywhere: vi.fn(), signOut: vi.fn(), connectCloud: vi.fn(),
     refreshCloud: vi.fn(async () => ({} as CloudStatus)), disconnectCloud: vi.fn(async () => {}),
