@@ -55,7 +55,21 @@ jobs:
 
       # system libs the scientific wheels expect (mirrors services/api/Dockerfile)
       - name: System deps
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+        run: |
+          # Drop the runner image's preinstalled Google Chrome apt source before updating. On
+          # 2026-09-09 it served a Packages.gz whose hash disagreed with a Release file Google had
+          # just republished; `apt-get update` exits 100 on a hash mismatch, so this job died
+          # before running anything. Twice, byte-identically, which is what ruled out a blip.
+          # Nothing here installs from that source, and removing the LIST only stops apt fetching
+          # its index — an already-installed Chrome is untouched. A third-party repository we do
+          # not use must not be able to fail our build.
+          #
+          # Only this one source: the runner carries others (Microsoft's, for instance) and the
+          # same hazard applies to them in principle, but nothing has been measured failing there
+          # and removing them would be fixing a hypothesis.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
 
       - name: Python deps
         run: |
