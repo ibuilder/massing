@@ -193,14 +193,33 @@ export async function renderDiligence(ctx: PanelContext) {
         const share = rc.agency_share_pct === null
           ? "share unavailable — a round is still open, and a share of an unknown total is not a share"
           : `${rc.agency_share_pct}% of the measured time was agency time`;
+        // `days_basis` is stated rather than assumed: durations elsewhere in this system are
+        // WORKING days, and a statutory review clock does not pause for a weekend. The engine
+        // returns the axis for that reason; printing "50d" without it invites the wrong reading.
+        const basis = rc.days_basis ? ` (${rc.days_basis} days)` : "";
         line.textContent = `${rc.rounds} round(s) · ${rc.days_with_agency ?? "—"}d with the agency · `
-          + `${rc.days_with_applicant ?? "—"}d with us · ${share}`;
+          + `${rc.days_with_applicant ?? "—"}d with us${basis} · ${share}`;
         if (rc.rounds_open) {
           const open = el("div", "meta");
           open.textContent = `${rc.rounds_open} round(s) still open, counted but not scored: `
             + rc.open_detail.map((o) => `#${o.round ?? "?"} with the `
               + `${o.held_by === "with_agency" ? "agency" : "applicant"} since ${o.since}`).join(" · ");
           card.appendChild(open);
+        }
+        // DEAD-FIELD — the rounds that are NOT in the number above. A round with no submitted date
+        // cannot start a clock, so `cycles()` drops it from `rounds` entirely; the split and the
+        // share are then computed over a smaller set than the register holds, and "2 round(s)" over
+        // a five-round application reads as a complete answer. `rounds_undated` is computed to say
+        // exactly this and was read by nobody. The sibling `rounds_open` above already gets this
+        // treatment — *"counted but not scored"* — and this is the harder case, because an undated
+        // round is not counted either.
+        if (rc.rounds_undated) {
+          const und = el("div", "meta"); und.style.color = "var(--status-warn)";
+          und.textContent = `${rc.rounds_undated} more round(s) carry no submitted date and are `
+            + `NOT in the figures above — the split covers ${rc.rounds} of `
+            + `${(rc.rounds ?? 0) + rc.rounds_undated} recorded rounds. Add the submitted dates to `
+            + `bring them into the clock.`;
+          card.appendChild(und);
         }
         if (rc.rounds_out_of_order.length) {
           const ooo = el("div", "meta"); ooo.style.color = "var(--status-warn)";

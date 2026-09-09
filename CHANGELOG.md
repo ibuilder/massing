@@ -12,6 +12,23 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### the review-cycles card says how many rounds it could not measure
+
+"Whose court did the time sit in" is the question that card exists to settle, and it was answering
+over fewer rounds than the register holds. A review round with no submitted date cannot start a
+clock, so it is left out of the split entirely — correctly — but the round count printed beside the
+days was the *scored* count, with nothing saying so. Two dated rounds out of five recorded read as a
+complete answer.
+
+It now says it: **"3 more round(s) carry no submitted date and are NOT in the figures above — the
+split covers 2 of 5 recorded rounds"**, with a nudge to add the dates. The card already handled the
+sibling case, rounds still open, with exactly this care; this is the harder one, because an undated
+round is not counted at all.
+
+The days figures also now name their basis — **calendar days**, because a statutory review clock
+does not pause for a weekend, while durations elsewhere in this system are working days. The engine
+had always returned that axis and nothing printed it.
+
 ### the responsibility matrix stops telling you it is complete when it is not
 
 Load a second starter template into a RACI matrix that already has rows and the columns changed
