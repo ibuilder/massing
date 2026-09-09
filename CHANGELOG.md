@@ -12,6 +12,32 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The dead-field sweep was asking a question its method cannot answer
+
+An internal audit axis checks whether every field the API declares is actually *read* by the web
+app — a field with no reader is a candidate for "a caveat that never reaches the screen", which is
+how a number gets shown without the warning that qualifies it. The roadmap recorded that axis as
+blocked on reading ~35 remaining fields one by one.
+
+Re-deriving it found a different blocker. **The scan matches a bare identifier, not a type.** So
+`SpatialNode.elevation` — referenced in dozens of files and by none of them as a `SpatialNode`,
+because storeys, drawing grids and GIS overlays all happen to name a field `elevation` — is counted
+as read while nothing renders it. Across the tree, **256 of the 719 fields counted as read, 35%, have
+no reader that even names the declaring interface.** It fails hardest on `name`, `key`, `id`,
+`title`, `status` and `count`, each referenced in 200+ files — which are the names most likely to be
+displayed. A freeze list built on this would be guaranteed wrong rather than merely unverified.
+
+The population is now re-run by a test rather than remembered, with the collision pinned as a fact:
+identifier readers present, typed readers zero. Making the scan sound needs a type-aware pass over
+the TypeScript symbol table, and that is now what the entry says. Two bugs in the derivation itself
+turned up on the way — matching only top-level fields cannot see a *nested* one, and this axis's one
+real defect was nested; and including the generated OpenAPI types reports 730 instead of 32.
+
+Seven more fields were read while doing it and none was a defect, which is consistent with the
+earlier rate. One is worth naming: a cost-variance figure that looked unread turns out to be a
+documented refusal — comparing a realised overrun against an entered contingency is a claim about
+what an underwriting asserts, not a unit conversion.
+
 ### Renaming a responsibility column moves its cells with it, or moves nothing
 
 The RACI/DACI matrix stores two halves of one fact in two places: the **role columns** in a config

@@ -611,18 +611,60 @@ instances:
   over-claim.* The substantive result stands: *this codebase is more careful than the raw derivation
   suggested*, and **a field with no reader is a candidate, not a defect.**
 
-  **The axis is still NOT gateable, and the reason is worth being exact about.** The 8 above were
-  read individually. The remaining **~35** were bucketed as "detail" in a single pass and have
-  **not** been verified one by one — so an allowlist built from them today would be a freeze list
-  whose contents nobody has checked, which is the failure `KNOWN_UNCALLED` recorded when four of its
-  entries turned out to have callers. Gating waits on that reading, not on a decision.
+  **THE STATED BLOCKER WAS WRONG, and re-deriving the population found the real one (2026-09-09).**
+  This said the axis was ungateable until the remaining ~35 "detail" fields were read one by one.
+  They are not the obstacle. **The derivation is identifier-based, not type-aware**, and that is a
+  systematic flaw a gate would inherit rather than a backlog a gate is waiting on.
 
-  **Deliberately NOT gated yet, and that is a judgement rather than an omission.** A gate over this
-  axis needs an allowlist of the ~31 legitimate cases, and an allowlist nobody has triaged is a
-  freeze list that rots — the exact failure the `KNOWN_UNCALLED` heading recorded when four of its
-  entries turned out to have callers. Triage the ~8 first; the allowlist is only honest once the
-  remainder has been read. **The 43 is reproducible, not remembered:** it is a field-vs-reference
-  scan over `apps/web/src`, and re-deriving it is cheaper than trusting this number.
+  | | |
+  |---|---|
+  | declared fields (hand-written `api/` interfaces, excluding generated `schema.d.ts`) | **751** |
+  | no reader anywhere | **32** |
+  | read only by a test | **14** |
+  | counted as read, but **no reader file even names the declaring interface** | **256 — 35% of the "read" bucket** |
+
+  **The worked case is `SpatialNode.elevation`.** It is referenced in dozens of files and by none of
+  them as a `SpatialNode` — they are storeys, drawing grids, GIS overlays, draft gizmos, all
+  different types that happen to name a field `elevation`. Nothing renders it. The derivation calls
+  it read. Meanwhile its companion `elevationUnit` — which the declaring comment says travels with
+  the number *precisely because the unit varies per model, often millimetres* — is correctly
+  reported unread. One pair, two buckets, for a reason no reader could act on.
+
+  **It fails hardest exactly where it matters most.** `name`, `key`, `id`, `title`, `status` and
+  `count` are each referenced in 200+ files, so any interface declaring one has that field marked
+  read whatever the product does with it — and those are the names most likely to be *displayed*. A
+  freeze list built on this would be `KNOWN_UNCALLED`'s failure with a mechanical guarantee of being
+  wrong, rather than the chance of it.
+
+  **So the unblocking step is a TYPE-AWARE pass** — the TypeScript compiler API or language service,
+  resolving each property access to its declaring symbol — not more reading. Until then the "unread"
+  bucket is a **lower bound** and the "read" bucket is not evidence.
+
+  *Two bugs in the derivation itself were found on the way, both the same shape as the axis's own
+  lesson.* Anchoring field matching at two-space indent cannot see a **nested** field — and this
+  axis's one load-bearing defect, `ResponsibilityMatrix.validation.*`, was nested. Including the
+  generated `schema.d.ts` reports **730** unread, burying the axis in OpenAPI scaffolding. *A
+  predicate that decides what to LOOK at hides its own misses, which is the third time this
+  repository has paid for that specific mistake.*
+
+  **The numbers above are checked, not written:** `apps/web/src/api/deadFieldScope.test.ts` re-runs
+  the derivation, asserts the population is of the expected order (a band, so ordinary work does not
+  fail the build), and pins the `SpatialNode.elevation` collision exactly — identifier readers
+  present, typed readers zero. If a future type-aware derivation makes that assertion fail, the file
+  is to be rewritten rather than relaxed: the limitation would be gone, which is the goal.
+
+  **Triage since: 7 more read, 0 defects**, consistent with the earlier 8-read/1-real rate.
+  `MassingMetrics.lot_area_m2` (the engine recomputes it by shoelace from the same ring the panel's
+  caption derives from — they agree by construction) · `net_sellable_m2` (read server-side, shown as
+  `net_sellable_sf`) · `structure.slenderness` (folded into a `flags` string that IS read) ·
+  `EvmEarnedSchedule.ieac_t_periods` (`forecast_finish` and `days_late` are rendered; this is the
+  same forecast in rawer units) · `FinancialStatements.suspended_loss_at_sale` (the after-tax IRR
+  incorporates it; the by-year table is scoped to operations by its own title) ·
+  `SpatialNode.{elevation, elevationUnit}` (neither is rendered). **`DealMemoryProject.cost_variance_pct`
+  is the one worth naming separately: it is not an oversight but a documented refusal** —
+  `routers/operations.py` states that comparing a realised overrun to an entered contingency is a
+  claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
+  call `/schedule/eot` does.
 
 - ✅ **RESP-ORPHAN — the RACI banner said "complete" over a grid with nothing in it** *(S — Lane C;
   **CLOSED**, fix in this change)*
