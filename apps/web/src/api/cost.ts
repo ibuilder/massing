@@ -25,6 +25,22 @@ import type { ModuleRecord, ResolveAction } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** What one T&M pricing run did, and what it deliberately did not do. */
+export interface TmPricingReport {
+  /** Rows whose blank rate the register supplied. */
+  filled: { table: string; name: string; rate: number }[];
+  /** Rows whose typed rate disagrees with the register. Kept as typed — reported, not corrected. */
+  variance: { table: string; name: string; typed: number; register: number }[];
+  /** Rows no register has an entry for. Left exactly as they are. */
+  unmatched: { table: string; name: string; register: string }[];
+  /** Overtime / idle hours: real quantities with no rate anywhere to price them at. */
+  unpriced: { table: string; name: string; column: string; quantity: number }[];
+  /** How many rows this run actually changed. */
+  priced: number;
+  totals: { labor_total: number; material_total: number; equipment_total: number;
+            grand_total: number };
+}
+
 export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Cost extends Base {
   /** Close the current pay period (C1): roll every SOV line's `completed_this` into
@@ -212,6 +228,21 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
   }
 
+  /**
+   * TM-RATES — price one eTicket's own labour/material/equipment lines from the rate registers.
+   *
+   * Fills a blank rate and recomputes the row's amount; a rate somebody typed is kept and reported
+   * as a `variance` instead, and a line no register knows is left alone and reported as
+   * `unmatched`. Overtime and idle hours come back under `unpriced` because neither register holds
+   * a rate for them — the ticket says so rather than assuming a multiplier.
+   *
+   * `totals` are read off the STORED record after MOD-TOTALS derived them from the lines, so what
+   * this returns is what the ticket now holds.
+   */
+  priceTicket(pid: string, eticketId: string) {
+    return this.json<TmPricingReport>(`/projects/${pid}/cost/tm`,
+      { method: "POST", body: JSON.stringify({ eticket_id: eticketId }) });
+  }
   /** tmSummary — T&M (eTicket) totals and unbilled remainder. */
   tmSummary(pid: string) {
     return this.json<{ ticket_count: number; labor_total: number; material_total: number;

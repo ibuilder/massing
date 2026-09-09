@@ -86,6 +86,25 @@ export const usd = (n: number | null | undefined): string =>
 export const qty = (n: number | null | undefined): string =>
   n == null ? "—" : Math.round(n).toLocaleString();
 
+/**
+ * A UNIT RATE — cents kept, because a rate is not an amount.
+ *
+ * `usd` rounds to whole dollars, which is right for a total a reader is checking against an invoice
+ * and **wrong for the number that produces it**: a material at `$4.25` per unit renders as `$4`,
+ * and a T&M line priced from a rate register would then show a rate that does not multiply out to
+ * its own amount. Added for TM-RATES, where the rate IS the disputed figure.
+ *
+ * Trailing cents are dropped when there are none (`$95`, not `$95.00`) so a whole-dollar labour
+ * rate reads the same as it does everywhere else; up to two decimals otherwise. Same sign handling
+ * as `usd` — the minus goes outside the currency mark.
+ *
+ * Lives here rather than beside its caller because `charts.test.ts` bans a currency formatter
+ * declared anywhere else, and that ban is the reason this file is the one place to add one.
+ */
+export const rate = (n: number | null | undefined): string =>
+  n == null ? "—" : (n < 0 ? "−$" : "$")
+    + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
 type Fmt = (n: number) => string;
 
 /**

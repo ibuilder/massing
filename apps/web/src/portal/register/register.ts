@@ -16,6 +16,8 @@ import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
 import { schemaStaleBanner } from "./schemaStale";
 import { renderTiedElements } from "./tiedElements";
+import { assigneeRow } from "./assigneeRow";
+import { tmPricingControl } from "./tmPricing";
 
 /**
  * MOD-PERCENT — the field types that hold a MAGNITUDE, named once.
@@ -2202,20 +2204,11 @@ export class RegisterUI {
     }
     this.ctx.root.appendChild(fields);
 
-    // assignee + reassign
-    const asgRow = document.createElement("div"); asgRow.className = "meta"; asgRow.style.margin = "4px 0";
-    asgRow.innerHTML = `Assignee: <b>${r.assignee ?? "—"}</b> `;
-    const reassign = document.createElement("button"); reassign.className = "tool-btn"; reassign.textContent = "Reassign";
-    reassign.style.marginLeft = "6px";
-    reassign.onclick = async () => {
-      const v = await promptModal("Reassign record",
-        [{ name: "who", label: "Assign to (user id, blank to clear)", value: r.assignee ?? "" }]);
-      if (!v) return;
-      try { await this.ctx.host.api.assignRecord(pid, m.key, rid, v.who?.trim() || null); void this.openRecord(m, rid); }
-      catch (e) { this.ctx.host.setStatus(`error: ${(e as Error).message}`); }
-    };
-    asgRow.appendChild(reassign);
-    this.ctx.root.appendChild(asgRow);
+    const reload = () => { void this.openRecord(m, rid); };
+    this.ctx.root.appendChild(assigneeRow(this.ctx.host, pid, m, r, rid, reload));
+    // TM-RATES: on an eTicket, price the lines from the project rate registers. null elsewhere.
+    const tmCtl = tmPricingControl(this.ctx.host, pid, m, r, reload);
+    if (tmCtl) this.ctx.root.appendChild(tmCtl);
 
     // attachments (files in object storage)
     if (!photoFirst) this.renderAttachments(m, r, rid);

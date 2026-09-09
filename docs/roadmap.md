@@ -352,6 +352,66 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ✅ **TM-RATES / REQUEST-GAP — the mirror axis: a request parameter nothing SENDS** *(M — Lane C
+  primary, with its own route in G, its control in B and its client method in I, which is the lane
+  table's stated pattern rather than an exception; **CLOSED**, fix in this change)*
+
+  DEAD-FIELD asks which response field no consumer reads. Its mirror asks which **request parameter
+  no client sends**, and the two find different things: a field with no reader is usually a missing
+  caveat, while a *required* parameter with no sender means the route is not called at all.
+
+  Derived from the OpenAPI schema (not the Python signatures — `Body(..., alias="x")` puts a
+  different name on the wire) against the same web blob `test_route_reachability` reads: 471 body
+  properties, 162 of them required. One required parameter was named nowhere: `eticket_id` on
+  `POST /projects/{pid}/cost/tm`.
+
+  **That route priced a T&M ticket from the project rate registers, and every part of it was
+  silent.** Five layers, and it needed all five:
+
+  | | |
+  |---|---|
+  | no caller | nothing in the web tree called it — no button, no client method |
+  | invisible to the reach gate | leaf `tm` is 2 chars, under `MIN_SEGMENT` (5). It is one of the 113 routes that gate documents itself as never assessing, and that docstring's claim that *"exactly two"* of the 113 are genuinely uncalled was already wrong when written |
+  | write-back undone in the same call | it wrote `labor_total` directly; `apply_table_totals` (MOD-TOTALS, **six weeks younger**) recomputes every `totals_into` target from its table inside `update_record`, so the priced total was replaced by the sum of the `amount` cells the pricing never touched |
+  | wrote an undeclared field | `tm_lines` is on no form, in no list column, read by no engine |
+  | the test could not express it | `test_cost.py` asserted the stored total and PASSED, because its fixture ticket has **no line tables** — the one shape in which the write-back survives, and the one where the total has no evidence behind it |
+
+  Measured, not argued: the route returned `200 {"labor_total": 760.0}` while the record held `0.0`.
+
+  The rate registers (`labor_rate`, `material_rate`, `equipment_rate`) were the finding
+  `test_eticket_tm.py` opened with — *"the rate libraries existed and nothing consumed them"* — and
+  after this they still did, from the user's seat. A superintendent typed the rate onto every line
+  by hand, which on a T&M ticket is precisely the number that gets argued about.
+
+  Fixed by pricing the **lines** rather than the totals, since MOD-TOTALS says the lines are the
+  evidence and the total is the summary. A blank rate is filled from the register; a rate somebody
+  typed is **kept** and the disagreement reported (a GC must see that before signing, not have it
+  corrected behind their back); a trade no register knows is left untouched and named; and overtime
+  and idle hours come back **unpriced**, because neither register holds a rate for them and a 1.5x
+  nobody agreed to is a contract term, not a default. The totals in the response are read back off
+  the stored record, so the number reported is the number held — by construction.
+
+  Gated as `services/api/test_body_param_reach.py`: every required body parameter nothing sends must
+  belong to a route `test_route_reachability.KNOWN_UNCALLED` already freezes. `/cost/tm` could never
+  be in that list — its leaf is too short for that gate to assess — which is exactly what makes the
+  cross-check reach into that gate's documented 12% blind spot. It runs itself against the pre-fix
+  web source and must find `eticket_id` there before it may report anything, **and** asserts it does
+  *not* report it on the current source: reporting a site and judging it are two questions, and
+  `test_unique_read_guard.py` learned the hard way that asserting one is not asserting the other.
+
+  The derivation's own five bugs are recorded in that file's docstring. The instructive one is the
+  third: scoping the search to `apps/web/src/api` to kill a false positive **invented two more**,
+  because `layout.svg`/`.pdf` are called by a raw `fetch` in `apps/web/src/drawings/layoutEditor.ts`,
+  outside that directory. *Narrowing a search to remove noise removes evidence of a call, and absent
+  evidence reads as absence.*
+
+  **The optional half is NOT gated: 27 optional parameters are never sent, and they are untriaged.**
+  An engine on a default nobody chose is sometimes exactly right (`far_steps` on
+  `/design/options/generate` — the 60/80/100% sweep is the sensible default) and sometimes a
+  capability the client cannot reach (`lot_polygon` on `/generate/massing`, where the UI can only
+  send a rectangle). Same shape, opposite verdicts, so freezing them would make a list of things
+  nobody has read — the freeze-list trap DEAD-FIELD closed on. The count is printed each run.
+
 - ◧ **DEAD-FIELD — a route with no caller is caught by a gate; a PAYLOAD with no reader is caught by
   nobody** *(one instance CLOSED in this change; the sweep is NOT done)*
 
