@@ -33,7 +33,10 @@ const FULL: TmPricingReport = {
              { table: "labor_lines", name: "Foreman", field: "amount", typed: 1045, register: 760 }],
   unmatched: [{ table: "labor_lines", name: "Glazier", register: "labor_rate" }],
   unpriced: [{ table: "labor_lines", name: "Electrician", column: "ot_hours", quantity: 2,
-               reason: "the rate register holds no rate for these" }],
+               reason: "the rate register holds no rate for these", in_totals: false },
+             { table: "equipment_lines", name: "Tower crane", column: "hours", quantity: 8,
+               reason: "the register quotes this per week, so it could not check the rate you"
+                 + " entered", in_totals: true }],
   priced: 2,
   totals: { labor_total: 760, material_total: 425, equipment_total: 0, grand_total: 1185 },
 };
@@ -83,6 +86,14 @@ describe("the T&M pricing control", () => {
     expect(text, "hours nothing could price").toContain("ot hours");
     expect(text, "...and the REASON, since 'unpriced' now covers a per-week rate too")
       .toContain("holds no rate for these");
+    // Two different findings share the `unpriced` list and printing them identically was a lie in
+    // one direction: a line whose register rate is quoted per week still prices itself from the
+    // $/hr rate the user typed, so "are NOT in the figures above" appeared directly beneath the
+    // amount the engine had just added. What the register could not do and what the TOTAL contains
+    // are separate questions.
+    expect(text, "an excluded quantity says so").toMatch(/2 ot hours are NOT in the figures above/);
+    expect(text, "...and one the line priced itself must NOT deny the amount above it")
+      .toMatch(/8 hours are in the figures above at the rate you entered/);
     expect(text).toContain("$1,185");
   });
 

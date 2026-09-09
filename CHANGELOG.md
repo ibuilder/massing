@@ -42,6 +42,29 @@ while a control on that very tab had been sending it all along. Two false positi
 direction its own docstring calls the expensive one. Assignments now count; comparisons and arrow
 parameters still do not, and a self-test pins the distinction.
 
+### T&M pricing: an unpriced line that was in the total after all
+
+A follow-up review found the pricing report contradicting the figure printed beside it. An equipment
+line with a rate the user typed, a blank amount, and a register rate quoted per Day/Week/Month was
+listed as unpriced — *"8 hours are NOT in the figures above"* — directly beneath the $800 the engine
+had just added to that line.
+
+Both halves were doing something defensible. The register genuinely cannot price the line: converting
+a weekly rate against hours needs a working day nobody stated. But `equipment_lines.rate` is declared
+in `$/hr`, so when a rate is typed, `rate × hours` is the **line's own** arithmetic and is computed
+like any other line — the register's unit is a fact about the register, not about the line, and
+refusing the sum would drop a line the superintendent priced out of the ticket total.
+
+So the sum was right and the sentence was wrong. A pricing run now says which of the two happened:
+a quantity nothing could price still reads "NOT in the figures above", while one the line priced
+itself reads "in the figures above at the rate you entered, not the register's". Overtime and idle
+hours are unchanged — nothing multiplies those, here or anywhere, because a 1.5× premium is a
+contract term rather than a default.
+
+The fixture that missed it gave the line no rate of its own, so the old sentence was true by
+accident. That is the fourth time in this item that the case distinguishing two behaviours was the
+case nobody wrote.
+
 ### T&M pricing: five corrections to the first cut
 
 Review of the merged TM-RATES change found the pricing engine wrong in five ways. All are fixed, and

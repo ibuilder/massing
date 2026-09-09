@@ -413,10 +413,25 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
                 # `{quantity} {column}` rendering. It said `rate_col` here, which rendered as
                 # "8 rate are NOT in the figures above" — the label disagreeing with the number
                 # beside it. Raised in review.
+                #
+                # `in_totals` — what this means for the LINE depends entirely on whether the line
+                # carries a rate of its own. `equipment_lines.rate` is declared `"unit": "$/hr"` in
+                # module.json, so when one is typed, `rate x quantity` is the line's OWN arithmetic
+                # and is extended below like any other line: the register's unit is a fact about the
+                # REGISTER, not about the line, and refusing the sum would drop a line the user
+                # priced out of the ticket total.
+                #
+                # So the entry is about what the REGISTER could not do, and the report has to say
+                # which of the two happened. It did not: it claimed the quantity was excluded in
+                # both cases, so a line the engine had just priced at 8 x $100 was reported as
+                # "8 hours are NOT in the figures above" directly beneath the $800 it had added —
+                # the report contradicting the total beside it. Raised in review on #483, after
+                # that PR had merged.
                 unpriced.append({"table": field, "name": name, "column": qty_col,
-                                 "quantity": _n(row.get(qty_col)),
-                                 "reason": f"the register quotes this per {entry[1]}, and the line "
-                                           f"is in hours"})
+                                 "quantity": _n(row.get(qty_col)), "in_totals": bool(typed),
+                                 "reason": f"the register quotes this per {entry[1]}, "
+                                           + ("so it could not check the rate you entered"
+                                              if typed else "and the line is in hours")})
             elif not typed:
                 row[rate_col] = entry[0]
                 filled.append({"table": field, "name": name, "rate": entry[0]})
@@ -438,8 +453,11 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
                     variance.append({"table": field, "name": name, "field": "amount",
                                      "typed": money.q2(current), "register": extended})
             if extra_col and _n(row.get(extra_col)):
+                # Overtime / idle hours: genuinely excluded. Nothing multiplies `extra_col`, here or
+                # anywhere — a 1.5x premium is a contract term, not a default. `in_totals` is stated
+                # rather than left absent so every entry answers the same question.
                 unpriced.append({"table": field, "name": name, "column": extra_col,
-                                 "quantity": _n(row.get(extra_col)),
+                                 "quantity": _n(row.get(extra_col)), "in_totals": False,
                                  "reason": "the rate register holds no rate for these"})
             if row != before:
                 moved += 1
