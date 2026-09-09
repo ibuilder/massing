@@ -172,6 +172,11 @@ check("the before/after ordering is what separates the two", not _order_blind,
 # The reviewed population. Derived by the analyser; each site classified by hand, because the
 # analyser cannot tell a row filter from a classification and must not pretend to.
 # --------------------------------------------------------------------------------------------
+SQL_SUPERSET = (
+    "correct, with the residual named — the SQL predicate is a deliberate SUPERSET of the Python "
+    "test, so the cap is spent on candidates and the `continue` can only drop a row the schema "
+    "cannot exclude (a JSON `{}` / `[]` that is not NULL). Bounded, and stated rather than assumed."
+)
 SQL_SCOPED = "correct — the scope is already in SQL; the Python test classifies, it does not scope"
 DERIVED_TALLY = ("correct — the comprehension counts the window it was given; it does not decide "
                  "which rows the window holds")
@@ -187,9 +192,26 @@ VERDICTS: dict[tuple[str, str], str] = {
     # `run_log`'s actual defect is behavioural and lives in `test_agent_packs.py`, where it was
     # mutation-checked against the pre-fix code.
     ("agent_packs.py", "run_log"): DERIVED_TALLY,
-    ("pins.py", "resolve_pins"): SQL_SCOPED,          # `continue` = "not a pin", not "not mine"
     ("report.py", "_project_photos"): SQL_SCOPED,     # `continue` = the blob is missing
     ("routers/standards.py", "load_timings"): SQL_SCOPED,   # project + window both in SQL
+    # PINS-CAP. This carried SQL_SCOPED on the note `continue` = "not a pin", not "not mine" —
+    # **the SECOND site where that exact reasoning was wrong**, written by the same hand as the
+    # `timeline` one. The topic query capped 2,000 rows ordered OLDEST-first and dropped the
+    # non-pins afterwards, so a project whose 2,000 oldest topics are ordinary un-pinned issues
+    # drew NO topic pins, and a pin placed today never appeared because the window never advanced.
+    # It did not degrade as the project grew busier; it went blank. `test_pin_cap.py` asserts it.
+    #
+    # Two instances is a pattern, so the lesson lives here rather than in a commit message:
+    # **whether a Python `if` reads as a filter or as a dispatch is not the question.** The question
+    # is whether the cap can be spent on rows the `if` then throws away. A verdict that answers the
+    # first has not looked at the second.
+    #
+    # It stays in the population on purpose. The first draft of the fix moved it to
+    # FIXED_MUST_NOT_RETURN and **this gate refused it**, because the register loop still drops a
+    # row whose `element_guids` is `[]` after its own cap. That residual is real, so it is named
+    # rather than asserted away — claiming "fixed" for the half that was fixed is how the wrong
+    # verdict got written the first time.  — 2026-09-09
+    ("pins.py", "resolve_pins"): SQL_SUPERSET,
 }
 
 # The three that WERE this defect. Fixing one removes it from the analyser's population entirely —

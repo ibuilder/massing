@@ -12,6 +12,32 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The pin overlay went blank on busy projects, and nothing said so
+
+Pins are how an issue gets a place in the building — an RFI on *that* wall, a punch item at *that*
+door. The engine that resolves them took the project's 2,000 oldest issues and then discarded the
+ones that are not pins.
+
+Most issues are not pins. On a project with more than 2,000 of them — which is an ordinary
+mid-size job, not a stress case — the 2,000 oldest were mostly ordinary un-pinned RFIs, so the
+overlay came back with **nothing on it**, and a pin you placed this morning never showed up, because
+the window never moved past those same 2,000 rows. It did not fade as a project got busier. It went
+blank and stayed blank, on the model and on every plan sheet, with no message.
+
+The test for "is this a pin" now runs in the database, before the limit, so the limit is spent on
+actual pins. The eleven registers that can also carry pins used to get 2,000 each and then have the
+combined list chopped back to 2,000. They now share one budget — which does not change which pins
+you see, but does mean the ones that did not fit are counted rather than quietly discarded, so the
+number beside them is the project's.
+
+And the count that comes back is the project's, not the screen's. Where the overlay has more pins
+than it can show it says how many there are — and where that number is an estimate rather than an
+exact count, it says that too, instead of quietly rounding in its own favour.
+
+Two things this does not yet do, said plainly rather than left to be discovered: a printed plan sheet
+still cannot show that its pins were capped, and the total is an upper bound rather than an exact
+figure on projects carrying older records.
+
 ### Three screens that showed you part of the answer and called it the answer
 
 The sibling of the fix below, and the milder half. There the rows were wrong; here the rows are

@@ -5,11 +5,13 @@ EMPTY answer. This is the milder sibling and a different defect: the predicate i
 are right, and the COUNT beside them describes the window while being named for the population.
 Nobody can tell from the response that there is more.
 
-**The repository already argues against this, in the file that does it.** `pins.resolve_pins` ends
-`return out[:_MAX_PINS]` directly beneath a docstring reading *"Silence is the failure mode; an
-unplaced pin that says so is not"*, and `pins.located` adds *"a sheet that draws 4 of 7 pins and
-says nothing is the bug"*. The principle was written above the line that breaks it — which is why
-this is a derived sweep rather than a reading exercise.
+**The repository already argued against this, in the file that did it.** `pins.resolve_pins` used
+to end `return out[:_MAX_PINS]` directly beneath a docstring reading *"Silence is the failure mode;
+an unplaced pin that says so is not"*, and `pins.located` adds *"a sheet that draws 4 of 7 pins and
+says nothing is the bug"*. The principle was written above the line that broke it — which is why
+this was a derived sweep rather than a reading exercise. **That site is fixed** (PINS-CAP): it
+returns an envelope, and reading it turned up a live Axis A defect underneath, where the cap was
+spent on topics before the "is this a pin" test ran. See `test_pin_cap.py`.
 
 **The three fixed here, and why each cap survives:**
 
@@ -196,8 +198,11 @@ _MUST_STAY_SILENT = {
             ranked = scenarios[: max(1, limit)]
             return {"scenarios": ranked, "count": len(scenarios), "shown": len(ranked)}
     ''',
-    # A cap with no count reported at all is a different shape (the CALLER cannot tell), and
-    # deliberately out of scope here rather than silently folded in.
+    # A cap with no count reported at all is a different shape (the CALLER cannot tell), and out
+    # of scope for THIS analyser rather than silently folded in. The snippet keeps the name it was
+    # taken from, but `pins.resolve_pins` no longer has this shape — it returns an envelope now,
+    # and `test_pin_cap.py` asserts the behaviour. The probe stays because the SHAPE is still one
+    # this analyser must not report, whether or not any live function currently wears it.
     "capped return with no count": '''
         def resolve_pins(db, pid):
             out = gather(db, pid)

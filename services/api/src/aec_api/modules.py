@@ -285,8 +285,12 @@ def revise(db: Session, key: str, project_id: str, rid: str, actor: str, party: 
         id=new_id, project_id=project_id, ref=f"{base}.{rev_n}", title=src.get("title"),
         workflow_state=mod.get("workflow", {}).get("initial", "open"),
         party_owner=party, assignee=src.get("assignee"), created_by=actor,
-        created_at=_now(), modified_at=_now(), anchor=src.get("anchor"),
-        element_guids=src.get("element_guids"), links=[], data=data,
+        # `or None`: an empty `{}` / `[]` is not a pin but IS non-NULL, so it passes the SQL
+        # candidate predicate in `pins._topic_pin_where` and then gets dropped in Python —
+        # spending the overlay's budget on a row that draws nothing. Normalise at the source
+        # rather than teaching every reader to distinguish empty from absent.
+        created_at=_now(), modified_at=_now(), anchor=src.get("anchor") or None,
+        element_guids=src.get("element_guids") or None, links=[], data=data,
         # a revision is a NEW record written now, so it carries today's shape — not the source's.
         schema_version=module_schema.schema_stamp(mod)))
     superseded = dict(src.get("data") or {}); superseded["superseded_by"] = new_id
@@ -608,8 +612,10 @@ def set_element_guids(db: Session, key: str, project_id: str, rid: str, guids: l
     cur = set(rec.get("element_guids") or [])
     incoming = {g for g in guids if g}
     result = sorted(cur | incoming if mode == "add" else cur - incoming if mode == "remove" else incoming)
+    # `or None` for the same reason as the revision copier above: untagging every element must
+    # leave NULL, not `[]`, or the row stays a pin candidate that resolves to no pin.
     db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
-               .values(element_guids=result, modified_at=_now()))
+               .values(element_guids=result or None, modified_at=_now()))
     _log(db, project_id, key, rid, actor, None, "tag-elements", {"count": len(result), "mode": mode})
     db.commit()
     return {"element_guids": result, "count": len(result)}

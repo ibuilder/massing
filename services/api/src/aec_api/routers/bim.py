@@ -867,10 +867,15 @@ def list_all_pins(pid: str, db: Session = Depends(get_db),
         model = open_model(source_ifc_path(db, pid))
     except Exception:   # noqa: BLE001 — no model: anchored pins still resolve, element-tied ones report unlocated
         model = None
-    rows = pin_engine.resolve_pins(db, pid, model=model)
+    env = pin_engine.resolve_pins(db, pid, model=model)
+    rows = env["pins"]
     placed = pin_engine.located(rows)
-    return {"pins": placed, "total": len(rows), "unlocated": len(rows) - len(placed),
-            "model_available": model is not None}
+    # `total` is the PROJECT's pin count, not the length of what came back. It used to be
+    # `len(rows)` — the capped list — so an overlay showing its ceiling reported that ceiling as
+    # the whole, and no caller could tell. `shown` is the window; `truncated` says the two differ.
+    return {"pins": placed, "shown": len(rows), "total": env["pin_total"],
+            "total_counts_candidates": env["total_counts_candidates"], "truncated": env["truncated"],
+            "unlocated": len(rows) - len(placed), "model_available": model is not None}
 
 
 # --- comments ----------------------------------------------------------------

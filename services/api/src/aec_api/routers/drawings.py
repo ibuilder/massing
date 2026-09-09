@@ -762,7 +762,11 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model
     counts it in a note rather than letting the sheet under-report.
     """
     from .. import pins as pin_engine
-    rows = pin_engine.resolve_pins(db, pid, model=model)
+    # `["pins"]`: the engine returns an envelope now. The sheet cannot yet PRINT that it was
+    # capped — the drawing engine takes positions and labels, not notes — so a capped project
+    # still under-reports on paper. Named in the roadmap rather than half-fixed here; what this
+    # change buys the sheet is that the cap is no longer spent on rows that are not pins at all.
+    rows = pin_engine.resolve_pins(db, pid, model=model)["pins"]
     lo, hi = elevation - _PIN_BAND_M, elevation + cut_height + _PIN_BAND_M
     out: list[dict] = []
     for p in rows:
