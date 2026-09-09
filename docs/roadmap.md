@@ -405,6 +405,17 @@ instances:
   outside that directory. *Narrowing a search to remove noise removes evidence of a call, and absent
   evidence reads as absence.*
 
+  **A review finding widened the money spine, and named a gap in its gate.** The first draft extended
+  a line as `round(rate * qty, 2)` — binary multiply, then HALF-EVEN — so a rate of `2.675` at
+  quantity 1 extends to `2.67`, a cent short on the number a contractor is paid. This is exactly the
+  defect MONEY-SCOPE swept, in the one shape `services/api/test_money_spine.py` **structurally
+  cannot see**: its scan requires the rounded expression to divide by 100, which a percentage does
+  and a product does not. Fixed with a new `money.mul` (Decimal on both operands *before* the
+  multiply, quantized half-up) and pinned by a boundary case in `services/api/test_tm_rates.py`.
+  *Widening that scan to reach products is a separate question — the `/100` clause is what keeps it
+  from flagging every legitimate two-decimal rounding in the tree — and is left open rather than
+  attempted here.*
+
   **The optional half is NOT gated: 27 optional parameters are never sent, and they are untriaged.**
   An engine on a default nobody chose is sometimes exactly right (`far_steps` on
   `/design/options/generate` — the 60/80/100% sweep is the sensible default) and sometimes a

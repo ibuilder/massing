@@ -377,8 +377,12 @@ def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any
                                  "register": round(listed, 2)})
             rate = _n(row.get(rate_col))
             if rate:
-                amount = round(rate * _n(row.get(qty_col)), 2)
-                if round(_n(row.get("amount")), 2) != amount:
+                # money.mul, not round(rate * qty, 2): the latter rounds HALF-EVEN over a binary
+                # product, so 2.675 at qty 1 extends to 2.67. This is the line a contractor is paid
+                # on. Raised in review — and it is a shape `test_money_spine.py` cannot see, since
+                # its scan requires a division by 100 that a percentage has and a product does not.
+                amount = money.mul(rate, _n(row.get(qty_col)))
+                if money.q2(_n(row.get("amount"))) != amount:
                     row["amount"] = amount
             if extra_col and _n(row.get(extra_col)):
                 unpriced.append({"table": field, "name": name, "column": extra_col,

@@ -42,7 +42,7 @@ record holding `0.0`. It also wrote `tm_lines`, a field the module does not decl
 reads. `test_cost.py` asserted the stored total and passed, because its fixture ticket had no line
 tables at all — the one shape in which the write-back survives.
 
-Found by a new derivation: **which request parameter does nothing send** — the mirror of the
+Found by a new derivation: **which required request parameter no web client sends** — the mirror of the
 response-field sweep. `services/api/test_body_param_reach.py` now gates it, and reaches inside
 `test_route_reachability.py`'s documented blind spot: that gate skips any path segment under five
 characters, and this route's leaf is `tm`.

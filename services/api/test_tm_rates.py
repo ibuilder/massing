@@ -157,6 +157,23 @@ with TestClient(app) as c:
     check("no overtime multiplier is invented", d.get("labor_total") == 760.0, d.get("labor_total"))
     check("no idle rate is invented", d.get("equipment_total") == 180.0, d.get("equipment_total"))
 
+    # ---- 4b. the extended amount rounds HALF-UP, like money and unlike float round() -------------
+    # Raised in review. `round(rate * qty, 2)` multiplies binary floats and rounds HALF-EVEN, so a
+    # rate of 2.675 at quantity 1 extends to 2.67 — a cent short on the line a contractor is paid
+    # on. `money.mul` does the multiply in Decimal and quantizes half-up. This is the same defect
+    # MONEY-SCOPE swept, in the one shape `test_money_spine.py` structurally cannot see: its scan
+    # requires the expression to divide by 100, which a percentage does and a product does not.
+    c.post(f"/projects/{pid}/modules/material_rate", headers=H,
+           json={"data": {"material": "Half-cent widget", "rate": 2.675}})
+    tid = ticket(material_lines=[{"description": "w", "material": "Half-cent widget", "qty": 1}])
+    price(tid)
+    check("an extended amount rounds half-UP at the half-cent, not half-even",
+          rows(tid, "material_lines")[0].get("amount") == 2.68,
+          f"{rows(tid, 'material_lines')[0].get('amount')} — float round() gives "
+          f"{round(2.675 * 1, 2)}, which is a cent short")
+    check("...and the derived total carries the same cent", stored(tid).get("material_total") == 2.68,
+          stored(tid).get("material_total"))
+
     # ---- 5. material prices off `unit_price`, not `rate` -----------------------------------------
     # The three tables do not share a rate column, which is why the mapping is a table and not a
     # naming convention: a loop assuming `rate` would silently price no material at all.
