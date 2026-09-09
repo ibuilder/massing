@@ -372,13 +372,24 @@ instances:
   **The four were `ResponsibilityMatrix.validation.*`, and they were the load-bearing kind: the
   panel asserted the OPPOSITE of the truth.** See RESP-ORPHAN below.
 
-  **The ~8 share a signature worth naming: each is the CAVEAT on a number that IS shown.**
-  `ReviewCycles.rounds_undated` sits beside a days-split computed only over dated rounds — and
-  `apps/web/src/portal/panels/design.ts` handles the sibling `rounds_open` with exactly the right
-  care (*"counted but not scored"*) and misses this one. `MakeReady.window_days` is the denominator
-  of a ready/blocked pair. `BidLevelingDetail.recommendation.responsiveness` is the caveat on an
-  apparent-low recommendation. `PrequalScores.not_in_pool` names who was excluded from a pool whose
-  size is displayed. `PreflightSummary.blocking_checks` names what a HOLD override just bypassed.
+  **The candidates share a signature: each is the CAVEAT on a number that IS shown.** The estimate
+  first written here was "~8 finding-shaped"; **four have since been triaged and only ONE was real**,
+  so the shape is a candidate filter rather than a defect count, and the honest figure is unknown
+  until the rest are read:
+
+  | field | verdict |
+  |---|---|
+  | `ReviewCycles.rounds_undated` | **REAL — fixed.** The days-split covers only dated rounds and the count printed beside it was the scored one. Two of five read as complete. `design.ts` handles the sibling `rounds_open` with exactly the right care (*"counted but not scored"*) and missed this. |
+  | `MakeReady.window_days` | **Not a defect.** The server echoes back the client's own request parameter, which the panel already prints. |
+  | `PrequalScores.not_in_pool` | **Not a defect.** A rejected sub carries a `rejected` flag on its row and the table renders `flags`, so the exclusion is on screen. |
+  | `PreflightSummary.blocking_checks` | **Not a defect.** `reportCenter.ts` renders the full failing checklist immediately above the override button, at the moment of the decision. |
+
+  **A field with no reader is a candidate, not a defect** — 1 of 4 survived, and writing "~8
+  finding-shaped" as though the filter were the finding is the same over-claim this file has had to
+  correct elsewhere. Still unread and untriaged: `ReviewCycles.{total_comments,
+  mean_agency_turnaround_days}`, `BidLevelingDetail.recommendation.responsiveness`,
+  `OptionRecord.axis_status`, `SpecSubmittalLog.withdrawn_excluded[].would_require`,
+  `EntitlementConditions.{entitlement_count, discharged_count}`.
 
   **Deliberately NOT gated yet, and that is a judgement rather than an omission.** A gate over this
   axis needs an allowlist of the ~31 legitimate cases, and an allowlist nobody has triaged is a
