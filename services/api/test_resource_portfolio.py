@@ -195,7 +195,11 @@ with TestClient(app) as c:
     from aec_api.routers import dashboard  # noqa: PLC0415
 
     def _nodes(fn, kind):
-        # textwrap.dedent: a nested function's source carries its indentation and would not parse.
+        """Every AST node of `kind` in `fn`'s source.
+
+        `textwrap.dedent` because a nested function's source carries its indentation and would
+        otherwise raise IndentationError before the walk ever starts.
+        """
         src = textwrap.dedent(inspect.getsource(fn))
         return [n for n in ast.walk(ast.parse(src)) if isinstance(n, kind)]
 
@@ -207,7 +211,12 @@ with TestClient(app) as c:
     # are three ways of saying nothing.
     assert _nodes(resource_portfolio.check_groups, ast.Raise), "the probe cannot see a raise"
 
-    def _has_both():                      # the positive control, kept here so it cannot drift away
+    def _has_both():
+        """The positive control: a function that demonstrably contains both node kinds.
+
+        Kept inline rather than pointed at some real function elsewhere, because a fixture that
+        lives somewhere else can lose the shape it was chosen for without anyone noticing here.
+        """
         try:
             raise ValueError("x")
         except ValueError:

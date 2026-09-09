@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { resourcingCard } from "./portfolio";
 
+/** A resourcing response, defaulting to the healthy case so each test names only what it varies. */
 const R = (o: Partial<Parameters<typeof resourcingCard>[0]> = {}) =>
   ({ available: true, trades: ["Ironworkers"], ...o });
 

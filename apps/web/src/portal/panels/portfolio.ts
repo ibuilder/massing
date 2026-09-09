@@ -157,8 +157,11 @@ export async function renderPortfolio(ctx: PanelContext) {
     //
     // So the panel invents nothing. It renders whatever grouping the install declares in the
     // Settings panel, and falls back to the trade table alone when none is configured.
-    // An admin's typo in the Settings box degrades this panel to the trade table rather than
-    // blanking it — but silently ignoring their configuration would be worse than the typo.
+    /** The line that says a configured grouping was not applied, and why.
+     *
+     *  An admin's typo in the Settings box degrades this panel to the trade table rather than
+     *  blanking it — but silently ignoring their configuration would be worse than the typo. Shared
+     *  by both cards below so the two paths cannot word it differently. */
     const groupingWarning = (why: string) => {
       const w = document.createElement("div"); w.className = "meta";
       w.style.marginTop = "4px"; w.style.color = "var(--status-warn)";
