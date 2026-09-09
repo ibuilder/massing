@@ -42,9 +42,18 @@ not render *wrong*, they rendered **empty**, and five activities reported having
 **And a third, found by touching the transaction boundary rather than by looking for it.** Both
 responsibility write routes recorded an audit entry *after* the engine had already committed, into a
 session nothing commits again — so every change to the role columns, the one edit that can orphan an
-entire matrix, left no trace in the audit log. Swept across all 105 `audit.record` call sites: these
-two were the only real instances, and the class is now a gate (`services/api/test_audit_commit.py`)
-that fails closed on any call site it cannot resolve.
+entire matrix, left no trace in the audit log. `audit.record` only `db.add()`s, and `get_db` closes
+without committing. The route now owns the only commit in the request, so the change and its trail
+land together or not at all.
+
+The class is a gate — `services/api/test_audit_commit.py`, which fails closed on any of the 106
+`audit.record` call sites it cannot resolve. **Its first version asked the wrong question**, and
+review caught it: "is there a `.commit()` at a later line in this function?" is not the same as "is
+a commit reached on every path out of here". `run_clash_federated` was a live third instance the
+whole time — its coordination branch records an audit row, and the only commit sat inside
+`if create_topics and not coordinate`, a branch that is mutually exclusive with it. Later in the
+file, never on the same path. The classifier now climbs out through enclosing blocks and counts only
+commits that always execute, and it is proved against that branch shape before it may report.
 
 ### Feasibility sizes the building on the real parcel, not on its bounding rectangle
 

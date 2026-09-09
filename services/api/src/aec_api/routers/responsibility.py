@@ -52,13 +52,18 @@ def put_config(pid: str, roles: list[str] = Body(..., embed=True),
     on its own. Nothing is written unless all of it can be."""
     _project(db, pid)
     try:
-        out = responsibility.set_config(db, pid, roles, mode, actor, rename=rename, drop=drop)
+        out = responsibility.set_config(db, pid, roles, mode, actor, rename=rename, drop=drop,
+                                        commit=False)
     except ValueError as e:
         # Raised before any write — the message names which of `roles`/`rename`/`drop` disagrees.
         raise HTTPException(400, str(e)) from e
     audit.record(db, action="responsibility.config", actor=actor, method="PUT",
                  path=f"/projects/{pid}/responsibility/config", detail=out)
-    db.commit()   # the engine committed the config + row migration; persist the audit row too
+    # ONE transaction for the matrix change AND its audit row: the engine is told not to commit, so
+    # this is the only commit in the request. It used to commit inside the engine and again here,
+    # which persisted the change first and the trail second — two transactions, and a crash between
+    # them leaves a role rename with no record of who made it. Raised in review.
+    db.commit()
     return out
 
 
@@ -67,10 +72,10 @@ def apply_template(pid: str, key: str = Body(..., embed=True), mode: str = Body(
                    db: Session = Depends(get_db), actor: str = Depends(require_role("reviewer"))):
     """Seed the matrix from a named starter template (also sets the default role columns + mode)."""
     _project(db, pid)
-    out = responsibility.apply_template(db, pid, key, mode, actor)
+    out = responsibility.apply_template(db, pid, key, mode, actor, commit=False)
     if out.get("error"):
         raise HTTPException(400, out["error"])
     audit.record(db, action="responsibility.apply_template", actor=actor, method="POST",
                  path=f"/projects/{pid}/responsibility/apply-template", detail=out)
-    db.commit()   # ditto — `get_db` never commits, so an audit row alone would be dropped on close
+    db.commit()   # ditto — the seeded rows, the config and this audit row are one transaction
     return out

@@ -197,8 +197,15 @@ def run_clash_federated(
             created += 1
         audit.record(db, action="clash.federated", actor=actor, method="POST",
                      path=f"/projects/{pid}/clash/federated", detail={"created": created})
-        db.commit()
 
+    # AUDIT-COMMIT: this commit used to live inside the block above, which is guarded by
+    # `create_topics and not coordinate` — mutually exclusive with the `coordinate` branch that
+    # records "clash.coordinate". So a coordination run persisted its issues (each create/update
+    # commits inside the engine) and then dropped its own audit row on the floor: `audit.record`
+    # only db.add()s, and `get_db` closes without committing. Later in the file is not the same
+    # thing as on the same path. Raised in review; the gate is now path-aware rather than
+    # line-ordered, and an unconditional commit with nothing pending is a no-op.
+    db.commit()
     return {"disciplines": list(valid), "count": len(results), "created_topics": created,
             "coordination": coordination, "clashes": results[:limit], "truncated": len(results) > limit}
 

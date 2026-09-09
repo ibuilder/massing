@@ -1,20 +1,35 @@
 """AUDIT-COMMIT — an audit row nobody commits is an audit row nobody has.
 
-`get_db` yields a session and only ever ``close()``s it. Nothing in the request path commits on the
-way out, so a route that calls ``audit.record`` after its engine has already committed leaves the
-audit row pending in a session that is about to be discarded. The request returns 200. The trail is
-empty. Nothing anywhere goes red — which is why this is a gate and not a comment.
+`audit.record` only calls ``db.add()``. `get_db` yields a session and only ever ``close()``s it, and
+nothing in the request path commits on the way out — so a route that records an audit row without
+reaching a commit afterwards leaves it pending in a session about to be discarded. The request
+returns 200. The trail is empty. Nothing anywhere goes red, which is why this is a gate.
 
 Found by touching the transaction boundary in `responsibility`, not by looking for it: BOTH of that
 router's write routes had it, and one of them is the edit that can orphan an entire matrix.
 
-**Derive the population, do not list it.** Every function anywhere under `src/aec_api` that calls
-``audit.record`` is a candidate; a function is SAFE only if a ``.commit()`` follows that call in the
-same function body. Anything else is UNKNOWN, and **UNKNOWN reds the build** unless it is named in
-`EXEMPT` with a reason — because the two blind spots this repo has already paid for were both a
-predicate deciding what to LOOK at, and everything such a predicate excludes is invisible to its own
-output. A delegated commit is real (`bim.delete_project` has one) but it is not something this
-analyser can see, so it is an exemption with evidence rather than a rule.
+**Derive the population, do not list it.** Every function under `src/aec_api` that calls
+``audit.record`` is a candidate. Anything not proven safe is UNKNOWN, and **UNKNOWN reds the build**
+unless it is named in `EXEMPT` with a reason — the blind spots this repo has already paid for were
+all a predicate deciding what to LOOK at, and everything such a predicate excludes is invisible to
+its own output.
+
+**"Safe" is REACHABILITY, not line order, and that distinction is this gate's own bug report.** The
+first version asked only whether some ``.commit()`` appeared at a later line in the same function.
+It reported the tree clean, and `routers/analysis.py::run_clash_federated` was a live instance the
+whole time: its `coordinate` branch records an audit row, and the only commit sat inside
+``if create_topics and not coordinate`` — a branch that is mutually exclusive with the one holding
+the record. Later in the file, never on the same path. Raised in review on the PR that added this
+file, which is the second time in this repo an analyser has been confidently wrong about the very
+defect it was written for.
+
+So: a commit counts only when it is reached on EVERY path out of the block holding the record.
+`_reaches_commit` climbs from the record's statement through its enclosing blocks, and at each level
+`_unconditional_commit` looks only at what follows — descending through `with` (always runs once
+entered) but never into `if`/`for`/`while`/`try` bodies, which are exactly the constructs that make
+a commit conditional. Conservative by construction: a commit this cannot prove is not counted, and
+the cost of that is an exemption with evidence rather than a silent pass. Over 106 call sites the
+strictness costs ONE extra report, which was the real defect.
 
 Run: PYTHONPATH=src ./.venv/bin/python test_audit_commit.py
 """
@@ -35,8 +50,55 @@ EXEMPT = {
 }
 
 
+def _is_commit(n: ast.AST) -> bool:
+    return (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "commit")
+
+
+def _unconditional_commit(stmts: list[ast.stmt]) -> bool:
+    """Does this straight-line run of statements reach a commit on EVERY path?
+
+    Descends only through what always executes once the block is entered. `if`/`for`/`while`/`try`
+    bodies are deliberately NOT descended into: a commit inside one of those is exactly the
+    conditional commit that made the first version of this gate report a clean tree."""
+    for s in stmts:
+        if isinstance(s, (ast.Expr, ast.Assign, ast.AugAssign, ast.Return)):
+            if any(_is_commit(n) for n in ast.walk(s)):
+                return True
+        elif isinstance(s, (ast.With, ast.AsyncWith)) and _unconditional_commit(s.body):
+            return True
+    return False
+
+
+def _reaches_commit(call: ast.AST, parent: dict, fn: ast.AST) -> bool:
+    """Climb from the record's statement out through its enclosing blocks. At each level, does what
+    FOLLOWS reach a commit unconditionally? A `finally` counts for a record in its own `try` body."""
+    node = call
+    while node in parent and not isinstance(node, ast.stmt):
+        node = parent[node]
+    cur = node
+    while True:
+        p = parent.get(cur)
+        if p is None:
+            return False
+        for field in ("body", "orelse", "finalbody"):
+            blk = getattr(p, field, None)
+            if isinstance(blk, list) and cur in blk and \
+                    _unconditional_commit(blk[blk.index(cur) + 1:]):
+                return True
+        if isinstance(p, ast.Try) and cur in (p.body or []) and \
+                _unconditional_commit(p.finalbody or []):
+            return True
+        if p is fn:
+            return False
+        cur = p
+
+
 def audit_sites(tree: ast.AST, label: str) -> list[tuple[str, int, bool]]:
-    """(name, line, commit_follows) for every function calling ``audit.record``.
+    """(name, line, commit_reachable) for every ``audit.record`` call, one entry per CALL.
+
+    Per call, not per function: `run_clash_federated` holds two, on mutually exclusive branches, and
+    a per-function verdict cannot express "one of them is safe and the other is not".
 
     Separate from the verdict on purpose. An earlier gate in this repo asserted that its analyser
     still *reported* a site, so a mutation that misclassified every site passed — reporting a site
@@ -44,17 +106,15 @@ def audit_sites(tree: ast.AST, label: str) -> list[tuple[str, int, bool]]:
     out = []
     for fn in [n for n in ast.walk(tree)
                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
-        body = list(ast.walk(fn))
-        rec = [n.lineno for n in body
-               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-               and n.func.attr == "record" and isinstance(n.func.value, ast.Name)
-               and n.func.value.id == "audit"]
-        if not rec:
-            continue
-        commits = [n.lineno for n in body
-                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                   and n.func.attr == "commit"]
-        out.append((f"{label}::{fn.name}", min(rec), any(c > min(rec) for c in commits)))
+        parent: dict = {}
+        for p in ast.walk(fn):
+            for c in ast.iter_child_nodes(p):
+                parent[c] = p
+        for call in [n for n in ast.walk(fn)
+                     if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                     and n.func.attr == "record" and isinstance(n.func.value, ast.Name)
+                     and n.func.value.id == "audit"]:
+            out.append((f"{label}::{fn.name}", call.lineno, _reaches_commit(call, parent, fn)))
     return out
 
 
@@ -98,6 +158,43 @@ assert verdict(probe) == ["probe.py::put_config:4"], \
 # ...and that it does not call the fixed shape bad, which would make the gate unusable noise.
 POST_FIX = PRE_FIX.replace("    return out", "    db.commit()\n    return out")
 assert verdict(audit_sites(ast.parse(POST_FIX), "probe.py")) == [], "the fixed shape is still flagged"
+
+# The shape the FIRST version of this gate could not see, reduced from `run_clash_federated`: two
+# records on mutually exclusive branches, and a commit inside one of them. Every textual rule —
+# min(rec), max(rec), "some commit at a later line" — calls this safe, because the commit really is
+# further down the file. It is simply never on the other branch's path.
+BRANCHED = """
+def route(db, actor, coordinate, create_topics):
+    if coordinate:
+        audit.record(db, action="a.coordinate", actor=actor)
+    if create_topics and not coordinate:
+        audit.record(db, action="a.topics", actor=actor)
+        db.commit()
+    return {}
+"""
+branched = audit_sites(ast.parse(BRANCHED), "probe.py")
+assert len(branched) == 2, f"one entry per CALL, not per function: {branched}"
+assert verdict(branched) == ["probe.py::route:4"], \
+    ("the classifier cannot see a commit that is on the OTHER branch — this is the exact shape "
+     f"that hid a live defect through a full review: {branched}")
+# ...and the same two records are BOTH safe once the commit moves to a common path.
+BRANCHED_FIXED = BRANCHED.replace("        db.commit()\n    return {}", "    db.commit()\n    return {}")
+assert verdict(audit_sites(ast.parse(BRANCHED_FIXED), "probe.py")) == [], \
+    "a commit on a path both branches reach must clear both records"
+
+# A commit inside a `for` is not reached when the loop body never runs; inside `with`, it is.
+LOOPED = """
+def route(db, actor, rows):
+    audit.record(db, action="a", actor=actor)
+    for r in rows:
+        db.commit()
+    return {}
+"""
+assert verdict(audit_sites(ast.parse(LOOPED), "probe.py")) == ["probe.py::route:3"], \
+    "a commit inside a loop body is conditional — an empty sequence never reaches it"
+WITHED = LOOPED.replace("    for r in rows:", "    with db.begin_nested():")
+assert verdict(audit_sites(ast.parse(WITHED), "probe.py")) == [], \
+    "a `with` body always runs once entered — refusing it would make the gate noise"
 
 # --- the one exemption that can be checked live, is ------------------------------------------
 os.environ["DATABASE_URL"] = "sqlite:///./test_audit_commit.db"

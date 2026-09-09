@@ -280,6 +280,28 @@ with TestClient(app) as c:
         r = c.put(f"/projects/{bp}/responsibility/config", json=bad)
         assert r.status_code == 400, (why, r.status_code, r.text[:160])
         assert msg in r.json()["detail"], (why, r.json()["detail"])
+
+    # A rename COLLISION is well-formed and still loses a letter, so `roles`-vs-`rename` agreement
+    # is not enough. Two shapes, both refused before the first write. Raised in review.
+    cur = c.get(f"/projects/{bp}/responsibility").json()["roles"]
+    # (a) two sources onto one target — the second write to nxt[dst] would silently win
+    r = c.put(f"/projects/{bp}/responsibility/config",
+              json={"roles": [x for x in cur if x not in ("Owner", "Consultant")] + ["Client"],
+                    "mode": "RACI", "rename": {"Owner": "Client", "Consultant": "Client"}})
+    assert r.status_code == 400, (r.status_code, r.text[:200])
+    assert "merge two roles into one cell" in r.json()["detail"], r.json()["detail"]
+    # (b) a row that already carries BOTH the source and the target. Only the DATA can show this:
+    # the request is self-consistent, and the row still ends up with one letter instead of two.
+    both = next(x for x in c.get(f"/projects/{bp}/responsibility").json()["rows"]
+                if "Owner" in x["assignments"] and "Subcontractor" in x["assignments"])
+    r = c.put(f"/projects/{bp}/responsibility/config",
+              json={"roles": [x for x in cur if x != "Owner"], "mode": "RACI",
+                    "rename": {"Owner": "Subcontractor"}})
+    assert r.status_code == 400, (r.status_code, r.text[:200])
+    assert "would be lost" in r.json()["detail"] and both["activity"] in r.json()["detail"], \
+        (r.json()["detail"], both["activity"])
+    assert cells(bp) == snapshot, "a refused collision wrote something"
+    assert c.get(f"/projects/{bp}/responsibility").json()["roles"] == cur, "columns changed anyway"
     assert cells(bp) == snapshot, "a refused request wrote something"
 
     # --- BULK-PATCH: a mode change migrates the doer letter on EXISTING rows -------------------
@@ -312,6 +334,31 @@ with TestClient(app) as c:
         _acts = {a.action for a in _db.query(_AL).all()}
     assert "responsibility.config" in _acts, sorted(_acts)
     assert "responsibility.apply_template" in _acts, sorted(_acts)
+
+    # ...and committed IN THE SAME TRANSACTION as the change they describe. The engine is told not
+    # to commit, so the route's own commit is the only one in the request — otherwise the matrix
+    # change lands first and the trail second, and a crash between them loses the trail alone.
+    # Asserted by rejecting the audit INSERT: the matrix change must go with it. Raised in review.
+    at = c.post("/projects", json={"name": "Atomic"}).json()["id"]
+    c.put(f"/projects/{at}/responsibility/config", json={"roles": ["A", "B"], "mode": "RACI"})
+    import aec_api.audit as _audit
+    _real_rec = _audit.record
+
+    def _boom(db, **kw):
+        raise RuntimeError("audit insert refused")
+
+    _audit.record = _boom
+    try:
+        try:
+            c.put(f"/projects/{at}/responsibility/config", json={"roles": ["X", "Y"], "mode": "DACI"})
+            raise AssertionError("the injected audit failure did not propagate")
+        except RuntimeError as e:
+            assert "audit insert refused" in str(e), e
+    finally:
+        _audit.record = _real_rec
+    still = c.get(f"/projects/{at}/responsibility").json()
+    assert still["roles"] == ["A", "B"] and still["mode"] == "RACI", \
+        f"the matrix change outlived the audit row it was supposed to be atomic with: {still}"
 
 print("RESPONSIBILITY OK - grid assembly, single-A / >=1-R validation, role config, RACI<->DACI, templates + "
       "remap, the ROLES-BIM ISO 19650 template (own BIM-org persona columns, 9 info-mgmt duties, clean), and "

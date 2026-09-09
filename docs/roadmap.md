@@ -388,10 +388,28 @@ instances:
   | audit trail | both write routes recorded their audit entry *after* the engine had committed, into a session nothing commits again — so the one edit that can orphan a whole matrix left no trace |
 
   The audit one is a class, so it is a gate rather than two fixes: `services/api/test_audit_commit.py`
-  derives all 105 `audit.record` call sites by AST and **fails closed** on any it cannot resolve
+  derives all 106 `audit.record` call sites by AST and **fails closed** on any it cannot resolve
   (2 exempt, each naming who commits for it, one of those asserted live). It also runs its analyser
   against the pre-fix route shape and must flag it before it may report a clean tree — the blind-spot
   discipline `test_seeding_sweep` had to learn twice.
+
+  **It learned it a third time in review, and found a third live instance doing so.** The first
+  version asked whether a `.commit()` appeared at a LATER LINE in the same function. That is not
+  reachability, and `routers/analysis.py`'s federated-clash route had been an instance all along: its
+  `coordinate` branch records an audit row, and the only commit sat inside
+  `if create_topics and not coordinate` — mutually exclusive with it. Further down the file, never on
+  the same path, and every textual rule ("min", "max", "some later commit") calls it safe. The
+  classifier now climbs out through the enclosing blocks and counts only commits that always execute,
+  descending through `with` but never into `if`/`for`/`while`/`try`; over 106 sites that strictness
+  costs exactly one extra report, which was the defect. *An analyser that answers a cheaper question
+  than the one it claims to answer will report a clean tree and mean nothing by it.*
+
+  Review also closed two holes in the new refusals. `roles`-vs-`rename` agreement is not enough: two
+  sources renamed onto one target, or a row already carrying both a source and its target, are each
+  well-formed requests that silently drop a letter while `rows_remapped` counts the row as migrated.
+  Both are refused before the first write, the second by checking the DATA rather than the request.
+  And the routes now pass `commit=False` so the matrix change and its audit row are ONE transaction
+  — committing in the engine and again in the route persisted the change first and the trail second.
 
   *One mutation survived the first pass and is why the refusal cases are now pinned to their messages:
   the "rename a live column" case used a target that was **also** invalid, so removing the source

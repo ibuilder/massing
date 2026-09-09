@@ -98,8 +98,30 @@ def set_config(db: Session, pid: str, roles: list[str], mode: str, actor: str, *
     for d in drop:
         if d in have:
             raise ValueError(f"cannot clear {d!r}: it is still a role column — remove it first")
+    # Two sources onto one target is a MERGE, and the loop below would resolve it by writing
+    # `nxt[dst]` twice — the second letter wins, the first is gone, and `rows_remapped` counts the
+    # row as successfully migrated. Silently losing a letter is the defect this whole change is
+    # about, so refuse rather than pick. Raised in review.
+    targets = list(rename.values())
+    for dst in targets:
+        if targets.count(dst) > 1:
+            srcs = sorted(k for k, v in rename.items() if v == dst)
+            raise ValueError(f"cannot rename {' and '.join(repr(x) for x in srcs)} both to {dst!r}"
+                             " — that would merge two roles into one cell")
 
     rows, cfg = _rows_and_config(db, pid)
+    # The same collision one level down, and it can only be seen in the DATA: a row that already
+    # carries the target as well as the source. `roles` and `rename` agree, the request is
+    # well-formed, and the row still loses a letter. Checked over every row BEFORE the first write,
+    # so the refusal costs nothing and leaves nothing half-applied.
+    for r in rows:
+        cur = (r.get("data") or {}).get("assignments") or {}
+        for src, dst in rename.items():
+            if src in cur and dst in cur:
+                act = (r.get("data") or {}).get("activity") or r.get("ref") or r["id"]
+                raise ValueError(
+                    f"cannot rename {src!r} to {dst!r}: {act!r} has a letter on both, so one "
+                    "would be lost — clear one of them first")
     before = ((cfg.get("data") if cfg else None) or {}).get("mode")
     before = before if before in MODES else "RACI"
     # R→D (or D→R) only when the mode actually moves. Letters that are already correct, and letters
@@ -292,7 +314,8 @@ def templates() -> list[dict]:
             for k, v in TEMPLATES.items()]
 
 
-def apply_template(db: Session, pid: str, key: str, mode: str, actor: str) -> dict:
+def apply_template(db: Session, pid: str, key: str, mode: str, actor: str, *,
+                   commit: bool = True) -> dict:
     """Append a starter template's rows, and give it the columns its cells are keyed by.
 
     **The columns are MERGED into the existing set, not swapped for it, whenever rows already
@@ -341,6 +364,7 @@ def apply_template(db: Session, pid: str, key: str, mode: str, actor: str) -> di
         }
         mod.create_record(db, KEY, pid, {"data": data}, actor, None, commit=False)
         created += 1
-    db.commit()
+    if commit:
+        db.commit()
     return {"applied": key, "created": created, "mode": mode,
             "rows_remapped": cfg_out["rows_remapped"]}
