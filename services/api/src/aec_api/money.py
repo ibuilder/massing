@@ -24,6 +24,21 @@ def q2(x: float | int | str | Decimal) -> float:
     return float(_d(x).quantize(_CENT, rounding=ROUND_HALF_UP))
 
 
+def mul(a: float | int | str | Decimal, b: float | int | str | Decimal) -> float:
+    """An extended amount — `rate x quantity` — quantized to cents half-up.
+
+    `round(rate * qty, 2)` does the multiplication in binary floats and then rounds HALF-EVEN, so a
+    rate of 2.675 at quantity 1 extends to **2.67**. That is the same defect `q2` exists for, in the
+    one shape `test_money_spine.py`'s scan cannot see: its predicate requires the expression to
+    divide by 100, which a percentage does and a product does not. Raised in review on TM-RATES,
+    where the extended amount IS the line a contractor is paid on.
+
+    Both operands go through `_d` BEFORE the multiply, so the product is exact decimal arithmetic
+    rather than a float product that is merely rounded well afterwards.
+    """
+    return float((_d(a) * _d(b)).quantize(_CENT, rounding=ROUND_HALF_UP))
+
+
 def to_cents(x: float | int | str | Decimal) -> int:
     """Integer cents (half-up). Store/compare money as ints to sidestep float drift entirely."""
     return int((_d(x) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))

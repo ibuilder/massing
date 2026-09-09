@@ -149,7 +149,7 @@ describe("every chart says 'no data' rather than drawing an empty frame", () => 
     // Helpers go in this list; CHARTS do not. Anything exported and not named here must be a chart
     // that honours the whole grammar — which is why adding a helper is a deliberate edit here rather
     // than something that silently widens what the gate ignores.
-    const HELPERS = ["esc", "compact", "money", "usd", "qty", "chartColor", "noData",
+    const HELPERS = ["esc", "compact", "money", "usd", "rate", "qty", "chartColor", "noData",
                      "fmtFor", "yGrid", "legendRow"];
     const exported = Object.entries(Charts as unknown as Record<string, unknown>)
       .filter(([name, v]) => typeof v === "function" && !HELPERS.includes(name))
@@ -291,6 +291,18 @@ describe("R24-CHARTS-GRAMMAR ② — one currency format for the whole app", () 
   it("scanned real source — otherwise the ban below is vacuous", () => {
     expect(files.length).toBeGreaterThan(100);
     expect(files.some((f) => f.endsWith("charts.ts"))).toBe(true);
+  });
+
+  it("a unit rate keeps its cents, because a rate is not a rounded amount", () => {
+    // `usd(4.25)` is "$4". A material unit price shown as $4 does not multiply out to the amount on
+    // its own line, which on a T&M ticket is the number under dispute.
+    expect(Charts.rate(4.25)).toBe("$4.25");
+    expect(Charts.rate(95)).toBe("$95");           // no trailing .00 on a whole-dollar labour rate
+    expect(Charts.rate(1234.5)).toBe("$1,234.5");
+    expect(Charts.rate(null)).toBe("—");           // absent rate and a zero rate are different facts
+    expect(Charts.rate(0)).toBe("$0");
+    expect(Charts.rate(-4.25), "the minus goes OUTSIDE the currency mark, as it does in usd")
+      .toBe("−$4.25");
   });
 
   it("no file declares its own currency formatter — `usd` is imported, not rewritten", () => {

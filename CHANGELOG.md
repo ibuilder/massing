@@ -12,6 +12,41 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### T&M tickets price themselves from the project rate registers
+
+**TM-RATES.** The eTicket register carries three line tables — labour, material, equipment — and the
+project carries three rate registers to price them from. Nothing connected the two: a superintendent
+typed the rate onto every line by hand, which on a T&M ticket is the number that gets argued about
+when the change order is negotiated. **Price from rate tables** on the ticket now fills each blank
+rate from `labor_rate` / `material_rate` / `equipment_rate` and recomputes the amounts, and the
+totals follow from the lines.
+
+It answers for what it did NOT price, which is the point:
+
+- a rate somebody **typed** is kept as typed, and its disagreement with the register is shown with
+  both numbers — a T&M rate that diverges from the contract rate table is what a GC needs to see
+  before signing, not something to correct silently;
+- a trade or material no register knows is left untouched and named, with the register that would
+  fix it;
+- **overtime and idle hours come back unpriced.** Neither register holds an OT or idle rate, and a
+  1.5x nobody agreed to is a contract term, not a default.
+
+Re-pricing after a register changes does not re-rate work already done — the rate is a snapshot —
+but it does report that the register has moved since.
+
+**The route existed since June and nothing called it, and worse than that.** It wrote the totals
+straight onto the record; `apply_table_totals` — six weeks younger — recomputes every total from its
+table inside the same write, so the priced figure was replaced by the sum of the untouched `amount`
+cells while the response returned the correct number. Measured: `200 {"labor_total": 760.0}` over a
+record holding `0.0`. It also wrote `tm_lines`, a field the module does not declare and nothing
+reads. `test_cost.py` asserted the stored total and passed, because its fixture ticket had no line
+tables at all — the one shape in which the write-back survives.
+
+Found by a new derivation: **which required request parameter no web client sends** — the mirror of the
+response-field sweep. `services/api/test_body_param_reach.py` now gates it, and reaches inside
+`test_route_reachability.py`'s documented blind spot: that gate skips any path segment under five
+characters, and this route's leaf is `tm`.
+
 ### the review-cycles card says how many rounds it could not measure
 
 "Whose court did the time sit in" is the question that card exists to settle, and it was answering

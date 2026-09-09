@@ -289,41 +289,126 @@ def lien_waiver(db: Session, pid: str, kind: str = "conditional_progress", app_n
     }
 
 
-_RATE_LOOKUP = {  # tm line type -> (rate module, name field)
-    "labor": ("labor_rate", "trade"),
-    "material": ("material_rate", "material"),
-    "equipment": ("equipment_rate", "equipment"),
-}
+#: The three T&M line tables an eTicket carries, and how each one prices.
+#:
+#: `(lines field, rate module, name column, quantity column, rate column, unpriceable column)`
+#:
+#: The rate column differs across the three — labour and equipment are `$/hr` on `rate`, material is
+#: a `unit_price` — which is why this is a table rather than a naming convention. The last entry
+#: names a quantity the rate register **cannot** price: `labor_rate` has no overtime rate and
+#: `equipment_rate` no idle rate, anywhere. Those hours are therefore reported as unpriced rather
+#: than multiplied by an assumed factor — a 1.5x nobody agreed to is a contract term, not a default,
+#: and this is the number a contractor gets paid.
+TM_TABLES: tuple[tuple[str, str, str, str, str, str | None], ...] = (
+    ("labor_lines", "labor_rate", "trade", "hours", "rate", "ot_hours"),
+    ("material_lines", "material_rate", "material", "qty", "unit_price", None),
+    ("equipment_lines", "equipment_rate", "equipment", "hours", "rate", "idle_hours"),
+)
 
 
-def _rate_for(db: Session, pid: str, line_type: str, name: str) -> float:
-    mod, name_field = _RATE_LOOKUP.get(line_type, (None, None))
-    if not mod or mod not in me.TABLES:
-        return 0.0
+def _rate_index(db: Session, pid: str, mod: str, name_field: str) -> dict[str, float]:
+    """`{lowercased name: rate}` for one rate register. One query, not one per line."""
+    if mod not in me.TABLES:
+        return {}
+    out: dict[str, float] = {}
     for r in _records(db, mod, pid):
-        if str(r["data"].get(name_field, "")).lower() == str(name).lower():
-            return _n(r["data"].get("rate"))
-    return 0.0
+        name = str((r["data"] or {}).get(name_field, "")).strip().lower()
+        if name and name not in out:
+            out[name] = _n((r["data"] or {}).get("rate"))
+    return out
 
 
-def price_tm(db: Session, pid: str, lines: list[dict]) -> dict[str, Any]:
-    """eTicket T&M builder: price each line from the project rate tables (or an explicit
-    rate), compute per-type subtotals and a grand total."""
-    priced = []
-    subtotals = {"labor": 0.0, "material": 0.0, "equipment": 0.0}
-    for ln in lines:
-        lt = (ln.get("type") or "labor").lower()
-        qty = _n(ln.get("qty"))
-        rate = _n(ln.get("rate")) or _rate_for(db, pid, lt, ln.get("name", ""))
-        amount = round(rate * qty, 2)
-        subtotals[lt] = subtotals.get(lt, 0.0) + amount
-        priced.append({"type": lt, "name": ln.get("name"), "qty": qty,
-                       "rate": rate, "amount": amount})
-    subtotals = {k: round(v, 2) for k, v in subtotals.items()}
-    grand = round(sum(subtotals.values()), 2)
-    return {"lines": priced, "labor_total": subtotals.get("labor", 0.0),
-            "material_total": subtotals.get("material", 0.0),
-            "equipment_total": subtotals.get("equipment", 0.0), "grand_total": grand}
+def price_ticket_lines(db: Session, pid: str, data: dict) -> tuple[dict[str, Any], dict[str, Any]]:
+    """TM-RATES — price an eTicket's OWN line tables from the project rate registers.
+
+    Returns `(updates, report)`: `updates` is the `{lines field: rows}` patch for the tables that
+    actually changed (empty when nothing did), `report` is what happened, per row.
+
+    ## Why it writes the LINES and not the totals
+
+    The predecessor wrote `labor_total` straight onto the record. `apply_table_totals` (MOD-TOTALS,
+    six weeks younger than that code) recomputes every `totals_into` target from its table on the
+    way through `update_record` — so the priced total was overwritten by the sum of the very
+    `amount` cells the pricing had not touched, in the same call, and the route still answered 200
+    with the right number in its body. **The lines are the evidence and the total is the summary**,
+    which `apply_table_totals` says in as many words; pricing therefore belongs in the evidence.
+
+    ## What it will and will not overwrite
+
+    - A row with **no rate** takes the register's — that is the whole feature.
+    - A row whose typed rate **differs** from the register keeps the typed one, and the difference
+      is reported. A T&M rate that disagrees with the rate table is the thing a GC wants to see
+      before signing, not something to correct behind their back.
+    - A row the register has **no entry for** is left exactly as it is, and named.
+    - `amount` IS recomputed wherever a rate is known, because amount is arithmetic over the rate
+      and the quantity, not a negotiated figure.
+
+    The rate is copied into the row, never referenced: updating the register later must not change
+    what is owed for work already done. `test_eticket_tm.py` pins that, and this respects it.
+    """
+    updates: dict[str, Any] = {}
+    filled: list[dict] = []
+    variance: list[dict] = []
+    unmatched: list[dict] = []
+    unpriced: list[dict] = []
+    priced = 0
+    for field, mod, name_col, qty_col, rate_col, extra_col in TM_TABLES:
+        rows = data.get(field)
+        if not isinstance(rows, list):
+            continue                      # never filled in, or legacy free text
+        index = _rate_index(db, pid, mod, name_col)
+        out: list[Any] = []
+        moved = 0
+        for row in rows:
+            if not isinstance(row, dict):
+                out.append(row)
+                continue
+            row, before = dict(row), row
+            name = str(row.get(name_col, "")).strip()
+            typed = _n(row.get(rate_col))
+            listed = index.get(name.lower())
+            if listed is None:
+                unmatched.append({"table": field, "name": name, "register": mod})
+            elif not typed:
+                row[rate_col] = listed
+                filled.append({"table": field, "name": name, "rate": listed})
+            elif round(typed, 2) != round(listed, 2):
+                variance.append({"table": field, "name": name, "typed": round(typed, 2),
+                                 "register": round(listed, 2)})
+            rate = _n(row.get(rate_col))
+            if rate:
+                # money.mul, not round(rate * qty, 2): the latter rounds HALF-EVEN over a binary
+                # product, so 2.675 at qty 1 extends to 2.67. This is the line a contractor is paid
+                # on. Raised in review — and it is a shape `test_money_spine.py` cannot see, since
+                # its scan requires a division by 100 that a percentage has and a product does not.
+                amount = money.mul(rate, _n(row.get(qty_col)))
+                if money.q2(_n(row.get("amount"))) != amount:
+                    row["amount"] = amount
+            if extra_col and _n(row.get(extra_col)):
+                unpriced.append({"table": field, "name": name, "column": extra_col,
+                                 "quantity": _n(row.get(extra_col))})
+            if row != before:
+                moved += 1
+            out.append(row)
+        # Only a table with a changed ROW is patched, and `priced` counts those rows — not the rows
+        # of a table that happened to contain one. A count that overstates what a run did is the
+        # same species of defect as the total this function exists to fix.
+        if moved:
+            priced += moved
+            updates[field] = out
+    return updates, {"filled": filled, "variance": variance, "unmatched": unmatched,
+                     "unpriced": unpriced, "priced": priced}
+
+
+def ticket_totals(data: dict) -> dict[str, float]:
+    """The three MOD-TOTALS targets, plus their sum, read off a STORED eTicket.
+
+    Deliberately reads the record rather than recomputing beside it: the totals belong to
+    `apply_table_totals`, and a second implementation here is exactly how the predecessor came to
+    report a number the record did not hold.
+    """
+    t = {k: _n(data.get(k)) for k in ("labor_total", "material_total", "equipment_total")}
+    return {**t, "grand_total": round(sum(t.values()), 2)}
 
 
 def summary(db: Session, pid: str) -> dict[str, Any]:

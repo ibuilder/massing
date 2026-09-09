@@ -1218,17 +1218,22 @@ def qto_by_floor(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
 
 
 @router.post("/projects/{pid}/cost/tm")
-def price_tm(pid: str, eticket_id: str = Body(...), lines: list[dict] = Body(...),
+def price_tm(pid: str, eticket_id: str = Body(..., embed=True),
              db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
-    """Price T&M line items from the rate tables and write the totals back onto the eTicket."""
-    result = cost.price_tm(db, pid, lines)
-    me.update_record(db, "eticket", pid, eticket_id, {
-        "tm_lines": result["lines"],
-        "labor_total": result["labor_total"],
-        "material_total": result["material_total"],
-        "equipment_total": result["equipment_total"],
-    }, user, None)
-    return result
+    """TM-RATES — price this eTicket's labour/material/equipment lines from the project rate
+    registers, and report what could not be priced.
+
+    Fills a blank rate from `labor_rate`/`material_rate`/`equipment_rate` and recomputes each row's
+    amount; leaves a rate somebody typed alone and reports the difference; leaves a line the
+    register does not know alone and names it; never invents an overtime or idle rate, because
+    neither register holds one. Totals are DERIVED from the lines by MOD-TOTALS, so the figures
+    returned here are re-read from the stored record rather than computed alongside it.
+    """
+    rec = me.get_record(db, "eticket", pid, eticket_id)
+    updates, report = cost.price_ticket_lines(db, pid, rec.get("data") or {})
+    if updates:
+        rec = me.update_record(db, "eticket", pid, eticket_id, updates, user, None)
+    return {**report, "totals": cost.ticket_totals(rec.get("data") or {})}
 
 
 @router.get("/projects/{pid}/cost/lien-waiver")
