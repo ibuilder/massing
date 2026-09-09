@@ -85,7 +85,7 @@ export async function renderTopicBoard(ctx: PanelContext) {
                 + `<span class="meta" style="margin:0;white-space:nowrap">${e.ts ? esc(e.ts.slice(0, 16).replace("T", " ")) : ""}</span>`
                 + `<span>${e.kind === "comment" ? "💬 " : ""}${e.detail?.reply_to ? "↳ " : ""}${esc(e.summary)}${e.actor ? ` <i class="meta" style="margin:0">— ${esc(e.actor)}</i>` : ""}</span>`
                 + `</div>`).join("")
-                + (tl.event_count > 12 ? `<div class="meta" style="opacity:.7">…${tl.event_count - 12} earlier event(s)</div>` : "")
+                + (earlierNote(tl) ? `<div class="meta" style="opacity:.7">${esc(earlierNote(tl))}</div>` : "")
                 + (tl.allowed_next.length ? `<div class="meta" style="margin-top:3px;opacity:.8">next: ${tl.allowed_next.map(esc).join(" · ")}</div>` : "");
             } catch (e) {
               drawer.innerHTML = `<div class="meta">timeline unavailable: ${esc((e as Error).message)}</div>`;
@@ -115,4 +115,21 @@ export async function renderTopicBoard(ctx: PanelContext) {
     if (e.key === "Enter") void load();
   };
   await load();
+}
+
+/** The drawer's "…N earlier event(s)" line, or "" when the whole history is on screen.
+ *
+ *  **This was already a disclosure, and it was wrong — which is the sharper half of the finding.**
+ *  It computed N from `event_count`, and `event_count` was the size of the server's capped window
+ *  rather than the topic's history. A topic with 620 events reported 500, so the drawer said
+ *  "…488 earlier" while 120 more had been dropped before the response was built. A caller that
+ *  tries to be honest with a number that has already been truncated is *more* misleading than one
+ *  that says nothing, because it looks like it counted.
+ *
+ *  `event_total` is the topic's real count, so the note is now against the history rather than
+ *  against the window. Shown: the newest 12. */
+export function earlierNote(tl: { event_count: number; event_total?: number }, shown = 12): string {
+  const total = typeof tl.event_total === "number" ? Math.max(tl.event_total, tl.event_count)
+                                                   : tl.event_count;
+  return total > shown ? `…${total - shown} earlier event(s)` : "";
 }

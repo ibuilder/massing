@@ -265,6 +265,10 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     return this.json<{
       line_count: number; unit_count: number; by_discipline: Tally[]; by_class: Tally[];
       lines: Line[]; note: string;
+      /** `*_total` counts every grouped line/unit; `*_count` is what this capped window holds.
+       *  They differ only when `truncated` — and an RFQ that is short without saying so
+       *  under-buys, which is why the schedule reports both. */
+      line_total: number; unit_total: number; truncated: boolean;
     }>(`/projects/${pid}/model/equipment`);
   }
   /** Curated starter properties an engineer expects on common equipment classes before buyout. */

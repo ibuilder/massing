@@ -190,7 +190,6 @@ VERDICTS: dict[tuple[str, str], str] = {
     ("pins.py", "resolve_pins"): SQL_SCOPED,          # `continue` = "not a pin", not "not mine"
     ("report.py", "_project_photos"): SQL_SCOPED,     # `continue` = the blob is missing
     ("routers/standards.py", "load_timings"): SQL_SCOPED,   # project + window both in SQL
-    ("topic_lifecycle.py", "timeline"): SQL_SCOPED,   # topic_id in SQL; the ifs dispatch on action
 }
 
 # The three that WERE this defect. Fixing one removes it from the analyser's population entirely —
@@ -206,6 +205,15 @@ VERDICTS: dict[tuple[str, str], str] = {
 FIXED_MUST_NOT_RETURN = {
     ("fin_ingest.py", "import_history"),  # the project filter ran after limit(100)   — 2026-09-09
     ("modules.py", "notifications"),      # the per-USER predicate ran after limit(200) — 2026-09-09
+    # `timeline` carried the verdict SQL_SCOPED here — "topic_id in SQL; the ifs dispatch on
+    # action" — and that verdict was WRONG, not merely superseded. The `if a.action == ...` chain
+    # is a dispatch AND a filter: `bcf.comment.create`, `markup.promote` and `record.comment.promote`
+    # are real actions written against a topic_id that every branch declines, so a busy topic could
+    # spend its whole `_TIMELINE_CAP` window on rows yielding no events and answer EMPTY. Reading a
+    # Python `if` as "dispatch, therefore harmless" is the way this analyser gets talked out of a
+    # real site; what settles it is which rows the cap can be spent on, not what the branch is for.
+    # The action set now filters in SQL, ahead of the LIMIT, so the shape is gone.  — 2026-09-09
+    ("topic_lifecycle.py", "timeline"),
 }
 
 ROOT = pathlib.Path(__file__).resolve().parent / "src" / "aec_api"
@@ -236,7 +244,10 @@ check("a site that was fixed has not grown the shape back", not returned,
 # The population must be non-empty, or every assertion above passes vacuously. This repository has
 # been caught by exactly that: `test_pair_filter`'s precondition swept an empty registry and
 # printed a clean result.
-check("the analyser actually reached the tree", len(found) >= 5,
+# 4, not 5: `topic_lifecycle.timeline` left the population when its action filter moved into SQL
+# (see FIXED_MUST_NOT_RETURN). The floor exists to catch an analyser that finds NOTHING, so it
+# tracks the population; it is not a claim that the tree should hold a particular number of these.
+check("the analyser actually reached the tree", len(found) >= 4,
       f"only {len(found)} sites found under {ROOT} — a sweep whose population is empty passes for "
       f"the same reason a correct one does")
 

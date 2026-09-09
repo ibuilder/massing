@@ -27,7 +27,7 @@ export async function renderEquipment(ctx: PanelContext) {
       arr.slice(0, 8).map((t) => `<span style="white-space:nowrap">${esc(String((t as Record<string, unknown>)[key] ?? "—"))} <b>${t.count}</b></span>`).join(" · ");
     head.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">`
       + `<div class="section-title" style="margin:0">Procurable equipment</div>`
-      + `<div style="font-size:20px;font-weight:800">${r.unit_count} <span style="font-size:12px;font-weight:500;opacity:.7">units · ${r.line_count} lines</span></div></div>`
+      + `<div style="font-size:20px;font-weight:800">${esc(scheduleQuantity(r))} <span style="font-size:12px;font-weight:500;opacity:.7">units · ${esc(scheduleScope(r))}</span></div></div>`
       + (r.line_count ? `<div class="meta" style="margin-top:3px">By discipline: ${chips(r.by_discipline, "discipline")}</div>` : "");
     body.appendChild(head);
 
@@ -51,7 +51,7 @@ export async function renderEquipment(ctx: PanelContext) {
         + `<td style="text-align:left;opacity:.85">${specStr(l.spec) || "—"}</td></tr>`).join("")
       + `</tbody>`;
     wrap.appendChild(t);
-    if (r.lines.length > 200) wrap.insertAdjacentHTML("beforeend", `<div class="meta" style="opacity:.7">Showing first 200 of ${r.line_count} lines.</div>`);
+    if (r.lines.length > 200) wrap.insertAdjacentHTML("beforeend", `<div class="meta" style="opacity:.7">Showing first 200 — ${esc(scheduleScope(r))}.</div>`);
     body.appendChild(wrap);
     }
   } catch (e) {
@@ -123,4 +123,34 @@ export async function renderEquipment(ctx: PanelContext) {
     finally { mint.disabled = false; }
   };
   extra.appendChild(mint);
+}
+
+/** How many lines this schedule is showing, and out of how many.
+ *
+ *  **A truncated RFQ that does not say so under-buys.** The schedule caps its line list, and the
+ *  header used to read "N lines" whether or not N was the whole schedule — so a large model
+ *  produced a buyout package that looked complete and was short. The server now reports
+ *  `line_total`; this is the half that puts it on the screen, because a disclosure nobody renders
+ *  is not a disclosure.
+ *
+ *  Lines are ordered by quantity descending, so a capped schedule drops the SMALLEST items. Worth
+ *  knowing when reading the number: what is missing is the tail, not a random sample. */
+export function scheduleScope(r: { line_count: number; line_total?: number; truncated?: boolean }): string {
+  return r.truncated && typeof r.line_total === "number"
+    ? `${r.line_count} of ${r.line_total} lines`
+    : `${r.line_count} lines`;
+}
+
+/** The headline QUANTITY, and the other half of the same disclosure.
+ *
+ *  `scheduleScope` above put the line cap on the screen and this was left reading `unit_count` —
+ *  the sum over the RETURNED lines only. So the big number on a truncated schedule was the short
+ *  quantity, presented as the equipment count, next to a caption that admitted the lines were
+ *  capped. The server reports `unit_total`; **disclosing a cap on one axis and not the other is
+ *  the more convincing version of the original bug**, because the visible honesty about lines
+ *  vouches for the number beside it. */
+export function scheduleQuantity(r: { unit_count: number; unit_total?: number; truncated?: boolean }): string {
+  return r.truncated && typeof r.unit_total === "number" && r.unit_total > r.unit_count
+    ? `${r.unit_count} of ${r.unit_total}`
+    : `${r.unit_count}`;
 }

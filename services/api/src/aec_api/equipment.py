@@ -129,7 +129,8 @@ def schedule(model) -> dict[str, Any]:
             if len(g["guids"]) < 500:
                 g["guids"].append(getattr(e, "GlobalId", None))
 
-    lines = sorted(groups.values(), key=lambda r: (-r["count"], r["ifc_class"], r["type"]))[:_MAX_LINES]
+    ranked = sorted(groups.values(), key=lambda r: (-r["count"], r["ifc_class"], r["type"]))
+    lines = ranked[:_MAX_LINES]
 
     def _tally(key: str) -> list[dict]:
         agg: dict[str, int] = {}
@@ -139,7 +140,18 @@ def schedule(model) -> dict[str, Any]:
 
     return {
         "line_count": len(lines),
+        # `line_total` and `truncated` because this is a PROCUREMENT document. `line_count` used to
+        # be the capped figure with nothing beside it, so a model with more than `_MAX_LINES`
+        # distinct class/type groups produced an RFQ that was quietly short — and `unit_count`
+        # summed only the lines that survived, so the quantity was wrong too, in the direction that
+        # under-buys. The cap stays (the schedule is a document, not a dump); what changes is that
+        # it can now be seen. Lines are ordered by quantity descending, so a truncated schedule
+        # drops the SMALLEST line items — the least damaging order, and worth stating because it is
+        # what makes a capped schedule usable at all rather than merely honest.
+        "line_total": len(ranked),
+        "truncated": len(ranked) > len(lines),
         "unit_count": sum(r["count"] for r in lines),
+        "unit_total": sum(r["count"] for r in ranked),
         "by_discipline": _tally("discipline"), "by_class": _tally("ifc_class"),
         "lines": lines,
         "note": "Procurement equipment schedule derived from the IFC: procurable units grouped by class + "

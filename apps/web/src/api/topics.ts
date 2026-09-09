@@ -57,6 +57,10 @@ export function withTopics<TBase extends Ctor<HttpCore>>(Base: TBase) {
       events: { ts: string | null; kind: string; actor: string | null; summary: string;
         detail?: Record<string, unknown> }[];
       event_count: number; statuses: string[]; allowed_next: string[];
+      /** `event_total` is the topic's history; `event_count` is what this window holds. The
+       *  events dropped are the OLDEST, so a caller computing "N earlier" from `event_count`
+       *  understates by exactly what the server cut. */
+      event_total: number; truncated: boolean;
     }>(`/projects/${pid}/topics/${tid}/timeline`);
   }
   topicComments(pid: string, tid: string) {

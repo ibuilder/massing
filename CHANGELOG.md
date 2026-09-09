@@ -12,6 +12,28 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Three screens that showed you part of the answer and called it the answer
+
+The sibling of the fix below, and the milder half. There the rows were wrong; here the rows are
+right and the **number beside them** describes only what fitted on screen while being named for the
+whole.
+
+**The equipment schedule was the one that costs money.** It groups a model's procurable equipment
+into RFQ line items, and it caps the list — reasonably, since a schedule is a document rather than a
+data dump. But it reported the capped figure as the line count *and* summed the quantities of only
+the lines that survived, so on a large model the RFQ you sent out was short in both the item list
+and the numbers, in the direction that under-buys. It now says how many lines there are in total and
+marks itself truncated; the lines are ordered largest-first, so a capped schedule drops the smallest
+items rather than arbitrary ones.
+
+**A topic's timeline** reported the number of events it was showing, not the number the topic has —
+and the ones it drops are the oldest, which is where a decision's origin sits. **Viewer load
+timings** reported the capped row count as the period's total, with every percentile beside it
+computed from the newest slice while labelled as the period's.
+
+Nothing was hidden deliberately in any of the three; each simply had one name doing duty for two
+different numbers. All three now carry a total beside the count and say when they truncated.
+
 ### Two more screens that said "nothing here" while something was there
 
 Fixing the agent trail (below) raised an obvious question nobody had asked: *how many other screens
