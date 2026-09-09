@@ -432,10 +432,34 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > prefix. *An assertion whose failure message describes a scenario it does not actually test is
 > worse than no assertion, because it reads as coverage.*
 >
-> **Still open, named rather than half-fixed:** a plan sheet cannot yet PRINT that its pins were
-> capped — the drawing engine takes positions and labels, not notes — so a capped project still
-> under-reports on paper. And two write sites can persist `{}` / `[]` into `anchor` /
-> `element_guids`, which is the sole reason the capped total is an upper bound rather than exact.
+> **PINS-SHEET — the paper half shipped, and THE BLOCKER RECORDED HERE WAS FALSE.** This said the
+> sheet could not print the cap because *"the drawing engine takes positions and labels, not
+> notes"*. The engine had been printing `"N pin(s) not located on this sheet"` since pins were
+> added — a note, from a count, in exactly the place the cap note now goes. The real work was one
+> optional argument threaded through two signatures, and `_plan_pins` throwing the envelope away.
+> *A blocker is a claim about the code, and this one was never checked against it — which is how a
+> one-line change stays open behind a sentence that sounds like an architecture problem.* The same
+> failure the Node and Python floors above record, in a third form: **the expensive part is not
+> being wrong, it is being wrong in a way that stops anyone from looking.**
+>
+> What the note says is deliberately asymmetric: **qualitative about the sheet, quantitative only
+> about the project** — *"Pin list capped at 2000 of ~2400 project pins — this sheet may not show
+> every issue on this level."* The cap is spent before the storey filter, so how many of the
+> dropped pins belonged to *this* level is genuinely unknowable at either end, and printing a
+> per-sheet number would be the original lie in a new place. `~` marks the total as the upper bound
+> it is while legacy `{}`/`[]` rows exist.
+>
+> Three links, three mutation checks, because two of them individually stay green while the sheet
+> goes silent: `_plan_pins` returns the envelope, `_pin_layer` renders it, and the route passes it.
+> The last is asserted structurally (AST over the `plan_svg` call) — deleting one keyword argument
+> is exactly the edit that survives a green suite. A capped sheet with **no** pins left still warns:
+> that is the blank overlay from PINS-CAP reaching paper, and it is when the reader most needs it.
+>
+> **Still open, named rather than half-fixed:** two write sites can persist `{}` / `[]` into
+> `anchor` / `element_guids`, which is the sole reason the capped total is an upper bound rather
+> than exact — new rows are normalised, legacy rows need a backfill. And the `count(*) OVER ()`
+> concurrency fix still has **no assertion**: mutate it back to two statements and every test here
+> passes. It needs a two-session controlled test, not another paragraph.
 >
 > **The original note, kept because it is the derivation:** undisclosed truncation, a different class found while walking
 > this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns

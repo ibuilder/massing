@@ -736,10 +736,12 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
             have = [str(lvl.get("name") or "") for lvl in drawings.storey_elevations(_m)]
             raise HTTPException(404, f"no storey named {storey!r}; levels: {have}")
         elevation = resolved
+    # Resolved only when asked for: this is a DB round trip over every register, and a sheet
+    # printed without pins should not pay for it.
+    _pins = _plan_pins(db, pid, elevation, cut_height, _m) if pins else (None, None)
     svg = drawings.plan_svg(_m, elevation, cut_height, title,
                             rooms=rooms, callouts=callouts, view_depth=view_depth,
-                            by_discipline=by_discipline,
-                            pins=_plan_pins(db, pid, elevation, cut_height, _m) if pins else None)
+                            by_discipline=by_discipline, pins=_pins[0], pin_cap=_pins[1])
     return _svg(svg)
 
 
@@ -748,8 +750,9 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 _PIN_BAND_M = 2.0
 
 
-def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model=None) -> list[dict]:
-    """Pins for this plan, as plain dicts for the drawing engine.
+def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float,
+               model=None) -> tuple[list[dict], dict]:
+    """Pins for this plan, as plain dicts for the drawing engine, plus the resolver's cap envelope.
 
     The engine never learns what a Topic or a record is — `aec_data` may not import `aec_api`, and a
     drawing module has no business knowing about the issue tracker. It receives positions and labels.
@@ -762,11 +765,8 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model
     counts it in a note rather than letting the sheet under-report.
     """
     from .. import pins as pin_engine
-    # `["pins"]`: the engine returns an envelope now. The sheet cannot yet PRINT that it was
-    # capped — the drawing engine takes positions and labels, not notes — so a capped project
-    # still under-reports on paper. Named in the roadmap rather than half-fixed here; what this
-    # change buys the sheet is that the cap is no longer spent on rows that are not pins at all.
-    rows = pin_engine.resolve_pins(db, pid, model=model)["pins"]
+    env = pin_engine.resolve_pins(db, pid, model=model)
+    rows = env["pins"]
     lo, hi = elevation - _PIN_BAND_M, elevation + cut_height + _PIN_BAND_M
     out: list[dict] = []
     for p in rows:
@@ -775,7 +775,13 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model
             continue
         out.append({"x": p.get("x"), "y": p.get("y"), "kind": p.get("kind"),
                     "label": p.get("label") or "", "guid": p.get("guid")})
-    return out
+    # `shown` is the PROJECT-wide resolved count, deliberately not `len(out)`. The cap is spent
+    # before this storey filter runs, so "how many of the dropped pins were on this level" is not a
+    # question either side can answer — see `_pin_layer`, which is why the printed note is
+    # qualitative about the sheet and quantitative only about the project.
+    cap = {"truncated": bool(env["truncated"]), "shown": len(rows),
+           "total": env["pin_total"], "approx": bool(env["total_counts_candidates"])}
+    return out, cap
 
 
 #: How many rekey rows the dry-run preview returns inline. Over this the response says it capped

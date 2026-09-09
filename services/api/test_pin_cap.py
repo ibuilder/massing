@@ -252,6 +252,97 @@ check("...and the assertion can fail: a bare desc() does not satisfy it",
       "NULLS LAST" not in _bare.upper(),
       f"a plain desc() already compiled to NULLS LAST, so the check above proves nothing: {_bare!r}")
 
+# --- PINS-SHEET: the envelope has to reach PAPER, not just the API -------------------------------
+# `resolve_pins` was honest from the day PINS-CAP landed and the plan sheet still printed a
+# confident subset, because `_plan_pins` read `["pins"]` and dropped the rest of the envelope on the
+# floor. The API being right does not help someone holding a printout — and the printout is what a
+# superintendent walks the building with.
+#
+# This is the WIRING half. `test_plan_pins.py` proves the engine renders the note; without this, a
+# deleted `pin_cap=` at the call site would leave every engine assertion green and the sheet silent
+# again. That is the tested-but-unwired shape this repo already has a gate for.
+from aec_api.routers import drawings as _dr  # noqa: E402
+
+_real2 = pin_engine._MAX_PINS
+SPID = "p-sheet-capped"
+try:
+    pin_engine._MAX_PINS = 5
+    with SessionLocal() as db:
+        # Self-contained: the block above deletes its rows on the way out, so seed our own rather
+        # than inheriting a project that may or may not still exist.
+        db.query(Topic).filter(Topic.project_id == SPID).delete()
+        # Alternating Z **on purpose**: odd pins sit on a far-away storey, so the sheet's Z band
+        # drops some of what the cap already returned. Without that the sheet row count and the
+        # project count coincide at the cap and the `shown` assertion below cannot fail — an
+        # assertion whose failure message describes a scenario it does not test reads as coverage
+        # and is worse than no assertion.
+        for i in range(8):
+            db.add(Topic(id=f"t-sheet-{i}", project_id=SPID, guid=f"G-sheet-{i}", type="rfi",
+                         title=f"Placed {i}", status="open",
+                         anchor={"x": float(i), "y": 0.0, "z": 0.5 if i % 2 == 0 else 50.0},
+                         created_at=__import__("datetime").datetime(2026, 8, 9, 0, i)))
+        db.commit()
+        rows, cap = _dr._plan_pins(db, SPID, 0.0, 1.2)
+        check("_plan_pins returns the cap envelope, not just positions",
+              isinstance(cap, dict) and set(cap) == {"truncated", "shown", "total", "approx"},
+              f"got {cap!r} — the sheet cannot warn about a cap it was never told about")
+        check("a capped project reaches the sheet marked as capped",
+              cap["truncated"] is True and cap["total"] == 8,
+              f"{cap!r} — 8 pins exist and 5 fit, so the note must print with the project total")
+        # `shown` is the PROJECT-wide resolved count, deliberately NOT len(rows): the cap is spent
+        # before the storey filter, so len(rows) would understate by however many pins the Z band
+        # excluded and would read as a per-sheet number the code cannot actually compute.
+        check("the fixture actually exercises the storey filter",
+              len(rows) < cap["shown"],
+              f"rows_on_sheet={len(rows)} shown={cap['shown']} — if the Z band drops nothing, the "
+              f"next assertion holds under the very mutation it exists to catch")
+        check("`shown` is the project count, not this storey's row count",
+              cap["shown"] == pin_engine._MAX_PINS,
+              f"shown={cap['shown']} rows_on_sheet={len(rows)} cap={pin_engine._MAX_PINS} — "
+              f"binding `shown` to the filtered list invents a per-sheet shortfall")
+
+        db.query(Topic).filter(Topic.project_id == SPID).delete()
+        db.commit()
+
+    # The honest negative, on a project small enough that nothing is capped.
+    with SessionLocal() as db:
+        db.query(Topic).filter(Topic.project_id == "p-sheet-whole").delete()
+        db.add(Topic(id="t-whole", project_id="p-sheet-whole", guid="G-whole", type="rfi",
+                     title="Only one", status="open", anchor={"x": 1.0, "y": 1.0, "z": 0.0},
+                     created_at=__import__("datetime").datetime(2026, 6, 1)))
+        db.commit()
+        _, cap_ok = _dr._plan_pins(db, "p-sheet-whole", 0.0, 1.2)
+        check("an UNCAPPED project reaches the sheet unmarked",
+              cap_ok["truncated"] is False,
+              f"{cap_ok!r} — a note that prints on every sheet is one nobody reads")
+        db.query(Topic).filter(Topic.project_id == "p-sheet-whole").delete()
+        db.commit()
+finally:
+    pin_engine._MAX_PINS = _real2
+check("the cap constant was restored after the sheet block", pin_engine._MAX_PINS == _real2,
+      f"{pin_engine._MAX_PINS} != {_real2}")
+
+# The last link, asserted structurally because the two behavioural halves above cannot see it.
+# `_plan_pins` returns the envelope (tested) and `_pin_layer` renders it (tested in
+# `test_plan_pins.py`) — but if the router stops PASSING it, both stay green and the sheet goes
+# silent. Deleting one keyword argument is exactly the kind of edit that survives a green suite.
+import ast as _ast  # noqa: E402
+import pathlib as _pathlib  # noqa: E402
+
+_src = _pathlib.Path("src/aec_api/routers/drawings.py").read_text(encoding="utf-8")
+_calls = [n for n in _ast.walk(_ast.parse(_src))
+          if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+          and n.func.attr == "plan_svg"]
+check("the plan route still calls the drawing engine",
+      len(_calls) == 1,
+      f"found {len(_calls)} plan_svg call(s) — this check assumes exactly one and must be "
+      f"revisited, not silently widened, if the route grows another")
+_kw = {k.arg for c in _calls for k in c.keywords}
+check("the route passes the cap envelope through to the sheet",
+      "pin_cap" in _kw and "pins" in _kw,
+      f"plan_svg called with {sorted(_kw)} — without `pin_cap` the engine renders no note and "
+      f"every other assertion in this file and in test_plan_pins.py still passes")
+
 if FAILED:
     print("FAIL test_pin_cap")
     for f in FAILED:
