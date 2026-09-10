@@ -19,13 +19,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from starlette.concurrency import run_in_threadpool
 
 from .. import storage
+from ..apppaths import converter_cli, have_converter
 from ..rbac import current_user
 from ..serving import content_disposition
 from ..throttle import rate_limited
 
 router = APIRouter()
-
-from ..apppaths import converter_cli, have_converter
 
 _log = logging.getLogger("aec.convert")
 
@@ -47,7 +46,6 @@ async def convert_citygml(file: UploadFile = File(...), _: str = Depends(current
     if not fc["features"]:
         raise HTTPException(422, "No building footprints found in the CityGML (need posList rings).")
     return fc
-
 
 
 def _aps_configured() -> bool:

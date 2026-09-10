@@ -43,9 +43,8 @@ def _ifc_path(pid: str, *parts: str) -> Path:
 
 # `parents[5]` here raised IndexError at IMPORT inside a frozen bundle, where this file sits
 # three directories below $TMPDIR rather than five below the repo root. See apppaths.
-from ..apppaths import add_data_src_to_path, converter_cli, have_converter, repo_root
+from ..apppaths import add_data_src_to_path, converter_cli, have_converter
 
-_REPO = repo_root()          # None in a frozen bundle: there is no checkout
 add_data_src_to_path()
 
 router = APIRouter()

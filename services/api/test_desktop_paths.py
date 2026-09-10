@@ -248,24 +248,26 @@ try:
     # its first draft derived a population and reported a clean tree. So put the shipped expression
     # back, into the COPY, and require the import to break. Done inside the fixture rather than
     # against `origin/main` so it needs no git ref and works in a shallow CI clone.
+    # **INJECT the shipped shape; do not replace an existing line.** The first version of this
+    # mutation swapped out `_REPO = repo_root()` in the copied file -- and the very next commit
+    # deleted that constant as dead, so the anchor vanished and this self-test reported itself
+    # blind. It failed loudly, which is the design, but an anchor that is any particular line of
+    # production code is an anchor that ordinary refactoring removes. A self-contained statement
+    # inserted at module level depends on nothing but the module being imported at all.
     victim = mei / "aec_api" / "routers" / "authoring.py"
     good = victim.read_text(encoding="utf-8")
-    marker = "_REPO = repo_root()"
-    if marker not in good:
-        check("the mutation target is still where this test expects it", False,
-              f"{marker!r} not found in the copied authoring.py -- this self-test has gone blind, "
-              f"which is worse than failing")
-    else:
-        victim.write_text(good.replace(marker, "_REPO = Path(__file__).resolve().parents[5]", 1),
-                          encoding="utf-8")
-        broke = subprocess.run([sys.executable, str(script), str(mei)],
-                               capture_output=True, text=True, timeout=300)
-        check("...and the same fixture catches the shipped defect when it is put back",
-              broke.returncode != 0 and "IndexError" in (broke.stderr or ""),
-              f"exit={broke.returncode}; the fixture imported an app that should have raised "
-              f"IndexError at authoring.py -- it is not deep enough, or not frozen enough, to "
-              f"reproduce what shipped")
-        victim.write_text(good, encoding="utf-8")
+    lines = good.splitlines(keepends=True)
+    at = next((i + 1 for i, ln in enumerate(lines) if ln.startswith("from __future__")), 0)
+    shipped_shape = ("import pathlib as _mut_pathlib\n"
+                     "_MUT_REPO = _mut_pathlib.Path(__file__).resolve().parents[5]\n")
+    victim.write_text("".join(lines[:at]) + shipped_shape + "".join(lines[at:]), encoding="utf-8")
+    broke = subprocess.run([sys.executable, str(script), str(mei)],
+                           capture_output=True, text=True, timeout=300)
+    check("...and the same fixture catches the shipped defect when it is put back",
+          broke.returncode != 0 and "IndexError" in (broke.stderr or ""),
+          f"exit={broke.returncode}; the fixture imported an app whose module level asks for "
+          f"parents[5] -- it is not deep enough, or not frozen enough, to reproduce what shipped")
+    victim.write_text(good, encoding="utf-8")
 finally:
     shutil.rmtree(mei, ignore_errors=True)
     (_tmproot / f"boot{os.getpid()}.py").unlink(missing_ok=True)
