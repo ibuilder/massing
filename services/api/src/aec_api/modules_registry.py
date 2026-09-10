@@ -32,7 +32,15 @@ def _default_modules_dir() -> Path:
     if bundle:
         return bundle / "modules"
     root = repo_root()
-    return (root / "services" / "api" / "modules") if root else Path("modules")
+    if root:
+        return root / "services" / "api" / "modules"
+    # Neither a bundle nor a checkout (an installed package). `Path("modules")` would be the
+    # obvious last resort and is the wrong one: it is CWD-relative, so what it names depends on
+    # where the process happened to be started, and `load_registry` would find a different
+    # catalog -- or somebody else's -- depending on the working directory. An absolute path
+    # beside this package is deterministic; it not existing is the honest answer, and
+    # AEC_MODULES_DIR is how such an install says where the catalog really is.
+    return Path(__file__).resolve().parent / "modules"
 
 
 MODULES_DIR = Path(os.environ.get("AEC_MODULES_DIR") or _default_modules_dir())

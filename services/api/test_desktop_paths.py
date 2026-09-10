@@ -305,6 +305,48 @@ for label, marker_dirs, expect_root in (
               (got == root) if expect_root else (got is None),
               f"got {got!r}, expected {root if expect_root else None}")
 
+# --- THE SECOND ROOT-FINDER MUST AGREE WITH THE FIRST -----------------------------------------------
+# `aec_data.build_family_library._checkout_root` is a deliberate small duplicate of
+# `apppaths.repo_root`: `aec_data` must not import `aec_api`, and a shared helper would invert the
+# layering to save six lines. A duplicate is fine; a duplicate that DRIFTS is not, and this one
+# drifted the moment it was written -- its first draft matched `apps/` + `services/` (a git
+# checkout) while `apppaths` deliberately does not, because the production API image is `/app` with
+# `services/` and no `apps/`. Both docstrings said they agreed. Only one of them was right.
+#
+# So the agreement is asserted rather than described, over the same layouts as above.
+from aec_data import build_family_library as _bfl  # noqa: E402
+
+for _label, _dirs in (
+    ("a git checkout", ("apps/web", "services/api/src/aec_api", "services/data/src", "docs")),
+    ("the production API image", ("services/api/src/aec_api", "services/data/src",
+                                  "services/converter/src", "services/api/modules")),
+    ("neither (a bare package copy)", ("aec_data",)),
+):
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "root"
+        for d in _dirs:
+            (root / d).mkdir(parents=True, exist_ok=True)
+        a_probe = root / "services" / "api" / "src" / "aec_api" / "apppaths.py"
+        b_probe = root / "services" / "data" / "src" / "aec_data" / "build_family_library.py"
+        for probe in (a_probe, b_probe):
+            probe.parent.mkdir(parents=True, exist_ok=True)
+            probe.write_text("", encoding="utf-8")
+        a = apppaths.repo_root(a_probe)
+        # `_checkout_root` takes no argument, so exercise its RULE against the same tree the way it
+        # walks -- reading the rule out of the function keeps this from re-stating it a third time.
+        b = next((d for d in b_probe.resolve().parents if (d / "services" / "api" / "src").is_dir()),
+                 None)
+        check(f"both root-finders agree in {_label}", a == b, f"apppaths={a!r} vs aec_data={b!r}")
+
+# ...and that the rule asserted just above is the one `_checkout_root` actually runs. Reading the
+# source is the only way to check a zero-argument function's marker without a checkout to move.
+_bfl_src = Path(_bfl.__file__).read_text(encoding="utf-8")
+check("...and aec_data's own marker is `services/api/src`, not the checkout-only one",
+      '(d / "services" / "api" / "src").is_dir()' in _bfl_src
+      and '(d / "apps").is_dir()' not in _bfl_src,
+      "build_family_library._checkout_root no longer matches apppaths._ROOT_MARKER; the two "
+      "root-finders have drifted apart again")
+
 # --- the source checkout still works: the fix must not trade one break for another -----------------
 here = Path(REAL_FILE).resolve()
 check("the source checkout is deep enough for the repo-relative walk", len(here.parents) > 4)

@@ -27,9 +27,16 @@ def _checkout_root() -> Path | None:
     bundle, which is the defect `services/api/test_frozen_paths.py` exists to forbid. This is
     a small duplicate of `aec_api.apppaths.repo_root` on purpose -- `aec_data` must not
     import `aec_api`, and a shared helper would invert the layering to save six lines.
+
+    **It must use the SAME marker as that function, and the first draft did not.** This looked
+    for `apps/` + `services/`, which is what a git checkout has; `apppaths` deliberately does not
+    use that, because the production API image is `/app` with `services/` and no `apps/` at all.
+    Two helpers whose docstrings say they agree and whose code does not is the drift this
+    repository keeps paying for -- so the marker below is `apppaths._ROOT_MARKER`, spelled out
+    rather than imported.
     """
     for d in Path(__file__).resolve().parents:
-        if (d / "apps").is_dir() and (d / "services").is_dir():
+        if (d / "services" / "api" / "src").is_dir():
             return d
     return None
 
