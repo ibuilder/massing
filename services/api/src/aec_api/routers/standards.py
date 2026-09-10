@@ -858,11 +858,8 @@ def model_export_ifcx(pid: str, flavor: str = "ifcjson", db: Session = Depends(g
     _project(db, pid)
     from .. import licensing
     licensing.require_export("ifcx", "IFC5 / ifcJSON")   # openBIM data-out — Commercial+ when enforced
-    import sys
-    from pathlib import Path
-    data_src = Path(__file__).resolve().parents[4] / "data" / "src"
-    if str(data_src) not in sys.path:
-        sys.path.insert(0, str(data_src))
+    from ..apppaths import add_data_src_to_path
+    add_data_src_to_path()
     from aec_data import ifc5_writer  # type: ignore
     fl = "ifcx" if flavor == "ifcx" else "ifcjson"
     data = ifc5_writer.to_bytes(_index_shape(pid), fl, indent=2)

@@ -3,7 +3,6 @@ parity) and IDS validation (Bonsai parity). Both read the project's source IFC."
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -47,11 +46,10 @@ def load_clash_identities(db: Session, pid: str) -> set[tuple[str, ...]]:
     for t in db.query(Topic).filter(Topic.project_id == pid, Topic.type == "clash"):
         found.add(clash_topic_identity(t.title, t.element_guids))
     return found
+from ..apppaths import add_data_src_to_path
 from ..rbac import require_role
 
-_DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
-if str(_DATA_SRC) not in sys.path:
-    sys.path.insert(0, str(_DATA_SRC))
+add_data_src_to_path()
 
 router = APIRouter()
 

@@ -10,14 +10,12 @@ a captured screenshot as page 2 later.
 """
 from __future__ import annotations
 
-import sys
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 
-_DS = Path(__file__).resolve().parents[2] / "data" / "src"
-if str(_DS) not in sys.path:
-    sys.path.insert(0, str(_DS))
+from .apppaths import add_data_src_to_path
+
+add_data_src_to_path()
 
 _W_MM, _H_MM = 914.0, 610.0   # ARCH-D, matching the sheets
 

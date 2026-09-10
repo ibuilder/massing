@@ -31,6 +31,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .apppaths import repo_root
+
 log = logging.getLogger(__name__)
 
 # The recipe-API contract version. MAJOR bumps when the register(api)/recipe calling convention
@@ -40,9 +42,19 @@ PLUGIN_API_VERSION = "1.0"
 _STATE: dict[str, Any] = {"loaded": [], "refused": [], "registered_keys": []}
 
 
-def _plugins_dir() -> Path:
-    default = Path(__file__).resolve().parents[4] / "plugins"       # repo-root /plugins
-    return Path(os.environ.get("AEC_PLUGINS_DIR") or default)
+def _plugins_dir() -> Path | None:
+    """The plugins directory, or **None** when this install has none.
+
+    The default is the checkout's `/plugins`, which a frozen bundle does not have -- and the
+    `parents[4]` that used to compute it raised `IndexError` there rather than missing
+    quietly. `AEC_PLUGINS_DIR` still names one explicitly, which is how a packaged build
+    would ship plugins if it ever did.
+    """
+    env = os.environ.get("AEC_PLUGINS_DIR")
+    if env:
+        return Path(env)
+    root = repo_root()
+    return (root / "plugins") if root else None
 
 
 def enabled() -> bool:
@@ -201,10 +213,10 @@ def load_all() -> dict[str, Any]:
     _unregister_all()
     _STATE["loaded"], _STATE["refused"] = [], []
     pdir = _plugins_dir()
-    out = {"enabled": enabled(), "dir": str(pdir), "loaded": _STATE["loaded"], "refused": _STATE["refused"]}
+    out = {"enabled": enabled(), "dir": str(pdir) if pdir else None, "loaded": _STATE["loaded"], "refused": _STATE["refused"]}
     if not enabled():
         return out                                      # off by default — plugins execute code at load
-    if not pdir.is_dir():
+    if not pdir or not pdir.is_dir():
         return out
     for d in sorted(p for p in pdir.iterdir() if p.is_dir() and not p.name.startswith(("_", "."))):
         try:
@@ -255,5 +267,6 @@ def load_all() -> dict[str, Any]:
 
 def status() -> dict[str, Any]:
     """The current plugin state for GET /plugins (no re-load)."""
-    return {"enabled": enabled(), "api_version": PLUGIN_API_VERSION, "dir": str(_plugins_dir()),
+    d = _plugins_dir()
+    return {"enabled": enabled(), "api_version": PLUGIN_API_VERSION, "dir": str(d) if d else None,
             "loaded": _STATE["loaded"], "refused": _STATE["refused"]}

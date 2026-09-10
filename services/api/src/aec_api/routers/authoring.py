@@ -10,7 +10,6 @@ import logging
 import os
 import re
 import subprocess
-import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -42,11 +41,12 @@ def _ifc_path(pid: str, *parts: str) -> Path:
     except ValueError:
         raise HTTPException(400, "invalid project id") from None
 
-_REPO = Path(__file__).resolve().parents[5]
-_DATA_SRC = _REPO / "services" / "data" / "src"
-_CONVERTER = _REPO / "services" / "converter" / "src" / "cli.mjs"
-if str(_DATA_SRC) not in sys.path:
-    sys.path.insert(0, str(_DATA_SRC))
+# `parents[5]` here raised IndexError at IMPORT inside a frozen bundle, where this file sits
+# three directories below $TMPDIR rather than five below the repo root. See apppaths.
+from ..apppaths import add_data_src_to_path, converter_cli, have_converter, repo_root
+
+_REPO = repo_root()          # None in a frozen bundle: there is no checkout
+add_data_src_to_path()
 
 router = APIRouter()
 
@@ -480,8 +480,11 @@ def family_library(_: str = Depends(current_user)):
     for it in items:
         cats.setdefault(it["category"], []).append(it)
     shelf = family_packs.list_packs()
-    lib = {"exists": LIBRARY_PATH.exists(),
-           "size_bytes": LIBRARY_PATH.stat().st_size if LIBRARY_PATH.exists() else 0}
+    # None outside a checkout (a packaged build ships no generated library), which reads as
+    # "not built" rather than raising on a None attribute.
+    _have_lib = bool(LIBRARY_PATH and LIBRARY_PATH.exists())
+    lib = {"exists": _have_lib,
+           "size_bytes": LIBRARY_PATH.stat().st_size if _have_lib else 0}
     return {"count": len(items), "categories": cats, "generated_library": lib,
             # `external` keeps the historical filename+size shape for existing callers; `shelf` adds
             # the manifest-derived metadata (discipline / families / types / licence) a browsable
@@ -1084,7 +1087,7 @@ def edit_preview(pid: str, recipe: str = Body(..., embed=True),
     from aec_data import preview as pv  # type: ignore
 
     p = _project(db, pid)
-    if not p.source_ifc or not Path(p.source_ifc).exists() or not _CONVERTER.exists():
+    if not p.source_ifc or not Path(p.source_ifc).exists() or not have_converter():
         raise HTTPException(503, "preview unavailable")
     try:
         with tempfile.TemporaryDirectory() as td:
@@ -1092,7 +1095,7 @@ def edit_preview(pid: str, recipe: str = Body(..., embed=True),
             out = str(Path(td) / "pv_out.ifc")
             frag = Path(td) / "pv.frag"
             guid = pv.build_preview_ifc(p.source_ifc, recipe, params, out, tmp)
-            subprocess.run(["node", str(_CONVERTER), out, str(frag)],
+            subprocess.run(["node", str(converter_cli()), out, str(frag)],
                            check=True, capture_output=True, timeout=120)
             data = frag.read_bytes()
     except HTTPException:
@@ -1406,12 +1409,12 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
     out = {"reconverted": False, "reindexed": 0}
     # 1. reconvert IFC -> .frag (Node converter); convert to a temp file then push through
     #    storage.put so it works with both the local and S3/MinIO backends.
-    if reconvert and _CONVERTER.exists() and p.source_ifc and Path(p.source_ifc).exists():
+    if reconvert and have_converter() and p.source_ifc and Path(p.source_ifc).exists():
         frag_key = f"{p.id}/model.frag"
         try:
             with tempfile.TemporaryDirectory() as td:
                 frag_tmp = Path(td) / "model.frag"
-                subprocess.run(["node", str(_CONVERTER), p.source_ifc, str(frag_tmp)],
+                subprocess.run(["node", str(converter_cli()), p.source_ifc, str(frag_tmp)],
                                check=True, capture_output=True, timeout=600)
                 storage.put(frag_key, frag_tmp.read_bytes())
             out["reconverted"] = True

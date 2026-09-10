@@ -18,9 +18,27 @@ import ifcopenshell.api
 
 from . import families
 
-# committed under services/data/families/ so the library ships with the repo
-LIBRARY_DIR = Path(__file__).resolve().parents[2] / "families"
-LIBRARY_PATH = LIBRARY_DIR / "library.ifc"
+
+def _checkout_root() -> Path | None:
+    """The repository this file lives in, or None (a packaged build has no checkout).
+
+    Deliberately a walk to the repo's SHAPE rather than `parents[N]`: the count that used to
+    be here is right in a checkout and names a temporary directory inside a PyInstaller
+    bundle, which is the defect `services/api/test_frozen_paths.py` exists to forbid. This is
+    a small duplicate of `aec_api.apppaths.repo_root` on purpose -- `aec_data` must not
+    import `aec_api`, and a shared helper would invert the layering to save six lines.
+    """
+    for d in Path(__file__).resolve().parents:
+        if (d / "apps").is_dir() and (d / "services").is_dir():
+            return d
+    return None
+
+
+# committed under services/data/families/ so the library ships with the repo. None outside a
+# checkout: this script REGENERATES a committed artifact, so there is nowhere else to put it.
+_ROOT = _checkout_root()
+LIBRARY_DIR = (_ROOT / "services" / "data" / "families") if _ROOT else None
+LIBRARY_PATH = (LIBRARY_DIR / "library.ifc") if LIBRARY_DIR else None
 
 
 def build_model(name: str = "Massing Family Library") -> ifcopenshell.file:

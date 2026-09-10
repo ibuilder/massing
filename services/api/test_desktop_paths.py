@@ -63,9 +63,10 @@ def check(label: str, ok: bool, detail: str = "") -> None:
         FAILED.append(f"{label} — {detail}" if detail else label)
 
 
-from aec_api import desktop  # noqa: E402
+from aec_api import apppaths, desktop  # noqa: E402
 
 REAL_FILE = desktop.__file__
+REAL_APPPATHS = apppaths.__file__
 
 # --- the blast radius, computed rather than asserted from memory ---------------------------------
 # A frozen `__file__` under each platform's default temp directory. This is the whole reason the
@@ -129,28 +130,68 @@ with tempfile.TemporaryDirectory() as td:
                 delattr(sys, attr)
 
 # --- EACH GUARD SEPARATELY, because either one alone hides the other --------------------------------
-# `repo_root()` has two protections: it returns None when frozen, and it bounds-checks the index.
-# Against the frozen fixture above, removing EITHER still passes — the frozen guard short-circuits
-# before the index, and the index is out of range anyway, so each covers for the other and a mutation
-# of one proves nothing. Mutation testing said so: both mutants survived.
+# `repo_root()` had two protections: it returned None when frozen, and it bounds-checked the index.
+# Against the frozen fixture above, removing EITHER still passed — the frozen guard short-circuits
+# before the index, and the index was out of range anyway, so each covered for the other and a
+# mutation of one proved nothing. Mutation testing said so: both mutants survived.
 #
-# So the bounds check gets its own case: NOT frozen, but a `__file__` too shallow for parents[4].
-# That is the only configuration where the index is both reached and out of range.
+# **The count is now gone entirely**, which is the better answer to that: `apppaths.repo_root()`
+# walks up to the repository's SHAPE (an ancestor holding both `apps/` and `services/`) and there is
+# no index left to be off by one. So the case below no longer asks "is the index bounds-checked" —
+# it asks the question that survives the rewrite: *outside a checkout, does it say so?* A walk that
+# finds nothing must report nothing rather than returning the last directory it looked at.
+#
+# It patches `apppaths.__file__`, not `desktop.__file__`: the walk starts from the module that owns
+# the answer, so every caller in the package gets ONE root instead of each deriving its own. That
+# consolidation is the point, and a test that patched the caller would be testing the old design.
 try:
-    desktop.__file__ = "/x/desktop.py"          # 2 parents: /x, /
+    apppaths.__file__ = "/x/apppaths.py"        # 2 parents: /x, /  — no apps/ + services/ above
     raised3 = None
     try:
         root_shallow = desktop.repo_root()
     except IndexError as e:
         raised3, root_shallow = e, "raised"
-    check("repo_root() bounds-checks the index when NOT frozen and the path is shallow",
+    check("repo_root() does not raise when there is no checkout above it",
           raised3 is None,
-          f"IndexError: {raised3} — the frozen guard cannot help here, so the bounds check is the "
-          f"only thing standing between a moved file and the crash")
+          f"IndexError: {raised3} — a path expression that raises is exactly what took the shipped "
+          f"app down; walking off the top must be an answer, not an exception")
     check("...and it reports 'no checkout' rather than inventing a path",
           root_shallow is None, f"got {root_shallow!r}")
 finally:
-    desktop.__file__ = REAL_FILE
+    apppaths.__file__ = REAL_APPPATHS
+
+# --- EVERY DEPLOYMENT LAYOUT, not just the two anyone was thinking about ---------------------------
+# `repo_root()` matches the layout's shape, and the FIRST shape chosen was `apps/` + `services/` --
+# what a git checkout looks like. The production API image is not a checkout: `services/api/Dockerfile`
+# copies `services/api/src`, `services/data/src`, `services/api/modules` and `services/converter` into
+# `/app`, and copies no `apps/` at all. That marker would have returned None there and silently turned
+# OFF IFC->Fragments conversion, because `converter_cli()` answers None when there is no root.
+#
+# **The directory count it replaced got that case right by accident** -- `parents[4]` from
+# `/app/services/api/src/aec_api/routers/convert.py` is `/app` -- so the "better" rewrite would have
+# been a production regression the original bug never was. A rewrite has to clear the bar the thing it
+# replaces already cleared, including the parts nobody wrote down.
+#
+# So both real layouts are asserted here, built as directory trees rather than described in prose.
+for label, marker_dirs, expect_root in (
+    ("a git checkout", ("apps/web", "services/api/src/aec_api", "services/data/src", "docs"), True),
+    ("the production API image", ("services/api/src/aec_api", "services/data/src",
+                                  "services/converter/src", "services/api/modules"), True),
+    ("neither (a bare package copy)", ("aec_api",), False),
+):
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "root"
+        for d in marker_dirs:
+            (root / d).mkdir(parents=True, exist_ok=True)
+        probe = root / "services" / "api" / "src" / "aec_api" / "apppaths.py"
+        if not probe.parent.is_dir():
+            probe = root / "aec_api" / "apppaths.py"
+        probe.parent.mkdir(parents=True, exist_ok=True)
+        probe.write_text("", encoding="utf-8")
+        got = apppaths.repo_root(probe)
+        check(f"repo_root() finds the root in {label}",
+              (got == root) if expect_root else (got is None),
+              f"got {got!r}, expected {root if expect_root else None}")
 
 # --- the source checkout still works: the fix must not trade one break for another -----------------
 here = Path(REAL_FILE).resolve()

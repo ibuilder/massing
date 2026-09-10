@@ -3,20 +3,18 @@ Reads the project's registered source IFC and streams XLSX. Keyed by GUID throug
 from __future__ import annotations
 
 import io
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+# make the monorepo data package importable in dev (services/data/src)
+from ..apppaths import add_data_src_to_path
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..rbac import require_role
 
-# make the monorepo data package importable in dev (services/data/src)
-_DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
-if str(_DATA_SRC) not in sys.path:
-    sys.path.insert(0, str(_DATA_SRC))
+add_data_src_to_path()
 
 router = APIRouter()
 

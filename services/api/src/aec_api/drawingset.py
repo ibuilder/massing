@@ -368,14 +368,10 @@ def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_s
     storey (A-1xx), and the door/window/room schedules (A-601) — by rendering each single sheet with the
     proven `drawing.sheet_pdf`/`schedule_pdf` and merging with pypdf. The handover deliverable a GC or
     architect issues. Tall towers sample storeys evenly to keep the set a reasonable size."""
-    import sys as _sys
-    from pathlib import Path as _Path
 
     from . import pdfops
-
-    _ds = _Path(__file__).resolve().parents[3] / "data" / "src"
-    if str(_ds) not in _sys.path:
-        _sys.path.insert(0, str(_ds))
+    from .apppaths import add_data_src_to_path
+    add_data_src_to_path()
     from aec_data import drawing  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 

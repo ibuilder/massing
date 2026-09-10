@@ -10,11 +10,13 @@ is a folder delete.
 from __future__ import annotations
 
 import os
-import sys
 import threading
 import time
 import webbrowser
 from pathlib import Path
+
+from .apppaths import bundle_dir
+from .apppaths import repo_root as _repo_root
 
 
 def data_dir() -> Path:
@@ -31,33 +33,29 @@ def data_dir() -> Path:
 def repo_root() -> Path | None:
     """The source checkout this file lives in, or None when there is not one.
 
-    **This exists because `parents[4]` took the shipped Linux app down.** In a PyInstaller bundle
-    `__file__` is `$TMPDIR/_MEIxxxxxx/aec_api/desktop.py`, and with the default `TMPDIR=/tmp` that
-    path has exactly FOUR parents -- so `parents[4]` raised `IndexError: 4` and `aec-bim-server`
-    died before binding a port. The candidate list is built eagerly, so it raised before the loop
-    could reach the bundled copy appended ahead of it.
+    **This is where the shipped Linux app died.** In a PyInstaller bundle `__file__` is
+    `$TMPDIR/_MEIxxxxxx/aec_api/desktop.py`; with the default `TMPDIR=/tmp` that path has exactly
+    FOUR parents, so the `parents[4]` that used to be here raised `IndexError: 4` and
+    `aec-bim-server` died before binding a port. The candidate list is built eagerly, so it raised
+    before the loop could reach the bundled copy appended ahead of it.
 
-    Verified against the published v0.3.1133 AppImage: crashed every time under `TMPDIR=/tmp`, and
-    the same binary started and served `/health`, the frontend and `/modules` under a deeper one.
-    Windows and macOS temp paths are eight parents deep, which is why it was never seen in testing.
+    Verified against the published v0.3.1133 AppImage: it crashed every time under `TMPDIR=/tmp`,
+    and the same binary started and served `/health`, the frontend and `/modules` under a deeper
+    one. Windows and macOS temp paths are eight parents deep, which is why it was never seen.
 
-    A frozen build has no checkout to fall back to, so it returns None rather than guessing; and the
-    index is bounds-checked anyway, because a hard-coded depth is a fact about the source layout
-    that a file move silently invalidates.
+    Delegates to `apppaths.repo_root`, which walks up to the checkout's SHAPE instead of counting
+    directories -- this file was not the only one counting, and two of the others raised at import.
     """
-    if getattr(sys, "frozen", False) or getattr(sys, "_MEIPASS", ""):
-        return None
-    parents = Path(__file__).resolve().parents          # .../services/api/src/aec_api/desktop.py
-    return parents[4] if len(parents) > 4 else None     # parents[4] == the repo root
+    return _repo_root()
 
 
 def web_dist() -> str | None:
     """Locate the built web app: bundled beside the frozen exe (PyInstaller _MEIPASS), else the
     repo's apps/web/dist, else an explicit AEC_WEB_DIST."""
-    meipass = getattr(sys, "_MEIPASS", "")
+    bundle = bundle_dir()
     candidates = []
-    if meipass:
-        candidates.append(Path(meipass) / "web")
+    if bundle:
+        candidates.append(bundle / "web")
     root = repo_root()
     if root:
         candidates.append(root / "apps" / "web" / "dist")
@@ -72,11 +70,11 @@ def modules_dir() -> str | None:
     """Locate the GC-portal module.json catalog: bundled beside the frozen exe (_MEIPASS/modules),
     else the repo's services/api/modules. The frozen build needs this since modules.py's __file__
     no longer resolves to the source tree."""
-    meipass = getattr(sys, "_MEIPASS", "")
+    bundle = bundle_dir()
     root = repo_root()
     candidates = []
-    if meipass:
-        candidates.append(Path(meipass) / "modules")
+    if bundle:
+        candidates.append(bundle / "modules")
     # `parents[3]` was `services`, not `services/api` -- so this built `services/modules`, which
     # does not exist. `is_dir()` swallowed it, so it returned None instead of raising and nothing
     # broke: `modules_registry.MODULES_DIR` has its own correct default. A DEAD fallback masked by a

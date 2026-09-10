@@ -25,10 +25,16 @@ The same binary starts normally when the temporary directory is deeper, which is
 Windows were unaffected: their temporary paths are twice as deep. It was found by downloading the
 released build and running it, not by reading code.
 
-The server now recognises that it is running from a package and stops looking for a source checkout
-at all, and the walk is bounds-checked so a shallow path can no longer crash it. A second, harmless
-version of the same mistake — a lookup for the register directory that was off by one and silently
-returned nothing — is fixed alongside it.
+**Fixing that one file would not have fixed the app.** Three modules counted directories the same
+way, and two of them did it while being imported rather than inside a function — so the app would
+have stopped one line later, in a different file, with the same kind of error. Every place that
+looks for the program's own files now asks one shared question that recognises a packaged build and
+says "there is no source checkout here", instead of counting directories and hoping.
+
+Twelve more places were counting correctly enough not to crash and still pointing outside the
+packaged app — two of them at directories that have never existed in the source either. Because each of them checks whether the directory is there before using it, none
+of that ever surfaced: a wrong answer and a missing folder look identical, and something else quietly
+answered instead. Those are corrected too, and a build-time check now refuses any new one.
 
 Nothing in the release pipeline launches the application it builds, which is why every check was
 green. That gap is now recorded as work of its own.
