@@ -570,7 +570,7 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      grid: dict | None = None, dims: bool = True, width: int = 1200,
                      tags: list[dict] | None = None, callouts: list[dict] | None = None,
                      below: list[np.ndarray] | None = None, by_discipline: bool = False,
-                     pins: list[dict] | None = None) -> str:
+                     pins: list[dict] | None = None, pin_cap: dict | None = None) -> str:
     # R38-SYNC-SELECT: the cut is always the GUIDED one now, so every polyline can carry the
     # GlobalId of the element it draws. `by_discipline` only decides colour + legend, not identity —
     # a plan whose linework forgets its elements in one rendering mode would make selection sync a
@@ -752,7 +752,7 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                    f'stroke-width="0.8" stroke-dasharray="5 3"/>'
                    f'<text x="{pad+28}" y="{ly:.0f}" font-family="sans-serif" font-size="10" '
                    f'fill="#777">below cut (view depth)</text>')
-    out.append(_pin_layer(pins, T, mn, mx))
+    out.append(_pin_layer(pins, T, mn, mx, pin_cap))
     # R43-PLAN-EMPTY-AT-CUT, the human half. `data-plan-cut-loops` tells a program the cut was
     # empty; it does nothing for someone holding a printed sheet. A plan with a full titleblock, a
     # scale bar and a grid — and no building — reads as "this storey is empty", which is a different
@@ -797,7 +797,7 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
 _PIN_FILL = {"rfi": "#b45309", "punch": "#b91c1c", "clash": "#7c3aed", "info": "#1d4ed8"}
 
 
-def _pin_layer(pins, T, mn, mx) -> str:
+def _pin_layer(pins, T, mn, mx, pin_cap: dict | None = None) -> str:
     """Draw issue pins on the plan — the thing that makes a coordination sheet worth printing.
 
     A pin is a real position in the building, so it is drawn at that position: the same world→sheet
@@ -811,13 +811,27 @@ def _pin_layer(pins, T, mn, mx) -> str:
       see is one nobody closes. The caret says "this is off-sheet" rather than lying about where it is.
     - **A pin with no usable position is not invented.** It is skipped and counted in the legend, so
       the sheet says "2 pins not located" instead of quietly showing fewer pins than exist.
+
+    And a third, `pin_cap`: **a sheet whose pin list was capped upstream says so.** The resolver caps
+    the project's pins before anything is filtered to a storey, so a cap that bites can empty one
+    level's sheet while another prints normally — and neither sheet can tell which happened to it.
+    That is why the note is *qualitative about this sheet* ("may not show every issue on this level")
+    and *quantitative only about the project*: the per-sheet shortfall is genuinely unknowable here,
+    and inventing a number for it would be the same lie in a new place.
+
+    `pin_cap` is a plain dict — `{"shown", "total", "approx"}` — because `aec_data` may not import
+    `aec_api`. `approx` marks a total the resolver could only bound from above, and prints as `~`.
     """
-    if not pins:
+    if not pins and not (pin_cap or {}).get("truncated"):
         return ""
     parts: list[str] = ['<g id="pins">']
     unlocated = 0
     n = 0
-    for p in pins:
+    # `pins or []`: widening the guard above to let a truncated cap through with no pins made the
+    # two empty representations behave differently — `[]` fell out of the loop, `None` raised. Both
+    # are legal for a parameter typed `list[dict] | None`, and the warning-only layer is exactly the
+    # case that reaches this loop with neither.
+    for p in pins or []:
         x, y = p.get("x"), p.get("y")
         if x is None or y is None:
             unlocated += 1
@@ -840,9 +854,21 @@ def _pin_layer(pins, T, mn, mx) -> str:
         if label:
             parts.append(f'<text x="{cx + 12:.1f}" y="{cy - 13:.1f}" font-family="sans-serif" '
                          f'font-size="9" fill="#333">{label}</text>')
+    notes: list[str] = []
     if unlocated:
-        parts.append(f'<text x="12" y="16" font-family="sans-serif" font-size="10" fill="#b45309">'
-                     f'{unlocated} pin(s) not located on this sheet</text>')
+        notes.append(f"{unlocated} pin(s) not located on this sheet")
+    cap = pin_cap or {}
+    if cap.get("truncated"):
+        total = cap.get("total")
+        shown = cap.get("shown")
+        approx = "~" if cap.get("approx") else ""
+        notes.append(f"Pin list capped at {shown} of {approx}{total} project pins — "
+                     f"this sheet may not show every issue on this level")
+    # Stacked, not overlaid. Two notes at the same y is one unreadable note, and the cap warning is
+    # the one a reader most needs — so it must not be the one that gets painted over.
+    for i, note in enumerate(notes):
+        parts.append(f'<text x="12" y="{16 + i * 13}" font-family="sans-serif" font-size="10" '
+                     f'fill="#b45309">{_esc(note)}</text>')
     parts.append("</g>")
     return "".join(parts)
 
@@ -1125,7 +1151,7 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
              title: str = "PLAN", grid: bool = True, dims: bool = True,
              rooms: bool = True, callouts: bool | list[str] = False,
              view_depth: float | None = None, by_discipline: bool = False,
-             pins: list[dict] | None = None) -> str:
+             pins: list[dict] | None = None, pin_cap: dict | None = None) -> str:
     meshes = bake(model)
     cut_z = elevation + cut_height                 # the horizontal cut plane — tags/callouts filter to it
     g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
@@ -1141,7 +1167,7 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
         below = below_footprint_baked(meshes, cut_z, cut_z - float(view_depth))
     return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims,
                             tags=tags, callouts=co, below=below, by_discipline=by_discipline,
-                            pins=pins)
+                            pins=pins, pin_cap=pin_cap)
 
 
 # --- elevations (orthographic outline projections) --------------------------

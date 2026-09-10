@@ -70,6 +70,59 @@ check("a label cannot break out of the SVG", "<script>" not in xss and "&lt;scri
 amp = _pin_layer([{"x": 1.0, "y": 1.0, "kind": "rfi", "label": "M&E coordination"}], T, MN, MX)
 check("a bare & does not corrupt the document", "&amp;" in amp and "M&E" not in amp)
 
+# --- the cap note: a sheet whose pin list was capped upstream must SAY SO -------------------------
+# PINS-CAP shipped an honest API and left the paper silent: `resolve_pins` reported `truncated`,
+# `_plan_pins` dropped the envelope on the floor, and the sheet printed a confident subset. A
+# superintendent works off the printed sheet, so this is the half that reaches the person at risk.
+#
+# The blocker recorded in the roadmap for this was FALSE — "the drawing engine takes positions and
+# labels, not notes" — and the engine had been printing "N pin(s) not located on this sheet" the
+# whole time. A blocker nobody re-checked is how a one-line fix stays open.
+CAP = {"truncated": True, "shown": 2000, "total": 2400, "approx": False}
+capped = _pin_layer([{"x": 1.0, "y": 1.0, "kind": "rfi", "label": "A"}], T, MN, MX, CAP)
+check("a capped sheet says the pin list was capped", "Pin list capped at 2000 of 2400" in capped)
+check("  ...and warns about THIS sheet without inventing a per-sheet number",
+      "may not show every issue on this level" in capped,
+      "the cap is spent before the storey filter, so the per-sheet shortfall is unknowable")
+
+# THE MUTATION: a note that prints unconditionally is worse than no note, because it teaches the
+# reader to ignore it. An uncapped sheet must be silent.
+whole = _pin_layer([{"x": 1.0, "y": 1.0, "kind": "rfi", "label": "A"}], T, MN, MX,
+                   {"truncated": False, "shown": 3, "total": 3, "approx": False})
+check("an UNCAPPED sheet says nothing about caps", "Pin list capped" not in whole,
+      "the honest negative — otherwise the warning is decoration, not information")
+check("no cap envelope at all is also silent",
+      "Pin list capped" not in _pin_layer([{"x": 1.0, "y": 1.0, "kind": "rfi"}], T, MN, MX))
+
+# An upper-bound total is marked as one. `total_counts_candidates` means legacy `{}`/`[]` rows the
+# SQL predicate cannot exclude may be counted, so the number is a ceiling, not a count.
+approx = _pin_layer([{"x": 1.0, "y": 1.0, "kind": "rfi"}], T, MN, MX,
+                    {"truncated": True, "shown": 2000, "total": 2400, "approx": True})
+check("an upper-bound total prints as approximate", "of ~2400 project pins" in approx)
+
+# Both notes at once must not overlay each other — and the cap note is the one that must survive.
+both = _pin_layer([{"x": None, "y": None, "kind": "rfi", "label": "Nowhere"}], T, MN, MX, CAP)
+check("two notes stack rather than overprinting",
+      'y="16"' in both and 'y="29"' in both,
+      "one y for both is one unreadable note, and the cap warning is the one that matters")
+check("  ...and both are actually present", "not located on this sheet" in both
+      and "Pin list capped" in both)
+
+# A cap that empties this storey entirely still prints the warning. This is the blank-overlay case
+# from PINS-CAP reaching paper: zero pins on the sheet is exactly when the reader most needs to know
+# the list was cut, and `if not pins: return ""` used to swallow it.
+empty = _pin_layer([], T, MN, MX, CAP)
+check("A CAPPED SHEET WITH NO PINS LEFT STILL WARNS", "Pin list capped" in empty,
+      "no pins + no note reads as 'this level is clean', which is the original defect on paper")
+
+# BOTH empty representations, because the guard above distinguishes them and the loop must not.
+# Found in review: `[]` fell out of the loop and `None` raised TypeError, so the warning-only layer
+# — the one case that reaches the loop with no pins at all — crashed on half its legal inputs.
+# `pins` is typed `list[dict] | None`; testing one spelling of "empty" tested half the contract.
+none_capped = _pin_layer(None, T, MN, MX, CAP)
+check("...and does so for pins=None, not just []", "Pin list capped" in none_capped,
+      "a parameter typed `list[dict] | None` has two empty forms and the loop saw only one")
+
 print()
 if FAILED:
     print("FAILED:", ", ".join(FAILED))

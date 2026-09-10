@@ -12,6 +12,26 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A printed plan sheet now says when its pin list was capped
+
+The pin overlay was fixed to report a cap; the **printed sheet stayed silent**. A superintendent
+walks the building with paper, so the half that reaches the person at risk was the half still
+missing — a capped sheet printed a confident subset and looked complete.
+
+A capped sheet now carries a note: *"Pin list capped at 2000 of ~2400 project pins — this sheet may
+not show every issue on this level."* It is deliberately **qualitative about the sheet and
+quantitative only about the project**. The cap is spent before pins are filtered to a storey, so how
+many of the dropped pins belonged to *this* level cannot be known at either end, and printing a
+per-sheet number would repeat the original defect in a new place. The `~` marks the total as an
+upper bound while legacy records with empty-but-not-null pin fields still exist.
+
+A sheet with **no** pins left after a cap still warns — that case is the blank overlay reaching
+paper, and it is exactly when "this level looks clean" is most wrong.
+
+The blocker recorded for this in the roadmap was false: it said the drawing engine takes positions
+and labels, not notes, when the engine had been printing *"N pin(s) not located on this sheet"* all
+along. Nobody had checked the claim against the code.
+
 ### The pin overlay went blank on busy projects, and nothing said so
 
 Pins are how an issue gets a place in the building — an RFI on *that* wall, a punch item at *that*
