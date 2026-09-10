@@ -1877,7 +1877,7 @@ four phantom entries — one of them a bare `SCALE-SEAM` with its `㉘` silently
 exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates caught all four.)*
 
 * **Not R39-DECOMP-VIEWER ③.** It ranked second last time on a size-ceiling argument that had
-  already gone false. `app.ts` is decomposing steadily (5,064 → 2,508, slices still landing), the ratchet
+  already gone false. `app.ts` is decomposing steadily (5,064 → 2,442, slices still landing), the ratchet
   is pinned, and it moves on its own whenever a feature pushes it. It does not need a sprint; it
   needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
   is the specific error row 2 made.
@@ -3884,7 +3884,7 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
 
-- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,508, a 50% cut. The `builders`
+- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,442, a 52% cut. The `builders`
   map is entirely gone.** Slice count deliberately not restated here: `services/api/test_file_sizes.py`
   is the record, and a count repeated in prose is a copy that drifts — this header said "seven slices"
   while the list immediately below it named eleven. The paragraph below saying the extraction "is NOT begun"
@@ -3899,7 +3899,7 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
   ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981 ·
   ⑫ **envelope & free-form geometry (75, v0.3.982)** · ⑬ **model federation & version compare
-  (88, v0.3.1043)**. `app.ts` 5,064 → **2,508**, a **50% cut**.
+  (88, v0.3.1043)**. `app.ts` 5,064 → **2,442**, a **52% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
 
@@ -4427,7 +4427,10 @@ removed. Remaining, in priority order:
   "click optional" pattern would have turned a button press into a server error. *And it went into
   `apps/web/src/viewer/tools/envelopeSection.ts`, not `apps/web/src/viewer/app.ts`* — the ratchet in
   `services/api/test_file_sizes.py` only moves one way, so a new tool in `app.ts` would have been paid
-  for by unwinding an extraction; `app.ts` stays at exactly 2,508.
+  for by unwinding an extraction; `app.ts` did not move — it stood at 2,508 when this item shipped.
+  *(Phrased as a measurement with a date rather than "stays at exactly 2,508", which is a present-tense
+  claim about a number this item does not own. Slice ⑱ later took it to 2,442, which would have made
+  the original wording false without anyone touching this item.)*
 
   **The gate it produced outlives the item.**
   `apps/web/src/viewer/tools/sectionButtonsWired.test.ts` asserts every member of every `*Buttons`
@@ -6027,6 +6030,23 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
 
 
 - ◧ **REL-4 leaves** *(M)* — `portal.ts` next leaf + `viewer/app.ts` leaves.
+
+  **This item's two halves live in DIFFERENT lanes, and the lane table cannot say so.** REL-4 sits in
+  Lane A, whose owned paths are `shell/`, `account/`, `portal/portal.ts`, `portal/homes/` and
+  `main.ts` — `apps/web/src/viewer/` belongs to Lane E. So the `viewer/app.ts` half of this item is
+  not executable inside its own lane, and every app.ts slice since ⑭ has in practice shipped as
+  R39-DECOMP-VIEWER. Noted 2026-09-10 rather than re-cut, because which lane owns an item is the
+  table's call, not a slice's. `roadmapLanes.test.ts` asserts the rows are DISJOINT and that every
+  code appears in exactly one — neither of which is violated here, because the overlap is between an
+  item's PROSE and its row's paths, and nothing reads the prose.
+
+  **And the `portal.ts` half has no slice worth taking right now** (measured 2026-09-10, not recalled):
+  of 73 methods, exactly **3 call no sibling at all** and the largest of those is 20 lines (`barChart`).
+  Every candidate above 36 lines calls siblings — `renderHome` 405 lines / 16 distinct `this.*`,
+  `buildRoomRail` 148 / 9, `renderDesignHome` 94 / 9, `buildNav` 80 / 12 — so each would need the
+  callback bag this entry's own table refused for `renderDesignHome`. The next `portal.ts` leaf is not
+  waiting to be found; it has to be *made* by breaking `renderHome` up first, which is a different and
+  larger piece of work than "take the next leaf".
 
   **First `portal.ts` leaf out in v0.3.1082: `renderDeveloperHome` → `apps/web/src/portal/homes/developerHome.ts`**
   (1,473 → 1,400). Small on purpose. The `this.` references of every candidate were grepped *before*

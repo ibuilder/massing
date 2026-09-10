@@ -10,10 +10,9 @@ import { installCollabPresence } from "./collabPresence";
 import { installKeysDyn } from "./keysDyn";
 import { installEnvTools } from "./envTools";
 import { inferDirection } from "./inference";
-import { applyDynamicInput, polarConstrain, resolveSnap } from "./snapEngine";
-import {
-  OVERRIDE_LABEL, createSnapOverride, overrideCandidates, type OverrideKind,
-} from "./snapOverride";
+import { applyDynamicInput, polarConstrain } from "./snapEngine";
+import { OVERRIDE_LABEL, createSnapOverride } from "./snapOverride";
+import { snapByOverride, snapPoint, snapToGeometry, type SnapHit } from "./snapPick";
 import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag";
 import { parseDynConstraint } from "./dynInput";
 import { mountCadBar } from "./cadBar";
@@ -541,7 +540,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // UX-2 snap-as-you-place: the picked point snaps to the element's nearest vertex / edge midpoint /
     // corner, so every lastPoint consumer (notes · dimensions · revision clouds · tags · fittings)
     // anchors exactly on geometry instead of the raw raycast point.
-    const snapped = await snapToGeometry(hit.point, hit);
+    const snapped = await snapToGeometry(hit.point, hit, loader.fragments);
     lastPoint = (snapped ?? hit.point).clone();
     if (snapped) flashSnapGlyph(e, "◻ snap");
     showCoords(lastPoint);
@@ -1001,74 +1000,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     console.warn("[toolbar] not described by toolbarLayout:", toolbarView.unlaid());
   }
 
-  /** Round a point's plan coords (x,z) to the grid-snap increment; leave height (y). */
-  function snapPoint(p: THREE.Vector3): THREE.Vector3 {
-    const inc = ctx.getSettings().snap;
-    if (!inc) return p;
-    return new THREE.Vector3(Math.round(p.x / inc) * inc, p.y, Math.round(p.z / inc) * inc);
-  }
-
-  type Hit = { point: THREE.Vector3; fragments: { modelId: string }; localId: number };
-  /** Snap to the hit element's nearest mesh vertex within ~0.4 m (true endpoint snap), then to its
-   *  bounding-box corners / edge midpoints / center (the classic osnap set), then to grid snap. */
-  async function snapToGeometry(raw: THREE.Vector3, hit: Hit | null): Promise<THREE.Vector3 | null> {
-    if (!hit) return null;
-    const nearest = (pts: THREE.Vector3[]) => {
-      let best: THREE.Vector3 | null = null, bd = 0.4;
-      for (const v of pts) { const d = raw.distanceTo(v); if (d < bd) { bd = d; best = v; } }
-      return best ? best.clone() : null;
-    };
-    try {
-      const model = loader.fragments.list.get(hit.fragments.modelId);
-      const verts = model ? await model.getPositions([hit.localId]) : null;
-      if (verts?.length) { const v = nearest(verts); if (v) return v; }
-    } catch { /* fall back to bbox candidates */ }
-    try {
-      const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
-      if (!boxes.length) return null;
-      const bx = boxes[0]!; // safe: boxes.length checked above
-      const xs = [bx.min.x, bx.max.x], ys = [bx.min.y, bx.max.y], zs = [bx.min.z, bx.max.z];
-      const corners = xs.flatMap((x) => ys.flatMap((y) => zs.map((z) => new THREE.Vector3(x, y, z))));
-      // UX-2: edge midpoints (each axis at its midpoint × the other two axes' extremes) + the center —
-      // the midpoint/center osnaps annotation placement expects.
-      const mx = (bx.min.x + bx.max.x) / 2, my = (bx.min.y + bx.max.y) / 2, mz = (bx.min.z + bx.max.z) / 2;
-      const mids = [
-        ...ys.flatMap((y) => zs.map((z) => new THREE.Vector3(mx, y, z))),
-        ...xs.flatMap((x) => zs.map((z) => new THREE.Vector3(x, my, z))),
-        ...xs.flatMap((x) => ys.map((y) => new THREE.Vector3(x, y, mz))),
-        new THREE.Vector3(mx, my, mz),
-      ];
-      return nearest([...corners, ...mids]);
-    } catch { return null; }
-  }
-
-  /** AUTH-SNAP-OVERRIDE — resolve ONE named snap kind against the picked element's plan footprint.
-   *
-   *  Null when the model has nothing of that kind to offer; the caller then keeps the raw cursor and
-   *  says so on the glyph. It deliberately does **not** fall back to another kind — the drafter named
-   *  one, and a point silently placed on a midpoint while the HUD said "perpendicular" carries a
-   *  GlobalId into the schedules.
-   *
-   *  No aperture. The automatic path uses a 0.4 m tolerance because it is guessing which of six kinds
-   *  the drafter meant; here the kind is stated and the candidates are the ≤4 points of the element
-   *  the drafter explicitly picked, so a distance cut would only make a stated intent fail. */
-  async function snapByOverride(raw: THREE.Vector3, hit: Hit | null, kind: OverrideKind,
-                                from: THREE.Vector3 | null): Promise<THREE.Vector3 | null> {
-    if (kind === "none" || !hit) return null;
-    try {
-      const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
-      const bx = boxes[0];
-      if (!bx) return null;
-      const cur = { x: raw.x, z: raw.z };
-      const cands = overrideCandidates(kind, { minX: bx.min.x, maxX: bx.max.x, minZ: bx.min.z, maxZ: bx.max.z },
-                                       cur, from ? { x: from.x, z: from.z } : null);
-      const r = resolveSnap(cur, cands, Number.POSITIVE_INFINITY, kind);
-      return r ? new THREE.Vector3(r.x, raw.y, r.z) : null;
-    } catch { return null; }
-  }
-
   // --- P0 Draft placement: parameter-driven (params baked into `armed.build`), no prompt() --------
-  async function captureDraftPoint(e: MouseEvent, hit: Hit | null) {
+  async function captureDraftPoint(e: MouseEvent, hit: SnapHit | null) {
     const spec = armed;
     if (!spec) return;
     const raw = hit?.point ?? screenToGround(e);
@@ -1080,9 +1013,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const ovr = snapOverride.consume();
     const ovrFrom = armPts.length >= 1 ? armPts[armPts.length - 1]! : null;
     const geoSnap = raw
-      ? (ovr ? await snapByOverride(raw, hit, ovr, ovrFrom) : await snapToGeometry(raw, hit))
+      ? (ovr ? await snapByOverride(raw, hit, ovr, ovrFrom, loader.fragments)
+         : await snapToGeometry(raw, hit, loader.fragments))
       : null;                                                      // hard endpoint/edge/vertex snap
-    let p = raw ? (geoSnap ?? (ovr ? raw.clone() : snapPoint(raw))) : null;
+    let p = raw ? (geoSnap ?? (ovr ? raw.clone() : snapPoint(raw, ctx.getSettings().snap))) : null;
     if (ovr === "none") flashSnapGlyph(e, "⊾ no snap");
     else if (ovr) flashSnapGlyph(e, geoSnap ? `⊾ ${OVERRIDE_LABEL[ovr]}` : `⊾ no ${OVERRIDE_LABEL[ovr]} here`);
     else if (geoSnap) flashSnapGlyph(e, "◻ snap");

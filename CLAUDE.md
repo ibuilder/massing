@@ -225,8 +225,8 @@ plan calls the only risk that can end the project.
 
 **And its `ready: true` measures the wrong half.** The ledger's own test asserts every `covered` entry is
 reachable through the facade's type — which proves each *claim is backed*, not that the *claims cover the
-ground*. Its 24 entries are a dissection of this viewer as it stood around 2026-08-06. This viewer is **129 TS
-files / 16,408 non-test lines / 53 test files** today, and the list names none of: the plan/sheets/specs canvas
+ground*. Its 24 entries are a dissection of this viewer as it stood around 2026-08-06. This viewer is **155 TS
+files / 19,159 non-test lines / 65 test files** today (re-measured 2026-09-10), and the list names none of: the plan/sheets/specs canvas
 modes, collaborative peer cursors, dimensional locks, viewer load timings, reference point clouds, GIS context,
 or the model-bounds allowlist. *Derive the population AND the reach — a completeness verdict computed over a
 self-authored list is confident and unfounded.*
@@ -259,9 +259,9 @@ bump. So: the *factual* blocker is corrected here because it was false; the *dec
 untouched and still open. Keep shipping viewer work in the meantime — that guidance below is unchanged and was
 never contingent on the npm question.
 
-**What an agent working in `apps/web/src/viewer` should know.** **Sixty-seven** commits have touched that
+**What an agent working in `apps/web/src/viewer` should know.** **Seventy-nine** commits have touched that
 directory since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to
-**2,508** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
+**2,442** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
 done here first. That is good and it is also divergence: every one of those commits is a change the swap will
 have to reconcile. So:
 
