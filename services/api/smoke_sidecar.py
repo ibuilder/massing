@@ -206,7 +206,21 @@ def main() -> int:
             if st == 200:
                 with contextlib.suppress(Exception):
                     mods = json.loads(body)
-            served = [m.get("key") for m in mods] if isinstance(mods, list) else []
+            # Every entry must BE a module before its key can be compared to anything. An earlier
+            # draft read `m.get("key")` and then dropped `None` out of the difference — which made a
+            # response of all 139 valid entries PLUS a bare `{}` pass: nothing missing, nothing
+            # extra, no duplicates. **A filter that decides what to LOOK at is the fail-open shape**,
+            # and it hid a malformed catalog behind a correct one. Malformed entries are now counted
+            # and named rather than skipped. (Found in review of this file, which is fitting: the
+            # assertion exists because a check that cannot see its subject reports success.)
+            served: list[str] = []
+            malformed = 0
+            for m in mods if isinstance(mods, list) else []:
+                k = m.get("key") if isinstance(m, dict) else None
+                if isinstance(k, str) and k:
+                    served.append(k)
+                else:
+                    malformed += 1
 
             # DERIVED, and by IDENTITY rather than by count. The tree is checked out beside the
             # binary in CI, so the question is answerable exactly: which modules does the bundle
@@ -220,23 +234,39 @@ def main() -> int:
             # They agree today, all 139 of them, and that is exactly why the field is the right one:
             # `key` is what the route serves, and a check should compare the thing itself rather than
             # a proxy that happens to match.
+            #
+            # The same shape rule applies to THIS side. A `module.json` with no `key` would otherwise
+            # put `None` into `declared`, which then reports as a missing module named `None` — and
+            # `sorted()` over a set mixing `None` with strings raises, so the harness would die
+            # rather than report. Both sides are validated, and the counts are compared, so a
+            # catalog file the tree cannot parse is a failure here rather than a silent shortfall.
+            catalogs = sorted(CATALOG.glob("*/module.json")) if CATALOG.is_dir() else []
             declared = set()
-            for mj in sorted(CATALOG.glob("*/module.json")) if CATALOG.is_dir() else []:
+            for mj in catalogs:
                 with contextlib.suppress(Exception):
-                    declared.add(json.loads(mj.read_text(encoding="utf-8")).get("key"))
+                    k = json.loads(mj.read_text(encoding="utf-8")).get("key")
+                    if isinstance(k, str) and k:
+                        declared.add(k)
             check("the module catalog in the tree is non-empty — otherwise the comparison below "
                   "compares nothing", bool(declared), f"{len(declared)} module.json under {CATALOG}")
+            check("every module.json in the tree declares a distinct non-empty `key` — otherwise "
+                  "the set below is smaller than the catalog and the shortfall is invisible",
+                  len(declared) == len(catalogs),
+                  f"{len(declared)} usable keys from {len(catalogs)} catalog file(s)")
 
             missing = sorted(k for k in declared if k not in served)
-            extra = sorted(k for k in set(served) - declared if k is not None)
+            extra = sorted(set(served) - declared)
             # Duplicate-aware: two entries for one key is not "the right modules". A bundle carrying
             # a stale copy of a catalog alongside the current one would serve the same key twice, and
             # a set comparison alone would call that correct.
             dupes = sorted({k for k in served if served.count(k) > 1})
             check("GET /modules serves exactly the modules the tree declares, once each — the "
                   "bundled module.json datas landed, all of them and nothing else",
-                  st == 200 and bool(declared) and not missing and not extra and not dupes,
+                  st == 200 and bool(declared) and not missing and not extra and not dupes
+                  and not malformed,
                   f"status {st}, served {len(served)} of {len(declared)} declared"
+                  + (f", {malformed} MALFORMED entr{'y' if malformed == 1 else 'ies'} "
+                     f"(not an object with a non-empty string `key`)" if malformed else "")
                   + (f", MISSING {missing[:8]}" if missing else "")
                   + (f", UNEXPECTED {extra[:8]}" if extra else "")
                   + (f", DUPLICATED {dupes[:8]}" if dupes else ""))
