@@ -115,6 +115,14 @@ empty = _pin_layer([], T, MN, MX, CAP)
 check("A CAPPED SHEET WITH NO PINS LEFT STILL WARNS", "Pin list capped" in empty,
       "no pins + no note reads as 'this level is clean', which is the original defect on paper")
 
+# BOTH empty representations, because the guard above distinguishes them and the loop must not.
+# Found in review: `[]` fell out of the loop and `None` raised TypeError, so the warning-only layer
+# — the one case that reaches the loop with no pins at all — crashed on half its legal inputs.
+# `pins` is typed `list[dict] | None`; testing one spelling of "empty" tested half the contract.
+none_capped = _pin_layer(None, T, MN, MX, CAP)
+check("...and does so for pins=None, not just []", "Pin list capped" in none_capped,
+      "a parameter typed `list[dict] | None` has two empty forms and the loop saw only one")
+
 print()
 if FAILED:
     print("FAILED:", ", ".join(FAILED))

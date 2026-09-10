@@ -827,7 +827,11 @@ def _pin_layer(pins, T, mn, mx, pin_cap: dict | None = None) -> str:
     parts: list[str] = ['<g id="pins">']
     unlocated = 0
     n = 0
-    for p in pins:
+    # `pins or []`: widening the guard above to let a truncated cap through with no pins made the
+    # two empty representations behave differently — `[]` fell out of the loop, `None` raised. Both
+    # are legal for a parameter typed `list[dict] | None`, and the warning-only layer is exactly the
+    # case that reaches this loop with neither.
+    for p in pins or []:
         x, y = p.get("x"), p.get("y")
         if x is None or y is None:
             unlocated += 1
