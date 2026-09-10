@@ -12,6 +12,24 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The desktop app can show you the model it just built
+
+Install the desktop app, create a project, upload an IFC and publish it, and everything worked
+except the part people install it for: the 3D view stayed empty, permanently, and the app reported
+success while doing it. Converting a model into something the viewer can draw was a step that only
+existed on the server — the desktop download never contained it, so the app quietly skipped the
+conversion and then had nothing to show. The web and hosted versions were never affected.
+
+The conversion now happens inside the desktop app itself, using the model library it already ships
+with. Publish a model and the 3D view fills in, offline, on a fresh install, with nothing else to
+install.
+
+It is a second implementation of the same file format, which is a real risk: two converters that
+quietly disagree would be worse than one that plainly does nothing. So the two are run against the
+same model on every build and checked against each other — same elements, same identifiers — and
+both are opened with the viewer's own reader rather than with anything we wrote. Where they are
+allowed to differ, they say so out loud instead of being made to match.
+
 ### An issue pinned on the model shows in the same place on the sheet and in 3D
 
 An RFI, NCR or clash tied to the model can reach it two ways: somebody drops a marker at a point, or

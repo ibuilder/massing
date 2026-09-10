@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -43,7 +42,8 @@ def _ifc_path(pid: str, *parts: str) -> Path:
 
 # `parents[5]` here raised IndexError at IMPORT inside a frozen bundle, where this file sits
 # three directories below $TMPDIR rather than five below the repo root. See apppaths.
-from ..apppaths import add_data_src_to_path, converter_cli, have_converter
+from .. import fragconvert
+from ..apppaths import add_data_src_to_path
 
 add_data_src_to_path()
 
@@ -1086,7 +1086,9 @@ def edit_preview(pid: str, recipe: str = Body(..., embed=True),
     from aec_data import preview as pv  # type: ignore
 
     p = _project(db, pid)
-    if not p.source_ifc or not Path(p.source_ifc).exists() or not have_converter():
+    # `fragconvert.available()`, not `have_converter()`: the Python path runs wherever the backend
+    # does, so a desktop install is no longer refused a preview for want of a Node runtime.
+    if not p.source_ifc or not Path(p.source_ifc).exists() or not fragconvert.available():
         raise HTTPException(503, "preview unavailable")
     try:
         with tempfile.TemporaryDirectory() as td:
@@ -1094,8 +1096,7 @@ def edit_preview(pid: str, recipe: str = Body(..., embed=True),
             out = str(Path(td) / "pv_out.ifc")
             frag = Path(td) / "pv.frag"
             guid = pv.build_preview_ifc(p.source_ifc, recipe, params, out, tmp)
-            subprocess.run(["node", str(converter_cli()), out, str(frag)],
-                           check=True, capture_output=True, timeout=120)
+            fragconvert.convert_ifc(out, frag, timeout=120)
             data = frag.read_bytes()
     except HTTPException:
         raise
@@ -1406,18 +1407,21 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
     from aec_data import properties_index  # type: ignore
 
     out = {"reconverted": False, "reindexed": 0}
-    # 1. reconvert IFC -> .frag (Node converter); convert to a temp file then push through
+    # 1. reconvert IFC -> .frag (Node where present, else the Python path -- see `fragconvert`);
+    #    convert to a temp file then push through
     #    storage.put so it works with both the local and S3/MinIO backends.
-    if reconvert and have_converter() and p.source_ifc and Path(p.source_ifc).exists():
+    if reconvert and fragconvert.available() and p.source_ifc and Path(p.source_ifc).exists():
         frag_key = f"{p.id}/model.frag"
         try:
             with tempfile.TemporaryDirectory() as td:
                 frag_tmp = Path(td) / "model.frag"
-                subprocess.run(["node", str(converter_cli()), p.source_ifc, str(frag_tmp)],
-                               check=True, capture_output=True, timeout=600)
+                used = fragconvert.convert_ifc(p.source_ifc, frag_tmp)
                 storage.put(frag_key, frag_tmp.read_bytes())
             out["reconverted"] = True
             out["frag_key"] = frag_key
+            # Which converter ran is worth reporting: the two tessellate independently, so a model
+            # that looks different after a re-publish on another host has an explanation here.
+            out["converter"] = used
         except Exception as e:  # node missing / convert failed — non-fatal for the API, but LOG it:
             # a broken converter must show up in structured logs/alerting, not only in a status JSON
             # a human may never poll (a deployment can silently drop conversions for hours otherwise).
