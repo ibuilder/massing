@@ -22,13 +22,34 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-#: Registers whose records are genuinely *about a place in the building*. A pin means "look here",
-#: so this is deliberately not every module — a change order or a submittal is about the project,
-#: not about a point, and putting one on a plan would be noise dressed as coordination.
-SPATIAL_MODULES: tuple[str, ...] = (
-    "rfi", "punchlist", "observation", "clash", "inspection", "snag", "defect",
-    "safety_observation", "quality_issue", "field_report", "photo",
-)
+
+def spatial_modules() -> tuple[str, ...]:
+    """Which registers hold records that are about a PLACE — **derived from the registry**.
+
+    This was a hand-written tuple of eleven names, and it was wrong in both directions at once.
+
+    **Six of the eleven named nothing.** `clash`, `defect`, `snag`, `quality_issue`,
+    `safety_observation` and `field_report` are not module keys; they are the *words* for those
+    ideas, and one of them is a `Topic.type` value (`rfi`/`punch`/`clash`/`info`), which is where the
+    confusion came from. The registers that actually hold those records are `coordination_issue`
+    (what every imported clash becomes -- see `clash_intel.py`), `ncr`, `deficiency` and `incident`.
+    So the list reached **five** registers, and the headline case in this module's own docstring --
+    a clash bound to a wall -- was one of the ones it missed.
+
+    **And it excluded thirty-two registers the product marks pinnable.** `pinnable` is the flag
+    `module.json` declares and three other readers already honour: `modules.project_pins` (which is
+    what `GET /module-pins` draws in the 3D viewer), `traceability.for_element`, and the reverse
+    deep-link in `routers/cost.py`. This module invented a fourth answer to a question that already
+    had one, so an NCR tied to a wall reached no surface at all, while `routers/drawings.py` claimed
+    in a docstring that "one issue means the same thing on the sheet and in 3D".
+
+    **The product call now lives in `module.json`, which is the only place it can be made once.**
+    Turning a register off as a pin source is `"pinnable": false` on that module -- not an edit here,
+    where it would desynchronise from the viewer again. That is the point of deriving it.
+    """
+    from . import modules as mod_engine
+    return tuple(sorted(k for k, m in getattr(mod_engine, "REGISTRY", {}).items()
+                        if m.get("pinnable")))
 
 #: A pin has to be attributable to something a person can open. Anything we cannot name, we do not
 #: draw — an unlabelled balloon on a sheet is worse than no balloon.
@@ -37,7 +58,8 @@ _MAX_PINS = 2000
 
 def _record_tables(db: Session) -> dict:
     from . import modules as mod_engine
-    return {k: t for k, t in getattr(mod_engine, "TABLES", {}).items() if k in SPATIAL_MODULES}
+    keys = set(spatial_modules())
+    return {k: t for k, t in getattr(mod_engine, "TABLES", {}).items() if k in keys}
 
 
 def register_order(table):

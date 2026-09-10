@@ -14,7 +14,10 @@ import sys
 sys.path.insert(0, "src")
 sys.path.insert(0, "../data/src")
 
+from aec_api import modules_registry  # noqa: E402
 from aec_api import pins as pin_engine  # noqa: E402
+
+modules_registry.load_registry()          # `spatial_modules()` reads it; a bare import leaves it empty
 
 FAILED = []
 
@@ -26,11 +29,29 @@ def check(label, ok, detail=""):
 
 
 # --- what counts as spatial ------------------------------------------------------------------
-check("an RFI is a place in the building", "rfi" in pin_engine.SPATIAL_MODULES)
-check("so is a punch item", "punchlist" in pin_engine.SPATIAL_MODULES)
-check("a change order is NOT — it is about the project, not a point",
-      "change_order" not in pin_engine.SPATIAL_MODULES)
-check("nor is a submittal", "submittal" not in pin_engine.SPATIAL_MODULES)
+# **This block used to assert four memberships of a hand-written tuple, and two of them measured
+# nothing.** `"change_order" not in SPATIAL_MODULES` is trivially true because there is no
+# `change_order` module — the register is `cor` — and `"submittal" not in SPATIAL_MODULES` asserted
+# a product opinion that `submittal/module.json` contradicts, since it carries `"pinnable": true`
+# and `GET /module-pins` has always drawn it in the 3D viewer. A tuple checked against a hand-written
+# expectation cannot see a name that matches nothing on either side, which is how six ghost names
+# survived in it: `clash`, `defect`, `snag`, `quality_issue`, `safety_observation`, `field_report`.
+#
+# The population is now derived from the registry's `pinnable` flag — the same flag
+# `modules.project_pins` and `traceability` already read — so the question here becomes whether the
+# engine honours that flag, and `test_pin_population.py` carries the derivation's own gate.
+POP = pin_engine.spatial_modules()
+check("an RFI is a place in the building", "rfi" in POP)
+check("so is a punch item", "punchlist" in POP)
+check("so is a coordination issue — what every imported clash becomes",
+      "coordination_issue" in POP,
+      "the old tuple said 'clash', which is a Topic.type and not a module key")
+check("a register that is not pinnable is not a pin source",
+      "prime_contract" not in POP,
+      "an honest negative: prime_contract exists and carries no pinnable flag")
+check("the population and the registry's pinnable flag are the same set",
+      set(POP) == {k for k, m in modules_registry.REGISTRY.items() if m.get("pinnable")},
+      "two answers to 'what is pinnable' is how the sheet and the 3D viewer came to disagree")
 
 # --- located() is what stops a sheet under-reporting -------------------------------------------
 rows = [

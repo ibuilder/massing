@@ -30,7 +30,13 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 sys.path.insert(0, "src")
 sys.path.insert(0, "../data/src")
 
+from aec_api import modules_registry  # noqa: E402
 from aec_api import pins as pin_engine  # noqa: E402
+
+# `spatial_modules()` reads the REGISTRY, which the app fills at startup. A bare import leaves it
+# empty, and an empty registry makes every coverage assertion below vacuously true — so load it
+# here, and assert below that it actually loaded.
+modules_registry.load_registry()
 
 _MIG = pathlib.Path("migrations/versions/2026_09_10_0115-e4a7c2b81f60_pin_empty_json_to_null.py")
 check("the migration this gate is about exists", _MIG.exists(), f"{_MIG} not found")
@@ -41,6 +47,30 @@ if not _MIG.exists():
 _spec = importlib.util.spec_from_file_location("_pin_empty_mig", _MIG)
 mig = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mig)
+
+# PIN-POPULATION added a SECOND sweep. `pins.spatial_modules()` is now derived from the registry's
+# `pinnable` flag instead of a hand-written tuple, which took the engine from 5 real registers to 37,
+# and the registers it newly reads needed the same backfill. Both migrations are loaded because the
+# coverage question is about their UNION: which registers has the sweep reached, across everything
+# that has run. Asserting against either alone would report a gap that the other closes, or miss one
+# that neither does.
+_MIG2 = pathlib.Path(
+    "migrations/versions/2026_09_10_1400-f2b6d31a7c04_pin_empty_widened_registers.py")
+check("the widening migration exists", _MIG2.exists(), f"{_MIG2} not found")
+if not _MIG2.exists():
+    print("FAIL test_pin_empty")
+    sys.exit(1)
+_spec2 = importlib.util.spec_from_file_location("_pin_empty_mig2", _MIG2)
+mig2 = importlib.util.module_from_spec(_spec2)
+_spec2.loader.exec_module(mig2)
+check("the widening migration follows the first", mig2.down_revision == mig.revision,
+      f"{mig2.down_revision!r} != {mig.revision!r} — a sweep off the chain sweeps nothing")
+
+#: Every register any sweep has reached.
+SWEPT = set(mig._SPATIAL) | set(mig2._SPATIAL)
+
+#: Both migrations, so every check below that exercises a COPY of the predicate exercises both.
+MIGS = (mig, mig2)
 
 # --- the two predicates must agree, over a TABLE of values -----------------------------------------
 # Each case is (anchor, element_guids, is_a_pin). The migration nulls a field exactly when the
@@ -69,25 +99,43 @@ for anchor, guids, is_pin in CASES:
           runtime_pin == is_pin,
           f"pin_fields returned ({a!r}, {g!r}) -> {runtime_pin}, expected {is_pin}")
 
-    # The migration's view, field by field.
-    mig_drops_anchor = mig._is_empty_anchor(anchor) if anchor is not None else None
-    mig_drops_guids = mig._is_empty_guids(guids) if guids is not None else None
+    # Every migration's view, field by field. **Both copies are checked, not just the first.** The
+    # copy-don't-import rule is what makes a migration a record of what it did; the price of it is
+    # that a second copy can drift from the first, and only running both can see that.
+    for _m in MIGS:
+        _n = _m.revision
+        mig_drops_anchor = _m._is_empty_anchor(anchor) if anchor is not None else None
+        mig_drops_guids = _m._is_empty_guids(guids) if guids is not None else None
 
-    if anchor is not None:
-        check(f"migration keeps the anchor iff runtime uses it: {anchor!r}",
-              mig_drops_anchor == (a is None),
-              f"migration drop={mig_drops_anchor} but runtime usable={a is not None} — "
-              f"dropping one runtime WOULD use deletes a real pin; keeping one it rejects "
-              f"leaves the upper bound in place after the sweep")
-    if guids is not None:
-        check(f"migration keeps the guids iff runtime uses them: {guids!r}",
-              mig_drops_guids == (not g),
-              f"migration drop={mig_drops_guids} but runtime usable={bool(g)}")
+        if anchor is not None:
+            check(f"{_n} keeps the anchor iff runtime uses it: {anchor!r}",
+                  mig_drops_anchor == (a is None),
+                  f"migration drop={mig_drops_anchor} but runtime usable={a is not None} — "
+                  f"dropping one runtime WOULD use deletes a real pin; keeping one it rejects "
+                  f"leaves the upper bound in place after the sweep")
+        if guids is not None:
+            check(f"{_n} keeps the guids iff runtime uses them: {guids!r}",
+                  mig_drops_guids == (not g),
+                  f"migration drop={mig_drops_guids} but runtime usable={bool(g)}")
 
 # --- the migration accepts BOTH shapes a JSON column comes back as ---------------------------------
 # Some drivers decode JSON columns, some hand back text. A predicate that only understands one
 # silently sweeps nothing on the other -- a migration that runs, reports success, and changes zero
 # rows, which is indistinguishable from a database that was already clean.
+for _m in MIGS:
+    check(f"{_m.revision}: an empty anchor is recognised when the driver returns TEXT",
+          _m._is_empty_anchor("{}") is True,
+          "a text-returning driver would leave every legacy row in place, silently")
+    check(f"{_m.revision}: an empty guid list is recognised when the driver returns TEXT",
+          _m._is_empty_guids("[]") is True and _m._is_empty_guids('[""]') is True)
+    check(f"{_m.revision}: a REAL anchor is not dropped on the TEXT path",
+          _m._is_empty_anchor('{"x": 1, "y": 2, "z": 3}') is False,
+          "the text path must not delete real pins")
+    check(f"{_m.revision}: a REAL guid list is not dropped on the TEXT path",
+          _m._is_empty_guids('["G1"]') is False)
+    check(f"{_m.revision}: unparseable text is treated as empty, not crashed on",
+          _m._is_empty_anchor("not json") is True)
+
 check("an empty anchor is recognised when the driver returns TEXT",
       mig._is_empty_anchor("{}") is True,
       "a text-returning driver would leave every legacy row in place, silently")
@@ -102,16 +150,33 @@ check("unparseable text is treated as empty, not crashed on",
       mig._is_empty_anchor("not json") is True)
 
 # --- the sweep covers every spatial register -------------------------------------------------------
-# Derived from the runtime tuple rather than eyeballed: a register added to SPATIAL_MODULES and not
-# to the migration is a table the sweep silently skips.
-missing = [k for k in pin_engine.SPATIAL_MODULES if k not in mig._SPATIAL]
-check("the migration sweeps every spatial register the engine reads",
+# Derived from the runtime POPULATION rather than eyeballed: a register the engine reads and no
+# migration sweeps is a table that keeps its legacy empty rows and stays counted as a candidate.
+#
+# **This check was green while it was measuring nothing.** It compared the migration's list against
+# `pins.SPATIAL_MODULES`, a hand-written tuple — so it asserted that one list matched another list,
+# and both listed six registers that do not exist. Now the left side is `spatial_modules()`, derived
+# from the registry, so the question is "does the sweep reach what the engine reads" rather than
+# "do two hand-written tuples agree".
+_population = list(pin_engine.spatial_modules())
+check("the derived population is not empty",
+      len(_population) > 10,
+      f"only {len(_population)} pinnable registers — a population that collapses makes every "
+      f"coverage check below vacuously true, which is the failure mode that looks like a pass")
+missing = [k for k in _population if k not in SWEPT]
+check("every register the engine reads has been swept",
       not missing,
-      f"in SPATIAL_MODULES but not swept: {missing} — those registers keep their legacy "
-      f"empty rows and stay counted as candidates")
-check("...and sweeps nothing the engine does not read",
-      not [k for k in mig._SPATIAL if k not in pin_engine.SPATIAL_MODULES],
-      "sweeping a table the pin engine never reads is scope this migration did not claim")
+      f"read but never swept: {missing} — add a migration rather than widening a list")
+
+# The other direction is now an OBSERVATION, not a failure. `mig._SPATIAL` names six registers that
+# never existed (`clash`, `defect`, `snag`, `quality_issue`, `safety_observation`, `field_report`);
+# `_sweep` no-ops on a missing table, so they cost nothing and cannot be un-named — that migration
+# already ran. What matters is that they are RECORDED as dead rather than mistaken for coverage.
+_dead = sorted(k for k in SWEPT if k not in _population)
+check("the dead names in the shipped sweep are exactly the six known ones",
+      _dead == ["clash", "defect", "field_report", "quality_issue", "safety_observation", "snag"],
+      f"swept but not read: {_dead} — a NEW name here means a register stopped being pinnable "
+      f"and its sweep is now unexplained scope; a MISSING one means this record drifted")
 
 # --- the downgrade is a no-op ON PURPOSE, and says so ----------------------------------------------
 check("downgrade exists and is a documented no-op",
@@ -177,10 +242,40 @@ with _eng.begin() as _c:
     check("a missing table is skipped rather than raising",
           mig._sweep(_c, "mod_not_installed", ("element_guids",)) == 0)
 
+# --- and THE SECOND COPY OF `_sweep` sweeps too ----------------------------------------------------
+# `f2b6d31a7c04` carries its own `_sweep` for the reason its docstring gives. A copy that is never
+# executed by a test is a copy that can be subtly wrong forever: it runs against thirty-two register
+# tables, all of which are usually empty, so it would report success either way. Same fixture, its
+# own function.
+_eng2 = _sa.create_engine("sqlite://")
+with _eng2.begin() as _c:
+    _c.execute(_sa.text("CREATE TABLE mod_ncr (id TEXT PRIMARY KEY, element_guids TEXT)"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('n-empty', '[]')"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('n-blank', '[\"\"]')"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('n-real', '[\"G7\"]')"))
+    changed2 = mig2._sweep(_c, "mod_ncr", ("element_guids",))
+    got2 = {r["id"]: r["element_guids"]
+            for r in _c.execute(_sa.text("SELECT * FROM mod_ncr")).mappings()}
+    check("the widening migration's own _sweep changes rows", changed2 == 2,
+          f"changed={changed2}, expected 2")
+    check("...nulls the empty list", got2["n-empty"] is None)
+    check("...nulls the blank-only list", got2["n-blank"] is None)
+    check("...and keeps the real one", got2["n-real"] is not None,
+          "a second copy that deletes real pins is worse than no second copy")
+    check("...and skips a table it does not have",
+          mig2._sweep(_c, "mod_not_installed", ("element_guids",)) == 0)
+
+# `ncr` is in the second sweep and not the first — the check above is only meaningful if the
+# register it uses is actually one the widening migration claims.
+check("the register the check above sweeps is one this migration added",
+      "ncr" in mig2._SPATIAL and "ncr" not in mig._SPATIAL,
+      "otherwise the second _sweep is being tested on ground the first already covered")
+
 if FAILED:
     print("FAIL test_pin_empty")
     for f in FAILED:
         print("  -", f)
     sys.exit(1)
-print(f"test_pin_empty OK  ({len(CASES)} value cases; migration and runtime agree; "
-      f"{len(mig._SPATIAL)} registers swept)")
+print(f"test_pin_empty OK  ({len(CASES)} value cases; both migrations agree with the runtime "
+      f"predicate; {len(_population)} pinnable registers read, {len(SWEPT)} swept across 2 "
+      f"migrations, {len(_dead)} swept names that no longer exist)")
