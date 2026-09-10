@@ -12,6 +12,27 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The Linux desktop app could not start
+
+The published AppImage and .deb quit before they drew a window. The bundled server looked for the
+web build by walking a fixed number of directories up from its own file — a number that is right in
+a source checkout and wrong inside a packaged app, where the code is unpacked into a temporary
+directory. On Linux the default temporary path is exactly one level too shallow, so the walk ran off
+the top of the filesystem and the process died with `IndexError` before it ever reached the copy of
+the web build packaged beside it.
+
+The same binary starts normally when the temporary directory is deeper, which is why macOS and
+Windows were unaffected: their temporary paths are twice as deep. It was found by downloading the
+released build and running it, not by reading code.
+
+The server now recognises that it is running from a package and stops looking for a source checkout
+at all, and the walk is bounds-checked so a shallow path can no longer crash it. A second, harmless
+version of the same mistake — a lookup for the register directory that was off by one and silently
+returned nothing — is fixed alongside it.
+
+Nothing in the release pipeline launches the application it builds, which is why every check was
+green. That gap is now recorded as work of its own.
+
 ### The guard against a test writing into your database was itself half blind
 
 An earlier change added a rule: a test that can create a schema must decide which database it creates

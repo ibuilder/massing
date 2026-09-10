@@ -28,6 +28,29 @@ def data_dir() -> Path:
     return d
 
 
+def repo_root() -> Path | None:
+    """The source checkout this file lives in, or None when there is not one.
+
+    **This exists because `parents[4]` took the shipped Linux app down.** In a PyInstaller bundle
+    `__file__` is `$TMPDIR/_MEIxxxxxx/aec_api/desktop.py`, and with the default `TMPDIR=/tmp` that
+    path has exactly FOUR parents -- so `parents[4]` raised `IndexError: 4` and `aec-bim-server`
+    died before binding a port. The candidate list is built eagerly, so it raised before the loop
+    could reach the bundled copy appended ahead of it.
+
+    Verified against the published v0.3.1133 AppImage: crashed every time under `TMPDIR=/tmp`, and
+    the same binary started and served `/health`, the frontend and `/modules` under a deeper one.
+    Windows and macOS temp paths are eight parents deep, which is why it was never seen in testing.
+
+    A frozen build has no checkout to fall back to, so it returns None rather than guessing; and the
+    index is bounds-checked anyway, because a hard-coded depth is a fact about the source layout
+    that a file move silently invalidates.
+    """
+    if getattr(sys, "frozen", False) or getattr(sys, "_MEIPASS", ""):
+        return None
+    parents = Path(__file__).resolve().parents          # .../services/api/src/aec_api/desktop.py
+    return parents[4] if len(parents) > 4 else None     # parents[4] == the repo root
+
+
 def web_dist() -> str | None:
     """Locate the built web app: bundled beside the frozen exe (PyInstaller _MEIPASS), else the
     repo's apps/web/dist, else an explicit AEC_WEB_DIST."""
@@ -35,7 +58,9 @@ def web_dist() -> str | None:
     candidates = []
     if meipass:
         candidates.append(Path(meipass) / "web")
-    candidates.append(Path(__file__).resolve().parents[4] / "apps" / "web" / "dist")
+    root = repo_root()
+    if root:
+        candidates.append(root / "apps" / "web" / "dist")
     for c in candidates:
         if c.is_dir() and (c / "index.html").exists():
             return str(c)
@@ -48,10 +73,16 @@ def modules_dir() -> str | None:
     else the repo's services/api/modules. The frozen build needs this since modules.py's __file__
     no longer resolves to the source tree."""
     meipass = getattr(sys, "_MEIPASS", "")
+    root = repo_root()
     candidates = []
     if meipass:
         candidates.append(Path(meipass) / "modules")
-    candidates.append(Path(__file__).resolve().parents[3] / "modules")   # services/api/modules
+    # `parents[3]` was `services`, not `services/api` -- so this built `services/modules`, which
+    # does not exist. `is_dir()` swallowed it, so it returned None instead of raising and nothing
+    # broke: `modules_registry.MODULES_DIR` has its own correct default. A DEAD fallback masked by a
+    # working one, one index away from the class that took the app down.
+    if root:
+        candidates.append(root / "services" / "api" / "modules")
     for c in candidates:
         if c.is_dir():
             return str(c)

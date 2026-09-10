@@ -1039,6 +1039,68 @@ instances:
 
   Not folded into PIN-POPULATION: unrelated axis, and two in one change makes both harder to read.
 
+- ✅ ⭐ **DESKTOP-FROZEN — the shipped Linux app could not start at all** *(S — Lane C; **CLOSED**,
+  fix in this change; gated by `services/api/test_desktop_paths.py`)*
+
+  Found by downloading the published **v0.3.1133** release and running it, rather than by reading
+  code.
+
+  `services/api/src/aec_api/desktop.py` located the bundled web build with
+  `Path(__file__).resolve().parents[4]`, **unconditionally**. In a PyInstaller bundle `__file__` is
+  `$TMPDIR/_MEIxxxxxx/aec_api/desktop.py`, and with the default `TMPDIR=/tmp` that path has exactly
+  **four** parents. The candidate list is built eagerly, so it raised `IndexError: 4` before the loop
+  could reach the bundled copy appended ahead of it:
+
+  ```
+  File "aec_api/desktop.py", line 38, in web_dist
+  File "pathlib.py", line 282, in __getitem__
+  IndexError: 4
+  [PYI-827:ERROR] Failed to execute script 'desktop_entry'
+  ```
+
+  **The variable was isolated, not inferred.** Same binary, deeper `TMPDIR`: it starts, binds
+  `127.0.0.1:8765`, and serves `/health`, the embedded frontend and `/modules`. Linux's default temp
+  path is four parents deep; macOS (`/var/folders/xx/yyyy/T/…`) and Windows
+  (`C:\Users\…\AppData\Local\Temp\…`) are eight. **So the AppImage and the .deb were dead on
+  arrival and the other two platforms were fine**, which is exactly why it shipped — and the download
+  counts fit it (exe 4, AppImage 1, deb 1).
+
+  `repo_root()` now returns None when frozen and bounds-checks the index, so both call sites share one
+  definition instead of two hard-coded depths.
+
+  **A second, NON-fatal one, recorded so nobody re-derives it.** `modules_dir()` asked for
+  `parents[3] / "modules"` under a comment reading `# services/api/modules`. `parents[3]` is
+  `services`, so it built `services/modules`, which does not exist; `is_dir()` swallowed it and it
+  returned None. Nothing broke, because `modules_registry.MODULES_DIR` has its own correct default —
+  a **dead fallback masked by a working one**, sitting one index from the class that took the app
+  down. Fixed here because its comment documents an intent the code did not implement.
+
+  *Two lessons from verifying it, both about the test rather than the bug.* The first fixture used
+  `tempfile`, which yields `/tmp/tmpXXXXXX/_MEI…` — one level deeper than a real bundle — so
+  `parents[4]` resolved and **the test passed against the unfixed code**. The depth IS the defect;
+  a fixture that is not exactly as shallow proves nothing. And two of three mutations initially
+  survived: the frozen guard and the bounds check each independently prevent the crash, so **each
+  masked the other**. A case isolating the bounds check (not frozen, shallow path) makes it testable;
+  the frozen-guard mutant still survives and is recorded as redundant defence rather than counted as
+  a kill.
+
+  **What this says about the release pipeline, and is not fixed here.** Nothing runs the built
+  artifact. `desktop.yml` builds, signs and publishes installers that no job ever launches, so a
+  crash-on-startup reaches users with every check green. A smoke step that boots the bundled
+  `aec-bim-server` and curls `/health` would have caught this in the job that produced it. See
+  DESKTOP-SMOKE below.
+
+- **DESKTOP-SMOKE — the release pipeline never runs what it ships** *(S — Lane J; opened 2026-09-10
+  by DESKTOP-FROZEN)*
+
+  `.github/workflows/desktop.yml` builds the Tauri bundles, signs them and uploads them. No step
+  executes the result. DESKTOP-FROZEN was a startup crash on one of the three platforms it publishes,
+  and every check was green.
+
+  The cheap version is one step on the Linux runner: extract the AppImage, run the bundled
+  `aec-bim-server` with a deliberately SHALLOW `TMPDIR`, and fail unless `/health` answers. That
+  exact configuration is what broke; a smoke test on a deep temp path would have passed.
+
 - **PIN-ANCHOR — `/pins/all` is not yet the union it is named for** *(S — Lane C; opened
   2026-09-10 by PIN-POPULATION)*
 
@@ -2174,14 +2236,14 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_desktop_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE *(the artifact `.github/workflows/desktop.yml` publishes is never executed by any job; the work is a boot-and-curl step in that workflow. Filed here rather than Lane C because the FIX is a build step, even though the crash that prompted it was backend code — the derived-here-fixed-there split Lanes B and E already had to make)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
