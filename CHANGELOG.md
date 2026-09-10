@@ -12,6 +12,30 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The desktop app is now started and checked before it is published
+
+The installers for Windows, macOS and Linux were built, signed and put in front of users without
+anything ever launching them. That is how the Linux app shipped in a state where it could not start
+at all: every automated check reads the source code, and the fault only existed in the packaged
+copy. The checks were green and the app was broken, and those two facts had nothing to do with each
+other.
+
+Each build now starts the packaged app and uses it before the release is allowed to proceed — under
+the exact conditions the crash needed, since the same app started fine under slightly different
+ones. It has to answer, reach its database, list every one of the 139 registers, and serve the
+interface. The Linux build is checked twice: once as it comes out of the build, and once unpacked
+from the installer a user would actually download.
+
+The check is deliberately unable to pass quietly. If the app it is supposed to test is missing, that
+is a failure rather than a skip — "nothing was wrong" and "nothing was looked at" are the two
+outcomes that must never be confused. It compares the registers it gets against the registers the
+project defines, rather than against a round number, because an app that had silently lost thirty of
+them would clear a round number. And it was itself tested against three deliberately broken builds
+before being trusted, including a reproduction of the crash that shipped.
+
+One thing it still does not do is convert a model, so that part of the packaged app remains checked
+by other means; that is recorded rather than left to be assumed.
+
 ### The desktop app can show you the model it just built
 
 Install the desktop app, create a project, upload an IFC and publish it, and everything worked
