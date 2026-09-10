@@ -174,6 +174,58 @@ with TestClient(app) as c:
           "widening the predicate must not turn every register row into a pin")
     check("...and the total counts three, not four", env["pin_total"] == 3,
           f"pin_total={env['pin_total']}, pins={len(env['pins'])}")
+    BASE_PINS = 3
+
+    # --- 1b. A PARTIAL ANCHOR IS NOT A PLACEMENT, AND MUST NOT BLOCK THE ELEMENT ------------------
+    # Nothing validates an anchor's shape on the way in: `create_record` stores `body.get("anchor")`
+    # as given. `{"x": 1}` used to take the placement branch — returning `y=None, z=None`, which
+    # `located()` rejects — AND keep the row out of `need`, so the model could not place it either.
+    # A half-written coordinate made a pin permanently unplaceable while the element beside it would
+    # have resolved fine. Found by review of PR #503; `pins.anchor_point` is the fix.
+    PARTIAL = {
+        "part-xy":   {"x": 1.0, "y": 2.0},          # z missing
+        "part-x":    {"x": 1.0},
+        "no-coords": {"note": "somewhere"},          # a dict, but not a position
+        "bool-x":    {"x": True, "y": 2.0, "z": 3.0},   # bool is an int subclass; not a coordinate
+        "str-x":     {"x": "1.0", "y": 2.0, "z": 3.0},  # a string is not a number
+    }
+    partial_ids = {}
+    for name, bad in PARTIAL.items():
+        r = c.post(f"/projects/{pid}/modules/{PROBE}",
+                   json={**_payload(PROBE), "title": name, "anchor": bad, "element_guids": [GUID]})
+        check(f"the {name!r} record was created", r.status_code in (200, 201),
+              f"{r.status_code}: {r.text[:160]}")
+        if r.status_code in (200, 201):
+            partial_ids[name] = r.json()["id"]
+    with SessionLocal() as db:
+        env_p = pin_engine.resolve_pins(db, pid)
+    by_p = {p["id"]: p for p in env_p["pins"]}
+    for name, rid in partial_ids.items():
+        pin = by_p.get(rid)
+        check(f"{name}: still counts as a pin (it IS attached)", pin is not None,
+              "a partial anchor is a malformed placement, not an absent one — the row is still a pin")
+        if pin:
+            check(f"{name}: is NOT placed from the broken anchor",
+                  pin.get("x") is None and pin.get("y") is None and pin.get("z") is None,
+                  f"got ({pin.get('x')!r}, {pin.get('y')!r}, {pin.get('z')!r}) — a partial anchor "
+                  f"reported as a position puts a marker at a coordinate nobody chose")
+            check(f"{name}: KEEPS its element, so the model can still place it",
+                  pin.get("element_guid") == GUID,
+                  f"element_guid={pin.get('element_guid')!r} — this is the half that was lost: the "
+                  f"anchor branch dropped the row from `need` and nothing could resolve it")
+    # The exact test still calls these pins, and `anchor_point` is what refuses to place them —
+    # asserted directly so the two questions cannot be re-merged by accident.
+    check("pin_fields still calls a partial anchor a pin",
+          pin_engine.pin_fields({"x": 1.0}, [])[0] == {"x": 1.0},
+          "being a pin and being placeable are different questions")
+    check("...while anchor_point refuses to place it", pin_engine.anchor_point({"x": 1.0}) is None)
+    check("A ZERO ANCHOR STILL PLACES — {x:0,y:0,z:0} is the project origin",
+          pin_engine.anchor_point({"x": 0, "y": 0, "z": 0}) == (0.0, 0.0, 0.0),
+          "testing truthiness instead of presence deletes every pin at the origin")
+    check("...and a complete anchor places", pin_engine.anchor_point(POINT) ==
+          (POINT["x"], POINT["y"], POINT["z"]))
+    check("...and a non-dict places nothing", pin_engine.anchor_point(["x"]) is None
+          and pin_engine.anchor_point(None) is None)
 
     # --- 2. the empty-value source, which is where `{}` came from ---------------------------------
     # A `{}` anchor is non-NULL: it passes the SQL candidate predicate and fails the exact test, so
@@ -196,9 +248,11 @@ with TestClient(app) as c:
           f"stored {_row.element_guids!r}")
     with SessionLocal() as db:
         env2 = pin_engine.resolve_pins(db, pid)
+    _expected = BASE_PINS + len(partial_ids)
     check("...so the empty record is neither a pin nor a candidate",
-          env2["pin_total"] == 3 and env2["total_counts_candidates"] is False,
-          f"pin_total={env2['pin_total']} candidates={env2['total_counts_candidates']}")
+          env2["pin_total"] == _expected and env2["total_counts_candidates"] is False,
+          f"pin_total={env2['pin_total']} expected={_expected} "
+          f"candidates={env2['total_counts_candidates']}")
 
     # --- 2b. ABSENT MUST BE STORED AS ABSENT, or the SQL half of the predicate is decoration ------
     # SQLAlchemy persists a Python `None` in a `JSON` column as the JSON scalar `null`, which is NOT
@@ -233,8 +287,9 @@ with TestClient(app) as c:
     check("THE SQL CANDIDATE PREDICATE ACTUALLY NARROWS", _cand < _all,
           f"{_cand} candidates out of {_all} rows — a predicate that admits the whole register "
           f"spends the pin budget on records that are not pins and reports them in `pin_total`")
-    check("...to exactly the three rows that are pins", _cand == 3,
-          f"{_cand} candidates; the register holds {_all} rows, 3 of them pins")
+    check("...to exactly the rows that are pins", _cand == BASE_PINS + len(partial_ids),
+          f"{_cand} candidates; the register holds {_all} rows, "
+          f"{BASE_PINS + len(partial_ids)} of them pins")
 
     # --- 3. THE SUPERSET CLAIM, over the whole pinnable population --------------------------------
     # `/pins/all` can only replace the viewer's second call if it returns every record `/module-pins`

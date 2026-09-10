@@ -82,8 +82,37 @@ _TOPICS = "topics"
 #: How many ids one UPDATE carries -- see `f2b6d31a7c04`.
 _BATCH = 500
 
-#: `(table, id, column)` for every stored value that is not JSON at all. **Reported, never swept.**
+#: `(table, id, column)` for every stored value this sweep cannot judge -- text that is not JSON at
+#: all, and JSON of the wrong SHAPE for its column. **Reported, never swept.**
 SKIPPED: list[tuple[str, str, str]] = []
+
+#: What a decoded value must BE for its column before a predicate is allowed near it. An `anchor` is
+#: an object; `element_guids` is an array. Anything else -- a scalar, a string, an array where an
+#: object belongs -- is data this migration did not write and cannot interpret.
+_SHAPE = {"anchor": dict, "element_guids": list}
+
+
+def _wrong_shape(col: str, decoded) -> bool:
+    """Is this decoded value the wrong TYPE for its column? (None is absent, not wrong.)
+
+    **This is a guard, and without it the migration crashed.** `_is_empty_guids` iterates whatever it
+    is handed, so a stored scalar -- `42`, `true`, `3.5` -- raised `TypeError: 'int' object is not
+    iterable` and aborted the whole `alembic upgrade`, at deploy time, on one bad row. Measured
+    against the real `_sweep`, not reasoned about.
+
+    The quieter half: `_is_empty_anchor` answers True for a decoded string or list, so an `anchor`
+    holding `["a"]` or `"txt"` was NULLed **silently** -- destroying exactly the evidence `_decode`
+    exists to preserve, and not even recording it in `SKIPPED`. Wrong shape and unparseable text are
+    the same kind of thing: a value a human has to look at.
+
+    **The review that found this also proposed dropping `_loads` from both predicates, and that is
+    deliberately NOT done.** The predicates must keep accepting a value that arrives as TEXT, because
+    drivers differ in whether they decode a JSON column -- `test_pin_empty.py` asserts every copy
+    handles both shapes, and a copy that only understands one silently sweeps nothing on the other.
+    Guarding at the call site fixes the crash without breaking that contract, and without making this
+    copy disagree with the two that have already run.
+    """
+    return decoded is not None and not isinstance(decoded, _SHAPE[col])
 
 
 def _loads(v):
@@ -156,7 +185,9 @@ def _sweep(conn, table: str, cols: tuple[str, ...]) -> int:
             if v is None:
                 continue
             ok, decoded = _decode(v)
-            if not ok:                      # not JSON at all -- evidence, not an empty value
+            if not ok or _wrong_shape(c, decoded):
+                # Not JSON at all, or JSON of a shape this column never holds. Evidence either way,
+                # and the second case is what stopped `_is_empty_guids` raising on a scalar.
                 SKIPPED.append((table, str(row["id"]), c))
                 continue
             if _is_empty_anchor(decoded) if c == "anchor" else _is_empty_guids(decoded):
@@ -186,7 +217,7 @@ def upgrade() -> None:
         _sweep(conn, f"mod_{key}", _COLS)
     if SKIPPED:
         logging.getLogger("alembic.runtime.migration").warning(
-            "b3c9e42d18a5: left %d unparseable anchor value(s) untouched (table, id, column): %s",
+            "b3c9e42d18a5: left %d uninterpretable pin value(s) untouched -- unparseable text or the wrong JSON shape for the column (table, id, column): %s",
             len(SKIPPED), ", ".join(f"{t}/{i}/{c}" for t, i, c in SKIPPED[:20])
             + (" ..." if len(SKIPPED) > 20 else ""))
 

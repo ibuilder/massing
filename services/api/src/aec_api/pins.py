@@ -110,6 +110,35 @@ def _topic_pin_where(pid: str):
     return pin_where(Topic.project_id, Topic.anchor, Topic.element_guids, pid)
 
 
+def anchor_point(a) -> tuple[float, float, float] | None:
+    """The `(x, y, z)` this anchor PLACES a pin at, or None when it cannot place one.
+
+    **Being a pin and being placeable are different questions, and conflating them cost the element
+    fallback.** `pin_fields` answers the first: a non-empty anchor dict means somebody attached this
+    row, so it is a pin. This answers the second, and a partial dict fails it.
+
+    Nothing validates an anchor's shape on the way in -- `modules.create_record` stores
+    `body.get("anchor")` as given, and `TopicIn`/`TopicPatch` accept a bare dict -- so `{"x": 1}` is
+    reachable from the API. It used to take the placement branch, return `y=None, z=None` (which
+    `located()` then rejects), AND keep the row out of `need`, so the model could not place it
+    either. A half-written coordinate made a pin permanently unplaceable when the element beside it
+    would have resolved fine. Found by review of PR #503, confirmed by measurement.
+
+    **Zero is a coordinate, not an absence.** `{x: 0, y: 0, z: 0}` is the project origin and must
+    place -- so this tests for a NUMBER being present, never for truthiness. `bool` is excluded
+    because it is a subclass of `int` and `{"x": true}` is not a position.
+    """
+    if not isinstance(a, dict):
+        return None
+    out = []
+    for k in ("x", "y", "z"):
+        v = a.get(k)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        out.append(float(v))
+    return (out[0], out[1], out[2])
+
+
 def pin_fields(anchor, element_guids):
     """The EXACT "is this a pin" test, as one definition both read loops call.
 
@@ -203,10 +232,14 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
             continue                # neither placed nor attached — not a pin, just an issue
         pin = {"source": "topic", "id": t.id, "guid": t.guid, "kind": t.type,
                "label": t.title or "", "status": t.status, "element_guid": guids[0] if guids else None}
-        if a:
-            pin.update(x=a.get("x"), y=a.get("y"), z=a.get("z"))
+        # `anchor_point` rather than `a` — a partial anchor is not a placement, and must not block
+        # the element fallback. See its docstring.
+        at = anchor_point(a)
+        if at:
+            pin.update(x=at[0], y=at[1], z=at[2])
         else:
-            need.add(guids[0])
+            if guids:
+                need.add(guids[0])
             pin.update(x=None, y=None, z=None)
         out.append(pin)
 
@@ -248,10 +281,12 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
             pin = {"source": key, "id": r.id, "guid": r.ref or r.id, "kind": key,
                    "label": r.title or r.ref or "", "status": r.workflow_state,
                    "element_guid": guids[0] if guids else None}
-            if a:
-                pin.update(x=a.get("x"), y=a.get("y"), z=a.get("z"))
+            at = anchor_point(a)
+            if at:
+                pin.update(x=at[0], y=at[1], z=at[2])
             else:
-                need.add(guids[0])
+                if guids:
+                    need.add(guids[0])
                 pin.update(x=None, y=None, z=None)
             out.append(pin)
 

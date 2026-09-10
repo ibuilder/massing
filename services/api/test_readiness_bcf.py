@@ -85,8 +85,31 @@ with TestClient(app) as c:
         "this check is only meaningful when SOME gaps anchor and some do not")
     assert len([t for t in readiness if t.get("anchor")]) == len(anchorable), (
         [t["title"] for t in readiness if t.get("anchor")], len(anchorable))
-    assert all(t.get("element_guids") for t in readiness if t.get("anchor")), \
-        "an anchored topic must carry the GlobalId it was anchored from"
+
+    # **By identity and exact GUIDs, not by count.** Counts alone pass while the WRONG subset is
+    # anchored, or the right subset carries someone else's GlobalIds — a reachable regression, since
+    # `readiness_to_bcf` anchors from `guids[0]` and a reordering there would swap them silently.
+    # The expected mapping is built from the audit's own gaps, so it moves when the audit does.
+    # Raised in review of PR #503.
+    # **In ORDER, not sorted.** The first draft of this check sorted both sides, and a mutation that
+    # REVERSED the promoter's guid list survived it — two of these gaps carry more than one GlobalId
+    # (2 and 3), and `readiness_to_bcf` anchors from `guids[0]`, so reversing them silently moves
+    # those pins to a different element. Sorting normalised away the one thing that decides where the
+    # marker lands. Measured stable across three audit runs and preserved end-to-end, so ordering is
+    # a real invariant here rather than a flake waiting to happen.
+    _want = {g["title"][:200]: [x for x in (g.get("guids") or []) if x] for g in ra["gaps"]}
+    _got = {t["title"]: list(t.get("element_guids") or []) for t in readiness}
+    assert any(len(v) > 1 for v in _want.values()), (
+        "no gap carries multiple GlobalIds, so the ordering assertion below proves nothing — "
+        "the fixture must keep a multi-element gap for this check to mean anything")
+    assert set(_got) == set(_want), (sorted(set(_got) ^ set(_want)),
+                                     "a promoted topic's title must identify its gap")
+    assert _got == _want, {k: (_want[k], _got[k]) for k in _want if _want[k] != _got[k]}
+
+    # ...and the anchored ones are exactly the gaps that named an element — by title, not by count.
+    _want_anchored = {k for k, v in _want.items() if v}
+    assert {t["title"] for t in readiness if t.get("anchor")} == _want_anchored, (
+        sorted({t["title"] for t in readiness if t.get("anchor")} ^ _want_anchored))
 
     # ...and `/pins` returns EXACTLY that anchored subset -- strictly fewer than the topic count.
     # Before PIN-ANCHOR this returned all eleven, and nothing here or anywhere else said so. The
@@ -96,6 +119,12 @@ with TestClient(app) as c:
     pins = c.get(f"/projects/{pid}/pins").json()
     readiness_pins = [t for t in pins if t.get("type") == "readiness"]
     assert len(readiness_pins) == len(anchorable), (len(readiness_pins), len(anchorable))
+    # Same identity check on the pin route: the right subset, carrying the right GlobalIds.
+    assert {t["title"] for t in readiness_pins} == _want_anchored, (
+        sorted({t["title"] for t in readiness_pins} ^ _want_anchored))
+    assert {t["title"]: list(t.get("element_guids") or []) for t in readiness_pins} == \
+        {k: _want[k] for k in _want_anchored}, \
+        "a pin must carry its GlobalIds in the order it was anchored from — `guids[0]` is the anchor"
     assert len(readiness_pins) < len(readiness), (
         len(readiness_pins), len(readiness),
         "`/pins` is the ANCHORED subset; equal counts mean the anchor filter is matching every row "

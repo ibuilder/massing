@@ -509,6 +509,68 @@ check("THE FIRST MIGRATION STILL NULLS IT — the divergence is real, not imagin
       mig._is_empty_guids(COPIES[0].malformed) is True,
       "if this ever becomes False the copies agree again and the note above is stale")
 
+# --- WRONG SHAPE IS NOT EMPTY EITHER, AND IT USED TO CRASH THE UPGRADE ---------------------------
+# `_is_empty_guids` iterates whatever it is handed, so a stored scalar -- `42`, `true`, `3.5` --
+# raised `TypeError: 'int' object is not iterable` and aborted the whole `alembic upgrade`, at deploy
+# time, on one bad row. `_is_empty_anchor` answered True for a decoded string or list, so an `anchor`
+# holding `["a"]` was NULLed silently, destroying the evidence `_decode` exists to preserve.
+#
+# Only `b3c9e42d18a5` carries the `_wrong_shape` guard: the two earlier migrations have already run
+# and cannot be changed, so their behaviour on these values is recorded below rather than fixed.
+# Found by review of PR #503.
+_SCALARS = (42, True, 3.5)
+for _v in _SCALARS:
+    check(f"a scalar {_v!r} is the wrong shape for element_guids", mig3._wrong_shape("element_guids", _v))
+    check(f"...and {_v!r} for anchor too", mig3._wrong_shape("anchor", _v))
+check("a list is the wrong shape for an anchor", mig3._wrong_shape("anchor", ["a"]))
+check("a string is the wrong shape for an anchor", mig3._wrong_shape("anchor", "txt"))
+check("a dict is the wrong shape for element_guids", mig3._wrong_shape("element_guids", {"x": 1}))
+check("...but NONE is absent, not wrong-shaped",
+      not mig3._wrong_shape("anchor", None) and not mig3._wrong_shape("element_guids", None),
+      "treating NULL as wrong-shaped would report every un-pinned row as evidence")
+check("...and the RIGHT shapes pass the guard",
+      not mig3._wrong_shape("anchor", {"x": 1, "y": 2, "z": 3})
+      and not mig3._wrong_shape("element_guids", ["G1"]),
+      "a guard that rejects valid data sweeps nothing")
+
+# The predicate still raises on a scalar — that is WHY the guard is at the call site. Asserting it
+# here keeps the reason visible: remove the guard and this is what reaches the predicate.
+try:
+    mig3._is_empty_guids(42)
+    check("the unguarded predicate still raises on a scalar", False,
+          "it no longer raises, so `_wrong_shape` may now be dead code — re-read why it exists")
+except TypeError:
+    check("the unguarded predicate still raises on a scalar — hence the guard", True)
+
+mig3.SKIPPED.clear()
+_eng7 = _sa.create_engine("sqlite://")
+with _eng7.begin() as _c:
+    _c.execute(_sa.text("CREATE TABLE mod_ncr (id TEXT PRIMARY KEY, anchor TEXT, element_guids TEXT)"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('scalar', NULL, '42')"))       # used to CRASH
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('listanchor', '[\"a\"]', NULL)"))  # silently nulled
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('empty', '{}', '[]')"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('real', "
+                        "'{\"x\": 1, \"y\": 2, \"z\": 3}', '[\"G1\"]')"))
+    _n7 = mig3._sweep(_c, "mod_ncr", ("anchor", "element_guids"))
+    _got7 = {r["id"]: (r["anchor"], r["element_guids"])
+             for r in _c.execute(_sa.text("SELECT * FROM mod_ncr")).mappings()}
+check("A SCALAR NO LONGER ABORTS THE UPGRADE — one bad row used to fail the whole deploy",
+      True, "")   # reaching here at all is the assertion; a TypeError above would have escaped
+check("...the scalar row is left exactly as it was", _got7["scalar"][1] is not None,
+      f"got {_got7['scalar']!r} — a value the sweep cannot judge is evidence")
+check("...the wrong-shaped anchor is left too, not silently nulled",
+      _got7["listanchor"][0] is not None,
+      f"got {_got7['listanchor']!r} — this is the half that failed QUIETLY")
+check("...and BOTH are reported by name",
+      sorted(mig3.SKIPPED) == [("mod_ncr", "listanchor", "anchor"), ("mod_ncr", "scalar", "element_guids")],
+      f"SKIPPED={sorted(mig3.SKIPPED)!r}")
+check("...while the genuinely empty row beside them is still swept", _got7["empty"] == (None, None),
+      f"got {_got7['empty']!r} — the guard must not stop the sweep doing its job")
+check("...and the real row survives untouched",
+      _got7["real"][0] is not None and _got7["real"][1] is not None)
+check("...and the count reflects only what changed", _n7 == 1, f"changed={_n7}")
+mig3.SKIPPED.clear()
+
 # --- THE SWEEP MUST NOT MUTATE THE CONNECTION IT WAS HANDED ---------------------------------------
 # `Connection.execution_options()` applies to the connection, not to one statement. The first draft
 # of the batching fix called it that way to get `stream_results`, so EVERY statement afterwards on
