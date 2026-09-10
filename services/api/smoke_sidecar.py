@@ -102,6 +102,45 @@ def find_binary(explicit: str | None) -> Path | None:
     return found[0] if len(found) == 1 else None
 
 
+def flatbuffer_root_table(raw: bytes) -> tuple[str, tuple[int, int, int, int] | None]:
+    """Walk a FlatBuffers buffer as far as its root TABLE, without a schema. Returns a reason and,
+    on success, `(root, vtable, vtable_size, table_size)`.
+
+    **Why not parse the real `Model` schema.** Review asked for that, and it would be a stronger
+    check — but it would import `aec_data.fragments.codec` into a harness that is deliberately
+    stdlib-only, so that it runs against a SHIPPED BINARY on a runner with nothing installed. The
+    thing under test is the bundle; a harness that needs the tree's Python environment to make its
+    assertion has moved the subject.
+
+    **Why the offset check alone was too weak, which review was right about.** It asked only that
+    the first word land inside the buffer, so a 5-byte payload starting `04 00 00 00` satisfied it.
+    A root table is more than an offset: at `root` sits a SIGNED backwards offset to a vtable, and
+    the vtable's first two `uint16`s are its own size and the table's. Requiring those to resolve
+    and be plausible costs no dependency and is a real structural parse.
+
+    Measured rather than argued, because "stronger" is a claim a check can fail to deliver: both
+    converters' real output passes (python root=36 vtable=10, node root=40 vtable=8), review's
+    5-byte counterexample fails, and of 2,000 random 1,424-byte buffers carrying a valid-looking
+    root offset, 0 were accepted.
+    """
+    if len(raw) < 8:
+        return f"too small to hold a root table ({len(raw)} bytes)", None
+    root = int.from_bytes(raw[:4], "little")
+    if not (4 <= root <= len(raw) - 4):
+        return f"root offset {root} outside the buffer", None
+    soffset = int.from_bytes(raw[root:root + 4], "little", signed=True)
+    vtable = root - soffset                       # tables point BACKWARDS to their vtable
+    if not (0 <= vtable <= len(raw) - 4):
+        return f"vtable at {vtable} outside the buffer (root {root}, soffset {soffset})", None
+    vtable_size = int.from_bytes(raw[vtable:vtable + 2], "little")
+    table_size = int.from_bytes(raw[vtable + 2:vtable + 4], "little")
+    if not (4 <= vtable_size <= len(raw) - vtable):
+        return f"vtable size {vtable_size} implausible", None
+    if not (4 <= table_size <= len(raw) - root):
+        return f"table size {table_size} implausible", None
+    return "root table resolves", (root, vtable, vtable_size, table_size)
+
+
 def free_port() -> int:
     """A port nothing is listening on, proven by binding it. Released immediately, so this is a
     narrow race — but the alternative is a hardcoded 8765 that a leftover process may already own,
@@ -259,18 +298,19 @@ def convert_a_model(port: int, expect: str, timeout: float) -> None:
         return
 
     # `.frag` is zlib(flatbuffers). Decompressing proves real content rather than a stub, and the
-    # flatbuffer root offset has to land inside the buffer — a cheap structural check that a
-    # truncated or empty write fails. Not a size floor: a floor is a number, this is a property.
+    # root TABLE is then walked — see `flatbuffer_root_table`. Not a size floor: a floor is a
+    # number, this is a property.
     raw, why = b"", ""
     try:
         raw = zlib.decompress(frag)
     except Exception as e:                                           # noqa: BLE001 — reported below
         why = f"{type(e).__name__}: {e}"
-    root = int.from_bytes(raw[:4], "little") if len(raw) >= 4 else -1
-    check("the served bytes are a real fragment — zlib-compressed flatbuffers whose root offset "
-          "lands inside the buffer",
-          bool(raw) and 4 <= root < len(raw),
-          f"{len(frag)} compressed -> {len(raw)} bytes, root offset {root}"
+    reason, shape = flatbuffer_root_table(raw)
+    check("the served bytes are a real fragment — zlib-compressed flatbuffers with a root table "
+          "whose vtable resolves inside the buffer",
+          shape is not None,
+          f"{len(frag)} compressed -> {len(raw)} bytes; {reason}"
+          + (f"; root {shape}" if shape else "")
           + (f"; zlib {why}" if why else ""))
 
 
