@@ -1,3 +1,33 @@
+
+/** The field-verification coverage card, as HTML.
+ *
+ *  Pure and exported so the evidence disclosure below can be driven directly: `reportCenter` builds
+ *  its tools inside a closure over a live `ApiClient`, and a card nobody can render alone is a card
+ *  whose behaviour nobody can assert.
+ *
+ *  **Why the second line exists.** The route returns five evidence fields and this client declared
+ *  none of them, so the card showed "N verified · M deviations" with no indication of how much of
+ *  that is photographed. The route's own comment on `deviations_without_photo` says why that matters:
+ *  *"the handover number. A deviation with no photo is an assertion with nothing behind it."*
+ *
+ *  Evidence percentages are against TRACKED elements, which is the route's deliberate choice — an
+ *  element nobody has looked at yet is not missing evidence, it simply has not been started — so the
+ *  denominator is named on screen rather than left for the reader to assume. */
+export function verificationCoverageCard(c: {
+  total_elements: number; tracked: number; verified: number; installed: number; deviations: number;
+  verified_pct: number; installed_pct: number; with_photo: number; evidence_pct: number;
+  deviations_without_photo: number;
+}): string {
+  const unphotographed = c.deviations_without_photo;
+  return `<div style="font-size:22px;font-weight:700">${c.verified_pct}% verified · ${c.installed_pct}% installed</div>`
+    + `<div class="meta">${c.verified} verified · ${c.installed} installed · ${c.deviations} deviations · of ${c.total_elements} elements</div>`
+    + `<div class="meta">${c.evidence_pct}% photographed (${c.with_photo} of ${c.tracked} tracked)</div>`
+    + (unphotographed > 0
+        ? `<div class="meta" style="color:#b45309">${unphotographed} of ${c.deviations} deviation`
+          + `${c.deviations === 1 ? "" : "s"} ha${unphotographed === 1 ? "s" : "ve"} no photo — `
+          + `not evidenced for handover</div>`
+        : "");
+}
 import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
 import { money } from "./ui/charts";
 import { toast, escapeHtml } from "./ui/feedback";
@@ -574,9 +604,7 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("✓ Field-verification coverage", () => showResult("Field-verification coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const c = await api.verificationCoverage(pid); body.innerHTML =
-      `<div style="font-size:22px;font-weight:700">${c.verified_pct}% verified · ${c.installed_pct}% installed</div>`
-      + `<div class="meta">${c.verified} verified · ${c.installed} installed · ${c.deviations} deviations · of ${c.total_elements} elements</div>`; }
+    try { body.innerHTML = verificationCoverageCard(await api.verificationCoverage(pid)); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
 

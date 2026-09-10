@@ -926,6 +926,30 @@ instances:
   payment-application schedule of values. Each of the 46 still needs reading to separate a real
   disclosure gap from an internal or debug key.
 
+  **FIRST CASE FIXED, AND THE SIZING TOOK FIVE TRIES TO BECOME HONEST.** `/verification/coverage`
+  returns thirteen keys; `apps/web/src/api/model.ts` declared eight. The five missing were the whole
+  evidence half, and the route's own comment on `deviations_without_photo` calls it *"the handover
+  number. A deviation with no photo is an assertion with nothing behind it."* Now declared and
+  rendered, with `apps/web/src/reportCenter.verification.test.ts` pinning it and five mutations.
+
+  *The derivation was wrong four times before it was right, each time in a way that looked rigorous:*
+  ranking by undeclared-key count put the LEAST actionable case top, because a high score means the
+  client never calls the route at all (`/bcf/2.1/auth` scores 4/4 and is correct as-is — BCF serves
+  third-party tools). Matching a client by path PREFIX made siblings under `/proforma/scenarios/` look
+  consumed when neither the GET nor the PUT has a client method. Then the fix for that was too tight:
+  normalising `{pid}` before `${pid}` left a stray `$`, so **six real cases collapsed to one** and only
+  a hand-verified case going missing revealed it. And the key-presence test matched identifiers
+  tree-wide — the very flaw the identifier derivation above has — so `forecast_returns` on
+  `/draw-package` was silently excluded. **A predicate that decides what to LOOK at hides its own
+  misses, in both directions.** The remaining candidates need the checker, not another regex: a
+  textual scan of a typed language cannot resolve a named return type, a nested literal, or a
+  multi-line span, and this one reported `id` undeclared on a route that plainly declares it.
+
+  **A SEPARATE FINDING, deliberately not folded in: 19 route handlers have NO web client at all.**
+  That is a different question with a different answer each time — `/bcf/2.1/auth` is correct,
+  `/projects/{pid}/pins/all` looks like a gap. `ARCH-REACH` cannot see it: it asks whether a MODULE is
+  reachable from a route, not whether a ROUTE has a caller.
+
   *Two bugs in the derivation itself were found on the way, both the same shape as the axis's own
   lesson.* Anchoring field matching at two-space indent cannot see a **nested** field — and this
   axis's one load-bearing defect, `ResponsibilityMatrix.validation.*`, was nested. Including the
@@ -2005,7 +2029,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
