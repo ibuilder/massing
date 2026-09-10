@@ -8,21 +8,19 @@ the IFC, set it as the project's source of truth, publish (convert→.frag + rei
 and solve a starter acquisition proforma seeded from the generated program."""
 from __future__ import annotations
 
-import sys
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import audit, design_phase, soft_costs, storage
+from ..apppaths import add_data_src_to_path
 from ..db import get_db
 from ..models import Project
 from ..proforma.solve import solve
 from ..rbac import authorize_pid, current_user, require_role
-from .authoring import _DATA_SRC, _IFC_DIR, _ifc_path, _publish_bg
+from .authoring import _IFC_DIR, _ifc_path, _publish_bg
 
-if str(_DATA_SRC) not in sys.path:
-    sys.path.insert(0, str(_DATA_SRC))
+add_data_src_to_path()
 
 router = APIRouter()
 

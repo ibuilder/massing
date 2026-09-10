@@ -19,11 +19,31 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy import JSON, Column, DateTime, Index, String, Table
 
+from .apppaths import bundle_dir, repo_root
 from .db import Base
 
-# repo layout: services/api/modules; the frozen desktop build sets AEC_MODULES_DIR to the
-# bundled copy (PyInstaller _MEIPASS/modules) since __file__ no longer resolves there.
-MODULES_DIR = Path(os.environ.get("AEC_MODULES_DIR") or (Path(__file__).resolve().parents[2] / "modules"))
+
+# `services/api/modules` in a checkout, `<bundle>/modules` in a frozen build, or whatever
+# AEC_MODULES_DIR names. The bundled default is stated HERE rather than left to the desktop
+# entry point to set: this module is imported by things that never go through it, and a
+# default that only one caller installs is a default that is usually absent.
+def _default_modules_dir() -> Path:
+    bundle = bundle_dir()
+    if bundle:
+        return bundle / "modules"
+    root = repo_root()
+    if root:
+        return root / "services" / "api" / "modules"
+    # Neither a bundle nor a checkout (an installed package). `Path("modules")` would be the
+    # obvious last resort and is the wrong one: it is CWD-relative, so what it names depends on
+    # where the process happened to be started, and `load_registry` would find a different
+    # catalog -- or somebody else's -- depending on the working directory. An absolute path
+    # beside this package is deterministic; it not existing is the honest answer, and
+    # AEC_MODULES_DIR is how such an install says where the catalog really is.
+    return Path(__file__).resolve().parent / "modules"
+
+
+MODULES_DIR = Path(os.environ.get("AEC_MODULES_DIR") or _default_modules_dir())
 
 REGISTRY: dict[str, dict] = {}
 TABLES: dict[str, Table] = {}

@@ -18,9 +18,34 @@ import ifcopenshell.api
 
 from . import families
 
-# committed under services/data/families/ so the library ships with the repo
-LIBRARY_DIR = Path(__file__).resolve().parents[2] / "families"
-LIBRARY_PATH = LIBRARY_DIR / "library.ifc"
+
+def _checkout_root() -> Path | None:
+    """The repository this file lives in, or None (a packaged build has no checkout).
+
+    Deliberately a walk to the repo's SHAPE rather than `parents[N]`: the count that used to
+    be here is right in a checkout and names a temporary directory inside a PyInstaller
+    bundle, which is the defect `services/api/test_frozen_paths.py` exists to forbid. This is
+    a small duplicate of `aec_api.apppaths.repo_root` on purpose -- `aec_data` must not
+    import `aec_api`, and a shared helper would invert the layering to save six lines.
+
+    **It must use the SAME marker as that function, and the first draft did not.** This looked
+    for `apps/` + `services/`, which is what a git checkout has; `apppaths` deliberately does not
+    use that, because the production API image is `/app` with `services/` and no `apps/` at all.
+    Two helpers whose docstrings say they agree and whose code does not is the drift this
+    repository keeps paying for -- so the marker below is `apppaths._ROOT_MARKER`, spelled out
+    rather than imported.
+    """
+    for d in Path(__file__).resolve().parents:
+        if (d / "services" / "api" / "src").is_dir():
+            return d
+    return None
+
+
+# committed under services/data/families/ so the library ships with the repo. None outside a
+# checkout: this script REGENERATES a committed artifact, so there is nowhere else to put it.
+_ROOT = _checkout_root()
+LIBRARY_DIR = (_ROOT / "services" / "data" / "families") if _ROOT else None
+LIBRARY_PATH = (LIBRARY_DIR / "library.ifc") if LIBRARY_DIR else None
 
 
 def build_model(name: str = "Massing Family Library") -> ifcopenshell.file:
@@ -36,7 +61,21 @@ def build_model(name: str = "Massing Family Library") -> ifcopenshell.file:
     return model
 
 
-def build(out_path: Path = LIBRARY_PATH) -> dict:
+def build(out_path: Path | None = LIBRARY_PATH) -> dict:
+    """Regenerate `library.ifc`. Refuses, loudly, when there is nowhere to write it.
+
+    **This guard exists because this change created the hole.** Making `LIBRARY_PATH`
+    optional (correct: outside a checkout there IS no committed artifact to regenerate)
+    left the annotation saying `Path` and the body dereferencing `out_path.parent`, so
+    `python -m aec_data.build_family_library` outside a source tree raised `AttributeError:
+    'NoneType' object has no attribute 'parent'` -- a confusing crash in place of a clear
+    refusal. Caught in review, not by any test: no test runs this module outside a checkout,
+    because there is no such thing in CI.
+    """
+    if out_path is None:
+        raise RuntimeError(
+            "no checkout: build_family_library regenerates a committed artifact under "
+            "services/data/families and has nowhere to write outside a source tree")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     model = build_model()
     model.write(str(out_path))

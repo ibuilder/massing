@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
-from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, drawingset, issuance, pdfops, sheetgen
+from ..apppaths import add_data_src_to_path
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
 from ..rbac import require_identified, require_role
 from ..throttle import rate_limited
 
-_DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
-if str(_DATA_SRC) not in sys.path:
-    sys.path.insert(0, str(_DATA_SRC))
+add_data_src_to_path()
 
 router = APIRouter()
 log = logging.getLogger(__name__)

@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The Linux desktop app could not start
+
+The published AppImage and .deb quit before they drew a window. The bundled server looked for the
+web build by walking a fixed number of directories up from its own file — a number that is right in
+a source checkout and wrong inside a packaged app, where the code is unpacked into a temporary
+directory. On Linux the default temporary path is exactly one level too shallow, so the walk ran off
+the top of the filesystem and the process died with `IndexError` before it ever reached the copy of
+the web build packaged beside it.
+
+The same binary starts normally when the temporary directory is deeper, which is why macOS and
+Windows were unaffected: their temporary paths are twice as deep. It was found by downloading the
+released build and running it, not by reading code.
+
+**Fixing that one file would not have fixed the app.** Three modules counted directories the same
+way, and two of them did it while being imported rather than inside a function — so the app would
+have stopped one line later, in a different file, with the same kind of error. Every place that
+looks for the program's own files now asks one shared question that recognises a packaged build and
+says "there is no source checkout here", instead of counting directories and hoping.
+
+Twelve more places were counting correctly enough not to crash and still pointing outside the
+packaged app — two of them at directories that have never existed in the source either. Because each of them checks whether the directory is there before using it, none
+of that ever surfaced: a wrong answer and a missing folder look identical, and something else quietly
+answered instead. Those are corrected too, and a build-time check now refuses any new one.
+
+Nothing in the release pipeline launches the application it builds, which is why every check was
+green. That gap is now recorded as work of its own.
+
 ### The guard against a test writing into your database was itself half blind
 
 An earlier change added a rule: a test that can create a schema must decide which database it creates
@@ -27,6 +54,13 @@ rule, in the part of the codebase the rule could not see.
 
 The four are fixed, and the check now recognises a test that starts the application. The rule was
 being enforced on 32 files; it is now enforced on 383.
+
+A follow-up widened it again, after review pointed out that the check recognised only one of the
+three ways a test can start the application. It now also recognises a client that is stored in a
+variable before being started, and one imported under a different name. **No file in the suite was
+being missed** — every file written the first way is also written the second — but a check that is
+narrower than the rule it stands for is a gap with nobody in it yet, and the tree agreeing with it
+today is exactly what makes the gap invisible.
 
 ### An issue tied to a wall shows on the model, whatever register it lives in
 

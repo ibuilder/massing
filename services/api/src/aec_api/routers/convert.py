@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from starlette.concurrency import run_in_threadpool
 
 from .. import storage
+from ..apppaths import converter_cli, have_converter
 from ..rbac import current_user
 from ..serving import content_disposition
 from ..throttle import rate_limited
@@ -45,8 +46,6 @@ async def convert_citygml(file: UploadFile = File(...), _: str = Depends(current
     if not fc["features"]:
         raise HTTPException(422, "No building footprints found in the CityGML (need posList rings).")
     return fc
-
-_CONVERTER = Path(__file__).resolve().parents[4] / "services" / "converter" / "src" / "cli.mjs"
 
 
 def _aps_configured() -> bool:
@@ -77,10 +76,15 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
             # that existed the whole time. `stream_to_path` also writes `.part` then renames, so a
             # failed upload cannot leave a truncated .rvt that the converter would happily open.
             await run_in_threadpool(storage.stream_to_path, rvt, storage.upload_chunks(file))
+            if not have_converter():
+                # No checkout, so no cli.mjs -- refuse rather than hand `subprocess` the string
+                # "None" and report the resulting node failure as a translation error.
+                raise HTTPException(503, "RVT translation is unavailable in this install "
+                                         "(the Node converter is not present).")
             try:
                 # The APS translation can run for many minutes; never block the event loop on it.
                 await run_in_threadpool(
-                    lambda: subprocess.run(["node", str(_CONVERTER), "--rvt", str(rvt), str(frag)],
+                    lambda: subprocess.run(["node", str(converter_cli()), "--rvt", str(rvt), str(frag)],
                                            check=True, capture_output=True, timeout=1800))
             except subprocess.CalledProcessError as e:
                 # Log the subprocess stderr server-side for debugging; return a generic error so
@@ -120,11 +124,8 @@ async def inspect_vim(file: UploadFile = File(...), _: str = Depends(current_use
     """Inspect an uploaded VIM / G3D (Ara3D/VIM binary family) — schema/version, buffer inventory and
     geometry stats (vertex/index counts + bounding box) via a pure-Python BFAST reader. Fully offline;
     data-layer inspection (full VIM entity decode + viewer streaming are a follow-up)."""
-    import sys
-    from pathlib import Path
-    _data_src = Path(__file__).resolve().parents[4] / "data" / "src"
-    if str(_data_src) not in sys.path:
-        sys.path.insert(0, str(_data_src))
+    from ..apppaths import add_data_src_to_path
+    add_data_src_to_path()
     from aec_data import bfast  # type: ignore
     data = await file.read()
     name = (file.filename or "model.vim").lower()

@@ -41,6 +41,29 @@ reopened = ifcopenshell.open(str(LIBRARY_PATH))
 assert len(reopened.by_type("IfcTypeProduct")) == len(families.CATALOG), "library.ifc type count"
 assert reopened.schema == "IFC4", reopened.schema
 
+# --- OUTSIDE a checkout there is nowhere to write, and that must be a refusal, not a crash -------
+# `LIBRARY_PATH` became Optional when the directory count that produced it was replaced with a walk
+# to the repository's shape: outside a source tree there IS no committed artifact to regenerate. The
+# annotation still said `Path` and the body still did `out_path.parent`, so
+# `python -m aec_data.build_family_library` off a checkout raised
+# `AttributeError: 'NoneType' object has no attribute 'parent'`.
+#
+# This case exists because a mutation said it had to: deleting the guard left every other test in
+# this file green, since they all run in a checkout where LIBRARY_PATH is a real path. A guard whose
+# removal nothing notices is a guard nobody has checked.
+from aec_data.build_family_library import build  # noqa: E402
+
+try:
+    build(None)
+except RuntimeError as e:
+    assert "no checkout" in str(e), f"wrong refusal message: {e}"
+except AttributeError as e:                      # the pre-fix behaviour
+    raise AssertionError(
+        f"build(None) crashed instead of refusing: {e!r}. Outside a source tree this must say what "
+        f"is wrong, not dereference None.") from None
+else:
+    raise AssertionError("build(None) returned a result; it has nowhere to write and must refuse")
+
 # --- endpoints: library listing + place-from-library into a generated project ---
 from fastapi.testclient import TestClient  # noqa: E402
 
