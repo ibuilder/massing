@@ -34,6 +34,14 @@ check in the application caught them — but on a busy project the count was inf
 could fill up with records that have no pin at all. Absent is now stored as absent, existing rows
 are converted on upgrade, and the create form no longer writes an empty marker where it means none.
 
+One more thing it fixes, found because a test started failing: the viewer's pin list was returning
+**every issue on the project**, not the pinned ones. It has a ceiling of 2,000 and keeps the newest,
+so on a project with more than that many issues the viewer could show almost no pins while having
+plenty — the ceiling was being spent on issues that were never pins. It now returns exactly the
+pinned ones. Note that this means the number it returns gets smaller, and correctly so: an issue
+recorded against the whole model rather than a specific element has nowhere to be drawn, and is
+still in the issue list.
+
 **The gate written for this could not detect the bug it was written for, and only deliberately
 re-breaking the code found that out.** The test passed with the fix removed, because the "null"
 problem underneath made the broken and fixed versions behave identically.

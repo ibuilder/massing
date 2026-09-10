@@ -1202,6 +1202,17 @@ instances:
   that admits everything looks exactly like one that works.** The four pin columns now declare
   `JSON(none_as_null=True)`.
 
+  **A fourth reader was over-returning too, and only a failing test found it.** `GET /projects/{pid}/pins`
+  filters `Topic.anchor IS NOT NULL` and caps at `limit=2000`, documented as *"keeps the NEWEST pins
+  (desc)"*. With every row matching that filter it was a cap on the newest 2,000 **topics**, so a
+  project past that could return a window holding few pins or none while having plenty -- the
+  LIMIT-FILTER shape (#490), live in the route the viewer overlay calls, invisible because the filter
+  beside the cap looked like it narrowed. `services/api/test_readiness_bcf.py` was the only thing
+  measuring the difference and it was asserting the WRONG side: it read `/pins` to check that all
+  eleven readiness topics existed, and passed because `/pins` returned all eleven. It now reads
+  `/topics` for that, and asserts separately that `/pins` is the strictly smaller anchored subset --
+  which fails `(11, 7)` when the fix is reverted.
+
   Three more things came out of it, each recorded where it can fail rather than here:
 
   * `modules.create_record` persisted `anchor: {}` and `element_guids: []` verbatim. Migration
