@@ -20,21 +20,25 @@ at all: every automated check reads the source code, and the fault only existed 
 copy. The checks were green and the app was broken, and those two facts had nothing to do with each
 other.
 
-Each build now starts the packaged app and uses it before the release is allowed to proceed — under
-the exact conditions the crash needed, since the same app started fine under slightly different
-ones. It has to answer, reach its database, list every one of the 139 registers, and serve the
-interface. The Linux build is checked twice: once as it comes out of the build, and once unpacked
-from the installer a user would actually download.
+Every build now starts the server the app runs on and uses it before the release is allowed to
+proceed — under the exact conditions the crash needed, since the same build started fine under
+slightly different ones. It has to answer, reach its database, list every one of the 139 registers,
+and serve the interface. On Linux that happens twice, and the second time is the one that counts:
+the server is taken back out of the finished installer, the file a user would actually download, and
+started from there. On Windows and macOS only the first check runs — the installers themselves are
+still built and published without being opened.
 
 The check is deliberately unable to pass quietly. If the app it is supposed to test is missing, that
 is a failure rather than a skip — "nothing was wrong" and "nothing was looked at" are the two
 outcomes that must never be confused. It compares the registers it gets against the registers the
-project defines, rather than against a round number, because an app that had silently lost thirty of
-them would clear a round number. And it was itself tested against three deliberately broken builds
-before being trusted, including a reproduction of the crash that shipped.
+project defines — by name, one for one — rather than against a round number, because an app that had
+silently lost thirty of them would clear a round number, and one that lost a register while
+double-loading another would clear a count. And it was itself tested against three deliberately
+broken builds before being trusted, including a reproduction of the crash that shipped.
 
-One thing it still does not do is convert a model, so that part of the packaged app remains checked
-by other means; that is recorded rather than left to be assumed.
+One thing it still does not do is convert a model. The converter itself is tested, but not from
+inside a finished build — so whether model conversion survives packaging is genuinely unknown rather
+than checked another way, and it is written down as an open item instead of being counted as done.
 
 ### The desktop app can show you the model it just built
 

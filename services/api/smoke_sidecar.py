@@ -90,6 +90,13 @@ def free_port() -> int:
 
 
 def port_is_free(port: int) -> bool:
+    """Re-check the port `free_port` picked, after it released the socket.
+
+    Two functions rather than one because they answer different questions at different moments:
+    `free_port` chooses, this confirms the choice still holds at launch. The gap between them is the
+    race, and it is narrow but real — which is why the confirmation is an assertion the reader can
+    see fail rather than an assumption folded into the picking.
+    """
     with contextlib.closing(socket.socket()) as s:
         try:
             s.bind(("127.0.0.1", port))
@@ -99,6 +106,13 @@ def port_is_free(port: int) -> bool:
 
 
 def get(url: str, timeout: float = 10.0) -> tuple[int, bytes, str]:
+    """GET `url`, returning (status, body, content-type) — and status **0** when nothing answered.
+
+    The 0 is load-bearing, not a shortcut. While the sidecar is still starting there is no listener,
+    so a connection error is the expected reading and the poll loop must be able to tell it apart
+    from a real reply; raising would make "not up yet" and "up and broken" the same event. An HTTP
+    error status is NOT collapsed into it — a 500 is an answer, and comes back as 500.
+    """
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:      # noqa: S310 — fixed 127.0.0.1
             return r.status, r.read(), r.headers.get("content-type", "")
@@ -192,18 +206,40 @@ def main() -> int:
             if st == 200:
                 with contextlib.suppress(Exception):
                     mods = json.loads(body)
-            served = len(mods) if isinstance(mods, list) else -1
-            # DERIVED, not a floor. The tree is checked out beside the binary in CI, so the question
-            # is answerable exactly: the bundle must serve every module the tree declares. A ">100"
-            # threshold would pass a bundle that silently dropped thirty catalogs, which is the shape
-            # of defect the `datas` list produces when a glob stops matching.
-            declared = len(list(CATALOG.glob("*/module.json"))) if CATALOG.is_dir() else 0
+            served = [m.get("key") for m in mods] if isinstance(mods, list) else []
+
+            # DERIVED, and by IDENTITY rather than by count. The tree is checked out beside the
+            # binary in CI, so the question is answerable exactly: which modules does the bundle
+            # serve, and are they the ones the tree declares? A `>100` floor passes a bundle that
+            # silently dropped thirty catalogs — the shape of defect a `datas` glob produces when it
+            # stops matching — and a count comparison still passes one that dropped a module and
+            # double-loaded another. Comparing sets names WHICH module went missing, which is the
+            # difference between a failure you can act on and a number that went down.
+            #
+            # The declared id is read from each `module.json`'s `key`, not from its directory name.
+            # They agree today, all 139 of them, and that is exactly why the field is the right one:
+            # `key` is what the route serves, and a check should compare the thing itself rather than
+            # a proxy that happens to match.
+            declared = set()
+            for mj in sorted(CATALOG.glob("*/module.json")) if CATALOG.is_dir() else []:
+                with contextlib.suppress(Exception):
+                    declared.add(json.loads(mj.read_text(encoding="utf-8")).get("key"))
             check("the module catalog in the tree is non-empty — otherwise the comparison below "
-                  "compares nothing", declared > 0, f"{declared} module.json under {CATALOG}")
-            check("GET /modules serves every module the tree declares — the bundled module.json "
-                  "datas landed, all of them",
-                  st == 200 and served == declared > 0,
-                  f"status {st}, served {served}, declared {declared}")
+                  "compares nothing", bool(declared), f"{len(declared)} module.json under {CATALOG}")
+
+            missing = sorted(k for k in declared if k not in served)
+            extra = sorted(k for k in set(served) - declared if k is not None)
+            # Duplicate-aware: two entries for one key is not "the right modules". A bundle carrying
+            # a stale copy of a catalog alongside the current one would serve the same key twice, and
+            # a set comparison alone would call that correct.
+            dupes = sorted({k for k in served if served.count(k) > 1})
+            check("GET /modules serves exactly the modules the tree declares, once each — the "
+                  "bundled module.json datas landed, all of them and nothing else",
+                  st == 200 and bool(declared) and not missing and not extra and not dupes,
+                  f"status {st}, served {len(served)} of {len(declared)} declared"
+                  + (f", MISSING {missing[:8]}" if missing else "")
+                  + (f", UNEXPECTED {extra[:8]}" if extra else "")
+                  + (f", DUPLICATED {dupes[:8]}" if dupes else ""))
 
             st, body, ct = get(f"http://127.0.0.1:{port}/")
             check("GET / serves the bundled SPA — the packaged web/ datas landed and are mounted",

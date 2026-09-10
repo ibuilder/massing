@@ -1150,10 +1150,14 @@ instances:
   no source-level check can ask — `datas` either carried those directories in or it did not, and the
   tree says nothing either way.
 
-  **The module count is DERIVED, not a floor.** `> 100` would pass a bundle that silently dropped
-  thirty catalogs, which is precisely what a `datas` glob does when it stops matching; the harness
-  counts `services/api/modules/*/module.json` in the checked-out tree and demands the served list
-  equal it. Vacuity guards for the same reason: a missing binary FAILS rather than skips, the port is
+  **The module set is DERIVED, and compared by IDENTITY rather than by count.** `> 100` would pass a
+  bundle that silently dropped thirty catalogs, which is precisely what a `datas` glob does when it
+  stops matching. A count comparison is better and still not enough: it passes a bundle that lost one
+  catalog and double-loaded another. So the harness reads each `services/api/modules/*/module.json`'s
+  `key` — the same field the route serves, rather than the directory name that happens to match it —
+  and requires the served list to be exactly that set, once each, naming which module went missing.
+  **That strengthening came from review of this change, and the mutation proving it is the one a
+  count could not kill**: 139 declared, 139 served, one swapped for a decoy, and it fails. Vacuity guards for the same reason: a missing binary FAILS rather than skips, the port is
   proven free before launch so a reply cannot have come from something already listening, and an
   early child exit prints the child's own output — for a frozen-path defect that traceback is the
   only evidence there is.
