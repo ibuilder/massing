@@ -45,6 +45,16 @@ def available() -> bool:
 def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
     """Convert `src` (.ifc) to `dst` (.frag). Returns which converter ran: `NODE` or `PYTHON`.
 
+    **`timeout` binds the NODE path only, and that asymmetry is a known gap rather than a choice.**
+    `subprocess.run` kills a child that overruns; the Python path calls IfcOpenShell in-process, where
+    nothing can interrupt it, so a slow model occupies the caller until it finishes. For `_publish`
+    that is a background worker and harmless. For `edit_preview` — a synchronous route passing
+    `timeout=120` — it is a request worker held past its own deadline instead of reaching the 503.
+    Honouring it needs the conversion in a killable child process, which is net-new machinery in a
+    PyInstaller bundle (`multiprocessing` spawn re-execs the frozen app unless `freeze_support` is
+    wired), so it is filed as DESKTOP-CONVERT-TIMEOUT rather than rushed in here. Until then the
+    parameter is documented as partial rather than quietly ignored.
+
     Raises on failure. It does NOT promise `dst` is untouched afterwards: the Node path streams and
     can leave a truncated file behind, and only the Python path writes in one go. So a raise means
     "do not use `dst`", not "`dst` does not exist" — both callers convert into a temporary directory

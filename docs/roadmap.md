@@ -1140,6 +1140,37 @@ instances:
   `aec-bim-server` with a deliberately SHALLOW `TMPDIR`, and fail unless `/health` answers. That
   exact configuration is what broke; a smoke test on a deep temp path would have passed.
 
+- **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
+  2026-09-10 by review of #504)*
+
+  `services/api/src/aec_api/fragconvert.py` takes a `timeout` and applies it only to the Node path,
+  where `subprocess.run` can kill an overrunning child. The Python path calls IfcOpenShell
+  in-process, so nothing can interrupt it. `_publish` runs on a background worker and does not care;
+  **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model holds a
+  request worker past its own deadline rather than reaching the 503 the caller is written to expect.
+
+  The fix is a killable child process, and the reason it is filed rather than done is the target
+  platform: the desktop app is a PyInstaller bundle, where `multiprocessing` spawn re-execs the
+  frozen executable unless `freeze_support()` is wired at the entry point, and this repository has
+  no process-isolation pattern to copy — `multiprocessing` appears once, for `cpu_count()`.
+  Net-new spawning machinery for a frozen app is not something to land on a PR that CI never ran.
+
+- **PIN-SWEEP-PGNULL — the JSON-null sweep skips the rows it exists to convert, on Postgres**
+  *(S — Lane C; opened 2026-09-10 by review of #504, but the code is in `main` via #503)*
+
+  `migrations/versions/2026_09_10_1700-b3c9e42d18a5_pin_anchor_register_sweep.py` decodes each value
+  and skips `v is None`. On SQLite the JSON scalar `null` arrives as the TEXT `'null'` and decodes to
+  `None` *after* the sweep has already selected it, so the conversion happens. **On PostgreSQL a
+  `json` column holding the scalar `null` is non-`NULL` in SQL and the driver hands back Python
+  `None`** — indistinguishable, at that point, from a row that was already SQL `NULL`. The sweep
+  therefore skips exactly the legacy rows it was written to fix, and reports them as nothing to do.
+
+  This is the same `null`-is-not-`NULL` distinction the PR that introduced the migration was about,
+  reappearing one layer up in the sweep's own reader. *A migration that fixes a representation
+  problem has to be careful not to inherit it.* The fix is to select on a SQL-level null-state
+  marker rather than on the decoded value; the gate needs a Postgres case, since the dialect is the
+  whole defect and SQLite cannot express it.
+
 - ✅ ⭐ **DESKTOP-FRAGMENTS — the desktop app could author a model but never render one**
   *(M — Lane J; **CLOSED**, fix in this change; the shape was the user's call and they made it:
   "python always python". Gated by `services/api/test_fragments_python.py` and

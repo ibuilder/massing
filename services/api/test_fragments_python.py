@@ -87,6 +87,41 @@ check("every shell is tagged as a shell, not a point cloud",
       f"classes={sorted({m.representation_class for m in model.meshes})} — a misplaced struct byte "
       f"reads as class 0 and the viewer draws no surface")
 
+# A NON-ZERO offset, round-tripped. A presence check alone would pass on a field written to the
+# wrong slot or with the wrong layout, and `(0, 0, 0)` is indistinguishable from "read nothing" —
+# which is exactly how the omission hid. `coordinates` is an inline struct, so writing it as a table
+# (the shape the recovered schema first claimed) survives a presence check and fails this one.
+from aec_data.fragments import FragModel, dumps  # noqa: E402
+
+_probe = FragModel(guid="g", metadata="{}", coordinates=(1234.5, -67.25, 890.125),
+                   meshes=model.meshes[:1], meshes_items=[0])
+_rt = loads(dumps(_probe))
+check("a NON-ZERO model placement survives a write/read round-trip",
+      _rt.coordinates == (1234.5, -67.25, 890.125),
+      f"wrote (1234.5, -67.25, 890.125), read back {_rt.coordinates} — the offset is what keeps a "
+      f"georeferenced model near the scene origin, so losing it loses float precision everywhere")
+
+# ...AND THE OTHER HALF OF THE SAME CLAIM. The two assertions above both passed with the vertices
+# left in world coordinates: `coordinates` was present, correct and round-tripped, while nothing was
+# measured against it. **An offset is only an offset relative to something**, so storing one and
+# storing geometry that ignores it is the same defect wearing a passing test — caught here because
+# removing the subtraction in `from_ifc` was mutated and SURVIVED the two checks above.
+# The threshold is derived from what `from_ifc` actually does, not picked to pass: it centres on the
+# BOUNDING BOX, so after subtraction the bounds centre is exactly zero and only float32 storage
+# rounding survives. A first draft compared the vertex CENTROID against the model's own extent and
+# the mutation sailed through it — a 1.5 m offset is unremarkable next to a 20 m building. *A
+# tolerance wide enough to be safe is usually wide enough to be useless.*
+_pts = [p for m in model.meshes for p in m.points]
+_lo = tuple(min(p[k] for p in _pts) for k in range(3))
+_hi = tuple(max(p[k] for p in _pts) for k in range(3))
+_centre = tuple((_lo[k] + _hi[k]) / 2 for k in range(3))
+_eps = max(1e-3, max(_hi[k] - _lo[k] for k in range(3)) * 1e-5)
+check("STORED VERTICES ARE RELATIVE TO THAT PLACEMENT, not world coordinates",
+      all(abs(c) <= _eps for c in _centre),
+      f"bounds centre {tuple(round(c, 4) for c in _centre)} exceeds {_eps:.5f} — geometry is still "
+      f"in world space while `coordinates` separately claims the placement, so the offset is either "
+      f"ignored or applied twice. Both halves must move together.")
+
 # --- 2. VOIDS ARE NOT SOLIDS ----------------------------------------------------------------------
 # The headline defect. An opening is the hole cut for the door, not a thing to draw.
 import ifcopenshell  # noqa: E402
@@ -243,8 +278,14 @@ else:
             'const m=F.Model.getRootAsModel(bb);\n'
             'const g=[];for(let i=0;i<m.guidsLength();i++)g.push(m.guids(i));\n'
             'const me=m.meshes();\n'
+            # `coordinates()` is read THROUGH the reference exactly as the viewer's getCoordinates
+            # does — `.position()` with no null guard. A fragment that omits the field returns null
+            # here and throws there, which is how it shipped: parsing succeeded, so nothing noticed.
+            'let coords=null;\n'
+            'if(me){const c=me.coordinates(); if(c){const p=c.position();\n'
+            '  coords=[p.x(),p.y(),p.z()];}}\n'
             'console.log(JSON.stringify({guids:g,shells:me?me.shellsLength():0,\n'
-            '  cats:m.categoriesLength(), localIds:m.localIdsLength(),\n'
+            '  cats:m.categoriesLength(), localIds:m.localIdsLength(), coords:coords,\n'
             '  cls: me&&me.representationsLength()?me.representations(0).representationClass():null}));\n')
 
         def _read(path: Path) -> dict:
@@ -264,6 +305,19 @@ else:
               f"{ours.get('error')} — a file only our own reader accepts is not a fragment")
         check("...and it parses the Node output too (the control)", "error" not in theirs,
               f"{theirs.get('error')}")
+
+        # **The reference must be able to READ the placement, not merely parse the file.** The first
+        # version of this converter omitted `Meshes.coordinates` entirely and every assertion above
+        # still passed: the reader parses a file with the field absent. The viewer does not — its
+        # `getCoordinates` calls `meshes.coordinates().position()` with no null check — so the
+        # failure would have been a crash on load, found by a user rather than here. *Parsing a file
+        # and being able to use it are different claims.*
+        check("THE REFERENCE CAN READ OUR MODEL PLACEMENT (viewer's getCoordinates path)",
+              ours.get("coords") is not None,
+              "coordinates() returned null — the field is absent, and the viewer dereferences it "
+              "without a guard, so this is a crash on load rather than a missing offset")
+        check("...and the Node control carries one too", theirs.get("coords") is not None,
+              str(theirs.get("coords")))
         if "error" not in ours and "error" not in theirs:
             check("the reference reader sees our shells as shells",
                   ours.get("cls") == 1,

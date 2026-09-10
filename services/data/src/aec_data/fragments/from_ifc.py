@@ -237,13 +237,24 @@ def convert(ifc_path: str, *, model_guid: str = "", progress=None) -> Conversion
             guids.append(eguid)
             guids_items.append(eid)
 
-    # The viewer renders relative to `coordinates`; centring on the whole model's bounds keeps a
-    # georeferenced site near the scene origin without altering a single stored vertex.
+    # `coordinates` carries the model's real-world placement and vertices are stored RELATIVE to it.
+    # This comment previously claimed the centring happened "without altering a single stored vertex",
+    # which was the bug: an offset nothing is measured against is not an offset. Vertices stayed in
+    # world coordinates, so a georeferenced site rendered far from the scene origin — the precision
+    # loss CLAUDE.md names as a non-negotiable — and the two halves disagreed by exactly `origin`.
+    #
+    # The direction was MEASURED against the Node converter rather than reasoned about, because
+    # getting it backwards moves every model by twice the offset and still looks plausible: for a
+    # 20 m slab at IFC (0..20, 0..20), Node writes `position = (10, 0, -10)` and vertices spanning
+    # -10..+10. Subtracting is what reproduces that.
     if meshes:
         xs = [p[0] for m in meshes for p in m.points]
         ys = [p[1] for m in meshes for p in m.points]
         zs = [p[2] for m in meshes for p in m.points]
         origin = ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2)
+        for mesh in meshes:
+            mesh.points = [(p[0] - origin[0], p[1] - origin[1], p[2] - origin[2])
+                           for p in mesh.points]
     else:
         origin = (0.0, 0.0, 0.0)
 

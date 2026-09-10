@@ -57,7 +57,11 @@ MODEL_FIELDS = 15
 
 #: `Meshes` — the geometry payload.
 MESHES = {
-    "coordinates": 4,         # DoubleVector (table): the model's global origin offset
+    # `coordinates` is an inline `Transform` STRUCT, not a table — `addFieldStruct(0, ...)` in the
+    # generated writer. Recorded wrong here at first ("DoubleVector (table)"), which is why `dumps`
+    # omitted it and `loads` tried to follow a table offset. The reference viewer's `getCoordinates`
+    # dereferences it with no null check, so a fragment without it does not degrade — it throws.
+    "coordinates": 4,         # Transform (inline struct): the model's real-world placement
     "meshes_items": 6,        # [uint32]  local id per mesh item
     "samples": 8,             # [Sample]  struct, stride 16
     "representations": 10,    # [Representation] struct, stride 32

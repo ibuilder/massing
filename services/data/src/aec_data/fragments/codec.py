@@ -63,6 +63,17 @@ class Table:
         o = self._slot(slot)
         return Table(self.buf, self._indirect(self.pos + o)) if o else None
 
+    def struct(self, slot: int) -> int | None:
+        """Byte offset of a single INLINE struct field, or None when the slot is absent.
+
+        Distinct from `table` precisely because there is no indirection: a struct lives *in* the
+        table's own bytes, so the slot offset is the answer rather than a pointer to it. Reading one
+        with `table` follows whatever integer happens to sit there, which is the shape of bug that
+        produced silence rather than an error.
+        """
+        o = self._slot(slot)
+        return self.pos + o if o else None
+
     def _vector(self, slot: int) -> tuple[int, int]:
         """`(first_element_offset, count)` — `(0, 0)` when absent."""
         o = self._slot(slot)
@@ -168,9 +179,12 @@ def loads(data: bytes) -> FragModel:
     if meshes is None:
         return m
     m.meshes_items = meshes.vec_scalar(S.MESHES["meshes_items"], "<I", 4)
-    co = meshes.table(S.MESHES["coordinates"])
+    # An inline struct, so the vtable slot holds the struct's own offset — there is no indirection
+    # to follow. Reading it as a table (which this did) lands on whatever the position happens to
+    # point at, and writing nothing at all is what it did before that.
+    co = meshes.struct(S.MESHES["coordinates"])
     if co is not None:
-        m.coordinates = _triples(raw, co.pos, "<ddd")
+        m.coordinates = _triples(raw, co + S.TRANSFORM["position"], "<ddd")
     rep_offsets = meshes.vec_struct(S.MESHES["representations"], S.REPRESENTATION_STRIDE)
     for i, shell in enumerate(meshes.vec_table(S.MESHES["shells"])):
         mesh = Mesh()
@@ -300,6 +314,22 @@ def dumps(m: FragModel, *, compress: bool = True) -> bytes:
 
     # --- Meshes ------------------------------------------------------------------------------------
     b.StartObject(S.MESHES_FIELDS)
+    # `coordinates` is an inline struct, so it is written INSIDE the object, between StartObject and
+    # EndObject, and back-to-front like every other struct here. `PrependStructSlot` records the slot
+    # once the bytes are in place — it does not write them.
+    #
+    # Omitting this was not a cosmetic gap. The reference viewer's `getCoordinates` does
+    # `meshes.coordinates().position()` with no null check, so a fragment without it throws rather
+    # than degrading; and the offset is what keeps a georeferenced model near the scene origin, which
+    # CLAUDE.md lists as a non-negotiable. Measured against the Node converter on the same model: it
+    # writes `position = (10, 0, -10)` for a 20 m slab whose own vertices then span -10..+10, i.e.
+    # **vertices are relative to this position and the position carries the real-world placement.**
+    ox, oy, oz = m.coordinates
+    b.Prep(8, S.TRANSFORM_STRIDE)
+    b.PrependFloat32(0.0); b.PrependFloat32(1.0); b.PrependFloat32(0.0)   # y direction
+    b.PrependFloat32(0.0); b.PrependFloat32(0.0); b.PrependFloat32(1.0)   # x direction
+    b.PrependFloat64(oz); b.PrependFloat64(oy); b.PrependFloat64(ox)      # position
+    b.PrependStructSlot(0, b.Offset(), 0)
     b.PrependUOffsetTRelativeSlot(1, meshes_items_vec, 0)
     b.PrependUOffsetTRelativeSlot(2, samples_vec, 0)
     b.PrependUOffsetTRelativeSlot(3, reps_vec, 0)
