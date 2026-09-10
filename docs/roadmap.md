@@ -852,6 +852,80 @@ instances:
   resolving each property access to its declaring symbol — not more reading. Until then the "unread"
   bucket is a **lower bound** and the "read" bucket is not evidence.
 
+  **BUILT 2026-09-10 — `apps/web/src/api/deadFieldTyped.test.ts`. The blocker is gone, and the result
+  is a PARTITION rather than the number this entry expected.** It resolves every property access,
+  destructuring binding and string-keyed element access through the checker to the declaring
+  `PropertySignature`, and it sees NESTED members, which the two-space anchor could not.
+
+  | | |
+  |---|---|
+  | declared members (typed, nested + array-element literals) | **1,648** (the regex saw 751) |
+  | identifier-unread that the checker finds READ | **0** — the old bucket was a sound LOWER BOUND |
+  | typed-unread that the identifier method called "read" | **556** — pure name collisions |
+  | of those, leaf name present as a STRING LITERAL outside `api/` | **308** |
+  | sound candidates: no typed reader AND no string-literal reader | **350** |
+  | └ declaring interface touched by `Object.keys`/`entries`/spread | 128 — not statically resolvable |
+
+  `SpatialNode.elevation` flips to **zero typed readers**, exactly as this entry predicted. But the
+  containment result is the more useful half: **the identifier method never called something unread
+  that the checker finds read**, so nothing previously triaged was wasted.
+
+  **The typed pass is not simply better — it has the OPPOSITE blind spot.** 308 of the 556 it newly
+  flags have their leaf name as a string literal outside `api/`, which is how this codebase's column
+  configs read a field. Reporting its count alone would have been the identifier method's mistake with
+  the sign flipped, and the first draft of this work nearly did: **658 was written down before anyone
+  asked which direction the new method was wrong in.** The sound set is the intersection, and it is
+  smaller than either.
+
+  **The strongest sub-population is not "unread" but ASYMMETRIC: 47 of the 350 ARE rendered by the
+  Python report builders.** Same data, two deliveries, and the screen omits what the PDF prints — so
+  the field's importance is not a judgement call, `report_builders/` already made it. Six of those
+  shipped as fixes to the valuation panel; see below.
+
+- ◧ **SCREEN-VS-REPORT — the printed valuation was more honest than the on-screen one** *(the six
+  found in the first pass are FIXED; the other ~41 asymmetric fields are unread)*
+
+  All six were in `renderAppraisal` in `apps/web/src/proforma/proforma.ts`, and the worst was not a
+  missing caveat but a false statement. `reconcile()` in `services/api/src/aec_api/appraisal.py` drops
+  any approach whose value is zero and returns `value: 0.0` when none is usable — and the panel
+  printed that through `money()`, so **a project nothing could value rendered "$0" in 28px as an
+  opinion of value.** A property that could not be appraised was displayed as a property worth
+  nothing. It is reachable with no exception in the way: `appraisal_inputs` coalesces every input
+  through `float(x or 0.0)` and `income_approach` guards its own divide, so the route returns zeros
+  rather than erroring into the panel's catch. The PDF built from the identical response has always
+  printed "(insufficient data)".
+
+  The other five: `reconciliation.approaches_used` (which approaches reconciled — a KPI in the PDF),
+  `sales_comparison.implied_cap_rate`, `sales_comparison.median_price_per_unit` (a `$/unit` basis
+  displayed "Median $/SF —", showing a basis and no median for it), `cost.depreciation_pct`, and a
+  cap rate of zero rendered as "0.00%" rather than as absent.
+
+  **A SEVENTH was invisible to the derivation by construction, and it names a new axis.**
+  `excluded_comparables` — comparables the appraiser deliberately excluded — is returned by
+  `marketing.compute_appraisal` with a comment saying exactly why it must not be dropped, and was
+  **declared nowhere in this client**: not in the `Appraisal` interface, not in the generated
+  `schema.d.ts`. Every unread-field audit starts from the client's interfaces, so a field the client
+  never declares cannot be seen by any of them, and no type error or lint can either. See
+  RESPONSE-UNDECLARED below.
+
+- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10, not yet triaged)*
+
+  DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
+  server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
+  compiler, the linter, and every audit built on the interfaces.
+
+  Sound lower bound, since identifier matching OVER-counts readers and so a key with zero hits is
+  definitely unread: **536** distinct string keys are returned from dict literals inside decorated
+  route handlers under `services/api/src/aec_api/routers/`, and **46 of them appear nowhere in
+  `apps/web/src`, not even as a bare token.** (2,878 keys across all of `aec_api` with 531 unmentioned
+  — but most of those are internal helper returns that never reach a response, so the routers subset is
+  the defensible one.)
+
+  High-signal members, all the caveat-on-a-number shape: `deviations_without_photo` and `evidence_pct`
+  (how much evidence backs a verification), `changed_assumptions`, `cost_vintage`, `g703_totals` — a
+  payment-application schedule of values. Each of the 46 still needs reading to separate a real
+  disclosure gap from an internal or debug key.
+
   *Two bugs in the derivation itself were found on the way, both the same shape as the axis's own
   lesson.* Anchoring field matching at two-space indent cannot see a **nested** field — and this
   axis's one load-bearing defect, `ResponsibilityMatrix.validation.*`, was nested. Including the
@@ -1931,14 +2005,14 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

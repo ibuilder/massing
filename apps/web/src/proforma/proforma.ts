@@ -319,11 +319,39 @@ export class ProformaUI {
     catch (e) { host.innerHTML = `<div class="meta">Couldn't value this project: ${escapeHtml((e as Error).message)}.<br>Save a proforma scenario (Underwriting) and add Comparables (Finance) first.</div>`; return; }
     host.innerHTML = "";
     const rec = v.reconciliation;
+    // `reconcile()` DROPS any approach whose value is zero or absent, and returns 0.0 when none is
+    // usable. This panel used to print `money(rec.value)` unconditionally, so a project nothing could
+    // value rendered "$0" in 28px as an opinion of value — a property that could not be appraised
+    // shown as a property worth nothing. The PDF built from the SAME response has always printed an
+    // explicit "(insufficient data)" row; the screen was the dishonest one of the pair.
+    const used = rec.approaches_used ?? [];
     const head = document.createElement("div"); head.className = "fin-card";
-    head.innerHTML = `<div class="section-title">Opinion of value</div>`
-      + `<div style="font-size:28px;font-weight:800">${money(rec.value)}</div>`
-      + `<div class="meta">Range ${money(rec.range.low)} – ${money(rec.range.high)} · spread ${pct(rec.range.spread_pct)} · `
-      + `${v.comp_count} comparable${v.comp_count === 1 ? "" : "s"}</div>`;
+    head.innerHTML = `<div class="section-title">Opinion of value</div>`;
+    if (!used.length) {
+      head.innerHTML += `<div style="font-size:28px;font-weight:800">—</div>`
+        + `<div class="meta">Insufficient data — no approach produced a value.`
+        + (v.inputs.has_proforma ? "" : " No proforma is saved, so the cost and income approaches have nothing to work from.")
+        + ` Add an estimate or proforma, or import comparables, then re-open this tab.</div>`;
+    } else {
+      head.innerHTML += `<div style="font-size:28px;font-weight:800">${money(rec.value)}</div>`
+        + `<div class="meta">Range ${money(rec.range.low)} – ${money(rec.range.high)} · spread ${pct(rec.range.spread_pct)} · `
+        + `${v.comp_count} comparable${v.comp_count === 1 ? "" : "s"}</div>`
+        // WHICH approaches reconciled into that number. The server has always said so and the PDF has
+        // always printed it as a KPI; nothing on this screen read the field.
+        + `<div class="meta">Reconciled from ${used.length} of 3 approaches: `
+        + `${escapeHtml(used.map((a) => a.replace(/_/g, " ")).join(", "))}`
+        + (used.length < 3 ? ` — the rest produced no value and were excluded` : "")
+        + `</div>`;
+    }
+    // An EXCLUDED comparable is the appraiser's stated decision, and the server names them for
+    // exactly this reason: a valuation whose sample shrank without saying so reads as a thinner
+    // market rather than as a choice somebody made. The field was declared nowhere in this client.
+    const dropped = v.excluded_comparables ?? [];
+    if (dropped.length) {
+      head.innerHTML += `<div class="meta" style="color:#b45309">${dropped.length} comparable`
+        + `${dropped.length === 1 ? " was" : "s were"} excluded by the appraiser and did not reach `
+        + `the sales approach: ${escapeHtml(dropped.map((d) => d.ref || d.id || "unnamed").join(", "))}</div>`;
+    }
     host.appendChild(head);
 
     // bar: indicated value by approach
@@ -338,20 +366,35 @@ export class ProformaUI {
     // three approach cards
     const cards = document.createElement("div"); cards.className = "fin-grid";
     const row = (a: string, b: string) => `<tr><td>${a}</td><td class="num">${b}</td></tr>`;
+    /** The median that actually produced the sales value — the one matching `basis`.
+     *
+     *  The card used to hard-code "Median $/SF". `sales_comparison()` prefers $/SF, falls back to
+     *  $/unit, then to the raw median price, so on a per-unit basis the row read "Median $/SF —"
+     *  while `median_price_per_unit` — the number the value was computed from — was never shown.
+     *  The card then displayed a basis and no median for it. */
+    const medianRow = (sc: Appraisal["sales_comparison"]) =>
+      sc.basis === "$/unit"
+        ? row("Median $/unit", sc.median_price_per_unit ? money(sc.median_price_per_unit) : "—")
+        : sc.basis === "median price"
+          ? row("Median sale price", money(sc.value))
+          : row("Median $/SF", sc.median_price_psf ? money(sc.median_price_psf) : "—");
     cards.innerHTML = `
       <div class="fin-card"><div class="section-title">Cost approach</div><table class="fin-table">
         ${row("Replacement cost new", money(v.cost.replacement_cost_new))}
-        ${row("Less depreciation", "-" + money(v.cost.depreciation_amount))}
+        ${row("Less depreciation", "-" + money(v.cost.depreciation_amount)
+              + (v.cost.depreciation_pct ? ` (${(v.cost.depreciation_pct * 100).toFixed(0)}%)` : ""))}
         ${row("Plus land", money(v.cost.land_value))}
         <tr class="fin-total"><td>Value</td><td class="num">${money(v.cost.value)}</td></tr></table></div>
       <div class="fin-card"><div class="section-title">Income approach</div><table class="fin-table">
         ${row("Stabilized NOI", money(v.income.stabilized_noi))}
-        ${row("Cap rate", (v.income.cap_rate * 100).toFixed(2) + "%")}
+        ${row("Cap rate", v.income.cap_rate ? (v.income.cap_rate * 100).toFixed(2) + "%" : "—")}
         <tr class="fin-total"><td>Value (direct cap)</td><td class="num">${money(v.income.value)}</td></tr></table></div>
       <div class="fin-card"><div class="section-title">Sales comparison</div><table class="fin-table">
         ${row("Comps used", String(v.sales_comparison.comp_count))}
         ${row("Basis", escapeHtml(v.sales_comparison.basis))}
-        ${row("Median $/SF", v.sales_comparison.median_price_psf ? money(v.sales_comparison.median_price_psf) : "—")}
+        ${medianRow(v.sales_comparison)}
+        ${row("Implied cap rate", v.sales_comparison.implied_cap_rate
+              ? (v.sales_comparison.implied_cap_rate * 100).toFixed(2) + "%" : "—")}
         <tr class="fin-total"><td>Value</td><td class="num">${money(v.sales_comparison.value)}</td></tr></table></div>`;
     host.appendChild(cards);
 

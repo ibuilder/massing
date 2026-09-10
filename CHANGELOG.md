@@ -12,6 +12,23 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A valuation that could not be computed no longer reads as a valuation of zero
+
+When a project has no proforma and no comparables, none of the three appraisal approaches produces a
+value. The valuation screen used to print **$0** as the opinion of value, in the same large type it
+uses for a real one — so a property that could not be appraised looked like a property worth nothing.
+It now shows a dash and says what is missing and what to add.
+
+The same screen was quietly showing less than the valuation report built from the identical data. It
+now names which of the three approaches reconciled into the value and says when the others were
+excluded, shows the implied cap rate the comparables carry, shows the median that matches the basis in
+force (a per-unit valuation used to display an empty "$/SF" row), shows the depreciation percentage
+beside the amount deducted, and shows a missing cap rate as absent rather than as 0.00%.
+
+It also names comparables the appraiser excluded. The server has been reporting those for some time,
+precisely so a valuation whose sample shrank reads as a decision somebody made rather than as a
+thinner market — but the web app had no field for them at all, so no one ever saw it.
+
 ### The pin count and the pins it describes are proven to come from one read
 
 The pin overlay fetches a page of pins and the project-wide total in a single database read, so the

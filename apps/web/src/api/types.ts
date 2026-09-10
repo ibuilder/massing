@@ -504,6 +504,16 @@ export interface Appraisal {
   reconciliation: { value: number; contributions: { approach: string; value: number; weight: number }[];
     approaches_used: string[]; range: { low: number; high: number; spread_pct: number } };
   comp_count: number;
+  /** Comparables the appraiser EXCLUDED, named rather than silently dropped.
+   *
+   *  `marketing.compute_appraisal` has returned this since the exclusion fix, with a comment saying
+   *  why: *"a valuation whose sample shrank without saying so reads as a thinner market rather than
+   *  as a decision somebody made"*. It was **declared nowhere in this client** until 2026-09-10 —
+   *  not here, not in the generated `schema.d.ts` — so the disclosure the server went out of its way
+   *  to compute reached no user. A field the client never declares is worse than one it declares and
+   *  ignores: no type error, no lint and no unread-field audit can see it, because every such audit
+   *  starts from the interfaces. */
+  excluded_comparables?: { id?: string; ref?: string; reason: string }[];
 }
 
 export interface ProformaResult {

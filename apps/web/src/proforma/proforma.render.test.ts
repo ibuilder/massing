@@ -338,3 +338,149 @@ describe("the deal-memory strip follows the hard cost", () => {
     expect(api.dealMemoryBeside).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * DEAD-FIELD / renderAppraisal — the valuation panel says what the PDF of the same response says.
+ *
+ * Found by a TYPE-AWARE unread-field pass (the TS compiler API resolving each property access to its
+ * declaring `PropertySignature`, rather than matching identifiers). Every field asserted below is one
+ * the server computes, `report_builders/finance.py` prints, and this screen did not read — so a user
+ * comparing the on-screen valuation with the exported valuation report saw less on screen.
+ *
+ * The worst case is the first test. `reconcile()` drops any approach whose value is zero and returns
+ * `value: 0.0` when none is usable, and the panel printed `money(0)` — "$0" in 28px as an opinion of
+ * value. A property that could not be appraised was displayed as a property worth nothing, while the
+ * PDF printed "(insufficient data)". It is reachable with no exception in the way: `appraisal_inputs`
+ * coalesces every input through `float(x or 0.0)` and `income_approach` guards its own divide.
+ */
+describe("renderAppraisal — the screen no longer says less than the PDF", () => {
+  const ZERO_APPROACH = { approach: "", value: 0 };
+  const base = (over: Record<string, unknown> = {}) => ({
+    inputs: { replacement_cost_new: 0, land_value: 0, depreciation_pct: 0, stabilized_noi: 0,
+              cap_rate: 0, subject_sqft: 0, subject_units: null, has_proforma: false },
+    cost: { ...ZERO_APPROACH, approach: "cost", replacement_cost_new: 0, depreciation_pct: 0,
+            depreciation_amount: 0, depreciated_improvements: 0, land_value: 0 },
+    income: { ...ZERO_APPROACH, approach: "income", stabilized_noi: 0, cap_rate: 0,
+              method: "direct_capitalization" },
+    sales_comparison: { ...ZERO_APPROACH, approach: "sales_comparison", comp_count: 0, basis: "none",
+                        median_price_psf: null, median_price_per_unit: null, implied_cap_rate: null },
+    reconciliation: { value: 0, contributions: [], approaches_used: [],
+                      range: { low: 0, high: 0, spread_pct: 0 } },
+    comp_count: 0,
+    ...over,
+  });
+
+  /** Render the valuation tab against a canned appraisal response and return its text. */
+  const paint = async (v: Record<string, unknown>) => {
+    const { root, ui } = mount({ appraisal: vi.fn().mockResolvedValue(v), reportUrl: () => "#" }, "p1");
+    const host = document.createElement("div"); root.appendChild(host);
+    await (ui as unknown as { renderAppraisal(h: HTMLElement): Promise<void> }).renderAppraisal(host);
+    await flush();
+    /** The value cell of the approach-table row whose label cell is exactly `label`.
+     *
+     *  Reading the row rather than the page text on purpose: adjacent `<td>`s concatenate with no
+     *  separator, so `textContent` gives "Cap rate—" and an assertion written the natural way silently
+     *  never matches. Worse, a substring assertion over the whole panel can be satisfied by a DIFFERENT
+     *  card — "$0" appears in all three — so it would pass whatever the row under test said. */
+    const cell = (label: string): string | null => {
+      for (const tr of host.querySelectorAll("tr")) {
+        const [k, val] = tr.querySelectorAll("td");
+        if (k?.textContent?.trim() === label) return val?.textContent?.trim() ?? null;
+      }
+      return null;
+    };
+    return { host, cell, txt: (host.textContent ?? "").replace(/\s+/g, " ") };
+  };
+
+  it("a project nothing could value shows an em dash and why — never '$0' as an opinion of value", async () => {
+    const { host, txt } = await paint(base());
+    expect(txt).toContain("Insufficient data");
+    expect(txt).toContain("No proforma is saved");                 // reads `inputs.has_proforma`
+    // The headline itself must not be a money figure. Assert on the ELEMENT, not the page text:
+    // "$0" appears legitimately in the approach cards below, and matching the whole panel would pass
+    // whatever the headline said.
+    const headline = host.querySelector('div[style*="font-size:28px"]');
+    expect(headline?.textContent).toBe("—");
+  });
+
+  it("names which approaches reconciled into the value, and says the rest were excluded", async () => {
+    const { txt } = await paint(base({
+      inputs: { ...base().inputs, has_proforma: true },
+      cost: { ...base().cost, value: 4_000_000 },
+      income: { ...base().income, value: 5_000_000, cap_rate: 0.055, stabilized_noi: 275_000 },
+      reconciliation: { value: 4_600_000, approaches_used: ["income", "cost"],
+                        contributions: [{ approach: "income", value: 5_000_000, weight: 0.6 },
+                                        { approach: "cost", value: 4_000_000, weight: 0.4 }],
+                        range: { low: 4_000_000, high: 5_000_000, spread_pct: 0.217 } },
+    }));
+    expect(txt).toContain("Reconciled from 2 of 3 approaches: income, cost");
+    expect(txt).toContain("the rest produced no value and were excluded");
+  });
+
+  it("does not claim approaches were excluded when all three reconciled", async () => {
+    const { txt } = await paint(base({
+      reconciliation: { value: 5_000_000, approaches_used: ["income", "sales_comparison", "cost"],
+                        contributions: [], range: { low: 4e6, high: 6e6, spread_pct: 0.4 } },
+    }));
+    expect(txt).toContain("Reconciled from 3 of 3 approaches");
+    expect(txt).not.toContain("were excluded");
+  });
+
+  it("shows the median that MATCHES the basis — a $/unit basis is not a blank $/SF row", async () => {
+    const { cell } = await paint(base({
+      sales_comparison: { ...base().sales_comparison, basis: "$/unit", comp_count: 4,
+                          median_price_psf: null, median_price_per_unit: 210_000, value: 8_400_000 },
+      reconciliation: { value: 8_400_000, approaches_used: ["sales_comparison"], contributions: [],
+                        range: { low: 8_400_000, high: 8_400_000, spread_pct: 0 } },
+    }));
+    expect(cell("Median $/unit")).toBe("$210,000");
+    expect(cell("Median $/SF"), "the $/SF row must be GONE, not merely blank").toBeNull();
+  });
+
+  it("labels a raw-median basis as a sale price rather than a $/SF that is not one", async () => {
+    const { cell } = await paint(base({
+      sales_comparison: { ...base().sales_comparison, basis: "median price", comp_count: 3,
+                          value: 3_100_000 },
+    }));
+    expect(cell("Median sale price")).toBe("$3,100,000");
+    expect(cell("Median $/SF")).toBeNull();
+  });
+
+  it("shows the implied cap rate the comparables carry, and a dash when they carry none", async () => {
+    const withCap = await paint(base({
+      sales_comparison: { ...base().sales_comparison, basis: "$/SF", median_price_psf: 310,
+                          implied_cap_rate: 0.0545, comp_count: 5, value: 5_100_000 },
+    }));
+    expect(withCap.cell("Implied cap rate")).toBe("5.45%");
+    const without = await paint(base());
+    expect(without.cell("Implied cap rate")).toBe("—");
+  });
+
+  it("shows the depreciation PERCENTAGE beside the amount deducted", async () => {
+    const { cell } = await paint(base({
+      cost: { ...base().cost, replacement_cost_new: 10_000_000, depreciation_pct: 0.15,
+              depreciation_amount: 1_500_000, depreciated_improvements: 8_500_000, value: 8_500_000 },
+    }));
+    expect(cell("Less depreciation")).toBe("-$1,500,000 (15%)");
+  });
+
+  it("shows a cap rate of zero as a dash, not as a 0.00% capitalisation rate", async () => {
+    const { cell, txt } = await paint(base());
+    expect(cell("Cap rate")).toBe("—");
+    expect(txt).not.toContain("0.00%");
+  });
+
+  it("names comparables the appraiser excluded, so a shrunken sample is a decision and not a mood", async () => {
+    const { txt } = await paint(base({
+      excluded_comparables: [{ id: "c1", ref: "COMP-004", reason: "excluded by the appraiser" },
+                             { id: "c2", ref: "COMP-009", reason: "excluded by the appraiser" }],
+    }));
+    expect(txt).toContain("2 comparables were excluded by the appraiser");
+    expect(txt).toContain("COMP-004, COMP-009");
+  });
+
+  it("says nothing about exclusions when the server named none", async () => {
+    const { txt } = await paint(base());
+    expect(txt).not.toContain("excluded by the appraiser");
+  });
+});
