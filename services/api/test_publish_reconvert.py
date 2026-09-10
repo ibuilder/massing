@@ -75,11 +75,19 @@ def publish_with(reconvert: bool):
     fake_idx = {"counts": {"elements": 0}, "elements": [], "facets": {}, "project": {}}
     # FROZEN-PATHS moved the converter path behind `apppaths`, so the module-level `_CONVERTER`
     # constant this used to patch no longer exists. Patch the two seams that replaced it: the
-    # presence check `_publish` gates on, and the path it hands to `subprocess`. Both, because
+    # presence check the convert gates on, and the path it hands to `subprocess`. Both, because
     # patching only the first would let a real (or absent) path reach the command line.
-    with mock.patch.object(authoring.subprocess, "run", side_effect=fake_run), \
-         mock.patch.object(authoring, "have_converter", lambda: True), \
-         mock.patch.object(authoring, "converter_cli", lambda: Path(__file__)), \
+    #
+    # DESKTOP-FRAGMENTS moved all three ONE MODULE ACROSS, into `fragconvert`, and that is why this
+    # file failed rather than silently passing: `authoring.subprocess` stopped existing, so
+    # `mock.patch.object` raised `AttributeError` instead of patching nothing. **That is the good
+    # outcome and it was not luck** — patching an attribute BY OBJECT fails loudly when the attribute
+    # moves, where `mock.patch("...authoring.subprocess.run")` by string would have been just as
+    # broken and a `create=True` would have manufactured a mock nothing calls. A test that patches a
+    # seam must break when the seam moves; the alternative is a green test measuring nothing.
+    with mock.patch.object(authoring.fragconvert.subprocess, "run", side_effect=fake_run), \
+         mock.patch.object(authoring.fragconvert, "have_converter", lambda: True), \
+         mock.patch.object(authoring.fragconvert, "converter_cli", lambda: Path(__file__)), \
          mock.patch("aec_data.properties_index.index_file", return_value=dict(fake_idx)), \
          mock.patch.object(authoring.storage, "put", lambda *a, **k: None), \
          mock.patch.object(authoring.props_router, "_load", lambda *a, **k: None):
@@ -98,6 +106,46 @@ check("...and does not claim it reconverted", out_f.get("reconverted") is False,
 
 # ---- the half that must still happen. A skip that skips EVERYTHING is not a partial publish. ----
 check("reconvert=False still reindexes", "reindexed" in out_f, str(out_f))
+
+
+# ---- and the SECOND converter, which is the whole of the desktop app -----------------------------
+# DESKTOP-FRAGMENTS gave `_publish` a Python path for installs with no Node runtime. The pair above
+# cannot see it: it pins `have_converter` to True, so it only ever exercises Node. Left there, the
+# switch could regress to "always convert" on exactly the platform the Python path was written for
+# and every assertion in this file would still pass. **A flag is only honoured on the paths somebody
+# checked.**
+def publish_python(reconvert: bool):
+    """Run `_publish` with NO Node runtime, counting Python conversions instead."""
+    py_calls = []
+
+    class _Result:
+        data, failed = b"FRAG", []
+
+    def fake_py_convert(path, *a, **kw):
+        py_calls.append(path)
+        return _Result()
+
+    fake_idx = {"counts": {"elements": 0}, "elements": [], "facets": {}, "project": {}}
+    with mock.patch.object(authoring.fragconvert, "have_converter", lambda: False), \
+         mock.patch("aec_data.fragments.from_ifc.convert", fake_py_convert), \
+         mock.patch("aec_data.properties_index.index_file", return_value=dict(fake_idx)), \
+         mock.patch.object(authoring.storage, "put", lambda *a, **k: None), \
+         mock.patch.object(authoring.props_router, "_load", lambda *a, **k: None):
+        out = authoring._publish(proj, reconvert=reconvert)
+    return out, py_calls
+
+
+out_pt, py_t = publish_python(True)
+check("no Node: reconvert=True runs the PYTHON converter", len(py_t) == 1, f"{len(py_t)} call(s)")
+check("...and reports it reconverted", out_pt.get("reconverted") is True, str(out_pt))
+# Which one ran is reported, not guessed — the two tessellate independently, so a model that looks
+# different after a re-publish on another host needs this in the status rather than a shrug.
+check("...and names the converter that ran", out_pt.get("converter") == "python", str(out_pt))
+check("...and Node's own answer names Node", out_t.get("converter") == "node", str(out_t))
+
+out_pf, py_f = publish_python(False)
+check("no Node: reconvert=False does NOT run the Python converter", py_f == [], str(py_f))
+check("...and does not claim it reconverted", out_pf.get("reconverted") is False, str(out_pf))
 
 # ---- the wiring itself: the flag must reach `_publish` from the pool, not just be accepted -------
 # Asserting the signature is not enough — the defect was a CALL that omitted the argument, which no
