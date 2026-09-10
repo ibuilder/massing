@@ -481,9 +481,25 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > ones: nulling every column instead of the empty ones, and treating `{x:0,y:0,z:0}` as empty — the
 > project origin is a place, not an absence.
 >
-> **Still open:** the `count(*) OVER ()` concurrency fix has **no assertion**: mutate it back to two
-> statements and every test here passes. It needs a two-session controlled test, not another
-> paragraph.
+> **COUNT-OVER — closed, and the behavioural half is a STATED LIMITATION rather than a fake test.**
+> `services/api/test_count_over.py` asserts the mechanism directly: the topic source issues **exactly
+> one** SELECT against `topics`, and that statement carries `OVER ()`. That is not a proxy for the
+> snapshot property — one statement *implies* it under any isolation level, because there is no
+> "between" for a write to land in. Reverting to two statements fails both assertions; dropping
+> `.over()` collapses the query to a single aggregate row and fails two others.
+>
+> **Reproducing the race behaviourally is NOT possible under the SQLite harness, and this was
+> measured rather than assumed.** `before_cursor_execute` lands an injected commit ahead of *both*
+> statements, so they agree anyway. `after_cursor_execute` fires before SQLite steps the result rows,
+> so the statement that supposedly already ran still sees the new row — under the two-statement
+> mutation the count and the window both returned 5, not 4 then 5. The defect needs a reader taking a
+> fresh snapshot per statement, i.e. PostgreSQL READ COMMITTED. **A behavioural assertion here would
+> pass with or without the fix**, so the test says so in place of writing one. *The whole point of
+> this line of work is not shipping coverage-shaped nothing.*
+>
+> The concurrency block that remains is honest about its scope: it proves the read survives a
+> concurrent commit and returns a self-consistent envelope — a real regression guard against a torn
+> read — and explicitly not the snapshot proof.
 >
 > **The original note, kept because it is the derivation:** undisclosed truncation, a different class found while walking
 > this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns
