@@ -18,10 +18,19 @@ directory; `/modules` returns a non-empty catalog, so the `datas` carrying `serv
 landed inside the bundle; and `/` serves HTML, so the bundled SPA did too. Those last two are the
 ones source-level checks cannot make at all: they are questions about the ARCHIVE, not the tree.
 
-WHAT IT DOES NOT PROVE. It never converts a model, so `aec_data.fragments` — and the `flatbuffers`
-import inside `codec.py` — is not exercised: the only route that reaches it needs a project with an
-uploaded source IFC, and `edit_preview` FAILS OPEN with a 503, so a smoke asserting it would pass
-vacuously on a fresh install. That gap is filed as DESKTOP-SMOKE-CONVERT rather than papered over.
+AND IT CONVERTS A MODEL, which is the half none of that reaches. `aec_data.fragments` is imported
+lazily inside `fragconvert.convert_ifc`, and `codec.py` imports `flatbuffers` at module scope — so a
+build that packaged neither BOOTS PERFECTLY and fails the first time a user publishes. The check
+authors a blank model through `POST /projects/{pid}/model/blank` (generated server-side by
+`aec_data.massing`, so no IFC fixture has to be tracked), publishes it, and requires the published
+fragment back. It also asserts WHICH converter ran: a bundle carries no Node runtime, so it must be
+the Python one, and accepting either would let this pass on any runner with Node installed without
+touching the code under test.
+
+The obvious version of that check would have been worthless: `edit_preview` FAILS OPEN with a 503, so
+a fresh install answers 503 whether the frozen import works or not. Publish is the path that reports
+the failure instead of swallowing it — `convert_ifc` raising is recorded as `reconvert_error` and
+turns the publish state to `error`, carrying the exception.
 
 VACUITY GUARDS, because "the artifact was missing" and "the artifact is fine" must never look alike:
 
@@ -48,6 +57,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent                 # services/api
@@ -122,11 +132,131 @@ def get(url: str, timeout: float = 10.0) -> tuple[int, bytes, str]:
         return 0, b"", ""
 
 
+def post(url: str, payload: dict, timeout: float = 300.0) -> tuple[int, bytes]:
+    """POST `payload` as JSON, returning (status, body) — and status **0** when nothing answered.
+
+    Same 0 convention as `get`, for the same reason: the caller has to tell a dead server apart from
+    one that answered badly. The timeout is generous because the call this drives runs a whole
+    IFC->Fragments conversion on the server before it returns a status.
+    """
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
+                                 headers={"content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:                  # noqa: S310
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+    except Exception:                                                # noqa: BLE001 — not up / refused
+        return 0, b""
+
+
+def convert_a_model(port: int, expect: str, timeout: float) -> None:
+    """Author a model and publish it, so the CONVERTER runs inside the artifact under test.
+
+    This is the half `/health` and `/modules` cannot reach. `aec_data.fragments` is imported lazily,
+    inside `fragconvert.convert_ifc`, so nothing on the boot path touches it — and `codec.py` imports
+    `flatbuffers` at module scope, which PyInstaller's analysis *should* follow. "Should" was doing
+    real work in that sentence until this existed.
+
+    **No IFC fixture is tracked, deliberately.** `POST /projects/{pid}/model/blank` generates one
+    server-side through `aec_data.massing`, so the model is authored by the artifact rather than
+    handed to it — which exercises more of the bundle and cannot drift from a checked-in file.
+
+    **Why this is not vacuous.** A converter that raises is caught in `authoring._publish`, recorded
+    as `reconvert_error`, and `run_publish` turns that into publish state `error` — so a missing
+    `flatbuffers` surfaces here as a named failure rather than a quiet skip. The obvious alternative
+    check would have been vacuous: `edit_preview` FAILS OPEN with a 503, so a fresh install answers
+    503 whether the frozen import works or not.
+
+    **And it asserts WHICH converter ran.** Publish reports `node` or `python`. The bundle carries no
+    Node runtime, so it must report `python` — the path that needs `flatbuffers`. Accepting either
+    would let this pass for the wrong reason on a machine where Node happens to be reachable, which
+    is every CI runner this workflow uses. `expect` is declared by the caller rather than guessed
+    from the environment, because a check that infers what it should require can infer wrongly and
+    still look green.
+    """
+    base = f"http://127.0.0.1:{port}"
+
+    st, body = post(f"{base}/projects", {"name": "smoke-convert"})
+    pid = ""
+    if st in (200, 201):
+        with contextlib.suppress(Exception):
+            pid = str(json.loads(body).get("id") or "")
+    if not check("POST /projects creates a project — the model has to hang off something",
+                 bool(pid), f"status {st}: {body[:200]!r}"):
+        return
+
+    st, body = post(f"{base}/projects/{pid}/model/blank", {"name": "Smoke", "storeys": 1})
+    if not check("POST /projects/{id}/model/blank authors an IFC inside the artifact — "
+                 "`aec_data.massing` runs in the bundle, so no fixture has to be shipped",
+                 st == 200, f"status {st}: {body[:300]!r}"):
+        return
+
+    # Publish is off-thread; the client polls. `error` is the state a failed convert produces, and it
+    # carries the exception — which for a missing frozen import is the whole diagnosis.
+    started = time.time()
+    deadline = started + timeout
+    state, detail = "", {}
+    while time.time() < deadline:
+        st, body, _ct = get(f"{base}/projects/{pid}/publish/status")
+        if st == 200:
+            with contextlib.suppress(Exception):
+                s = json.loads(body)
+                state, detail = str(s.get("state") or ""), s.get("detail") or {}
+        if state not in ("", "idle", "running"):
+            break
+        time.sleep(1.0)
+
+    if not check("the publish finished, and the CONVERSION inside it did not fail — a frozen build "
+                 "missing `flatbuffers` raises here and is recorded as `reconvert_error`",
+                 state == "done",
+                 f"publish state {state!r} after {time.time() - started:.1f}s (bound {timeout:g}s); "
+                 f"detail {json.dumps(detail)[:400]}"):
+        return
+
+    ran = str(detail.get("converter") or "")
+    check(f"the {expect!r} converter is the one that ran — otherwise this passed without "
+          f"exercising the path it exists to test",
+          ran == expect, f"publish reports converter {ran!r}, expected {expect!r}")
+
+    st, frag, _ct = get(f"{base}/projects/{pid}/model.frag", timeout=60.0)
+    if not check("GET /model.frag serves the converted geometry the viewer would draw",
+                 st == 200 and len(frag) > 0, f"status {st}, {len(frag)} bytes"):
+        return
+
+    # `.frag` is zlib(flatbuffers). Decompressing proves real content rather than a stub, and the
+    # flatbuffer root offset has to land inside the buffer — a cheap structural check that a
+    # truncated or empty write fails. Not a size floor: a floor is a number, this is a property.
+    raw, why = b"", ""
+    try:
+        raw = zlib.decompress(frag)
+    except Exception as e:                                           # noqa: BLE001 — reported below
+        why = f"{type(e).__name__}: {e}"
+    root = int.from_bytes(raw[:4], "little") if len(raw) >= 4 else -1
+    check("the served bytes are a real fragment — zlib-compressed flatbuffers whose root offset "
+          "lands inside the buffer",
+          bool(raw) and 4 <= root < len(raw),
+          f"{len(frag)} compressed -> {len(raw)} bytes, root offset {root}"
+          + (f"; zlib {why}" if why else ""))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("binary", nargs="?", help="path to aec-bim-server-<triple>")
     ap.add_argument("--timeout", type=float, default=180.0,
                     help="seconds to wait for /health (onefile extraction + the API import are slow)")
+    ap.add_argument("--expect-converter", default="python", choices=("node", "python"),
+                    help="which converter the publish must report having used. Defaults to `python` "
+                         "because that is what the packaged bundle has to use — it carries no Node "
+                         "runtime — and it is the path that needs `flatbuffers` to survive freezing. "
+                         "Pass `node` when running against a source checkout, where Node is present "
+                         "and IS the right answer. Declared rather than inferred: a check that "
+                         "guesses what it should require can guess wrong and still look green.")
+    ap.add_argument("--convert-timeout", type=float, default=300.0,
+                    help="seconds to wait for the publish to leave `running`")
+    ap.add_argument("--skip-convert", action="store_true",
+                    help="boot checks only. For diagnosing a sidecar that will not start — NOT for "
+                         "getting a red build green, which is how the gap this closes stayed open")
     ap.add_argument("--deep-tmp", action="store_true",
                     help="use the default temp directory instead of a shallow one. This is the "
                          "configuration under which the DESKTOP-FROZEN crash did NOT reproduce, so "
@@ -275,6 +405,13 @@ def main() -> int:
             check("GET / serves the bundled SPA — the packaged web/ datas landed and are mounted",
                   st == 200 and "html" in ct.lower() and b"<" in body[:512],
                   f"status {st}, content-type {ct!r}")
+
+            # The half the boot checks cannot reach: run the converter inside the artifact.
+            if args.skip_convert:
+                print("  SKIPPED the conversion checks (--skip-convert) — this run does NOT show "
+                      "that model conversion survives packaging")
+            else:
+                convert_a_model(port, args.expect_converter, args.convert_timeout)
         finally:
             proc.terminate()
             try:

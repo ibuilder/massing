@@ -36,9 +36,22 @@ silently lost thirty of them would clear a round number, and one that lost a reg
 double-loading another would clear a count. And it was itself tested against three deliberately
 broken builds before being trusted, including a reproduction of the crash that shipped.
 
-One thing it still does not do is convert a model. The converter itself is tested, but not from
-inside a finished build — so whether model conversion survives packaging is genuinely unknown rather
-than checked another way, and it is written down as an open item instead of being counted as done.
+It also builds a model and opens it, which is the part that matters most and the part a startup
+check cannot reach. The machinery that turns a building model into something the 3D view can draw is
+only loaded at the moment someone publishes — so an installer that lost it along the way starts
+perfectly, passes every other check, and disappoints the first person who tries to use it. That is
+exactly what happened once already. Each build now creates a small model inside the packaged app,
+publishes it, and requires the finished geometry back before the release may continue.
+
+It insists on the right machinery, too. The desktop app has no copy of the tooling the server
+version uses, so it has to fall back to its own — and every machine that assembles these builds
+happens to have the server tooling installed. A check that accepted either would pass without ever
+testing what a user actually runs, so this one names which is required and fails if the other
+answers.
+
+Proven both ways before being trusted: a deliberately broken build fails in one second and says
+exactly what is missing, and a correctly built one passes and produces real geometry — because a
+test that only ever fails could be failing for the wrong reason.
 
 ### The desktop app can show you the model it just built
 

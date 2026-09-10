@@ -145,12 +145,22 @@ jobs:
       # bundle, so the shipped v0.3.1133 AppImage raised IndexError before binding a port. This
       # builds nothing and asserts on the artifact: it starts the sidecar under a deliberately
       # SHALLOW temp directory (the configuration that crash needed — a deep one passes against the
-      # broken binary), then requires /health, /ready, the full module catalog and the bundled SPA.
+      # broken binary), then requires /health, /ready, the full module catalog and the bundled SPA —
+      # and then AUTHORS AND PUBLISHES A MODEL, so the converter runs inside the bundle too. That
+      # last part is DESKTOP-SMOKE-CONVERT: `aec_data.fragments` is imported lazily and `codec.py`
+      # imports `flatbuffers` at module scope, so nothing on the boot path touches either, and a
+      # build that dropped them boots perfectly and fails the first time a user publishes.
       # Placed before the Tauri build so a dead sidecar fails in seconds rather than after three
-      # platform bundles. See services/api/smoke_sidecar.py for what it does NOT cover.
+      # platform bundles.
       - name: Smoke-test the packaged sidecar
         shell: bash
-        run: python services/api/smoke_sidecar.py
+        # `--expect-converter python` is not a preference, it is the assertion. A bundle carries no
+        # Node runtime — `apppaths.repo_root()` returns None when frozen without even walking — so
+        # the Python converter is the one that must run, and it is the path that needs `flatbuffers`
+        # to have survived PyInstaller's analysis. Accepting either converter would let this pass on
+        # a runner where Node is installed (which is every runner here, two steps up) without ever
+        # exercising the code under test.
+        run: python services/api/smoke_sidecar.py --expect-converter python
 
       # Windows Authenticode: if a code-signing cert is configured, import the PFX and point
       # tauri.conf at its thumbprint so `tauri build` signs the .exe/.msi. No secret → unsigned.
@@ -255,7 +265,7 @@ jobs:
           root="$(dirname "$img")/squashfs-root"
           side=$(find "$root" -type f -name 'aec-bim-server*' -print -quit || true)
           echo "sidecar inside the bundle: ${side:-<none found>}"
-          python services/api/smoke_sidecar.py "$side"
+          python services/api/smoke_sidecar.py "$side" --expect-converter python
 
       # manual runs don't make a release; keep the installers as downloadable artifacts
       - name: Upload bundles as artifacts (manual runs)

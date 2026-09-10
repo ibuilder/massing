@@ -1175,24 +1175,43 @@ instances:
   source-tree stand-in: a binary that dies during import the way the shipped one did, one that starts
   but never binds, and one serving a truncated catalog.
 
-- **DESKTOP-SMOKE-CONVERT — the smoke never converts a model, so the freeze is unproven where it
-  matters most** *(S — Lane J; opened 2026-09-10 by DESKTOP-SMOKE)*
+- ✅ **DESKTOP-SMOKE-CONVERT — the smoke never converted a model, so the freeze was unproven where it
+  matters most** *(S — Lane J; opened 2026-09-10 by DESKTOP-SMOKE, **CLOSED** the same day in
+  `services/api/smoke_sidecar.py`)*
 
-  DESKTOP-SMOKE proves the packaged sidecar boots and serves. It never converts anything, so
-  `aec_data.fragments` — and the module-scope `flatbuffers` import inside its `codec.py` — is still
-  unexercised in a frozen build. That is the gap DESKTOP-FRAGMENTS closed its own entry naming: the
-  spec's `collect_submodules("aec_data")` was checked by running the same `pkgutil` walk, and
-  PyInstaller's analysis *should* follow a module-scope import, with "should" doing real work.
+  DESKTOP-SMOKE proved the packaged sidecar boots and serves. It converted nothing, so
+  `aec_data.fragments` — and the module-scope `flatbuffers` import inside its `codec.py` — was still
+  unexercised in a frozen build. **A build that packaged neither boots perfectly**: the import is
+  lazy, inside `fragconvert.convert_ifc`, so nothing on the boot path touches it and the user finds
+  out the first time they publish, with the 3D view staying empty — the DESKTOP-FRAGMENTS symptom
+  exactly.
 
-  **The obvious smoke would pass vacuously**, which is why this is filed rather than bolted on.
-  `edit_preview` is the only synchronous route that reaches the converter, it needs a project with an
-  uploaded source IFC, and it FAILS OPEN with a 503 — so a fresh install answers 503 whether the
-  import survived the freeze or not, and a check that accepts that answer is measuring nothing.
+  **The obvious smoke would have passed vacuously**, which is why the entry warned against it.
+  `edit_preview` is the only synchronous route reaching the converter and it FAILS OPEN with a 503, so
+  a fresh install answers 503 whether the import survived or not. Publish is the path that *reports*
+  instead of swallowing: `convert_ifc` raising is caught in `authoring._publish`, recorded as
+  `reconvert_error`, and turned into publish state `error` carrying the exception.
 
-  The honest shapes are a real publish against the running sidecar (create a project, upload a small
-  IFC, publish, fetch `model.frag`, open it with the reference reader), or a diagnostic the frozen
-  binary can be asked to run directly. The first needs a tracked IFC fixture; the second is a change
-  to shipped code and should be justified as a user-facing diagnostic rather than as test scaffolding.
+  **No IFC fixture is tracked, and that is better than the shape this entry proposed.**
+  `POST /projects/{pid}/model/blank` generates one server-side through `aec_data.massing`, so the
+  model is authored BY the artifact rather than handed to it — more of the bundle exercised, and
+  nothing that can drift from a checked-in file.
+
+  **It asserts WHICH converter ran, and that is the load-bearing part.** Publish reports `node` or
+  `python`; a bundle carries no Node runtime, so it must report `python`. Accepting either would let
+  the check pass on any runner with Node installed — which is every runner this workflow uses — while
+  never touching the code under test. `--expect-converter` is declared by the caller rather than
+  inferred from the environment, because a check that guesses what it should require can guess wrong
+  and still look green. The bundle taking the Python path is structural rather than lucky:
+  `apppaths.repo_root()` returns `None` when frozen *without even walking*, so `have_converter()` is
+  False no matter what is installed on the host.
+
+  Proven in both directions rather than asserted. A **genuinely broken build** — `flatbuffers`
+  blocked at import and `have_converter` forced False, which is what a bad bundle on a desktop is —
+  fails in 1.0s with `reconvert_error: "No module named 'flatbuffers'"` in the failure line. The
+  **positive control** matters as much: the same setup with `flatbuffers` present passes, reporting
+  `converter: python` and a 694-byte fragment that decompresses to 1,424 bytes with a valid
+  flatbuffer root — without it, the first mutation could have been failing for an unrelated reason.
 
 - **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
   2026-09-10 by review of #504)*
@@ -2515,7 +2534,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE-CONVERT *(the boot smoke that closed DESKTOP-SMOKE never converts a model, so `flatbuffers` surviving PyInstaller is still unproven; the fix is a fixture plus a step in `.github/workflows/desktop.yml`, so it stays in this lane rather than moving to Lane C with the code it exercises)* · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
