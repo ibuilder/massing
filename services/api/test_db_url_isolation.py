@@ -35,11 +35,15 @@ already built.
 
 ## Not covered, stated rather than left implicit
 
-The 236 tests that create no schema and declare no database are **not** required to declare one. They
-never call `create_all`, so the worst an ambient DSN does is give them a connection they never write
-a table into. That is a judgement, not an oversight, and it is the reason this file counts them and
-prints the number instead of quietly excluding them — a population you cannot see is one you cannot
-argue with.
+The tests that create no schema and declare no database are **not** required to declare one. They
+neither call `create_all` nor enter a `TestClient`, so the worst an ambient DSN does is give them a
+connection they never write a table into. That is a judgement, not an oversight, and it is the reason
+this file counts them and prints the number instead of quietly excluding them — a population you
+cannot see is one you cannot argue with.
+
+*This paragraph used to say "the 236 tests". It was 304 by the time anyone re-read it, and it moved
+because the `create_all`/lifespan widening below reclassified 347 files out of it — a number in prose
+beside a number the run prints is a copy, and the copy is what drifts. The printed one is the answer.*
 
 The three non-test tools — `loadtest.py`, `mcp_server.py`, `seed_scale.py` — keep `setdefault` on
 purpose: pointing a load test or the seeder at a real database is what they are for. They are not
@@ -69,9 +73,47 @@ def check(label: str, ok: bool, detail: object = "") -> None:
 # still REPORTED a site, so a mutation that routed every site to "safe" passed. Reporting a file and
 # classifying it are different questions, and asserting one is not asserting the other.
 
+def _boots_the_app(tree: ast.AST) -> bool:
+    """Does this module enter a `TestClient(...)` as a context manager?
+
+    **This gate made, one level down, the exact mistake its own docstring warns about.** It keyed on
+    the risk — "can this file create a schema" — and then answered that question by looking for a
+    literal `create_all`. But `with TestClient(app)` runs the app's lifespan, and the lifespan calls
+    `init_db()`, which calls `Base.metadata.create_all`. No literal appears in the test. So **355
+    files** that build the whole schema were classified as *creates no schema* and never checked;
+    four of them declared no `DATABASE_URL` at all.
+
+    **The `with` is load-bearing and is not a style preference.** A bare `TestClient(app)` does NOT
+    run the lifespan — `test_samples.py` says so in a comment, and it is why that file wraps its
+    client. Matching the constructor instead of the context manager would report every file holding
+    a non-entering client, which is a different and larger population that carries no risk.
+
+    Both `with X() as c:` and `with X():` are matched, and multi-item `with` statements too, since
+    the risk is entering the client at all.
+    """
+    for n in ast.walk(tree):
+        if not isinstance(n, (ast.With, ast.AsyncWith)):
+            continue
+        for item in n.items:
+            call = item.context_expr
+            if not isinstance(call, ast.Call):
+                continue
+            fn = call.func
+            name = fn.id if isinstance(fn, ast.Name) else (fn.attr if isinstance(fn, ast.Attribute) else "")
+            if name == "TestClient":
+                return True
+    return False
+
+
 def _creates_schema(tree: ast.AST) -> bool:
-    """Does this module call `create_all` anywhere? That is what turns a DSN into tables."""
-    return any(isinstance(n, ast.Attribute) and n.attr == "create_all" for n in ast.walk(tree))
+    """Can this module turn a DSN into tables?
+
+    Two ways, and the second was invisible until 2026-09-10: calling `create_all` directly, or
+    entering a `TestClient` whose lifespan calls it for you. See `_boots_the_app`.
+    """
+    if any(isinstance(n, ast.Attribute) and n.attr == "create_all" for n in ast.walk(tree)):
+        return True
+    return _boots_the_app(tree)
 
 
 #: memo for `_reaches_db`; also the cycle guard, since a provisional False is stored
@@ -309,6 +351,37 @@ from aec_api import models
 models.Base.metadata.create_all(engine)
 '''
 
+
+#: DB-URL-BOOT — the shape that was invisible for two months. No `create_all` anywhere; the schema is
+#: built by the app's lifespan when the client is ENTERED. 355 files in this suite are this shape,
+#: and four of them declared no DSN at all: one, run with the variable exported, was measured
+#: creating **173 tables** in it and exiting 0 — the same number `test_view_config.py` produced for
+#: the original finding, in the population this gate could not look at.
+_LIFESPAN_BOOT = '''
+from fastapi.testclient import TestClient
+from aec_api.main import app
+with TestClient(app) as c:
+    c.get("/health")
+'''
+#: The same shape, declared. Must be accepted, or the rule is always-fail rather than a rule.
+_LIFESPAN_BOOT_FIXED = '''
+import os
+os.environ["DATABASE_URL"] = "sqlite:///./_x.db"
+from fastapi.testclient import TestClient
+from aec_api.main import app
+with TestClient(app) as c:
+    c.get("/health")
+'''
+#: **The `with` is the whole distinction.** A bare `TestClient(app)` does not run the lifespan and
+#: creates nothing — `test_samples.py` says so in a comment. Matching the constructor instead would
+#: demand a DSN from every file merely holding a client: a larger population carrying no risk, and a
+#: gate that cries wolf gets edited to be quiet, which is where the real rule dies.
+_BARE_CLIENT_NO_LIFESPAN = '''
+from fastapi.testclient import TestClient
+from aec_api.main import app
+c = TestClient(app)
+'''
+
 for _label, _src, _want in (
     ("the undeclared original is caught", _PRE_FIX, "NEEDS-DECLARATION"),
     ("declaring AFTER the aec_api import is caught — the engine is already built",
@@ -327,6 +400,12 @@ for _label, _src, _want in (
      _ASSIGN_NOT_OS, "NEEDS-DECLARATION"),
     ("...but `import os as _os` IS os, and two real files in this suite write it that way",
      _ALIASED_OS, "SAFE"),
+    ("DB-URL-BOOT: entering a TestClient builds the schema via the lifespan, with no `create_all` "
+     "in sight — the blind spot this gate had until 2026-09-10",
+     _LIFESPAN_BOOT, "NEEDS-DECLARATION"),
+    ("...and the same file with a declaration is accepted", _LIFESPAN_BOOT_FIXED, "SAFE"),
+    ("a BARE TestClient never enters the lifespan, so it creates nothing and is not asked to declare",
+     _BARE_CLIENT_NO_LIFESPAN, "NO-SCHEMA"),
 ):
     got = verdict(_src)
     check(f"self-test: {_label}", got == _want, f"got {got}")

@@ -37,7 +37,14 @@ ways to fail, all mutation-verified below:
 Kinds and tools register on import, so the app must actually be started — `app.routes` at import time
 sees a fraction of the real surface, and the same is true here.
 """
+import os
 import sys
+
+# DB-URL-BOOT: assignment BEFORE `aec_api` is imported. This file enters a `TestClient`,
+# whose lifespan calls `init_db()` -> `Base.metadata.create_all`, so run directly with
+# `DATABASE_URL` exported it would build the whole schema in whatever that names. No literal
+# `create_all` appears here, which is exactly why `test_db_url_isolation` could not see it.
+os.environ["DATABASE_URL"] = "sqlite:///./_dispatcher_privilege.db"
 
 from fastapi.testclient import TestClient
 

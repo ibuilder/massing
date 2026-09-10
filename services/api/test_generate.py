@@ -6,6 +6,12 @@ import tempfile
 
 # IFC_DIR is read at import time by the authoring router; point it at a temp dir before importing.
 os.environ["IFC_DIR"] = tempfile.mkdtemp(prefix="gen_ifc_")
+
+# DB-URL-BOOT: assignment BEFORE `aec_api` is imported. This file enters a `TestClient`,
+# whose lifespan calls `init_db()` -> `Base.metadata.create_all`, so run directly with
+# `DATABASE_URL` exported it would build the whole schema in whatever that names. No literal
+# `create_all` appears here, which is exactly why `test_db_url_isolation` could not see it.
+os.environ["DATABASE_URL"] = "sqlite:///./_generate.db"
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "data", "src"))
 
 import warnings  # noqa: E402
