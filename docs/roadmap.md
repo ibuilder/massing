@@ -973,6 +973,26 @@ instances:
   extends the empty-JSON sweep to the newly-read registers, and `test_pin_empty.py` now compares the
   **union of both sweeps** against the derived population rather than one list against another.
 
+  **REVIEW FOUND TWO REAL DEFECTS IN THE MIGRATION, and one was destructive.** The sweep classified
+  *malformed JSON* as *empty*: `_loads` collapses "not JSON at all" and "decoded to nothing" into the
+  same `None`, and `_is_empty_guids(None)` is True. Measured on a truncated list holding a well-formed
+  GlobalId — `'["1WrzGm1SD2ev45B_OWQ39B", "2Ab'` — **the row was cleared and the GUID went with it**,
+  and `downgrade()` is a documented no-op. Those bytes are the only surviving evidence of what the row
+  meant. A new `_decode` now separates parse failure from an empty value; such rows are left untouched
+  and reported in `SKIPPED` for a human. `e4a7c2b81f60` does null them and has already run, so the two
+  copies now **deliberately** differ — in the safe direction, and `services/api/test_pin_empty.py`
+  asserts the difference so it cannot be mistaken for the drift that rule exists to catch.
+
+  The second was `.mappings().all()` buffering every candidate row and issuing one `UPDATE` per row
+  inside one transaction. The scan is now streamed, only the *ids* that need clearing are retained —
+  O(legacy empties), not O(register) — and they clear in batches.
+
+  *And fixing that exposed a third, in my own counter.* `changed` was incremented during the scan, so
+  it measured what the sweep INTENDED: a mutation clipping the chunk loop to its first batch still
+  reported every row swept. It now sums the `UPDATE` rowcounts. **A migration that reports more than
+  it did is the same defect as everything else on this branch**, and it was one statement away in the
+  fix for an unrelated finding.
+
   **Not fixed here, and named so it is not mistaken for done:** `resolve_pins` finds a register record
   by its `element_guids`, while `/module-pins` finds one by its stored `anchor`. A record with an
   anchor and no element still reaches the 3D viewer and not the sheet, so `/pins/all` is not yet the

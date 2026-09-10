@@ -265,6 +265,68 @@ with _eng2.begin() as _c:
     check("...and skips a table it does not have",
           mig2._sweep(_c, "mod_not_installed", ("element_guids",)) == 0)
 
+# --- MALFORMED IS NOT EMPTY, and the two copies deliberately DISAGREE here -----------------------
+# `_loads` collapses "not JSON at all" and "decoded to nothing" into the same `None`, and
+# `_is_empty_guids(None)` is True — so `e4a7c2b81f60` NULLs a malformed value. Measured on a
+# truncated list holding a well-formed GlobalId, the row was cleared and the GUID went with it, and
+# `downgrade()` is a documented no-op. Found in review of PR #500.
+#
+# `f2b6d31a7c04` routes through `_decode` instead and leaves those rows alone, recording them in
+# `SKIPPED`. The first migration has already run and cannot be changed, so the copies now differ —
+# in the safe direction. **That difference is asserted here** so it can never be mistaken for the
+# silent drift the copy-don't-import rule exists to catch.
+_TRUNCATED = '["1WrzGm1SD2ev45B_OWQ39B", "2Ab'
+check("the fixture really is unparseable", mig2._decode(_TRUNCATED)[0] is False)
+check("...and really does contain a recoverable GlobalId", "1WrzGm1SD2ev45B_OWQ39B" in _TRUNCATED,
+      "if it did not, nothing would be lost by nulling it and this check would prove nothing")
+
+mig2.SKIPPED.clear()
+_eng3 = _sa.create_engine("sqlite://")
+with _eng3.begin() as _c:
+    _c.execute(_sa.text("CREATE TABLE mod_ncr (id TEXT PRIMARY KEY, element_guids TEXT)"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('truncated', :v)"), {"v": _TRUNCATED})
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('empty', '[]')"))
+    _c.execute(_sa.text("INSERT INTO mod_ncr VALUES ('real', '[\"G9\"]')"))
+    _n3 = mig2._sweep(_c, "mod_ncr", ("element_guids",))
+    _got3 = {r["id"]: r["element_guids"]
+             for r in _c.execute(_sa.text("SELECT * FROM mod_ncr")).mappings()}
+
+check("A MALFORMED VALUE IS NOT DESTROYED — it is evidence, and downgrade cannot restore it",
+      _got3["truncated"] == _TRUNCATED,
+      f"got {_got3['truncated']!r} — the GlobalId inside it is unrecoverable once nulled")
+check("...and it is REPORTED rather than silently left", 
+      mig2.SKIPPED == [("mod_ncr", "truncated", "element_guids")],
+      f"SKIPPED={mig2.SKIPPED!r} — a row the sweep cannot judge must be nameable by a human")
+check("...while a genuinely empty value beside it is still swept", _got3["empty"] is None)
+check("...and a real value is still kept", _got3["real"] is not None)
+check("...and the changed count counts only what actually changed", _n3 == 1, f"changed={_n3}")
+
+check("THE FIRST MIGRATION STILL NULLS IT — the divergence is real, not imagined",
+      mig._is_empty_guids(_TRUNCATED) is True,
+      "if this ever becomes False the two copies agree again and the note above is stale")
+mig2.SKIPPED.clear()
+
+# --- the batched update writes the same rows as one-at-a-time would --------------------------------
+# `_sweep` now drains the SELECT before updating and clears ids in chunks of `_BATCH`. Exercise a set
+# LARGER than one batch, or the chunking loop never runs a second iteration and is untested.
+mig2.SKIPPED.clear()
+_eng4 = _sa.create_engine("sqlite://")
+_N = mig2._BATCH * 2 + 7
+with _eng4.begin() as _c:
+    _c.execute(_sa.text("CREATE TABLE mod_issue (id TEXT PRIMARY KEY, element_guids TEXT)"))
+    _c.execute(_sa.text("INSERT INTO mod_issue VALUES (:i, :v)"),
+               [{"i": f"e{n}", "v": "[]"} for n in range(_N)])
+    _c.execute(_sa.text("INSERT INTO mod_issue VALUES (:i, :v)"),
+               [{"i": f"k{n}", "v": f'["G{n}"]'} for n in range(50)])
+    _n4 = mig2._sweep(_c, "mod_issue", ("element_guids",))
+    _left = _c.execute(_sa.text(
+        "SELECT COUNT(*) FROM mod_issue WHERE element_guids IS NOT NULL")).scalar()
+check("a set spanning several batches is swept completely", _n4 == _N,
+      f"changed={_n4}, expected {_N} — a chunking loop that stops early sweeps a prefix and "
+      f"reports success")
+check("...and the rows it must not touch are all still there", _left == 50, f"left={_left}")
+check("...over more than one batch, so the loop actually iterated", _N > mig2._BATCH)
+
 # `ncr` is in the second sweep and not the first — the check above is only meaningful if the
 # register it uses is actually one the widening migration claims.
 check("the register the check above sweeps is one this migration added",
