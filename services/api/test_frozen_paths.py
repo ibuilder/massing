@@ -79,7 +79,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 
-SPECS = ("services/api/desktop.spec", "services/api/sidecar.spec")
+def _specs() -> tuple[str, ...]:
+    """Every PyInstaller spec git tracks — **derived, because a listed pair is a population.**
+
+    This was a literal two-tuple, which is precisely the shape that let a mutation past this file's
+    other population check: a third spec (a new artifact, a platform variant) would bundle roots
+    nobody here scans, and the gate would report a clean tree with no sign it had stopped looking.
+    Returns exactly the same two files today; the difference is that adding a third changes it.
+    """
+    out = subprocess.run(["git", "ls-files", "*.spec"], cwd=REPO, capture_output=True, text=True,
+                         check=True)
+    found = tuple(sorted(p for p in out.stdout.split("\n") if p.strip()))
+    if not found:
+        raise AssertionError("no .spec files tracked; the bundled population cannot be derived")
+    return found
 
 
 def bundled_roots() -> tuple[str, ...]:
@@ -98,7 +111,7 @@ def bundled_roots() -> tuple[str, ...]:
     `test_ruff_scope.py`, which parses `ci.yml` for the ruff command rather than restating it.
     """
     roots: list[str] = []
-    for spec in SPECS:
+    for spec in _specs():
         path = REPO / spec
         if not path.is_file():
             raise AssertionError(f"{spec} is missing; the bundled population cannot be derived")
@@ -186,9 +199,12 @@ BUNDLED_ROOTS = bundled_roots()
 # is exactly why this shipped — the two platforms anyone tested on could not reproduce it.
 SHALLOWEST_TMPDIR = "/tmp"
 
-# `apppaths` is the ONE module allowed to reason about layout; it does so without counting, and it
-# is where every converted site now points.
-EXEMPT = {"services/api/src/aec_api/apppaths.py"}
+# **There is no exemption list, and there was no need for one.** An earlier draft exempted
+# `apppaths.py` as "the module allowed to reason about layout" -- but it reasons by WALKING
+# (`for d in here.parents`), which is not a subscript and which this finder therefore never saw.
+# The exemption excluded nothing, and a standing exemption for a file that needs none is an
+# invitation: it would have let `apppaths` itself start counting, silently, in the one module whose
+# entire purpose is not to.
 
 
 def _tracked_py() -> list[str]:
@@ -320,8 +336,6 @@ def main() -> int:
     raises, escapes, local = [], [], []
     buckets = {"raises": raises, "escapes": escapes, "local": local}
     for rel in files:
-        if rel in EXEMPT:
-            continue
         src = (REPO / rel).read_text(encoding="utf-8")
         for line, n in parent_index_sites(src):
             buckets[verdict(rel, n)].append(f"{rel}:{line} parents[{n}]")
@@ -334,7 +348,7 @@ def main() -> int:
           + "\n      Use aec_api.apppaths (repo_root / data_src / bundle_dir / converter_cli): it "
             "matches the checkout's SHAPE, so it cannot be off by one, it survives a file move, "
             "and it answers None in a bundle instead of naming a temp directory."
-          if escapes else f"{len(local)} in-bundle parents[] use(s), 0 escaping")
+          if escapes else f"{len(local)} in-bundle parents[] use(s), 0 escaping, 0 exemptions")
 
     print("\ntest_frozen_paths " + ("OK" if not FAILURES else "FAILED"))
     return 1 if FAILURES else 0
