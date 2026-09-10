@@ -1224,6 +1224,19 @@ instances:
   building is tall; it had to become a cross-coordinate-system claim (the IFC z-extent must equal the
   fragment y-extent) before it meant anything.
 
+  **WHAT IS VERIFIED, AND WHERE THE VERIFICATION STOPS.** The converter is cross-checked against the
+  Node one and against the IFC itself, and the reference reader accepts its output — all in a SOURCE
+  CHECKOUT on Linux. **No frozen bundle was built or run.** `desktop.yml` triggers only on a tag push
+  or `workflow_dispatch`, so no pull request ever builds one, and DESKTOP-SMOKE records that even when
+  it does build, nothing executes the artifact. So the claim "the desktop app can now render" rests on
+  two things measured separately rather than on the packaged app working end to end: the converter
+  works, and `collect_submodules("aec_data")` discovers all four new modules (checked by running the
+  same `pkgutil` walk it uses, not by reading the spec). What is NOT measured is `flatbuffers`
+  surviving PyInstaller's analysis — it is a module-scope import of `codec.py`, which the analysis
+  should follow, and "should" is doing real work in that sentence. **DESKTOP-FROZEN existed because
+  frozen-path defects are invisible in source; this entry is closed with that same class of risk
+  reduced but not eliminated, and DESKTOP-SMOKE is the item that would close it.**
+
   **`flatbuffers` was a fifth finding, of the `httpx` shape** — imported by shipped code, declared in
   no requirements file, and present in the lock only `# via onnxruntime`. It is now a declared direct
   dependency, which is what a package our own source imports is however else it happens to arrive.
