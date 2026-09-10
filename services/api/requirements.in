@@ -30,6 +30,17 @@ psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-ha
 # A package our own source imports is a DIRECT dependency however else it happens to arrive.
 httpx>=0.28.1
 
+# FlatBuffers codec for the `.frag` (Fragments) format. `aec_data/fragments/codec.py` imports it at
+# module scope to WRITE fragments in Python, which is what lets the packaged desktop app convert IFC
+# at all -- it ships no Node runtime, so `services/converter/src/cli.mjs` can never run there.
+#
+# Undeclared until DESKTOP-FRAGMENTS: it reached the lock on a single transitive edge, `# via
+# onnxruntime`. Exactly the shape of the httpx line above, and it would have failed the same way --
+# an onnxruntime bump that drops or renames the dependency deletes a package our own source imports,
+# the service still boots, and only IFC conversion breaks. A package our own source imports is a
+# DIRECT dependency however else it happens to arrive.
+flatbuffers>=25.2.10
+
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1.5

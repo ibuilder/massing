@@ -1140,39 +1140,62 @@ instances:
   `aec-bim-server` with a deliberately SHALLOW `TMPDIR`, and fail unless `/health` answers. That
   exact configuration is what broke; a smoke test on a deep temp path would have passed.
 
-- **DESKTOP-FRAGMENTS — the desktop app can author a model but never renders one** *(M — Lane J;
-  opened 2026-09-10 by DESKTOP-FROZEN, and it needs the user's call on WHICH fix)*
+- ✅ ⭐ **DESKTOP-FRAGMENTS — the desktop app could author a model but never render one**
+  *(M — Lane J; **CLOSED**, fix in this change; the shape was the user's call and they made it:
+  "python always python". Gated by `services/api/test_fragments_python.py` and
+  `services/api/test_fragments_schema.py`)*
 
   Found by driving the published v0.3.1133 bundle end to end once the startup crash was worked
-  around. Everything up to geometry works on a fresh install: create a project, upload a source IFC,
-  publish, index properties, list elements. Then `GET /projects/{pid}/model.frag` is **404 forever**,
-  and `publish/status` reports `"reconverted": false` with no error.
+  around. Everything up to geometry worked on a fresh install: create a project, upload a source IFC,
+  publish, index properties, list elements. Then `GET /projects/{pid}/model.frag` was **404 forever**,
+  and `publish/status` reported `"reconverted": false` with no error.
 
-  IFC → Fragments is a **Node** script — `services/converter/src/cli.mjs`, invoked as
-  `node <script>` by `services/api/src/aec_api/routers/authoring.py`. The Tauri bundle
+  IFC → Fragments was a **Node** script — `services/converter/src/cli.mjs`, invoked as `node <script>`
+  by `services/api/src/aec_api/routers/authoring.py`. The Tauri bundle
   (`apps/web/src-tauri/tauri.conf.json`) declares one `externalBin`, `aec-bim-server`, and
-  `services/api/desktop.spec` packages the SPA and the module catalog and nothing else. **There is no
-  Node runtime and no converter in the desktop artifact**, so the branch that would convert is
-  skipped by its own `.exists()` guard and the app reports success.
+  `services/api/desktop.spec` packages the SPA and the module catalog and nothing else. **There was no
+  Node runtime and no converter in the desktop artifact**, so the branch that would convert was
+  skipped by its own `.exists()` guard and the app reported success. The server-side Docker image was
+  never affected: `services/api/Dockerfile` copies both `node` and `services/converter` in, which is
+  why this never showed up in the deployed product.
 
-  So the shipped desktop app is the GC portal plus an authoring API with a permanently empty 3D
-  view — while `docs/walkthrough.md` opens by telling the reader to run the desktop app for the
-  viewer parts. The server-side Docker image is unaffected: `services/api/Dockerfile` copies both
-  `node` and `services/converter` in, which is why this has never shown up in the deployed product.
+  **What shipped: the second option, a Python writer** — `services/data/src/aec_data/fragments/`
+  (`schema.py`, `codec.py`, `from_ifc.py`), selected by `services/api/src/aec_api/fragconvert.py`,
+  which still prefers the Node converter wherever one exists and reports which ran. `ifcopenshell` is
+  already bundled and already does the geometry, so the desktop path now needs no Node runtime at all.
 
-  **Two shapes, and they are not equivalent** — hence the user's call:
+  **The entry's own objection to this option was "a SECOND implementation of the format, and two
+  tessellators that disagree is a worse failure than none" — that objection was right, and it is what
+  the gate is for.** `test_fragments_python.py` does not check the Python output against a fixture of
+  its own making: it runs **both** converters over the same IFC and asserts they agree on the things
+  they must agree on (23/23 GlobalIds, 57/57 indexed entities), while saying out loud that shell
+  counts legitimately differ (python 8, node 12) because the two libraries tessellate independently.
+  It then feeds the Python output to **the real `@thatopen/fragments` reader**, with the Node output
+  through the same reader as the control. A format writer verified only against its own reader proves
+  nothing; that is the whole reason the objection stood.
 
-  1. **Bundle it.** Ship the Node binary plus the converter as a second `externalBin`. Straightforward,
-     keeps one converter for every deployment, and adds roughly a Node runtime's worth of download to
-     an artifact already ~357 MB.
-  2. **Tessellate in Python.** `ifcopenshell` is already bundled and already does the geometry; a
-     Python fragment writer removes the Node dependency from the desktop path entirely. Smaller
-     artifact, but a SECOND implementation of the format, and two tessellators that disagree is a
-     worse failure than none.
+  **No `.fbs` schema ships with `@thatopen/fragments`**, so the vtable slots and struct strides in
+  `schema.py` were read out of its generated accessors. That is a version coupling of exactly the kind
+  CLAUDE.md warns about, and `test_fragments_schema.py` re-derives every slot from the installed
+  package on each run rather than trusting the constants — it fails on a moved field, on a gap in the
+  slot sequence, on an undercounted `startObject`, and on the pinned version moving in
+  `apps/web/package.json` while `schema.py` still names the old one.
 
-  Not fixed here, and deliberately not fixed quietly. The related change in DESKTOP-FROZEN is only
-  that `apppaths.have_converter()` now says "absent" honestly instead of reaching for a path that
-  raised — the behaviour a user sees is unchanged.
+  **Four defects were found by building it, and every one was found by measuring rather than reading.**
+  A `PrependInt8` written *before* its `Pad(3)` put `representation_class` at offset 31 instead of 28 —
+  invisible until the reader was made to read that field, because a reader that never reads a field
+  cannot disagree about it. `IfcOpeningElement` was emitted as a solid, caught only because the
+  cross-check reported exactly one GUID present on one side. The entity index first held only meshed
+  products (9 vs 57), then over-corrected to 282 by including `IfcDirection` and `IfcCartesianPoint`.
+  And the file was written Z-up: IFC is Z-up, Fragments is three.js and Y-up, so `(x, y, z)` must
+  become `(x, z, -y)`. *The assertion that caught the last one was itself wrong first* — comparing a
+  fragment's y-extent against its z-extent proves nothing when a 25×30 m site is wider than a 6 m
+  building is tall; it had to become a cross-coordinate-system claim (the IFC z-extent must equal the
+  fragment y-extent) before it meant anything.
+
+  **`flatbuffers` was a fifth finding, of the `httpx` shape** — imported by shipped code, declared in
+  no requirements file, and present in the lock only `# via onnxruntime`. It is now a declared direct
+  dependency, which is what a package our own source imports is however else it happens to arrive.
 
 - ✅ ⭐ **PIN-ANCHOR — `/pins/all` was not the union it is named for** *(S — Lane C; **CLOSED**, fix
   in this change; gated by `services/api/test_pin_anchor.py`, and `services/api/test_pin_empty.py`
@@ -2394,7 +2417,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE *(the artifact `.github/workflows/desktop.yml` publishes is never executed by any job; the work is a boot-and-curl step in that workflow. Filed here rather than Lane C because the FIX is a build step, even though the crash that prompted it was backend code — the derived-here-fixed-there split Lanes B and E already had to make)* · DESKTOP-FRAGMENTS *(the desktop artifact ships no Node runtime and no converter, so the 3D view is permanently empty; the fix is a packaging decision — bundle Node, or write a Python tessellator — and the entry argues both)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE *(the artifact `.github/workflows/desktop.yml` publishes is never executed by any job; the work is a boot-and-curl step in that workflow. Filed here rather than Lane C because the FIX is a build step, even though the crash that prompted it was backend code — the derived-here-fixed-there split Lanes B and E already had to make)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
