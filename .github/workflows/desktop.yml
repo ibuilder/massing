@@ -249,9 +249,14 @@ jobs:
       # have picked it up, under the name it expects, with its executable bit intact. The AppImage is
       # the one bundle we can unpack on its own runner without installing anything.
       #
-      # `find` rather than a hardcoded path on purpose — and `smoke_sidecar.py` FAILS on a missing
-      # binary rather than skipping, so a wrong guess here reds the build instead of quietly
-      # asserting nothing, which is the failure this whole item exists to end.
+      # `find` rather than a hardcoded path on purpose — and BOTH `find`s are checked for an empty
+      # result. An earlier version of this step checked only the AppImage one and passed `$side`
+      # straight through; `find` answers "nothing" with an empty string, which `smoke_sidecar.py`
+      # then read as "no path was given" and resolved by scanning the build-output directory — one
+      # binary, already smoke-tested two steps up. This step would have re-tested the wrong artifact
+      # and gone green forever, which is exactly the failure this whole item exists to end. The
+      # harness now refuses a blank path outright; this guard says so here as well, because a step
+      # that computes nothing should fail where the nothing was computed.
       - name: Smoke-test the sidecar inside the AppImage
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
@@ -265,6 +270,10 @@ jobs:
           root="$(dirname "$img")/squashfs-root"
           side=$(find "$root" -type f -name 'aec-bim-server*' -print -quit || true)
           echo "sidecar inside the bundle: ${side:-<none found>}"
+          if [ -z "$side" ]; then
+            echo "::error::no aec-bim-server sidecar inside the AppImage — the bundle ships without a backend"
+            exit 1
+          fi
           python services/api/smoke_sidecar.py "$side" --expect-converter python
 
       # manual runs don't make a release; keep the installers as downloadable artifacts

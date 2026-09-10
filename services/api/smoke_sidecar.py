@@ -9,8 +9,9 @@ and died before binding a port. Windows and macOS temp paths are eight parents d
 was only ever seen on Linux, by users, after v0.3.1133 shipped.
 
 **So this deliberately runs under a SHALLOW temp directory.** A smoke test on a deep temp path would
-have passed against the broken binary — the depth IS the test, and `--shallow-tmp` (the default on
-POSIX) is not a detail of the harness but the thing being asserted.
+have passed against the broken binary — the depth IS the test. A shallow temp directory is the
+POSIX default here and is not a detail of the harness but the thing being asserted; `--deep-tmp`
+opts out of it, and exists only to demonstrate that opting out makes the check stop working.
 
 WHAT IT PROVES, and the boundary. The binary starts; `/health` answers, so the process bound a port
 rather than dying during import; `/ready` answers, so the SQLite engine opened under a fresh data
@@ -80,8 +81,19 @@ def find_binary(explicit: str | None) -> Path | None:
 
     Returns None rather than guessing when the directory holds none or several — a smoke test that
     picked the wrong file would report on something nobody shipped.
+
+    **A blank explicit path is an ERROR, not a fallback**, and that distinction is the whole reason
+    this raises. `desktop.yml` computes the AppImage's sidecar with `find`, whose "found nothing"
+    answer is an empty string; `if explicit:` treated that as "no path was given" and fell through
+    to the scan below — which in CI holds exactly one file, the BUILD OUTPUT that a previous step
+    already smoke-tested. The AppImage check would have re-tested the wrong artifact and passed,
+    green, forever. A caller that names a path meant that path; not naming one is `None`.
     """
-    if explicit:
+    if explicit is not None:
+        if not explicit.strip():
+            raise ValueError(
+                "a blank path was passed. The caller meant to name a binary and computed nothing — "
+                "falling back to a directory scan here would test a DIFFERENT artifact and pass")
         return Path(explicit)
     if not BINARIES.is_dir():
         return None
@@ -192,6 +204,18 @@ def convert_a_model(port: int, expect: str, timeout: float) -> None:
                  st == 200, f"status {st}: {body[:300]!r}"):
         return
 
+    # The route starts the publish itself (`create_blank_model` calls `_publish_bg`, which sets the
+    # status to "running" synchronously before submitting to the pool) and says so in its response.
+    # Asserting that here is not redundant with the poll below: a build where the publish never
+    # STARTS leaves the status at "idle", and the poll cannot tell "idle" from "not finished yet"
+    # until the full timeout expires. Same verdict, five minutes earlier and with a cause attached.
+    reported = ""
+    with contextlib.suppress(Exception):
+        reported = str(json.loads(body).get("publish") or "")
+    check("the route reports the publish as started — otherwise the poll below cannot distinguish "
+          "`never started` from `not finished yet` until it times out",
+          reported == "running", f"response reports publish {reported!r}")
+
     # Publish is off-thread; the client polls. `error` is the state a failed convert produces, and it
     # carries the exception — which for a missing frozen import is the whole diagnosis.
     started = time.time()
@@ -218,6 +242,16 @@ def convert_a_model(port: int, expect: str, timeout: float) -> None:
     check(f"the {expect!r} converter is the one that ran — otherwise this passed without "
           f"exercising the path it exists to test",
           ran == expect, f"publish reports converter {ran!r}, expected {expect!r}")
+
+    # The OTHER half of publish, and the one the fragment bytes below say nothing about: `_publish`
+    # also rebuilds the properties index through `aec_data.properties_index`, and reports how many
+    # elements it saw. A blank model is small but never empty — measured at 1 element / 1 class /
+    # 1 storey for `storeys=1` — so `>= 1` is a floor with a reason rather than a magic number, and
+    # a bundle whose ifcopenshell read back nothing fails here instead of shipping an empty model.
+    indexed = detail.get("reindexed")
+    check("the properties index was rebuilt over real content — the half of publish the fragment "
+          "bytes cannot speak for",
+          isinstance(indexed, int) and indexed >= 1, f"publish reports reindexed={indexed!r}")
 
     st, frag, _ct = get(f"{base}/projects/{pid}/model.frag", timeout=60.0)
     if not check("GET /model.frag serves the converted geometry the viewer would draw",
@@ -260,11 +294,15 @@ def main() -> int:
                          "it exists to demonstrate that the shallow default is load-bearing")
     args = ap.parse_args()
 
-    binary = find_binary(args.binary)
+    try:
+        binary = find_binary(args.binary)
+        why = f"no single aec-bim-server-* in {BINARIES}"
+    except ValueError as exc:
+        binary, why = None, str(exc)
     # THE VACUITY GUARD. Everything below is a statement about a binary; without one there is no
     # population, and a pass would mean "did not look".
     if not check("a sidecar binary was found to run", bool(binary) and binary.is_file(),
-                 str(binary) if binary else f"no single aec-bim-server-* in {BINARIES}"):
+                 str(binary) if binary else why):
         print("\nFAILED:", ", ".join(FAILED))
         return 1
     print(f"  binary: {binary}  ({binary.stat().st_size // (1024 * 1024)} MB)")
