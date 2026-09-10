@@ -12,6 +12,22 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The guard against a test writing into your database was itself half blind
+
+An earlier change added a rule: a test that can create a schema must decide which database it creates
+it in, rather than inheriting whatever the shell is carrying. That rule was real and the check for it
+was real. What the check *looked at* was not — it decided whether a test could create a schema by
+searching for a literal call to the table-creating function.
+
+Starting the application creates the schema too, and a test that starts the application contains no
+such call. **355 test files were in that blind spot, and four of them named no database at all.** One
+of them, run the way its own instructions describe with the variable set, was measured creating 173
+tables in the wrong database and reporting success — the same number that motivated the original
+rule, in the part of the codebase the rule could not see.
+
+The four are fixed, and the check now recognises a test that starts the application. The rule was
+being enforced on 32 files; it is now enforced on 383.
+
 ### An issue tied to a wall shows on the model, whatever register it lives in
 
 Binding a record to an element by GlobalId is how you say *this problem is here*. It worked for RFIs

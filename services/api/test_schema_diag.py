@@ -17,6 +17,12 @@ from __future__ import annotations
 
 import gc
 import os
+
+# DB-URL-BOOT: assignment BEFORE `aec_api` is imported. This file enters a `TestClient`,
+# whose lifespan calls `init_db()` -> `Base.metadata.create_all`, so run directly with
+# `DATABASE_URL` exported it would build the whole schema in whatever that names. No literal
+# `create_all` appears here, which is exactly why `test_db_url_isolation` could not see it.
+os.environ["DATABASE_URL"] = "sqlite:///./_schema_diag.db"
 from shutil import rmtree as shutil_rmtree
 
 from aec_data import schema_diag as SD

@@ -33,6 +33,14 @@ sys.path.insert(0, "../data/src")
 # merge train an hour via test_model_ensure.
 os.environ.setdefault("IFC_DIR", "./test_ifc_samples")
 
+# DB-URL-BOOT: assignment BEFORE `aec_api` is imported. This file enters a `TestClient`, whose
+# lifespan calls `init_db()` -> `Base.metadata.create_all`, so run directly with `DATABASE_URL`
+# exported it would build the whole schema in whatever that names. No literal `create_all`
+# appears here, which is exactly why `test_db_url_isolation` could not see it. Assignment, not
+# `setdefault` like the IFC_DIR line above: that one is a fallback for a path, this one has to
+# DECIDE, because yielding to the ambient value is the whole defect.
+os.environ["DATABASE_URL"] = "sqlite:///./_samples.db"
+
 FAILED = []
 
 

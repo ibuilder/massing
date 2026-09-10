@@ -998,8 +998,8 @@ instances:
   anchor and no element still reaches the 3D viewer and not the sheet, so `/pins/all` is not yet the
   superset that would let the viewer drop its second call. See PIN-ANCHOR below.
 
-- ⭐ **DB-URL-BOOT — the ambient-DSN gate cannot see a schema built by the app's lifespan** *(S —
-  Lane C; opened 2026-09-10 while writing PIN-POPULATION's gate)*
+- ✅ ⭐ **DB-URL-BOOT — the ambient-DSN gate could not see a schema built by the app's lifespan** *(S —
+  Lane C; **CLOSED**, fix in this change; gated by `services/api/test_db_url_isolation.py`, widened)*
 
   `services/api/test_db_url_isolation.py` closed DB-URL-AMBIENT: a test run the way its own docstring
   tells you to could build a schema in the operator's database, because `os.environ.setdefault` looks
@@ -1022,6 +1022,20 @@ instances:
   a **bare** `TestClient(app)` does not run the lifespan and creates nothing, which
   `services/api/test_samples.py` documents in a comment; the predicate is the `with` form, not the
   constructor.
+
+  **Measured, not argued.** `services/api/test_samples.py`, run directly with `DATABASE_URL` pointing
+  at a decoy database, created **173 tables** in it and **exited 0** — the same number
+  `test_view_config.py` produced for the original DB-URL-AMBIENT finding. The defect survived at full
+  severity in the population its own gate could not look at. With the declaration in place the decoy
+  database is not created at all.
+
+  The predicate now counts a `with TestClient(...)` boot alongside a literal `create_all`, which
+  moves the enforced population from **32 files to 383** — 347 were already safe by convention and
+  are now actually *checked*, and the four that were not are fixed. Four mutations: the old predicate
+  with one file un-fixed **passes** (the blind spot, demonstrated rather than asserted); the new one
+  fails; narrowing `_boots_the_app` back and matching the constructor instead of the `with` each
+  break a self-test, and the gate then **refuses to report at all** rather than printing verdicts it
+  cannot stand behind.
 
   Not folded into PIN-POPULATION: unrelated axis, and two in one change makes both harder to read.
 
@@ -2160,7 +2174,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · DB-URL-BOOT · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
