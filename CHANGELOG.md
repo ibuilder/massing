@@ -12,6 +12,20 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The pin count and the pins it describes are proven to come from one read
+
+The pin overlay fetches a page of pins and the project-wide total in a single database read, so the
+number beside the list always describes the list. That was implemented two releases ago and never
+verified — the code could have been reverted to two separate reads and every one of the project's
+tests would still have passed.
+
+It is now checked directly, and the check fails if the single read is broken apart.
+
+The concurrency scenario itself — another user filing an issue in the instant between two reads —
+turned out not to be reproducible in the project's local test database, for reasons recorded next to
+the test. Rather than write a check that would pass whether or not the code was correct, the test
+states the limit plainly and verifies the property a different way.
+
 ### Pin totals on older projects stop being approximate
 
 A pin total on a capped project was reported as an upper bound, and the printed plan sheet said so
