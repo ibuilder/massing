@@ -455,11 +455,35 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 > is exactly the edit that survives a green suite. A capped sheet with **no** pins left still warns:
 > that is the blank overlay from PINS-CAP reaching paper, and it is when the reader most needs it.
 >
-> **Still open, named rather than half-fixed:** two write sites can persist `{}` / `[]` into
-> `anchor` / `element_guids`, which is the sole reason the capped total is an upper bound rather
-> than exact — new rows are normalised, legacy rows need a backfill. And the `count(*) OVER ()`
-> concurrency fix still has **no assertion**: mutate it back to two statements and every test here
-> passes. It needs a two-session controlled test, not another paragraph.
+> **PIN-EMPTY — the backfill shipped, and the write-site population was DERIVED rather than
+> assumed.** This said "two write sites can persist `{}` / `[]`". Two were *fixed* in #492; the
+> question nobody had asked was whether they were the only ones. Reading all eleven: every `anchor`
+> writer stores `None` or a full `{x,y,z}` (`codecheck._anchor` returns a dict or `None`, never
+> `{}`), and the remaining `element_guids` writers either end in `or None` or build a list literal
+> from IFC GlobalIds. **The leak was already shut** — so this is a one-time sweep of pre-#492 rows,
+> not a fix for an ongoing one. Worth knowing before writing the migration, because a sweep of a
+> live leak is a different (and much weaker) thing than a sweep of history.
+>
+> Migration `e4a7c2b81f60` nulls `{}` / `[]` / `[""]` across `topics` and the eleven registers.
+> **The decision runs in Python, not in the WHERE clause**: `anchor` and `element_guids` are `JSON`,
+> not `JSONB`, and PostgreSQL's `json` type has no equality operator — `WHERE anchor = '{}'` is a
+> hard error, not a portability wart. SQL narrows to non-NULL; Python decides.
+>
+> `services/api/test_pin_empty.py` is the gate. The migration carries a **self-contained copy** of
+> the predicate (a migration must keep meaning what it meant, even after the app's definition moves)
+> and the gate asserts the copy and `pins.pin_fields` agree over a table of eleven values — because
+> the first draft agreed on `{}` and `[]` and would have passed with `[""]` classified either way.
+> It also runs the sweep against a real schema: `test_alembic_migrations` runs the chain on an
+> **empty** database, so it proves only that the migration does not crash. *A migration that runs,
+> reports success and changes nothing looks exactly like a database that was already clean.*
+>
+> Five mutations, and **two of them would have deleted real pins** rather than merely leaving stale
+> ones: nulling every column instead of the empty ones, and treating `{x:0,y:0,z:0}` as empty — the
+> project origin is a place, not an absence.
+>
+> **Still open:** the `count(*) OVER ()` concurrency fix has **no assertion**: mutate it back to two
+> statements and every test here passes. It needs a two-session controlled test, not another
+> paragraph.
 >
 > **The original note, kept because it is the derivation:** undisclosed truncation, a different class found while walking
 > this one: a cap that reports its slice as the whole. `topic_lifecycle.timeline` returns

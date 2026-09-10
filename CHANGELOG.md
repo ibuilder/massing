@@ -12,6 +12,20 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Pin totals on older projects stop being approximate
+
+A pin total on a capped project was reported as an upper bound, and the printed plan sheet said so
+with a `~`, because records saved before the previous release could hold an *empty but not absent*
+value where a pin's location goes. Those records looked like pins to the fast database filter and
+were then rejected, so they inflated the count without ever appearing.
+
+A migration clears them. New records have not been able to carry these values since the previous
+release, so this is a one-time cleanup of history rather than a patch over an ongoing problem — the
+eleven other places that write a pin location were read and none of them can produce one.
+
+Records at the project origin are explicitly preserved: a location of 0,0,0 is a place, not a
+missing value, and treating it as empty would have deleted real pins.
+
 ### A printed plan sheet now says when its pin list was capped
 
 The pin overlay was fixed to report a cap; the **printed sheet stayed silent**. A superintendent

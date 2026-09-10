@@ -74,6 +74,25 @@ def _topic_pin_where(pid: str):
             or_(Topic.anchor.isnot(None), Topic.element_guids.isnot(None)))
 
 
+def pin_fields(anchor, element_guids):
+    """The EXACT "is this a pin" test, as one definition both read loops call.
+
+    Returns `(anchor_or_None, non_blank_guids)`. A row is a pin when either is truthy.
+
+    **This is the exact half of the pair whose SQL half is `_topic_pin_where`.** A stored `{}`, `[]`
+    or `[""]` is non-NULL, so it passes the SQL superset and fails here — which is the entire reason
+    `pin_total` is reported as an upper bound when the cap actually bit.
+
+    Deliberately byte-equivalent to the two inline copies it replaced, including the fact that a
+    non-list `element_guids` (corrupt data) iterates rather than being rejected: this extraction is a
+    refactor, and changing behaviour while claiming to share a definition is how a "shared" predicate
+    stops matching what it was shared from.
+    """
+    a = anchor if isinstance(anchor, dict) and anchor else None
+    guids = [g for g in (element_guids or []) if g]
+    return a, guids
+
+
 def resolve_pins(db: Session, pid: str, model=None) -> dict:
     """Every pin for a project: explicit anchors, plus issues located by the element they reference.
 
@@ -143,8 +162,7 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
     truncated = truncated or here > len(rows)
     rows.reverse()                  # back to oldest — newest for display
     for t in rows:
-        a = t.anchor if isinstance(t.anchor, dict) and t.anchor else None
-        guids = [g for g in (t.element_guids or []) if g]
+        a, guids = pin_fields(t.anchor, t.element_guids)
         if not a and not guids:
             continue                # neither placed nor attached — not a pin, just an issue
         pin = {"source": "topic", "id": t.id, "guid": t.guid, "kind": t.type,
@@ -185,7 +203,7 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
         truncated = truncated or total_here > len(rows)
         candidates += total_here
         for r in rows:
-            guids = [g for g in (r.element_guids or []) if g]
+            _, guids = pin_fields(None, r.element_guids)
             if not guids:
                 continue
             need.add(guids[0])
