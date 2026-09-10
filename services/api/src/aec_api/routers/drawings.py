@@ -758,7 +758,15 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float,
     drawing module has no business knowing about the issue tracker. It receives positions and labels.
 
     Resolution is shared with the viewer (`aec_api.pins`), so one issue means the same thing on the
-    sheet and in 3D. Pins are filtered to the storey by Z against the cut, so a tall building does not
+    sheet and in 3D. **That claim was false for two months and is worth saying why**: `pins.py` kept
+    its own hand-written list of "spatial" registers while `GET /module-pins` read the registry's
+    `pinnable` flag, so the two surfaces answered "what is a pin" differently and six of the eleven
+    names in that list were not modules at all. The population is now derived from `pinnable` in both
+    (`pins.spatial_modules()`), which is what makes the sentence above true rather than aspirational.
+
+    It is still not the whole union: `resolve_pins` finds a register record by its `element_guids`,
+    while `/module-pins` finds one by its stored `anchor`. A record with an anchor and no element
+    reaches the viewer and not the sheet. Pins are filtered to the storey by Z against the cut, so a tall building does not
     print every issue in the project onto the ground floor. A pin with no Z is **kept**: it is
     genuinely located in plan and we do not know its level, and showing it on the sheet asked for
     beats hiding it on every sheet. A pin with no position at all is kept too, unplaced — the engine

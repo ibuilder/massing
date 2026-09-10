@@ -12,6 +12,22 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### An issue tied to a wall shows on the model, whatever register it lives in
+
+Binding a record to an element by GlobalId is how you say *this problem is here*. It worked for RFIs
+and punch items. For a coordination issue, an NCR, a deficiency, an incident — and thirty-two other
+registers — the record saved, reported that it was attached, and then appeared on no drawing and in
+no viewer.
+
+The pin resolver decided which registers hold pins from a list written by hand, and six of the eleven
+names on it were not registers at all: they were the *words* for those ideas. Every clash imported
+from Solibri or Navisworks becomes a "coordination issue", and the list said "clash" — so the clashes
+the resolver exists to place were the ones it could not see.
+
+Which records can carry a pin is now read from the registers themselves, from the same setting the
+3D viewer has always used. The plan sheet and the model now show the same set, which is what the
+sheet already claimed to do.
+
 ### Field-verification coverage says how much of the work is actually photographed
 
 The coverage card showed how much of the model is verified and installed, and how many deviations

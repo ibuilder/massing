@@ -908,6 +908,136 @@ instances:
   never declares cannot be seen by any of them, and no type error or lint can either. See
   RESPONSE-UNDECLARED below.
 
+- ✅ ⭐ **PIN-POPULATION — the pin engine read 5 registers of 37, and six of its names were not
+  modules** *(M — Lane C; **CLOSED**, fix in this change; gated by
+  `services/api/test_pin_population.py`, with the coverage half in `services/api/test_pin_empty.py`)*
+
+  Found while reading the 19 callerless routes RESPONSE-UNDECLARED filed separately —
+  `/projects/{pid}/pins/all` has no web client, and reading it beside `services/api/src/aec_api/pins.py`
+  showed something worse than a missing caller.
+
+  `pins.py` decided which registers hold pins from a **hand-written tuple of eleven names**. Six of
+  them are not module keys at all: `clash`, `defect`, `snag`, `quality_issue`, `safety_observation`
+  and `field_report` are the *words* for those ideas — and `clash` is a `Topic.type` value, which is
+  where the confusion came from. The registers that actually hold those records are
+  `coordination_issue`, `ncr`, `deficiency` and `incident`. **So the engine reached five registers,
+  and the headline case in `pins.py`'s own module docstring — a clash tied to a wall — was one of the
+  misses**, because `services/api/src/aec_api/clash_intel.py` creates every imported clash as a
+  `coordination_issue`.
+
+  It also excluded **thirty-two registers the product itself marks `pinnable`**. That flag is
+  declared in `module.json` and three other readers already honour it: `modules.project_pins` (what
+  `GET /module-pins` draws in the 3D viewer), `traceability.for_element`, and the reverse deep-link
+  in `services/api/src/aec_api/routers/cost.py`. `pins.py` invented a **fourth** answer to a question
+  that already had one — so an NCR tied to a wall reached **no surface at all**, while
+  `services/api/src/aec_api/routers/drawings.py` claimed in a docstring that *"one issue means the
+  same thing on the sheet and in 3D"*. Measured live before the fix: seven records, each bound to the
+  same element by GlobalId, and `resolve_pins` saw **two**.
+
+  The population is now derived from `pinnable`, so turning a register off as a pin source is an edit
+  to that module's `module.json` — the one place the call can be made once, instead of a Python
+  constant that desynchronises from the viewer again.
+
+  **TWO GREEN GATES WERE MEASURING LIST-AGAINST-LIST.** `test_pins_unified.py` asserted
+  `"rfi" in SPATIAL_MODULES` and `"submittal" not in SPATIAL_MODULES` — a hand-written tuple checked
+  against a hand-written expectation, which cannot see a name that matches nothing on *either* side.
+  Two of its four assertions measured nothing: there is no `change_order` module (the register is
+  `cor`), and `submittal` carries `"pinnable": true`, so that assertion encoded an opinion the
+  registry contradicts. `test_pin_empty.py` compared the migration's copy of the tuple to the tuple
+  and agreed, because both carried the same six ghosts. *Neither could fail; a name matching nothing
+  is absent from both sides of an equality.*
+
+  **The new gate's own first draft had a vacuous pass, and mutation found it.** It flipped one
+  module's `pinnable` flag off and asserted the module left the population — but the probe it chose
+  was absent from the old hard-coded tuple to begin with, so against that mutation the check passed
+  while measuring nothing. It now asserts the probe is PRESENT before flipping it. *Asserting absence
+  after a change proves nothing unless presence before it was asserted too.* Four mutations run: the
+  old tuple, ignoring the flag, an empty population, and — the one that matters —
+  **re-hardcoding today's correct answer as a literal**, which satisfies every set assertion and is
+  caught only by that probe.
+
+  **The class was swept and it has one member — a clean negative, stated so nobody re-derives it.**
+  `module.json` declares exactly two boolean flags across the 139 registers: `pinnable` (37 true) and
+  `revisable` (15 true). Every `revisable` reader reads the flag — `modules.create_revision` refuses
+  on it, `routers/modules.py` reports it, `apps/web/src/portal/register/register.ts` branches on it —
+  with no hand-written shadow anywhere. So `pinnable` was the only flag a second, divergent list was
+  answering for.
+
+  **The cost is one query per register, and it was measured rather than assumed:** 200 pins across a
+  project, SQLite, warm — **3.2 ms** over the old five registers, **12.8 ms** over thirty-seven, of
+  which roughly half is returning twice as many pins. About 0.3 ms per additional empty register,
+  each hitting `ix_mod_<key>_proj_created`. That is inside the budget for a sheet render, and the
+  shared `_MAX_PINS` budget still short-circuits a register once the window is full.
+
+  `services/api/migrations/versions/2026_09_10_1400-f2b6d31a7c04_pin_empty_widened_registers.py`
+  extends the empty-JSON sweep to the newly-read registers, and `test_pin_empty.py` now compares the
+  **union of both sweeps** against the derived population rather than one list against another.
+
+  **REVIEW FOUND TWO REAL DEFECTS IN THE MIGRATION, and one was destructive.** The sweep classified
+  *malformed JSON* as *empty*: `_loads` collapses "not JSON at all" and "decoded to nothing" into the
+  same `None`, and `_is_empty_guids(None)` is True. Measured on a truncated list holding a well-formed
+  GlobalId — `'["1WrzGm1SD2ev45B_OWQ39B", "2Ab'` — **the row was cleared and the GUID went with it**,
+  and `downgrade()` is a documented no-op. Those bytes are the only surviving evidence of what the row
+  meant. A new `_decode` now separates parse failure from an empty value; such rows are left untouched
+  and reported in `SKIPPED` for a human. `e4a7c2b81f60` does null them and has already run, so the two
+  copies now **deliberately** differ — in the safe direction, and `services/api/test_pin_empty.py`
+  asserts the difference so it cannot be mistaken for the drift that rule exists to catch.
+
+  The second was `.mappings().all()` buffering every candidate row and issuing one `UPDATE` per row
+  inside one transaction. The scan is now streamed, only the *ids* that need clearing are retained —
+  O(legacy empties), not O(register) — and they clear in batches.
+
+  *And fixing that exposed a third, in my own counter.* `changed` was incremented during the scan, so
+  it measured what the sweep INTENDED: a mutation clipping the chunk loop to its first batch still
+  reported every row swept. It now sums the `UPDATE` rowcounts. **A migration that reports more than
+  it did is the same defect as everything else on this branch**, and it was one statement away in the
+  fix for an unrelated finding.
+
+  **Not fixed here, and named so it is not mistaken for done:** `resolve_pins` finds a register record
+  by its `element_guids`, while `/module-pins` finds one by its stored `anchor`. A record with an
+  anchor and no element still reaches the 3D viewer and not the sheet, so `/pins/all` is not yet the
+  superset that would let the viewer drop its second call. See PIN-ANCHOR below.
+
+- ⭐ **DB-URL-BOOT — the ambient-DSN gate cannot see a schema built by the app's lifespan** *(S —
+  Lane C; opened 2026-09-10 while writing PIN-POPULATION's gate)*
+
+  `services/api/test_db_url_isolation.py` closed DB-URL-AMBIENT: a test run the way its own docstring
+  tells you to could build a schema in the operator's database, because `os.environ.setdefault` looks
+  like a declaration and is not one. Its population predicate is *"does this module call `create_all`
+  anywhere?"* — read out of the file's own AST.
+
+  **`with TestClient(app)` runs the app's lifespan, and the lifespan calls `create_all`.** No literal
+  appears in the test. So the gate classifies every such file as *creates no schema*, and never asks
+  how it declares its DSN.
+
+  Measured: **355** test files boot the app that way with no literal `create_all`. 349 happen to use
+  assignment — safe by convention, not by the gate. **Four declare no `DATABASE_URL` at all**:
+  `services/api/test_dispatcher_privilege_coverage.py`, `services/api/test_generate.py`,
+  `services/api/test_samples.py` and `services/api/test_schema_diag.py`. Under
+  `services/api/run_tests.py` the runner injects one, so they pass; run directly with the variable
+  exported — which is what their docstrings describe — they build the schema wherever it points.
+
+  *The same shape as the finding that produced them: a predicate deciding what to LOOK at, whose
+  exclusions are invisible to its own output.* Widening it must be careful in one specific way —
+  a **bare** `TestClient(app)` does not run the lifespan and creates nothing, which
+  `services/api/test_samples.py` documents in a comment; the predicate is the `with` form, not the
+  constructor.
+
+  Not folded into PIN-POPULATION: unrelated axis, and two in one change makes both harder to read.
+
+- **PIN-ANCHOR — `/pins/all` is not yet the union it is named for** *(S — Lane C; opened
+  2026-09-10 by PIN-POPULATION)*
+
+  `services/api/src/aec_api/pins.py` reads a register row only when it has `element_guids`; a row
+  with a stored `anchor` and no element is invisible to it, and so to the plan sheet. `GET
+  /module-pins` reads exactly the opposite half. Neither is the union its route docstring promises.
+
+  Reading the register's own `anchor` beside its GUIDs makes `/pins/all` a strict superset of both,
+  after which `apps/web/src/pins/pins.ts` can make one call instead of two and the viewer stops
+  drawing a different set from the sheet. The migration would need widening to sweep register
+  `anchor` columns as well, which is why it is a separate change rather than folded into
+  PIN-POPULATION: one variable at a time.
+
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10, not yet triaged)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
@@ -2030,7 +2160,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · DB-URL-BOOT · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
