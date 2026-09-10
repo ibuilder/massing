@@ -124,7 +124,7 @@ PER_FILE = {
     #: construction, and the three slices' friction was spent silently. Pinned at 2_570, the file's
     #: EXACT measured size — ⑯ set 2_571 against a file that already measured 2,570, which is the
     #: off-by-one MAX_SLACK is deliberately loose enough to tolerate.
-    "apps/web/src/viewer/app.ts": 2_508,   # R39-DECOMP-VIEWER (17): field verification -> tools/verifySection.ts (2_571 -> 2_508). The chain starts at 2_571 and the file measured 2_570 when this slice began: ONE line left with no slice recording it, which is the drift this row's roadmap cell already documents from an unrelated lane committing to the same shared file. This slice removed 62 of the 63; the 63rd is that stray, absorbed here rather than hidden by starting the entry at a number nobody can reproduce. The gate is what refused the discontinuity. app.ts is ONE 2,445-line function, so REL-4's "grep the this. refs first" rule has no this. to grep; the equivalent is how many SIBLING closures a candidate captures, and of fourteen candidates >=25 lines exactly ONE captured zero. buildToolsPanel captures 14, handleKey 12, selectByGuids 6 — every other move would have been a callback bag. Four of renderVerify's five free variables already travelled on the typed ViewerCtx, so the deps object is that context narrowed, not one invented to make the move possible.   # detailing -> tools/detailingSection.ts (2_630 -> 2_571).   # content + family library -> tools/contentLibrarySection.ts (2_757 -> 2_630).   # interactive annotation -> tools/annotationSection.ts (2_865 -> 2_757). The file was AT this pin with zero headroom, which is why the roadmap row calling it "97%, ~136 lines" was corrected in the same pass.   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
+    "apps/web/src/viewer/app.ts": 2_442,   # R39-DECOMP-VIEWER (18): snap picking -> snapPick.ts (2_508 -> 2_442). THE MEASUREMENT CAME FIRST AND REJECTED THE OBVIOUS CANDIDATE. Same rule as (17) - app.ts is one function, so the sibling-closure count stands in for REL-4's "grep the this. refs" - and buildToolsPanel, the largest closure at 696 lines, captures 51 of the 143 outer bindings. Lifting it would mean a 51-entry callback bag: coupling ADDED in the name of removing it. The three snap functions capture `loader` and one settings read between them, so the seam is ONE structural parameter, declared as a local `SnapFragments` interface rather than importing ModelLoader, and the module never learns what a viewer is. THE ARGUMENT IS NOT THE LINE COUNT: grep found snapToGeometry, snapByOverride and snapPoint referenced in exactly one file, app.ts itself - snapping had NO tests at all, and it is where a click becomes the coordinate that gets written into the IFC under a GlobalId. snapPick.test.ts pins 21 behaviours, each mutation-checked. ONE OF THEM COULD NOT FAIL ON FIRST WRITING: asserting that an override of kind "none" returns null passed with the `kind == "none"` early return DELETED, because overrideCandidates("none") returns no candidates and the resolver answers null anyway. The assertion was true and measured nothing. What the early return actually buys is that "no snap" is decided by what the drafter SAID rather than by what the model contains, so the test now asserts the loader is never READ - and that mutation fails. Run the mutation AND check that the assertion you care about is the one that fires.   # R39-DECOMP-VIEWER (17): field verification -> tools/verifySection.ts (2_571 -> 2_508). The chain starts at 2_571 and the file measured 2_570 when this slice began: ONE line left with no slice recording it, which is the drift this row's roadmap cell already documents from an unrelated lane committing to the same shared file. This slice removed 62 of the 63; the 63rd is that stray, absorbed here rather than hidden by starting the entry at a number nobody can reproduce. The gate is what refused the discontinuity. app.ts is ONE 2,445-line function, so REL-4's "grep the this. refs first" rule has no this. to grep; the equivalent is how many SIBLING closures a candidate captures, and of fourteen candidates >=25 lines exactly ONE captured zero. buildToolsPanel captures 14, handleKey 12, selectByGuids 6 — every other move would have been a callback bag. Four of renderVerify's five free variables already travelled on the typed ViewerCtx, so the deps object is that context narrowed, not one invented to make the move possible.   # detailing -> tools/detailingSection.ts (2_630 -> 2_571).   # content + family library -> tools/contentLibrarySection.ts (2_757 -> 2_630).   # interactive annotation -> tools/annotationSection.ts (2_865 -> 2_757). The file was AT this pin with zero headroom, which is why the roadmap row calling it "97%, ~136 lines" was corrected in the same pass.   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
@@ -331,15 +331,20 @@ def _history_pairs(comment):
     return out
 
 
-#: One file's newest history entry legitimately disagrees with its cap. `viewer/app.ts` records
-#: "(2_630 -> 2_571)", which is what slices ⑭⑮⑯ measured on 2026-08-27; the pin was RESTORED to
-#: 2_570 on 2026-08-29, and this file's own comment above already calls that off-by-one deliberate
-#: and tolerated. Editing the history to 2_570 would make the check pass by falsifying what a slice
-#: measured - the mirror image of adjusting a check until it passes. Exempt it and say why.
-_CAP_AGREEMENT_EXEMPT = {
-    "apps/web/src/viewer/app.ts":
-        "pin restored to 2_570 on 2026-08-29 after the ⑭⑮⑯ history was written at 2_571",
-}
+#: A file's newest history entry can legitimately disagree with its cap, and one did: `viewer/app.ts`
+#: recorded "(2_630 -> 2_571)" for what slices ⑭⑮⑯ measured on 2026-08-27 while the pin was RESTORED
+#: to 2_570 on 2026-08-29. Editing the history to 2_570 would have made the check pass by falsifying
+#: what a slice measured - the mirror image of adjusting a check until it passes - so it was exempted
+#: instead, with the reason written down.
+#:
+#: **RETIRED 2026-09-10, and left empty on purpose.** Slice ⑰ wrote "(2_571 -> 2_508)" and slice ⑱
+#: "(2_508 -> 2_442)", whose result IS the cap, so the newest entry and the pin agree again and the
+#: exemption stopped excusing anything. An exemption that no longer excuses anything is
+#: indistinguishable from one that does, right up until it silently covers the next REAL
+#: disagreement - the same shape as the undated-exemption rule in `scripts/audit_npm_gate.py`. The
+#: map stays so the next legitimate case has somewhere to go, and this note stays so the retirement
+#: is a record rather than a deletion.
+_CAP_AGREEMENT_EXEMPT: dict[str, str] = {}
 
 
 _SRC_LINES = open(__file__, encoding="utf-8").read().split("\n")
