@@ -12,6 +12,34 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The desktop app is now started and checked before it is published
+
+The installers for Windows, macOS and Linux were built, signed and put in front of users without
+anything ever launching them. That is how the Linux app shipped in a state where it could not start
+at all: every automated check reads the source code, and the fault only existed in the packaged
+copy. The checks were green and the app was broken, and those two facts had nothing to do with each
+other.
+
+Every build now starts the server the app runs on and uses it before the release is allowed to
+proceed — under the exact conditions the crash needed, since the same build started fine under
+slightly different ones. It has to answer, reach its database, list every one of the 139 registers,
+and serve the interface. On Linux that happens twice, and the second time is the one that counts:
+the server is taken back out of the finished installer, the file a user would actually download, and
+started from there. On Windows and macOS only the first check runs — the installers themselves are
+still built and published without being opened.
+
+The check is deliberately unable to pass quietly. If the app it is supposed to test is missing, that
+is a failure rather than a skip — "nothing was wrong" and "nothing was looked at" are the two
+outcomes that must never be confused. It compares the registers it gets against the registers the
+project defines — by name, one for one — rather than against a round number, because an app that had
+silently lost thirty of them would clear a round number, and one that lost a register while
+double-loading another would clear a count. And it was itself tested against three deliberately
+broken builds before being trusted, including a reproduction of the crash that shipped.
+
+One thing it still does not do is convert a model. The converter itself is tested, but not from
+inside a finished build — so whether model conversion survives packaging is genuinely unknown rather
+than checked another way, and it is written down as an open item instead of being counted as done.
+
 ### The desktop app can show you the model it just built
 
 Install the desktop app, create a project, upload an IFC and publish it, and everything worked

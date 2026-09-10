@@ -1129,16 +1129,70 @@ instances:
   `aec-bim-server` and curls `/health` would have caught this in the job that produced it. See
   DESKTOP-SMOKE below.
 
-- **DESKTOP-SMOKE — the release pipeline never runs what it ships** *(S — Lane J; opened 2026-09-10
-  by DESKTOP-FROZEN)*
+- ✅ **DESKTOP-SMOKE — the release pipeline never ran what it ships** *(S — Lane J; opened 2026-09-10
+  by DESKTOP-FROZEN, **CLOSED** the same day; the harness is `services/api/smoke_sidecar.py`, wired
+  into `.github/workflows/desktop.yml`)*
 
-  `.github/workflows/desktop.yml` builds the Tauri bundles, signs them and uploads them. No step
-  executes the result. DESKTOP-FROZEN was a startup crash on one of the three platforms it publishes,
-  and every check was green.
+  `desktop.yml` built the Tauri bundles, signed them and published them, and no step executed the
+  result. DESKTOP-FROZEN was a startup crash on one of the three platforms it publishes and every
+  check was green — because every check reads SOURCE. `repo_root()` counted `parents[4]`, which holds
+  in a checkout and not in a bundle.
 
-  The cheap version is one step on the Linux runner: extract the AppImage, run the bundled
-  `aec-bim-server` with a deliberately SHALLOW `TMPDIR`, and fail unless `/health` answers. That
-  exact configuration is what broke; a smoke test on a deep temp path would have passed.
+  **The temp-directory depth is the test, not a detail of the harness.** In a PyInstaller bundle
+  `__file__` is `$TMPDIR/_MEIxxxxxx/aec_api/desktop.py`; under `/tmp` that has exactly four parents,
+  which is what raised `IndexError`. A smoke test run on a deep temp path would have passed against
+  the broken binary, so the harness forces the shallow one on POSIX rather than inheriting whatever
+  the runner happens to set.
+
+  What it asserts, in the order the failures arrive: the process bound a port at all (`/health`); the
+  SQLite engine opened under a fresh data directory (`/ready`); `/modules` serves **every** module the
+  tree declares; and `/` serves the bundled SPA. The last two are questions about the ARCHIVE, which
+  no source-level check can ask — `datas` either carried those directories in or it did not, and the
+  tree says nothing either way.
+
+  **The module set is DERIVED, and compared by IDENTITY rather than by count.** `> 100` would pass a
+  bundle that silently dropped thirty catalogs, which is precisely what a `datas` glob does when it
+  stops matching. A count comparison is better and still not enough: it passes a bundle that lost one
+  catalog and double-loaded another. So the harness reads each `services/api/modules/*/module.json`'s
+  `key` — the same field the route serves, rather than the directory name that happens to match it —
+  and requires the served list to be exactly that set, once each, naming which module went missing.
+  **That strengthening came from review of this change, and the mutation proving it is the one a
+  count could not kill**: 139 declared, 139 served, one swapped for a decoy, and it fails. Vacuity guards for the same reason: a missing binary FAILS rather than skips, the port is
+  proven free before launch so a reply cannot have come from something already listening, and an
+  early child exit prints the child's own output — for a frozen-path defect that traceback is the
+  only evidence there is.
+
+  Two steps, because they ask different questions: the binary as `services/api/build_sidecar.py`
+  placed it (all three platforms, before the Tauri build so a dead sidecar fails in seconds rather
+  than after three platform bundles), and the copy **inside** the produced AppImage, which is whether
+  `externalBin` picked it up under the name it expects.
+
+  **Verified by running it, not by reading it — and the verification is not the PR's checks.**
+  `desktop.yml` never runs on a pull request; its triggers are `push: tags` and `workflow_dispatch`,
+  which is itself part of why nothing executed the artifact for so long. So the steps were exercised
+  by a `workflow_dispatch` run against the branch, and this entry was not written as CLOSED until
+  that run had executed them on all three platforms. Three mutations were killed beforehand against a
+  source-tree stand-in: a binary that dies during import the way the shipped one did, one that starts
+  but never binds, and one serving a truncated catalog.
+
+- **DESKTOP-SMOKE-CONVERT — the smoke never converts a model, so the freeze is unproven where it
+  matters most** *(S — Lane J; opened 2026-09-10 by DESKTOP-SMOKE)*
+
+  DESKTOP-SMOKE proves the packaged sidecar boots and serves. It never converts anything, so
+  `aec_data.fragments` — and the module-scope `flatbuffers` import inside its `codec.py` — is still
+  unexercised in a frozen build. That is the gap DESKTOP-FRAGMENTS closed its own entry naming: the
+  spec's `collect_submodules("aec_data")` was checked by running the same `pkgutil` walk, and
+  PyInstaller's analysis *should* follow a module-scope import, with "should" doing real work.
+
+  **The obvious smoke would pass vacuously**, which is why this is filed rather than bolted on.
+  `edit_preview` is the only synchronous route that reaches the converter, it needs a project with an
+  uploaded source IFC, and it FAILS OPEN with a 503 — so a fresh install answers 503 whether the
+  import survived the freeze or not, and a check that accepts that answer is measuring nothing.
+
+  The honest shapes are a real publish against the running sidecar (create a project, upload a small
+  IFC, publish, fetch `model.frag`, open it with the reference reader), or a diagnostic the frozen
+  binary can be asked to run directly. The first needs a tracked IFC fixture; the second is a change
+  to shipped code and should be justified as a user-facing diagnostic rather than as test scaffolding.
 
 - **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
   2026-09-10 by review of #504)*
@@ -2461,7 +2515,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE *(the artifact `.github/workflows/desktop.yml` publishes is never executed by any job; the work is a boot-and-curl step in that workflow. Filed here rather than Lane C because the FIX is a build step, even though the crash that prompted it was backend code — the derived-here-fixed-there split Lanes B and E already had to make)* · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* · DESKTOP-SMOKE-CONVERT *(the boot smoke that closed DESKTOP-SMOKE never converts a model, so `flatbuffers` surviving PyInstaller is still unproven; the fix is a fixture plus a step in `.github/workflows/desktop.yml`, so it stays in this lane rather than moving to Lane C with the code it exercises)* · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
