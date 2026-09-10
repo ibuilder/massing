@@ -254,9 +254,6 @@ def main() -> int:
                          "guesses what it should require can guess wrong and still look green.")
     ap.add_argument("--convert-timeout", type=float, default=300.0,
                     help="seconds to wait for the publish to leave `running`")
-    ap.add_argument("--skip-convert", action="store_true",
-                    help="boot checks only. For diagnosing a sidecar that will not start — NOT for "
-                         "getting a red build green, which is how the gap this closes stayed open")
     ap.add_argument("--deep-tmp", action="store_true",
                     help="use the default temp directory instead of a shallow one. This is the "
                          "configuration under which the DESKTOP-FROZEN crash did NOT reproduce, so "
@@ -407,11 +404,15 @@ def main() -> int:
                   f"status {st}, content-type {ct!r}")
 
             # The half the boot checks cannot reach: run the converter inside the artifact.
-            if args.skip_convert:
-                print("  SKIPPED the conversion checks (--skip-convert) — this run does NOT show "
-                      "that model conversion survives packaging")
-            else:
-                convert_a_model(port, args.expect_converter, args.convert_timeout)
+            #
+            # There is deliberately NO flag to skip this. An earlier draft had one, justified as
+            # "for diagnosing a sidecar that will not start" — which is false: that case already
+            # fails at `/health` above and returns before reaching here, printing the child's output,
+            # which is strictly better diagnosis. What the flag actually was is an escape hatch that
+            # turns a red build green while printing a warning, and its own help text said not to use
+            # it that way. **A hazard you answer with a comment is a hazard you built**, and this file
+            # exists because a check that stops looking still reports success.
+            convert_a_model(port, args.expect_converter, args.convert_timeout)
         finally:
             proc.terminate()
             try:
