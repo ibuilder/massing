@@ -382,7 +382,12 @@ export class ProformaUI {
       <div class="fin-card"><div class="section-title">Cost approach</div><table class="fin-table">
         ${row("Replacement cost new", money(v.cost.replacement_cost_new))}
         ${row("Less depreciation", "-" + money(v.cost.depreciation_amount)
-              + (v.cost.depreciation_pct ? ` (${(v.cost.depreciation_pct * 100).toFixed(0)}%)` : ""))}
+              // `!= null`, NOT truthiness. `cost_approach` always sends a number and the PDF prints
+              // the percentage unconditionally, so a truthy guard omits "(0%)" exactly where the PDF
+              // shows it — and 0% is NEW CONSTRUCTION, the default case for a development tool
+              // rather than an edge one. The first version of this fix used `?` and reintroduced the
+              // very asymmetry this change exists to remove. Caught in review.
+              + (v.cost.depreciation_pct != null ? ` (${(v.cost.depreciation_pct * 100).toFixed(0)}%)` : ""))}
         ${row("Plus land", money(v.cost.land_value))}
         <tr class="fin-total"><td>Value</td><td class="num">${money(v.cost.value)}</td></tr></table></div>
       <div class="fin-card"><div class="section-title">Income approach</div><table class="fin-table">

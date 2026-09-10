@@ -464,6 +464,17 @@ describe("renderAppraisal — the screen no longer says less than the PDF", () =
     expect(cell("Less depreciation")).toBe("-$1,500,000 (15%)");
   });
 
+  it("shows 0% depreciation rather than omitting it — new construction is the DEFAULT case", async () => {
+    // The assertion that would have caught the first version of this fix, which used a truthy guard
+    // and dropped "(0%)" precisely where `report_builders/finance.py` prints it unconditionally.
+    // For a development tool most subjects ARE new construction, so this is the common path.
+    const { cell } = await paint(base({
+      cost: { ...base().cost, replacement_cost_new: 9_000_000, depreciation_pct: 0,
+              depreciation_amount: 0, depreciated_improvements: 9_000_000, value: 9_000_000 },
+    }));
+    expect(cell("Less depreciation")).toBe("-$0 (0%)");
+  });
+
   it("shows a cap rate of zero as a dash, not as a 0.00% capitalisation rate", async () => {
     const { cell, txt } = await paint(base());
     expect(cell("Cap rate")).toBe("—");
