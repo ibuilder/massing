@@ -138,7 +138,12 @@ def _sweep(conn, table: str, cols: tuple[str, ...]) -> int:
     # not by the size of the register. `e4a7c2b81f60` called `.all()` and issued one UPDATE per row.
     todo: dict[tuple[str, ...], list] = {}
     changed = 0
-    result = conn.execution_options(stream_results=True, yield_per=_BATCH).execute(sel)
+    # **The options go on the STATEMENT, never on the connection.** `Connection.execution_options()`
+    # mutates the connection for every statement that follows it, so alembic's own
+    # `UPDATE alembic_version` came back as `DECLARE "c_..." CURSOR FOR UPDATE alembic_version ...`
+    # and Postgres rejected it: `syntax error at or near "UPDATE"`. SQLite has no server-side cursor,
+    # ignores the option, and stayed green — the runtime-parity job is the only thing that saw it.
+    result = conn.execute(sel.execution_options(stream_results=True, yield_per=_BATCH))
     for row in result.mappings():
         empty = []
         for c in cols:

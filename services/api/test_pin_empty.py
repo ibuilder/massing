@@ -306,6 +306,36 @@ check("THE FIRST MIGRATION STILL NULLS IT — the divergence is real, not imagin
       "if this ever becomes False the two copies agree again and the note above is stale")
 mig2.SKIPPED.clear()
 
+# --- THE SWEEP MUST NOT MUTATE THE CONNECTION IT WAS HANDED ---------------------------------------
+# `Connection.execution_options()` applies to the connection, not to one statement. The first draft
+# of the batching fix called it that way to get `stream_results`, so EVERY statement afterwards on
+# that connection inherited it — including alembic's own version bump, which Postgres rejected:
+#
+#     ERROR: syntax error at or near "UPDATE"
+#     STATEMENT: DECLARE "c_7f7b459f32f0_9d" CURSOR FOR UPDATE alembic_version SET version_num=...
+#
+# **SQLite has no server-side cursor, ignores the option entirely, and stayed green**, so no local
+# test could have caught the symptom — only the Postgres runtime-parity job did. What SQLite CAN see
+# is the cause: whether the connection came back the way it was handed over. That is the assertion,
+# and it is why this is here rather than left to CI.
+_eng5 = _sa.create_engine("sqlite://")
+with _eng5.begin() as _c:
+    _before = dict(_c.get_execution_options())
+    _c.execute(_sa.text("CREATE TABLE mod_sketch (id TEXT PRIMARY KEY, element_guids TEXT)"))
+    _c.execute(_sa.text("INSERT INTO mod_sketch VALUES ('a', '[]')"))
+    mig2._sweep(_c, "mod_sketch", ("element_guids",))
+    _after = dict(_c.get_execution_options())
+    # The statement that broke: a non-SELECT run on the same connection after the sweep.
+    _c.execute(_sa.text("UPDATE mod_sketch SET id = 'a' WHERE id = 'a'"))
+check("the sweep leaves the connection's execution options exactly as it found them",
+      _before == _after,
+      f"before={_before!r} after={_after!r} — options set on a CONNECTION outlive the statement and "
+      f"are inherited by alembic's own version bump")
+check("...and `stream_results` in particular never lands on the connection",
+      "stream_results" not in _after and "yield_per" not in _after,
+      f"{_after!r} — this is the exact option that turned `UPDATE alembic_version` into "
+      f"`DECLARE ... CURSOR FOR UPDATE ...` on Postgres")
+
 # --- the batched update writes the same rows as one-at-a-time would --------------------------------
 # `_sweep` now drains the SELECT before updating and clears ids in chunks of `_BATCH`. Exercise a set
 # LARGER than one batch, or the chunking loop never runs a second iteration and is untested.
