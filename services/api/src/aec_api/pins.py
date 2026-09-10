@@ -81,6 +81,23 @@ def register_order(table):
     return (table.c.created_at.desc().nulls_last(), table.c.id.desc())
 
 
+def pin_where(project_col, anchor_col, guids_col, pid: str):
+    """The SQL half of the pin test for ANY table that stores an anchor and element GUIDs.
+
+    `pin_fields` was already one definition called by both read loops; its SQL counterpart was not,
+    and the two halves had drifted apart in the direction that matters. This is the pairing made
+    symmetric: **anchored OR attached**, for topics and for register records alike.
+
+    Before this, the register loop asked only for `element_guids IS NOT NULL`, so a record someone
+    had PLACED -- an anchor, no element -- was invisible to `/pins/all` and to the plan sheet, while
+    `GET /module-pins` read exactly the opposite half and saw only the placed ones. Neither route was
+    the union its own docstring promised, and a viewer calling both drew a set the sheet did not.
+    """
+    from sqlalchemy import or_
+
+    return (project_col == pid, or_(anchor_col.isnot(None), guids_col.isnot(None)))
+
+
 def _topic_pin_where(pid: str):
     """The "is this a pin" test, in SQL, so the cap is spent on CANDIDATES rather than on topics.
 
@@ -89,11 +106,8 @@ def _topic_pin_where(pid: str):
     never exclude a real pin — and it is the whole reason `pin_total` is reported as an upper bound
     when, and only when, the cap actually bit.
     """
-    from sqlalchemy import or_
-
     from .models import Topic
-    return (Topic.project_id == pid,
-            or_(Topic.anchor.isnot(None), Topic.element_guids.isnot(None)))
+    return pin_where(Topic.project_id, Topic.anchor, Topic.element_guids, pid)
 
 
 def pin_fields(anchor, element_guids):
@@ -101,7 +115,7 @@ def pin_fields(anchor, element_guids):
 
     Returns `(anchor_or_None, non_blank_guids)`. A row is a pin when either is truthy.
 
-    **This is the exact half of the pair whose SQL half is `_topic_pin_where`.** A stored `{}`, `[]`
+    **This is the exact half of the pair whose SQL half is `pin_where`.** A stored `{}`, `[]`
     or `[""]` is non-NULL, so it passes the SQL superset and fails here — which is the entire reason
     `pin_total` is reported as an upper bound when the cap actually bit.
 
@@ -199,7 +213,7 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
     # --- register records tied to elements: the half that was invisible ------------------------
     for key, table in _record_tables(db).items():
         budget = _MAX_PINS - len(out)
-        cond = (table.c.project_id == pid, table.c.element_guids.isnot(None))
+        cond = pin_where(table.c.project_id, table.c.anchor, table.c.element_guids, pid)
         try:
             if budget <= 0:
                 # No room left. Count it anyway — an unreachable source that says so beats a
@@ -214,8 +228,9 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
             # breaks ties. `count(*) OVER ()` keeps this source's count and window in one
             # snapshot rather than two statements a write can land between.
             hits = db.execute(
-                select(table.c.id, table.c.ref, table.c.title, table.c.element_guids,
-                       table.c.workflow_state, func.count().over().label("_n"))
+                select(table.c.id, table.c.ref, table.c.title, table.c.anchor,
+                       table.c.element_guids, table.c.workflow_state,
+                       func.count().over().label("_n"))
                 .where(*cond)
                 .order_by(*register_order(table)).limit(budget)).all()
         except Exception:           # noqa: BLE001 — a register without these columns simply has no pins
@@ -225,13 +240,20 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
         truncated = truncated or total_here > len(rows)
         candidates += total_here
         for r in rows:
-            _, guids = pin_fields(None, r.element_guids)
-            if not guids:
+            # Same shape as the topic loop above, deliberately: an anchor PLACES the pin outright,
+            # element GUIDs locate it via the model. A row with neither is a record, not a pin.
+            a, guids = pin_fields(r.anchor, r.element_guids)
+            if not a and not guids:
                 continue
-            need.add(guids[0])
-            out.append({"source": key, "id": r.id, "guid": r.ref or r.id, "kind": key,
-                        "label": r.title or r.ref or "", "status": r.workflow_state,
-                        "element_guid": guids[0], "x": None, "y": None, "z": None})
+            pin = {"source": key, "id": r.id, "guid": r.ref or r.id, "kind": key,
+                   "label": r.title or r.ref or "", "status": r.workflow_state,
+                   "element_guid": guids[0] if guids else None}
+            if a:
+                pin.update(x=a.get("x"), y=a.get("y"), z=a.get("z"))
+            else:
+                need.add(guids[0])
+                pin.update(x=None, y=None, z=None)
+            out.append(pin)
 
     if need and model is not None:
         from aec_data.qto import element_centroids  # type: ignore

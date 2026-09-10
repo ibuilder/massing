@@ -139,8 +139,21 @@ def _table(key: str) -> Table:
         Column("created_by", String, nullable=True),
         Column("created_at", DateTime(timezone=True)),
         Column("modified_at", DateTime(timezone=True)),
-        Column("anchor", JSON, nullable=True),         # {x,y,z} pin on the model
-        Column("element_guids", JSON, nullable=True),  # referenced IFC GlobalIds
+        # **`none_as_null=True`, and it is not a style choice.** SQLAlchemy's default persists a
+        # Python `None` in a JSON column as the JSON scalar `null` -- which is NOT SQL NULL. So
+        # `anchor IS NOT NULL` was TRUE for every row ever written, on every dialect, and the SQL
+        # halves of the pin predicates narrowed NOTHING: `pins.resolve_pins` spent its 2,000-row
+        # budget on ordinary records and counted them in `pin_total`, and the "prune un-anchored
+        # rows in SQL (most records have no pin)" in `modules.project_pins` fetched every column of
+        # every row and pruned in Python. Measured, not reasoned: `typeof(anchor)` came back
+        # `'text'` and `quote(anchor)` came back `'null'` for a record created through the route.
+        #
+        # The Python guards beside those queries are why nothing was ever WRONG -- only slow, and
+        # only overstated. `pins.pin_fields` and `project_pins`' `if not m["anchor"]` both reject a
+        # decoded `None`, so the pin sets were right; it is the counts and the cap that were not.
+        # *A predicate that admits everything looks exactly like one that works.*
+        Column("anchor", JSON(none_as_null=True), nullable=True),         # {x,y,z} pin on the model
+        Column("element_guids", JSON(none_as_null=True), nullable=True),  # referenced IFC GlobalIds
         Column("links", JSON, nullable=True),          # [{module,id,ref}] change-order chain
         Column("data", JSON),                          # module-defined fields
         # R41-SCHEMA-STALE: the field shape `data` was written against, as "<epoch>:<signature>"

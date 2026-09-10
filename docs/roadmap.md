@@ -996,7 +996,9 @@ instances:
   **Not fixed here, and named so it is not mistaken for done:** `resolve_pins` finds a register record
   by its `element_guids`, while `/module-pins` finds one by its stored `anchor`. A record with an
   anchor and no element still reaches the 3D viewer and not the sheet, so `/pins/all` is not yet the
-  superset that would let the viewer drop its second call. See PIN-ANCHOR below.
+  superset that would let the viewer drop its second call. See PIN-ANCHOR below — **now closed**,
+  though only the ROW half of that sentence turned out to be true: the envelope still lacks the fields
+  the viewer draws from, which is PIN-ONE-CALL.
 
 - ✅ ⭐ **DB-URL-BOOT — the ambient-DSN gate could not see a schema built by the app's lifespan** *(S —
   Lane C; **CLOSED**, fix in this change; gated by `services/api/test_db_url_isolation.py`, widened)*
@@ -1172,18 +1174,85 @@ instances:
   that `apppaths.have_converter()` now says "absent" honestly instead of reaching for a path that
   raised — the behaviour a user sees is unchanged.
 
-- **PIN-ANCHOR — `/pins/all` is not yet the union it is named for** *(S — Lane C; opened
-  2026-09-10 by PIN-POPULATION)*
+- ✅ ⭐ **PIN-ANCHOR — `/pins/all` was not the union it is named for** *(S — Lane C; **CLOSED**, fix
+  in this change; gated by `services/api/test_pin_anchor.py`, and `services/api/test_pin_empty.py`
+  widened)*
 
-  `services/api/src/aec_api/pins.py` reads a register row only when it has `element_guids`; a row
-  with a stored `anchor` and no element is invisible to it, and so to the plan sheet. `GET
-  /module-pins` reads exactly the opposite half. Neither is the union its route docstring promises.
+  `services/api/src/aec_api/pins.py` read a register row only when it had `element_guids`; a row with
+  a stored `anchor` and no element was invisible to it, and so to the plan sheet. `GET /module-pins`
+  read exactly the opposite half. Neither was the union its route docstring promises, so a marker
+  dropped in the 3D viewer reached no printed plan and an issue tied to a wall reached no viewer.
 
-  Reading the register's own `anchor` beside its GUIDs makes `/pins/all` a strict superset of both,
-  after which `apps/web/src/pins/pins.ts` can make one call instead of two and the viewer stops
-  drawing a different set from the sheet. The migration would need widening to sweep register
-  `anchor` columns as well, which is why it is a separate change rather than folded into
-  PIN-POPULATION: one variable at a time.
+  `pin_fields` was already ONE definition of the exact test called by both of `resolve_pins`' loops;
+  its SQL counterpart was not. **The half that was shared is the half that stayed right.** It is now
+  `pins.pin_where`, called by the topic read and the register read alike.
+
+  **The gate written for this PASSED with the fix reverted, twice, and mutation is the only reason
+  that is known.** Restoring `element_guids.isnot(None)` on the register loop changed nothing;
+  removing the anchor arm from the shared predicate changed nothing. The cause was a third defect
+  underneath: SQLAlchemy persists a Python `None` in a `JSON` column as the JSON scalar `null`, which
+  is **not SQL NULL**, so `anchor IS NOT NULL` had always matched every row ever written and *both*
+  predicates selected the whole register. Measured at the dialect level -- `typeof(anchor)` came back
+  `'text'`, `quote(anchor)` came back `'null'` -- not reasoned about.
+
+  Nothing was ever drawn in the wrong place: `pin_fields` rejects a decoded `None`, so the pin SET was
+  right. What was wrong is everything built on the SQL half — `_MAX_PINS` spent on ordinary records,
+  `pin_total` counting them, and `modules.project_pins`' *"prune un-anchored rows in SQL (most records
+  have no pin) — (P0.1 perf)"* fetching every column of every row and pruning in Python. **A predicate
+  that admits everything looks exactly like one that works.** The four pin columns now declare
+  `JSON(none_as_null=True)`.
+
+  Three more things came out of it, each recorded where it can fail rather than here:
+
+  * `modules.create_record` persisted `anchor: {}` and `element_guids: []` verbatim. Migration
+    `e4a7c2b81f60` says *"both were normalised to `or None` in PR #492, so no new rows carry them"* —
+    `revise()` was one write site and **this was the other, and it was not**. So the backfill had been
+    cleaning up behind a source that refilled. *A sweep is only a backfill if the source has stopped.*
+  * `test_pin_empty.py` measured sweep coverage by register NAME. All thirty-seven were already
+    recorded as swept — for `element_guids` — so widening the engine to read a second COLUMN was
+    invisible to the check that exists to notice exactly that. Coverage is now `(table, column)`
+    pairs, derived by RUNNING each migration's `upgrade()` against a stubbed `_sweep` rather than by
+    reading its list. **A coverage gate is bounded by the shape of the thing it counts.**
+  * The same file's behavioural sections named `mig2` and only `mig2`, so two mutations to the third
+    migration's copy — a clipped chunk loop, and a `_decode` that calls a parse failure a success —
+    both survived, in a file whose own new section had just argued that an unexercised copy can be
+    wrong forever. **Writing the argument down is not running it.** The copies are a table now.
+
+  **Not done, and the roadmap's own claim about it was wrong.** This entry said the viewer could then
+  *"make one call instead of two"*. `/pins/all` is now a strict superset by ROW; it is not by FIELD —
+  it returns a flattened `{source,id,guid,kind,label,status,element_guid,x,y,z}` and carries none of
+  the `icon`, `module_name` or `anchor` that `PinOverlay.loadModulePins` renders from. Collapsing the
+  two calls needs those on the envelope first. Recorded as PIN-ONE-CALL below rather than left as a
+  sentence that reads like a finished argument.
+
+- **PIN-ONE-CALL — the viewer still makes two pin calls, and now only the FIELDS stand in the way**
+  *(S — Lane C; opened 2026-09-10 by PIN-ANCHOR)*
+
+  `apps/web/src/pins/pins.ts` calls `api.pins()` for BCF topics and `api.modulePins()` for register
+  records, and draws two overlays from two shapes. PIN-ANCHOR made `/pins/all` return every row both
+  of those do, so the remaining gap is what each row CARRIES: `loadModulePins` needs `icon`,
+  `module_name` and the raw `anchor`; `load` needs `topic.type` for its glyph and the topic object
+  itself for `viewpoints()` on click.
+
+  Adding those to `resolve_pins`' envelope is a small change with one real question attached — whether
+  the sheet should carry the viewer's presentation fields at all, or whether the viewer should look
+  them up from `/modules` it already has. That is a design call, which is why this is its own entry.
+
+- **JSON-NULL-CLASS — `IS NOT NULL` on a JSON column is a filter that filters nothing** *(XS — Lane C;
+  opened 2026-09-10 by PIN-ANCHOR)*
+
+  The defect PIN-ANCHOR hit is a class, not an instance: SQLAlchemy's `JSON` type persists a Python
+  `None` as the JSON scalar `null` unless `none_as_null=True`, so any `WHERE <json col> IS NOT NULL`
+  matches every row. **Derived population: 20 `isnot(None)` / `is_(None)` filters across
+  `services/api/src/aec_api`, of which three were on JSON columns.** Two were the pin columns, fixed
+  here. The third is `Topic.labels.isnot(None)` in `services/api/src/aec_api/client_portal.py`, which
+  narrows to `type == "info"` first and then does the Python check — so it over-fetches and is not
+  wrong. Fixing it needs its own sweep of existing `'null'` rows to mean anything, which is why it is
+  not folded in here.
+
+  There is no gate. The honest one would assert that no `JSON` column without `none_as_null=True` is
+  ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
+  bigger than the one remaining instance.
 
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10, not yet triaged)*
 
@@ -2307,7 +2376,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ANCHOR · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
