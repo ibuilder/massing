@@ -55,6 +55,13 @@ rule, in the part of the codebase the rule could not see.
 The four are fixed, and the check now recognises a test that starts the application. The rule was
 being enforced on 32 files; it is now enforced on 383.
 
+A follow-up widened it again, after review pointed out that the check recognised only one of the
+three ways a test can start the application. It now also recognises a client that is stored in a
+variable before being started, and one imported under a different name. **No file in the suite was
+being missed** — every file written the first way is also written the second — but a check that is
+narrower than the rule it stands for is a gap with nobody in it yet, and the tree agreeing with it
+today is exactly what makes the gap invisible.
+
 ### An issue tied to a wall shows on the model, whatever register it lives in
 
 Binding a record to an element by GlobalId is how you say *this problem is here*. It worked for RFIs

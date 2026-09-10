@@ -90,17 +90,46 @@ def _boots_the_app(tree: ast.AST) -> bool:
 
     Both `with X() as c:` and `with X():` are matched, and multi-item `with` statements too, since
     the risk is entering the client at all.
+
+    **Three ways in, not one** — a review finding on PR #501, after it had merged. The first version
+    matched only a literal `with TestClient(...)`, so it was blind to `c = TestClient(app)` followed
+    by `with c:`, and to `from fastapi.testclient import TestClient as Client`. Measured across the
+    suite, widening it changes nothing today: **353 files boot the app either way, and not one is
+    caught only by the wider form** — every binding-then-entering file in the tree also contains a
+    direct `with TestClient(...)`, and no file aliases the import.
+
+    That "nothing changed" is the reason to widen it, not a reason to leave it. A predicate narrower
+    than the risk it stands for is a blind spot with no current occupant, and the tree agreeing with
+    it today is exactly what makes the narrowing invisible — the same shape as this file's own
+    motivating defect, and as a hard-coded population in `test_frozen_paths.py` whose mutation passed
+    for the same reason. **The next file to fall through would be the first evidence, and by then it
+    has already written to somebody's database.**
     """
+    names = {"TestClient"}
+    for n in ast.walk(tree):                        # `import TestClient as Client`
+        if isinstance(n, ast.ImportFrom):
+            names.update(a.asname for a in n.names if a.name == "TestClient" and a.asname)
+
+    def _is_client_call(node: ast.AST) -> bool:
+        if not isinstance(node, ast.Call):
+            return False
+        fn = node.func
+        nm = fn.id if isinstance(fn, ast.Name) else (fn.attr if isinstance(fn, ast.Attribute) else "")
+        return nm in names
+
+    bound: set[str] = set()                         # `c = TestClient(app)`
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and _is_client_call(n.value):
+            bound.update(t.id for t in n.targets if isinstance(t, ast.Name))
+
     for n in ast.walk(tree):
         if not isinstance(n, (ast.With, ast.AsyncWith)):
             continue
         for item in n.items:
-            call = item.context_expr
-            if not isinstance(call, ast.Call):
-                continue
-            fn = call.func
-            name = fn.id if isinstance(fn, ast.Name) else (fn.attr if isinstance(fn, ast.Attribute) else "")
-            if name == "TestClient":
+            expr = item.context_expr
+            if _is_client_call(expr):               # with TestClient(app):
+                return True
+            if isinstance(expr, ast.Name) and expr.id in bound:      # c = TestClient(app); with c:
                 return True
     return False
 
@@ -382,6 +411,36 @@ from aec_api.main import app
 c = TestClient(app)
 '''
 
+#: **Bound, then entered.** `c2 = TestClient(app)` … `with c2:` runs the lifespan exactly as the
+#: literal form does, and the first version of `_boots_the_app` could not see it. Two files in this
+#: suite are written this way; both happen to ALSO contain a direct `with TestClient(app)`, which is
+#: precisely why the narrowing left no trace in the population and why it needs a fixture rather than
+#: a tree scan to hold it.
+_BOUND_THEN_ENTERED = '''
+from fastapi.testclient import TestClient
+from aec_api.main import app
+c2 = TestClient(app)
+with c2:
+    c2.get("/health")
+'''
+#: **Aliased import.** `TestClient as Client` is the same class under another name. No file in the
+#: suite does this today; the fixture is the only thing keeping the alias branch honest, which is the
+#: point -- a branch with no occupant is a branch nobody has run.
+_ALIASED_CLIENT = '''
+from fastapi.testclient import TestClient as Client
+from aec_api.main import app
+with Client(app) as c:
+    c.get("/health")
+'''
+#: ...and bound THROUGH the alias, so neither half of the widening can be dropped alone.
+_ALIASED_AND_BOUND = '''
+from fastapi.testclient import TestClient as Client
+from aec_api.main import app
+c = Client(app)
+with c:
+    c.get("/health")
+'''
+
 for _label, _src, _want in (
     ("the undeclared original is caught", _PRE_FIX, "NEEDS-DECLARATION"),
     ("declaring AFTER the aec_api import is caught — the engine is already built",
@@ -406,6 +465,12 @@ for _label, _src, _want in (
     ("...and the same file with a declaration is accepted", _LIFESPAN_BOOT_FIXED, "SAFE"),
     ("a BARE TestClient never enters the lifespan, so it creates nothing and is not asked to declare",
      _BARE_CLIENT_NO_LIFESPAN, "NO-SCHEMA"),
+    ("a client BOUND then entered runs the same lifespan — a review finding on #501, after merge",
+     _BOUND_THEN_ENTERED, "NEEDS-DECLARATION"),
+    ("...and an ALIASED import is the same class under another name",
+     _ALIASED_CLIENT, "NEEDS-DECLARATION"),
+    ("...and aliased AND bound, so neither half of the widening can be dropped on its own",
+     _ALIASED_AND_BOUND, "NEEDS-DECLARATION"),
 ):
     got = verdict(_src)
     check(f"self-test: {_label}", got == _want, f"got {got}")
