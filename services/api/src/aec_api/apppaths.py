@@ -32,10 +32,18 @@ from pathlib import Path
 
 
 def bundle_dir() -> Path | None:
-    """The PyInstaller unpack directory (`sys._MEIPASS`), or None when not frozen.
+    """The PyInstaller unpack directory (`sys._MEIPASS`), or None when there is not one.
 
-    Both markers are checked: `sys.frozen` is what PyInstaller sets, `_MEIPASS` is where it
-    unpacked. Either alone is enough to mean "there is no source checkout around this file".
+    **Only `_MEIPASS` is checked here, and that is deliberate** — this answers *where* the bundle
+    was unpacked, which nothing but `_MEIPASS` can say. Whether we are frozen *at all* is a
+    different question and `is_frozen()` answers it, checking `sys.frozen` too: a freezer that is
+    not PyInstaller sets `sys.frozen` without `_MEIPASS`, and must still not be handed a source
+    checkout. So None here does NOT mean "not frozen".
+
+    (This docstring said "both markers are checked", which was true of `is_frozen` and false of
+    this function — prose describing the wrong half of the code, in the file whose subject is
+    exactly that. Found by re-reading the diff, not by any test, because a wrong docstring is
+    invisible to every check in this repository.)
     """
     mei = getattr(sys, "_MEIPASS", "")
     if mei:
@@ -53,7 +61,8 @@ def is_frozen() -> bool:
 # image is `/app` holding `services/api/src`, `services/data/src` and `services/converter`, with no
 # `apps/` at all. That marker would have returned None in production and quietly turned off IFC
 # conversion, which is the sort of thing a directory count gets right by accident and a "better"
-# rewrite gets wrong on purpose. Both layouts have this, and a PyInstaller bundle has neither.
+# rewrite gets wrong on purpose. A checkout and the image both have this path; a frozen bundle
+# has no `services/` tree at all, so nothing above it can match.
 _ROOT_MARKER = ("services", "api", "src")
 
 

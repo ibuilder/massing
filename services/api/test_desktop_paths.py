@@ -305,6 +305,43 @@ for label, marker_dirs, expect_root in (
               (got == root) if expect_root else (got is None),
               f"got {got!r}, expected {root if expect_root else None}")
 
+# --- FROZEN WITHOUT _MEIPASS: the case a non-PyInstaller freezer produces ---------------------------
+# `bundle_dir()` reads only `_MEIPASS`, because only `_MEIPASS` can say WHERE a bundle was unpacked.
+# `is_frozen()` also reads `sys.frozen`. The gap between them is a real configuration: cx_Freeze and
+# friends set `sys.frozen` and no `_MEIPASS`, and such a build must still not be handed a source
+# checkout that happens to sit above it -- it would import a different copy of the code than the one
+# it shipped.
+#
+# Nothing tested this until the docstring was corrected to describe it. A claim about behaviour with
+# no check behind it is the drift this whole change is about, so it gets one.
+_saved = {a: getattr(sys, a, None) for a in ("frozen", "_MEIPASS")}
+try:
+    for a in ("frozen", "_MEIPASS"):
+        if hasattr(sys, a):
+            delattr(sys, a)
+    sys.frozen = True                       # frozen, but by something that is not PyInstaller
+    check("frozen without _MEIPASS: bundle_dir() has no directory to name",
+          apppaths.bundle_dir() is None, f"got {apppaths.bundle_dir()!r}")
+    check("...but is_frozen() still says frozen, because sys.frozen is set",
+          apppaths.is_frozen() is True)
+    check("...so repo_root() refuses the checkout it is standing in",
+          apppaths.repo_root() is None,
+          f"got {apppaths.repo_root()!r} -- a frozen build must not import from a source tree that "
+          f"happens to sit above it")
+    check("...and converter_cli() answers None rather than a path that build cannot use",
+          apppaths.converter_cli() is None and apppaths.have_converter() is False)
+finally:
+    for a, v in _saved.items():
+        if v is None:
+            if hasattr(sys, a):
+                delattr(sys, a)
+        else:
+            setattr(sys, a, v)
+# The restore must actually restore, or every case below runs in a fake frozen world and passes for
+# the wrong reason -- the fixture-leak version of a vacuous test.
+check("...and the frozen markers are put back", apppaths.is_frozen() is False
+      and apppaths.repo_root() is not None, f"is_frozen={apppaths.is_frozen()}")
+
 # --- THE SECOND ROOT-FINDER MUST AGREE WITH THE FIRST -----------------------------------------------
 # `aec_data.build_family_library._checkout_root` is a deliberate small duplicate of
 # `apppaths.repo_root`: `aec_data` must not import `aec_api`, and a shared helper would invert the
