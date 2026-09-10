@@ -25,7 +25,11 @@ import { describe, expect, it } from "vitest";
  * | typed-unread that the identifier method called "read" | ~556 — pure name collisions |
  * | of those, leaf name present as a STRING LITERAL outside `api/` | ~308 |
  *
- * That last row is the typed pass's OWN blind spot, in the opposite direction: this codebase reads
+ * There is a THIRD limit that no checker can remove: a field read through `Object.entries(resp)` or
+ * a spread never has its name appear at all. That residual is measured below rather than described,
+ * because a caveat held only in prose is the thing this repository keeps paying for.
+ *
+ * That first row is the typed pass's OWN blind spot, in the opposite direction: this codebase reads
  * plenty of fields through string keys in column configs, and no checker can see those. So the honest
  * output is a PARTITION, not a number — and the sound candidate set is the intersection: no typed
  * reader AND no string-literal reader. Reporting the typed count alone would have been the same
@@ -137,8 +141,32 @@ function stringLiterals(): Set<string> {
   return out;
 }
 
+/** Interfaces named in a file that ALSO reads objects dynamically — `Object.keys/entries/values` or
+ *  a spread. No static analysis can clear a field consumed that way: the property name never appears.
+ *  This is the derivation's SECOND blind spot, and unlike the first it cannot be narrowed by a better
+ *  checker — it is a limit of static reading, not of this implementation. */
+function dynamicallyReadInterfaces(): Set<string> {
+  const walk = (dir: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e);
+      if (statSync(p).isDirectory()) walk(p, out);
+      else if (p.endsWith(".ts") || p.endsWith(".tsx")) out.push(p);
+    }
+    return out;
+  };
+  const out = new Set<string>();
+  for (const f of walk(WEB)) {
+    if (f.startsWith(API) || isTest(f)) continue;
+    const src = readFileSync(f, "utf-8");
+    if (!/Object\.(keys|entries|values)|\.\.\./.test(src)) continue;
+    for (const m of src.matchAll(/\b([A-Z]\w+)\b/g)) out.add(m[1]!);
+  }
+  return out;
+}
+
 const { keyToFile, readers } = derive();
 const lits = stringLiterals();
+const dynIfaces = dynamicallyReadInterfaces();
 const readersOutsideDecl = (k: string) =>
   [...(readers.get(k) ?? [])].filter((r) => r !== keyToFile.get(k));
 
@@ -187,6 +215,20 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     expect(alsoNoLiteral.length,
       "the sound set is the INTERSECTION of both methods, and it is smaller than either")
       .toBeGreaterThan(50);
+
+    // THE SECOND BLIND SPOT, measured rather than described. A reviewer asked whether this audit
+    // overstates unused fields when values are read through dynamic paths. It can, it is bounded
+    // here, and unlike the string-literal gap this one CANNOT be closed by a better checker: a field
+    // consumed via `Object.entries(resp)` or a spread never has its name appear anywhere.
+    const iface = (k: string) => k.split(".")[0]!;
+    const atRisk = alsoNoLiteral.filter((k) => dynIfaces.has(iface(k)));
+    expect(atRisk.length,
+      "no candidate's interface is touched by a dynamic reader — that is implausible in this "
+      + "codebase and means the dynamic-read scan stopped matching, which would make the sound set "
+      + "look cleaner than it is").toBeGreaterThan(0);
+    expect(atRisk.length,
+      "the residual is now most of the candidate set, so the sound set is no longer sound — "
+      + "re-derive before quoting it").toBeLessThan(alsoNoLiteral.length);
   });
 
   it("the six fields the valuation panel was fixed to render now resolve to a reader", () => {
