@@ -221,44 +221,102 @@ def frozen_path(repo_rel: str) -> str | None:
     return None
 
 
-def parent_index_sites(src: str) -> list[tuple[int, int]]:
-    """Every `<...>.parents[N]` in `src`, as (line, N). Structural — a regex over the text would
-    also match the prose in this file's own docstring, which is how a doc gate once failed."""
-    found: list[tuple[int, int]] = []
-    for node in ast.walk(ast.parse(src)):
+def parent_index_sites(src: str) -> list[tuple[int, int | None]]:
+    """Every `<...>.parents[i]` in `src`, as (line, index) — **`None` index means unresolved.**
+
+    Structural rather than textual: a regex would also match the prose in this file's own
+    docstring, which is how a doc gate in this repository failed once.
+
+    **Three shapes were invisible to the first version, and invisible reads as clean** — the same
+    defect this whole change is about, one level up, in the instrument built to forbid it:
+
+        ps = p.parents; ps[5]      an ALIAS. The subscript's value is a Name, not `.parents`.
+        p.parents[N]               a NON-LITERAL index. Skipped silently, while the docstring
+                                   claimed this gate fails closed.
+        p.parents[-1]              a NEGATIVE literal. Python parses `-1` as
+                                   `UnaryOp(USub, Constant(1))`, NOT `Constant(-1)`, so an
+                                   `isinstance(idx, ast.Constant)` test does not match it.
+
+    That last one is worth its own sentence: it was predicted to be CAUGHT, by reasoning about
+    what `parents[-1]` resolves to, and measurement said otherwise. The prediction was about the
+    runtime value; the bug was in the parse. **Reasoning about behaviour cannot find a hole in the
+    thing that decides what you look at** — only running the analyser over the shape can.
+
+    Unresolvable indexes are now returned as `None` and classified as `unknown`, which fails the
+    build. A site this analyser cannot read is not a site it may wave through.
+    """
+    tree = ast.parse(src)
+
+    # `x = <anything>.parents` -- the alias form. Collected first so a later subscript on `x`
+    # resolves, regardless of statement order within the module.
+    aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute) \
+                and node.value.attr == "parents":
+            aliases.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) \
+                and isinstance(node.value, ast.Attribute) and node.value.attr == "parents":
+            aliases.add(node.target.id)
+
+    found: list[tuple[int, int | None]] = []
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Subscript):
             continue
         val = node.value
-        if not (isinstance(val, ast.Attribute) and val.attr == "parents"):
+        is_parents = (isinstance(val, ast.Attribute) and val.attr == "parents") \
+            or (isinstance(val, ast.Name) and val.id in aliases)
+        if not is_parents:
             continue
-        idx = node.slice
-        if isinstance(idx, ast.Constant) and isinstance(idx.value, int):
-            found.append((node.lineno, idx.value))
+        found.append((node.lineno, _index_of(node.slice)))
     return found
 
 
-def verdict(repo_rel: str, n: int) -> str:
-    """`raises` | `escapes` | `local` — kept SEPARATE from the finder so a mutation can target it.
+def _index_of(idx: ast.AST) -> int | None:
+    """The integer a subscript names, or None when this analyser cannot say.
+
+    Handles the negative literal explicitly, because the AST does not: `-1` is a `UnaryOp` wrapping
+    `Constant(1)`. A slice, a variable, an expression -- anything else -- is None, and None fails.
+    """
+    if isinstance(idx, ast.Constant) and isinstance(idx.value, int) \
+            and not isinstance(idx.value, bool):
+        return idx.value
+    if isinstance(idx, ast.UnaryOp) and isinstance(idx.op, ast.USub) \
+            and isinstance(idx.operand, ast.Constant) and isinstance(idx.operand.value, int):
+        return -idx.operand.value
+    return None
+
+
+def verdict(repo_rel: str, n: int | None) -> str:
+    """`raises` | `escapes` | `local` | `unknown` — SEPARATE from the finder so a mutation can
+    target the classification directly.
 
     The rule is derived from the module's own position, not from a list of allowed files:
 
-        local     `N` stays within the bundle — the module's own directory, its package, or the
-                  bundle root. Those all exist in both layouts and mean the same thing in each.
-        escapes   `N` reaches ABOVE the bundle root, so in a frozen build it names the temp
-                  directory the bundle happens to sit in. Harmless-looking (every caller guards
-                  with `.exists()`) and therefore the quiet half of this defect: it silently
-                  finds nothing, and some other default answers instead.
-        raises    `N` is past the end of `parents` entirely. `IndexError`, no traceback the user
-                  can act on, no app.
+        local     `n` stays within the bundle — the module's own directory, its package, or the
+                  bundle root. Those exist in both layouts and mean the same thing in each.
+        escapes   `n` is in range but reaches ABOVE the bundle root, so in a frozen build it names
+                  whatever temporary directory the bundle happens to sit in. Harmless-looking
+                  (every caller guards with `.exists()`) and therefore the quiet half of this
+                  defect: it silently finds nothing, and some other default answers instead.
+        raises    `n` is past the end of `parents` entirely. `IndexError`, no app.
+        unknown   this analyser could not read the index. **Fails the build**, because the
+                  alternative is a site nobody looked at being reported as a site that is fine.
+
+    A NEGATIVE index counts from the filesystem root rather than from the file, so it names a
+    different directory in each layout by construction — never in-bundle, hence `escapes`.
 
     Severity runs `local` < `escapes` < `raises`, but the FIX is the same for the last two, which
     is why both fail: a directory count that is right in a checkout is not right in a bundle, and
     guarding it only converts a crash into a silence.
     """
+    if n is None:
+        return "unknown"
     fp = frozen_path(repo_rel)
     if fp is None:
         return "escapes"
     parents = Path(fp).parents
+    if n < 0:
+        return "escapes"
     if n > len(parents) - 1:
         return "raises"
     # The bundle root is `<...>/_MEI123456`; anything at or below it is in-bundle.
@@ -274,6 +332,15 @@ _PRE_FIX = [
      'default = Path(__file__).resolve().parents[4] / "plugins"', "raises"),
     ("services/api/src/aec_api/routers/authoring.py",
      '_REPO = Path(__file__).resolve().parents[5]', "raises"),
+    # **The three shapes the first version could not see at all**, each reported as no site rather
+    # than as a site -- which is why they are fixtures and not a comment. Found by review, then
+    # confirmed by running the analyser over them: `parent_index_sites` returned `[]` for all three.
+    ("services/api/src/aec_api/routers/authoring.py",
+     "ps = Path(__file__).resolve().parents\nps[5]", "raises"),          # alias
+    ("services/api/src/aec_api/routers/authoring.py",
+     "N = 5\nPath(__file__).resolve().parents[N]", "unknown"),           # non-literal -> FAILS
+    ("services/api/src/aec_api/routers/authoring.py",
+     "Path(__file__).resolve().parents[-1]", "escapes"),                 # negative literal
     # In range in a bundle, and WRONG in the checkout it was written for -- the quiet half.
     ("services/api/src/aec_api/package.py",
      '_DS = Path(__file__).resolve().parents[2] / "data" / "src"', "escapes"),
@@ -311,7 +378,7 @@ def main() -> int:
     check(not wrong, "...and classifies each one the way the crash did",
           "; ".join(f"{r} parents[{n}] -> {g}, expected {w}" for r, n, g, w in wrong)
           or ", ".join(f"{v}={sum(1 for s in seen if s[2] == v)}"
-                       for v in ("raises", "escapes", "local")))
+                       for v in ("raises", "escapes", "local", "unknown")))
     if FAILURES:
         print("\nThe analyser cannot see its own motivating defects, so its verdict on the tree "
               "means nothing. Refusing to report.")
@@ -333,16 +400,24 @@ def main() -> int:
           f"no tracked .py under {empty}" if empty
           else " · ".join(f"{r}={c}" for r, c in per_root.items()))
 
-    raises, escapes, local = [], [], []
-    buckets = {"raises": raises, "escapes": escapes, "local": local}
+    raises, escapes, local, unknown = [], [], [], []
+    buckets = {"raises": raises, "escapes": escapes, "local": local, "unknown": unknown}
     for rel in files:
         src = (REPO / rel).read_text(encoding="utf-8")
         for line, n in parent_index_sites(src):
-            buckets[verdict(rel, n)].append(f"{rel}:{line} parents[{n}]")
+            shown = "?" if n is None else n
+            buckets[verdict(rel, n)].append(f"{rel}:{line} parents[{shown}]")
 
     check(not raises, "no shipped module indexes past the end in a frozen bundle",
           "\n      " + "\n      ".join(raises) if raises
           else f"checked {len(files)} file(s)")
+    check(not unknown, "...and every parents[] index is one this analyser can actually read",
+          "\n      " + "\n      ".join(unknown)
+          + "\n      An index this gate cannot resolve is not an index it may wave through: the "
+            "site would be reported as absent, which is indistinguishable from being fine. Use a "
+            "literal, or aec_api.apppaths."
+          if unknown else "0 unresolvable indexes")
+
     check(not escapes, "...and none reaches above the bundle root to find repo files",
           "\n      " + "\n      ".join(escapes)
           + "\n      Use aec_api.apppaths (repo_root / data_src / bundle_dir / converter_cli): it "

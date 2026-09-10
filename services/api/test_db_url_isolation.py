@@ -121,6 +121,13 @@ def _boots_the_app(tree: ast.AST) -> bool:
     for n in ast.walk(tree):
         if isinstance(n, ast.Assign) and _is_client_call(n.value):
             bound.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        # ...and `c: TestClient = TestClient(app)`, which is an AnnAssign and matched
+        # nothing above. A THIRD binding form, found in review after the first two were
+        # fixed -- which is the argument for enumerating the ways a name can be bound
+        # rather than fixing the shapes as they are reported one at a time.
+        elif (isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)
+              and _is_client_call(n.value)):
+            bound.add(n.target.id)
 
     for n in ast.walk(tree):
         if not isinstance(n, (ast.With, ast.AsyncWith)):
@@ -432,6 +439,16 @@ from aec_api.main import app
 with Client(app) as c:
     c.get("/health")
 '''
+#: **Annotated binding** -- `c: TestClient = TestClient(app)`. An `ast.AnnAssign`, which the
+#: Assign-only detection could not see. Reported in review after the bound and aliased forms were
+#: already fixed, which is why the fixtures below now cover the binding forms as a SET.
+_ANNOTATED_BINDING = '''
+from fastapi.testclient import TestClient
+from aec_api.main import app
+c: TestClient = TestClient(app)
+with c:
+    c.get("/health")
+'''
 #: ...and bound THROUGH the alias, so neither half of the widening can be dropped alone.
 _ALIASED_AND_BOUND = '''
 from fastapi.testclient import TestClient as Client
@@ -471,6 +488,8 @@ for _label, _src, _want in (
      _ALIASED_CLIENT, "NEEDS-DECLARATION"),
     ("...and aliased AND bound, so neither half of the widening can be dropped on its own",
      _ALIASED_AND_BOUND, "NEEDS-DECLARATION"),
+    ("...and an ANNOTATED binding, the third form — a review finding on #502",
+     _ANNOTATED_BINDING, "NEEDS-DECLARATION"),
 ):
     got = verdict(_src)
     check(f"self-test: {_label}", got == _want, f"got {got}")

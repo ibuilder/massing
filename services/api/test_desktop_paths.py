@@ -47,7 +47,6 @@ Run: cd services/api && PYTHONPATH=src:../data/src ./.venv/bin/python test_deskt
 """
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -210,10 +209,14 @@ sys.exit(0)
 # mutation that should have reproduced the crash imported cleanly. That is the third time this trap
 # has appeared in this file's history; it is not subtle in hindsight and it is invisible in the
 # moment, because a passing test and a test that cannot fail look identical.
+# `mkdtemp(prefix="_MEI", dir=...)` yields `/tmp/_MEIxxxxxx` -- the real bundle SHAPE at the real
+# DEPTH, which is the whole reason this is not nested inside a TemporaryDirectory. Unlike the
+# PID-derived name it replaces, it is unpredictable and mode 0700, so nothing else on a shared
+# machine can pre-create the directory or swap the boot script before `subprocess` runs it
+# (CWE-377), and two runs cannot collide.
 _tmproot = Path(tempfile.gettempdir())
-mei = _tmproot / f"_MEI{os.getpid():06d}"
-shutil.rmtree(mei, ignore_errors=True)
-mei.mkdir(parents=True)
+mei = Path(tempfile.mkdtemp(prefix="_MEI", dir=_tmproot))
+_scriptdir = Path(tempfile.mkdtemp(prefix="bootdir"))    # depth is irrelevant for the launcher
 try:
     for root in _frozen_gate.BUNDLED_ROOTS:          # derived from the .spec files, not listed here
         src = REPO / root
@@ -230,7 +233,7 @@ try:
     check("the simulated bundle has no checkout above it", not rooted,
           f"an ancestor looks like a source root: {rooted[:1]}")
 
-    script = mei.parent / f"boot{os.getpid()}.py"
+    script = _scriptdir / "boot.py"
     script.write_text(_CHILD, encoding="utf-8")
     proc = subprocess.run([sys.executable, str(script), str(mei)],
                           capture_output=True, text=True, timeout=300)
@@ -270,7 +273,7 @@ try:
     victim.write_text(good, encoding="utf-8")
 finally:
     shutil.rmtree(mei, ignore_errors=True)
-    (_tmproot / f"boot{os.getpid()}.py").unlink(missing_ok=True)
+    shutil.rmtree(_scriptdir, ignore_errors=True)
 
 # --- EVERY DEPLOYMENT LAYOUT, not just the two anyone was thinking about ---------------------------
 # `repo_root()` matches the layout's shape, and the FIRST shape chosen was `apps/` + `services/` --

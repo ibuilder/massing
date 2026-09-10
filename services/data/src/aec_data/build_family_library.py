@@ -61,7 +61,21 @@ def build_model(name: str = "Massing Family Library") -> ifcopenshell.file:
     return model
 
 
-def build(out_path: Path = LIBRARY_PATH) -> dict:
+def build(out_path: Path | None = LIBRARY_PATH) -> dict:
+    """Regenerate `library.ifc`. Refuses, loudly, when there is nowhere to write it.
+
+    **This guard exists because this change created the hole.** Making `LIBRARY_PATH`
+    optional (correct: outside a checkout there IS no committed artifact to regenerate)
+    left the annotation saying `Path` and the body dereferencing `out_path.parent`, so
+    `python -m aec_data.build_family_library` outside a source tree raised `AttributeError:
+    'NoneType' object has no attribute 'parent'` -- a confusing crash in place of a clear
+    refusal. Caught in review, not by any test: no test runs this module outside a checkout,
+    because there is no such thing in CI.
+    """
+    if out_path is None:
+        raise RuntimeError(
+            "no checkout: build_family_library regenerates a committed artifact under "
+            "services/data/families and has nowhere to write outside a source tree")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     model = build_model()
     model.write(str(out_path))
