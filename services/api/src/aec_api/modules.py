@@ -243,12 +243,23 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
         "party_owner": party, "assignee": body.get("assignee"),
         "created_by": actor, "created_at": _now(), "modified_at": _now(),
         # MOD-GUID: the union of what the caller anchored and what the record's own GlobalId fields
-        # name, so the canonical column can never be a subset of the record's own data. `or` keeps a
-        # caller-supplied None as None rather than turning it into [].
-        "anchor": body.get("anchor"),
-        "element_guids": (sorted({*(body.get("element_guids") or []),
-                                  *module_schema.guids_from_fields(data)})
-                          or body.get("element_guids")),
+        # name, so the canonical column can never be a subset of the record's own data.
+        #
+        # **`or None` on both, for the reason `revise()` gives below -- and this site is where the
+        # empty values actually came from.** `e4a7c2b81f60` said two write sites here had been
+        # normalised in PR #492 "so no new rows carry them"; `revise()` was one, and THIS WAS NOT.
+        # Measured through the route: `POST` with `anchor: {}, element_guids: []` stored exactly
+        # that. So the backfill was cleaning up behind a source that kept refilling, and PIN-ANCHOR
+        # made it permanent rather than legacy -- a `{}` anchor on a register is now a pin CANDIDATE
+        # that fails the exact test, so `pin_total` overstates for as long as the row exists.
+        # *A sweep is only a backfill if the source has actually stopped.*
+        #
+        # The old `or body.get("element_guids")` fallback could only ever restore a falsy value:
+        # when the union is empty the body's list was empty or None to begin with. Blank GUIDs are
+        # filtered for the same reason -- `[""]` is non-NULL, and `pin_fields` rejects it.
+        "anchor": body.get("anchor") or None,
+        "element_guids": sorted({g for g in (*(body.get("element_guids") or []),
+                                             *module_schema.guids_from_fields(data)) if g}) or None,
         "links": body.get("links") or [], "data": data,
         # R41-SCHEMA-STALE: record the shape these values were validated against, so a later
         # rename/removal/retype is a fact about this row rather than a guess at read time.
@@ -1305,12 +1316,21 @@ def project_pins(db: Session, project_id: str) -> list[dict]:
         if not mod.get("pinnable"):
             continue
         t = TABLES[key]
-        # prune un-anchored rows in SQL (most records have no pin) — the Python check still guards the
-        # JSON-'null' edge case. (P0.1 perf)
+        # Prune un-anchored rows in SQL (most records have no pin). (P0.1 perf)
+        #
+        # **That prune did nothing until PIN-ANCHOR**, and the comment that used to be here named
+        # the reason while calling it an edge case: a `JSON` column without `none_as_null=True`
+        # stores a Python `None` as the JSON scalar `null`, which is not SQL NULL. That was not an
+        # edge case, it was EVERY un-anchored row -- so this fetched the whole register, every
+        # column, and the Python line below did all of the work. The column now declares
+        # `none_as_null=True` (see `modules_registry._table`) and `b3c9e42d18a5` converts the rows
+        # written before it, so the SQL half finally narrows.
         rows = db.execute(select(t).where(t.c.project_id == project_id, t.c.anchor.isnot(None)))
         for r in rows:
             m = r._mapping
-            if not m["anchor"]:  # JSON-null safe (SQLite stores None as JSON null)
+            # Still here, and still load-bearing: a legacy `{}` that a sweep has not reached is
+            # non-NULL and is not a pin. The SQL predicate is a superset by design.
+            if not m["anchor"]:
                 continue
             pins.append({
                 "module": key, "module_name": mod["name"], "icon": mod.get("icon", "•"),

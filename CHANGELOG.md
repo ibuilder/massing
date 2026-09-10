@@ -12,6 +12,40 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### An issue pinned on the model shows in the same place on the sheet and in 3D
+
+An RFI, NCR or clash tied to the model can reach it two ways: somebody drops a marker at a point, or
+the record names the element it is about. The plan sheet only ever read the second, and the 3D
+viewer only ever read the first — so a marker dropped in the viewer appeared on no printed plan, and
+an issue tied to a wall appeared nowhere in 3D. One issue, two surfaces, two different answers.
+Both now read both, and the sheet is the full set.
+
+A record placed at a point also draws immediately, with no model loaded — its position is where
+somebody put it, so nothing has to be resolved first. Records tied to an element still need the
+model, and the list continues to say how many it could not place rather than quietly returning
+fewer.
+
+**Underneath that was a bigger one: "no pin here" had never actually been stored as empty.** The
+database recorded an absent marker as the *word* "null" rather than as nothing at all, so the query
+that was supposed to fetch "only the records with a pin" matched every record in the register. The
+pin overlay has a ceiling of 2,000; it was spending that ceiling on ordinary records, and the "N
+pins on this project" count included them. Nothing was ever drawn in the wrong place — a second
+check in the application caught them — but on a busy project the count was inflated and the overlay
+could fill up with records that have no pin at all. Absent is now stored as absent, existing rows
+are converted on upgrade, and the create form no longer writes an empty marker where it means none.
+
+One more thing it fixes, found because a test started failing: the viewer's pin list was returning
+**every issue on the project**, not the pinned ones. It has a ceiling of 2,000 and keeps the newest,
+so on a project with more than that many issues the viewer could show almost no pins while having
+plenty — the ceiling was being spent on issues that were never pins. It now returns exactly the
+pinned ones. Note that this means the number it returns gets smaller, and correctly so: an issue
+recorded against the whole model rather than a specific element has nowhere to be drawn, and is
+still in the issue list.
+
+**The gate written for this could not detect the bug it was written for, and only deliberately
+re-breaking the code found that out.** The test passed with the fix removed, because the "null"
+problem underneath made the broken and fixed versions behave identically.
+
 ### The Linux desktop app could not start
 
 The published AppImage and .deb quit before they drew a window. The bundled server looked for the

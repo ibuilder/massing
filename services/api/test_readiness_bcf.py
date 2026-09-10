@@ -58,19 +58,89 @@ with TestClient(app) as c:
     assert body["created"] == ra["total_gaps"], (body["created"], ra["total_gaps"])
     assert body["created"] >= 1 and body["ready"] is False, body
 
-    # they land as BCF topics of type "readiness" (visible in pins/Issues), labelled by category
-    pins = c.get(f"/projects/{pid}/pins").json()
-    readiness = [t for t in pins if t.get("type") == "readiness"]
+    # they land as BCF topics of type "readiness" (visible in Issues), labelled by category.
+    #
+    # **Read through `/topics`, NOT `/pins`, and that distinction is the point.** This block used
+    # to assert `len(readiness_in_pins) == body["created"]`, and it passed for a reason that had
+    # nothing to do with this endpoint: `GET /pins` filters `Topic.anchor IS NOT NULL`, and a
+    # SQLAlchemy `JSON` column without `none_as_null=True` stores a Python `None` as the JSON
+    # scalar `null` -- which is not SQL NULL. So that filter matched every topic ever written and
+    # `/pins` returned the whole issue log. PIN-ANCHOR fixed the column; this assertion was the
+    # first thing to notice, because it was the only one measuring the difference.
+    topics = c.get(f"/projects/{pid}/topics").json()
+    readiness = [t for t in topics if t.get("type") == "readiness"]
     assert len(readiness) == body["created"], (len(readiness), body["created"])
     assert all("readiness" in (t.get("labels") or []) for t in readiness), readiness[:1]
     assert any(t.get("priority") == "high" for t in readiness), "a high-severity gap → high-priority topic"
 
+    # A GAP IS ANCHORED WHEN IT NAMES AN ELEMENT, AND NOT OTHERWISE. Four of these gaps are
+    # model-wide findings -- egress capacity, occupancy classification, accessible entrance, egress
+    # door clear width -- with no single element to point at; `readiness_to_bcf` stores
+    # `anchor=None` for them, which is the honest answer. The other seven carry GlobalIds and are
+    # placed. Derived from the audit rather than hard-coded, so a change in what the audit finds
+    # moves both sides together.
+    anchorable = [g for g in ra["gaps"] if [x for x in (g.get("guids") or []) if x]]
+    assert 0 < len(anchorable) < body["created"], (
+        len(anchorable), body["created"],
+        "this check is only meaningful when SOME gaps anchor and some do not")
+    assert len([t for t in readiness if t.get("anchor")]) == len(anchorable), (
+        [t["title"] for t in readiness if t.get("anchor")], len(anchorable))
+
+    # **By identity and exact GUIDs, not by count.** Counts alone pass while the WRONG subset is
+    # anchored, or the right subset carries someone else's GlobalIds — a reachable regression, since
+    # `readiness_to_bcf` anchors from `guids[0]` and a reordering there would swap them silently.
+    # The expected mapping is built from the audit's own gaps, so it moves when the audit does.
+    # Raised in review of PR #503.
+    # **In ORDER, not sorted.** The first draft of this check sorted both sides, and a mutation that
+    # REVERSED the promoter's guid list survived it — two of these gaps carry more than one GlobalId
+    # (2 and 3), and `readiness_to_bcf` anchors from `guids[0]`, so reversing them silently moves
+    # those pins to a different element. Sorting normalised away the one thing that decides where the
+    # marker lands. Measured stable across three audit runs and preserved end-to-end, so ordering is
+    # a real invariant here rather than a flake waiting to happen.
+    _want = {g["title"][:200]: [x for x in (g.get("guids") or []) if x] for g in ra["gaps"]}
+    _got = {t["title"]: list(t.get("element_guids") or []) for t in readiness}
+    assert any(len(v) > 1 for v in _want.values()), (
+        "no gap carries multiple GlobalIds, so the ordering assertion below proves nothing — "
+        "the fixture must keep a multi-element gap for this check to mean anything")
+    assert set(_got) == set(_want), (sorted(set(_got) ^ set(_want)),
+                                     "a promoted topic's title must identify its gap")
+    assert _got == _want, {k: (_want[k], _got[k]) for k in _want if _want[k] != _got[k]}
+
+    # ...and the anchored ones are exactly the gaps that named an element — by title, not by count.
+    _want_anchored = {k for k, v in _want.items() if v}
+    assert {t["title"] for t in readiness if t.get("anchor")} == _want_anchored, (
+        sorted({t["title"] for t in readiness if t.get("anchor")} ^ _want_anchored))
+
+    # ...and `/pins` returns EXACTLY that anchored subset -- strictly fewer than the topic count.
+    # Before PIN-ANCHOR this returned all eleven, and nothing here or anywhere else said so. The
+    # same defect also made that route's `limit=2000` cap -- documented as "keeps the NEWEST pins"
+    # -- a cap on the newest 2,000 TOPICS, so a project past that could return a window holding
+    # few pins or none while having plenty. That is the LIMIT-FILTER shape, live in `/pins`.
+    pins = c.get(f"/projects/{pid}/pins").json()
+    readiness_pins = [t for t in pins if t.get("type") == "readiness"]
+    assert len(readiness_pins) == len(anchorable), (len(readiness_pins), len(anchorable))
+    # Same identity check on the pin route: the right subset, carrying the right GlobalIds.
+    assert {t["title"] for t in readiness_pins} == _want_anchored, (
+        sorted({t["title"] for t in readiness_pins} ^ _want_anchored))
+    assert {t["title"]: list(t.get("element_guids") or []) for t in readiness_pins} == \
+        {k: _want[k] for k in _want_anchored}, \
+        "a pin must carry its GlobalIds in the order it was anchored from — `guids[0]` is the anchor"
+    assert len(readiness_pins) < len(readiness), (
+        len(readiness_pins), len(readiness),
+        "`/pins` is the ANCHORED subset; equal counts mean the anchor filter is matching every row "
+        "again, which is what a JSON column without none_as_null=True does")
+    assert all(t.get("anchor") for t in pins), "every row `/pins` returns must have an anchor"
+
     # idempotent: re-running clears the prior readiness topics, doesn't pile up duplicates
     rb2 = c.post(f"/projects/{pid}/rfi/readiness/bcf").json()
-    pins2 = c.get(f"/projects/{pid}/pins").json()
+    topics2 = c.get(f"/projects/{pid}/topics").json()
     assert rb2["created"] == body["created"], (rb2["created"], body["created"])
-    assert len([t for t in pins2 if t.get("type") == "readiness"]) == body["created"], "no duplicate piling"
+    assert len([t for t in topics2 if t.get("type") == "readiness"]) == body["created"], "no duplicate piling"
+    assert len([t for t in c.get(f"/projects/{pid}/pins").json()
+                if t.get("type") == "readiness"]) == len(anchorable), "no duplicate piling in pins either"
 
 print(f"READINESS->BCF OK - {body['created']} decision-readiness gaps promoted to type=readiness BCF topics "
-      "(GUID-anchored, category-labelled, high-severity->high-priority); 409 without a source IFC; "
-      "re-running is idempotent (clears prior readiness topics, no duplicate piling).")
+      f"(category-labelled, high-severity->high-priority); {len(anchorable)} of them name an element and "
+      f"are GUID-anchored, the rest are model-wide findings stored with anchor=None; `/pins` returns "
+      f"exactly the anchored subset; 409 without a source IFC; re-running is idempotent (clears prior "
+      "readiness topics, no duplicate piling).")

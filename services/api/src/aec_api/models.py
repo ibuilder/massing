@@ -455,9 +455,14 @@ class Topic(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     labels: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
-    # pin overlay: 3D anchor + the element GUID(s) it references
-    anchor: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {x,y,z}
-    element_guids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # pin overlay: 3D anchor + the element GUID(s) it references.
+    #
+    # `none_as_null=True` on both, for the reason spelled out beside the register columns in
+    # `modules_registry.py`: without it a Python `None` is stored as the JSON scalar `null`, which
+    # is not SQL NULL, so `anchor IS NOT NULL` matches every row and the SQL half of
+    # `pins.pin_where` selects the whole table as pin candidates.
+    anchor: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)  # {x,y,z}
+    element_guids: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
