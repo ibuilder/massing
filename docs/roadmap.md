@@ -6031,6 +6031,23 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
 
 - ◧ **REL-4 leaves** *(M)* — `portal.ts` next leaf + `viewer/app.ts` leaves.
 
+  **This item's two halves live in DIFFERENT lanes, and the lane table cannot say so.** REL-4 sits in
+  Lane A, whose owned paths are `shell/`, `account/`, `portal/portal.ts`, `portal/homes/` and
+  `main.ts` — `apps/web/src/viewer/` belongs to Lane E. So the `viewer/app.ts` half of this item is
+  not executable inside its own lane, and every app.ts slice since ⑭ has in practice shipped as
+  R39-DECOMP-VIEWER. Noted 2026-09-10 rather than re-cut, because which lane owns an item is the
+  table's call, not a slice's. `roadmapLanes.test.ts` asserts the rows are DISJOINT and that every
+  code appears in exactly one — neither of which is violated here, because the overlap is between an
+  item's PROSE and its row's paths, and nothing reads the prose.
+
+  **And the `portal.ts` half has no slice worth taking right now** (measured 2026-09-10, not recalled):
+  of 73 methods, exactly **3 call no sibling at all** and the largest of those is 20 lines (`barChart`).
+  Every candidate above 36 lines calls siblings — `renderHome` 405 lines / 16 distinct `this.*`,
+  `buildRoomRail` 148 / 9, `renderDesignHome` 94 / 9, `buildNav` 80 / 12 — so each would need the
+  callback bag this entry's own table refused for `renderDesignHome`. The next `portal.ts` leaf is not
+  waiting to be found; it has to be *made* by breaking `renderHome` up first, which is a different and
+  larger piece of work than "take the next leaf".
+
   **First `portal.ts` leaf out in v0.3.1082: `renderDeveloperHome` → `apps/web/src/portal/homes/developerHome.ts`**
   (1,473 → 1,400). Small on purpose. The `this.` references of every candidate were grepped *before*
   naming the slice, and the result changed the plan:
