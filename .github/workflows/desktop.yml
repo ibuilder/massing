@@ -139,6 +139,19 @@ jobs:
           npm --prefix apps/web run build:desktop
           python services/api/build_sidecar.py
 
+      # RUN what we just packaged. Every other check in this repository reads SOURCE, and
+      # DESKTOP-FROZEN was a startup crash in the frozen binary while every one of them was green:
+      # `repo_root()` counted `parents[4]`, which holds in a checkout and not in a PyInstaller
+      # bundle, so the shipped v0.3.1133 AppImage raised IndexError before binding a port. This
+      # builds nothing and asserts on the artifact: it starts the sidecar under a deliberately
+      # SHALLOW temp directory (the configuration that crash needed — a deep one passes against the
+      # broken binary), then requires /health, /ready, the full module catalog and the bundled SPA.
+      # Placed before the Tauri build so a dead sidecar fails in seconds rather than after three
+      # platform bundles. See services/api/smoke_sidecar.py for what it does NOT cover.
+      - name: Smoke-test the packaged sidecar
+        shell: bash
+        run: python services/api/smoke_sidecar.py
+
       # Windows Authenticode: if a code-signing cert is configured, import the PFX and point
       # tauri.conf at its thumbprint so `tauri build` signs the .exe/.msi. No secret → unsigned.
       - name: Configure Windows signing
@@ -220,6 +233,29 @@ jobs:
           # that job is skipped → releaseId is empty → tauri-action builds without touching a release.
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+      # The step above runs the sidecar as `build_sidecar.py` placed it. This runs the copy that is
+      # actually INSIDE the shipped artifact, which is a different question: `externalBin` has to
+      # have picked it up, under the name it expects, with its executable bit intact. The AppImage is
+      # the one bundle we can unpack on its own runner without installing anything.
+      #
+      # `find` rather than a hardcoded path on purpose — and `smoke_sidecar.py` FAILS on a missing
+      # binary rather than skipping, so a wrong guess here reds the build instead of quietly
+      # asserting nothing, which is the failure this whole item exists to end.
+      - name: Smoke-test the sidecar inside the AppImage
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          img=$(find apps/web/src-tauri/target -name '*.AppImage' -print -quit)
+          if [ -z "$img" ]; then echo "::error::no AppImage was produced"; exit 1; fi
+          echo "unpacking $img"
+          chmod +x "$img"
+          ( cd "$(dirname "$img")" && "./$(basename "$img")" --appimage-extract >/dev/null )
+          root="$(dirname "$img")/squashfs-root"
+          side=$(find "$root" -type f -name 'aec-bim-server*' -print -quit || true)
+          echo "sidecar inside the bundle: ${side:-<none found>}"
+          python services/api/smoke_sidecar.py "$side"
 
       # manual runs don't make a release; keep the installers as downloadable artifacts
       - name: Upload bundles as artifacts (manual runs)
