@@ -737,10 +737,25 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/resolve`);
   }
 
-  /** verificationCoverage — installed/verified % vs the model total, plus deviation count. */
+  /** verificationCoverage — installed/verified % vs the model total, the deviation count, and HOW
+   *  MUCH OF IT IS PHOTOGRAPHED.
+   *
+   *  The evidence half was returned by the route and declared by nobody. `/verification/coverage`
+   *  sends thirteen keys; this type named eight, so the five below could not be read, and a field the
+   *  client never declares is invisible to the compiler, the linter and every unread-field audit —
+   *  all of which start from these interfaces. RESPONSE-UNDECLARED.
+   *
+   *  `deviations_without_photo` is the one that matters. The route's own comment calls it *"the
+   *  handover number. A deviation with no photo is an assertion with nothing behind it."* Twelve
+   *  deviations and twelve deviations with nine unphotographed are different things to hand a client.
+   *
+   *  Percentages here are against TRACKED elements, not the model total — the route is deliberate
+   *  about that: an element nobody has looked at yet is not missing evidence, it has not been started. */
   verificationCoverage(pid: string) {
     return this.json<{ total_elements: number; tracked: number; verified: number; installed: number;
-      deviations: number; verified_pct: number; installed_pct: number; by_status: Record<string, number> }>(
+      deviations: number; verified_pct: number; installed_pct: number; by_status: Record<string, number>;
+      with_photo: number; photo_by_status: Record<string, number>; evidence_pct: number;
+      verified_with_photo: number; deviations_without_photo: number }>(
       `/projects/${pid}/verification/coverage`);
   }
   /** setVerification — write an element's field-verification status (installed | verified | deviation | pending). */

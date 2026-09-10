@@ -12,6 +12,17 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Field-verification coverage says how much of the work is actually photographed
+
+The coverage card showed how much of the model is verified and installed, and how many deviations
+were logged. It did not say how much of that is backed by a photo — even though the server has been
+computing exactly that, including the count of deviations with no photo at all, which it describes as
+the handover number: a deviation with no photo is an assertion with nothing behind it.
+
+The card now shows the share of tracked work that is photographed, names the denominator it is
+measured against, and warns when deviations are unevidenced. Twelve deviations and twelve deviations
+with nine unphotographed are different things to hand a client at closeout.
+
 ### A valuation that could not be computed no longer reads as a valuation of zero
 
 When a project has no proforma and no comparables, none of the three appraisal approaches produces a
