@@ -73,8 +73,13 @@ def publish_with(reconvert: bool):
     # `properties_index.index_file` on a stub IFC is the part under test least of all — stub it so a
     # parse failure cannot be mistaken for a convert decision.
     fake_idx = {"counts": {"elements": 0}, "elements": [], "facets": {}, "project": {}}
+    # FROZEN-PATHS moved the converter path behind `apppaths`, so the module-level `_CONVERTER`
+    # constant this used to patch no longer exists. Patch the two seams that replaced it: the
+    # presence check `_publish` gates on, and the path it hands to `subprocess`. Both, because
+    # patching only the first would let a real (or absent) path reach the command line.
     with mock.patch.object(authoring.subprocess, "run", side_effect=fake_run), \
-         mock.patch.object(authoring, "_CONVERTER", Path(__file__)), \
+         mock.patch.object(authoring, "have_converter", lambda: True), \
+         mock.patch.object(authoring, "converter_cli", lambda: Path(__file__)), \
          mock.patch("aec_data.properties_index.index_file", return_value=dict(fake_idx)), \
          mock.patch.object(authoring.storage, "put", lambda *a, **k: None), \
          mock.patch.object(authoring.props_router, "_load", lambda *a, **k: None):
