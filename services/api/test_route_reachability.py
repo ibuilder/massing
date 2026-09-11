@@ -382,11 +382,19 @@ def leaf_is_called(leaf: str, code: str) -> bool:
     `k1-pack` and a dozen more, every one of them followed by `${`.
 
     *The same distinction as the slash-versus-token question above, arriving a third time from the
-    other side: before the leaf, `$` is part of a NAME; after it, `$` begins a SUBSTITUTION. One
-    character, two grammars, and a rule that treats them alike is wrong in whichever direction it
-    picks.* Both cases are asserted below.
+    other side: before the leaf, `$` is part of a NAME; after it, `$` USUALLY begins a SUBSTITUTION.
+    One character, two grammars, and a rule that treats them alike is wrong in whichever direction
+    it picks.*
+
+    **"USUALLY" is doing real work there, and the first version of this comment said "always".**
+    Review caught it: `public$draft` is a single TypeScript identifier, so a leaf followed by a bare
+    `$` is a NAME too, and the trailing class has to tell `$draft` from `${q}`. It does that the only
+    way the grammar allows — by looking for the `{`. So the trailing guard rejects `$` *unless* it
+    opens an interpolation, which keeps all 19 query-string callers and stops `public$draft`.
+    Measured: 32 uncalled either way, no route moves. *Getting the asymmetry right was not the end of
+    the question; one side of it still had two cases inside it.* All four are asserted below.
     """
-    return re.search(rf"(?<![A-Za-z0-9_$]){re.escape(leaf)}(?![A-Za-z0-9_])", code) is not None
+    return re.search(rf"(?<![A-Za-z0-9_$]){re.escape(leaf)}(?![A-Za-z0-9_]|\$(?!\{{))", code) is not None
 
 
 def uncalled_routes(paths, blob: str) -> set[str]:
@@ -563,6 +571,7 @@ print(f"  templated-URL leniencies worth {len(_STRICT) - len(FOUND)} routes "
 check("the leaf rule rejects a leaf buried inside a longer identifier",
       not leaf_is_called("public", "const x = r.available_public.length")
       and not leaf_is_called("public", "const available$public = true")   # `$` is an identifier char
+      and not leaf_is_called("public", "const public$draft = true")       # ...on this side too
       and not leaf_is_called("sourced", "fidelity.resourced")
       and not leaf_is_called("aggregate", "const aggregates = []"),
       "a substring match is back: an unrelated field name is vouching for a route again")
