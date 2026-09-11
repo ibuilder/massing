@@ -137,18 +137,22 @@ export function extract(program: ts.Program, root: string, relBase = root):
     if (sf.isDeclarationFile || !sf.fileName.startsWith(root)) continue;
     if (sf.fileName.includes("/vendor/") || sf.fileName.endsWith(".test.ts")) continue;
     const visit = (node: ts.Node): void => {
+      const pathArg = ts.isCallExpression(node) ? node.arguments[0] : undefined;
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
-          && node.expression.name.text === "json"
-          && node.arguments.length >= 1) {
+          && node.expression.name.text === "json" && pathArg !== undefined) {
         const rel = sf.fileName.slice(relBase.length).replace(/^\//, "");
         const line = sf.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-        const raw = pathOf(node.arguments[0]);
+        const raw = pathOf(pathArg);
         const method = methodOf(node.arguments[1]);
-        if (!node.typeArguments?.length) unresolved.push({ rel, line, why: "no type argument" });
+        // Bound once rather than indexed twice: `typeArguments.length` does not narrow
+        // `typeArguments[0]` under `noUncheckedIndexedAccess`, and a checker that indexes blind
+        // is the shape this whole file argues against.
+        const typeArg = node.typeArguments?.[0];
+        if (typeArg === undefined) unresolved.push({ rel, line, why: "no type argument" });
         else if (raw === null) unresolved.push({ rel, line, why: "path not resolvable" });
         else if (method === "UNKNOWN") unresolved.push({ rel, line, why: "method not a literal" });
         else {
-          const t = checker.getTypeFromTypeNode(node.typeArguments[0]);
+          const t = checker.getTypeFromTypeNode(typeArg);
           const keys = checker.getPropertiesOfType(t).map((p) => p.getName()).sort();
           // `Record<string, unknown>` resolves to ZERO named properties. That is neither "declares
           // nothing" nor "declares everything": it type-checks while naming nothing, so a field
@@ -252,8 +256,10 @@ describe("RESPONSE-UNDECLARED", () => {
     const { program: p, root } = syntheticProgram(
       `declare const c: any;\nfunction f() { return c.json<{ a: number }>("/x"); }\n`);
     const { rows: r } = extract(p, root);
-    expect(r.map((x) => x.key)).toEqual(["GET /x"]);
-    expect(r[0].keys).toEqual(["a"]);                   // `b` returned by a server would be a gap
+    // Asserted as one row rather than `r[0].keys` — the index is only safe because of the line
+    // above, and a test that leans on that ordering is a test that breaks for the wrong reason.
+    expect(r.map((x) => ({ key: x.key, keys: x.keys })))
+      .toEqual([{ key: "GET /x", keys: ["a"] }]);       // `b` returned by a server would be a gap
   });
 
   it("analyses a concatenated path, which the first draft reported as unresolvable", () => {
