@@ -28,6 +28,16 @@
 
 import type { WindResult, WindZone } from "../../api/designPerformance";
 
+/**
+ * What the panel knows about a source model.
+ *
+ * Three states, not a boolean. `absent` is a CONFIRMED no-model — the metrics read 409'd, which is
+ * the same `open_source_ifc` refusal the wind route makes. `unknown` is any other failure: a 500 in
+ * the daylight computation says nothing about whether a model exists, and refusing the screen on it
+ * would manufacture a refusal out of evidence that does not establish one.
+ */
+export type ModelPresence = "present" | "absent" | "unknown";
+
 /** What the form holds. Every field optional — the server derives the mass when the dims are blank. */
 export interface WindForm {
   height_m?: number | null;
@@ -43,11 +53,15 @@ export interface WindForm {
  *
  * The server needs a full set of dimensions OR a source model to derive the missing ones from, and
  * answers 409 otherwise. Saying that here beats letting a 409 surface as "request failed".
+ *
+ * Only a CONFIRMED `absent` refuses. This gate exists so the server's 409 arrives as an instruction
+ * rather than a failure — it must not become a way of inventing one: on `unknown` the request goes
+ * out and the server answers, because the server is the thing that knows.
  */
-export function screenGate(form: WindForm, hasModel: boolean): { can: boolean; why: string } {
+export function screenGate(form: WindForm, model: ModelPresence): { can: boolean; why: string } {
   const complete = [form.height_m, form.width_m, form.depth_m]
     .every((v) => typeof v === "number" && Number.isFinite(v) && v > 0);
-  if (complete || hasModel) return { can: true, why: "" };
+  if (complete || model !== "absent") return { can: true, why: "" };
   return { can: false,
            why: "give a height, width and depth — or load a source model and they will be derived "
                 + "from its bounding box" };
@@ -137,9 +151,23 @@ export function windBasis(supplied: number | null | undefined, used: number): st
     + "any of these figures.";
 }
 
-/** The mitigations, or an explicit nothing — an empty list rendered as blank reads as "none needed". */
+/**
+ * The mitigations, or an explicit nothing — an empty list rendered as blank reads as "none needed".
+ *
+ * **A clean list over a PARTIAL screen is the same lie `verdict()` refuses**, one function down, and
+ * it was in the first draft of this file: "no mitigation is called for … every zone graded A–C" was
+ * returned for a result whose channelling was never looked at, contradicting the partial-screen
+ * warning printed directly above it. "Every zone" is false on its own terms too — a zone that was
+ * never computed was never graded. Found in review on PR #529.
+ */
 export function mitigationLines(r: WindResult): string[] {
   if (r.mitigations.length) return r.mitigations;
+  const gaps = unassessed(r);
+  if (gaps.length) {
+    return ["No mitigation is called for by the mechanisms this screen DID check. It did not check "
+            + `${gaps.length === 1 ? "one of them" : `${gaps.length} of them`}, and an unchecked `
+            + "mechanism can need mitigation as readily as a checked one."];
+  }
   return r.acceptable_for_entrances
     ? ["No mitigation is called for by this screen — every zone graded Lawson A–C."]
     : ["This screen raised no mitigation, which is unexpected for a failing result — treat the "

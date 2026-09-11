@@ -34,27 +34,42 @@ const LOW: WindResult = {
 
 describe("the screen refuses to run rather than surfacing a 409", () => {
   it("needs dimensions or a model", () => {
-    const g = screenGate({}, false);
+    const g = screenGate({}, "absent");
     expect(g.can).toBe(false);
     expect(g.why).toContain("height, width and depth");
     expect(g.why).toContain("bounding box");
   });
 
   it("runs on a model alone — the dims get derived", () => {
-    expect(screenGate({}, true)).toEqual({ can: true, why: "" });
+    expect(screenGate({}, "present")).toEqual({ can: true, why: "" });
   });
 
   it("runs on a full set of dimensions with no model at all", () => {
-    expect(screenGate({ height_m: 30, width_m: 20, depth_m: 15 }, false).can).toBe(true);
+    expect(screenGate({ height_m: 30, width_m: 20, depth_m: 15 }, "absent").can).toBe(true);
   });
 
-  it("refuses a PARTIAL set with no model — the server 409s on exactly this", () => {
-    expect(screenGate({ height_m: 30, width_m: 20 }, false).can).toBe(false);
+  it("refuses a PARTIAL set with a CONFIRMED absent model — the server 409s on exactly this", () => {
+    expect(screenGate({ height_m: 30, width_m: 20 }, "absent").can).toBe(false);
   });
 
   it("does not count a zero or negative dimension as given", () => {
-    expect(screenGate({ height_m: 30, width_m: 0, depth_m: 15 }, false).can).toBe(false);
-    expect(screenGate({ height_m: 30, width_m: -4, depth_m: 15 }, false).can).toBe(false);
+    expect(screenGate({ height_m: 30, width_m: 0, depth_m: 15 }, "absent").can).toBe(false);
+    expect(screenGate({ height_m: 30, width_m: -4, depth_m: 15 }, "absent").can).toBe(false);
+  });
+});
+
+describe("a gate that exists to relay a 409 must not invent one", () => {
+  // Found in review on PR #529. The panel learns about the model from the design-metrics read, and
+  // only its 409 is evidence there is NO model — that is the same `open_source_ifc` refusal the wind
+  // route makes. A 500 in the daylight computation says nothing about it. Collapsing both into one
+  // boolean refused the screen on a project that has a perfectly good model.
+  it("lets an UNKNOWN model reach the server, which is the thing that knows", () => {
+    expect(screenGate({}, "unknown").can).toBe(true);
+    expect(screenGate({ height_m: 30 }, "unknown").can).toBe(true);
+  });
+
+  it("refuses only on a CONFIRMED absence", () => {
+    expect(screenGate({}, "absent").can).toBe(false);
   });
 });
 
@@ -183,8 +198,22 @@ describe("mitigations are never rendered as a silent blank", () => {
     expect(mitigationLines(TOWER)).toEqual(TOWER.mitigations);
   });
 
-  it("says none is called for when the screen is clean", () => {
-    expect(mitigationLines(LOW)[0]).toContain("No mitigation is called for");
+  it("says none is called for when the screen is clean AND complete", () => {
+    const full = { ...LOW, inputs: { ...LOW.inputs, gap_m: 60 } };
+    expect(mitigationLines(full)[0]).toContain("No mitigation is called for by this screen");
+    expect(mitigationLines(full)[0]).toContain("every zone graded");
+  });
+
+  it("does NOT report a clean bill over a partial screen", () => {
+    // Found in review on PR #529, and it is the file's own load-bearing rule failing one function
+    // down: `verdict()` had just called this same result a PARTIAL screen, while this said no
+    // mitigation was called for. "Every zone graded A–C" is false on its own terms too — a zone
+    // that was never computed was never graded.
+    const m = mitigationLines(LOW)[0]!;
+    expect(unassessed(LOW)).toHaveLength(1);
+    expect(m).toContain("mechanisms this screen DID check");
+    expect(m).toContain("did not check");
+    expect(m).not.toContain("every zone graded");
   });
 
   it("flags an EMPTY list on a FAILING screen rather than showing nothing", () => {

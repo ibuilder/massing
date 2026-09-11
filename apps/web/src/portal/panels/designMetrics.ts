@@ -26,11 +26,14 @@ export async function renderDesignMetrics(ctx: PanelContext) {
   // with no model at all, so a 409 on the metrics must not take it down with them.
   const windHost = document.createElement("div");
   ctx.root.appendChild(windHost);
-  let hasModel = false;
+  // Three states, not a boolean. Only a 409 here is evidence there is no model — it is the same
+  // `open_source_ifc` refusal the wind route makes. Any OTHER failure says nothing about that, and
+  // refusing the wind screen on it would invent a refusal. Found in review on PR #529.
+  let model: import("./envWind").ModelPresence = "unknown";
 
   try {
     const r = await ctx.host.api.modelDesignMetrics(pid);
-    hasModel = true;
+    model = "present";
     body.replaceChildren();
 
     const head = document.createElement("div"); head.className = "dash-card"; head.style.marginBottom = "10px";
@@ -78,12 +81,14 @@ export async function renderDesignMetrics(ctx: PanelContext) {
     }
   } catch (e) {
     const msg = (e as Error).message || "";
-    body.innerHTML = /409/.test(msg)
+    const noModel = /409/.test(msg);
+    if (noModel) model = "absent";
+    body.innerHTML = noModel
       ? `<div class="meta">Design metrics need a source IFC. Convert or upload a model, then reopen this panel.</div>`
       : `<div class="meta">Design metrics unavailable: ${esc(msg)}</div>`;
   }
 
-  await renderWindScreen(ctx, windHost, pid, hasModel);
+  await renderWindScreen(ctx, windHost, pid, model);
 }
 
 /**
@@ -94,7 +99,8 @@ export async function renderDesignMetrics(ctx: PanelContext) {
  * and the gap to a neighbouring mass (blank ⇒ channelling is never checked at all). `envWind.ts`
  * holds the wording for all three; this function only draws it.
  */
-async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: string, hasModel: boolean) {
+async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: string,
+                                model: import("./envWind").ModelPresence) {
   const W = await import("./envWind");
   const card = document.createElement("div"); card.className = "dash-card";
   const num = (id: string, label: string, ph: string) =>
@@ -103,9 +109,9 @@ async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: strin
   card.innerHTML = `<div class="section-title" style="margin:0 0 8px">Pedestrian wind comfort `
     + `<span style="opacity:.6;font-weight:500;font-size:11px">(massing screen — not CFD)</span></div>`
     + `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">`
-    + num("height_m", "Height (m)", hasModel ? "from model" : "required")
-    + num("width_m", "Width (m)", hasModel ? "from model" : "required")
-    + num("depth_m", "Depth (m)", hasModel ? "from model" : "required")
+    + num("height_m", "Height (m)", model === "absent" ? "required" : "from model")
+    + num("width_m", "Width (m)", model === "absent" ? "required" : "from model")
+    + num("depth_m", "Depth (m)", model === "absent" ? "required" : "from model")
     + num("wind_ms", "Site wind (m/s)", "default 5")
     + num("gap_m", "Gap to neighbour (m)", "not checked")
     + num("podium_height_m", "Podium height (m)", "none")
@@ -126,7 +132,7 @@ async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: strin
 
   btn.addEventListener("click", async () => {
     const form = read();
-    const gate = W.screenGate(form, hasModel);
+    const gate = W.screenGate(form, model);
     if (!gate.can) { out.innerHTML = `<div class="meta">Cannot screen — ${esc(gate.why)}.</div>`; return; }
     btn.disabled = true;
     out.innerHTML = `<div class="meta">Screening…</div>`;
@@ -153,8 +159,12 @@ async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: strin
         + W.mitigationLines(r).map((m) => `<li>${esc(m)}</li>`).join("") + `</ul>`
         + `<div class="meta" style="margin-top:8px;opacity:.8">${esc(r.disclaimer)}</div>`;
     } catch (e) {
+      // A 409 here is the server's own instruction ("pass height_m/width_m/depth_m, or load a
+      // source IFC"), not a failure — show it as the instruction it is.
       const msg = (e as Error).message || "";
-      out.innerHTML = `<div class="meta">Wind screen unavailable: ${esc(msg)}</div>`;
+      out.innerHTML = /409/.test(msg)
+        ? `<div class="meta">Cannot screen — ${esc(msg.replace(/^\s*409[:\s-]*/, ""))}</div>`
+        : `<div class="meta">Wind screen unavailable: ${esc(msg)}</div>`;
     } finally {
       btn.disabled = false;
     }

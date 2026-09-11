@@ -20,9 +20,10 @@ pedestrian-level wind, and it grades corner acceleration, downwash and channelli
 **Lawson comfort categories**, lists the zone speeds, and names the standard mitigations: corner
 chamfers, a podium, an entrance canopy, porous screens in a passage.
 
-It runs offline and in a second, which is the point: massing decides most pedestrian wind outcomes,
-and a wind-tunnel study arrives long after the massing is fixed. **It is a screening heuristic, not
-CFD and not a wind study**, and it says so on every result.
+It answers in a second, which is the point: massing decides most pedestrian wind outcomes, and a
+wind-tunnel study arrives long after the massing is fixed. **It is a screening heuristic, not CFD
+and not a wind study** — no external service, no simulation licence, no weeks of turnaround — and it
+says so on every result.
 
 Three things it will not do. It will not call a result acceptable when a check did not run —
 channelling is only looked at if you give it the gap to the neighbouring building, and without that
