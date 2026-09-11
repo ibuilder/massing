@@ -12,6 +12,32 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### An npm override can no longer disagree with the dependency it overrides
+
+`eslint` moves to **10.10.0**, and the engineering standards say so — `toolchainDocs.test.ts`
+refused the bump until the prose caught up, which is exactly what it is for.
+
+The new part is `apps/web/src/tooling/npmOverrides.test.ts`. The root manifest pins some packages
+through `overrides`, and when such a pin drifts from the range a workspace declares, npm refuses
+the whole install with `EOVERRIDE`. That already happened here once, on this same pair. The rule
+has lived only in a changelog entry since — and a changelog does not run.
+
+The population is derived rather than listed: every overridden package that is also a declared
+dependency. Three of the four current overrides pin transitive packages nothing here declares, so
+there is no pair to disagree and they are outside the population rather than exempted. The
+comparator returns `null`, not `false`, for a shape it cannot read, and `null` reds the build — a
+checker that quietly approves what it cannot parse goes green exactly when it stops understanding
+its subject.
+
+**npm applies two different rules, and the gate now applies each in its own position.** In the
+root manifest — the same file as the `overrides` block — the two specs must match as RAW STRINGS;
+`">=10.9.0"` beside an override of `"10.10.0"` is semver-compatible and npm still refuses it. In a
+workspace manifest the raw rule does not reach, and npm resolves the declared range and rewrites
+it to the override; `package-lock.json` records `apps/web` resolving `^10.10.0` to `10.10.0`,
+which is npm's own proof. A single rule applied to both positions is wrong in one direction or the
+other: too loose at the root, and red on a configuration that demonstrably installs in the
+workspace. `$name`, npm's own escape hatch, is accepted in both.
+
 ### Extension-of-time claims, with the method that produced them
 
 **Schedule** now assembles an **extension of time**. Pick an analysis method, and it grades each
