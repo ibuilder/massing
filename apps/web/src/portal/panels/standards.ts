@@ -164,8 +164,32 @@ export async function renderStandards(ctx: PanelContext) {
       }
     })();
     root.appendChild(bepCard);
+    // R23-JURISDICTION-PACKS — the authority's data requirements, which are information
+    // requirements for a PLACE rather than for this appointment. It sits here because the EIR/BEP
+    // above is the same question asked by the client instead of by the regulator, and a submitter
+    // needs both answers before a submittal. Its own panel; this is the way in.
+    const jurCard = el("div", "dash-card"); jurCard.style.marginBottom = "8px";
+    jurCard.innerHTML = `<div><b>⚖️ Data requirements (jurisdiction)</b></div>`
+      + `<div class="meta" style="margin-top:2px">Requirement packs published by an authority for a `
+      + `jurisdiction, each carrying its authority, edition and source — and this model checked `
+      + `against the ones that apply here.</div>`;
+    const jurBtn = el("button"); jurBtn.className = "mini-btn on"; jurBtn.textContent = "Open";
+    jurBtn.style.marginTop = "6px";
+    jurBtn.onclick = () => void (async () => {
+      await (await import("./jurisdictionPanel")).renderJurisdiction(ctx);
+    })();
+    jurCard.append(jurBtn); root.appendChild(jurCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
+    //
+    // The card lands in a SLOT appended now rather than straight onto `root` when the read returns.
+    // `root` is shared by every panel and is cleared by whoever renders next, so a late `.then` was
+    // appending this card into a different screen -- visible since the jurisdiction button above
+    // gives the reader something to navigate to while this is still in flight. An empty div has no
+    // visual footprint, and `isConnected` goes false the moment `root.innerHTML` is cleared, which
+    // is the cheapest liveness check there is. Found in review on PR #527.
+    const aiSlot = el("div"); root.appendChild(aiSlot);
     void ctx.host.api.aiReadiness(pid).then((ai) => {
+      if (!aiSlot.isConnected) return;    // the reader moved on; this panel is gone
       const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";
       const ac = el("div", "dash-card"); ac.style.cssText = `border-left:3px solid var(${col});margin-bottom:8px`;
       const dim = (label: string, k: keyof typeof ai.dimensions) => {
@@ -177,7 +201,7 @@ export async function renderStandards(ctx: PanelContext) {
         + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
         + dim("Single source of truth", "single_source_of_truth") + dim("Information completeness", "information_completeness")
         + dim("Model integrity", "model_integrity") + dim("Governance", "governance") + `</table>`;
-      root.appendChild(ac);
+      aiSlot.appendChild(ac);
     }).catch(() => { /* best-effort */ });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     let st; let reg;

@@ -330,9 +330,15 @@ KNOWN_UNCALLED: set[str] = {
     # caller and returns strictly more (a LoGeoRef level, its label, the map conversion, the CRS and
     # the site), so wiring the simpler one would add a second answer to one question. *A dark route
     # can be a duplicate rather than a hole, and the gate cannot tell the difference.*
+    #
+    # **A THIRD and FOURTH left on 2026-09-11: both `/jurisdiction/packs` entries.** That was the
+    # largest genuine gap of the eight and it was bigger than this set could say -- the two routes
+    # that CONSUME a pack are dark too and are invisible here, for the two reasons recorded further
+    # down beside the `/asset-rights/verify` blind spot. So the feature was wired end to end rather
+    # than in the three-fifths this list could see: `apps/web/src/api/jurisdiction.ts` and the panel
+    # in `apps/web/src/portal/panels/jurisdictionPanel.ts`. *A frozen entry undercounts whenever the
+    # rule that produced it has a blind spot -- the list is a floor on the debt, never the debt.*
     "/codes/seeded",
-    "/jurisdiction/packs",
-    "/jurisdiction/packs/{pack_id}",
     "/projects/{pid}/clash/coordinate",
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
@@ -885,8 +891,15 @@ check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
 #
 # Neither can be frozen in KNOWN_UNCALLED -- the rot check above would immediately report them as
 # "quietly become called" -- so, exactly as with `/asset-rights/verify`, the honest instrument is to
-# assert that they remain outside both sets. Unlike that route, these two SHOULD gain callers: the
-# whole feature is finished server-side and unreachable from the product.
+# assert that they remain outside both sets.
+#
+# **BOTH NOW HAVE CALLERS** (`apps/web/src/api/jurisdiction.ts`, called from
+# `apps/web/src/portal/panels/jurisdictionPanel.ts`), and the assertions below still pass unchanged
+# -- which is exactly what makes the point worth leaving here. The gate could not see these routes
+# dark and cannot see them wired either; its verdict on them was, and remains, no verdict. Do not
+# read the two PASSes below as coverage of this feature. What proves the wiring is
+# `apps/web/src/api/clientCallers.test.ts`, which refuses an unused client method, plus the panel
+# tests -- not this file.
 for _r in ("/projects/{pid}/jurisdiction/requirements", "/projects/{pid}/jurisdiction/check"):
     check(f"the R23-JURISDICTION-PACKS blind spot is still a blind spot: {_r}",
           _r not in FOUND and _r not in KNOWN_UNCALLED,
