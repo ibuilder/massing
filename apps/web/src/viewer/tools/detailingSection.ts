@@ -1,4 +1,5 @@
 import type { ApiClient } from "../../api/client";
+import { codeAnnotation } from "../../api/classificationRef";
 import { askText } from "../../ui/prompt";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 
@@ -66,7 +67,21 @@ export function buildDetailingSection(d: DetailingDeps) {
         for (const [sys, hint] of CLS) {
           body.appendChild(d.toolBtn2(`＋ ${sys} code`, async () => {
             const code = await askText(`${sys} code`, { label: hint, value: "" }); if (!code) return;
-            const title = await askText(`${sys} code`, { label: "Title (optional)", value: "" });
+            // READ THE CODE BACK before it becomes a classification on an IFC element. The server has
+            // always served the MasterFormat division master and the Uniformat crosswalk on
+            // `/reference/disciplines`; the client declared neither, so this prompt could offer an
+            // example and nothing else, and `80 51 00` — a transposition into a division that does
+            // not exist — was accepted in silence. Annotating the title prompt puts the answer in
+            // front of the person at the one moment they can still fix it. It never REFUSES:
+            // MasterFormat reserves divisions for user-defined use, so an unrecognised one is worth
+            // saying and not worth blocking. A reference that fails to load must not block
+            // classifying either — that is what the catch is for.
+            let note = "";
+            try {
+              const ann = codeAnnotation(sys, code.trim(), await d.api.classificationRefs());
+              if (ann) note = (ann.known ? " — " : " — ⚠ ") + ann.text;
+            } catch { /* reference unavailable: classify without the annotation, never instead of it */ }
+            const title = await askText(`${sys} code`, { label: `Title (optional)${note}`, value: "" });
             await d.authorAndReload("classify", { guids: [guid], system: sys, code: code.trim(), name: title?.trim() || undefined }, `${sys} ${code.trim()}`);
             await reopen();
           }));

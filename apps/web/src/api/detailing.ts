@@ -41,12 +41,23 @@
  *  unreachability report. Recorded here because the next reader of this file will otherwise assume
  *  the method is live.
  */
+import { withPrefab } from "./prefab";
 import type { NeedsEditIfc } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
 export function withDetailing<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
-  return class Detailing extends Base {
+  // R23-PREFAB-KIT rides in here rather than as a 51st `withX()` on `ApiClient`. That chain is AT
+  // TypeScript's instantiation ceiling: adding one more top-level wrapper fails the build outright
+  // with TS2589, "type instantiation is excessively deep and possibly infinite". **Measured, not
+  // assumed** -- it was written as a top-level wrapper first and would not compile. `cost.ts`
+  // records the same remedy for the same reason, and this is now the second file to need it, so
+  // the ceiling is a standing constraint on this class rather than a one-off.
+  //
+  // The pairing is not arbitrary: both answer *what does the shop build from this element?* --
+  // detailing attaches the carriers, a prefab kit freezes the GlobalId list they are fabricated
+  // against. Every method and type stays in `prefab.ts`; only the composition happens here.
+  return class Detailing extends withPrefab(Base) {
   /** W11 Track D: one element's attached carriers — classification codes + documents (details/instructions). */
   elementDetailing(pid: string, guid: string) {
     return this.json<{ guid: string; name: string; ifc_class: string;

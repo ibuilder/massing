@@ -27,6 +27,9 @@ export interface ProfileActions {
   agentRuns: () => void;
   errorLog: () => void;
   dataConnections: () => void;
+  /** Build + install the offline public cost vintage. Platform-admin only: it flips the global
+   *  `is_latest` and reprices every unpinned project, which is why it is in THIS section. */
+  installCostVintage: () => void;
   projectMembers: (() => void) | null;   // null when there is no project / not a project admin
   changePassword: () => void;
   twoFactor: () => void;
@@ -260,6 +263,10 @@ function buildAdmin(body: HTMLElement, deps: ProfileDeps): void {
   server.append(row("Data connections", "Connect external data sources for this deployment.",
     "Open…", a.dataConnections));
   server.append(row("Server settings", "Licence, integrations and API keys.", "Open…", a.appSettings));
+  // The offline public cost baseline. Its route had no client method at all, so the budget card
+  // could report the baseline as installable and nothing in the app could install it.
+  server.append(row("Cost database", "Build the offline public cost vintage. Reprices every project "
+    + "that has not pinned one.", "Install…", a.installCostVintage));
   const logs = group(body, "Diagnostics");
   logs.append(row("Audit log", "Who did what, newest first.", "View…", a.auditLog));
   logs.append(row("Agent runs", "Whose agent ran what, across every project.", "View…", a.agentRuns));

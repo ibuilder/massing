@@ -39,9 +39,17 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withAuth<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Auth extends Base {
-  /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
+  /** Enabled sign-in doors for the login UI.
+   *
+   *  `providers` is the OAuth list (Google/Microsoft/Procore). `saml` is the workspace's OWN IdP,
+   *  and it is a separate door, not an entry in that list: it has no `/auth/oauth/{id}/login` URL —
+   *  its button goes to `/auth/saml/login`. It went undeclared, so the login modal could not see
+   *  it, and a workspace that had wired a SAML IdP saw the empty-`providers` branch telling it to
+   *  configure OAuth. The server has already checked BOTH halves before saying true (an IdP is
+   *  configured AND the tier entitles `sso`), which is what lets the button be rendered at all —
+   *  advertising from configuration alone would offer a button that 402s on click. */
   authProviders() {
-    return this.json<{ providers: { id: string; label: string }[] }>("/auth/providers");
+    return this.json<{ providers: { id: string; label: string }[]; saml: boolean }>("/auth/providers");
   }
   /** Re-prove the account password for ONE action, yielding a short-lived assertion.
    *

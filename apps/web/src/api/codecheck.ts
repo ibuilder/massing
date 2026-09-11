@@ -14,11 +14,19 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
+import { withJurisdiction } from "./jurisdiction";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/**
+ * `withJurisdiction` is composed HERE rather than in `client.ts`'s top-level chain, and not for
+ * tidiness: that chain sits at TypeScript's instantiation ceiling, and a fifty-first `withX()` on it
+ * fails the build with TS2589 ("type instantiation is excessively deep"). `api/cost.ts` records the
+ * same remedy. It also belongs here on the merits — jurisdiction packs are a code-compliance answer
+ * about a place, which is what every other method in this file is.
+ */
 export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
-  return class CodeCheck extends Base {
+  return class CodeCheck extends withJurisdiction(Base) {
   // W9-2 computed occupancy load (IBC 1004) + egress capacity (IBC 1005) — pre-check assist
   codecheckEgress(pid: string) {
     return this.json<{

@@ -63,9 +63,11 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 export type { ClashResult } from "./clash";
+import { withClassification } from "./classificationRef";
+export type { ClassificationRefs, MfDivision, UfCrosswalk } from "./classificationRef";
 import type {
   Dashboard,
-  DisciplineTree, ModulePin, RoomAllocation,
+  ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
     MasterBuilderBrief } from "./types";
@@ -73,7 +75,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -105,13 +107,6 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(
       `/projects/${pid}/properties/meta`,
     );
-  }
-
-  /** The unified discipline tree (colors + IFC-class→discipline map). Project-independent, so cached
-   * for the session — the viewer, model browser, and any legend share one served vocabulary. */
-  private _discTree?: Promise<DisciplineTree>;
-  disciplineTree(): Promise<DisciplineTree> {
-    return (this._discTree ??= this.json<{ tree: DisciplineTree }>(`/reference/disciplines`).then((r) => r.tree));
   }
 
   /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost

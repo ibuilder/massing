@@ -23,6 +23,29 @@ import type { EnergyResult } from "./types";
 
 import { HttpCore } from "./httpCore";
 
+/** One graded zone as the screen returns it. */
+export interface WindZone {
+  zone: string;
+  factor: number;
+  speed_ms: number;
+  lawson: string;
+  comfort: string;
+}
+
+/** The screen's full answer. `inputs` echoes what was actually used — including derived dimensions. */
+export interface WindResult {
+  inputs: {
+    height_m: number; width_m: number; depth_m: number; wind_ms: number;
+    gap_m: number | null; podium_height_m: number;
+  };
+  zones: WindZone[];
+  worst: { zone: string; lawson: string; speed_ms: number };
+  acceptable_for_entrances: boolean;
+  mitigations: string[];
+  disclaimer: string;
+}
+
+
 type Ctor<T> = new (...args: any[]) => T;
 
 export function withDesignPerformance<TBase extends Ctor<HttpCore>>(Base: TBase) {
@@ -58,6 +81,16 @@ export function withDesignPerformance<TBase extends Ctor<HttpCore>>(Base: TBase)
                    passing: number; failing: number };
       leed_inventory: { total_tco2e: number; items: { category: string; kgco2e: number; share_pct: number }[] };
     }>(`/projects/${pid}/carbon/compliance`);
+  }
+
+  /** ENV-1 — the pedestrian wind-comfort screen. Omit the dims and the mass comes off the model's
+   *  bounding box; 409 when there is neither a full set of dims nor a source model. NOT CFD. */
+  envWindScreen(pid: string, body: { height_m?: number | null; width_m?: number | null;
+                                     depth_m?: number | null; wind_ms?: number | null;
+                                     gap_m?: number | null; podium_height_m?: number | null }) {
+    return this.json<WindResult>(`/projects/${pid}/env/wind`, {
+      method: "POST", body: JSON.stringify(body),
+    });
   }
 
   projectCarbon(pid: string) {

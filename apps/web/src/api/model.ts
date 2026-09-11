@@ -301,6 +301,25 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
         pct_saved?: number | null; reason?: string };
     }>(`/projects/${pid}/model/lod/census?max_elements=${maxElements}`);
   }
+  /**
+   * Build the coarse per-storey proxy `lodCensus` costs out, and store it beside the model.
+   *
+   * The census has always returned `plan.pct_saved` and the standards panel has always rendered it —
+   * *"proxy would save 47%"* — with **no way to act on it**. Wired 2026-09-11; the same
+   * promise-with-no-affordance shape as the budget card's "1 offline baseline installable".
+   *
+   * `classes` is a filter spent on this one call, not a stored collection. The server caps its
+   * length, refuses to store an empty result (`stored: false` with the reason rather than a 200 over
+   * silence), and stamps every box with an `AEC_LOD` pset saying it is not authored geometry and must
+   * not be measured, scheduled or priced.
+   */
+  lodProxy(pid: string, classes?: string[]) {
+    return this.json<{
+      written: boolean; stored: boolean; key?: string; next?: string;
+      elements_replaced?: number; storeys_proxied?: number; reason?: string;
+    }>(`/projects/${encodeURIComponent(pid)}/model/lod/proxy`,
+      { method: "POST", body: JSON.stringify({ classes: classes ?? null }) });
+  }
   /** LOD 500 handover as a work list (unverified / out of tolerance / thin information). */
   lodHandoverReadiness(pid: string) {
     return this.json<{
