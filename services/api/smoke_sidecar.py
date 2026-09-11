@@ -9,8 +9,9 @@ and died before binding a port. Windows and macOS temp paths are eight parents d
 was only ever seen on Linux, by users, after v0.3.1133 shipped.
 
 **So this deliberately runs under a SHALLOW temp directory.** A smoke test on a deep temp path would
-have passed against the broken binary — the depth IS the test, and `--shallow-tmp` (the default on
-POSIX) is not a detail of the harness but the thing being asserted.
+have passed against the broken binary — the depth IS the test. A shallow temp directory is the
+POSIX default here and is not a detail of the harness but the thing being asserted; `--deep-tmp`
+opts out of it, and exists only to demonstrate that opting out makes the check stop working.
 
 WHAT IT PROVES, and the boundary. The binary starts; `/health` answers, so the process bound a port
 rather than dying during import; `/ready` answers, so the SQLite engine opened under a fresh data
@@ -18,10 +19,19 @@ directory; `/modules` returns a non-empty catalog, so the `datas` carrying `serv
 landed inside the bundle; and `/` serves HTML, so the bundled SPA did too. Those last two are the
 ones source-level checks cannot make at all: they are questions about the ARCHIVE, not the tree.
 
-WHAT IT DOES NOT PROVE. It never converts a model, so `aec_data.fragments` — and the `flatbuffers`
-import inside `codec.py` — is not exercised: the only route that reaches it needs a project with an
-uploaded source IFC, and `edit_preview` FAILS OPEN with a 503, so a smoke asserting it would pass
-vacuously on a fresh install. That gap is filed as DESKTOP-SMOKE-CONVERT rather than papered over.
+AND IT CONVERTS A MODEL, which is the half none of that reaches. `aec_data.fragments` is imported
+lazily inside `fragconvert.convert_ifc`, and `codec.py` imports `flatbuffers` at module scope — so a
+build that packaged neither BOOTS PERFECTLY and fails the first time a user publishes. The check
+authors a blank model through `POST /projects/{pid}/model/blank` (generated server-side by
+`aec_data.massing`, so no IFC fixture has to be tracked), publishes it, and requires the published
+fragment back. It also asserts WHICH converter ran: a bundle carries no Node runtime, so it must be
+the Python one, and accepting either would let this pass on any runner with Node installed without
+touching the code under test.
+
+The obvious version of that check would have been worthless: `edit_preview` FAILS OPEN with a 503, so
+a fresh install answers 503 whether the frozen import works or not. Publish is the path that reports
+the failure instead of swallowing it — `convert_ifc` raising is recorded as `reconvert_error` and
+turns the publish state to `error`, carrying the exception.
 
 VACUITY GUARDS, because "the artifact was missing" and "the artifact is fine" must never look alike:
 
@@ -48,6 +58,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent                 # services/api
@@ -70,14 +81,64 @@ def find_binary(explicit: str | None) -> Path | None:
 
     Returns None rather than guessing when the directory holds none or several — a smoke test that
     picked the wrong file would report on something nobody shipped.
+
+    **A blank explicit path is an ERROR, not a fallback**, and that distinction is the whole reason
+    this raises. `desktop.yml` computes the AppImage's sidecar with `find`, whose "found nothing"
+    answer is an empty string; `if explicit:` treated that as "no path was given" and fell through
+    to the scan below — which in CI holds exactly one file, the BUILD OUTPUT that a previous step
+    already smoke-tested. The AppImage check would have re-tested the wrong artifact and passed,
+    green, forever. A caller that names a path meant that path; not naming one is `None`.
     """
-    if explicit:
+    if explicit is not None:
+        if not explicit.strip():
+            raise ValueError(
+                "a blank path was passed. The caller meant to name a binary and computed nothing — "
+                "falling back to a directory scan here would test a DIFFERENT artifact and pass")
         return Path(explicit)
     if not BINARIES.is_dir():
         return None
     found = sorted(p for p in BINARIES.iterdir()
                    if p.is_file() and p.name.startswith("aec-bim-server-"))
     return found[0] if len(found) == 1 else None
+
+
+def flatbuffer_root_table(raw: bytes) -> tuple[str, tuple[int, int, int, int] | None]:
+    """Walk a FlatBuffers buffer as far as its root TABLE, without a schema. Returns a reason and,
+    on success, `(root, vtable, vtable_size, table_size)`.
+
+    **Why not parse the real `Model` schema.** Review asked for that, and it would be a stronger
+    check — but it would import `aec_data.fragments.codec` into a harness that is deliberately
+    stdlib-only, so that it runs against a SHIPPED BINARY on a runner with nothing installed. The
+    thing under test is the bundle; a harness that needs the tree's Python environment to make its
+    assertion has moved the subject.
+
+    **Why the offset check alone was too weak, which review was right about.** It asked only that
+    the first word land inside the buffer, so a 5-byte payload starting `04 00 00 00` satisfied it.
+    A root table is more than an offset: at `root` sits a SIGNED backwards offset to a vtable, and
+    the vtable's first two `uint16`s are its own size and the table's. Requiring those to resolve
+    and be plausible costs no dependency and is a real structural parse.
+
+    Measured rather than argued, because "stronger" is a claim a check can fail to deliver: both
+    converters' real output passes (python root=36 vtable=10, node root=40 vtable=8), review's
+    5-byte counterexample fails, and of 2,000 random 1,424-byte buffers carrying a valid-looking
+    root offset, 0 were accepted.
+    """
+    if len(raw) < 8:
+        return f"too small to hold a root table ({len(raw)} bytes)", None
+    root = int.from_bytes(raw[:4], "little")
+    if not (4 <= root <= len(raw) - 4):
+        return f"root offset {root} outside the buffer", None
+    soffset = int.from_bytes(raw[root:root + 4], "little", signed=True)
+    vtable = root - soffset                       # tables point BACKWARDS to their vtable
+    if not (0 <= vtable <= len(raw) - 4):
+        return f"vtable at {vtable} outside the buffer (root {root}, soffset {soffset})", None
+    vtable_size = int.from_bytes(raw[vtable:vtable + 2], "little")
+    table_size = int.from_bytes(raw[vtable + 2:vtable + 4], "little")
+    if not (4 <= vtable_size <= len(raw) - vtable):
+        return f"vtable size {vtable_size} implausible", None
+    if not (4 <= table_size <= len(raw) - root):
+        return f"table size {table_size} implausible", None
+    return "root table resolves", (root, vtable, vtable_size, table_size)
 
 
 def free_port() -> int:
@@ -122,22 +183,166 @@ def get(url: str, timeout: float = 10.0) -> tuple[int, bytes, str]:
         return 0, b"", ""
 
 
+def post(url: str, payload: dict, timeout: float = 300.0) -> tuple[int, bytes]:
+    """POST `payload` as JSON, returning (status, body) — and status **0** when nothing answered.
+
+    Same 0 convention as `get`, for the same reason: the caller has to tell a dead server apart from
+    one that answered badly. The timeout is generous because the call this drives runs a whole
+    IFC->Fragments conversion on the server before it returns a status.
+    """
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
+                                 headers={"content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:                  # noqa: S310
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+    except Exception:                                                # noqa: BLE001 — not up / refused
+        return 0, b""
+
+
+def convert_a_model(port: int, expect: str, timeout: float) -> None:
+    """Author a model and publish it, so the CONVERTER runs inside the artifact under test.
+
+    This is the half `/health` and `/modules` cannot reach. `aec_data.fragments` is imported lazily,
+    inside `fragconvert.convert_ifc`, so nothing on the boot path touches it — and `codec.py` imports
+    `flatbuffers` at module scope, which PyInstaller's analysis *should* follow. "Should" was doing
+    real work in that sentence until this existed.
+
+    **No IFC fixture is tracked, deliberately.** `POST /projects/{pid}/model/blank` generates one
+    server-side through `aec_data.massing`, so the model is authored by the artifact rather than
+    handed to it — which exercises more of the bundle and cannot drift from a checked-in file.
+
+    **Why this is not vacuous.** A converter that raises is caught in `authoring._publish`, recorded
+    as `reconvert_error`, and `run_publish` turns that into publish state `error` — so a missing
+    `flatbuffers` surfaces here as a named failure rather than a quiet skip. The obvious alternative
+    check would have been vacuous: `edit_preview` FAILS OPEN with a 503, so a fresh install answers
+    503 whether the frozen import works or not.
+
+    **And it asserts WHICH converter ran.** Publish reports `node` or `python`. The bundle carries no
+    Node runtime, so it must report `python` — the path that needs `flatbuffers`. Accepting either
+    would let this pass for the wrong reason on a machine where Node happens to be reachable, which
+    is every CI runner this workflow uses. `expect` is declared by the caller rather than guessed
+    from the environment, because a check that infers what it should require can infer wrongly and
+    still look green.
+    """
+    base = f"http://127.0.0.1:{port}"
+
+    st, body = post(f"{base}/projects", {"name": "smoke-convert"})
+    pid = ""
+    if st in (200, 201):
+        with contextlib.suppress(Exception):
+            pid = str(json.loads(body).get("id") or "")
+    if not check("POST /projects creates a project — the model has to hang off something",
+                 bool(pid), f"status {st}: {body[:200]!r}"):
+        return
+
+    st, body = post(f"{base}/projects/{pid}/model/blank", {"name": "Smoke", "storeys": 1})
+    if not check("POST /projects/{id}/model/blank authors an IFC inside the artifact — "
+                 "`aec_data.massing` runs in the bundle, so no fixture has to be shipped",
+                 st == 200, f"status {st}: {body[:300]!r}"):
+        return
+
+    # The route starts the publish itself (`create_blank_model` calls `_publish_bg`, which sets the
+    # status to "running" synchronously before submitting to the pool) and says so in its response.
+    # Asserting that here is not redundant with the poll below: a build where the publish never
+    # STARTS leaves the status at "idle", and the poll cannot tell "idle" from "not finished yet"
+    # until the full timeout expires. Same verdict, five minutes earlier and with a cause attached.
+    reported = ""
+    with contextlib.suppress(Exception):
+        reported = str(json.loads(body).get("publish") or "")
+    check("the route reports the publish as started — otherwise the poll below cannot distinguish "
+          "`never started` from `not finished yet` until it times out",
+          reported == "running", f"response reports publish {reported!r}")
+
+    # Publish is off-thread; the client polls. `error` is the state a failed convert produces, and it
+    # carries the exception — which for a missing frozen import is the whole diagnosis.
+    started = time.time()
+    deadline = started + timeout
+    state, detail = "", {}
+    while time.time() < deadline:
+        st, body, _ct = get(f"{base}/projects/{pid}/publish/status")
+        if st == 200:
+            with contextlib.suppress(Exception):
+                s = json.loads(body)
+                state, detail = str(s.get("state") or ""), s.get("detail") or {}
+        if state not in ("", "idle", "running"):
+            break
+        time.sleep(1.0)
+
+    if not check("the publish finished, and the CONVERSION inside it did not fail — a frozen build "
+                 "missing `flatbuffers` raises here and is recorded as `reconvert_error`",
+                 state == "done",
+                 f"publish state {state!r} after {time.time() - started:.1f}s (bound {timeout:g}s); "
+                 f"detail {json.dumps(detail)[:400]}"):
+        return
+
+    ran = str(detail.get("converter") or "")
+    check(f"the {expect!r} converter is the one that ran — otherwise this passed without "
+          f"exercising the path it exists to test",
+          ran == expect, f"publish reports converter {ran!r}, expected {expect!r}")
+
+    # The OTHER half of publish, and the one the fragment bytes below say nothing about: `_publish`
+    # also rebuilds the properties index through `aec_data.properties_index`, and reports how many
+    # elements it saw. A blank model is small but never empty — measured at 1 element / 1 class /
+    # 1 storey for `storeys=1` — so `>= 1` is a floor with a reason rather than a magic number, and
+    # a bundle whose ifcopenshell read back nothing fails here instead of shipping an empty model.
+    indexed = detail.get("reindexed")
+    check("the properties index was rebuilt over real content — the half of publish the fragment "
+          "bytes cannot speak for",
+          isinstance(indexed, int) and indexed >= 1, f"publish reports reindexed={indexed!r}")
+
+    st, frag, _ct = get(f"{base}/projects/{pid}/model.frag", timeout=60.0)
+    if not check("GET /model.frag serves the converted geometry the viewer would draw",
+                 st == 200 and len(frag) > 0, f"status {st}, {len(frag)} bytes"):
+        return
+
+    # `.frag` is zlib(flatbuffers). Decompressing proves real content rather than a stub, and the
+    # root TABLE is then walked — see `flatbuffer_root_table`. Not a size floor: a floor is a
+    # number, this is a property.
+    raw, why = b"", ""
+    try:
+        raw = zlib.decompress(frag)
+    except Exception as e:                                           # noqa: BLE001 — reported below
+        why = f"{type(e).__name__}: {e}"
+    reason, shape = flatbuffer_root_table(raw)
+    check("the served bytes are a real fragment — zlib-compressed flatbuffers with a root table "
+          "whose vtable resolves inside the buffer",
+          shape is not None,
+          f"{len(frag)} compressed -> {len(raw)} bytes; {reason}"
+          + (f"; root {shape}" if shape else "")
+          + (f"; zlib {why}" if why else ""))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("binary", nargs="?", help="path to aec-bim-server-<triple>")
     ap.add_argument("--timeout", type=float, default=180.0,
                     help="seconds to wait for /health (onefile extraction + the API import are slow)")
+    ap.add_argument("--expect-converter", default="python", choices=("node", "python"),
+                    help="which converter the publish must report having used. Defaults to `python` "
+                         "because that is what the packaged bundle has to use — it carries no Node "
+                         "runtime — and it is the path that needs `flatbuffers` to survive freezing. "
+                         "Pass `node` when running against a source checkout, where Node is present "
+                         "and IS the right answer. Declared rather than inferred: a check that "
+                         "guesses what it should require can guess wrong and still look green.")
+    ap.add_argument("--convert-timeout", type=float, default=300.0,
+                    help="seconds to wait for the publish to leave `running`")
     ap.add_argument("--deep-tmp", action="store_true",
                     help="use the default temp directory instead of a shallow one. This is the "
                          "configuration under which the DESKTOP-FROZEN crash did NOT reproduce, so "
                          "it exists to demonstrate that the shallow default is load-bearing")
     args = ap.parse_args()
 
-    binary = find_binary(args.binary)
+    try:
+        binary = find_binary(args.binary)
+        why = f"no single aec-bim-server-* in {BINARIES}"
+    except ValueError as exc:
+        binary, why = None, str(exc)
     # THE VACUITY GUARD. Everything below is a statement about a binary; without one there is no
     # population, and a pass would mean "did not look".
     if not check("a sidecar binary was found to run", bool(binary) and binary.is_file(),
-                 str(binary) if binary else f"no single aec-bim-server-* in {BINARIES}"):
+                 str(binary) if binary else why):
         print("\nFAILED:", ", ".join(FAILED))
         return 1
     print(f"  binary: {binary}  ({binary.stat().st_size // (1024 * 1024)} MB)")
@@ -275,6 +480,17 @@ def main() -> int:
             check("GET / serves the bundled SPA — the packaged web/ datas landed and are mounted",
                   st == 200 and "html" in ct.lower() and b"<" in body[:512],
                   f"status {st}, content-type {ct!r}")
+
+            # The half the boot checks cannot reach: run the converter inside the artifact.
+            #
+            # There is deliberately NO flag to skip this. An earlier draft had one, justified as
+            # "for diagnosing a sidecar that will not start" — which is false: that case already
+            # fails at `/health` above and returns before reaching here, printing the child's output,
+            # which is strictly better diagnosis. What the flag actually was is an escape hatch that
+            # turns a red build green while printing a warning, and its own help text said not to use
+            # it that way. **A hazard you answer with a comment is a hazard you built**, and this file
+            # exists because a check that stops looking still reports success.
+            convert_a_model(port, args.expect_converter, args.convert_timeout)
         finally:
             proc.terminate()
             try:
