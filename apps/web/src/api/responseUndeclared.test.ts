@@ -67,12 +67,6 @@ const CONTROL = "GET /projects/{}/verification/coverage";
  *  fixed rather than rotting into a freeze-list nobody re-checked. (`KNOWN_UNCALLED` is the
  *  cautionary tale this shape is built against.) */
 const KNOWN_GAPS: Record<string, string[]> = {
-  "GET /reference/disciplines": ["disciplines", "masterformat_divisions", "uniformat_crosswalk"],
-  "POST /projects/{}/modules/{}/views": ["mine", "owner", "scope"],
-  "POST /proforma/scenarios/{}/draw-package": ["forecast_returns", "g703_totals"],
-  "GET /asset-rights/status": ["public_key"],
-  "GET /auth/providers": ["saml"],
-  "POST /proforma/solve": ["provenance"],
 };
 
 /** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a

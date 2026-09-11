@@ -1405,8 +1405,8 @@ instances:
   ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
   bigger than the one remaining instance.
 
-- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 9 fixed, 6 open**)*
+- ✅ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
+  2026-09-11; **CLOSED the same day — all 15 triaged, all 15 fixed, `KNOWN_GAPS` is EMPTY**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,10 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Nine are fixed (below); the six still open are listed after them.**
+  **TRIAGE: all 15 read, ALL 15 FIXED.** `KNOWN_GAPS` in the gate is now `{}` — and because it is
+  asserted exactly in both directions, an empty list is a *claim under test*: the next undeclared
+  key anywhere in the tree fails the build instead of joining a backlog. The fourteenth and
+  fifteenth are below the thirteenth.
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1543,27 +1546,115 @@ instances:
   should match the narrowest thing that would actually be wrong; everything else it happens to match
   becomes a tripwire under the next person to improve the line.
 
-  **THE SIX STILL OPEN**, in four categories — and only one is the "invisible field" this item was
-  scoped around. Three need *declare **and** render*, not just declare:
+  **A TENTH, LATER THE SAME DAY — and it was never really about a declared key.** `/auth/providers`
+  returns `saml`; the client type named only `providers`, so the login modal branched on
+  `providers.length` alone and a workspace that had wired its own SAML IdP **and** paid for the tier
+  that entitles `sso` was shown a hint on its own sign-in screen telling it to go and configure
+  OAuth. Not a missing button: a *wrong instruction*, on the one screen nobody can get past. Now a
+  "Continue with single sign-on" door leading the modal, with the ordering rule pulled out into
+  `apps/web/src/account/signInDoors.ts` — pure, nine tests, five mutations — because the rule about
+  which doors lead is the part worth pinning and the `document` calls are not.
 
-  * *server ships, client dark* — `/auth/providers` never declares `saml`, and `saml` appears nowhere
-    in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
-    `/asset-rights/status` never declares `public_key`, so out-of-band verification is unreachable,
-    **and the client interface still carries the comment `Never a key.`, which is the exact rule the
-    server correction removed** · `/modules/{key}/views` returns `scope`, `owner` and `mine`
-    on both the GET and the POST and the client type declares none of them, so a shared view is
-    indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
-    body, so the server's `default="private"` decides for every view the web UI creates. *(This
-    sentence previously said the route "never sends or declares `scope`", conflating the response
-    the route RETURNS with the request the client POSTS — two different halves, only one of which
-    this axis measures.)*
-  * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
-    schedule of values behind a pay application) nor `forecast_returns`.
-  * *fetched-and-discarded* — `/reference/disciplines` returns four payloads and the client's only
-    call site keeps `tree`, dropping the MasterFormat division master and the Uniformat↔MasterFormat
-    crosswalk at the `.then`.
-  * *computed-then-invisible caveat* — `/proforma/solve` derives `provenance` for its inputs and the
-    client declares seven keys without it.
+  **AND UNDERNEATH IT, THE REASON THE MISSING BUTTON HAD NEVER BEEN REPORTED: the flow could not
+  have worked anyway.** `routers/saml.py` carried its own `_cookie` whose docstring said it *"mirrors
+  routers/auth._cookie"*. It had drifted, and to the one thing that is not a preference — the NAME.
+  It set `aec-token`; the cookie `rbac.current_user` reads is `aec_token`. So a correctly signed,
+  in-window, right-audience assertion was verified, the account provisioned, a real session token
+  minted — and put somewhere nothing reads. The browser returned to the app signed out.
+  `services/api/test_saml.py` asserted `"aec-token" in r.cookies`, **using the name the code under
+  test had chosen**, so it was green over a flow that had never once logged anybody in: a check that
+  can fail for a typo but not for the defect. It now asks `/auth/me` who the caller is, which has one
+  right answer and no spelling of a cookie can fake; with the old helper restored it fails with
+  *"ACS set a cookie the server does not read — /auth/me says 'dev'"*. The copy is gone rather than
+  corrected — `saml.py` imports auth's — which also recovers the two things the copy had lost,
+  `AEC_COOKIE_SECURE` and the 7-day max-age. *A duplicated helper does not drift where you are
+  looking; it drifts in the one field both sides only ever write.*
+
+  **AN ELEVENTH, the same afternoon — a promise the dialog could not keep.** `/asset-rights/status`
+  returns `public_key`; the client type omitted it, under a comment on the neighbouring `issuer`
+  field reading *"Never a key."* — a rule the server had already examined and removed, because the
+  same key is embedded in every signed manifest we emit, so withholding it protected nothing and
+  only meant a verifier had to trust the document's own copy, which is the copy an attacker who
+  rewrote the manifest would have replaced. Meanwhile the seal dialog promised that *"anyone holding
+  the issuer's published verification key can confirm the file is authentic"* while being unable to
+  say what that key is. It now names the issuer and prints the key beside the promise.
+  `sealIdentity` in `apps/web/src/api/assetRights.ts` decides when there IS an identity to name, and
+  its interesting case is `signing: true` with an empty key — which must render nothing rather than
+  an empty label that reads as verifiable. *`issuer` was also declared-and-never-read, so one edit
+  closed a DEAD-FIELD and a RESPONSE-UNDECLARED on the same route, in opposite directions.*
+  **One of the four mutations survived the first pass**: the `signing` guard was covered only
+  incidentally, because the test for it also emptied the key, so deleting the guard still passed.
+  *Two guards that always fire together are one guard as far as the tests can tell* — the state is
+  now constructed deliberately and pinned.
+
+  **A TWELFTH — and this one had somewhere to land.** `/reference/disciplines` returns four payloads
+  and `disciplineTree()` declared `{ tree }`, so the MasterFormat division master and the
+  Uniformat↔MasterFormat crosswalk arrived and were dropped at the `.then`. Both exist nowhere else
+  in this shape: `tree.disciplines[].divisions` carries only the subset under one discipline, and
+  nothing in the client knew that B2020 buys out of Division 08. **What that cost is visible at the
+  Detailing panel**, which asks for a spec section with the hint *"e.g. 08 51 00"* and had nothing to
+  read the answer against — so `80 51 00`, a transposition into a division that does not exist, was
+  accepted in silence and became a classification on an IFC element. `codeAnnotation` in
+  `apps/web/src/api/classificationRef.ts` now answers the title prompt with *"Division 08 · Openings
+  (Architectural)"*, or a ⚠ when the master does not carry the division. It never refuses: MasterFormat
+  reserves 48–49 and the 80s–90s for user-defined divisions, so an unrecognised one is worth saying
+  and not worth blocking, and a reference that fails to load must not block classifying either.
+
+  Two things the fix ran into. The client now makes **one** cached request where a second accessor
+  would have made two — but factoring the cache into a private helper made
+  `apps/web/src/api/clientCallers.test.ts` report a client method no screen can reach, because that
+  gate reads the application OUTSIDE `api/` and a helper called only from inside it looks exactly
+  like an unwired endpoint. *The honest fix was to not create the method, rather than to exempt it.*
+  And **a mutation survived**: the longest-prefix rule in `crosswalkFor` was asserted against the
+  served table, where no two entries are prefixes of each other, so first-match and longest-match
+  agree on every code and swapping them passed. *A fixture drawn from today's data cannot test a rule
+  written for tomorrow's* — the competing rows are now in the fixture, and the third undeclared key,
+  the flat `disciplines` catalog, is what names the discipline a division rolls up to.
+
+  **A THIRTEENTH — the caveat that decides whether a number can be relied on.** `POST /proforma/solve`
+  computes `provenance` on every solve: for each headline figure, which assumptions the CALLER
+  declared and which the ENGINE defaulted, plus `defaulted_inputs`, which the server's own comment
+  calls *"the number a reviewer actually wants"*. The client declared seven keys without it, so a
+  deal screen reported an equity IRR with no way to tell an underwritten input from a placeholder.
+  **That is not a wrong number, it is an unreviewable one.** `provenanceLine` in
+  `apps/web/src/proforma/provenanceLine.ts` now sits under the underwriting guardrails — same kind
+  of caveat, same place — naming up to six defaulted paths and counting the rest. It returns **null**
+  on a missing `provenance` rather than the all-declared line, because an absent caveat must read as
+  absent: asserting "every input was declared" from the absence of evidence is the opposite claim, on
+  the one screen where the distinction decides whether the figure can be relied on. Six mutations,
+  all biting. The paths are caller-supplied strings from the request body, so the line is built with
+  `textContent`, never `innerHTML`.
+
+  **A FOURTEENTH — three defects downstream of three undeclared keys.**
+  `GET/POST /projects/{pid}/modules/{key}/views` return `scope`, `owner` and `mine` on every row and
+  `SavedViewDef` declared none. The server's own comment says why `mine` is SENT rather than inferred
+  from `owner == me` — *"the two can disagree the moment a display name is not the identity key … and
+  the UI uses it to decide whether to offer Delete, which must match what the server will actually
+  allow"*. The UI could not read it, so it did not match, and the mismatch compounded:
+
+  * a colleague's shared report and your own private filter read identically in the dropdown;
+  * the delete picker offered every listed view, **including ones `DELETE` refuses** — picking one
+    returns `deleted: false`, which the register reports as *"was already gone — refreshing the
+    list"*, after which it is still there, because it was never gone and was never yours. *The only
+    thing telling the truth was the list not changing.*
+  * the confirmation said *"Saved views are yours alone, so this removes it only for you"*, which
+    stopped being true the day sharing shipped.
+
+  And `saveView` sent **no `scope` at all**, so the route's `default="private"` decided for every view
+  this app has ever created: the sharing half of R22-REPORT-BUILDER item 4 was reachable only from
+  outside it. `apps/web/src/portal/register/savedViews.ts` — five mutations, all biting.
+
+  **A FIFTEENTH, and the axis closes on it.** `POST /proforma/scenarios/{sid}/draw-package` returns
+  five keys; three were declared. The two dropped are the two the route exists for. `g703_totals` is
+  the schedule of values the G702 certificate is computed FROM — a payment due with no visible
+  completed-to-date and no visible retainage is a number nobody downstream can check, and retainage is
+  the line owners and subcontractors argue about. `forecast_returns` is the route's own premise,
+  *"so the IRR you underwrote and the lender draw run off the SAME cost tree"*: the re-forecast IRR
+  with the actuals folded in, which answers *is this still the deal we signed?* Both computed on every
+  draw, shown on none. `apps/web/src/proforma/drawPackage.ts`, six mutations. A seventh check found it
+  too: `apps/web/src/ui/charts.test.ts` refused the local `const usd` the first draft defined —
+  **eighteen local copies had disagreed about where the minus sign goes**, and the gate that ended
+  that does not care that this one was new.
 
   **A SEPARATE FINDING, not folded in: 106 dict-returning routes have NO typed client call site.**
   That is a different question from the "19 route handlers have no web client" counted below by a
@@ -2679,7 +2770,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

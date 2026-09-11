@@ -12,6 +12,87 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### You can share a saved view — and delete now tells the truth about it
+
+Saved views on a register could already be shared with the whole project. The app just never offered
+it, so every view anyone made here was private whether they wanted it or not. Saving one now asks.
+
+Three related things were wrong and are fixed together. Shared views from colleagues looked exactly
+like your own private filters in the dropdown — they now say whose they are. The delete list offered
+every view on screen, including other people's, which the server refuses; picking one reported *"was
+already gone"* and then it was still there. It now offers only views you can actually delete. And the
+confirmation claimed a view was *"yours alone"* even when deleting it would remove it for everyone
+using it — it now says which.
+
+### A lender draw package shows the schedule of values it was computed from
+
+Generating a G702 draw package reported the payment due and how many schedule-of-values lines were
+created, and stopped there. Two things it had already worked out went unseen: the G703 totals the
+certificate is computed from — completed to date, retainage held, balance to finish — and the deal's
+returns re-forecast with your actuals folded in.
+
+That second one is the entire point of running the draw off the underwriting model: it answers "is
+this still the deal we signed?" Both are now on screen beside the payment due.
+
+### A pro forma now says how much of it you actually supplied
+
+Solve a deal and Massing reports an equity IRR, a yield on cost, a development spread. Some of the
+inputs behind those are yours; the rest the engine filled in with defaults. Until now the screen
+could not tell you which, even though it had the answer — the server works it out on every single
+solve and the app was discarding it.
+
+Under the underwriting guardrails you'll now see a line like *"4 inputs behind these 6 figures were
+defaulted by the engine: exit.cap_rate, debt.rate, ..."*, or confirmation that every input was
+declared. It doesn't change any number. It tells you which numbers are worth arguing about, which is
+the difference between a pro forma you can review and one you can only read.
+
+If your server is older and doesn't send the breakdown, the line is omitted rather than claiming
+everything was declared.
+
+### A mistyped spec section is now caught while you can still fix it
+
+Attaching a MasterFormat or UniFormat code to an element used to be typing into an empty box with an
+example beside it. `80 51 00` instead of `08 51 00` — two digits swapped, into a division that does
+not exist — was accepted without comment and became a permanent classification on that element.
+
+Massing already knew the answer: the server publishes the full MasterFormat division master and the
+UniFormat-to-MasterFormat crosswalk, and the app was throwing both away as they arrived. It now
+reads your code back to you as you name it: *"Division 08 · Openings (Architectural)"* for a section
+it recognises, and a warning for one it does not. UniFormat codes get the crosswalk — *"B20 ·
+Exterior Enclosure → MasterFormat 04, 07, 08"* — so you can see what an element will be bought
+through.
+
+It warns, it never blocks: MasterFormat reserves whole ranges for divisions you define yourself, and
+those are legitimate codes. If the reference can't be reached, classifying works exactly as before.
+
+### Sealing a project now tells you the key people need to check it
+
+When you save a project as a sealed `.mass` file, Massing signs it so that anyone else can confirm
+the file is authentic and unaltered. The dialog said exactly that — and then could not tell you
+which verification key to publish, because the app was never given it. It now names the issuer and
+prints the key alongside, so you can hand it to whoever needs to check your releases. On a server
+with sealing switched on but no signing key configured, nothing is shown, because there would be
+nothing to verify against.
+
+### SAML single sign-on now works, and has a button
+
+If your organisation runs its own identity provider — Okta, Entra ID, Ping, Google Workspace as a
+SAML IdP, anything that speaks SAML 2.0 — Massing could already be configured to accept it, and the
+sign-in screen still had nowhere to click. Worse, a server with SAML configured and no OAuth
+provider showed a note advising you to set up Google or Microsoft sign-in instead, which was the
+opposite of the truth. The login window now leads with **Continue with single sign-on** whenever
+your server has an IdP configured and your plan includes SSO.
+
+Two things had to be true for that button to be worth adding, and only one of them was. Signing in
+through SAML had never actually worked: the server verified the assertion, created or found the
+account, issued a valid session — and then stored it under a name the rest of the server does not
+read, so the browser came back to Massing still signed out. The automated test covering that flow
+checked that *a* session cookie was written, using the same wrong name the code did, so it reported
+success for a sign-in that had never once let anybody in. Both are fixed; the test now asks the
+server who it thinks you are, which is a question no spelling mistake can answer correctly.
+
+If you had SAML configured and gave up on it, it is worth another try.
+
 ### A check that looks for unreachable features stopped being fooled by coincidences
 
 Massing has an automated check whose job is to notice when part of the server ships with nothing in

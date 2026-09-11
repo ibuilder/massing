@@ -3,6 +3,8 @@ import { escapeHtml } from "../ui/feedback";
 import { askText } from "../ui/prompt";
 import { signedBars, donut, lineChart, stackedBar, tornado, groupedBar, money as cmoney } from "../ui/charts";
 import { showQrModal } from "../ui/qr";
+import { provenanceLine } from "./provenanceLine";
+import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { renderTestFitTab } from "./testfitTab";
@@ -1478,7 +1480,10 @@ export class ProformaUI {
             .map((x) => ({ actual_to_date: parseFloat(x.value) || 0 }));
           const sc = await this.api.createScenario("Draw package", pid, this.a);
           const dp = await this.api.drawPackage(sc.id, { project_id: pid, actuals, as_of_month: 9, app_no: 1 });
-          this.setStatus(`SOV (${dp.sov_lines_created} lines) → G702 due $${Math.round(dp.g702.line8_current_payment_due ?? 0).toLocaleString()}`);
+          // The status used to stop at the payment due. `g703_totals` is the schedule of values that
+          // figure is computed from, and `forecast_returns` is the re-forecast IRR the whole bridge
+          // exists to produce — both arrived on every draw and neither was shown.
+          this.setStatus(drawPackageLines(dp).join("  ·  "));
           { const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
             await openPdfUrl(this.api, this.api.url(dp.g702_pdf), "G702-draw.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(this.api, pid) }); }
         } catch (e) { this.setStatus(`draw package error: ${(e as Error).message}`); }
@@ -1757,6 +1762,27 @@ export class ProformaUI {
         gc.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:1px 0"><span style="color:${col}">${f.level === "info" ? "✓" : "△"}</span> ${f.message}</div>`);
       }
       host.appendChild(gc);
+    }
+    // How much of the answer above rests on numbers nobody supplied. The server computes this on
+    // every solve and the client type had omitted it, so a deal could report an equity IRR with no
+    // way to tell an underwritten input from an engine default — which is what makes a pro forma
+    // reviewable or not. Sits under the guardrails because it is the same kind of caveat.
+    const prov = provenanceLine(r.provenance);
+    if (prov) {
+      const pc = card();
+      pc.appendChild(Object.assign(document.createElement("div"),
+        { className: "section-title", textContent: "Input provenance" }));
+      const col = prov.level === "warn" ? "var(--status-warn)" : "var(--status-good)";
+      const line = Object.assign(document.createElement("div"), { className: "meta" });
+      line.style.margin = "1px 0";
+      const mark = Object.assign(document.createElement("span"),
+        { textContent: prov.level === "warn" ? "△ " : "✓ " });
+      mark.style.color = col;
+      // textContent, not innerHTML: `defaulted_inputs` are assumption paths from the request body,
+      // so they are caller-controlled strings and have no business being parsed as markup.
+      line.append(mark, document.createTextNode(prov.text));
+      pc.appendChild(line);
+      host.appendChild(pc);
     }
   }
 
