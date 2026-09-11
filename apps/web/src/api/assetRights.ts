@@ -23,8 +23,36 @@ type Ctor<T> = new (...args: any[]) => T;
 export interface AssetRightsStatus {
   enabled: boolean;
   signing: boolean;
-  /** Public issuer identifier (e.g. a `did:web:` name). Never a key. */
+  /** Public issuer identifier (e.g. a `did:web:` name). */
   issuer: string;
+  /**
+   * The deployment's Ed25519 **public** verification key, base64url, or `""` when signing is
+   * unavailable — so a caller can tell "no key here" from "key withheld".
+   *
+   * This field went undeclared, under a comment on `issuer` that read *"Never a key."* — a rule the
+   * server had already corrected and removed. Withholding it protected nothing: the same key is
+   * embedded in every signed manifest we emit, so the only effect was that a third party had to
+   * trust the document's own copy of it, which is precisely the copy an attacker who rewrote the
+   * manifest would have replaced. Publishing it out of band is the entire point.
+   */
+  public_key: string;
+}
+
+/**
+ * What to tell someone sealing a release about the identity it will carry — or `null` when there is
+ * no identity to name, so the caller renders nothing rather than an empty label.
+ *
+ * Pure and separate from the dialog because the interesting part is the four-way split, not the
+ * markup: sealing can be unsigned (no identity at all), signed by a named issuer with a publishable
+ * key, signed with a key but no issuer name, or — the case worth having a test for — configured with
+ * an issuer name and NO key, which must not be described as something a third party can verify.
+ */
+export function sealIdentity(st: AssetRightsStatus): { issuer: string; key: string } | null {
+  if (!st.signing) return null;
+  const key = (st.public_key || "").trim();
+  const issuer = (st.issuer || "").trim();
+  if (!key) return null;                       // nothing a verifier can check against
+  return { issuer, key };
 }
 
 export function withAssetRights<TBase extends Ctor<HttpCore>>(Base: TBase) {

@@ -1405,8 +1405,8 @@ instances:
   ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
   bigger than the one remaining instance.
 
-- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 9 fixed, 6 open**)*
+- ✅ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
+  2026-09-11; **CLOSED the same day — all 15 triaged, all 15 fixed, `KNOWN_GAPS` is EMPTY**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,10 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Nine are fixed (below); the six still open are listed after them.**
+  **TRIAGE: all 15 read, ALL 15 FIXED.** `KNOWN_GAPS` in the gate is now `{}` — and because it is
+  asserted exactly in both directions, an empty list is a *claim under test*: the next undeclared
+  key anywhere in the tree fails the build instead of joining a backlog. The fourteenth and
+  fifteenth are below the thirteenth.
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1543,27 +1546,115 @@ instances:
   should match the narrowest thing that would actually be wrong; everything else it happens to match
   becomes a tripwire under the next person to improve the line.
 
-  **THE SIX STILL OPEN**, in four categories — and only one is the "invisible field" this item was
-  scoped around. Three need *declare **and** render*, not just declare:
+  **A TENTH, LATER THE SAME DAY — and it was never really about a declared key.** `/auth/providers`
+  returns `saml`; the client type named only `providers`, so the login modal branched on
+  `providers.length` alone and a workspace that had wired its own SAML IdP **and** paid for the tier
+  that entitles `sso` was shown a hint on its own sign-in screen telling it to go and configure
+  OAuth. Not a missing button: a *wrong instruction*, on the one screen nobody can get past. Now a
+  "Continue with single sign-on" door leading the modal, with the ordering rule pulled out into
+  `apps/web/src/account/signInDoors.ts` — pure, nine tests, five mutations — because the rule about
+  which doors lead is the part worth pinning and the `document` calls are not.
 
-  * *server ships, client dark* — `/auth/providers` never declares `saml`, and `saml` appears nowhere
-    in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
-    `/asset-rights/status` never declares `public_key`, so out-of-band verification is unreachable,
-    **and the client interface still carries the comment `Never a key.`, which is the exact rule the
-    server correction removed** · `/modules/{key}/views` returns `scope`, `owner` and `mine`
-    on both the GET and the POST and the client type declares none of them, so a shared view is
-    indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
-    body, so the server's `default="private"` decides for every view the web UI creates. *(This
-    sentence previously said the route "never sends or declares `scope`", conflating the response
-    the route RETURNS with the request the client POSTS — two different halves, only one of which
-    this axis measures.)*
-  * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
-    schedule of values behind a pay application) nor `forecast_returns`.
-  * *fetched-and-discarded* — `/reference/disciplines` returns four payloads and the client's only
-    call site keeps `tree`, dropping the MasterFormat division master and the Uniformat↔MasterFormat
-    crosswalk at the `.then`.
-  * *computed-then-invisible caveat* — `/proforma/solve` derives `provenance` for its inputs and the
-    client declares seven keys without it.
+  **AND UNDERNEATH IT, THE REASON THE MISSING BUTTON HAD NEVER BEEN REPORTED: the flow could not
+  have worked anyway.** `routers/saml.py` carried its own `_cookie` whose docstring said it *"mirrors
+  routers/auth._cookie"*. It had drifted, and to the one thing that is not a preference — the NAME.
+  It set `aec-token`; the cookie `rbac.current_user` reads is `aec_token`. So a correctly signed,
+  in-window, right-audience assertion was verified, the account provisioned, a real session token
+  minted — and put somewhere nothing reads. The browser returned to the app signed out.
+  `services/api/test_saml.py` asserted `"aec-token" in r.cookies`, **using the name the code under
+  test had chosen**, so it was green over a flow that had never once logged anybody in: a check that
+  can fail for a typo but not for the defect. It now asks `/auth/me` who the caller is, which has one
+  right answer and no spelling of a cookie can fake; with the old helper restored it fails with
+  *"ACS set a cookie the server does not read — /auth/me says 'dev'"*. The copy is gone rather than
+  corrected — `saml.py` imports auth's — which also recovers the two things the copy had lost,
+  `AEC_COOKIE_SECURE` and the 7-day max-age. *A duplicated helper does not drift where you are
+  looking; it drifts in the one field both sides only ever write.*
+
+  **AN ELEVENTH, the same afternoon — a promise the dialog could not keep.** `/asset-rights/status`
+  returns `public_key`; the client type omitted it, under a comment on the neighbouring `issuer`
+  field reading *"Never a key."* — a rule the server had already examined and removed, because the
+  same key is embedded in every signed manifest we emit, so withholding it protected nothing and
+  only meant a verifier had to trust the document's own copy, which is the copy an attacker who
+  rewrote the manifest would have replaced. Meanwhile the seal dialog promised that *"anyone holding
+  the issuer's published verification key can confirm the file is authentic"* while being unable to
+  say what that key is. It now names the issuer and prints the key beside the promise.
+  `sealIdentity` in `apps/web/src/api/assetRights.ts` decides when there IS an identity to name, and
+  its interesting case is `signing: true` with an empty key — which must render nothing rather than
+  an empty label that reads as verifiable. *`issuer` was also declared-and-never-read, so one edit
+  closed a DEAD-FIELD and a RESPONSE-UNDECLARED on the same route, in opposite directions.*
+  **One of the four mutations survived the first pass**: the `signing` guard was covered only
+  incidentally, because the test for it also emptied the key, so deleting the guard still passed.
+  *Two guards that always fire together are one guard as far as the tests can tell* — the state is
+  now constructed deliberately and pinned.
+
+  **A TWELFTH — and this one had somewhere to land.** `/reference/disciplines` returns four payloads
+  and `disciplineTree()` declared `{ tree }`, so the MasterFormat division master and the
+  Uniformat↔MasterFormat crosswalk arrived and were dropped at the `.then`. Both exist nowhere else
+  in this shape: `tree.disciplines[].divisions` carries only the subset under one discipline, and
+  nothing in the client knew that B2020 buys out of Division 08. **What that cost is visible at the
+  Detailing panel**, which asks for a spec section with the hint *"e.g. 08 51 00"* and had nothing to
+  read the answer against — so `80 51 00`, a transposition into a division that does not exist, was
+  accepted in silence and became a classification on an IFC element. `codeAnnotation` in
+  `apps/web/src/api/classificationRef.ts` now answers the title prompt with *"Division 08 · Openings
+  (Architectural)"*, or a ⚠ when the master does not carry the division. It never refuses: MasterFormat
+  reserves 48–49 and the 80s–90s for user-defined divisions, so an unrecognised one is worth saying
+  and not worth blocking, and a reference that fails to load must not block classifying either.
+
+  Two things the fix ran into. The client now makes **one** cached request where a second accessor
+  would have made two — but factoring the cache into a private helper made
+  `apps/web/src/api/clientCallers.test.ts` report a client method no screen can reach, because that
+  gate reads the application OUTSIDE `api/` and a helper called only from inside it looks exactly
+  like an unwired endpoint. *The honest fix was to not create the method, rather than to exempt it.*
+  And **a mutation survived**: the longest-prefix rule in `crosswalkFor` was asserted against the
+  served table, where no two entries are prefixes of each other, so first-match and longest-match
+  agree on every code and swapping them passed. *A fixture drawn from today's data cannot test a rule
+  written for tomorrow's* — the competing rows are now in the fixture, and the third undeclared key,
+  the flat `disciplines` catalog, is what names the discipline a division rolls up to.
+
+  **A THIRTEENTH — the caveat that decides whether a number can be relied on.** `POST /proforma/solve`
+  computes `provenance` on every solve: for each headline figure, which assumptions the CALLER
+  declared and which the ENGINE defaulted, plus `defaulted_inputs`, which the server's own comment
+  calls *"the number a reviewer actually wants"*. The client declared seven keys without it, so a
+  deal screen reported an equity IRR with no way to tell an underwritten input from a placeholder.
+  **That is not a wrong number, it is an unreviewable one.** `provenanceLine` in
+  `apps/web/src/proforma/provenanceLine.ts` now sits under the underwriting guardrails — same kind
+  of caveat, same place — naming up to six defaulted paths and counting the rest. It returns **null**
+  on a missing `provenance` rather than the all-declared line, because an absent caveat must read as
+  absent: asserting "every input was declared" from the absence of evidence is the opposite claim, on
+  the one screen where the distinction decides whether the figure can be relied on. Six mutations,
+  all biting. The paths are caller-supplied strings from the request body, so the line is built with
+  `textContent`, never `innerHTML`.
+
+  **A FOURTEENTH — three defects downstream of three undeclared keys.**
+  `GET/POST /projects/{pid}/modules/{key}/views` return `scope`, `owner` and `mine` on every row and
+  `SavedViewDef` declared none. The server's own comment says why `mine` is SENT rather than inferred
+  from `owner == me` — *"the two can disagree the moment a display name is not the identity key … and
+  the UI uses it to decide whether to offer Delete, which must match what the server will actually
+  allow"*. The UI could not read it, so it did not match, and the mismatch compounded:
+
+  * a colleague's shared report and your own private filter read identically in the dropdown;
+  * the delete picker offered every listed view, **including ones `DELETE` refuses** — picking one
+    returns `deleted: false`, which the register reports as *"was already gone — refreshing the
+    list"*, after which it is still there, because it was never gone and was never yours. *The only
+    thing telling the truth was the list not changing.*
+  * the confirmation said *"Saved views are yours alone, so this removes it only for you"*, which
+    stopped being true the day sharing shipped.
+
+  And `saveView` sent **no `scope` at all**, so the route's `default="private"` decided for every view
+  this app has ever created: the sharing half of R22-REPORT-BUILDER item 4 was reachable only from
+  outside it. `apps/web/src/portal/register/savedViews.ts` — five mutations, all biting.
+
+  **A FIFTEENTH, and the axis closes on it.** `POST /proforma/scenarios/{sid}/draw-package` returns
+  five keys; three were declared. The two dropped are the two the route exists for. `g703_totals` is
+  the schedule of values the G702 certificate is computed FROM — a payment due with no visible
+  completed-to-date and no visible retainage is a number nobody downstream can check, and retainage is
+  the line owners and subcontractors argue about. `forecast_returns` is the route's own premise,
+  *"so the IRR you underwrote and the lender draw run off the SAME cost tree"*: the re-forecast IRR
+  with the actuals folded in, which answers *is this still the deal we signed?* Both computed on every
+  draw, shown on none. `apps/web/src/proforma/drawPackage.ts`, six mutations. A seventh check found it
+  too: `apps/web/src/ui/charts.test.ts` refused the local `const usd` the first draft defined —
+  **eighteen local copies had disagreed about where the minus sign goes**, and the gate that ended
+  that does not care that this one was new.
 
   **A SEPARATE FINDING, not folded in: 106 dict-returning routes have NO typed client call site.**
   That is a different question from the "19 route handlers have no web client" counted below by a
@@ -1587,6 +1678,48 @@ instances:
   misses, in both directions.** The remaining candidates need the checker, not another regex: a
   textual scan of a typed language cannot resolve a named return type, a nested literal, or a
   multi-line span, and this one reported `id` undeclared on a route that plainly declares it.
+
+- ✅ ⭐ **UNREACHED-IMPORT — the gate that vouched for a route with the word `import`**
+  *(S — Lanes B/G; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*
+
+  The premise handed to this item was half wrong, which is worth stating first: `progressActuals` and
+  `saveViewTemplates` **were** flagged — both sit in the `UNCALLED` ceiling in
+  `apps/web/src/api/clientCallers.test.ts`, visible and countable, which is what that list is for. The
+  other half was right and worse than described.
+
+  **`POST /cost/datasets/import` had no client method at all**, and the budget panel has been telling
+  cost managers *"1 offline baseline(s) installable — no subscription"* the whole time. A promise with
+  no affordance — and the promise was added by the change that declared `available_public`. The
+  installer now lives in Profile & settings → Administration, not on the budget card, because it flips
+  the global `is_latest` and reprices every unpinned project; the card names the role instead of
+  offering a button that would 403 for exactly the reader most likely to press it, which is the
+  offered-and-refused shape the saved-view delete picker had until the day before.
+
+  **Why nothing said so: the route's leaf is `import`, which occurs 2,223 times in this tree as the
+  TypeScript keyword.** Not an unlucky word — a *reserved* one, so the collision is guaranteed for any
+  route named after a keyword. Its sibling `/cost/datasets/import-custom` was correctly frozen, so the
+  route with the more distinctive name was caught and the one named after a keyword vouched for
+  itself, under a headline check that reads *"NO NEW UNREACHABLE ROUTE"*.
+
+  `leaf_is_called` now requires the leaf to occupy a **path segment inside a string literal**. A URL
+  this client builds is always a string; a bare identifier never is, and a word in a sentence has a
+  space in front of it. **Measured before applying, because the two previous candidate fixes were each
+  wrong in this same place: 42 uncalled before, 67 after — 25 newly visible, ZERO lost.** Three of the
+  25 spot-checked have no occurrence anywhere in the web source; two more appear only inside English
+  prose. All 25 frozen as untriaged, four mutations, all biting.
+
+  **The rule's docstring used to call this class unfixable — and the reason it became unaffordable is
+  that I broke it three times in one sitting.** Writing three ordinary sentences about a feature whose
+  own name contains the word *public* re-collided with `/listings/{lid}/public`, the exact collision
+  the previous change had *reworded away*. **A rule that makes product copy unwritable will be
+  re-broken by whoever has not read the file** — and the natural wording is restored in this change as
+  the demonstration that it is fixed.
+
+  *One more thing the fix had to learn.* The first measurement of this rule reported **36 routes lost,
+  including `plan.dxf`, whose caller is real** — which argued convincingly for rejecting it. The rule
+  was fine; the harness anchored "start of string" against text with the quote character still
+  attached, so no leading-fragment call site could ever match. **A measurement can be wrong in the
+  direction that preserves the status quo, and that is the direction nobody double-checks.**
 
   **A SEPARATE FINDING, deliberately not folded in: 19 route handlers have NO web client at all.**
   That is a different question with a different answer each time — `/bcf/2.1/auth` is correct,
@@ -1618,6 +1751,237 @@ instances:
   `routers/operations.py` states that comparing a realised overrun to an entered contingency is a
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
+
+- 🟡 **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
+  *(S — Lane G; **OPEN**, raised in review on PR #528 2026-09-11; needs a contract decision)*
+
+  `services/api/src/aec_api/routers/procurement.py`'s `send_rfq` calls `me.create_record` — which
+  commits by default — and only *then* looks at `workflow_state`. A second request therefore persists
+  **another** `bid_solicitation` while skipping the package transition, and even the first request
+  commits the solicitation separately from the transition, so a failure between them leaves an ITB
+  with no state change behind it. BUYOUT-KEEP's client refuses the second send (`rfqGate`) and reports
+  a non-move honestly (`rfqSummary`), but **that is UI feedback, not enforcement**: a second tab, a
+  retry, or a direct API call still duplicates.
+
+  **Not fixed in #528 because the fix requires deciding what a second send MEANS**, and that is a
+  product call rather than a cleanup:
+
+  * **409 Conflict** — a package past `draft` cannot be re-solicited. Simplest, and wrong if a second
+    bid round is a real workflow.
+  * **Idempotent no-op** — return the existing solicitation. Safe, but silently ignores an operator
+    who meant to re-solicit.
+  * **Deliberate re-solicitation** — mint a new ITB *on purpose*, with its own round number, and say
+    so. This is what the current behaviour accidentally approximates.
+
+  The mechanical part is the same under all three: one transaction, a conditional `draft → rfq_sent`
+  update, create the solicitation only when that update changes exactly one row. *The transaction is
+  the easy half; what to do when it changes zero rows is the decision.* Same shape as
+  PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
+  only in a thread closes by default when the PR merges.**
+
+- ✅ ⭐ **ENV-WIND — a wind answer at the only stage that can act on it**
+  *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/envWind.test.ts` and `services/api/test_route_reachability.py`)*
+
+  `POST …/env/wind` has graded pedestrian wind comfort since ENV-1 — corner acceleration, downwash
+  and channelling against the Lawson categories, offline and deterministic, deriving the mass from
+  the model's bounding box when no dimensions are given. **Nothing called it.** Massing decides most
+  pedestrian wind outcomes and CFD arrives far too late to steer them; an answer only `curl` can
+  reach is not an answer the design has. It now draws under **📐 Design Metrics**, which is the panel
+  that already answers "what is this massing doing" off the same model.
+
+  **Three things about this screen are misread unless the panel says them, and each is a different
+  lie**, so each has its own rule in `apps/web/src/portal/panels/envWind.ts` (25 tests, four
+  mutations all biting):
+
+  * **A check that did not run is not a check that passed.** Channelling is raised only when a gap to
+    a neighbouring mass is supplied. Leave it blank and `acceptable_for_entrances` comes back `true`
+    having never looked at the passage — which is where pedestrian wind complaints actually come
+    from. `unassessed()` names what was skipped and `verdict()` withholds the word *acceptable* while
+    anything is on that list. It reads the **answer** rather than re-deriving the server's
+    applicability rule, because a second copy of that rule would be measuring the copy.
+  * **Every speed is the site wind times a factor**, and the site wind defaults. A screen run on the
+    default and read as a site answer is wrong by exactly the ratio of the two.
+  * **A bounding box is not a building.** With the dimensions blank the server takes the model's
+    world bounds, which span site and context geometry too, so what was actually screened is printed.
+
+  **The gate could not see this route in either direction, for a THIRD new reason.** `wind` is four
+  characters and `MIN_SEGMENT` is five, so it was never in the reachability gate's population at
+  all — not flaggable, not freezable, not in `FOUND`. That file's own note said the sub-threshold
+  routes were "otherwise still unmeasured" and asked for a re-derivation rather than trust; this is
+  that re-derivation, and **one half of it is sound**. 115 of 949 routes fall below the threshold and
+  for 108 the leaf occurs somewhere in the web source, which means nothing — but the coarseness runs
+  in one direction only: *a leaf that appears nowhere cannot be being called, however short it is.*
+  Those seven are now a ratchet that may shrink and never grow. It held **eight** until this item.
+
+- ✅ ⭐ **BUYOUT-KEEP — the buyout plan you could compute and could not keep**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
+  `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
+
+  Budget → **📦 Buyout packages** has grouped the model's priced quantities into packages with RFQ
+  scopes since PROCURE-LEVEL, and `POST …/procurement/buyout-packages` has a caller. **Keeping them
+  did not.** `…/packages/save`, which persists each group as a `procurement_package` in `draft`, and
+  `…/packages/{rid}/send-rfq`, which mints the Bid Solicitation and advances the workflow, both had
+  no client caller — so a user could produce a buyout plan and had no way to act on it, and the whole
+  draft → rfq_sent → quotes_in → awarded workflow was unreachable from the screen that produces its
+  input. Same transient-to-record shape as the prefab freeze, on money.
+
+  **The two were dark for different reasons, and the second one is the finding.** `send-rfq` was
+  frozen in `services/api/test_route_reachability.py` and could have been read any day; `save` has a
+  four-character leaf and the gate never assessed it at all. But wiring `send-rfq` alone was never
+  possible: **it is keyed on a stored package's record id, and `save` is the only thing that creates
+  one.** *A dark route can be dark because the route that feeds it is* — so a frozen entry is not
+  always a unit of work, and reading one without its neighbours can make a feature look
+  one-button-away when the button has nothing to act on.
+
+  `apps/web/src/portal/panels/buyoutKeep.ts` holds the rules — 22 tests, five mutations all biting.
+  **The load-bearing one is the double-send trap.** The server mints the solicitation
+  *unconditionally* and transitions only a `draft` package, so a second send produces a second ITB
+  and no state change. A client that reported success from a resolved promise would hide a duplicate
+  solicitation nobody asked for, so `rfqSummary` reads `package_state` and says plainly when the
+  package did **not** move, and `rfqGate` refuses a package already past draft. An empty save is
+  reported as nothing kept rather than a cheerful zero, and the summary flags a created count that
+  differs from the one the confirmation named, because the server re-groups at write time.
+
+  Uncalled routes **61 → 60**, and the never-assessed dark set **9 → 8** — two different counters,
+  because the two routes sat one on each side of `MIN_SEGMENT`.
+
+- ✅ ⭐ **JURISDICTION-PACKS — a regulator's data requirements, and no way to reach any of them**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
+  `apps/web/src/portal/panels/jurisdictionPacks.test.ts`)*
+
+  R23 built the whole thing server-side: a pack is a **named, versioned, attributed** set of data
+  requirements keyed to a jurisdiction, validated by a rule that refuses an uncited pack, with
+  selectors parsed by the same engine that evaluates them. **All five of its routes had no client
+  caller.** The library, the import and the delete were frozen by UNREACHED-IMPORT; the two that
+  *consume* a pack — `/projects/{pid}/jurisdiction/requirements` and `/projects/{pid}/jurisdiction/check`
+  — were invisible to the gate entirely, so the feature read as three-fifths dark rather than dark.
+
+  `apps/web/src/api/jurisdiction.ts` carries the five methods and
+  `apps/web/src/portal/panels/jurisdictionPanel.ts` the screen, reached from CDE / Standards because
+  a pack is an information requirement for a **place** where the EIR beside it is one for an
+  appointment — a submitter needs both before a submittal. The rules are in
+  `apps/web/src/portal/panels/jurisdictionPacks.ts`: 27 tests, four mutations all biting.
+
+  **The rules are all about attribution, because that is what the feature is for.** The built-in
+  `example` pack is attributed to nobody and asserts nothing about any real place — and it is the
+  only pack present before anything is imported, so it is the one a first-time user runs. A result
+  from it that reads like a verdict tells somebody their model satisfies rules that do not exist.
+  So the caveat rides with the *result* and inside the attribution line itself, not in a footnote,
+  and `exampleCaveat` is deliberately **empty for a real pack** — a caveat printed on everything is
+  one nobody reads, and then it is absent when it matters. Two refusals are also kept apart: nothing
+  applies, versus packs apply but no model is loaded. Collapsing them would tell somebody to import a
+  pack when what they need is to upload a model.
+
+  **The count of dark routes was a floor, not the debt.** The frozen set said three; reading the
+  handlers said five. *A ratchet undercounts by exactly the size of the blind spot in the rule that
+  fills it* — which is why the two invisible ones are now asserted in
+  `services/api/test_route_reachability.py` as blind spots that stay blind: they have callers today
+  and that gate still has no opinion about them, so its two green ticks must not be read as coverage.
+
+- ✅ **FROZEN-TRIAGE — what the eight dark routes actually were** *(record, not a work item; **CLOSED 2026-09-11**)*
+
+  UNREACHED-IMPORT froze eight newly-visible routes and said, correctly, that freezing is **not**
+  judging. All eight have now been read. **Only four are gaps, and one of those is already built** —
+  which is the point of writing this down: *an uncalled count is a list of questions, not a list of
+  missing features*, and treating 63 as 63 holes would send the next sprint to build duplicates.
+
+  | route | verdict |
+  |---|---|
+  | `/projects/{pid}/model/lod/proxy` | **GAP — built**, see LOD-PROXY below |
+  | `/projects/{pid}/georeference` | **DUPLICATE.** `/projects/{pid}/models/georeferencing` is wired and returns strictly more: a LoGeoRef level, its label, the map conversion, the CRS and the site. Wiring this adds a second answer to one question. |
+  | `/projects/{pid}/clash/coordinate` | **NO DEMAND.** The product's clash flow is `POST /projects/{pid}/clash/federated` with `coordinate=true`, which runs the same intelligence layer and IS wired. This route is the bring-your-own-results variant, for a single-model or external detection run — and the single-model path has no UI either. A button here would invent a workflow, not close a gap. |
+  | `/codes/seeded` | **COVERED.** `/codes/adoptions` is wired and already answers the sharper question per code family — `source: "seed"` or `"baseline"` — so a flat list of seeded jurisdictions adds a catalogue, not an answer. |
+  | `/projects/{pid}/documents/template` | **LARGELY COVERED.** The documents health read already reports required-folder coverage; the template is the static taxonomy behind it. Worth revisiting only if a "what folders should exist" screen is ever wanted on its own. |
+  | `/jurisdiction/packs` ×3 (list, import, delete) | **GENUINE GAP, and the largest left — and bigger than three.** The whole import path for an authority's data requirements: no client at all, admin-gated, and the packs are used to fail other people's models. Same shape as PREFAB-DARK, a finished feature with no way in. See below: the two routes that *consume* a pack are dark too, and the gate cannot see them. |
+
+  **Three lessons, all about the gate rather than the routes.** A dark route can be a *duplicate*,
+  and the reachability rule structurally cannot tell that from a hole — only reading the handler can.
+  A dark route can be an *integration surface* with no UI demand, which is not a defect at all. The
+  gate's job is to make them visible; deciding what they are is still a person's.
+
+  **And the count is wrong in BOTH directions, which is the third and the one worth keeping.**
+  Reading the jurisdiction handlers turned up two more dark routes the gate never flagged:
+  `/projects/{pid}/jurisdiction/requirements` and `/projects/{pid}/jurisdiction/check` — the two that
+  *consume* a pack. So R23-JURISDICTION-PACKS is unreachable in **five** routes, not three, and a
+  sprint that wired only the frozen three would have shipped an import path whose only consumers are
+  still dark. They hide for two different reasons, now asserted in
+  `services/api/test_route_reachability.py` beside the `/asset-rights/verify` precedent: `check`
+  collides with a **real sibling route** (`/projects/{pid}/standards/check` and `/rebar/check` are
+  genuinely called), and `requirements` collides with **unrelated text** (a TS union member in a
+  spec-PDF plugin). The first is the sharper one — the gate's stated blind spot is about coincidence
+  with prose, and this is a collision with another route. *A leaf is not a name.* Mutating only the
+  vouching text flags both immediately, which is how they were confirmed dark rather than assumed.
+
+- ✅ **LOD-PROXY — a saving quoted on screen with no way to take it**
+  *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*
+
+  `lodCensus` returns `plan.pct_saved` and `apps/web/src/portal/panels/standards.ts` has rendered it
+  since the census shipped — *"proxy would save N%"* — while `POST /projects/{pid}/model/lod/proxy`
+  had no client method at all. **The same promise-with-no-affordance shape as the budget card's "1
+  offline baseline(s) installable"**, found the same way: newly visible once the reachability gate
+  stopped letting English vouch for a route.
+
+  The button now sits where the saving is quoted. `apps/web/src/portal/panels/lodProxy.ts` holds the
+  rules — 9 tests, four mutations all biting. Two of them are about refusals: the offer is **absent
+  with a reason** when a model has nothing worth proxying or the census measured no saving, and a
+  response with `stored: false` is reported as the refusal it is. That second one matters because the
+  server returns it as a **200** — its own comment says *"a 'successful' export of nothing gets
+  believed"* — so a client that treats a resolved promise as success would print the opposite of what
+  happened.
+
+  **TRIAGE FIRST, and it changed what got built.** Of the eight routes frozen by UNREACHED-IMPORT,
+  `/projects/{pid}/georeference` was read and **deliberately not wired**: `/projects/{pid}/models/
+  georeferencing` already has a caller and returns strictly more — a LoGeoRef level, its label, the
+  map conversion, the CRS and the site. Wiring the simpler one would have added a second answer to
+  one question. *A dark route can be a duplicate rather than a hole, and the gate cannot tell the
+  difference — reading the handler is what tells them apart.*
+
+  The remaining four were triaged the same day — see FROZEN-TRIAGE above — and **the guess this
+  entry originally left here was wrong.** It named `/projects/{pid}/clash/coordinate` as the highest
+  value of the rest, on the transient-to-record shape alone; reading the handler showed the wired
+  `POST /projects/{pid}/clash/federated?coordinate=true` already runs that same write. The largest
+  genuine gap is `/jurisdiction/packs`. *A shape argument is a reason to go and read, never a verdict
+  on its own.*
+
+- ✅ ⭐ **PREFAB-DARK — an entire feature with no way in**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py` and
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  **All three `/projects/{pid}/prefab/kits*` routes had zero references in `apps/web/src`** — the
+  register, the per-kit detail, and the one write. `services/api/src/aec_api/prefab_kit.py` is 394
+  lines of finished work behind them: selector resolution against the model index, a bill of
+  materials, scope-drift detection, and an eleven-code blocker severity order in which a kit whose
+  released scope has *drifted* outranks one that is merely late, *"because a late kit is a known
+  problem and a drifted one is an unknown wrong one"*. None of it was reachable.
+
+  **The consequence has a name.** Freezing a kit writes the GlobalId list the shop fabricates
+  against; without that write a released kit is a live query, and `prefab_kit.py` says in its own
+  words that such a kit *"would be indistinguishable from a correctly released one on every screen"*.
+  That is the failure the module exists to prevent, and the module could not be operated.
+
+  **Found by the gate UNREACHED-IMPORT sharpened, in both of its modes.** `/freeze` surfaced as
+  newly-visible dark the moment `_SEGMENT` stopped letting English vouch for a route — the sentence
+  standing in for it was *"…out of the wet/freeze season"*. The other two could never surface at all:
+  their leaf is `kits`, five characters, and the rule does not assess a leaf that short. They were
+  reachable only because the `MIN_SEGMENT` note had *counted them in prose*, next to the reason the
+  count could not become a check. **A measurement written down where the rule cannot enforce it is
+  still what makes the thing fixable** — and that note is now corrected, since both have callers.
+
+  Shipped: `apps/web/src/api/prefab.ts` (types + three methods),
+  `apps/web/src/portal/panels/prefabKits.ts` (the presentation rules, 21 tests, six mutations all
+  biting) and `prefabKitsPanel.ts` (the DOM), wired as `__prefabkits__` into Work beside Equipment.
+  The panel states `scope_source` **in words on every row** rather than as a badge, because selector
+  and frozen are the distinction the whole module turns on.
+
+  *Three things the build itself had to learn, each caught by a check rather than by review.*
+  **The mixin chain is AT TypeScript's ceiling** — a fifty-first `withX()` on `ApiClient` fails with
+  TS2589, measured by writing it that way first; `withPrefab` composes inside `withDetailing`, the
+  remedy `api/cost.ts` had already recorded. **`clientCallers.test.ts` refused `prefabKit`**, which I
+  had shipped with no caller — answered by using it (re-read one kit after a write instead of
+  re-resolving every other kit's selector), not by exempting it. And **the write and the refresh are
+  separate `try` blocks on purpose**: folding them would let a failed re-read report *"could not write
+  the scope"* about a write that succeeded, and the reader's next move would be to write it again.
 
 - ✅ **RESP-ORPHAN — the RACI banner said "complete" over a grid with nothing in it** *(S — Lane C;
   **CLOSED**, fix in this change)*
@@ -2571,6 +2935,38 @@ The engine work is done either way; only the naming is open.
   such route: `/elements/{guid}` matched with `guid="properties"`. Resolved against the OpenAPI table
   rather than the status line, because probing alone gets this one wrong.
 
+### PREFAB-FREEZE-RACE — the write re-resolves what the reader already agreed to *(OPEN, needs a decision)*
+
+*(M — Lanes D/B; raised by review on PR #524, 2026-09-11; the DETECTION half shipped there,
+the PREVENTION half did not.)*
+
+`POST /projects/{pid}/prefab/kits/{rid}/freeze` resolves the kit's selector against the model index
+**at write time** — `prefab_kit.freeze` calls `resolve()` afresh — and nothing in the register
+response constrains it. So a model re-ingested, or a selector edited on the record, between the
+confirmation and the POST writes a GlobalId list the person never saw. `as_of` cannot help: it goes
+to `parse_date` for display and never reaches `resolve`.
+
+**What shipped in #524 makes the divergence visible, not impossible.** `freezeSummary` takes the
+count the confirmation named and says so when the write differs — *"you confirmed 12 … the written
+scope is not the one you were shown."* That is worth having on its own, because an unnoticed
+divergence is what puts the wrong list in front of a fabricator. It is a detection control and it
+is not a fix.
+
+**The fix is an optimistic-concurrency contract, and it is a route change, which is why it is filed
+rather than done:**
+
+1. Surface a `scope_version` on the register and the kit detail — the model version `model_index`
+   already tracks, combined with the kit's `updated_at` so a selector edit invalidates it too.
+2. `POST …/freeze` accepts `if_scope_version` and refuses a stale one with **409** and a fixed
+   literal, beside the existing `FREEZE_NO_MATCH` / `FREEZE_TRUNCATED` constants.
+3. The panel sends the version it rendered and, on 409, re-reads that kit and re-confirms against
+   the new numbers.
+
+**Filed here rather than left in the PR thread on purpose.** A follow-up recorded only in a review
+conversation is the same shape as the seeding sweep this repo already learned about — *a sweep held
+as prose is a check that can only report good news* — and a PR thread is worse than prose, because
+it is closed by default once the PR merges.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
@@ -2671,15 +3067,15 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · PIN-SWEEP-PGNULL *(the pin sweep skips the rows it exists to convert, on PostgreSQL only — a `json` column holding scalar `null` is non-NULL in SQL and decodes to Python `None`. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`, and it landed in `main` via #503 rather than in the PR that found it)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RFQ-IDEMPOTENT *(the first standalone item this lane has carried, and it earns one: the fix is entirely inside a router's transaction boundary — mint-after-check in one transaction — and belongs to no feature lane. **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file)* |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

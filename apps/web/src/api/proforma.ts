@@ -95,9 +95,25 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/proforma/scenarios?project_id=${encodeURIComponent(projectId)}`);
   }
 
+  /** Bridge underwriting → construction draws: the scenario's cost tree becomes Schedule-of-Values
+   *  records, and out come the AIA G702/G703.
+   *
+   *  `g703_totals` and `forecast_returns` went undeclared, and they are the two halves of what this
+   *  route is FOR. The G703 totals are the schedule of values the G702 certificate is computed from
+   *  — a payment due with no visible completed-to-date or retainage is a number nobody can check.
+   *  And `forecast_returns` is the whole premise in the route's own docstring, *"so the IRR you
+   *  underwrote and the lender draw run off the SAME cost tree"*: it is the re-forecast IRR with the
+   *  actuals folded in, which is the answer to "is this deal still the deal we signed?". Both were
+   *  computed on every draw and shown on none. */
   drawPackage(sid: string, body: unknown) {
-    return this.json<{ sov_lines_created: number; g702: Record<string, number>; g702_pdf: string }>(
-      `/proforma/scenarios/${sid}/draw-package`, { method: "POST", body: JSON.stringify(body) });
+    return this.json<{
+      sov_lines_created: number; g702: Record<string, number>; g702_pdf: string;
+      /** AIA G703 column totals across the schedule of values, in whole currency units. */
+      g703_totals: { scheduled: number; prev: number; this: number; stored: number;
+                     completed: number; balance: number; retainage: number; retainage_prev: number };
+      /** The deal's returns RE-FORECAST with the actuals in — not the underwritten ones. */
+      forecast_returns: { equity_irr: number | null; equity_multiple: number };
+    }>(`/proforma/scenarios/${sid}/draw-package`, { method: "POST", body: JSON.stringify(body) });
   }
 
   // --- The development budget, its GMP reconciliation, and the draws against it ---

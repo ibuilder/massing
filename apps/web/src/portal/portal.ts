@@ -7,7 +7,8 @@ import { buildPulse, pulseRailEl } from "./panels/pulse";
 import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
-import { cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
+import { densityToggleRow } from "./densityToggle";
+import { readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { safetyClassLine, safetyHeadline } from "./safetyCard";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
@@ -128,7 +129,7 @@ export class PortalUI {
       __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
-      __workqueue__: () => this.renderWorkQueue(),
+      __workqueue__: () => this.renderWorkQueue(), __prefabkits__: () => this.renderPrefabKits(),
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
       __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
       __topicboard__: () => this.renderTopicBoard(),
@@ -579,6 +580,7 @@ export class PortalUI {
   private async renderEvm() { return (await import("./panels/evm")).renderEvm(this.panelCtx()); }
   private async renderResourceLoading() { return (await import("./panels/resourceLoading")).renderResourceLoading(this.panelCtx()); }
   private async renderWip() { return (await import("./panels/wip")).renderWip(this.panelCtx()); }
+  private async renderPrefabKits() { return (await import("./panels/prefabKitsPanel")).renderPrefabKits(this.panelCtx()); }
   private async renderLedger() { return (await import("./panels/ledger")).renderLedger(this.panelCtx()); }
   private async renderTraceability() { return (await import("./panels/traceability")).renderTraceability(this.panelCtx()); }
 
@@ -789,19 +791,7 @@ export class PortalUI {
 
     // command-center density: Field 56 / Comfortable 36 / Compact 28, applied to registers too.
     this.applyDensity();
-    const densRow = el("div"); densRow.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:4px";
-    const densBtn = el("button", "tool-btn") as HTMLButtonElement;
-    densBtn.style.cssText = "font-size:11px;padding:2px 8px";
-    const paintDens = () => {
-      const d = readDensity();
-      densBtn.textContent = d === "field" ? "☐ Field" : d === "compact" ? "⊟ Compact" : "⊞ Comfortable";
-      densBtn.title = "Cycle Field (56 px) → Comfortable (36 px) → Compact (28 px). Applies to registers.";
-      densBtn.setAttribute("aria-pressed", String(d !== "comfortable"));
-    };
-    densBtn.onclick = () => { cycleDensity(); this.applyDensity(); paintDens(); };
-    paintDens();
-    densRow.append(densBtn);
-    root.append(densRow);
+    root.append(densityToggleRow(() => this.applyDensity()));
 
     // UX-READINESS-EVERYWHERE — the 8-step brief used to live only on Design → Master Builder.
     // Mount a scoped strip on every home (GC / design / developer all pass through here) so

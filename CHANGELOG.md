@@ -12,6 +12,185 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Pedestrian wind comfort, screened from the massing
+
+**📐 Design Metrics** now carries a **pedestrian wind comfort** screen. Give it a height, width and
+depth — or leave them blank and they come off the model's bounding box — plus the site's mean
+pedestrian-level wind, and it grades corner acceleration, downwash and channelling against the
+**Lawson comfort categories**, lists the zone speeds, and names the standard mitigations: corner
+chamfers, a podium, an entrance canopy, porous screens in a passage.
+
+It answers in a second, which is the point: massing decides most pedestrian wind outcomes, and a
+wind-tunnel study arrives long after the massing is fixed. **It is a screening heuristic, not CFD
+and not a wind study** — no external service, no simulation licence, no weeks of turnaround — and it
+says so on every result.
+
+Three things it will not do. It will not call a result acceptable when a check did not run —
+channelling is only looked at if you give it the gap to the neighbouring building, and without that
+the screen says plainly that it is partial. It will not let the default site wind pass as a
+measurement, because every speed on the screen scales directly with it. And when the dimensions came
+off the model it says so, since a bounding box spans the site and context geometry as well as the
+building.
+
+### Buyout packages can be kept, and their RFQs sent
+
+**Budget → Buyout packages** has always grouped the model's priced quantities into packages, each
+with an RFQ scope. There was no way to keep them: the grouping vanished when you navigated away, and
+the buyout workflow it feeds — draft → RFQ sent → quotes in → awarded — could not be reached from the
+screen that produces its input.
+
+Keeping them now creates one **Buyout Packages** record per group, in draft, visible to the whole
+project and quotable by ref; each one then offers **Send RFQ**, which mints a Bid Solicitation
+carrying the package's name, trade and due date and moves the package to RFQ sent. The confirmation
+says what is being created before it is created, and re-grouping and keeping again is described as
+adding a second set rather than replacing the first, because that is what it does.
+
+Two refusals are reported rather than hidden. A grouping that produced nothing is reported as nothing
+kept, not as a save of zero. And because the server mints a solicitation whether or not the package
+was still in draft, a send that does **not** move the package says so and names the state it is
+actually in — so a second send cannot look like a first one.
+
+### An authority's data requirements can now be imported, applied and checked
+
+A **requirement pack** is a set of data requirements published by an authority for a jurisdiction —
+what a submitted model has to carry before it will be accepted. The whole mechanism was built and
+none of it could be reached from the app: not the shared library, not the import, not the delete,
+and not the two reads that apply a pack to a project and check the model against it.
+
+All of it is now under **CDE / Standards → Data requirements (jurisdiction)**. Packs resolve from
+the project's jurisdiction; a project with none is told so rather than given a default, because
+requirements from the wrong authority are a different answer that looks exactly like the right one.
+Every pack must carry its **authority, edition and source** before it can be stored, and every
+result says whose rules produced it — a compliance number detached from that is the kind that gets
+quoted at somebody. The built-in demonstration pack is labelled as one wherever its results appear,
+so it can never be mistaken for a finding. An import that is refused shows the server's own reason,
+which names the missing citation or the exact selector that would have silently matched nothing.
+
+### The triangle census offered a saving you could not take
+
+Model QA → Standards has always measured where a model's triangle budget goes and told you what a
+coarse stand-in would save — *"proxy would save 47%"*. There was no way to build it.
+
+There is now, in the same place the saving is quoted. It writes a **separate** file beside the
+model; the model itself is untouched, and every box in the proxy is stamped as a stand-in that must
+not be measured, scheduled or priced — a coarse shape mistaken for real geometry is worse than no
+coarse shape at all. When a model has nothing worth replacing, the button is absent and says why
+instead, and a build that stores nothing reports that plainly rather than as a success.
+
+### Prefab kits are on the screen, and a released kit's scope can finally be written down
+
+The prefab-kit register was built and had no way in. Every kit, worst first, now appears under
+**Work → Prefab Kits**: its scope, its bill of materials, and the specific things blocking it, in
+the order the shop cares about — a kit whose released scope has *drifted* from the model outranks
+one that is merely late, because a late kit is a known problem and a drifted one is an unknown
+wrong one.
+
+The write that matters is **writing the scope**. Until a kit's scope is written down it is a
+selector — a live query against the model — and a released kit in that state hands the shop
+something that can change under it without anyone being told. Writing it resolves the selector once
+and records the exact list of elements, after which any divergence is reported here instead of
+silently changing what is being fabricated. Re-writing a scope says so plainly, because it can
+change what a fabricator is already building.
+
+The register refuses to write a scope that is empty, that comes from a selector which does not
+parse, or that was cut short by a result cap — the last being the one nobody would notice, since
+the count looks plausible and the list is quietly short. When no model is loaded the panel says the
+figures cannot be checked rather than showing zeroes, which would be a wrong answer in the shape of
+a right one.
+
+### You can share a saved view — and delete now tells the truth about it
+
+Saved views on a register could already be shared with the whole project. The app just never offered
+it, so every view anyone made here was private whether they wanted it or not. Saving one now asks.
+
+Three related things were wrong and are fixed together. Shared views from colleagues looked exactly
+like your own private filters in the dropdown — they now say whose they are. The delete list offered
+every view on screen, including other people's, which the server refuses; picking one reported *"was
+already gone"* and then it was still there. It now offers only views you can actually delete. And the
+confirmation claimed a view was *"yours alone"* even when deleting it would remove it for everyone
+using it — it now says which.
+
+### A lender draw package shows the schedule of values it was computed from
+
+Generating a G702 draw package reported the payment due and how many schedule-of-values lines were
+created, and stopped there. Two things it had already worked out went unseen: the G703 totals the
+certificate is computed from — completed to date, retainage held, balance to finish — and the deal's
+returns re-forecast with your actuals folded in.
+
+That second one is the entire point of running the draw off the underwriting model: it answers "is
+this still the deal we signed?" Both are now on screen beside the payment due.
+
+### A pro forma now says how much of it you actually supplied
+
+Solve a deal and Massing reports an equity IRR, a yield on cost, a development spread. Some of the
+inputs behind those are yours; the rest the engine filled in with defaults. Until now the screen
+could not tell you which, even though it had the answer — the server works it out on every single
+solve and the app was discarding it.
+
+Under the underwriting guardrails you'll now see a line like *"4 inputs behind these 6 figures were
+defaulted by the engine: exit.cap_rate, debt.rate, ..."*, or confirmation that every input was
+declared. It doesn't change any number. It tells you which numbers are worth arguing about, which is
+the difference between a pro forma you can review and one you can only read.
+
+If your server is older and doesn't send the breakdown, the line is omitted rather than claiming
+everything was declared.
+
+### A mistyped spec section is now caught while you can still fix it
+
+Attaching a MasterFormat or UniFormat code to an element used to be typing into an empty box with an
+example beside it. `80 51 00` instead of `08 51 00` — two digits swapped, into a division that does
+not exist — was accepted without comment and became a permanent classification on that element.
+
+Massing already knew the answer: the server publishes the full MasterFormat division master and the
+UniFormat-to-MasterFormat crosswalk, and the app was throwing both away as they arrived. It now
+reads your code back to you as you name it: *"Division 08 · Openings (Architectural)"* for a section
+it recognises, and a warning for one it does not. UniFormat codes get the crosswalk — *"B20 ·
+Exterior Enclosure → MasterFormat 04, 07, 08"* — so you can see what an element will be bought
+through.
+
+It warns, it never blocks: MasterFormat reserves whole ranges for divisions you define yourself, and
+those are legitimate codes. If the reference can't be reached, classifying works exactly as before.
+
+### Sealing a project now tells you the key people need to check it
+
+When you save a project as a sealed `.mass` file, Massing signs it so that anyone else can confirm
+the file is authentic and unaltered. The dialog said exactly that — and then could not tell you
+which verification key to publish, because the app was never given it. It now names the issuer and
+prints the key alongside, so you can hand it to whoever needs to check your releases. On a server
+with sealing switched on but no signing key configured, nothing is shown, because there would be
+nothing to verify against.
+
+### The offline cost baseline can now actually be installed
+
+The budget panel has been telling cost managers that an offline cost baseline is *"installable — no
+subscription"*, and the app had no way to install one. The server has always had the importer; no
+screen ever called it.
+
+It is now in Profile & settings → Administration, under Server. It is deliberately not on the budget
+card: installing a vintage reprices **every project that has not pinned one**, which is a server-wide
+change and not something to offer beside one project's numbers. The budget card now names who can do
+it instead of implying you can. The confirmation spells out the consequence, and projects with a
+pinned vintage are unaffected.
+
+### SAML single sign-on now works, and has a button
+
+If your organisation runs its own identity provider — Okta, Entra ID, Ping, Google Workspace as a
+SAML IdP, anything that speaks SAML 2.0 — Massing could already be configured to accept it, and the
+sign-in screen still had nowhere to click. Worse, a server with SAML configured and no OAuth
+provider showed a note advising you to set up Google or Microsoft sign-in instead, which was the
+opposite of the truth. The login window now leads with **Continue with single sign-on** whenever
+your server has an IdP configured and your plan includes SSO.
+
+Two things had to be true for that button to be worth adding, and only one of them was. Signing in
+through SAML had never actually worked: the server verified the assertion, created or found the
+account, issued a valid session — and then stored it under a name the rest of the server does not
+read, so the browser came back to Massing still signed out. The automated test covering that flow
+checked that *a* session cookie was written, using the same wrong name the code did, so it reported
+success for a sign-in that had never once let anybody in. Both are fixed; the test now asks the
+server who it thinks you are, which is a question no spelling mistake can answer correctly.
+
+If you had SAML configured and gave up on it, it is worth another try.
+
 ### A check that looks for unreachable features stopped being fooled by coincidences
 
 Massing has an automated check whose job is to notice when part of the server ships with nothing in
