@@ -17,7 +17,7 @@ import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import {
   methodGate, refusal, claimHeadline, eventFinding, concurrencyNote, coverageNote,
-  provenanceLine, sourcedRefusal,
+  provenanceLine, sourcedRefusal, sourcedNeedsFinish, attributionSummary,
 } from "./eotClaim";
 import type { EotResult, EotSourced } from "../../api/schedule";
 
@@ -115,10 +115,18 @@ function draw(r: EotResult | undefined, s: EotSourced | null): string {
   const refused = refusal(r);
   const head = `<div style="font-weight:700;color:${refused ? "#9a6700" : "#1a7f37"}">`
     + `${esc(claimHeadline(r))}</div>`;
+  // The one missing input, named — before the generic refusal, which would otherwise read as
+  // "the captured baseline did not work".
+  const needs = s ? sourcedNeedsFinish(s) : null;
+  const needsLine = needs ? `<div class="meta" style="margin-top:6px">${esc(needs)}</div>` : "";
   const prov = `<div class="meta" style="margin-top:6px">${esc(provenanceLine(s))}</div>`;
+  // Slip and attribution are measured whatever the entitlement did, so they are shown on a refusal
+  // too. A sourced run that renders as nothing but a refusal throws away the auditable half.
+  const att = s && attributionSummary(s)
+    ? `<div class="meta" style="margin-top:6px">${esc(attributionSummary(s)!)}</div>` : "";
   const cover = (s ? coverageNote(s) : [])
     .map((c) => `<div class="meta" style="margin-top:6px;color:#9a6700">⚠ ${esc(c)}</div>`).join("");
-  if (refused) return head + prov + cover;
+  if (refused) return head + needsLine + prov + att + cover;
 
   const rows = (r.events || []).map((e) =>
     `<tr><td>${esc(e.id)}</td><td>${esc(e.kind || "—")}</td>`
@@ -132,7 +140,7 @@ function draw(r: EotResult | undefined, s: EotSourced | null): string {
       + `</tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="meta" style="margin-top:8px">No events reached the analysis.</div>`;
 
-  return head + prov + cover + table
+  return head + prov + att + cover + table
     + `<div class="section-title" style="margin:10px 0 4px">Concurrency</div>`
     + `<div class="meta">${esc(concurrencyNote(r))}</div>`
     + (r.note ? `<div class="meta" style="margin-top:8px;opacity:.8">${esc(r.note)}</div>` : "");

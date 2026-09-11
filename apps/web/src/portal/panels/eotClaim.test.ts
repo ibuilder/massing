@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   methodGate, refusal, claimHeadline, eventFinding, concurrencyNote, coverageNote,
-  provenanceLine, sourcedRefusal,
+  provenanceLine, sourcedRefusal, sourcedNeedsFinish, attributionSummary,
 } from "./eotClaim";
 import type { EotResult, EotSourced, EotEvent } from "../../api/schedule";
 
@@ -237,5 +237,68 @@ describe("the sourced path's own refusal", () => {
     const r = sourcedRefusal({ status: "baseline_required", baselines_available: [] })!;
     expect(r).toContain("Capture one first");
     expect(r).toContain("not auditable");
+  });
+});
+
+describe("a sourced run that cannot compute the entitlement still measured the slip", () => {
+  // Found in review on PR #530. Clicking "analyse from the captured baseline" with the finish date
+  // blank DOES return baseline_required — the finding was right. The proposed remedy (have the
+  // server derive the finish from the baseline) was declined: `eot_sourced` forbids it in its own
+  // words, because a captured baseline snapshots PER-ACTIVITY dates and carries no project
+  // completion date. There is nothing to read there, only something to invent.
+  const refusedRun: EotSourced = {
+    baseline: { id: "b1", name: "GMP", captured_at: "2026-01-04T00:00:00Z" },
+    attribution: { activities: [], attributed_days: 12, unattributed_days: 4, unattributed: [],
+                   needs_duration: [], events_without_activity: 0, note: "" },
+    events_detected: 5, events_quantified: 3,
+    analysis: { ...OK, status: "baseline_required", eot_days: null },
+  };
+
+  it("names the ONE missing input rather than letting the refusal read as a broken baseline", () => {
+    const n = sourcedNeedsFinish(refusedRun)!;
+    expect(n).toContain("GMP");
+    expect(n).toContain("that half is done and auditable");
+    expect(n).toContain("baseline COMPLETION date");
+  });
+
+  it("says why the server will not infer it, which is a refusal and not a gap", () => {
+    const n = sourcedNeedsFinish(refusedRun)!;
+    expect(n).toContain("will not");
+    expect(n).toContain("invent the very input");
+  });
+
+  it("says nothing once the entitlement was computed", () => {
+    expect(sourcedNeedsFinish({ ...refusedRun, analysis: OK })).toBeNull();
+  });
+
+  it("does not fire for a DIFFERENT refusal — those need something else", () => {
+    expect(sourcedNeedsFinish({ ...refusedRun,
+      analysis: { ...OK, status: "method_needs_schedule_updates", eot_days: null } })).toBeNull();
+  });
+
+  it("reports the measured figures, which stand whatever the entitlement did", () => {
+    const a = attributionSummary(refusedRun)!;
+    expect(a).toContain("12 days of slip attributed");
+    expect(a).toContain("4 unattributed");
+    expect(a).toContain("5 events detected, 3 carrying a duration");
+  });
+
+  it("omits the unattributed clause when there is none", () => {
+    const a = attributionSummary({ ...refusedRun,
+      attribution: { ...refusedRun.attribution!, unattributed_days: 0 } })!;
+    expect(a).not.toContain("unattributed");
+  });
+
+  it("does NOT vouch for a number that was never computed", () => {
+    // provenanceLine's "re-derivable" is scoped to what was actually derived.
+    const p = provenanceLine(refusedRun);
+    expect(p).toContain("Slip measured against the captured baseline GMP");
+    expect(p).toContain("entitlement itself was NOT computed");
+  });
+
+  it("vouches plainly once the entitlement DID compute", () => {
+    const p = provenanceLine({ ...refusedRun, analysis: OK });
+    expect(p).toContain("re-derivable");
+    expect(p).not.toContain("NOT computed");
   });
 });

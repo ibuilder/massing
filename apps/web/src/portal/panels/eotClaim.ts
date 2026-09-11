@@ -176,9 +176,51 @@ export function provenanceLine(s: EotSourced | null): string {
       + "that leaves this screen.";
   }
   const b = s.baseline;
-  return `Measured against the captured baseline ${b?.name || "(unnamed)"}`
+  const head = `Slip measured against the captured baseline ${b?.name || "(unnamed)"}`
     + `${b?.captured_at ? `, taken ${String(b.captured_at).slice(0, 10)}` : ""}`
-    + `, with causes from the project's own detected events. Both are re-derivable.`;
+    + ", with causes from the project's own detected events — both re-derivable.";
+  // The claim of re-derivability is scoped to what was actually derived. When the entitlement was
+  // refused, extending it to "the number" would vouch for a figure that does not exist.
+  return s.analysis?.status === "analysed" ? head
+    : `${head} The entitlement itself was NOT computed — see above.`;
+}
+
+/**
+ * What a SOURCED run establishes when the entitlement was refused for want of a baseline finish.
+ *
+ * **Found in review on PR #530, and the reviewer's remedy was declined.** Clicking "analyse from the
+ * captured baseline" with the date blank does return `baseline_required` — that part of the finding
+ * is right. The proposed fix was to have the server derive the finish from the baseline, and
+ * `eot_sourced` forbids exactly that in its own words: *"deriving a project completion date here by
+ * taking max(activity finish) would be this module inventing the very input it exists to make
+ * auditable."* A captured baseline is a snapshot of PER-ACTIVITY dates; it carries no project
+ * completion date, so there is nothing to read — only something to invent.
+ *
+ * So the gap is real and it is a gap in what the screen SAYS. The run is not wasted: slip and
+ * attribution are measured and auditable whatever the entitlement did. This names the one missing
+ * input rather than letting a `baseline_required` read as "the captured baseline did not work".
+ */
+export function sourcedNeedsFinish(s: EotSourced): string | null {
+  if (s.analysis?.status !== "baseline_required") return null;
+  const b = s.baseline?.name || "the captured baseline";
+  return `The slip below IS measured against ${b} — that half is done and auditable. The `
+    + "entitlement needs one thing more: the project's baseline COMPLETION date. A captured "
+    + "baseline snapshots per-activity dates and carries no project finish, and the server will not "
+    + "infer one from the latest activity — that would invent the very input this path exists to "
+    + "make checkable. Put the contract completion date in Baseline finish and run it again.";
+}
+
+/** The measured figures, which stand whether or not the entitlement was computed. */
+export function attributionSummary(s: EotSourced): string | null {
+  const a = s.attribution;
+  if (!a) return null;
+  const parts = [`${a.attributed_days} day${a.attributed_days === 1 ? "" : "s"} of slip attributed`];
+  if (a.unattributed_days) {
+    parts.push(`${a.unattributed_days} unattributed`);
+  }
+  parts.push(`${s.events_detected || 0} event${s.events_detected === 1 ? "" : "s"} detected, `
+    + `${s.events_quantified || 0} carrying a duration`);
+  return parts.join(" · ");
 }
 
 /** The sourced path's own refusal — a missing baseline is not a missing number. */
