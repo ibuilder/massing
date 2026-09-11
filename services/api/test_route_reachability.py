@@ -298,7 +298,7 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/rules/effective",
     "/projects/{pid}/scene/manifest",
     "/webhooks/deliveries",
-    # ---- 7 of 8, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
+    # ---- 6 of 8, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
     # NOT follow a leaf to an allowlist of what MAY (see `_SEGMENT` for the measurement: +8, 0 lost).
     # Every one of these was vouched for by an English sentence that happened to start with the
     # leaf — "packs failed: …", "seeded from MasterFormat classifications", "coordinate the
@@ -319,13 +319,23 @@ KNOWN_UNCALLED: set[str] = {
     # against -- so it was built rather than recorded. Its two siblings were never assessed at all
     # (leaf `kits`, under MIN_SEGMENT), and they now have callers too. *A frozen entry is a debt
     # with a name on it, which is why this one could be paid.*
+    #
+    # **A SECOND left the same day: `/projects/{pid}/model/lod/proxy`.** That one was not merely dark,
+    # it was dark beside a PROMISE — `lodCensus` returns `plan.pct_saved` and the standards panel has
+    # rendered *"proxy would save N%"* since the census shipped, with no way to act on it. Same shape
+    # as the budget card's "1 offline baseline(s) installable" that started this whole line of work.
+    #
+    # **Triage first, though: not every frozen route here is a gap.** `/projects/{pid}/georeference`
+    # was read and DELIBERATELY not wired — "/projects/{pid}/models/georeferencing" already has a
+    # caller and returns strictly more (a LoGeoRef level, its label, the map conversion, the CRS and
+    # the site), so wiring the simpler one would add a second answer to one question. *A dark route
+    # can be a duplicate rather than a hole, and the gate cannot tell the difference.*
     "/codes/seeded",
     "/jurisdiction/packs",
     "/jurisdiction/packs/{pack_id}",
     "/projects/{pid}/clash/coordinate",
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
-    "/projects/{pid}/model/lod/proxy",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

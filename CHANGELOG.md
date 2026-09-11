@@ -12,6 +12,17 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The triangle census offered a saving you could not take
+
+Model QA → Standards has always measured where a model's triangle budget goes and told you what a
+coarse stand-in would save — *"proxy would save 47%"*. There was no way to build it.
+
+There is now, in the same place the saving is quoted. It writes a **separate** file beside the
+model; the model itself is untouched, and every box in the proxy is stamped as a stand-in that must
+not be measured, scheduled or priced — a coarse shape mistaken for real geometry is worse than no
+coarse shape at all. When a model has nothing worth replacing, the button is absent and says why
+instead, and a build that stores nothing reports that plainly rather than as a success.
+
 ### Prefab kits are on the screen, and a released kit's scope can finally be written down
 
 The prefab-kit register was built and had no way in. Every kit, worst first, now appears under

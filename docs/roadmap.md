@@ -1752,6 +1752,35 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- ✅ **LOD-PROXY — a saving quoted on screen with no way to take it**
+  *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*
+
+  `lodCensus` returns `plan.pct_saved` and `apps/web/src/portal/panels/standards.ts` has rendered it
+  since the census shipped — *"proxy would save N%"* — while `POST /projects/{pid}/model/lod/proxy`
+  had no client method at all. **The same promise-with-no-affordance shape as the budget card's "1
+  offline baseline(s) installable"**, found the same way: newly visible once the reachability gate
+  stopped letting English vouch for a route.
+
+  The button now sits where the saving is quoted. `apps/web/src/portal/panels/lodProxy.ts` holds the
+  rules — 9 tests, four mutations all biting. Two of them are about refusals: the offer is **absent
+  with a reason** when a model has nothing worth proxying or the census measured no saving, and a
+  response with `stored: false` is reported as the refusal it is. That second one matters because the
+  server returns it as a **200** — its own comment says *"a 'successful' export of nothing gets
+  believed"* — so a client that treats a resolved promise as success would print the opposite of what
+  happened.
+
+  **TRIAGE FIRST, and it changed what got built.** Of the eight routes frozen by UNREACHED-IMPORT,
+  `/projects/{pid}/georeference` was read and **deliberately not wired**: `/projects/{pid}/models/
+  georeferencing` already has a caller and returns strictly more — a LoGeoRef level, its label, the
+  map conversion, the CRS and the site. Wiring the simpler one would have added a second answer to
+  one question. *A dark route can be a duplicate rather than a hole, and the gate cannot tell the
+  difference — reading the handler is what tells them apart.*
+
+  Still frozen and still untriaged: `/codes/seeded`, the three `/jurisdiction/packs` routes,
+  `/projects/{pid}/clash/coordinate` and `/projects/{pid}/documents/template`. The clash one looks
+  like the highest value of those — it is the write that turns a detection run into tracked
+  coordination issues, the same transient-to-record shape as the prefab freeze.
+
 - ✅ ⭐ **PREFAB-DARK — an entire feature with no way in**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py` and
   `apps/web/src/api/clientCallers.test.ts`)*
