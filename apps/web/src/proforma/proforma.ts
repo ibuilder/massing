@@ -3,6 +3,7 @@ import { escapeHtml } from "../ui/feedback";
 import { askText } from "../ui/prompt";
 import { signedBars, donut, lineChart, stackedBar, tornado, groupedBar, money as cmoney } from "../ui/charts";
 import { showQrModal } from "../ui/qr";
+import { provenanceLine } from "./provenanceLine";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { renderTestFitTab } from "./testfitTab";
@@ -1757,6 +1758,27 @@ export class ProformaUI {
         gc.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:1px 0"><span style="color:${col}">${f.level === "info" ? "✓" : "△"}</span> ${f.message}</div>`);
       }
       host.appendChild(gc);
+    }
+    // How much of the answer above rests on numbers nobody supplied. The server computes this on
+    // every solve and the client type had omitted it, so a deal could report an equity IRR with no
+    // way to tell an underwritten input from an engine default — which is what makes a pro forma
+    // reviewable or not. Sits under the guardrails because it is the same kind of caveat.
+    const prov = provenanceLine(r.provenance);
+    if (prov) {
+      const pc = card();
+      pc.appendChild(Object.assign(document.createElement("div"),
+        { className: "section-title", textContent: "Input provenance" }));
+      const col = prov.level === "warn" ? "var(--status-warn)" : "var(--status-good)";
+      const line = Object.assign(document.createElement("div"), { className: "meta" });
+      line.style.margin = "1px 0";
+      const mark = Object.assign(document.createElement("span"),
+        { textContent: prov.level === "warn" ? "△ " : "✓ " });
+      mark.style.color = col;
+      // textContent, not innerHTML: `defaulted_inputs` are assumption paths from the request body,
+      // so they are caller-controlled strings and have no business being parsed as markup.
+      line.append(mark, document.createTextNode(prov.text));
+      pc.appendChild(line);
+      host.appendChild(pc);
     }
   }
 

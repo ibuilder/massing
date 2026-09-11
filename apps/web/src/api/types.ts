@@ -524,6 +524,34 @@ export interface ProformaResult {
   waterfall: { lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number; lp_distributions: number; gp_distributions: number; style: string };
   cash_flow: { dates: string[]; equity: number[]; project: number[]; noi_monthly: number[] };
   guardrails?: { ok: boolean; flags: { level: "high" | "med" | "info"; metric: string; message: string }[] };
+  /** Input provenance: for every headline figure, which assumptions the CALLER declared and which
+   *  the ENGINE defaulted. Computed on every solve and, until now, undeclared here — so a deal
+   *  showed an IRR with no way to say how much of it rested on numbers nobody supplied.
+   *  `defaulted_inputs` is the server's own "the number a reviewer actually wants". */
+  provenance?: ProformaProvenance;
+}
+
+/** @see ProformaResult.provenance — `services/api/src/aec_api/proforma/provenance.py`. */
+export interface ProformaProvenance {
+  figure_count: number;
+  /** How many figures rest on each basis: `declared` | `defaulted` | `mixed` | `none`. */
+  by_basis: Record<string, number>;
+  /** Every assumption path the engine had to default, deduped across figures and sorted, so two
+   *  runs of the same deal diff cleanly. */
+  defaulted_inputs: string[];
+  defaulted_input_count: number;
+  figures: Record<string, {
+    value: number | null;
+    basis: string;
+    declared: { path: string; value: unknown }[];
+    defaulted: { path: string; value: null }[];
+    declared_count: number;
+    defaulted_count: number;
+    /** Always null, with the reason beside it — never a guessed terminus. */
+    element_link: null;
+    element_link_reason: string;
+  }>;
+  note: string;
 }
 
 export interface ProformaForecast {

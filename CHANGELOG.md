@@ -12,6 +12,21 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A pro forma now says how much of it you actually supplied
+
+Solve a deal and Massing reports an equity IRR, a yield on cost, a development spread. Some of the
+inputs behind those are yours; the rest the engine filled in with defaults. Until now the screen
+could not tell you which, even though it had the answer — the server works it out on every single
+solve and the app was discarding it.
+
+Under the underwriting guardrails you'll now see a line like *"4 inputs behind these 6 figures were
+defaulted by the engine: exit.cap_rate, debt.rate, ..."*, or confirmation that every input was
+declared. It doesn't change any number. It tells you which numbers are worth arguing about, which is
+the difference between a pro forma you can review and one you can only read.
+
+If your server is older and doesn't send the breakdown, the line is omitted rather than claiming
+everything was declared.
+
 ### A mistyped spec section is now caught while you can still fix it
 
 Attaching a MasterFormat or UniFormat code to an element used to be typing into an empty box with an

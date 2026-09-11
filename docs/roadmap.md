@@ -1406,7 +1406,7 @@ instances:
   bigger than the one remaining instance.
 
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 12 fixed, 3 open**)*
+  2026-09-11; **all 15 triaged, 13 fixed, 2 open**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,7 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Twelve are fixed (below); the three still open are listed after them.**
+  **TRIAGE: all 15 read. Thirteen are fixed (below); the two still open are listed after them.**
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1608,7 +1608,21 @@ instances:
   written for tomorrow's* — the competing rows are now in the fixture, and the third undeclared key,
   the flat `disciplines` catalog, is what names the discipline a division rolls up to.
 
-  **THE THREE STILL OPEN** — and only one is the "invisible field" this item was scoped around.
+  **A THIRTEENTH — the caveat that decides whether a number can be relied on.** `POST /proforma/solve`
+  computes `provenance` on every solve: for each headline figure, which assumptions the CALLER
+  declared and which the ENGINE defaulted, plus `defaulted_inputs`, which the server's own comment
+  calls *"the number a reviewer actually wants"*. The client declared seven keys without it, so a
+  deal screen reported an equity IRR with no way to tell an underwritten input from a placeholder.
+  **That is not a wrong number, it is an unreviewable one.** `provenanceLine` in
+  `apps/web/src/proforma/provenanceLine.ts` now sits under the underwriting guardrails — same kind
+  of caveat, same place — naming up to six defaulted paths and counting the rest. It returns **null**
+  on a missing `provenance` rather than the all-declared line, because an absent caveat must read as
+  absent: asserting "every input was declared" from the absence of evidence is the opposite claim, on
+  the one screen where the distinction decides whether the figure can be relied on. Six mutations,
+  all biting. The paths are caller-supplied strings from the request body, so the line is built with
+  `textContent`, never `innerHTML`.
+
+  **THE TWO STILL OPEN** — and neither is quite the "invisible field" this item was scoped around.
   One needs *declare **and** render*, not just declare:
 
   * *server ships, client dark* — `/modules/{key}/views` returns `scope`, `owner` and `mine`
@@ -1620,8 +1634,6 @@ instances:
     this axis measures.)*
   * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
     schedule of values behind a pay application) nor `forecast_returns`.
-  * *computed-then-invisible caveat* — `/proforma/solve` derives `provenance` for its inputs and the
-    client declares seven keys without it.
 
   **A SEPARATE FINDING, not folded in: 106 dict-returning routes have NO typed client call site.**
   That is a different question from the "19 route handlers have no web client" counted below by a

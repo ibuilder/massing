@@ -69,7 +69,6 @@ const CONTROL = "GET /projects/{}/verification/coverage";
 const KNOWN_GAPS: Record<string, string[]> = {
   "POST /projects/{}/modules/{}/views": ["mine", "owner", "scope"],
   "POST /proforma/scenarios/{}/draw-package": ["forecast_returns", "g703_totals"],
-  "POST /proforma/solve": ["provenance"],
 };
 
 /** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a
