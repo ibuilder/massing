@@ -212,8 +212,14 @@ export async function renderBudget(ctx: PanelContext) {
     btn.textContent = "💾 Keep these packages";
     btn.title = "Store each group as a Buyout Packages record the project can track";
     btn.onclick = async () => {
-      if (!(await confirmModal("Keep buyout packages", saveConfirm(pkgs, groupedBy), "Keep"))) return;
+      // Disabled BEFORE the await, not after the confirmation. The modal's backdrop stops a mouse
+      // reaching this button, but focus only moves into the dialog on the next macrotask, so a held
+      // Enter can fire this handler twice and open two dialogs -- and neither endpoint is
+      // idempotent: save creates records on every request. Restored on cancel, and on failure below.
       btn.disabled = true;
+      if (!(await confirmModal("Keep buyout packages", saveConfirm(pkgs, groupedBy), "Keep"))) {
+        btn.disabled = false; return;
+      }
       let saved;
       try {
         saved = await ctx.host.api.saveBuyoutPackages(pid, lines, groupedBy);
@@ -266,8 +272,8 @@ export async function renderBudget(ctx: PanelContext) {
     const btn = document.createElement("button"); btn.className = "tool-btn";
     btn.textContent = `📨 Send RFQ — ${pkg.ref}`;
     btn.onclick = async () => {
-      if (!(await confirmModal("Send RFQ", rfqConfirm(pkg), "Send"))) return;
-      btn.disabled = true;
+      btn.disabled = true;                 // same reason as the keep button above
+      if (!(await confirmModal("Send RFQ", rfqConfirm(pkg), "Send"))) { btn.disabled = false; return; }
       let sent;
       try {
         sent = await ctx.host.api.sendPackageRfq(pid, String(pkg.id));
@@ -280,7 +286,10 @@ export async function renderBudget(ctx: PanelContext) {
       // unconditionally and transitions only a draft package, so a resolved promise does NOT mean
       // the package moved -- and rfqSummary is what says which happened.
       ctx.host.setStatus(rfqSummary(sent));
-      row.replaceWith(rfqButton({ ...pkg, ...{ state: sent.package_state ?? "rfq_sent" } } as
+      // NOT `?? "rfq_sent"`. When the server reports no state, rfqSummary above has just told the
+      // reader the package did NOT move -- redrawing it as sent would contradict that in the same
+      // breath. `unknown` is carried through instead, and rfqGate refuses on it with its own reason.
+      row.replaceWith(rfqButton({ ...pkg, ...{ state: sent.package_state || "unknown" } } as
         SavedPackage & { state: string }));
     };
     row.appendChild(btn);

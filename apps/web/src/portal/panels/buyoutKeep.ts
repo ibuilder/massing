@@ -101,6 +101,14 @@ export function rfqGate(pkg: { id?: string | number | null; state?: string | nul
     return { can: false, why: "this package has not been kept yet, so there is nothing to send" };
   }
   const state = (pkg.state || "draft").toLowerCase();
+  // An explicit `unknown` is NOT "already sent": the server answered without a state, so what the
+  // package is now is exactly what nobody knows. Saying "its RFQ has gone out" would assert the one
+  // thing the response failed to establish, so it gets its own refusal pointing at a reload.
+  if (state === "unknown") {
+    return { can: false,
+             why: "the server did not report this package's state after the last send — reload the "
+                  + "register before sending again" };
+  }
   if (state !== "draft") {
     return { can: false,
              why: `this package is already ${state.replace(/_/g, " ")} — its RFQ has gone out` };

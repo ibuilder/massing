@@ -118,6 +118,17 @@ describe("the double-send trap", () => {
     expect(rfqGate({ id: 41, state: "awarded" }).can).toBe(false);
   });
 
+  it("refuses an UNKNOWN state with its own reason, not 'already sent'", () => {
+    // Found in review on PR #528. The panel carries `unknown` through when the server answered
+    // without a state; saying "its RFQ has gone out" would assert the one thing that response
+    // failed to establish.
+    const g = rfqGate({ id: 41, state: "unknown" });
+    expect(g.can).toBe(false);
+    expect(g.why).toContain("did not report");
+    expect(g.why).toContain("reload");
+    expect(g.why).not.toContain("gone out");
+  });
+
   it("reports a successful send as the move it made", () => {
     const s = rfqSummary({ solicitation: { id: 7, ref: "ITB-0007" }, package: "PKG-0001",
                            package_state: "rfq_sent" });
