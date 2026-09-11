@@ -1406,7 +1406,7 @@ instances:
   bigger than the one remaining instance.
 
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 11 fixed, 4 open**)*
+  2026-09-11; **all 15 triaged, 12 fixed, 3 open**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,7 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Eleven are fixed (below); the four still open are listed after them.**
+  **TRIAGE: all 15 read. Twelve are fixed (below); the three still open are listed after them.**
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1584,8 +1584,32 @@ instances:
   *Two guards that always fire together are one guard as far as the tests can tell* — the state is
   now constructed deliberately and pinned.
 
-  **THE FOUR STILL OPEN**, in four categories — and only one is the "invisible field" this item was
-  scoped around. One needs *declare **and** render*, not just declare:
+  **A TWELFTH — and this one had somewhere to land.** `/reference/disciplines` returns four payloads
+  and `disciplineTree()` declared `{ tree }`, so the MasterFormat division master and the
+  Uniformat↔MasterFormat crosswalk arrived and were dropped at the `.then`. Both exist nowhere else
+  in this shape: `tree.disciplines[].divisions` carries only the subset under one discipline, and
+  nothing in the client knew that B2020 buys out of Division 08. **What that cost is visible at the
+  Detailing panel**, which asks for a spec section with the hint *"e.g. 08 51 00"* and had nothing to
+  read the answer against — so `80 51 00`, a transposition into a division that does not exist, was
+  accepted in silence and became a classification on an IFC element. `codeAnnotation` in
+  `apps/web/src/api/classificationRef.ts` now answers the title prompt with *"Division 08 · Openings
+  (Architectural)"*, or a ⚠ when the master does not carry the division. It never refuses: MasterFormat
+  reserves 48–49 and the 80s–90s for user-defined divisions, so an unrecognised one is worth saying
+  and not worth blocking, and a reference that fails to load must not block classifying either.
+
+  Two things the fix ran into. The client now makes **one** cached request where a second accessor
+  would have made two — but factoring the cache into a private helper made
+  `apps/web/src/api/clientCallers.test.ts` report a client method no screen can reach, because that
+  gate reads the application OUTSIDE `api/` and a helper called only from inside it looks exactly
+  like an unwired endpoint. *The honest fix was to not create the method, rather than to exempt it.*
+  And **a mutation survived**: the longest-prefix rule in `crosswalkFor` was asserted against the
+  served table, where no two entries are prefixes of each other, so first-match and longest-match
+  agree on every code and swapping them passed. *A fixture drawn from today's data cannot test a rule
+  written for tomorrow's* — the competing rows are now in the fixture, and the third undeclared key,
+  the flat `disciplines` catalog, is what names the discipline a division rolls up to.
+
+  **THE THREE STILL OPEN** — and only one is the "invisible field" this item was scoped around.
+  One needs *declare **and** render*, not just declare:
 
   * *server ships, client dark* — `/modules/{key}/views` returns `scope`, `owner` and `mine`
     on both the GET and the POST and the client type declares none of them, so a shared view is
@@ -1596,9 +1620,6 @@ instances:
     this axis measures.)*
   * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
     schedule of values behind a pay application) nor `forecast_returns`.
-  * *fetched-and-discarded* — `/reference/disciplines` returns four payloads and the client's only
-    call site keeps `tree`, dropping the MasterFormat division master and the Uniformat↔MasterFormat
-    crosswalk at the `.then`.
   * *computed-then-invisible caveat* — `/proforma/solve` derives `provenance` for its inputs and the
     client declares seven keys without it.
 

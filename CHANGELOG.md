@@ -12,6 +12,22 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A mistyped spec section is now caught while you can still fix it
+
+Attaching a MasterFormat or UniFormat code to an element used to be typing into an empty box with an
+example beside it. `80 51 00` instead of `08 51 00` — two digits swapped, into a division that does
+not exist — was accepted without comment and became a permanent classification on that element.
+
+Massing already knew the answer: the server publishes the full MasterFormat division master and the
+UniFormat-to-MasterFormat crosswalk, and the app was throwing both away as they arrived. It now
+reads your code back to you as you name it: *"Division 08 · Openings (Architectural)"* for a section
+it recognises, and a warning for one it does not. UniFormat codes get the crosswalk — *"B20 ·
+Exterior Enclosure → MasterFormat 04, 07, 08"* — so you can see what an element will be bought
+through.
+
+It warns, it never blocks: MasterFormat reserves whole ranges for divisions you define yourself, and
+those are legitimate codes. If the reference can't be reached, classifying works exactly as before.
+
 ### Sealing a project now tells you the key people need to check it
 
 When you save a project as a sealed `.mass` file, Massing signs it so that anyone else can confirm
