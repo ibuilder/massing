@@ -1405,23 +1405,72 @@ instances:
   ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
   bigger than the one remaining instance.
 
-- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10, not yet triaged)*
+- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
+  2026-09-11; 6 of 15 triaged)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
   compiler, the linter, and every audit built on the interfaces.
 
-  Sound lower bound, since identifier matching OVER-counts readers and so a key with zero hits is
-  definitely unread: **536** distinct string keys are returned from dict literals inside decorated
-  route handlers under `services/api/src/aec_api/routers/`, and **46 of them appear nowhere in
-  `apps/web/src`, not even as a bare token.** (2,878 keys across all of `aec_api` with 531 unmentioned
-  — but most of those are internal helper returns that never reach a response, so the routers subset is
-  the defensible one.)
+  **THE POPULATION IS NOW TYPE-AWARE, AND THE REGEX NUMBER BELOW IT WAS BOTH TOO BIG AND TOO SMALL.**
+  `apps/web/src/api/responseUndeclared.test.ts` resolves every `this.json<T>(path)` call site through
+  the TypeScript checker and joins it, on `METHOD /normalised/path`, against the dict-literal keys
+  `services/api/response_keys.py` extracts by AST. Result: **15 routes, 21 undeclared keys**, from 281
+  dict-returning routes of which 175 have a typed client call site.
 
-  High-signal members, all the caveat-on-a-number shape: `deviations_without_photo` and `evidence_pct`
-  (how much evidence backs a verification), `changed_assumptions`, `cost_vintage`, `g703_totals` — a
-  payment-application schedule of values. Each of the 46 still needs reading to separate a real
-  disclosure gap from an internal or debug key.
+  That is not merely smaller than the 46 the token scan reported. It is a different set: the scan
+  counted keys whose name happened to appear anywhere in `apps/web/src`, and it silently DROPPED
+  `forecast_returns` on `/draw-package` because that name is declared in `apps/web/src/api/types.ts`
+  for an unrelated route. **A type name can mean two things and a field name can live on two types;
+  a textual scan gets both wrong, in opposite directions.**
+
+  *The original sizing is kept below, struck through in effect, because the four earlier failed
+  derivations recorded here are the reason this one is type-aware.* Sound lower bound by identifier
+  matching: 536 distinct keys returned from dict literals under
+  `services/api/src/aec_api/routers/`, 46 appearing nowhere in `apps/web/src`.
+
+  **FOUR HAZARDS IN THE DERIVATION ITSELF, each found by reading a reported row rather than trusting
+  a count** — and the first three were in the half nobody would have re-read:
+
+  * `ast.walk` descends into nested `def`s, so a helper's `return {...}` was attributed to the route
+    around it. `/codecheck/egress/bcf` reported `x, y, z`, which belong to its `_anchor` helper.
+  * A path is not a route identity; a method and a path are. `GET` and `POST /projects/{pid}/models`
+    share one path, and keying on the path alone unioned their key sets, inventing keys in both
+    directions. Discovered routes went 944 → 1018 once method joined the key.
+  * A route returning a LIST of dicts has no top-level dict and must not be counted as one.
+  * `Record<string, unknown>` resolves to ZERO named properties, which is neither "declares nothing"
+    nor "declares everything": it type-checks while naming nothing, so a field under it stays
+    invisible. Six routes; its own bucket, never folded into either side.
+
+  **And the checker had this axis's own bug, one level up:** its first path resolver handled a single
+  template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
+  concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
+
+  **TRIAGE: 6 of 15 read, 6 real**, in four categories — and only one is the "invisible field" this
+  item was scoped around:
+
+  * *server ships, client dark* — `/auth/providers` never declares `saml`, and `saml` appears nowhere
+    in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
+    `/asset-rights/status` never declares `public_key`, so out-of-band verification is unreachable,
+    **and the client interface still carries the comment `Never a key.`, which is the exact rule the
+    server correction removed** · `/modules/{key}/views` returns `scope`, `owner` and `mine`
+    on both the GET and the POST and the client type declares none of them, so a shared view is
+    indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
+    body, so the server's `default="private"` decides for every view the web UI creates. *(This
+    sentence previously said the route "never sends or declares `scope`", conflating the response
+    the route RETURNS with the request the client POSTS — two different halves, only one of which
+    this axis measures.)*
+  * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
+    schedule of values behind a pay application) nor `forecast_returns`.
+  * *fetched-and-discarded* — `/reference/disciplines` returns four payloads and the client's only
+    call site keeps `tree`, dropping the MasterFormat division master and the Uniformat↔MasterFormat
+    crosswalk at the `.then`.
+  * *computed-then-invisible caveat* — `/proforma/solve` derives `provenance` for its inputs and the
+    client declares seven keys without it.
+
+  **A SEPARATE FINDING, not folded in: 106 dict-returning routes have NO typed client call site.**
+  That is a different question from the "19 route handlers have no web client" counted below by a
+  different method; reconcile the two before quoting either.
 
   **FIRST CASE FIXED, AND THE SIZING TOOK FIVE TRIES TO BECOME HONEST.** `/verification/coverage`
   returns thirteen keys; `apps/web/src/api/model.ts` declared eight. The five missing were the whole

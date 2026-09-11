@@ -12,6 +12,27 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The app now checks that it declares every field the server sends it
+
+A field the server returns but the web app never declares is invisible — not just on screen, but to
+the compiler, the linter, and every automated audit, all of which start from the declarations. So it
+does not look like a bug. It looks like nothing.
+
+Fifteen such gaps are now named and held by a check, and six have been read closely so far. Three of
+them are not missing text on a page but a whole capability that cannot be reached: single sign-on is
+fully built on the server and has no button anywhere in the app, so an organisation that configures
+it still cannot use it; a signed release publishes the key needed to verify it and the app never
+shows that key, which leaves a verifier trusting the document's own copy rather than an independent
+one; and a saved view can be shared by the server but the app can only ever create a private one.
+Another drops the payment-application schedule of values from a draw package; one fetches four
+classification vocabularies over the network and keeps one; and one works out where an underwriting
+result's assumptions came from and then never shows it.
+
+None of this was reachable by searching for names. A name can mean two different things in two
+places, and two different fields can share a name — so a text search answers confidently and wrongly
+in both directions. The check reads the real types instead, and refuses to report at all on anything
+it cannot resolve, because "found nothing" and "did not look" must never produce the same result.
+
 ### The desktop app is now started and checked before it is published
 
 The installers for Windows, macOS and Linux were built, signed and put in front of users without

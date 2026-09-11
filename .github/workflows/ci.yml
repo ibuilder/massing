@@ -132,6 +132,15 @@ jobs:
         run: npm ci
 
       # B1: the client parser + the two server-side .frag producers must pin the same fragments/web-ifc.
+      # `responseUndeclared.test.ts` shells out to `services/api/response_keys.py` for the server
+      # half of its derivation — that script is stdlib-only precisely so this job needs no Python
+      # DEPENDENCIES, but it still needs a Python. ubuntu-latest happens to ship one; relying on
+      # that is an undeclared dependency of exactly the kind `test_declared_imports.py` exists to
+      # forbid on the other side of the tree, so it is declared here instead of inherited.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
       - name: Fragments/web-ifc version guard
         run: node scripts/check-fragments-version.mjs
 
