@@ -1,4 +1,9 @@
-/** Reading a code against the served classification reference.
+import { HttpCore } from "./httpCore";
+import type { DisciplineTree } from "./types";
+
+type Ctor<T> = new (...args: any[]) => T;
+
+/** The served classification reference: fetching it, and reading a code against it.
  *
  *  `GET /reference/disciplines` returns four payloads and the client kept one. `tree` drove the
  *  viewer's colours; `masterformat_divisions` (the division master — code, title, and the discipline
@@ -77,4 +82,37 @@ export function codeAnnotation(system: string, code: string, refs: Classificatio
              known: true };
   }
   return null;
+}
+
+/** Everything `GET /reference/disciplines` sends — and the declared type used to be `{ tree }`
+ *  alone, which is not what the route sends: the other three payloads arrived on every call and
+ *  were dropped at the `.then`. One alias, so the two cached call sites below cannot drift apart. */
+type ClassificationReference = { tree: DisciplineTree } & ClassificationRefs;
+
+/** A mixin, not two more methods on `client.ts`: the size ratchet in
+ *  `services/api/test_file_sizes.py` refused the growth, which is the pin working exactly as its
+ *  comment says it should. `disciplineTree` came across with the new accessor rather than being
+ *  left behind — they are one question (*what does the served vocabulary say?*) answered from one
+ *  cached request, and splitting them would put the cache in a different file from its readers. */
+export function withClassification<TBase extends Ctor<HttpCore>>(Base: TBase) {
+  return class Classification extends Base {
+    private _classRef?: Promise<ClassificationReference>;
+    /** The unified discipline tree (colors + IFC-class→discipline map) — the viewer, model browser,
+     *  and any legend share one served vocabulary. */
+    disciplineTree(): Promise<DisciplineTree> {
+      return (this._classRef ??= this.json<ClassificationReference>("/reference/disciplines")).then((r) => r.tree);
+    }
+    /** The division master + Uniformat crosswalk + flat discipline catalog, for reading back a code
+     *  the user typed. Shares the cached request above rather than issuing a second one.
+     *
+     *  The `??=` is repeated rather than factored into a private helper on purpose:
+     *  `apps/web/src/api/clientCallers.test.ts` asks which CLIENT METHODS no screen can reach, and
+     *  it reads the application outside `api/`, so a helper called only from in here reads as an
+     *  endpoint nobody wired. Two explicit call sites keep that gate measuring what it means to. */
+    classificationRefs(): Promise<ClassificationRefs> {
+      return (this._classRef ??= this.json<ClassificationReference>("/reference/disciplines")).then(
+        ({ disciplines, masterformat_divisions, uniformat_crosswalk }) =>
+          ({ disciplines, masterformat_divisions, uniformat_crosswalk }));
+    }
+  };
 }

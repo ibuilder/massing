@@ -63,14 +63,11 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 export type { ClashResult } from "./clash";
-import type { ClassificationRefs } from "./classificationRef";
-/** Everything `GET /reference/disciplines` sends — one alias so the two cached call sites below
- *  cannot drift apart on the type. */
-type ClassificationReference = { tree: DisciplineTree } & ClassificationRefs;
+import { withClassification } from "./classificationRef";
 export type { ClassificationRefs, MfDivision, UfCrosswalk } from "./classificationRef";
 import type {
   Dashboard,
-  DisciplineTree, ModulePin, RoomAllocation,
+  ModulePin, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
     MasterBuilderBrief } from "./types";
@@ -78,7 +75,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))))) {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
@@ -110,32 +107,6 @@ export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterp
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(
       `/projects/${pid}/properties/meta`,
     );
-  }
-
-  /** The whole classification reference, cached for the session — project-independent, and ONE
-   *  request serves both readers below.
-   *
-   *  The declared type used to be `{ tree }` alone, which is not what the route sends: the other
-   *  three payloads were arriving and being dropped at the `.then`. Two of them exist nowhere else
-   *  in this shape — the MasterFormat division master, and the Uniformat→MasterFormat crosswalk —
-   *  and their absence is why a hand-typed spec code had nothing to be read against. */
-  private _classRef?: Promise<ClassificationReference>;
-  /** The unified discipline tree (colors + IFC-class→discipline map) — the viewer, model browser,
-   *  and any legend share one served vocabulary. */
-  disciplineTree(): Promise<DisciplineTree> {
-    return (this._classRef ??= this.json<ClassificationReference>(`/reference/disciplines`)).then((r) => r.tree);
-  }
-  /** The division master + Uniformat crosswalk + flat discipline catalog, for reading back a code
-   *  the user typed. Shares the cached request above rather than issuing a second one.
-   *
-   *  The `??=` is repeated rather than factored into a third method on purpose:
-   *  `apps/web/src/api/clientCallers.test.ts` asks which CLIENT METHODS no screen can reach, and it
-   *  reads the application outside `api/`, so a private helper called only from in here reads as an
-   *  endpoint nobody wired. Two explicit call sites keep the gate measuring what it means to. */
-  classificationRefs(): Promise<ClassificationRefs> {
-    return (this._classRef ??= this.json<ClassificationReference>(`/reference/disciplines`)).then(
-      ({ disciplines, masterformat_divisions, uniformat_crosswalk }) =>
-        ({ disciplines, masterformat_divisions, uniformat_crosswalk }));
   }
 
   /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost
