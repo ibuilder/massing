@@ -12,6 +12,7 @@ import { modalShell, confirmModal } from "../ui/modal";
 import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
 import { renderChip, type ChipIdentity } from "./accountChip";
+import { importConfirmText, importedSummary } from "./costVintage";
 import { signInDoors, collapsedDoors, type SignInDoor } from "./signInDoors";
 import { cloudLoginUrl, cloudStatus, cloudRefresh, cloudDisconnect, type CloudStatus } from "../api/cloud";
 
@@ -358,6 +359,7 @@ async function openProfile(platformAdmin: boolean, tier: string, initial = "prof
       errorLog: errorsModal,
       dataConnections: () => void import("../connections/connectionsUI")
         .then((m) => m.openConnectionsModal(D.api, D.getProjectId)),
+      installCostVintage: () => void installCostVintage(),
       projectMembers: D.getIsProjectAdmin() && pid ? () => membersModal(pid) : null,
       changePassword: passwordModal,
       twoFactor: () => void mfaModal(),
@@ -664,4 +666,19 @@ function errorsModal() {
   prune.onclick = async () => { try { const r = await api.clearErrorLog(); msg.style.color = "var(--muted)"; msg.textContent = `pruned ${r.pruned} old row(s)`; await render(); } catch { msg.style.color = "var(--err)"; msg.textContent = "prune failed"; } };
   card.append(filters, table, msg);
   void render().finally(ready);
+}
+
+/** Build + install the offline public cost vintage (COST-DB), from Administration.
+ *
+ *  Reached only from the platform-admin section, and the server checks again: the UI gate decides
+ *  what to OFFER, the server decides what to ALLOW, and neither stands in for the other. */
+async function installCostVintage(): Promise<void> {
+  if (!await confirmModal("Install cost vintage", importConfirmText(), "Build and install", true)) return;
+  try {
+    toast("Building the offline public cost vintage…", "info");
+    toast(importedSummary(await D.api.importCostDataset()), "success");
+  } catch (e) {
+    // A 403 here means the account lost platform admin between opening the panel and clicking.
+    toast(`Cost vintage not installed: ${(e as Error).message}`, "error");
+  }
 }

@@ -1679,6 +1679,48 @@ instances:
   textual scan of a typed language cannot resolve a named return type, a nested literal, or a
   multi-line span, and this one reported `id` undeclared on a route that plainly declares it.
 
+- ✅ ⭐ **UNREACHED-IMPORT — the gate that vouched for a route with the word `import`**
+  *(S — Lanes B/G; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*
+
+  The premise handed to this item was half wrong, which is worth stating first: `progressActuals` and
+  `saveViewTemplates` **were** flagged — both sit in the `UNCALLED` ceiling in
+  `apps/web/src/api/clientCallers.test.ts`, visible and countable, which is what that list is for. The
+  other half was right and worse than described.
+
+  **`POST /cost/datasets/import` had no client method at all**, and the budget panel has been telling
+  cost managers *"1 offline baseline(s) installable — no subscription"* the whole time. A promise with
+  no affordance — and the promise was added by the change that declared `available_public`. The
+  installer now lives in Profile & settings → Administration, not on the budget card, because it flips
+  the global `is_latest` and reprices every unpinned project; the card names the role instead of
+  offering a button that would 403 for exactly the reader most likely to press it, which is the
+  offered-and-refused shape the saved-view delete picker had until the day before.
+
+  **Why nothing said so: the route's leaf is `import`, which occurs 2,223 times in this tree as the
+  TypeScript keyword.** Not an unlucky word — a *reserved* one, so the collision is guaranteed for any
+  route named after a keyword. Its sibling `/cost/datasets/import-custom` was correctly frozen, so the
+  route with the more distinctive name was caught and the one named after a keyword vouched for
+  itself, under a headline check that reads *"NO NEW UNREACHABLE ROUTE"*.
+
+  `leaf_is_called` now requires the leaf to occupy a **path segment inside a string literal**. A URL
+  this client builds is always a string; a bare identifier never is, and a word in a sentence has a
+  space in front of it. **Measured before applying, because the two previous candidate fixes were each
+  wrong in this same place: 42 uncalled before, 67 after — 25 newly visible, ZERO lost.** Three of the
+  25 spot-checked have no occurrence anywhere in the web source; two more appear only inside English
+  prose. All 25 frozen as untriaged, four mutations, all biting.
+
+  **The rule's docstring used to call this class unfixable — and the reason it became unaffordable is
+  that I broke it three times in one sitting.** Writing three ordinary sentences about a feature whose
+  own name contains the word *public* re-collided with `/listings/{lid}/public`, the exact collision
+  the previous change had *reworded away*. **A rule that makes product copy unwritable will be
+  re-broken by whoever has not read the file** — and the natural wording is restored in this change as
+  the demonstration that it is fixed.
+
+  *One more thing the fix had to learn.* The first measurement of this rule reported **36 routes lost,
+  including `plan.dxf`, whose caller is real** — which argued convincingly for rejecting it. The rule
+  was fine; the harness anchored "start of string" against text with the quote character still
+  attached, so no leading-fragment call site could ever match. **A measurement can be wrong in the
+  direction that preserves the status quo, and that is the direction nobody double-checks.**
+
   **A SEPARATE FINDING, deliberately not folded in: 19 route handlers have NO web client at all.**
   That is a different question with a different answer each time — `/bcf/2.1/auth` is correct,
   `/projects/{pid}/pins/all` looks like a gap. `ARCH-REACH` cannot see it: it asks whether a MODULE is

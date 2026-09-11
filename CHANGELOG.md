@@ -74,6 +74,18 @@ prints the key alongside, so you can hand it to whoever needs to check your rele
 with sealing switched on but no signing key configured, nothing is shown, because there would be
 nothing to verify against.
 
+### The offline cost baseline can now actually be installed
+
+The budget panel has been telling cost managers that an offline cost baseline is *"installable — no
+subscription"*, and the app had no way to install one. The server has always had the importer; no
+screen ever called it.
+
+It is now in Profile & settings → Administration, under Server. It is deliberately not on the budget
+card: installing a vintage reprices **every project that has not pinned one**, which is a server-wide
+change and not something to offer beside one project's numbers. The budget card now names who can do
+it instead of implying you can. The confirmation spells out the consequence, and projects with a
+pinned vintage are unaffected.
+
 ### SAML single sign-on now works, and has a button
 
 If your organisation runs its own identity provider — Okta, Entra ID, Ping, Google Workspace as a
