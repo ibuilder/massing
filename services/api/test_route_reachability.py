@@ -492,9 +492,24 @@ def string_blob(code: str) -> str:
 
 @functools.lru_cache(maxsize=2048)
 def _SEGMENT(leaf: str) -> "re.Pattern[str]":
-    """The leaf occupying a PATH SEGMENT: it opens a string, or follows `/` or a closed `${...}`,
-    and no path character continues it."""
-    return re.compile(rf"(?:{_NUL}|/|\}}){re.escape(leaf)}(?![A-Za-z0-9_.\-]|\$(?!\{{))")
+    """The leaf occupying a PATH SEGMENT: it opens a string, or follows a `/`, and no path
+    character continues it.
+
+    **`}` WAS IN THIS SET FOR ONE DAY AND EARNED NOTHING.** The first draft also accepted `}`, on
+    the theory that a leaf can follow a closed `${...}` — `` `${base}import` ``. Review pointed out
+    that the brace was accepted UNCONDITIONALLY, so the string `"not a URL }import"` vouched for
+    `/cost/datasets/import`: *a fail-open hole inside the rule written to close a fail-open hole.*
+
+    Measured all three ways before choosing. Uncalled count is **67 under every one of them** — `}`
+    unconditional, `}` only when a real `${...}` precedes it, and no `}` at all. **No route is
+    vouched for by a brace today, and none is lost by removing it**, so the special case is deleted
+    rather than made more careful: a sentinel that collapses real interpolations would be more
+    machinery for the same answer, and it would still accept `${x}import`.
+
+    If a caller ever does write `` `${base}import` ``, this rule reads the route as uncalled and the
+    gate goes red until someone looks — which is the direction this file wants to fail in.
+    """
+    return re.compile(rf"(?:{_NUL}|/){re.escape(leaf)}(?![A-Za-z0-9_.\-]|\$(?!\{{))")
 
 
 def uncalled_routes(paths, blob: str) -> set[str]:
@@ -692,7 +707,12 @@ check("  ...and rejects a leaf that is only a word in a sentence or a bare keywo
       and not leaf_is_called("import", 'toast("Building the offline public cost vintage…")')
       and not leaf_is_called("public", 'row("Share", "The public read-only page for this token.")')
       and not leaf_is_called("notices", "// the one nobody notices has drifted")
-      and not leaf_is_called("import", '"/projects/${pid}/schedule/import-xer"'),
+      and not leaf_is_called("import", '"/projects/${pid}/schedule/import-xer"')
+      # A BARE `}` IS NOT A PATH BOUNDARY. Review found this in the first draft of the rule: `}`
+      # was accepted unconditionally, so any string carrying one in front of the leaf vouched for
+      # the route -- a fail-open hole inside the fix for a fail-open hole.
+      and not leaf_is_called("import", 'label("not a URL }import")')
+      and not leaf_is_called("import", 'const s = `${base}import`;'),
       "a route is being vouched for by English or by a keyword again — the class that hid "
       "/cost/datasets/import behind 2,223 occurrences of the TypeScript `import` keyword")
 check("  ...while a URL written any of the ways this client writes one still counts",
