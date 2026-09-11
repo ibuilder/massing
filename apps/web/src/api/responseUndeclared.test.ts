@@ -83,6 +83,13 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   // appears here for a good reason — this gate can only see a route that HAS a typed call site, and
   // until now it had none at all.
   "POST /cost/datasets/import",
+  // Added 2026-09-11 with LOD-PROXY, the same shape one route over: the handler returns
+  // `{**report, "stored": ..., "key": ..., "next": ...}` on success and `{**report, "stored": False}`
+  // on a refusal, so only the four literal keys can be named. `report` comes from
+  // `lod.build_storey_proxy`, whose shape differs between those two branches — which is the
+  // reason the client types `elements_replaced`, `storeys_proxied` and `reason` as OPTIONAL
+  // rather than pretending one branch's keys are present in both.
+  "POST /projects/{}/model/lod/proxy",
   "GET /projects/{}/agent-packs",
   "GET /projects/{}/ai/risk-summary",
   "GET /projects/{}/compliance/expiring",
