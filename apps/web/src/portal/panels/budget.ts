@@ -245,6 +245,15 @@ export async function renderBudget(ctx: PanelContext) {
     return wrap;
   };
 
+  /**
+   * One package's send-RFQ control, which REDRAWS ITSELF with the state the send reported.
+   *
+   * That is the whole reason it is a function rather than inline: after a send it replaces its own
+   * row by calling itself with the returned `package_state`, so the second pass hits `rfqGate` with
+   * the real state and refuses. Without the redraw the button would stay live and a second click
+   * would mint a duplicate solicitation — the server transitions only a `draft` package but mints
+   * unconditionally.
+   */
   const rfqButton = (pkg: SavedPackage) => {
     const row = document.createElement("div"); row.style.marginTop = "4px";
     // A freshly-kept package is in `draft`; the gate still asks, because this same function redraws
