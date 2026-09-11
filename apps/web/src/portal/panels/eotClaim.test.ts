@@ -189,7 +189,8 @@ describe("the figure is computed over a subset, and says so", () => {
   it("says proximity is not causation for events carrying no activity", () => {
     const n = coverageNote({ ...base,
       attribution: { ...base.attribution!, events_without_activity: 1 } });
-    expect(n[0]).toContain("1 event carry no activity id");
+    expect(n[0]).toContain("1 event carries no activity id");
+    expect(n[0]).not.toContain("1 event carry ");
     expect(n[0]).toContain("proximity is not causation");
   });
 

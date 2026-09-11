@@ -160,7 +160,7 @@ export function coverageNote(s: EotSourced): string[] {
   }
   const orphan = s.attribution?.events_without_activity || 0;
   if (orphan) {
-    out.push(`${orphan} event${orphan === 1 ? "" : "s"} carry no activity id, so ${orphan === 1
+    out.push(`${orphan} event${orphan === 1 ? " carries" : "s carry"} no activity id, so ${orphan === 1
       ? "it was" : "they were"} matched to nothing. Matching is by explicit activity only — `
       + "proximity is not causation.");
   }
