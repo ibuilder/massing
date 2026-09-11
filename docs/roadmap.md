@@ -1779,6 +1779,43 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **R40-EOT — an extension of time, with the method that produced it**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/eotClaim.test.ts` and `services/api/test_route_reachability.py`)*
+
+  R40 built the whole discipline server-side and **both of its routes were dark.** `…/schedule/eot`
+  computes entitlement against the AACE 29R-03 / SCL Protocol taxonomy — `method` required and
+  closed, because the same facts give different answers under different methods — and
+  `…/schedule/eot/sourced` does it again over the project's **captured baseline** and its own
+  detected events, so the two most contested inputs are re-derivable rather than typed.
+
+  **One feature, two concealments, two different lists.** `eot` has a three-character leaf, below
+  `MIN_SEGMENT`, so it sat in the short-leaf ratchet ENV-WIND had just created; `eot/sourced` was
+  frozen in `KNOWN_UNCALLED` and could have been read any day. *Reading either list alone would have
+  wired half a claim* — the same lesson BUYOUT-KEEP recorded from the other direction, where one
+  dark route fed the other.
+
+  `apps/web/src/portal/panels/eotClaim.ts` holds the rules (32 tests, six mutations all biting), and
+  every one exists to carry a server refusal intact to the reader rather than smooth it away:
+
+  * **Four refusals stay four refusals.** `method_required`, `baseline_required`,
+    `actual_finish_required` and `method_needs_schedule_updates` send a reader to four different
+    places, and two are not fixable by supplying anything. One "could not compute" would be the
+    familiar collapse.
+  * **Absorbed is not zero.** A delay inside an activity's float earns no time and *happened*.
+  * **Unattributed is not non-excusable** — defaulting unexplained slip to contractor risk hands one
+    party a finding nobody demonstrated.
+  * **Concurrency is named, never apportioned**, because the published protocols disagree and the
+    contract governs.
+  * **A detected event is not a quantified delay**: `needs_duration` events are excluded from the
+    figure, so the headline is over a SUBSET and says so — the wind screen's unchecked-mechanism
+    defect in another discipline.
+
+  The method list is **fetched, not restated**: posting with no method returns the closed set, so the
+  taxonomy the screen offers is the taxonomy the engine enforces and cannot drift from it.
+
+  Uncalled routes **60 → 59**, and the confirmed-dark short-leaf ratchet **7 → 6**.
+
 - ✅ ⭐ **ENV-WIND — a wind answer at the only stage that can act on it**
   *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/portal/panels/envWind.test.ts` and `services/api/test_route_reachability.py`)*

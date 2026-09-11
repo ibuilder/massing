@@ -12,6 +12,35 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Extension-of-time claims, with the method that produced them
+
+**Schedule** now assembles an **extension of time**. Pick an analysis method, and it grades each
+delay event against the activity's float, states what the claim is worth, and shows its working.
+
+It will not compute one without a method. The published taxonomies exist because the same facts give
+different answers under different methods, so an EOT figure without its method cannot be weighed by
+whoever reads it — and this one ends up in a claim. The method list comes from the engine itself, and
+choosing one shows that method's own published weakness before you run it.
+
+Two ways to run it, and the default is the auditable one: **from the captured baseline**, measuring
+slip against a named, dated artefact and taking causes from the project's own detected events, so
+both can be re-derived later. Typed dates still work for a claim argued before a baseline exists, and
+are labelled as what they are — the baseline is the single most contested input in a delay claim, and
+typed it cannot be checked.
+
+Four things it refuses to round off, each because rounding it off would favour one party:
+
+- **A delay absorbed by float is reported as absorbed, not as zero.** It earns no extension and it
+  still happened; only the second reading says nothing occurred.
+- **Slip with no matching cause is unattributed, never non-excusable.** Defaulting unexplained
+  overrun to contractor risk hands somebody a finding nobody demonstrated.
+- **Concurrent delays are named, never split.** Whether overlapping employer-risk and
+  contractor-risk delay gives time, money, both or neither is a contract question the protocols
+  themselves disagree on; a silent 50/50 would present the most argued number in the discipline as
+  arithmetic.
+- **A detected event with no stated duration is excluded and counted.** Detection establishes that
+  something happened, never what it cost.
+
 ### Pedestrian wind comfort, screened from the massing
 
 **📐 Design Metrics** now carries a **pedestrian wind comfort** screen. Give it a height, width and

@@ -215,7 +215,6 @@ KNOWN_UNCALLED: set[str] = {
     # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
     # `/cost/datasets` left here in v0.3.1137 — Budget reads installed vintages.
-    "/projects/{pid}/schedule/eot/sourced",
     # `/drawing-set/compiled.pdf` left here in v0.3.1137 — Exports opens `compiledPdfUrl`.
     "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions",
@@ -945,9 +944,16 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: (`apps/web/src/api/downloadPdf.ts`). A screen that renders the payment application from data
     #: rather than downloading it would use these; none exists yet.
     "/projects/{pid}/cost/g702", "/projects/{pid}/cost/g703",
-    #: Extension-of-time claim assembly, and the ERP entity bridge. Both are finished server-side
-    #: and have no screen. Candidates for the next wiring sprint, in that order.
-    "/projects/{pid}/schedule/eot", "/connections/{cid}/erp/{entity}",
+    #: The ERP entity bridge: finished server-side, no screen. The next wiring candidate.
+    #:
+    #: `/projects/{pid}/schedule/eot` LEFT this set in R40-EOT — `scheduleEot` in
+    #: `apps/web/src/api/schedule.ts`, called from `apps/web/src/portal/panels/eotClaimPanel.ts`.
+    #: It is worth recording what that cost, because the two halves of R40-EOT hid in two different
+    #: places: this one was invisible for being three characters long, while its sibling
+    #: `/schedule/eot/sourced` was frozen in KNOWN_UNCALLED above and could have been read any day.
+    #: **One feature, two concealments, two different lists** — reading either alone would have
+    #: wired half a claim.
+    "/connections/{cid}/erp/{entity}",
 }
 _SHORT = {r for r in PATHS if len(_leaf(r)) < MIN_SEGMENT}
 _SHORT_DARK = {r for r in _SHORT if not leaf_is_called(_leaf(r), _CODE)}

@@ -4,6 +4,7 @@ import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 import { renderScheduleBrief } from "./scheduleBrief";
+import { renderEotClaim } from "./eotClaimPanel";
 import { renderScheduleMethods } from "./scheduleMethods";
 import { flattenLookahead, mondayUtc, renderWeeklyGantt } from "./weeklyGantt";
 
@@ -131,6 +132,17 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   // than run on render: three of them walk the whole activity set, and a panel that fires four
   // full-schedule computations every time somebody opens it is a panel people learn to avoid.
   ctx.root.appendChild(renderScheduleMethods(ctx));
+  // R40-EOT lands in a slot appended SYNCHRONOUSLY, and the late write is dropped when that slot is
+  // no longer in the document. The panel asks the engine for its own method taxonomy before it can
+  // draw, so there is a real window in which the reader navigates away and `ctx.root` belongs to a
+  // different screen — appending straight onto `root` in a late `.then` puts this card into whatever
+  // replaced it. That is the same defect review found in aiReadiness on PR #527, and repeating it
+  // here would be the second instance rather than a new one.
+  const eotSlot = document.createElement("div");
+  ctx.root.appendChild(eotSlot);
+  void renderEotClaim(ctx)
+    .then((el) => { if (eotSlot.isConnected) eotSlot.appendChild(el); })
+    .catch(() => {});
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
   const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
