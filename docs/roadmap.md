@@ -1766,12 +1766,25 @@ instances:
   | `/projects/{pid}/clash/coordinate` | **NO DEMAND.** The product's clash flow is `POST /projects/{pid}/clash/federated` with `coordinate=true`, which runs the same intelligence layer and IS wired. This route is the bring-your-own-results variant, for a single-model or external detection run — and the single-model path has no UI either. A button here would invent a workflow, not close a gap. |
   | `/codes/seeded` | **COVERED.** `/codes/adoptions` is wired and already answers the sharper question per code family — `source: "seed"` or `"baseline"` — so a flat list of seeded jurisdictions adds a catalogue, not an answer. |
   | `/projects/{pid}/documents/template` | **LARGELY COVERED.** The documents health read already reports required-folder coverage; the template is the static taxonomy behind it. Worth revisiting only if a "what folders should exist" screen is ever wanted on its own. |
-  | `/jurisdiction/packs` ×3 (list, import, delete) | **GENUINE GAP, and the largest left.** The whole import path for an authority's data requirements — no client at all, admin-gated, and the packs are used to fail other people's models. Same shape as PREFAB-DARK: a finished feature with no way in. |
+  | `/jurisdiction/packs` ×3 (list, import, delete) | **GENUINE GAP, and the largest left — and bigger than three.** The whole import path for an authority's data requirements: no client at all, admin-gated, and the packs are used to fail other people's models. Same shape as PREFAB-DARK, a finished feature with no way in. See below: the two routes that *consume* a pack are dark too, and the gate cannot see them. |
 
-  **Two lessons, both about the gate rather than the routes.** A dark route can be a *duplicate*, and
-  the reachability rule structurally cannot tell that from a hole — only reading the handler can. And
-  a dark route can be an *integration surface* with no UI demand, which is not a defect at all. The
+  **Three lessons, all about the gate rather than the routes.** A dark route can be a *duplicate*,
+  and the reachability rule structurally cannot tell that from a hole — only reading the handler can.
+  A dark route can be an *integration surface* with no UI demand, which is not a defect at all. The
   gate's job is to make them visible; deciding what they are is still a person's.
+
+  **And the count is wrong in BOTH directions, which is the third and the one worth keeping.**
+  Reading the jurisdiction handlers turned up two more dark routes the gate never flagged:
+  `/projects/{pid}/jurisdiction/requirements` and `/projects/{pid}/jurisdiction/check` — the two that
+  *consume* a pack. So R23-JURISDICTION-PACKS is unreachable in **five** routes, not three, and a
+  sprint that wired only the frozen three would have shipped an import path whose only consumers are
+  still dark. They hide for two different reasons, now asserted in
+  `services/api/test_route_reachability.py` beside the `/asset-rights/verify` precedent: `check`
+  collides with a **real sibling route** (`/projects/{pid}/standards/check` and `/rebar/check` are
+  genuinely called), and `requirements` collides with **unrelated text** (a TS union member in a
+  spec-PDF plugin). The first is the sharper one — the gate's stated blind spot is about coincidence
+  with prose, and this is a collision with another route. *A leaf is not a name.* Mutating only the
+  vouching text flags both immediately, which is how they were confirmed dark rather than assumed.
 
 - ✅ **LOD-PROXY — a saving quoted on screen with no way to take it**
   *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*

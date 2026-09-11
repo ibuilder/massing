@@ -862,6 +862,37 @@ check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
       "if this now fails, the matcher changed — re-triage /asset-rights/verify rather than "
       "assuming the green tick above ever meant it was reachable")
 
+# A THIRD AND FOURTH INSTANCE, measured 2026-09-11 while triaging the eight routes UNREACHED-IMPORT
+# froze. R23-JURISDICTION-PACKS is dark in **five** routes, not the three this file freezes. The
+# library, import and delete routes are in KNOWN_UNCALLED above; the two that CONSUME a pack --
+# `/projects/{pid}/jurisdiction/requirements` and `/projects/{pid}/jurisdiction/check` -- have no
+# client caller either, and this rule reads both as reachable. So the frozen list does not merely
+# fail to judge what it holds; on this feature it also UNDERCOUNTS it, and a reader taking the three
+# as the extent of the gap would wire an import path whose only consumers are still unreachable.
+#
+# They are invisible for two DIFFERENT reasons, which is why both are recorded rather than one
+# standing for the pair:
+#   * `check` collides with a REAL SIBLING ROUTE. `apps/web/src/api/model.ts` builds
+#     `/projects/${pid}/standards/check` and `/projects/${pid}/rebar/check`, so the leaf is genuinely
+#     called -- by something else. No prose is involved and no amount of tidying the source removes
+#     it: two routes sharing a last segment is a normal thing for an API to do.
+#   * `requirements` collides with UNRELATED TEXT -- a TypeScript union member `"requirements"` in
+#     `apps/web/src/vendor/massingpdf/plugins/specs.ts`, which is a spec-PDF view mode and has
+#     nothing to do with jurisdictions. That is the `/proforma/renovation` shape asserted below,
+#     found a second time.
+# The first is the more interesting of the two, because the docstring's stated blind spot is about
+# coincidence with *text*, and this one is a collision with a *route*. A leaf is not a name.
+#
+# Neither can be frozen in KNOWN_UNCALLED -- the rot check above would immediately report them as
+# "quietly become called" -- so, exactly as with `/asset-rights/verify`, the honest instrument is to
+# assert that they remain outside both sets. Unlike that route, these two SHOULD gain callers: the
+# whole feature is finished server-side and unreachable from the product.
+for _r in ("/projects/{pid}/jurisdiction/requirements", "/projects/{pid}/jurisdiction/check"):
+    check(f"the R23-JURISDICTION-PACKS blind spot is still a blind spot: {_r}",
+          _r not in FOUND and _r not in KNOWN_UNCALLED,
+          "if this fails the matcher changed or the vouching text moved -- re-triage the route "
+          "rather than assuming this gate ever had an opinion about it")
+
 # The stated blind spot, asserted so it cannot be quietly forgotten.
 check("the rule's known FALSE NEGATIVE still holds: /proforma/renovation is NOT flagged",
       "/projects/{pid}/proforma/renovation" not in FOUND,
