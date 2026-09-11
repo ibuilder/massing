@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
  * ## The two shapes, re-measured
  *
  * **A module header written below the import block is real — and it needs no exemption, because it
- * is structural.** `portal/panels/budget.ts` opens with five imports and then the file's own header,
+ * is structural.** `portal/panels/budget.ts` opens with its imports and then the file's own header,
  * followed by the first declaration's comment. Nothing but imports stands above it, and that is a
  * property this gate can compute (`isFileHeader`). It is the only site in the tree with that shape.
  *
@@ -89,31 +89,51 @@ const FILES = execFileSync("git", ["ls-files", "apps/web/src/**/*.ts", "apps/web
  * someone added one near the top of a file. By construction it cannot exempt a block that has a
  * declaration above it: `portal/register/register.ts` opens with fourteen imports and then two
  * documented constants, so its block stays flagged despite also sitting near line 30.
+ *
+ * **It skips import STATEMENTS, not import LINES.** The first version accepted a line only if it
+ * began `import `, so the continuation lines of a multi-line `import {` — bare specifiers — read as
+ * code, and a correct header below one was reported as stranded. Now a statement that opens a brace
+ * is followed until that brace closes — the brace, not a `from`, because a local `export { a, b };`
+ * has no `from` to stop at and waiting for one would swallow the declarations below it.
+ *
+ * **A misread must land on the strict side.** A brace the walk miscounts (one inside a block
+ * comment, say) leaves it open at the block, and an open walk is not a header. The lenient side is
+ * "skip anything that isn't a declaration", which is how an exemption quietly grows to cover the
+ * `register.ts` shape above.
  */
 function isFileHeader(lines: string[], start: number): boolean {
+  let depth = 0; // unclosed `{` of the import/export statement being walked; 0 = between statements
   for (let k = 0; k < start; k++) {
     const t = (lines[k] ?? "").trim();
     if (!t || t.startsWith("//") || t.startsWith("/*") || t.startsWith("*") || t.endsWith("*/")) continue;
-    if (t.startsWith("import ") || t.startsWith("export type {") || t.startsWith("export {")) continue;
-    return false;
+    const opens = t.startsWith("import ") || t.startsWith("export type {") || t.startsWith("export {");
+    if (depth === 0 && !opens) return false;
+    for (const c of t.replace(/\/\/.*$/, "")) depth += c === "{" ? 1 : c === "}" ? -1 : 0;
   }
-  return true;
+  return depth === 0;
 }
 
-/** Every `/** … *\/` block immediately followed by another, split by whether it is a file header. */
+/** Every `/** … *\/` block in `lines` immediately followed by another, split by whether it is a file header. */
+function scanLines(f: string, lines: string[]): { stranded: string[]; headers: string[] } {
+  const stranded: string[] = [], headers: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i] ?? "";
+    const closes = l.trimEnd().endsWith("*/") && (l.trim().startsWith("/**") || l.trim().startsWith("*"));
+    if (!closes || !(lines[i + 1] ?? "").trim().startsWith("/**")) continue;
+    let j = i;
+    while (j > 0 && !(lines[j] ?? "").trim().startsWith("/**")) j--;
+    const where = `${f}:${j + 1}  ${(lines[j] ?? "").trim().slice(0, 72)}`;
+    (isFileHeader(lines, j) ? headers : stranded).push(where);
+  }
+  return { stranded, headers };
+}
+
 function scan(): { stranded: string[]; headers: string[] } {
   const stranded: string[] = [], headers: string[] = [];
   for (const f of FILES) {
-    const lines = readFileSync(resolve(ROOT, f), "utf8").split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i] ?? "";
-      const closes = l.trimEnd().endsWith("*/") && (l.trim().startsWith("/**") || l.trim().startsWith("*"));
-      if (!closes || !(lines[i + 1] ?? "").trim().startsWith("/**")) continue;
-      let j = i;
-      while (j > 0 && !(lines[j] ?? "").trim().startsWith("/**")) j--;
-      const where = `${f}:${j + 1}  ${(lines[j] ?? "").trim().slice(0, 72)}`;
-      (isFileHeader(lines, j) ? headers : stranded).push(where);
-    }
+    const r = scanLines(f, readFileSync(resolve(ROOT, f), "utf8").split("\n"));
+    stranded.push(...r.stranded);
+    headers.push(...r.headers);
   }
   return { stranded, headers };
 }
@@ -157,5 +177,82 @@ describe("DOC-STRAND — no doc comment has lost its declaration", () => {
       "MOD-FILTER has two documented consts above it — a declaration, so never a file header")
       .toBe(false);
     expect(isFileHeader(reg, 0), "line 1 of any file trivially has nothing above it").toBe(true);
+  });
+
+  /**
+   * The tree cannot pin the multi-line import case in either direction — the one real header sits
+   * under single-line imports — so these fixtures do. One positive, three negatives, each negative a
+   * loosening the positive tempts, and each its own test so a mutant is caught by the fixture aimed
+   * at it rather than by whichever happens to run first:
+   *
+   * - `header` — the reported bug. Line-by-line matching reads `someThing, otherThing,` as code.
+   *   Its `// …}` comment also pins that a brace in a line comment is not counted.
+   * - `residue` — a walk that follows the import but never finishes it would skip the const too.
+   * - `localList` — "skip until the `from`" admits `header`, then swallows the const under an
+   *   `export { … };` that has no `from` to stop at.
+   * - `miscount` — a brace inside a block comment leaves the walk open. Treating an open walk as a
+   *   header ("anything that isn't a declaration") would let the const through.
+   */
+  describe("the header rule follows a multi-line import to its end, and no further", () => {
+    it("header: a header below a multi-line import is a header", () => {
+      expect(scanLines("fixture/header.ts", [
+        "import {",
+        "  someThing, otherThing,",
+        "  type Third,",
+        "  fourth as Fourth, // a stray } in a line comment",
+        "} from \"./mod\";",
+        "import { single } from \"./one\";",
+        "",
+        "/** File header — this module does one thing. */",
+        "/** The first documented thing. */",
+        "export const first = 1;",
+      ]), "a header below a multi-line import is a header, not residue")
+        .toEqual({ stranded: [], headers: [expect.stringContaining("fixture/header.ts:8")] });
+    });
+
+    it("residue: a declaration after the import still strands the block", () => {
+      expect(scanLines("fixture/residue.ts", [
+        "import {",
+        "  someThing,",
+        "} from \"./mod\";",
+        "",
+        "/** A documented constant. */",
+        "export const A = someThing;",
+        "",
+        "/** Residue — its declaration moved away. */",
+        "/** The next thing down. */",
+        "export const B = 2;",
+      ]), "a declaration above the block makes it residue, whatever the imports look like")
+        .toEqual({ stranded: [expect.stringContaining("fixture/residue.ts:8")], headers: [] });
+    });
+
+    it("localList: an export list with no `from` ends at its closing brace", () => {
+      expect(scanLines("fixture/localList.ts", [
+        "export {",
+        "  a,",
+        "  b,",
+        "};",
+        "const a = 1, b = 2;",
+        "",
+        "/** Residue — its declaration moved away. */",
+        "/** The next thing down. */",
+        "export const c = a + b;",
+      ]), "an export list with no `from` ends at its brace — the const below it is code")
+        .toEqual({ stranded: [expect.stringContaining("fixture/localList.ts:7")], headers: [] });
+    });
+
+    it("miscount: a walk left open by a miscounted brace fails strict", () => {
+      expect(scanLines("fixture/miscount.ts", [
+        "import {",
+        "  someThing, /* { */ otherThing,", // mid-line: a line ENDING in `*/` is skipped whole
+        "} from \"./mod\";",
+        "export const A = someThing + otherThing;",
+        "",
+        "/** Residue — its declaration moved away. */",
+        "/** The next thing down. */",
+        "export const B = 2;",
+      ]), "a walk left open by a miscounted brace is not a header — it must fail strict")
+        .toEqual({ stranded: [expect.stringContaining("fixture/miscount.ts:6")], headers: [] });
+    });
   });
 });
