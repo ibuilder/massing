@@ -21,6 +21,15 @@ import {
 } from "./eotClaim";
 import type { EotResult, EotSourced } from "../../api/schedule";
 
+/**
+ * Builds the card and RETURNS it; it does not append.
+ *
+ * That contract is what lets the caller drop a late render whose slot has left the document. This
+ * function cannot draw until it has asked the engine for the method taxonomy, so there is a real
+ * window in which the reader navigates away — and a version of this that appended to `ctx.root`
+ * itself would put the card into whatever screen replaced it, which is the defect review found in
+ * `aiReadiness` on PR #527. **Keep the return; the caller owns where it lands.**
+ */
 export async function renderEotClaim(ctx: PanelContext): Promise<HTMLElement> {
   const pid = ctx.host.projectId()!;
   const card = document.createElement("div");
