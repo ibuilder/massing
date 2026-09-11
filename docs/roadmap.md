@@ -1752,6 +1752,39 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- ✅ ⭐ **JURISDICTION-PACKS — a regulator's data requirements, and no way to reach any of them**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
+  `apps/web/src/portal/panels/jurisdictionPacks.test.ts`)*
+
+  R23 built the whole thing server-side: a pack is a **named, versioned, attributed** set of data
+  requirements keyed to a jurisdiction, validated by a rule that refuses an uncited pack, with
+  selectors parsed by the same engine that evaluates them. **All five of its routes had no client
+  caller.** The library, the import and the delete were frozen by UNREACHED-IMPORT; the two that
+  *consume* a pack — `/projects/{pid}/jurisdiction/requirements` and `/projects/{pid}/jurisdiction/check`
+  — were invisible to the gate entirely, so the feature read as three-fifths dark rather than dark.
+
+  `apps/web/src/api/jurisdiction.ts` carries the five methods and
+  `apps/web/src/portal/panels/jurisdictionPanel.ts` the screen, reached from CDE / Standards because
+  a pack is an information requirement for a **place** where the EIR beside it is one for an
+  appointment — a submitter needs both before a submittal. The rules are in
+  `apps/web/src/portal/panels/jurisdictionPacks.ts`: 27 tests, four mutations all biting.
+
+  **The rules are all about attribution, because that is what the feature is for.** The built-in
+  `example` pack is attributed to nobody and asserts nothing about any real place — and it is the
+  only pack present before anything is imported, so it is the one a first-time user runs. A result
+  from it that reads like a verdict tells somebody their model satisfies rules that do not exist.
+  So the caveat rides with the *result* and inside the attribution line itself, not in a footnote,
+  and `exampleCaveat` is deliberately **empty for a real pack** — a caveat printed on everything is
+  one nobody reads, and then it is absent when it matters. Two refusals are also kept apart: nothing
+  applies, versus packs apply but no model is loaded. Collapsing them would tell somebody to import a
+  pack when what they need is to upload a model.
+
+  **The count of dark routes was a floor, not the debt.** The frozen set said three; reading the
+  handlers said five. *A ratchet undercounts by exactly the size of the blind spot in the rule that
+  fills it* — which is why the two invisible ones are now asserted in
+  `services/api/test_route_reachability.py` as blind spots that stay blind: they have callers today
+  and that gate still has no opinion about them, so its two green ticks must not be read as coverage.
+
 - ✅ **FROZEN-TRIAGE — what the eight dark routes actually were** *(record, not a work item; **CLOSED 2026-09-11**)*
 
   UNREACHED-IMPORT froze eight newly-visible routes and said, correctly, that freezing is **not**

@@ -12,6 +12,22 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### An authority's data requirements can now be imported, applied and checked
+
+A **requirement pack** is a set of data requirements published by an authority for a jurisdiction —
+what a submitted model has to carry before it will be accepted. The whole mechanism was built and
+none of it could be reached from the app: not the shared library, not the import, not the delete,
+and not the two reads that apply a pack to a project and check the model against it.
+
+All of it is now under **CDE / Standards → Data requirements (jurisdiction)**. Packs resolve from
+the project's jurisdiction; a project with none is told so rather than given a default, because
+requirements from the wrong authority are a different answer that looks exactly like the right one.
+Every pack must carry its **authority, edition and source** before it can be stored, and every
+result says whose rules produced it — a compliance number detached from that is the kind that gets
+quoted at somebody. The built-in demonstration pack is labelled as one wherever its results appear,
+so it can never be mistaken for a finding. An import that is refused shows the server's own reason,
+which names the missing citation or the exact selector that would have silently matched nothing.
+
 ### The triangle census offered a saving you could not take
 
 Model QA → Standards has always measured where a model's triangle budget goes and told you what a

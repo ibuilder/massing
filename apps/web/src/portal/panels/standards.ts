@@ -164,6 +164,21 @@ export async function renderStandards(ctx: PanelContext) {
       }
     })();
     root.appendChild(bepCard);
+    // R23-JURISDICTION-PACKS — the authority's data requirements, which are information
+    // requirements for a PLACE rather than for this appointment. It sits here because the EIR/BEP
+    // above is the same question asked by the client instead of by the regulator, and a submitter
+    // needs both answers before a submittal. Its own panel; this is the way in.
+    const jurCard = el("div", "dash-card"); jurCard.style.marginBottom = "8px";
+    jurCard.innerHTML = `<div><b>⚖️ Data requirements (jurisdiction)</b></div>`
+      + `<div class="meta" style="margin-top:2px">Requirement packs published by an authority for a `
+      + `jurisdiction, each carrying its authority, edition and source — and this model checked `
+      + `against the ones that apply here.</div>`;
+    const jurBtn = el("button"); jurBtn.className = "mini-btn on"; jurBtn.textContent = "Open";
+    jurBtn.style.marginTop = "6px";
+    jurBtn.onclick = () => void (async () => {
+      await (await import("./jurisdictionPanel")).renderJurisdiction(ctx);
+    })();
+    jurCard.append(jurBtn); root.appendChild(jurCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
     void ctx.host.api.aiReadiness(pid).then((ai) => {
       const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";
