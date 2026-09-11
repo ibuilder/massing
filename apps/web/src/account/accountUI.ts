@@ -12,6 +12,7 @@ import { modalShell, confirmModal } from "../ui/modal";
 import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
 import { renderChip, type ChipIdentity } from "./accountChip";
+import { signInDoors, collapsedDoors, type SignInDoor } from "./signInDoors";
 import { cloudLoginUrl, cloudStatus, cloudRefresh, cloudDisconnect, type CloudStatus } from "../api/cloud";
 
 export interface AccountDeps {
@@ -112,40 +113,45 @@ function loginModal() {
     card.insertBefore(hint, b.nextSibling);
   }).catch(() => { /* status unavailable — the password form below still works */ });
 
-  // SSO buttons (only the providers configured on the server), shown above the password form
-  void D.api.authProviders().then(({ providers }) => {
-    if (!providers.length) {
-      // no OAuth configured — tell the operator SSO is available rather than silently hiding it
+  // Sign-in doors (only the ones configured on the server), shown above the password form.
+  // The ORDER is `signInDoors` — a pure function with its own tests — so that the rule about which
+  // doors lead is not something you have to read DOM code to find out.
+  void D.api.authProviders().then(({ providers, saml }) => {
+    const doors = signInDoors(providers, saml);
+    if (!doors.length) {
+      // no sign-in door configured — tell the operator SSO is available rather than silently hiding
+      // it. This branch used to be `!providers.length`, which is why a workspace that had wired a
+      // SAML IdP and paid for the tier that entitles it was told, on its own login screen, to go and
+      // configure OAuth.
       const hint = document.createElement("div"); hint.className = "meta";
       hint.style.cssText = "margin-top:8px;font-size:11px";
-      hint.innerHTML = "Single sign-on (Google · Microsoft · Procore) is supported — set the "
-        + "<code>AEC_OAUTH_*</code> client IDs on the server to show the buttons here.";
+      hint.innerHTML = "Single sign-on (Google · Microsoft · Procore, or your own SAML IdP) is supported"
+        + " — set the <code>AEC_OAUTH_*</code> client IDs, or the <code>AEC_SAML_IDP_*</code> settings,"
+        + " on the server to show the buttons here.";
       card.appendChild(hint);
       return;
     }
-    // A1/C1: the modal LEADS with big Google + Microsoft buttons (co-equal defaults); when neither
-    // is configured the first configured provider takes the lead slot instead.
+    // A1/C1: the modal LEADS with big buttons (co-equal defaults) and collapses the rest.
     const wrap = document.createElement("div"); wrap.style.cssText = "display:flex;flex-direction:column;gap:8px";
-    const go2 = (pv: { id: string }) => { window.location.href = D.api.url(`/auth/oauth/${pv.id}/login`); };
-    const PRIMARY = new Set(["google", "microsoft"]);
-    const primary = providers.filter((pv) => PRIMARY.has(pv.id));
-    const lead = primary.length ? primary : providers.slice(0, 1);
-    for (const pv of lead) {
+    // Every door is a full-page navigation, SAML included: each one ends at a server redirect that
+    // sets the session cookie, so there is nothing for fetch to carry back.
+    const go2 = (d: SignInDoor) => { window.location.href = D.api.url(d.path); };
+    for (const d of doors.filter((x) => x.lead)) {
       const b = document.createElement("button"); b.className = "file-btn";
       b.style.cssText = "padding:11px 14px;font-size:14px;font-weight:600";
-      b.textContent = `Continue with ${pv.label}`;
-      b.onclick = () => go2(pv);
+      b.textContent = `Continue with ${d.label}`;
+      b.onclick = () => go2(d);
       wrap.appendChild(b);
     }
-    // A2: every other provider collapses behind "More sign-in options"
-    const others = providers.filter((pv) => !lead.includes(pv));
+    // A2: every other door collapses behind "More sign-in options"
+    const others = collapsedDoors(doors);
     if (others.length) {
       const hidden = document.createElement("div");
       hidden.style.cssText = "display:none;flex-direction:column;gap:6px";
-      for (const pv of others) {
+      for (const d of others) {
         const b = document.createElement("button"); b.className = "tool-btn";
-        b.textContent = `Continue with ${pv.label}`;
-        b.onclick = () => go2(pv);
+        b.textContent = `Continue with ${d.label}`;
+        b.onclick = () => go2(d);
         hidden.appendChild(b);
       }
       const more = document.createElement("a"); more.href = "#";

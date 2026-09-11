@@ -70,8 +70,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /reference/disciplines": ["disciplines", "masterformat_divisions", "uniformat_crosswalk"],
   "POST /projects/{}/modules/{}/views": ["mine", "owner", "scope"],
   "POST /proforma/scenarios/{}/draw-package": ["forecast_returns", "g703_totals"],
-  "GET /asset-rights/status": ["public_key"],
-  "GET /auth/providers": ["saml"],
   "POST /proforma/solve": ["provenance"],
 };
 

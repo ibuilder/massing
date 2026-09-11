@@ -1406,7 +1406,7 @@ instances:
   bigger than the one remaining instance.
 
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 9 fixed, 6 open**)*
+  2026-09-11; **all 15 triaged, 11 fixed, 4 open**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,7 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Nine are fixed (below); the six still open are listed after them.**
+  **TRIAGE: all 15 read. Eleven are fixed (below); the four still open are listed after them.**
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1543,14 +1543,51 @@ instances:
   should match the narrowest thing that would actually be wrong; everything else it happens to match
   becomes a tripwire under the next person to improve the line.
 
-  **THE SIX STILL OPEN**, in four categories — and only one is the "invisible field" this item was
-  scoped around. Three need *declare **and** render*, not just declare:
+  **A TENTH, LATER THE SAME DAY — and it was never really about a declared key.** `/auth/providers`
+  returns `saml`; the client type named only `providers`, so the login modal branched on
+  `providers.length` alone and a workspace that had wired its own SAML IdP **and** paid for the tier
+  that entitles `sso` was shown a hint on its own sign-in screen telling it to go and configure
+  OAuth. Not a missing button: a *wrong instruction*, on the one screen nobody can get past. Now a
+  "Continue with single sign-on" door leading the modal, with the ordering rule pulled out into
+  `apps/web/src/account/signInDoors.ts` — pure, nine tests, five mutations — because the rule about
+  which doors lead is the part worth pinning and the `document` calls are not.
 
-  * *server ships, client dark* — `/auth/providers` never declares `saml`, and `saml` appears nowhere
-    in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
-    `/asset-rights/status` never declares `public_key`, so out-of-band verification is unreachable,
-    **and the client interface still carries the comment `Never a key.`, which is the exact rule the
-    server correction removed** · `/modules/{key}/views` returns `scope`, `owner` and `mine`
+  **AND UNDERNEATH IT, THE REASON THE MISSING BUTTON HAD NEVER BEEN REPORTED: the flow could not
+  have worked anyway.** `routers/saml.py` carried its own `_cookie` whose docstring said it *"mirrors
+  routers/auth._cookie"*. It had drifted, and to the one thing that is not a preference — the NAME.
+  It set `aec-token`; the cookie `rbac.current_user` reads is `aec_token`. So a correctly signed,
+  in-window, right-audience assertion was verified, the account provisioned, a real session token
+  minted — and put somewhere nothing reads. The browser returned to the app signed out.
+  `services/api/test_saml.py` asserted `"aec-token" in r.cookies`, **using the name the code under
+  test had chosen**, so it was green over a flow that had never once logged anybody in: a check that
+  can fail for a typo but not for the defect. It now asks `/auth/me` who the caller is, which has one
+  right answer and no spelling of a cookie can fake; with the old helper restored it fails with
+  *"ACS set a cookie the server does not read — /auth/me says 'dev'"*. The copy is gone rather than
+  corrected — `saml.py` imports auth's — which also recovers the two things the copy had lost,
+  `AEC_COOKIE_SECURE` and the 7-day max-age. *A duplicated helper does not drift where you are
+  looking; it drifts in the one field both sides only ever write.*
+
+  **AN ELEVENTH, the same afternoon — a promise the dialog could not keep.** `/asset-rights/status`
+  returns `public_key`; the client type omitted it, under a comment on the neighbouring `issuer`
+  field reading *"Never a key."* — a rule the server had already examined and removed, because the
+  same key is embedded in every signed manifest we emit, so withholding it protected nothing and
+  only meant a verifier had to trust the document's own copy, which is the copy an attacker who
+  rewrote the manifest would have replaced. Meanwhile the seal dialog promised that *"anyone holding
+  the issuer's published verification key can confirm the file is authentic"* while being unable to
+  say what that key is. It now names the issuer and prints the key beside the promise.
+  `sealIdentity` in `apps/web/src/api/assetRights.ts` decides when there IS an identity to name, and
+  its interesting case is `signing: true` with an empty key — which must render nothing rather than
+  an empty label that reads as verifiable. *`issuer` was also declared-and-never-read, so one edit
+  closed a DEAD-FIELD and a RESPONSE-UNDECLARED on the same route, in opposite directions.*
+  **One of the four mutations survived the first pass**: the `signing` guard was covered only
+  incidentally, because the test for it also emptied the key, so deleting the guard still passed.
+  *Two guards that always fire together are one guard as far as the tests can tell* — the state is
+  now constructed deliberately and pinned.
+
+  **THE FOUR STILL OPEN**, in four categories — and only one is the "invisible field" this item was
+  scoped around. One needs *declare **and** render*, not just declare:
+
+  * *server ships, client dark* — `/modules/{key}/views` returns `scope`, `owner` and `mine`
     on both the GET and the POST and the client type declares none of them, so a shared view is
     indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
     body, so the server's `default="private"` decides for every view the web UI creates. *(This
