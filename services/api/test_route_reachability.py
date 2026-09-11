@@ -289,6 +289,28 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/rules/effective",
     "/projects/{pid}/scene/manifest",
     "/webhooks/deliveries",
+    # ---- 8 more, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
+    # NOT follow a leaf to an allowlist of what MAY (see `_SEGMENT` for the measurement: +8, 0 lost).
+    # Every one of these was vouched for by an English sentence that happened to start with the
+    # leaf — "packs failed: …", "seeded from MasterFormat classifications", "coordinate the
+    # drawings", "template must contain {z}/{x}/{y}", "georeference to carry the offset",
+    # "…out of the wet/freeze season" — or by "generic/proxy" inside a count. Each was then grepped
+    # directly: no caller, in any shape, anywhere in `apps/web/src`.
+    #
+    # These are not stubs. Freezing a prefab kit writes the GlobalId list that the shop fabricates
+    # from; `/jurisdiction/packs` is the whole import path for an authority's data requirements;
+    # `/projects/{pid}/georeference` is what tells a user whether their model may be used to set
+    # out. **Eight working capabilities with no way to reach them**, and the reason they were never
+    # counted is that the gate written to count them was reading prose. Frozen, not judged — the
+    # same terms as the 25 above.
+    "/codes/seeded",
+    "/jurisdiction/packs",
+    "/jurisdiction/packs/{pack_id}",
+    "/projects/{pid}/clash/coordinate",
+    "/projects/{pid}/documents/template",
+    "/projects/{pid}/georeference",
+    "/projects/{pid}/model/lod/proxy",
+    "/projects/{pid}/prefab/kits/{rid}/freeze",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -487,13 +509,36 @@ def string_blob(code: str) -> str:
     Cached because it is asked for once per assessed route, 834 times, over ~4 MB of source. The
     uncached first draft took this gate from seconds to over two minutes.
     """
-    return _NUL + _NUL.join(m[1:-1] for m in _STRINGS.findall(code))
+    #: TERMINATED as well as separated, since 2026-09-11. `_SEGMENT` asks what FOLLOWS the leaf,
+    #: and the last literal in the blob has nothing after it -- so without a closing NUL the rule
+    #: would need `$` to mean "end of a string", and `$` in a Python regex also matches before a
+    #: trailing newline, which a multi-line template literal really can end with. One character
+    #: here removes a boundary case rather than documenting it.
+    return _NUL + _NUL.join(m[1:-1] for m in _STRINGS.findall(code)) + _NUL
 
 
 @functools.lru_cache(maxsize=2048)
 def _SEGMENT(leaf: str) -> "re.Pattern[str]":
-    """The leaf occupying a PATH SEGMENT: it opens a string, or follows a `/`, and no path
-    character continues it.
+    """The leaf occupying a PATH SEGMENT: it opens a string, or follows a `/`, and what comes next
+    is an end of string, another segment, a query/fragment, or an interpolation.
+
+    **This ENUMERATES WHAT MAY FOLLOW, rather than what may not — changed 2026-09-11, by review.**
+    The first version was a negative lookahead: anything but `[A-Za-z0-9_.-]` (and a bare `$`)
+    ended the segment. Review pointed out that it therefore accepted `:`, `@`, `;`, `~` and `%`, so
+    `"import: offline baseline"` vouched for `/cost/datasets/import`. **Adding those five characters
+    to the negative set would have fixed the example and nothing else** — measured, it moves the
+    uncalled count by zero. The defect is not the five characters, it is the polarity: a blocklist
+    of path-continuations is open by construction, and the next word to sit against a leaf is
+    whatever prose someone writes tomorrow.
+
+    Flipping to a positive lookahead was measured across all 834 assessed routes before it landed:
+    **+8 newly visible, 0 lost.** All eight were English prose at the head of a string —
+    `"packs failed: ..."`, `"seeded from MasterFormat classifications"`, `"coordinate the drawings"`,
+    `"template must contain {z}/{x}/{y}"`, `"georeference to carry the offset"`,
+    `" (${r.generic_elements} generic/proxy)"`, `"...out of the wet/freeze season."` — and a direct
+    grep confirms none of the eight routes has a caller. *The blocklist could not have been extended
+    to reach them: a leaf followed by a space is not a path, and no list of forbidden punctuation
+    says so.*
 
     **`}` WAS IN THIS SET FOR ONE DAY AND EARNED NOTHING.** The first draft also accepted `}`, on
     the theory that a leaf can follow a closed `${...}` — `` `${base}import` ``. Review pointed out
@@ -509,7 +554,7 @@ def _SEGMENT(leaf: str) -> "re.Pattern[str]":
     If a caller ever does write `` `${base}import` ``, this rule reads the route as uncalled and the
     gate goes red until someone looks — which is the direction this file wants to fail in.
     """
-    return re.compile(rf"(?:{_NUL}|/){re.escape(leaf)}(?![A-Za-z0-9_.\-]|\$(?!\{{))")
+    return re.compile(rf"(?:{_NUL}|/){re.escape(leaf)}(?={_NUL}|/|[?#]|\$\{{)")
 
 
 def uncalled_routes(paths, blob: str) -> set[str]:
@@ -702,6 +747,18 @@ check("  ...and still accepts the shapes a real caller writes",
 # what surrounds the leaf CHARACTER by character; these are about WHERE it is allowed to be found at
 # all, which is the class that let `/cost/datasets/import` ship unreachable and made product copy
 # unwritable. Same shape as above: what it must reject, and what it must still accept.
+check("  a real caller's URL shapes stay reachable under the positive lookahead",
+      leaf_is_called("import", '"/cost/datasets/import"')
+      and leaf_is_called("import", "'/cost/datasets/import'")
+      and leaf_is_called("import", '`${base}/cost/datasets/import`')
+      and leaf_is_called("import", '"/cost/datasets/import?vintage=2026"')
+      and leaf_is_called("import", '"/cost/datasets/import#top"')
+      and leaf_is_called("import", '"/cost/datasets/import/dry-run"')
+      and leaf_is_called("import", '`/cost/datasets/import${qs}`')
+      and leaf_is_called("plan.dxf", '`/projects/${pid}/exports/plan.dxf`'),
+      "the positive lookahead has lost a call shape the client really writes — every route whose "
+      "leaf is written this way would be reported uncalled, and the gate would be measuring itself")
+
 check("  ...and rejects a leaf that is only a word in a sentence or a bare keyword",
       not leaf_is_called("import", "import { toast } from './feedback';")
       and not leaf_is_called("import", 'toast("Building the offline public cost vintage…")')
@@ -712,7 +769,17 @@ check("  ...and rejects a leaf that is only a word in a sentence or a bare keywo
       # was accepted unconditionally, so any string carrying one in front of the leaf vouched for
       # the route -- a fail-open hole inside the fix for a fail-open hole.
       and not leaf_is_called("import", 'label("not a URL }import")')
-      and not leaf_is_called("import", 'const s = `${base}import`;'),
+      and not leaf_is_called("import", 'const s = `${base}import`;')
+      # NOR IS A COLON, `@`, `;`, `~` OR `%`. Review's second finding on the same rule: the negative
+      # lookahead named the characters a segment may NOT be continued by, so every character nobody
+      # thought of ended a segment -- and prose puts one there constantly. These five are the
+      # examples; the fix was the polarity, not the five. See `_SEGMENT`.
+      and not leaf_is_called("import", '"import: offline baseline"')
+      and not leaf_is_called("import", '"import;x"')
+      and not leaf_is_called("import", '"import@host"')
+      and not leaf_is_called("import", '"import~1"')
+      and not leaf_is_called("import", '"import%20now"')
+      and not leaf_is_called("packs", '"packs failed: ${(e as Error).message}"'),
       "a route is being vouched for by English or by a keyword again — the class that hid "
       "/cost/datasets/import behind 2,223 occurrences of the TypeScript `import` keyword")
 check("  ...while a URL written any of the ways this client writes one still counts",
