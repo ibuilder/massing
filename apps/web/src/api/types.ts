@@ -428,7 +428,18 @@ export interface NotifItem {
   module: string; module_name: string; icon: string; record_id: string; ref: string;
   title: string | null; action: string; actor: string | null; ts: string | null; reason: string;
 }
-export interface SavedViewDef { id: string; name: string; config: { q?: string; state?: string; sort?: { col: string; dir: 1 | -1 } }; }
+export interface SavedViewDef {
+  id: string; name: string;
+  config: { q?: string; state?: string; sort?: { col: string; dir: 1 | -1 } };
+  /** `private` — only the owner lists it. `project` — anyone who can read this project's registers. */
+  scope: "private" | "project";
+  /** The identity that owns the row (the key, not a display name). */
+  owner: string;
+  /** Whether the CALLER owns it. Sent per row rather than derived from `owner === me` because the
+   *  two disagree the moment a display name is not the identity key — and this is what decides
+   *  whether Delete is offered, which has to match what the server will actually allow. */
+  mine: boolean;
+}
 export interface DueItem {
   module: string; module_name: string; icon: string; id: string; ref: string;
   title: string | null; state: string; assignee: string | null; due_date: string; days: number;

@@ -4,6 +4,7 @@ import { askText } from "../ui/prompt";
 import { signedBars, donut, lineChart, stackedBar, tornado, groupedBar, money as cmoney } from "../ui/charts";
 import { showQrModal } from "../ui/qr";
 import { provenanceLine } from "./provenanceLine";
+import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { renderTestFitTab } from "./testfitTab";
@@ -1479,7 +1480,10 @@ export class ProformaUI {
             .map((x) => ({ actual_to_date: parseFloat(x.value) || 0 }));
           const sc = await this.api.createScenario("Draw package", pid, this.a);
           const dp = await this.api.drawPackage(sc.id, { project_id: pid, actuals, as_of_month: 9, app_no: 1 });
-          this.setStatus(`SOV (${dp.sov_lines_created} lines) → G702 due $${Math.round(dp.g702.line8_current_payment_due ?? 0).toLocaleString()}`);
+          // The status used to stop at the payment due. `g703_totals` is the schedule of values that
+          // figure is computed from, and `forecast_returns` is the re-forecast IRR the whole bridge
+          // exists to produce — both arrived on every draw and neither was shown.
+          this.setStatus(drawPackageLines(dp).join("  ·  "));
           { const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
             await openPdfUrl(this.api, this.api.url(dp.g702_pdf), "G702-draw.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(this.api, pid) }); }
         } catch (e) { this.setStatus(`draw package error: ${(e as Error).message}`); }

@@ -12,6 +12,28 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### You can share a saved view — and delete now tells the truth about it
+
+Saved views on a register could already be shared with the whole project. The app just never offered
+it, so every view anyone made here was private whether they wanted it or not. Saving one now asks.
+
+Three related things were wrong and are fixed together. Shared views from colleagues looked exactly
+like your own private filters in the dropdown — they now say whose they are. The delete list offered
+every view on screen, including other people's, which the server refuses; picking one reported *"was
+already gone"* and then it was still there. It now offers only views you can actually delete. And the
+confirmation claimed a view was *"yours alone"* even when deleting it would remove it for everyone
+using it — it now says which.
+
+### A lender draw package shows the schedule of values it was computed from
+
+Generating a G702 draw package reported the payment due and how many schedule-of-values lines were
+created, and stopped there. Two things it had already worked out went unseen: the G703 totals the
+certificate is computed from — completed to date, retainage held, balance to finish — and the deal's
+returns re-forecast with your actuals folded in.
+
+That second one is the entire point of running the draw off the underwriting model: it answers "is
+this still the deal we signed?" Both are now on screen beside the payment due.
+
 ### A pro forma now says how much of it you actually supplied
 
 Solve a deal and Massing reports an equity IRR, a yield on cost, a development spread. Some of the

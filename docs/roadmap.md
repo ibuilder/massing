@@ -1405,8 +1405,8 @@ instances:
   ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
   bigger than the one remaining instance.
 
-- ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; **all 15 triaged, 13 fixed, 2 open**)*
+- ✅ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
+  2026-09-11; **CLOSED the same day — all 15 triaged, all 15 fixed, `KNOWN_GAPS` is EMPTY**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,7 +1446,10 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: all 15 read. Thirteen are fixed (below); the two still open are listed after them.**
+  **TRIAGE: all 15 read, ALL 15 FIXED.** `KNOWN_GAPS` in the gate is now `{}` — and because it is
+  asserted exactly in both directions, an empty list is a *claim under test*: the next undeclared
+  key anywhere in the tree fails the build instead of joining a backlog. The fourteenth and
+  fifteenth are below the thirteenth.
 
   **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
   is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
@@ -1622,18 +1625,36 @@ instances:
   all biting. The paths are caller-supplied strings from the request body, so the line is built with
   `textContent`, never `innerHTML`.
 
-  **THE TWO STILL OPEN** — and neither is quite the "invisible field" this item was scoped around.
-  One needs *declare **and** render*, not just declare:
+  **A FOURTEENTH — three defects downstream of three undeclared keys.**
+  `GET/POST /projects/{pid}/modules/{key}/views` return `scope`, `owner` and `mine` on every row and
+  `SavedViewDef` declared none. The server's own comment says why `mine` is SENT rather than inferred
+  from `owner == me` — *"the two can disagree the moment a display name is not the identity key … and
+  the UI uses it to decide whether to offer Delete, which must match what the server will actually
+  allow"*. The UI could not read it, so it did not match, and the mismatch compounded:
 
-  * *server ships, client dark* — `/modules/{key}/views` returns `scope`, `owner` and `mine`
-    on both the GET and the POST and the client type declares none of them, so a shared view is
-    indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
-    body, so the server's `default="private"` decides for every view the web UI creates. *(This
-    sentence previously said the route "never sends or declares `scope`", conflating the response
-    the route RETURNS with the request the client POSTS — two different halves, only one of which
-    this axis measures.)*
-  * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
-    schedule of values behind a pay application) nor `forecast_returns`.
+  * a colleague's shared report and your own private filter read identically in the dropdown;
+  * the delete picker offered every listed view, **including ones `DELETE` refuses** — picking one
+    returns `deleted: false`, which the register reports as *"was already gone — refreshing the
+    list"*, after which it is still there, because it was never gone and was never yours. *The only
+    thing telling the truth was the list not changing.*
+  * the confirmation said *"Saved views are yours alone, so this removes it only for you"*, which
+    stopped being true the day sharing shipped.
+
+  And `saveView` sent **no `scope` at all**, so the route's `default="private"` decided for every view
+  this app has ever created: the sharing half of R22-REPORT-BUILDER item 4 was reachable only from
+  outside it. `apps/web/src/portal/register/savedViews.ts` — five mutations, all biting.
+
+  **A FIFTEENTH, and the axis closes on it.** `POST /proforma/scenarios/{sid}/draw-package` returns
+  five keys; three were declared. The two dropped are the two the route exists for. `g703_totals` is
+  the schedule of values the G702 certificate is computed FROM — a payment due with no visible
+  completed-to-date and no visible retainage is a number nobody downstream can check, and retainage is
+  the line owners and subcontractors argue about. `forecast_returns` is the route's own premise,
+  *"so the IRR you underwrote and the lender draw run off the SAME cost tree"*: the re-forecast IRR
+  with the actuals folded in, which answers *is this still the deal we signed?* Both computed on every
+  draw, shown on none. `apps/web/src/proforma/drawPackage.ts`, six mutations. A seventh check found it
+  too: `apps/web/src/ui/charts.test.ts` refused the local `const usd` the first draft defined —
+  **eighteen local copies had disagreed about where the minus sign goes**, and the gate that ended
+  that does not care that this one was new.
 
   **A SEPARATE FINDING, not folded in: 106 dict-returning routes have NO typed client call site.**
   That is a different question from the "19 route handlers have no web client" counted below by a
@@ -2749,7 +2770,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(the finding comes from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
