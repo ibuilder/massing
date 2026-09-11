@@ -22,8 +22,15 @@ export async function renderDesignMetrics(ctx: PanelContext) {
     `<div style="min-width:104px"><div style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">${esc(value)}</div>`
     + `<div class="meta" style="margin:0">${esc(label)}${sub ? ` <span style="opacity:.7">${esc(sub)}</span>` : ""}</div></div>`;
 
+  // The wind screen lives outside the metrics try/catch on purpose: it can run on typed dimensions
+  // with no model at all, so a 409 on the metrics must not take it down with them.
+  const windHost = document.createElement("div");
+  ctx.root.appendChild(windHost);
+  let hasModel = false;
+
   try {
     const r = await ctx.host.api.modelDesignMetrics(pid);
+    hasModel = true;
     body.replaceChildren();
 
     const head = document.createElement("div"); head.className = "dash-card"; head.style.marginBottom = "10px";
@@ -75,4 +82,81 @@ export async function renderDesignMetrics(ctx: PanelContext) {
       ? `<div class="meta">Design metrics need a source IFC. Convert or upload a model, then reopen this panel.</div>`
       : `<div class="meta">Design metrics unavailable: ${esc(msg)}</div>`;
   }
+
+  await renderWindScreen(ctx, windHost, pid, hasModel);
+}
+
+/**
+ * ENV-WIND — the pedestrian wind-comfort screen, drawn under the metrics it shares a stage with.
+ *
+ * A form, because the screen's three most misreadable inputs are all optional: the dimensions (blank
+ * ⇒ taken off the model's bounding box), the site wind (blank ⇒ a default that scales every number),
+ * and the gap to a neighbouring mass (blank ⇒ channelling is never checked at all). `envWind.ts`
+ * holds the wording for all three; this function only draws it.
+ */
+async function renderWindScreen(ctx: PanelContext, host: HTMLElement, pid: string, hasModel: boolean) {
+  const W = await import("./envWind");
+  const card = document.createElement("div"); card.className = "dash-card";
+  const num = (id: string, label: string, ph: string) =>
+    `<label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)">${esc(label)}`
+    + `<input class="portal-filter" data-w="${id}" type="number" min="0" step="0.1" placeholder="${esc(ph)}" style="width:96px"></label>`;
+  card.innerHTML = `<div class="section-title" style="margin:0 0 8px">Pedestrian wind comfort `
+    + `<span style="opacity:.6;font-weight:500;font-size:11px">(massing screen — not CFD)</span></div>`
+    + `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">`
+    + num("height_m", "Height (m)", hasModel ? "from model" : "required")
+    + num("width_m", "Width (m)", hasModel ? "from model" : "required")
+    + num("depth_m", "Depth (m)", hasModel ? "from model" : "required")
+    + num("wind_ms", "Site wind (m/s)", "default 5")
+    + num("gap_m", "Gap to neighbour (m)", "not checked")
+    + num("podium_height_m", "Podium height (m)", "none")
+    + `<button class="mini-btn" data-w-run type="button">Screen</button></div>`
+    + `<div data-w-out style="margin-top:10px"></div>`;
+  host.appendChild(card);
+
+  const out = card.querySelector<HTMLElement>("[data-w-out]")!;
+  const btn = card.querySelector<HTMLButtonElement>("[data-w-run]")!;
+  const read = (): import("./envWind").WindForm => {
+    const f: Record<string, number | null> = {};
+    card.querySelectorAll<HTMLInputElement>("input[data-w]").forEach((i) => {
+      const v = i.value.trim();
+      f[i.dataset.w!] = v === "" ? null : Number(v);
+    });
+    return f as import("./envWind").WindForm;
+  };
+
+  btn.addEventListener("click", async () => {
+    const form = read();
+    const gate = W.screenGate(form, hasModel);
+    if (!gate.can) { out.innerHTML = `<div class="meta">Cannot screen — ${esc(gate.why)}.</div>`; return; }
+    btn.disabled = true;
+    out.innerHTML = `<div class="meta">Screening…</div>`;
+    try {
+      const r = await ctx.host.api.envWindScreen(pid, form);
+      const gaps = W.unassessed(r);
+      const bad = !r.acceptable_for_entrances || r.worst.lawson === "S";
+      out.innerHTML =
+        `<div style="font-weight:700;color:${bad ? "#b42318" : gaps.length ? "#9a6700" : "#1a7f37"}">`
+        + `${esc(W.verdict(r))}</div>`
+        + gaps.map((g) => `<div class="meta" style="margin-top:6px;color:#9a6700">⚠ ${esc(g)}</div>`).join("")
+        + `<div class="meta" style="margin-top:6px">${esc(W.dimensionBasis(r, form))}</div>`
+        + `<div class="meta" style="margin-top:2px">${esc(W.windBasis(form.wind_ms, r.inputs.wind_ms))}</div>`
+        + `<table class="portal-table" style="margin-top:8px"><thead><tr>`
+        + `<th scope="col">Zone</th><th scope="col" style="text-align:right">Factor</th>`
+        + `<th scope="col" style="text-align:right">Speed (m/s)</th><th scope="col">Lawson</th></tr></thead><tbody>`
+        + r.zones.map((z) => `<tr><td>${esc(z.zone)}</td>`
+          + `<td style="text-align:right;font-variant-numeric:tabular-nums">×${z.factor}</td>`
+          + `<td style="text-align:right;font-variant-numeric:tabular-nums">${z.speed_ms}</td>`
+          + `<td>${esc(W.comfortLabel(z))}</td></tr>`).join("")
+        + `</tbody></table>`
+        + `<div class="section-title" style="margin:10px 0 4px">Mitigations</div>`
+        + `<ul style="margin:0;padding-left:18px;font-size:12px">`
+        + W.mitigationLines(r).map((m) => `<li>${esc(m)}</li>`).join("") + `</ul>`
+        + `<div class="meta" style="margin-top:8px;opacity:.8">${esc(r.disclaimer)}</div>`;
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      out.innerHTML = `<div class="meta">Wind screen unavailable: ${esc(msg)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }

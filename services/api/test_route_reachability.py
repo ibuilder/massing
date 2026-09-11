@@ -910,6 +910,60 @@ for _r in ("/projects/{pid}/jurisdiction/requirements", "/projects/{pid}/jurisdi
           "if this fails the matcher changed or the vouching text moved -- re-triage the route "
           "rather than assuming this gate ever had an opinion about it")
 
+# A FIFTH INSTANCE, measured 2026-09-11 while wiring ENV-WIND, and it is invisible for a THIRD
+# reason again -- not a collision with text (`requirements`), not a collision with a sibling route
+# (`check`), but a leaf too SHORT to be looked at. `MIN_SEGMENT = 5` above drops any route whose last
+# static segment is under five characters, and `wind` is four. `/projects/{pid}/env/wind` was
+# therefore never in this gate's population at all: not in FOUND, not flaggable, not freezable.
+#
+# The paragraph at `MIN_SEGMENT` says those routes are "otherwise still unmeasured" and asks for a
+# re-derivation rather than trust. **This is that re-derivation, and it holds one sound half.**
+#
+# 115 of 949 routes fall below the threshold. For 108 of them the leaf DOES occur somewhere in the
+# web source -- and that means nothing: `due`, `acs`, `eot` are ordinary words, which is the whole
+# reason the threshold exists. But the rule's coarseness runs in ONE direction only. A leaf that
+# appears NOWHERE cannot be being called, however short it is; absence is conclusive where presence
+# is not. So the seven below are not "probably dark" -- they are dark on the same evidence the main
+# rule uses, and freezing them is a real ratchet rather than a number to look at.
+#
+# It may SHRINK and never grow. A wired route leaves the set by putting its leaf into the source,
+# which is what ENV-WIND just did: this list held eight until `envWindScreen`
+# (`apps/web/src/api/designPerformance.ts`) landed, called from the wind section of
+# `apps/web/src/portal/panels/designMetrics.ts`.
+#
+# What it does NOT claim: that the other 108 are reachable. This gate has no opinion about them and
+# neither does this check. *A sound half of a coarse rule is worth extracting; announcing the other
+# half as covered is how a green tick comes to mean nothing.*
+CONFIRMED_DARK_SHORT_LEAF = {
+    #: The SAML assertion-consumer endpoint. Must have no web caller -- the IdP POSTs the assertion
+    #: here, exactly like `/auth/cloud/callback` above. Not parked work.
+    "/auth/saml/acs",
+    #: Scheduler polls. `/routines/due` and its per-project sibling are read by the server-side
+    #: runner, not by a browser.
+    "/routines/due", "/projects/{pid}/routines/due",
+    #: JSON siblings of the AIA G702/G703 PDF routes, which ARE called
+    #: (`apps/web/src/api/downloadPdf.ts`). A screen that renders the payment application from data
+    #: rather than downloading it would use these; none exists yet.
+    "/projects/{pid}/cost/g702", "/projects/{pid}/cost/g703",
+    #: Extension-of-time claim assembly, and the ERP entity bridge. Both are finished server-side
+    #: and have no screen. Candidates for the next wiring sprint, in that order.
+    "/projects/{pid}/schedule/eot", "/connections/{cid}/erp/{entity}",
+}
+_SHORT = {r for r in PATHS if len(_leaf(r)) < MIN_SEGMENT}
+_SHORT_DARK = {r for r in _SHORT if not leaf_is_called(_leaf(r), _CODE)}
+check("the sub-MIN_SEGMENT population is bounded and known, not an unexamined remainder",
+      len(_SHORT) <= 130,
+      f"{len(_SHORT)} of {len(PATHS)} routes now have a leaf under {MIN_SEGMENT} characters — if the "
+      "threshold moved or a family of short-leaf routes landed, re-derive the dark subset below "
+      "rather than widening this bound")
+check("  no NEW route is confirmed-dark by absence — this ratchet only comes down",
+      not (_SHORT_DARK - CONFIRMED_DARK_SHORT_LEAF),
+      f"newly dark: {sorted(_SHORT_DARK - CONFIRMED_DARK_SHORT_LEAF)} — a short leaf hides a route "
+      "from the main rule, so wire it or record here why it must stay callerless")
+_LEFT = sorted(CONFIRMED_DARK_SHORT_LEAF - _SHORT_DARK)
+if _LEFT:
+    print(f"  (ratchet down: {_LEFT} left the confirmed-dark set — delete the entries above)")
+
 # The stated blind spot, asserted so it cannot be quietly forgotten.
 check("the rule's known FALSE NEGATIVE still holds: /proforma/renovation is NOT flagged",
       "/projects/{pid}/proforma/renovation" not in FOUND,

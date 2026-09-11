@@ -12,6 +12,25 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Pedestrian wind comfort, screened from the massing
+
+**📐 Design Metrics** now carries a **pedestrian wind comfort** screen. Give it a height, width and
+depth — or leave them blank and they come off the model's bounding box — plus the site's mean
+pedestrian-level wind, and it grades corner acceleration, downwash and channelling against the
+**Lawson comfort categories**, lists the zone speeds, and names the standard mitigations: corner
+chamfers, a podium, an entrance canopy, porous screens in a passage.
+
+It runs offline and in a second, which is the point: massing decides most pedestrian wind outcomes,
+and a wind-tunnel study arrives long after the massing is fixed. **It is a screening heuristic, not
+CFD and not a wind study**, and it says so on every result.
+
+Three things it will not do. It will not call a result acceptable when a check did not run —
+channelling is only looked at if you give it the gap to the neighbouring building, and without that
+the screen says plainly that it is partial. It will not let the default site wind pass as a
+measurement, because every speed on the screen scales directly with it. And when the dimensions came
+off the model it says so, since a bounding box spans the site and context geometry as well as the
+building.
+
 ### Buyout packages can be kept, and their RFQs sent
 
 **Budget → Buyout packages** has always grouped the model's priced quantities into packages, each
