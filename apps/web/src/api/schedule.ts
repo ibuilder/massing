@@ -794,7 +794,89 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/daily-reports/summary`);
   }
+
+  /**
+   * R40-EOT — an extension of time with the METHOD it was computed by attached to it.
+   *
+   * `method` is required and a closed set (AACE 29R-03 / SCL Protocol): the same facts give
+   * different answers under different methods, so the engine refuses rather than picking one.
+   * Every non-`analysed` status is a distinct refusal that sends the reader somewhere different.
+   */
+  scheduleEot(pid: string, body: { method?: string | null; baseline_finish?: string | null;
+                                   actual_finish?: string | null; events?: EotEventInput[] }) {
+    return this.json<EotResult>(`/projects/${pid}/schedule/eot`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * R40-EOT ② — the same entitlement, built from the project's OWN captured baseline and detected
+   * events rather than typed dates. Prefer this: a typed baseline is unauditable, and the baseline
+   * is the most contested input in a delay claim.
+   */
+  scheduleEotSourced(pid: string, body: { method?: string | null; baseline_id?: string | null;
+                                          baseline_finish?: string | null;
+                                          actual_finish?: string | null; events?: EotEventInput[] }) {
+    return this.json<EotSourced>(`/projects/${pid}/schedule/eot/sourced`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+  }
   };
+}
+
+/** One delay event as the caller states it. `days` is what detection never supplies. */
+export interface EotEventInput {
+  id?: string; kind?: string; days?: number | null;
+  activity_id?: string | null; start?: string | null; entitlement?: string | null;
+}
+
+/** One graded event in the entitlement. `absorbed_by_float` is NOT a finding of no delay. */
+export interface EotEvent {
+  id: string; kind: string | null; activity_id: string | null; days: number;
+  total_float: number | null; absorbed_by_float: boolean; critical: boolean | null;
+  impact_days: number; eot_days: number;
+  entitlement: string | null; reason: string;
+}
+
+/** The entitlement, or the refusal that stopped it. `status` decides which. */
+export interface EotResult {
+  status: "analysed" | "method_required" | "baseline_required" | "actual_finish_required"
+        | "method_needs_schedule_updates" | string;
+  status_meaning?: string;
+  method: string; method_basis?: string; method_meaning?: string;
+  methods_available?: Record<string, string>;
+  performed_by?: string | null;
+  reason?: string;
+  eot_days: number | null;
+  additive_days?: number; capped_by_actual_slip?: boolean; over_claimed_days?: number;
+  unattributed_slip_days?: number;
+  baseline_finish?: string; actual_finish?: string | null; actual_variance_days?: number;
+  revised_finish?: string;
+  events?: EotEvent[];
+  by_entitlement?: Record<string, number>;
+  unclassified_count?: number;
+  /** `apportioned` is always false, and must stay visibly so. */
+  concurrency?: { pairs: unknown[]; count: number; apportioned: boolean; note: string };
+  note?: string;
+}
+
+/** The sourced entitlement: the same analysis over inputs that can be re-derived. */
+export interface EotSourced {
+  status?: string;
+  project_id?: string;
+  baseline?: { id?: string; name?: string; captured_at?: string; count?: number } | null;
+  baselines_available?: { id: string; name: string }[];
+  slip_summary?: Record<string, unknown>;
+  attribution?: {
+    activities: Record<string, unknown>[];
+    attributed_days: number; unattributed_days: number;
+    unattributed: { activity_id: string; name: string; slip_days: number }[];
+    needs_duration: Record<string, unknown>[];
+    events_without_activity: number; note: string;
+  };
+  analysis?: EotResult;
+  events_detected?: number; events_supplied?: number; events_quantified?: number;
+  note?: string;
 }
 
 export interface TaktProgressRow {

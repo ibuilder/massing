@@ -1749,8 +1749,9 @@ instances:
   `SpatialNode.{elevation, elevationUnit}` (neither is rendered). **`DealMemoryProject.cost_variance_pct`
   is the one worth naming separately: it is not an oversight but a documented refusal** —
   `routers/operations.py` states that comparing a realised overrun to an entered contingency is a
-  claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
-  call `/schedule/eot` does.
+  claim about what an underwriting asserts, not a unit conversion. It was deferred alongside the EOT
+  semantics; **that one was decided on 2026-09-11 (R40-EOT) and this one was not** — they are separate
+  calls, and only the schedule half has been made.
 
 - 🟡 **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
   *(S — Lane G; **OPEN**, raised in review on PR #528 2026-09-11; needs a contract decision)*
@@ -1778,6 +1779,43 @@ instances:
   the easy half; what to do when it changes zero rows is the decision.* Same shape as
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
+
+- ✅ ⭐ **R40-EOT — an extension of time, with the method that produced it**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/eotClaim.test.ts` and `services/api/test_route_reachability.py`)*
+
+  R40 built the whole discipline server-side and **both of its routes were dark.** `…/schedule/eot`
+  computes entitlement against the AACE 29R-03 / SCL Protocol taxonomy — `method` required and
+  closed, because the same facts give different answers under different methods — and
+  `…/schedule/eot/sourced` does it again over the project's **captured baseline** and its own
+  detected events, so the two most contested inputs are re-derivable rather than typed.
+
+  **One feature, two concealments, two different lists.** `eot` has a three-character leaf, below
+  `MIN_SEGMENT`, so it sat in the short-leaf ratchet ENV-WIND had just created; `eot/sourced` was
+  frozen in `KNOWN_UNCALLED` and could have been read any day. *Reading either list alone would have
+  wired half a claim* — the same lesson BUYOUT-KEEP recorded from the other direction, where one
+  dark route fed the other.
+
+  `apps/web/src/portal/panels/eotClaim.ts` holds the rules (32 tests, six mutations all biting), and
+  every one exists to carry a server refusal intact to the reader rather than smooth it away:
+
+  * **Four refusals stay four refusals.** `method_required`, `baseline_required`,
+    `actual_finish_required` and `method_needs_schedule_updates` send a reader to four different
+    places, and two are not fixable by supplying anything. One "could not compute" would be the
+    familiar collapse.
+  * **Absorbed is not zero.** A delay inside an activity's float earns no time and *happened*.
+  * **Unattributed is not non-excusable** — defaulting unexplained slip to contractor risk hands one
+    party a finding nobody demonstrated.
+  * **Concurrency is named, never apportioned**, because the published protocols disagree and the
+    contract governs.
+  * **A detected event is not a quantified delay**: `needs_duration` events are excluded from the
+    figure, so the headline is over a SUBSET and says so — the wind screen's unchecked-mechanism
+    defect in another discipline.
+
+  The method list is **fetched, not restated**: posting with no method returns the closed set, so the
+  taxonomy the screen offers is the taxonomy the engine enforces and cannot drift from it.
+
+  Uncalled routes **60 → 59**, and the confirmed-dark short-leaf ratchet **7 → 6**.
 
 - ✅ ⭐ **ENV-WIND — a wind answer at the only stage that can act on it**
   *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
@@ -2542,15 +2580,21 @@ have, so unlike R45 there is no de-duplication decision hiding in this list:
 | ~~`weather`~~ | 250 | **SHIPPED v0.3.967** — `schedule_weather.py`; refuses to invent an allowance |
 | ~~`portfolio`~~ | 345 | **SHIPPED v0.3.967** — membership checked per project, proven 403/200 |
 
-**⚠ AND THE WHOLE EOT SURFACE IS DARK — measured 2026-08-20.** Both routes exist and **no client
-code references either**: `POST /schedule/eot` (caller-typed baseline) and `POST /schedule/eot/sourced`
-(R40-EOT ②, derived from a *captured* baseline and detected events). `test_route_reachability` could
-not report it — its leaf, `eot`, is 3 characters and the rule skips anything under 5, because short
-leaves match unrelated text constantly. A longer needle was tried and rejected with numbers; see the
-`MIN_SEGMENT` note in that file.
+**⚠ THE WHOLE EOT SURFACE WAS DARK — measured 2026-08-20, and CLOSED 2026-09-11 by R40-EOT above.**
+Both routes existed and **no client code referenced either**: `POST /schedule/eot` (caller-typed
+baseline) and `POST /schedule/eot/sourced` (R40-EOT ②, derived from a *captured* baseline and detected
+events). `test_route_reachability` could not report it — its leaf, `eot`, is 3 characters and the rule
+skips anything under 5, because short leaves match unrelated text constantly. A longer needle was
+tried and rejected with numbers; see the `MIN_SEGMENT` note in that file.
 
-**Not wired here on purpose.** The entry below reserves the EOT *semantics* as a domain decision, and
-which of the two a screen should show is the same question wearing different clothes: `sourced` is the
+*Kept rather than deleted because the measurement is the point: this paragraph is why the short-leaf
+ratchet exists, and a reader meeting `MIN_SEGMENT` for the first time needs the case that motivated
+it. The status is corrected in place; the finding is not.*
+
+**Not wired here on purpose — and the decision it deferred was TAKEN on 2026-09-11 (R40-EOT above):
+the screen offers both and DEFAULTS to `sourced`, labelling the typed path unauditable in the words of
+its own docstring.** What follows is the reasoning as it stood before that call, kept because it is the
+argument the decision answers. `sourced` is the
 auditable one — its own docstring says a caller-typed baseline "is unauditable… two people can produce
 different EOTs from one project by typing different dates" — but putting an extension-of-time figure
 in front of a user is a decision about what the product asserts in an arbitration, not a wiring task.
@@ -2589,7 +2633,7 @@ SHIPPED rows, sweep-run headers, prior corrections and the 18-findings table, an
 
 | claim | verdict |
 |---|---|
-| the EOT surface is dark, no client references it | **accurate** — re-verified the same day |
+| the EOT surface is dark, no client references it | **accurate** — re-verified the same day; *closed 2026-09-11 by R40-EOT, and the verdict is left as it stood because this table records what a sweep found on its date* |
 | `eot.py` performs none of the four methods | **FALSE** — the correction above |
 | `/schedule/risk` and `/schedule/montecarlo` disagree by 38 days | **accurate, and resolved** — the alias calls `schedule_risk_mc.for_project`, the same engine |
 | three PPC implementations disagree | **accurate, and resolved** — one rule since v0.3.974, held by `services/api/test_ppc_divergence.py` |
@@ -3337,9 +3381,13 @@ that rotted were all sentences no test read. Note for whoever extends it — the
   Directions, the npm title table, and this row now match the classifier. CC0 is a public-domain
   dedication, strictly more permissive than MIT; 59 files under
   `services/data/families/external/` already declared it.
-- **The EOT surface is dark, and deliberately so — but the decision has been pending since 2026-08-20.**
-  `POST /schedule/eot` and `POST /schedule/eot/sourced` both exist and **no client code references
-  either**. R46 reserves this as a domain decision rather than a wiring task, and it is the right call:
+- ~~**The EOT surface is dark, and deliberately so — the decision pending since 2026-08-20.**~~
+  **DECIDED AND SHIPPED 2026-09-11 (R40-EOT).** The screen offers both analyses and **defaults to
+  `sourced`**; the typed path stays for a claim argued before a baseline exists, labelled unauditable
+  in the words of its own docstring. *What the product asserts, stated plainly: an extension of time is
+  measured against a captured artefact, and a figure from typed dates is offered only with that caveat
+  attached.* The reasoning that made this a decision rather than a wiring task is kept because it is
+  what the answer answers:
   `sourced` is the auditable one — its own docstring says a caller-typed baseline *"is unauditable… two
   people can produce different EOTs from one project by typing different dates"* — but **an
   extension-of-time figure ends up in arbitration**, so which one a screen shows is a statement about
@@ -5990,8 +6038,9 @@ Shipped 2026-08-21:
   `services/api/test_deal_memory_beside.py`. **One of the engine's three metrics is offered and the
   other two are refused on the record**: `cost_per_sf` is a unit conversion from an entered hard cost
   and a GFA; `cost_variance_pct` beside a contingency would be the product asserting *"your
-  contingency should cover our historical overrun"*, the same domain call `/schedule/eot` is waiting
-  on; and a schedule VARIANCE beside an entered DURATION is a category error in matching units.
+  contingency should cover our historical overrun"* — deferred alongside the EOT semantics, which were
+  decided on 2026-09-11 (R40-EOT) while **this one still is not**; and a schedule VARIANCE beside an
+  entered DURATION is a category error in matching units.
 
   **The "by vintage" half was nearly left out, and two gates disagreeing is what caught it.**
   `clientCallers.test.ts` refused a `portfolioDealMemory` with no screen; `test_route_reachability`
