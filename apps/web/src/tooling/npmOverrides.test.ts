@@ -103,7 +103,14 @@ export function satisfies(pin: string, range: string): boolean | null {
   }
 }
 
-type Pair = { pkg: string; pin: string; where: string; range: string };
+/**
+ * One override paired with one declaration of the same package.
+ *
+ * `sameFile` is the whole reason this is not a flat list: npm applies TWO DIFFERENT RULES depending
+ * on where the declaration sits, and a gate that applied one rule to both would be wrong in one
+ * direction or the other. See `verdict` below.
+ */
+type Pair = { pkg: string; pin: string; where: string; range: string; sameFile: boolean };
 
 function population(): Pair[] {
   const root = manifest("package.json");
@@ -114,11 +121,40 @@ function population(): Pair[] {
     for (const field of ["dependencies", "devDependencies"] as const) {
       for (const [pkg, range] of Object.entries(m[field] ?? {})) {
         const pin = overrides[pkg];
-        if (pin !== undefined) out.push({ pkg, pin, where: `${rel} ${field}`, range });
+        if (pin !== undefined) {
+          out.push({ pkg, pin, where: `${rel} ${field}`, range, sameFile: rel === "package.json" });
+        }
       }
     }
   }
   return out;
+}
+
+/**
+ * Is this override/declaration pair one npm will accept? `null` means "cannot tell" and reds the build.
+ *
+ * **THE RULE IS NOT THE SAME IN BOTH POSITIONS, and getting that wrong in either direction breaks
+ * something.** `overrides` is only read from the ROOT manifest, and npm's constraint is scoped to
+ * "a package already listed as a direct dependency IN THE SAME package.json", where the two specs
+ * must then match *as raw strings* — not merely be semver-compatible.
+ *
+ * - **Root's own dependencies (`sameFile`): raw-string equality.** `">=10.9.0"` beside an override
+ *   of `"10.10.0"` is semver-compatible and npm still refuses it with EOVERRIDE. A `satisfies()`
+ *   check here is LOOSER than npm and would pass an install that cannot happen. This is the pair
+ *   that produced `Override for eslint@10.8.0 conflicts with direct dependency`.
+ * - **A workspace's dependencies: semver compatibility.** The override is not in that file, so the
+ *   raw-string rule does not reach it; npm resolves the declared range and rewrites it to the
+ *   override. Measured in this repository: `apps/web/package.json` declares `^10.10.0`, the root
+ *   override pins `10.10.0`, and `package-lock.json` records `apps/web`'s resolved devDependency as
+ *   `10.10.0`. npm produced that lock. Demanding raw equality here would red a configuration that
+ *   demonstrably installs.
+ *
+ * `$name` is npm's own escape hatch — an override of `"$foo"` means "whatever the direct dependency
+ * declares", so it cannot disagree with it by construction and is accepted wherever it appears.
+ */
+export function verdict(p: Pair): boolean | null {
+  if (p.pin.startsWith("$")) return p.pin === `$${p.pkg}` ? true : null;
+  return p.sameFile ? p.pin.trim() === p.range.trim() : satisfies(p.pin, p.range);
 }
 
 describe("an npm override agrees with the dependency it overrides", () => {
@@ -147,15 +183,43 @@ describe("an npm override agrees with the dependency it overrides", () => {
     expect(PAIRS.length, "no overridden package is also a declared dependency").toBeGreaterThan(0);
   });
 
-  it("no override contradicts a range a manifest declares, and none is unreadable", () => {
+  it("the two rules are actually different, and each is applied in its own position", () => {
+    const p = (over: Partial<Pair>): Pair =>
+      ({ pkg: "eslint", pin: "10.10.0", where: "t", range: "^10.10.0", sameFile: false, ...over });
+
+    // The pair this repository ships. A workspace declares a caret, the root override pins exact,
+    // and `package-lock.json` records apps/web resolving to 10.10.0 — npm produced that lock, so
+    // this MUST be accepted. Demanding raw equality here would red a working configuration.
+    expect(verdict(p({ sameFile: false })), "workspace caret vs exact override is fine").toBe(true);
+
+    // ...and the SAME two strings in the root manifest are refused, because npm compares raw specs
+    // there. This is the asymmetry: one rule per position, not one rule.
+    expect(verdict(p({ sameFile: true })), "root raw-spec mismatch is EOVERRIDE").toBe(false);
+
+    // The hole the loose rule left: semver-compatible but not raw-equal, in the root file.
+    expect(verdict(p({ sameFile: true, pin: "10.10.0", range: ">=10.9.0" })),
+      "root: compatible is NOT enough").toBe(false);
+    expect(verdict(p({ sameFile: true, pin: "10.10.0", range: "10.10.0" })),
+      "root: raw equality passes").toBe(true);
+
+    // npm's own escape hatch, accepted in both positions because it cannot disagree.
+    expect(verdict(p({ sameFile: true, pin: "$eslint" })), "$name self-reference").toBe(true);
+    expect(verdict(p({ sameFile: false, pin: "$eslint" })), "$name self-reference").toBe(true);
+    // A `$` pointing at a DIFFERENT package resolves elsewhere; this gate cannot follow it.
+    expect(verdict(p({ pin: "$other" })), "cross-package $ reference is unreadable").toBeNull();
+  });
+
+  it("no override contradicts a declaration npm will check it against, and none is unreadable", () => {
     const violations: string[] = [];
     const unknown: string[] = [];
-    for (const { pkg, pin, where, range } of PAIRS) {
-      const ok = satisfies(pin, range);
+    for (const pair of PAIRS) {
+      const { pkg, pin, where, range, sameFile } = pair;
+      const ok = verdict(pair);
+      const rule = sameFile ? "must match RAW (same file as the overrides block)" : "must satisfy";
       if (ok === null) unknown.push(`${pkg}: override "${pin}" vs ${where} "${range}"`);
-      else if (!ok) violations.push(`${pkg}: override "${pin}" does not satisfy ${where} "${range}"`);
+      else if (!ok) violations.push(`${pkg}: override "${pin}" ${rule} ${where} "${range}"`);
     }
-    expect(unknown, "a range shape the comparator cannot read — teach it, do not exempt it")
+    expect(unknown, "a spec shape the comparator cannot read — teach it, do not exempt it")
       .toEqual([]);
     expect(violations, "npm will refuse this install with EOVERRIDE, or run a version nobody declared")
       .toEqual([]);
