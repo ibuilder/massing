@@ -1,4 +1,5 @@
 import { groupedBar, money as cmoney, esc, usd } from "../../ui/charts";
+import { installableNote } from "../../account/costVintage";
 import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
@@ -606,9 +607,13 @@ export async function renderBudget(ctx: PanelContext) {
           // word from colliding with the leaf of `/projects/{pid}/listings/{lid}/public` in
           // `services/api/test_route_reachability.py`, which matches route segments against the web
           // source — a real constraint on prose, and the second reason rather than the first.)
-          const note = ds.available_public[0]?.note;
-          bits.push(`${ds.available_public.length} offline baseline(s) installable — no subscription`
-            + (note ? ` (${note})` : ""));
+          // NAME THE ROLE, do not offer the action. Importing flips the global `is_latest` and
+          // reprices every unpinned project, so it is platform-admin only and lives in
+          // Profile & settings -> Administration. This card's reader is usually a cost manager;
+          // a button here would 403 for exactly the person most likely to press it, which is the
+          // same offered-and-refused shape the saved-view delete picker had.
+          const line = installableNote(ds.available_public);
+          if (line) bits.push(line);
         }
       }
       if (five) {

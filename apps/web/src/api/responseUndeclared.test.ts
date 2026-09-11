@@ -78,6 +78,11 @@ const KNOWN_GAPS: Record<string, string[]> = {
  *  Closing a route's spread is therefore a visible improvement, not a no-op. */
 const INCOMPLETE_LOWER_BOUND: string[] = [
   "GET /agent-packs/runs",
+  // Added 2026-09-11 by giving `/cost/datasets/import` its first client method: the route returns
+  // `{**cost_db.dataset_dict(ds), "warning": ...}`, so only `warning` can be named statically. It
+  // appears here for a good reason — this gate can only see a route that HAS a typed call site, and
+  // until now it had none at all.
+  "POST /cost/datasets/import",
   "GET /projects/{}/agent-packs",
   "GET /projects/{}/ai/risk-summary",
   "GET /projects/{}/compliance/expiring",
