@@ -1752,7 +1752,7 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
-- 📋 **FROZEN-TRIAGE — what the eight dark routes actually were** *(record, not a work item; 2026-09-11)*
+- ✅ **FROZEN-TRIAGE — what the eight dark routes actually were** *(record, not a work item; **CLOSED 2026-09-11**)*
 
   UNREACHED-IMPORT froze eight newly-visible routes and said, correctly, that freezing is **not**
   judging. All eight have now been read. **Only four are gaps, and one of those is already built** —
