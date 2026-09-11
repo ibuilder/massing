@@ -36,7 +36,9 @@ The "Clear import" button in the schedule panel undoes a Primavera P6 or MS-Proj
 deleting the activities that import created, leaving anything hand-entered alone. It reported
 success the same way whether it removed four hundred activities or found no import at all — the
 server always answers "cleared", and the count that distinguishes the two was never read. It now
-says how many activities were removed, or that there was no import on record to remove.
+says how many activities were removed, or that there was no import on record to remove — and when
+it is talking to an older server that does not send the count, it keeps the previous wording rather
+than guessing which of the two happened.
 
 That was one of nine places where the app was throwing away something the server had already told
 it. All nine now read the field; five of them show it:

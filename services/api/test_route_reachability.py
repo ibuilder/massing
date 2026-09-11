@@ -371,8 +371,22 @@ def leaf_is_called(leaf: str, code: str) -> bool:
     What it does NOT claim to fix is a leaf that is also an ordinary quoted word — `"ready"` still
     vouches for `/ready`. That is the coarseness the block comment above still describes, and it is
     unchanged here; only the inside-a-longer-identifier class is removed.
+
+    **THE TWO BOUNDARIES ARE NOT THE SAME CLASS, AND `$` IS WHY.** `$` is a valid identifier
+    character in TypeScript, so `available$public` would hide the leaf `public` exactly as
+    `available_public` does — it belongs in the LEADING class. It must NOT be in the trailing one,
+    and that asymmetry is load-bearing rather than an oversight: this client appends an optional
+    query string by interpolation, ``/projects/${pid}/k1-pack${q}``, so a leaf followed by `$` is
+    the single most common shape of a REAL call site. Review suggested `$` on both sides; measured,
+    that marks **19 genuinely-called routes uncalled** — `montecarlo`, `layout.dxf`, `price-history`,
+    `k1-pack` and a dozen more, every one of them followed by `${`.
+
+    *The same distinction as the slash-versus-token question above, arriving a third time from the
+    other side: before the leaf, `$` is part of a NAME; after it, `$` begins a SUBSTITUTION. One
+    character, two grammars, and a rule that treats them alike is wrong in whichever direction it
+    picks.* Both cases are asserted below.
     """
-    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(leaf)}(?![A-Za-z0-9_])", code) is not None
+    return re.search(rf"(?<![A-Za-z0-9_$]){re.escape(leaf)}(?![A-Za-z0-9_])", code) is not None
 
 
 def uncalled_routes(paths, blob: str) -> set[str]:
@@ -548,12 +562,15 @@ print(f"  templated-URL leniencies worth {len(_STRICT) - len(FOUND)} routes "
 # which is the point — a boundary that only rejects is a boundary that has stopped finding callers.
 check("the leaf rule rejects a leaf buried inside a longer identifier",
       not leaf_is_called("public", "const x = r.available_public.length")
+      and not leaf_is_called("public", "const available$public = true")   # `$` is an identifier char
       and not leaf_is_called("sourced", "fidelity.resourced")
       and not leaf_is_called("aggregate", "const aggregates = []"),
       "a substring match is back: an unrelated field name is vouching for a route again")
 check("  ...and still accepts the shapes a real caller writes",
       leaf_is_called("public", "fetch(`/projects/${pid}/listings/${lid}/public`)")
-      and leaf_is_called("plan.dxf", "openDrawing(`plan.dxf?${q.toString()}`)"),
+      and leaf_is_called("plan.dxf", "openDrawing(`plan.dxf?${q.toString()}`)")
+      # after the leaf, `$` starts an interpolated query string — 19 live callers look like this
+      and leaf_is_called("k1-pack", "this.json(`/projects/${pid}/k1-pack${q}`)"),
       "the boundary has tightened past what the client actually writes — `openDrawing(`plan.dxf…`)` "
       "names the leaf with no slash in front of it, and requiring one freezes three live callers")
 
