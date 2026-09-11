@@ -12,6 +12,24 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A check that looks for unreachable features stopped being fooled by coincidences
+
+Massing has an automated check whose job is to notice when part of the server ships with nothing in
+the app able to reach it — a feature that exists, is tested, and that no user can get to. It decided
+whether something was reachable by searching the app's source for the feature's name, and it searched
+for that name *anywhere*, including in the middle of longer words.
+
+So it could be satisfied by an accident. Adding a field called `available_public` to the cost screen
+was enough to convince it that an entirely unrelated public-listing feature had been reached, because
+the letters matched. The check then reported all clear — for something nobody had ever wired up. It
+had been fooled this way twice before, each time noticed only by chance.
+
+It now requires a whole-word match. That change found five more features the app cannot currently
+reach, which are recorded for a later pass; it was verified not to lose any of the ones that really
+are reachable. The first attempt at the fix was stricter still and would have wrongly declared 23
+working features unreachable — the drawing exports among them — so the check now carries examples of
+both what it must reject and what it must accept.
+
 ### Clearing an imported schedule now tells you whether it cleared anything
 
 The "Clear import" button in the schedule panel undoes a Primavera P6 or MS-Project import by

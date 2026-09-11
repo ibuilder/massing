@@ -1486,6 +1486,47 @@ instances:
     `saveViewTemplates`, **neither of which has a UI caller anywhere in `apps/web/src`** — a separate
     gap, not fixed here.
 
+  **AND A SECOND FAIL-OPEN GATE, WHICH CI FOUND RATHER THAN I DID.**
+  `services/api/test_route_reachability.py` asks *which server routes has no client ever called?* and
+  decided it by `leaf in code` — **a bare substring test**. Declaring the response key
+  `available_public` put the letters `public` into `apps/web/src/api/cost.ts`, and the route
+  `/projects/{pid}/listings/{lid}/public` instantly read as called. An unrelated field name three
+  directories away is not evidence about a route.
+
+  **It fails OPEN, which is why it survived twice before.** A coincidence makes an unreachable route
+  look reachable, so the headline check — *no route the product cannot call* — comes back clean for a
+  route nobody ever called. Only the allowlist's own rot check can see it, and only when a frozen
+  entry flips. The file already records the two earlier instances (`resourced` standing in for the
+  leaf `sourced`; one route path containing another's) and concluded that *"the coarseness is a
+  standing cost … not a bug awaiting a fix"*, because the remedies it weighed — a two-segment needle,
+  and treating a shared leaf as deciding nothing — both cost far more reach than they bought. **Both
+  earlier collisions were answered by renaming the colliding identifier, and that is what runs out
+  here:** the two previous colliders were internal names free to change; this one is the server's
+  wire key. *A rule that can only be satisfied by renaming things it has no business naming has
+  stopped being a measurement.*
+
+  Fixed by requiring the leaf to be a whole token rather than letters inside a longer one — a third
+  option neither earlier analysis considered, and it costs nothing in reach: **0 routes that the
+  substring rule called uncalled become called under it**, and it surfaces 5 that plurals and
+  prefixes had been vouching for (`aggregates` for `/aggregate` twice, `allocated`, `recommended`,
+  `editPrecheck` for `/recheck`), now frozen as untriaged.
+
+  **MY FIRST FIX WAS WRONG IN THE SAME DIRECTION, AND MEASURING IT IS THE ONLY REASON I KNOW.** The
+  obvious rule is *the leaf must sit after a `/`*, since that is how a path is written. It marks
+  **23 genuinely-called routes uncalled**: the client assembles paths from fragments, so
+  `drawingsSection.ts` calls ``openDrawing(`plan.dxf?${q}`)`` and the leaf of
+  `/projects/{pid}/drawings/plan.dxf` begins a template fragment with no slash in front of it.
+  Freezing those would have put live callers behind an exemption — *the same fail-open direction,
+  moved one character along, inside the fix for it.* Four cases are now asserted in the file: two the
+  rule must reject, two it must still accept, because a boundary that only rejects is a boundary that
+  has stopped finding callers.
+
+  **And the word class is NOT fixed, because it cannot be.** `available_public` was an identifier;
+  the same change also put the bare word *public* into a UI string, which no token rule can tell from
+  a route segment. That one was reworded — *"offline baseline(s) installable — no subscription"*,
+  which names the fact instead of the field and is better copy anyway. The standing cost the file
+  describes is real and unchanged; what moved is that it no longer extends to identifiers.
+
   **AND A FAIL-OPEN GATE FOUND BY MUTATING THE THING IT GUARDS.**
   `apps/web/src/viewer/tools/authoringPlaceStatus.test.ts` asserts the Place button passes an
   `onTick`. It sliced the file from `indexOf("⊕ Place selected family")` — which matches the

@@ -237,6 +237,17 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/scan/verify-lod500",
     "/projects/{pid}/verified-progress/from-layout",
     # `/view-templates/{tid}/graphics` left here in v0.3.1138 — Model Analysis reads cut vs projection.
+
+    # ------------------------------------------------------------------------------------------
+    # NEWLY VISIBLE 2026-09-11, NOT NEWLY UNREACHABLE. `leaf_is_called` stopped accepting a leaf
+    # found inside a longer identifier (see its docstring). These five were already uncalled; what
+    # changed is that the rule can now see them, each having been vouched for by a plural or a
+    # prefix. Frozen, not judged — nobody has read them, which is exactly what this set records.
+    "/pipeline/allocate",                       # 'allocate' was read inside 'allocated'
+    "/projects/{pid}/coordination/stale/recheck",   # 'recheck' was read inside 'editPrecheck'
+    "/projects/{pid}/model/columnar/aggregate",     # 'aggregate' was read inside 'aggregates'
+    "/projects/{pid}/modules/{key}/aggregate",      # 'aggregate' was read inside 'aggregates'
+    "/structure/recommend",                     # 'recommend' was read inside 'recommended'
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -326,6 +337,44 @@ def _templated_stem(route: str) -> "re.Pattern[str] | None":
     return re.compile(rf"{re.escape(segs[-2])}/\$\{{[^}}]*\}}\.{re.escape(ext)}")
 
 
+def leaf_is_called(leaf: str, code: str) -> bool:
+    """Does `leaf` appear as a WHOLE TOKEN in the code, rather than as letters inside a longer one?
+
+    **This was `leaf in code` until 2026-09-11.** A bare substring test cannot tell a route from a
+    word that happens to contain it, and this file already records two collisions it caused —
+    `resourced` standing in for the leaf of `/schedule/eot/sourced`, and one route path containing
+    another's. Both were answered by renaming the colliding identifier, under the reasoning that the
+    coarseness is a standing cost of keeping 328 shared-leaf routes in reach.
+
+    **The third instance is what made that unaffordable.** Declaring the response key
+    `available_public` in `apps/web/src/api/cost.ts` put the letters `public` in the source and
+    instantly "called" `/projects/{pid}/listings/{lid}/public`. The earlier remedy does not reach it:
+    the two previous colliders were internal names free to change, and this one is the SERVER'S WIRE
+    KEY — renaming it means changing the API to suit a test's regex. *A rule that can only be
+    satisfied by renaming things it has no business naming has stopped being a measurement.*
+
+    And it fails OPEN, which is why it survived twice: a coincidence makes an unreachable route look
+    reachable, so the headline check — *no route the product cannot call* — comes back clean for a
+    route nobody ever called. Only the allowlist's rot check can see it, and only when a frozen entry
+    flips.
+
+    **WHY A WORD BOUNDARY AND NOT A PATH BOUNDARY — this cost a wrong answer to find.** The obvious
+    fix is to require the leaf to sit after a `/`, since that is how a path is written. Measured, it
+    marks **23 routes uncalled that are genuinely called**, because the client assembles paths from
+    fragments: `drawingsSection.ts` calls ``openDrawing(`plan.dxf?${q}`)``, so the leaf of
+    `/projects/{pid}/drawings/plan.dxf` starts a template fragment with no slash in front of it.
+    Freezing those three would have put real callers behind an exemption — the same fail-open
+    direction, moved one character along. Allowing any non-identifier prefix (`/`, a quote, a
+    backtick) keeps them and still rejects `available_public`, and it costs nothing in reach:
+    **0 routes that the substring rule called uncalled become called under this one.**
+
+    What it does NOT claim to fix is a leaf that is also an ordinary quoted word — `"ready"` still
+    vouches for `/ready`. That is the coarseness the block comment above still describes, and it is
+    unchanged here; only the inside-a-longer-identifier class is removed.
+    """
+    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(leaf)}(?![A-Za-z0-9_])", code) is not None
+
+
 def uncalled_routes(paths, blob: str) -> set[str]:
     """Routes whose distinctive last static segment appears nowhere in the web source's CODE.
 
@@ -336,7 +385,7 @@ def uncalled_routes(paths, blob: str) -> set[str]:
     out = set()
     for r in paths:
         leaf = _leaf(r)
-        if len(leaf) < MIN_SEGMENT or leaf in code:
+        if len(leaf) < MIN_SEGMENT or leaf_is_called(leaf, code):
             continue
         if r in CALLED_VIA_TEMPLATED_EXT:
             continue
@@ -432,7 +481,7 @@ print(f"  routes {len(PATHS)} · web source {len(BLOB):,} chars · uncalled by t
 #: text as `uncalled_routes` did, which a repeated call only happens to do.
 _CODE = strip_comments(BLOB)
 _STRICT = {r for r in PATHS
-           if len(_leaf(r)) >= MIN_SEGMENT and _leaf(r) not in _CODE}
+           if len(_leaf(r)) >= MIN_SEGMENT and not leaf_is_called(_leaf(r), _CODE)}
 _GAINED = sorted(_STRICT - FOUND)
 _STEM_GAIN = [
     "/projects/{pid}/exports/cobie.xlsx", "/projects/{pid}/exports/qto.xlsx",
@@ -489,6 +538,24 @@ check("  ...and NOT for sheet.dxf, whose EXTENSION is templated but whose caller
 print(f"  templated-URL leniencies worth {len(_STRICT) - len(FOUND)} routes "
       f"({len(_BY_PATTERN)} by the stem pattern, {len(CALLED_VIA_TEMPLATED_EXT)} named; "
       f"{len(_STRICT)} uncalled under the literal-leaf rule alone)")
+
+# --- the leaf rule's own boundary, asserted rather than described ---------------------------------
+#
+# `leaf_is_called` is the predicate the whole file rests on, and the three collisions recorded in
+# KNOWN_UNCALLED above were each found by a route flipping rather than by anyone testing the rule.
+# These four cases are the rule's contract: two say what it must REJECT (the collisions), two say
+# what it must still ACCEPT (the shapes a real caller writes). Mutating the regex breaks one of each,
+# which is the point — a boundary that only rejects is a boundary that has stopped finding callers.
+check("the leaf rule rejects a leaf buried inside a longer identifier",
+      not leaf_is_called("public", "const x = r.available_public.length")
+      and not leaf_is_called("sourced", "fidelity.resourced")
+      and not leaf_is_called("aggregate", "const aggregates = []"),
+      "a substring match is back: an unrelated field name is vouching for a route again")
+check("  ...and still accepts the shapes a real caller writes",
+      leaf_is_called("public", "fetch(`/projects/${pid}/listings/${lid}/public`)")
+      and leaf_is_called("plan.dxf", "openDrawing(`plan.dxf?${q.toString()}`)"),
+      "the boundary has tightened past what the client actually writes — `openDrawing(`plan.dxf…`)` "
+      "names the leaf with no slash in front of it, and requiring one freezes three live callers")
 
 new = sorted(FOUND - KNOWN_UNCALLED)
 check("NO NEW UNREACHABLE ROUTE — a route the product cannot call is a feature nobody can use",
