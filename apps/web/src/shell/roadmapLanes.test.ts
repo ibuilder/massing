@@ -715,7 +715,17 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 34;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+const UNOWNED_CEILING = 25;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+//: 34 → 25 (2026-09-11): Lanes A and B split the eleven loose `portal/` files between them,
+//: derived by IMPORTER rather than by name (the table below `roadmapLanes` records which went
+//: where and why). Extracting `safetyCard.ts` out of `portal.ts` under the size ratchet is what
+//: tripped this — one ratchet handing work to another — and the remedy it names took NINE files
+//: out of the unowned set rather than the two that tripped it, the same shape as `proforma/`.
+//: Re-seated to the MEASURED 25, not to 32: see the note below about unspent slack.
+//: *Two files would have gone to the wrong lane on their names*, and the lane rows themselves
+//: failed this file's DISJOINTNESS check on the first try — a backticked `portal/` written as
+//: prose inside a path cell is parsed as a CLAIM of that directory, which is the same hazard
+//: Lane B's cell already records for item codes, one column over.
 //: 39 → 34 (2026-09-09): Lane B claimed `apps/web/src/proforma/`. PARCEL-SHAPE added two files
 //: to that directory, this ratchet went red, and the remedy it names — a row, not a bigger
 //: number — took SEVEN files out of the unowned set rather than the two that tripped it. The

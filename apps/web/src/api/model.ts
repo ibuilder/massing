@@ -727,7 +727,12 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   /** saveViewTemplates — replace the project's saved view-template list. */
   saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
     isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
-    return this.json<{ saved: number }>(`/projects/${pid}/view-templates`,
+    // The route validates and NORMALISES every template before writing (ids assigned, colors and
+    // selectors canonicalised) and returns the stored form as `templates`. Declaring only `saved`
+    // left a caller with no way to learn what was actually persisted except by re-reading it.
+    return this.json<{ saved: number; templates: { id: string; name: string; hide_classes: string[];
+      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
+      `/projects/${pid}/view-templates`,
       { method: "PUT", body: JSON.stringify({ templates }) });
   }
   /** resolveViewTemplate — visible GUIDs and colors after applying one view template. */

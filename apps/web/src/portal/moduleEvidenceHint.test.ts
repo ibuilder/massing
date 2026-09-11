@@ -23,7 +23,9 @@ import type { ModuleDef } from "../api/types";
  *   which is exactly how this shipped unnoticed.
  */
 
-/** The rule as `statusCell` applies it. Kept in lockstep with portal.ts by the assertions below. */
+/** The rule as `statusCell` applies it — `register/register.ts`, NOT `portal.ts`, which this said
+ *  until 2026-09-11 and which is the file the lane table would have placed this test under on the
+ *  strength of that sentence. Kept in lockstep with that method by the assertions below. */
 export function transitionLabel(
   action: string,
   to: string,

@@ -12,6 +12,35 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Clearing an imported schedule now tells you whether it cleared anything
+
+The "Clear import" button in the schedule panel undoes a Primavera P6 or MS-Project import by
+deleting the activities that import created, leaving anything hand-entered alone. It reported
+success the same way whether it removed four hundred activities or found no import at all — the
+server always answers "cleared", and the count that distinguishes the two was never read. It now
+says how many activities were removed, or that there was no import on record to remove.
+
+That was one of nine places where the app was throwing away something the server had already told
+it. All nine now read the field; five of them show it:
+
+- **Project health** reports what the incidents *were*, not just how many. The safety figures are
+  broken down by OSHA classification — the first thing the server works out, and the one figure the
+  card could not display — so five incidents no longer read the same whether they were near-misses
+  or recordables.
+- **Waiting for a model to convert** shows how long it has been going. A large model legitimately
+  takes minutes, and the status said "running" from the first second to the last, which is also what
+  a stuck job looks like. The elapsed time comes from the server, so it stays right across a page
+  reload — and it is left out entirely rather than guessed at if the two clocks disagree.
+- **Saving a pro forma scenario** reports the returns it solved to. The server solves the scenario
+  as it saves it and sends the result back; the app discarded it, so a scenario that solved to
+  nothing looked exactly like one that solved well until you opened the Portfolio.
+- **The cost-database card** says what can still be installed. With nothing installed it read "0
+  vintages installed", which sounds like there is no cost data to be had — when an offline public
+  baseline needs no subscription at all.
+
+The remaining four are values that repeat something the app already knew, or belong to screens that
+do not exist yet; they are declared so the compiler and the audits can see them, and noted as such.
+
 ### The app now checks that it declares every field the server sends it
 
 A field the server returns but the web app never declares is invisible — not just on screen, but to

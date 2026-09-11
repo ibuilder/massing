@@ -75,9 +75,16 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ deal_count: number; totals: Record<string, number | null>; deals: { id: string; name: string; total_uses: number; equity: number; loan: number; equity_irr: number | null; equity_multiple: number | null }[] }>(`/proforma/portfolio`);
   }
 
+  /** Save a solve as a named scenario. The route **solves the assumptions server-side** and returns
+   *  that solve as `result` — so the returns the scenario will show in the Portfolio are already in
+   *  this reply. Declaring only `id` meant the caller had to re-fetch to learn whether what it had
+   *  just saved solved to anything, and in practice it simply did not ask. */
   createScenario(name: string, projectId: string | null, assumptions: unknown) {
-    return this.json<{ id: string }>(`/proforma/scenarios`, {
-      method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
+    return this.json<{ id: string; name: string;
+      result: { returns?: { equity_irr?: number | null; equity_multiple?: number | null;
+        project_irr?: number | null; yield_on_cost?: number | null; npv?: number | null } | null } | null }>(
+      `/proforma/scenarios`, {
+        method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
 
   /** Saved proforma scenarios for a project (with their solved returns), oldest→newest. */

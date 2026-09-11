@@ -149,6 +149,10 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{
       datasets: { id: string; name?: string; vintage?: number; quarter?: number | null;
         origin?: string; is_latest?: boolean }[];
+      /** What the offline public importer could build but has not — the half of this route's own
+       *  docstring ("plus what the offline public importer can build") that the type never named.
+       *  `datasets` alone cannot distinguish "no vintage installed" from "no vintage obtainable". */
+      available_public: { source_set?: string; origin?: string; tier?: string; note?: string }[];
     }>("/cost/datasets");
   }
   /** The vintage this project's estimate resolves through (pinned, else latest). */

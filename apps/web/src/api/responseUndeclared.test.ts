@@ -69,19 +69,10 @@ const CONTROL = "GET /projects/{}/verification/coverage";
 const KNOWN_GAPS: Record<string, string[]> = {
   "GET /reference/disciplines": ["disciplines", "masterformat_divisions", "uniformat_crosswalk"],
   "POST /projects/{}/modules/{}/views": ["mine", "owner", "scope"],
-  "POST /proforma/scenarios": ["name", "result"],
   "POST /proforma/scenarios/{}/draw-package": ["forecast_returns", "g703_totals"],
-  "DELETE /projects/{}/schedule/import-xer": ["removed_activities"],
   "GET /asset-rights/status": ["public_key"],
   "GET /auth/providers": ["saml"],
-  "GET /cost/datasets": ["available_public"],
-  "GET /projects/{}/publish/status": ["at"],
-  "GET /projects/{}/safety/metrics": ["by_class"],
   "POST /proforma/solve": ["provenance"],
-  "POST /projects/{}/bidding/packages/{}/invite": ["package"],
-  "POST /projects/{}/models/from-upload": ["from_upload"],
-  "POST /projects/{}/progress/actuals": ["source"],
-  "PUT /projects/{}/view-templates": ["templates"],
 };
 
 /** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a

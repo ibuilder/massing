@@ -593,7 +593,18 @@ export async function renderBudget(ctx: PanelContext) {
         const name = v.resolved?.name || (v.resolved?.vintage != null ? String(v.resolved.vintage) : "none");
         bits.push(v.pinned_id ? `Pinned vintage: ${name}` : `Following latest vintage: ${name}`);
       }
-      if (ds) bits.push(`${ds.datasets.length} vintage(s) installed`);
+      if (ds) {
+        bits.push(`${ds.datasets.length} vintage(s) installed`);
+        // The other half of what this route answers. With no vintage installed, `datasets.length`
+        // is 0 and the card said only that — which reads as "there is no cost data to be had",
+        // when in fact the offline public baseline is buildable without a subscription. That key
+        // was undeclared, so the card could not distinguish "none installed" from "none available".
+        if (ds.available_public?.length) {
+          const note = ds.available_public[0]?.note;
+          bits.push(`${ds.available_public.length} offline public build(s) available`
+            + (note ? ` (${note})` : ""));
+        }
+      }
       if (five) {
         bits.push(`${five.priced} of ${five.element_count} elements priced · $${Math.round(five.total_cost).toLocaleString()}`);
       }

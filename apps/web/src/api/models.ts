@@ -109,7 +109,10 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
                         onProgress?: (sent: number, total: number) => void) {
     if (file.size >= RESUMABLE_ABOVE_BYTES) {
       const up = await this._uploadResumable(pid, file, onProgress);
-      const res = await this.json<{ id: string; discipline: string; size: number }>(
+      // `from_upload` marks which of this method's two branches the server served. The caller is the
+      // branch, so it is redundant HERE — but it is the only provenance a reader of the reply gets,
+      // and leaving it undeclared is what made the multipart and resumable replies look identical.
+      const res = await this.json<{ id: string; discipline: string; size: number; from_upload: boolean }>(
         `/projects/${pid}/models/from-upload`,
         { method: "POST", body: JSON.stringify({ key: up.key, discipline }) });
       return { ...res, deduplicated: up.deduplicated };

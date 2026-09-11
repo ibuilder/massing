@@ -39,7 +39,10 @@ export interface AuthoringDeps {
   activeStorey: () => string | null;
   /** The tools panel element — this section dims itself for non-editors via `data-cap`. */
   panel: HTMLElement;
-  waitForPublish: (pid: string, onTick?: (s: string) => void) => Promise<string>;
+  /** `onTick`'s second argument is how long the server has been in that state (null when it
+   *  cannot be known) — see `elapsedSince` in `publishWait.ts`. The other modules declaring
+   *  this seam still take the one-argument form; widen theirs when they want the figure. */
+  waitForPublish: (pid: string, onTick?: (s: string, elapsed: string | null) => void) => Promise<string>;
   loadProjectModel: () => Promise<boolean>;
 }
 
@@ -68,7 +71,7 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
         const pub = toolBtn2("⟳ Republish (reconvert + reindex)", async () => {
           out.textContent = "publishing… (running in background)";
           await api.publish(pid);
-          const state = await waitForPublish(pid, (s) => (out.textContent = `publish: ${s}…`));
+          const state = await waitForPublish(pid, (s, e) => (out.textContent = `publish: ${s}${e ? ` · ${e}` : ""}…`));
           if (state === "done") await loadProjectModel();
           out.textContent = `publish ${state}`;
         });
@@ -104,7 +107,7 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
           out.textContent = `${label} added · converting…`;
           // Same tick path Republish already had: without onTick the Place button sits on
           // "converting…" for the whole convert, which reads as a hang.
-          const state = await waitForPublish(pid, (s) => { out.textContent = `publish: ${s}…`; });
+          const state = await waitForPublish(pid, (s, e) => { out.textContent = `publish: ${s}${e ? ` · ${e}` : ""}…`; });
           if (state === "done") await loadProjectModel();
           out.innerHTML = `added <b>${escapeHtml(label)}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${escapeHtml(state)}`;
         });

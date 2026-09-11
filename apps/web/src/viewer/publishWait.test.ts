@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { makeWaitForPublish } from "./publishWait";
+import { elapsedSince, makeWaitForPublish } from "./publishWait";
 
 /**
  * Nine lines, 24 call sites, no test until now.
@@ -66,5 +66,69 @@ describe("waitForPublish", () => {
     const r = reader(["running"]);
     expect(await makeWaitForPublish(r, { intervalMs: 0, timeoutMs: -1 })("p1")).toBe("running");
     expect(r.calls()).toBe(0);
+  });
+});
+
+/**
+ * `elapsedSince` subtracts a SERVER timestamp from a BROWSER clock, which is the only way to answer
+ * "how long has this convert been running" for a page that reloaded mid-job — and is also the one
+ * arithmetic in this file that can produce a confidently wrong answer. Every implausible result is
+ * asserted to come back as null rather than as a formatted string.
+ */
+describe("elapsedSince", () => {
+  const NOW = Date.parse("2026-09-11T12:00:00Z");
+
+  it("formats seconds under a minute and minutes above it", () => {
+    expect(elapsedSince("2026-09-11T11:59:17Z", NOW)).toBe("43s");
+    expect(elapsedSince("2026-09-11T11:57:38Z", NOW)).toBe("2m 22s");
+    expect(elapsedSince("2026-09-11T11:59:00Z", NOW)).toBe("1m 00s");   // seconds are zero-padded
+  });
+
+  it("parses the stamp the SERVER actually writes, offset and all", () => {
+    // `_set_pub_status` writes `datetime.now(timezone.utc).isoformat()`, which is
+    // `…+00:00` with microseconds — NOT a `Z` suffix, and not a naive datetime. The distinction is
+    // the whole correctness of this function: `Date.parse` reads an offset-less datetime as LOCAL
+    // time, so a naive server stamp would be wrong by the viewer's UTC offset — silently right in
+    // London and hours out everywhere else, which is exactly the bug no developer reproduces.
+    expect(elapsedSince("2026-09-11T11:57:38.123456+00:00", NOW)).toBe("2m 21s");
+    expect(elapsedSince("2026-09-11T11:57:38Z", NOW)).toBe("2m 22s");          // Z form too
+  });
+
+  it("returns null when there is no stamp, or the stamp is not a date", () => {
+    // `{state: "idle"}` carries no `at` at all — the common case, and it must not render "NaNs".
+    expect(elapsedSince(undefined, NOW)).toBeNull();
+    expect(elapsedSince("", NOW)).toBeNull();
+    expect(elapsedSince("not a date", NOW)).toBeNull();
+  });
+
+  it("returns null for a FUTURE stamp rather than a negative duration", () => {
+    // A browser clock behind the server's. Showing "-4m 00s" is worse than showing nothing, and
+    // this is the branch a naive implementation gets wrong because it never fires in development.
+    expect(elapsedSince("2026-09-11T12:04:00Z", NOW)).toBeNull();
+  });
+
+  it("returns null beyond a day — a stale blob is not a 400-hour convert", () => {
+    expect(elapsedSince("2026-09-10T11:00:00Z", NOW)).toBeNull();       // 25h
+    expect(elapsedSince("2026-09-10T12:00:01Z", NOW)).toBe("1439m 59s"); // 24h minus 1s: still shown
+  });
+});
+
+describe("waitForPublish elapsed", () => {
+  it("hands onTick the elapsed time beside the state", async () => {
+    const at = new Date(Date.now() - 90_000).toISOString();
+    const api = { publishStatus: vi.fn(async () => ({ state: "done", at })) };
+    const seen: [string, string | null][] = [];
+    await makeWaitForPublish(api, fast)("p1", (s, e) => seen.push([s, e]));
+    expect(seen).toHaveLength(1);
+    expect(seen[0]![0]).toBe("done");
+    expect(seen[0]![1]).toMatch(/^1m \d\ds$/);
+  });
+
+  it("hands onTick null when the reply carries no timestamp", async () => {
+    // Every pre-existing caller is `(s) => …` and ignores the second argument; this asserts the
+    // no-stamp path produces a value those callers can also ignore rather than a thrown error.
+    const seen: (string | null)[] = [];
+    await makeWaitForPublish(reader(["done"]), fast)("p1", (_s, e) => seen.push(e));
+    expect(seen).toEqual([null]);
   });
 });
