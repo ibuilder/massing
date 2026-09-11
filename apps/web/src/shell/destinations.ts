@@ -60,6 +60,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
       { key: "__schedule__", icon: "📅", label: "Schedule", needs: "schedule_activity" },
       { key: "__resload__", icon: "👷", label: "Resource Loading", needs: "schedule_activity" },
       { key: "__equipment__", icon: "🔩", label: "Equipment" },
+      { key: "__prefabkits__", icon: "🧰", label: "Prefab Kits", needs: "prefab_kit" },
       { key: "__topicboard__", icon: "🗂", label: "Issue Board" },
       { key: "__resilience__", icon: "🌊", label: "Climate Resilience" },
       { key: "__aiassist__", icon: "✍️", label: "AI Assist" },

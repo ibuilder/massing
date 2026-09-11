@@ -78,9 +78,18 @@ def check(label, ok, detail=""):
 #: never appears contiguously. The `${pid}` interpolation is precisely why the leaf alone is the
 #: only part that survives, and why this rule cannot be sharpened by lengthening the needle.
 #:
-#: Of the 113, exactly **two** are genuinely uncalled: `/projects/{pid}/prefab/kits` and its
-#: `/{rid}` sibling. Listing them here rather than in KNOWN_UNCALLED, because the rule never
-#: evaluates them — an entry there would claim a check that does not run.
+#: Of the 113, exactly two were genuinely uncalled: "/projects/{pid}/prefab/kits" and its "/{rid}"
+#: sibling. **Both have callers as of 2026-09-11** — the prefab-kit register was built, and the pair
+#: went with the `/freeze` route that WAS assessable and was frozen here as dark.
+#:
+#: *That is the argument for writing a measurement down even where the rule cannot enforce it.* These
+#: two could never fail this gate and never will; what made them fixable is that somebody had counted
+#: them, in prose, next to the reason the count could not become a check. The names stay in plain
+#: quotes rather than backticks because they are routes, not tracked files — `test_claude_md_gates.py`
+#: reads backticks as a citation.
+#:
+#: **The 113 are otherwise still unmeasured**, and re-deriving them is the honest next action for this
+#: limit rather than trusting the two-year-old sentence above.
 MIN_SEGMENT = 5
 
 #: Frozen: routes whose last static segment appears nowhere in the web source, as of 2026-08-06.
@@ -289,7 +298,7 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/rules/effective",
     "/projects/{pid}/scene/manifest",
     "/webhooks/deliveries",
-    # ---- 8 more, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
+    # ---- 7 of 8, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may
     # NOT follow a leaf to an allowlist of what MAY (see `_SEGMENT` for the measurement: +8, 0 lost).
     # Every one of these was vouched for by an English sentence that happened to start with the
     # leaf — "packs failed: …", "seeded from MasterFormat classifications", "coordinate the
@@ -303,6 +312,13 @@ KNOWN_UNCALLED: set[str] = {
     # out. **Eight working capabilities with no way to reach them**, and the reason they were never
     # counted is that the gate written to count them was reading prose. Frozen, not judged — the
     # same terms as the 25 above.
+    #
+    # **The eighth left this set the same day, and that is the point of freezing them.**
+    # `/projects/{pid}/prefab/kits/{rid}/freeze` was the one whose absence had a consequence a
+    # person could name -- a released kit with no written scope is a live query the shop fabricates
+    # against -- so it was built rather than recorded. Its two siblings were never assessed at all
+    # (leaf `kits`, under MIN_SEGMENT), and they now have callers too. *A frozen entry is a debt
+    # with a name on it, which is why this one could be paid.*
     "/codes/seeded",
     "/jurisdiction/packs",
     "/jurisdiction/packs/{pack_id}",
@@ -310,7 +326,6 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
     "/projects/{pid}/model/lod/proxy",
-    "/projects/{pid}/prefab/kits/{rid}/freeze",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

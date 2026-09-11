@@ -1752,6 +1752,45 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- ✅ ⭐ **PREFAB-DARK — an entire feature with no way in**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py` and
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  **All three `/projects/{pid}/prefab/kits*` routes had zero references in `apps/web/src`** — the
+  register, the per-kit detail, and the one write. `services/api/src/aec_api/prefab_kit.py` is 394
+  lines of finished work behind them: selector resolution against the model index, a bill of
+  materials, scope-drift detection, and an eleven-code blocker severity order in which a kit whose
+  released scope has *drifted* outranks one that is merely late, *"because a late kit is a known
+  problem and a drifted one is an unknown wrong one"*. None of it was reachable.
+
+  **The consequence has a name.** Freezing a kit writes the GlobalId list the shop fabricates
+  against; without that write a released kit is a live query, and `prefab_kit.py` says in its own
+  words that such a kit *"would be indistinguishable from a correctly released one on every screen"*.
+  That is the failure the module exists to prevent, and the module could not be operated.
+
+  **Found by the gate UNREACHED-IMPORT sharpened, in both of its modes.** `/freeze` surfaced as
+  newly-visible dark the moment `_SEGMENT` stopped letting English vouch for a route — the sentence
+  standing in for it was *"…out of the wet/freeze season"*. The other two could never surface at all:
+  their leaf is `kits`, five characters, and the rule does not assess a leaf that short. They were
+  reachable only because the `MIN_SEGMENT` note had *counted them in prose*, next to the reason the
+  count could not become a check. **A measurement written down where the rule cannot enforce it is
+  still what makes the thing fixable** — and that note is now corrected, since both have callers.
+
+  Shipped: `apps/web/src/api/prefab.ts` (types + three methods),
+  `apps/web/src/portal/panels/prefabKits.ts` (the presentation rules, 21 tests, six mutations all
+  biting) and `prefabKitsPanel.ts` (the DOM), wired as `__prefabkits__` into Work beside Equipment.
+  The panel states `scope_source` **in words on every row** rather than as a badge, because selector
+  and frozen are the distinction the whole module turns on.
+
+  *Three things the build itself had to learn, each caught by a check rather than by review.*
+  **The mixin chain is AT TypeScript's ceiling** — a fifty-first `withX()` on `ApiClient` fails with
+  TS2589, measured by writing it that way first; `withPrefab` composes inside `withDetailing`, the
+  remedy `api/cost.ts` had already recorded. **`clientCallers.test.ts` refused `prefabKit`**, which I
+  had shipped with no caller — answered by using it (re-read one kit after a write instead of
+  re-resolving every other kit's selector), not by exempting it. And **the write and the refresh are
+  separate `try` blocks on purpose**: folding them would let a failed re-read report *"could not write
+  the scope"* about a write that succeeded, and the reader's next move would be to write it again.
+
 - ✅ **RESP-ORPHAN — the RACI banner said "complete" over a grid with nothing in it** *(S — Lane C;
   **CLOSED**, fix in this change)*
 
@@ -2704,6 +2743,38 @@ The engine work is done either way; only the naming is open.
   such route: `/elements/{guid}` matched with `guid="properties"`. Resolved against the OpenAPI table
   rather than the status line, because probing alone gets this one wrong.
 
+### PREFAB-FREEZE-RACE — the write re-resolves what the reader already agreed to *(OPEN, needs a decision)*
+
+*(M — Lanes D/B; raised by review on PR #524, 2026-09-11; the DETECTION half shipped there,
+the PREVENTION half did not.)*
+
+`POST /projects/{pid}/prefab/kits/{rid}/freeze` resolves the kit's selector against the model index
+**at write time** — `prefab_kit.freeze` calls `resolve()` afresh — and nothing in the register
+response constrains it. So a model re-ingested, or a selector edited on the record, between the
+confirmation and the POST writes a GlobalId list the person never saw. `as_of` cannot help: it goes
+to `parse_date` for display and never reaches `resolve`.
+
+**What shipped in #524 makes the divergence visible, not impossible.** `freezeSummary` takes the
+count the confirmation named and says so when the write differs — *"you confirmed 12 … the written
+scope is not the one you were shown."* That is worth having on its own, because an unnoticed
+divergence is what puts the wrong list in front of a fabricator. It is a detection control and it
+is not a fix.
+
+**The fix is an optimistic-concurrency contract, and it is a route change, which is why it is filed
+rather than done:**
+
+1. Surface a `scope_version` on the register and the kit detail — the model version `model_index`
+   already tracks, combined with the kit's `updated_at` so a selector edit invalidates it too.
+2. `POST …/freeze` accepts `if_scope_version` and refuses a stale one with **409** and a fixed
+   literal, beside the existing `FREEZE_NO_MATCH` / `FREEZE_TRUNCATED` constants.
+3. The panel sends the version it rendered and, on 409, re-reads that kit and re-confirms against
+   the new numbers.
+
+**Filed here rather than left in the PR thread on purpose.** A follow-up recorded only in a review
+conversation is the same shape as the seeding sweep this repo already learned about — *a sweep held
+as prose is a check that can only report good news* — and a PR thread is worse than prose, because
+it is closed by default once the PR merges.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
@@ -2804,7 +2875,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · PIN-SWEEP-PGNULL *(the pin sweep skips the rows it exists to convert, on PostgreSQL only — a `json` column holding scalar `null` is non-NULL in SQL and decodes to Python `None`. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`, and it landed in `main` via #503 rather than in the PR that found it)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
