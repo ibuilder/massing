@@ -2743,6 +2743,38 @@ The engine work is done either way; only the naming is open.
   such route: `/elements/{guid}` matched with `guid="properties"`. Resolved against the OpenAPI table
   rather than the status line, because probing alone gets this one wrong.
 
+### PREFAB-FREEZE-RACE — the write re-resolves what the reader already agreed to *(OPEN, needs a decision)*
+
+*(M — Lanes D/B; raised by review on PR #524, 2026-09-11; the DETECTION half shipped there,
+the PREVENTION half did not.)*
+
+`POST /projects/{pid}/prefab/kits/{rid}/freeze` resolves the kit's selector against the model index
+**at write time** — `prefab_kit.freeze` calls `resolve()` afresh — and nothing in the register
+response constrains it. So a model re-ingested, or a selector edited on the record, between the
+confirmation and the POST writes a GlobalId list the person never saw. `as_of` cannot help: it goes
+to `parse_date` for display and never reaches `resolve`.
+
+**What shipped in #524 makes the divergence visible, not impossible.** `freezeSummary` takes the
+count the confirmation named and says so when the write differs — *"you confirmed 12 … the written
+scope is not the one you were shown."* That is worth having on its own, because an unnoticed
+divergence is what puts the wrong list in front of a fabricator. It is a detection control and it
+is not a fix.
+
+**The fix is an optimistic-concurrency contract, and it is a route change, which is why it is filed
+rather than done:**
+
+1. Surface a `scope_version` on the register and the kit detail — the model version `model_index`
+   already tracks, combined with the kit's `updated_at` so a selector edit invalidates it too.
+2. `POST …/freeze` accepts `if_scope_version` and refuses a stale one with **409** and a fixed
+   literal, beside the existing `FREEZE_NO_MATCH` / `FREEZE_TRUNCATED` constants.
+3. The panel sends the version it rendered and, on 409, re-reads that kit and re-confirms against
+   the new numbers.
+
+**Filed here rather than left in the PR thread on purpose.** A follow-up recorded only in a review
+conversation is the same shape as the seeding sweep this repo already learned about — *a sweep held
+as prose is a check that can only report good news* — and a PR thread is worse than prose, because
+it is closed by default once the PR merges.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
