@@ -80,7 +80,11 @@ export async function renderEotClaim(ctx: PanelContext): Promise<HTMLElement> {
       out.innerHTML = `<div class="meta">Analysing…</div>`;
       try {
         const s = sourced ? await ctx.host.api.scheduleEotSourced(pid, form) : null;
-        const r: EotResult = s ? (s.analysis as EotResult) : await ctx.host.api.scheduleEot(pid, form);
+        // `analysis` is absent on a sourced refusal (no captured baseline), so this is genuinely
+        // optional — `draw` handles it. A cast asserting otherwise would be the type lying about a
+        // case that happens on any project whose baseline was never captured.
+        const r: EotResult | undefined =
+          s ? s.analysis : await ctx.host.api.scheduleEot(pid, form);
         out.replaceChildren();
         out.innerHTML = draw(r, s);
       } catch (e) {
@@ -94,7 +98,7 @@ export async function renderEotClaim(ctx: PanelContext): Promise<HTMLElement> {
 }
 
 /** One analysis, rendered. A refusal is drawn as the instruction it is, never as a blank. */
-function draw(r: EotResult, s: EotSourced | null): string {
+function draw(r: EotResult | undefined, s: EotSourced | null): string {
   const sr = s ? sourcedRefusal(s) : null;
   if (sr) return `<div class="meta" style="color:#9a6700">${esc(sr)}</div>`;
   if (!r) return `<div class="meta">The server returned no analysis.</div>`;
