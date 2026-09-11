@@ -1752,6 +1752,65 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- 🟡 **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
+  *(S — Lane G; **OPEN**, raised in review on PR #528 2026-09-11; needs a contract decision)*
+
+  `services/api/src/aec_api/routers/procurement.py`'s `send_rfq` calls `me.create_record` — which
+  commits by default — and only *then* looks at `workflow_state`. A second request therefore persists
+  **another** `bid_solicitation` while skipping the package transition, and even the first request
+  commits the solicitation separately from the transition, so a failure between them leaves an ITB
+  with no state change behind it. BUYOUT-KEEP's client refuses the second send (`rfqGate`) and reports
+  a non-move honestly (`rfqSummary`), but **that is UI feedback, not enforcement**: a second tab, a
+  retry, or a direct API call still duplicates.
+
+  **Not fixed in #528 because the fix requires deciding what a second send MEANS**, and that is a
+  product call rather than a cleanup:
+
+  * **409 Conflict** — a package past `draft` cannot be re-solicited. Simplest, and wrong if a second
+    bid round is a real workflow.
+  * **Idempotent no-op** — return the existing solicitation. Safe, but silently ignores an operator
+    who meant to re-solicit.
+  * **Deliberate re-solicitation** — mint a new ITB *on purpose*, with its own round number, and say
+    so. This is what the current behaviour accidentally approximates.
+
+  The mechanical part is the same under all three: one transaction, a conditional `draft → rfq_sent`
+  update, create the solicitation only when that update changes exactly one row. *The transaction is
+  the easy half; what to do when it changes zero rows is the decision.* Same shape as
+  PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
+  only in a thread closes by default when the PR merges.**
+
+- ✅ ⭐ **BUYOUT-KEEP — the buyout plan you could compute and could not keep**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
+  `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
+
+  Budget → **📦 Buyout packages** has grouped the model's priced quantities into packages with RFQ
+  scopes since PROCURE-LEVEL, and `POST …/procurement/buyout-packages` has a caller. **Keeping them
+  did not.** `…/packages/save`, which persists each group as a `procurement_package` in `draft`, and
+  `…/packages/{rid}/send-rfq`, which mints the Bid Solicitation and advances the workflow, both had
+  no client caller — so a user could produce a buyout plan and had no way to act on it, and the whole
+  draft → rfq_sent → quotes_in → awarded workflow was unreachable from the screen that produces its
+  input. Same transient-to-record shape as the prefab freeze, on money.
+
+  **The two were dark for different reasons, and the second one is the finding.** `send-rfq` was
+  frozen in `services/api/test_route_reachability.py` and could have been read any day; `save` has a
+  four-character leaf and the gate never assessed it at all. But wiring `send-rfq` alone was never
+  possible: **it is keyed on a stored package's record id, and `save` is the only thing that creates
+  one.** *A dark route can be dark because the route that feeds it is* — so a frozen entry is not
+  always a unit of work, and reading one without its neighbours can make a feature look
+  one-button-away when the button has nothing to act on.
+
+  `apps/web/src/portal/panels/buyoutKeep.ts` holds the rules — 22 tests, five mutations all biting.
+  **The load-bearing one is the double-send trap.** The server mints the solicitation
+  *unconditionally* and transitions only a `draft` package, so a second send produces a second ITB
+  and no state change. A client that reported success from a resolved promise would hide a duplicate
+  solicitation nobody asked for, so `rfqSummary` reads `package_state` and says plainly when the
+  package did **not** move, and `rfqGate` refuses a package already past draft. An empty save is
+  reported as nothing kept rather than a cheerful zero, and the summary flags a created count that
+  differs from the one the confirmation named, because the server re-groups at write time.
+
+  Uncalled routes **61 → 60**, and the never-assessed dark set **9 → 8** — two different counters,
+  because the two routes sat one on each side of `MIN_SEGMENT`.
+
 - ✅ ⭐ **JURISDICTION-PACKS — a regulator's data requirements, and no way to reach any of them**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
   `apps/web/src/portal/panels/jurisdictionPacks.test.ts`)*
@@ -2979,7 +3038,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RFQ-IDEMPOTENT *(the first standalone item this lane has carried, and it earns one: the fix is entirely inside a router's transaction boundary — mint-after-check in one transaction — and belongs to no feature lane. **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file)* |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |

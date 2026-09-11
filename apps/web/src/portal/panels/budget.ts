@@ -4,6 +4,7 @@ import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 import { renderCostBrief } from "./costBrief";
+import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
 
 /**
  * GC GMP budget dashboard — the agreed GMP broken to every cost code & bid package plus GC/GR,
@@ -188,7 +189,111 @@ export async function renderBudget(ctx: PanelContext) {
         + `<th>Package</th><th style="text-align:right">Lines</th><th style="text-align:right">Est. cost</th>`
         + `<th>RFQ scope</th></tr></thead><tbody>${rows(pk)}</tbody></table></div>`
         + `<div class="meta" style="margin-top:4px">${esc(b.note || "")}</div>`);
+      // BUYOUT-KEEP — the grouping above is transient. Until 2026-09-11 that was the end of the
+      // road: `…/packages/save` and `…/packages/{rid}/send-rfq` had no client caller, so a user
+      // could produce a buyout plan and had no way to keep or act on it, and the whole
+      // draft -> rfq_sent -> quotes_in -> awarded workflow was unreachable from the screen that
+      // produces its input.
+      estDrawer.appendChild(keepRow(lines, b.packages, b.grouped_by));
     } catch (err) { fillEst(`<div class="meta">Buyout packaging failed: ${(err as Error).message}</div>`); }
+  };
+
+  /** The keep action, and — once kept — one send-RFQ button per stored package. */
+  const keepRow = (lines: Record<string, unknown>[],
+                   pkgs: { package: string; line_count: number; est_cost: number }[],
+                   groupedBy: string) => {
+    const wrap = document.createElement("div"); wrap.style.marginTop = "8px";
+    const gate = saveGate(pkgs.length);
+    if (!gate.can) {
+      wrap.innerHTML = `<span class="meta">Cannot keep these — ${esc(gate.why)}.</span>`;
+      return wrap;
+    }
+    const btn = document.createElement("button"); btn.className = "tool-btn";
+    btn.textContent = "💾 Keep these packages";
+    btn.title = "Store each group as a Buyout Packages record the project can track";
+    btn.onclick = async () => {
+      // Disabled BEFORE the await, not after the confirmation. The modal's backdrop stops a mouse
+      // reaching this button, but focus only moves into the dialog on the next macrotask, so a held
+      // Enter can fire this handler twice and open two dialogs -- and neither endpoint is
+      // idempotent: save creates records on every request. Restored on cancel, and on failure below.
+      btn.disabled = true;
+      if (!(await confirmModal("Keep buyout packages", saveConfirm(pkgs, groupedBy), "Keep"))) {
+        btn.disabled = false; return;
+      }
+      let saved;
+      try {
+        saved = await ctx.host.api.saveBuyoutPackages(pid, lines, groupedBy);
+      } catch (e) {
+        btn.disabled = false;
+        // The server's own text separates "not yours to write" (403) from a validation refusal.
+        ctx.host.setStatus(`could not keep the packages: ${(e as Error).message}`);
+        return;
+      }
+      // Pass the count the CONFIRMATION named: the server re-groups at write time from the lines it
+      // is sent, so these can differ, and saveSummary says so rather than reporting a clean success
+      // for a set the reader never agreed to.
+      ctx.host.setStatus(saveSummary(saved.created, pkgs.length));
+      wrap.replaceWith(sentRow(saved.created));
+    };
+    wrap.appendChild(btn);
+    return wrap;
+  };
+
+  /** One send-RFQ button per kept package, each carrying its own workflow state. */
+  const sentRow = (created: SavedPackage[]) => {
+    const wrap = document.createElement("div"); wrap.style.marginTop = "8px";
+    if (!created.length) {
+      wrap.innerHTML = `<span class="meta">${esc(saveSummary(created))}</span>`;
+      return wrap;
+    }
+    wrap.innerHTML = `<div class="meta" style="margin-bottom:4px">${esc(saveSummary(created))}</div>`;
+    for (const pkg of created) wrap.appendChild(rfqButton(pkg));
+    return wrap;
+  };
+
+  /**
+   * One package's send-RFQ control, which REDRAWS ITSELF with the state the send reported.
+   *
+   * That is the whole reason it is a function rather than inline: after a send it replaces its own
+   * row by calling itself with the returned `package_state`, so the second pass hits `rfqGate` with
+   * the real state and refuses. Without the redraw the button would stay live and a second click
+   * would mint a duplicate solicitation — the server transitions only a `draft` package but mints
+   * unconditionally.
+   */
+  const rfqButton = (pkg: SavedPackage) => {
+    const row = document.createElement("div"); row.style.marginTop = "4px";
+    // A freshly-kept package is in `draft`; the gate still asks, because this same function redraws
+    // the row after a send and must then refuse the second one.
+    const gate = rfqGate({ id: pkg.id, state: (pkg as { state?: string }).state ?? "draft" });
+    if (!gate.can) {
+      row.innerHTML = `<span class="meta">${esc(pkg.ref)} — ${esc(gate.why)}.</span>`;
+      return row;
+    }
+    const btn = document.createElement("button"); btn.className = "tool-btn";
+    btn.textContent = `📨 Send RFQ — ${pkg.ref}`;
+    btn.onclick = async () => {
+      btn.disabled = true;                 // same reason as the keep button above
+      if (!(await confirmModal("Send RFQ", rfqConfirm(pkg), "Send"))) { btn.disabled = false; return; }
+      let sent;
+      try {
+        sent = await ctx.host.api.sendPackageRfq(pid, String(pkg.id));
+      } catch (e) {
+        btn.disabled = false;
+        ctx.host.setStatus(`could not send the RFQ: ${(e as Error).message}`);
+        return;
+      }
+      // `package_state` is read rather than assumed. The server mints the solicitation
+      // unconditionally and transitions only a draft package, so a resolved promise does NOT mean
+      // the package moved -- and rfqSummary is what says which happened.
+      ctx.host.setStatus(rfqSummary(sent));
+      // NOT `?? "rfq_sent"`. When the server reports no state, rfqSummary above has just told the
+      // reader the package did NOT move -- redrawing it as sent would contradict that in the same
+      // breath. `unknown` is carried through instead, and rfqGate refuses on it with its own reason.
+      row.replaceWith(rfqButton({ ...pkg, ...{ state: sent.package_state || "unknown" } } as
+        SavedPackage & { state: string }));
+    };
+    row.appendChild(btn);
+    return row;
   };
   // BUYOUT-SCHED — what must be ORDERED when, which is a different question from what to package.
   // Joins the model's priced quantities to their installing schedule activity and subtracts the
