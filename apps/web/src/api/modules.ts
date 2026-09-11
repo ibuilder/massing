@@ -161,9 +161,14 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   listViews(pid: string, key: string) {
     return this.json<SavedViewDef[]>(`/projects/${pid}/modules/${key}/views`);
   }
-  saveView(pid: string, key: string, name: string, config: Record<string, unknown>) {
+  /** Create or replace one of MY saved views. `scope` is sent explicitly: the route defaults it to
+   *  `"private"`, and omitting it meant that default decided for every view the web UI had ever
+   *  created — the sharing half of R22-REPORT-BUILDER item 4 was reachable only from outside this
+   *  app. */
+  saveView(pid: string, key: string, name: string, config: Record<string, unknown>,
+           scope: "private" | "project" = "private") {
     return this.json<SavedViewDef>(`/projects/${pid}/modules/${key}/views`, {
-      method: "POST", body: JSON.stringify({ name, config }) });
+      method: "POST", body: JSON.stringify({ name, config, scope }) });
   }
   deleteView(pid: string, key: string, vid: string) {
     return this.json<{ deleted: boolean }>(`/projects/${pid}/modules/${key}/views/${vid}`, { method: "DELETE" });

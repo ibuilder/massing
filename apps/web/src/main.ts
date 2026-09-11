@@ -1,6 +1,7 @@
 import "./style.css";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient, type MassingParams } from "./api/client";
+import { sealIdentity } from "./api/assetRights";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
@@ -399,13 +400,23 @@ async function saveProjectBundle() {
   try {
     const st = await api.assetRightsStatus();
     if (st.enabled) {
+      // NAME THE IDENTITY, rather than referring to it. The text below promises that "anyone holding
+      // the issuer's published verification key" can check the file — and until now the dialog could
+      // not say what that key IS, because `public_key` was undeclared on the client type under a
+      // comment reading "Never a key." The key is 43 base64url characters and is embedded in every
+      // signed manifest we emit, so showing it here is not a disclosure; it is the one thing the
+      // person sealing has to publish for the promise to mean anything.
+      const id = sealIdentity(st);
+      const idLine = id
+        ? `\n\nIssued by ${id.issuer || "(no issuer name configured)"}\nVerification key: ${id.key}`
+        : "";
       sealed = await askConfirm("Save project", {
         body: st.signing
           ? "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
             + "container and signs it, so anyone holding the issuer's published verification key "
             + "can confirm the file is authentic and unaltered. The pre-converted geometry tile is "
             + "recorded but left out of the release identity, because it can be regenerated.\n\n"
-            + "Sealing gives the project a permanent asset id that travels with the file."
+            + "Sealing gives the project a permanent asset id that travels with the file." + idLine
           : "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
             + "container, so any later change to the file is detectable.\n\nNo signing key is "
             + "configured on this server, so the file will be tamper-evident but will NOT carry a "

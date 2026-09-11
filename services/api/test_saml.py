@@ -1,7 +1,8 @@
 """SAML 2.0 SP — the security-critical path is response verification, so this drives real signed
 assertions (self-signed cert via `cryptography`, signed with `signxml`) through the ACS and asserts:
-  * a correctly-signed, in-window, right-audience assertion logs the user in (303 + session cookie,
-    account auto-provisioned);
+  * a correctly-signed, in-window, right-audience assertion logs the user in -- asserted by asking
+    /auth/me who the caller is, not by looking for a Set-Cookie header (303, account
+    auto-provisioned);
   * every attack is rejected with 403: tampered payload (digest break), unsigned assertion,
     assertion signed by a DIFFERENT key than the pinned IdP cert, expired Conditions, wrong audience.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_saml.py"""
@@ -121,7 +122,19 @@ with TestClient(app) as client:
     good = build_response(IDP_KEY, IDP_CERT, email="engineer@corp.com")
     r = post(good)
     assert r.status_code == 303, f"good assertion should log in: {r.status_code} {r.text[:200]}"
-    assert "aec-token" in r.cookies or "aec-token" in r.headers.get("set-cookie", ""), r.headers
+    # Assert the SESSION, not the Set-Cookie header. The line here used to be
+    #   assert "aec-token" in r.cookies or "aec-token" in r.headers.get("set-cookie", "")
+    # which is a check that cannot fail for the reason that matters: it asserted a cookie was set,
+    # under the name the code being tested had chosen, so it stayed green while that name
+    # (`aec-token`) was one nothing reads -- the reader is `aec_token`. Every verified assertion
+    # minted a real token and dropped it in a cookie the server ignores. Ask the server who it
+    # thinks the caller is instead; that question has only one right answer and no spelling of the
+    # cookie can fake it.
+    me = client.get("/auth/me")
+    assert me.status_code == 200, me.text[:200]
+    assert me.json().get("username") == "engineer@corp.com", (
+        f"ACS set a cookie the server does not read -- /auth/me says {me.json().get('username')!r}")
+    assert "aec_token" in r.cookies or "aec_token=" in r.headers.get("set-cookie", ""), r.headers
     with SessionLocal() as db:
         u = db.get(User, "engineer@corp.com")
         assert u and u.provisioned is True and u.email == "engineer@corp.com", u

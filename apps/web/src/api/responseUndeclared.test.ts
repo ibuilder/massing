@@ -67,12 +67,6 @@ const CONTROL = "GET /projects/{}/verification/coverage";
  *  fixed rather than rotting into a freeze-list nobody re-checked. (`KNOWN_UNCALLED` is the
  *  cautionary tale this shape is built against.) */
 const KNOWN_GAPS: Record<string, string[]> = {
-  "GET /reference/disciplines": ["disciplines", "masterformat_divisions", "uniformat_crosswalk"],
-  "POST /projects/{}/modules/{}/views": ["mine", "owner", "scope"],
-  "POST /proforma/scenarios/{}/draw-package": ["forecast_returns", "g703_totals"],
-  "GET /asset-rights/status": ["public_key"],
-  "GET /auth/providers": ["saml"],
-  "POST /proforma/solve": ["provenance"],
 };
 
 /** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a
@@ -84,6 +78,18 @@ const KNOWN_GAPS: Record<string, string[]> = {
  *  Closing a route's spread is therefore a visible improvement, not a no-op. */
 const INCOMPLETE_LOWER_BOUND: string[] = [
   "GET /agent-packs/runs",
+  // Added 2026-09-11 by giving `/cost/datasets/import` its first client method: the route returns
+  // `{**cost_db.dataset_dict(ds), "warning": ...}`, so only `warning` can be named statically. It
+  // appears here for a good reason — this gate can only see a route that HAS a typed call site, and
+  // until now it had none at all.
+  "POST /cost/datasets/import",
+  // Added 2026-09-11 with LOD-PROXY, the same shape one route over: the handler returns
+  // `{**report, "stored": ..., "key": ..., "next": ...}` on success and `{**report, "stored": False}`
+  // on a refusal, so only the four literal keys can be named. `report` comes from
+  // `lod.build_storey_proxy`, whose shape differs between those two branches — which is the
+  // reason the client types `elements_replaced`, `storeys_proxied` and `reason` as OPTIONAL
+  // rather than pretending one branch's keys are present in both.
+  "POST /projects/{}/model/lod/proxy",
   "GET /projects/{}/agent-packs",
   "GET /projects/{}/ai/risk-summary",
   "GET /projects/{}/compliance/expiring",

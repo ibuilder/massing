@@ -2,6 +2,7 @@ import type { ModuleDef, ModuleRecord, RecordBrief } from "../../api/client";
 import type { ModuleFilterOp } from "../../api/types";
 import { money as usd } from "../../ui/charts";
 import { statusChip } from "../../ui/chips";
+import { deletableViews, deleteWarning, pickedView, scopeFromAnswer, viewLabel } from "./savedViews";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
@@ -320,46 +321,40 @@ export class RegisterUI {
     const views = await this.ctx.host.api.listViews(pid, m.key).catch(() => []);
     const viewSel = document.createElement("select"); viewSel.className = "sb-sel"; viewSel.title = "Saved views";
     const vNone = document.createElement("option"); vNone.value = ""; vNone.textContent = "views…"; viewSel.appendChild(vNone);
-    for (const v of views) { const o = document.createElement("option"); o.value = v.id; o.textContent = v.name; viewSel.appendChild(o); }
+    // `viewLabel` says whose a view is — see savedViews.ts for what that was hiding.
+    for (const v of views) { const o = document.createElement("option"); o.value = v.id; o.textContent = viewLabel(v); viewSel.appendChild(o); }
     viewSel.onchange = () => { const v = views.find((x) => x.id === viewSel.value); if (v) { this.sort[m.key] = v.config.sort; void this.ctx.host.api.markViewSeen(pid, m.key, v.id).catch(() => {}); void this.openModule(m, { q: v.config.q, state: v.config.state }); } };
     const saveView = document.createElement("button"); saveView.className = "tool-btn"; saveView.textContent = "＋view";
-    saveView.title = "Save current filter/sort as a view (synced to your account)";
+    saveView.title = "Save current filter/sort as a view — keep it to yourself or share it with the project";
     saveView.onclick = async () => {
-      const v = await promptModal("Save view", [{ name: "name", label: "View name", required: true }], "Save");
+      // `saveView` used to send no scope, so the route's `default="private"` decided for every view
+      // this app has ever created — see savedViews.ts.
+      const v = await promptModal("Save view", [
+        { name: "name", label: "View name", required: true },
+        { name: "share", label: "Share with the project? (yes / no)" }], "Save");
       if (!v) return;
-      await this.ctx.host.api.saveView(pid, m.key, v.name ?? "", { q: filter.q, state: filter.state, sort: this.sort[m.key] });
+      await this.ctx.host.api.saveView(pid, m.key, v.name ?? "",
+        { q: filter.q, state: filter.state, sort: this.sort[m.key] }, scopeFromAnswer(v.share));
       void this.openModule(m, filter);
     };
-    // R41-REACH-WRITES — retire a saved view. Views could be created and applied since they shipped
-    // and never removed, so a mistyped one stayed in the dropdown of whoever made it forever.
-    //
-    // WHY A PICK-THEN-CONFIRM AND NOT AN ✕ ON THE SELECT. `viewSel.onchange` applies the view and
-    // re-renders this whole toolbar, so the select never HOLDS a selection — a "delete the selected
-    // one" button would have nothing to read. The number-pick matches the Templates control beside
-    // it, and the confirm step is what turns a number back into a name: agreeing to delete "3" is
-    // not consent, agreeing to delete "Overdue — mine" is.
-    //
-    // AND IT READS THE `deleted` FLAG RATHER THAN ASSUMING. This is the endpoint that returned
-    // "deleted": true for a row it had not touched until v0.3.892; the reason it is safe to wire now
-    // is that the flag became true only when the delete happened, and a UI that ignored it would put
-    // that defect straight back on the screen.
+    // R41-REACH-WRITES — retire a saved view. It READS the `deleted` flag rather than assuming: this
+    // is the endpoint that returned "deleted": true for a row it had not touched until v0.3.892, and
+    // a UI that ignored the flag would put that defect straight back on the screen. It offers only
+    // the views the server will actually delete, and `pickedView` carries why the control is a
+    // pick-then-confirm — both in savedViews.ts.
+    const own = deletableViews(views);
     const delView = document.createElement("button"); delView.className = "tool-btn";
     delView.textContent = "🗑 view"; delView.dataset.cap = "editor";
-    delView.title = views.length ? "Delete one of your saved views" : "No saved views to delete";
-    delView.disabled = !views.length;
+    delView.title = own.length ? "Delete one of your saved views" : "No saved views of yours to delete";
+    delView.disabled = !own.length;
     delView.onclick = async () => {
       const picked = await promptModal("Delete a saved view",
         [{ name: "pick", label: "View # to delete", required: true }], "Next",
-        views.map((v, i) => `${i + 1}. ${v.name}`).join("\n"));
+        own.map((v, i) => `${i + 1}. ${viewLabel(v)}`).join("\n"));
       if (!picked) return;
-      // `parseInt` returns NaN for "abc" and 3 for "3abc"; both must be refused rather than
-      // silently deleting the third view because the string happened to start with a digit.
-      const n = Number((picked.pick ?? "").trim());
-      const target = Number.isInteger(n) ? views[n - 1] : undefined;
+      const target = pickedView(picked.pick, own);
       if (!target) { toast(`No view numbered "${picked.pick}" — nothing deleted.`, "error"); return; }
-      const ok = await confirmModal(`Delete the view "${target.name}"?`,
-        "Saved views are yours alone, so this removes it only for you. The records it filters are "
-        + "not touched.\n\nThere is no undo — the filter and sort would have to be set up again.",
+      const ok = await confirmModal(`Delete the view "${target.name}"?`, deleteWarning(target),
         "Delete view", true);
       if (!ok) return;
       let res: { deleted: boolean };
