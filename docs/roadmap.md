@@ -1752,6 +1752,38 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- ✅ ⭐ **BUYOUT-KEEP — the buyout plan you could compute and could not keep**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
+  `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
+
+  Budget → **📦 Buyout packages** has grouped the model's priced quantities into packages with RFQ
+  scopes since PROCURE-LEVEL, and `POST …/procurement/buyout-packages` has a caller. **Keeping them
+  did not.** `…/packages/save`, which persists each group as a `procurement_package` in `draft`, and
+  `…/packages/{rid}/send-rfq`, which mints the Bid Solicitation and advances the workflow, both had
+  no client caller — so a user could produce a buyout plan and had no way to act on it, and the whole
+  draft → rfq_sent → quotes_in → awarded workflow was unreachable from the screen that produces its
+  input. Same transient-to-record shape as the prefab freeze, on money.
+
+  **The two were dark for different reasons, and the second one is the finding.** `send-rfq` was
+  frozen in `services/api/test_route_reachability.py` and could have been read any day; `save` has a
+  four-character leaf and the gate never assessed it at all. But wiring `send-rfq` alone was never
+  possible: **it is keyed on a stored package's record id, and `save` is the only thing that creates
+  one.** *A dark route can be dark because the route that feeds it is* — so a frozen entry is not
+  always a unit of work, and reading one without its neighbours can make a feature look
+  one-button-away when the button has nothing to act on.
+
+  `apps/web/src/portal/panels/buyoutKeep.ts` holds the rules — 22 tests, five mutations all biting.
+  **The load-bearing one is the double-send trap.** The server mints the solicitation
+  *unconditionally* and transitions only a `draft` package, so a second send produces a second ITB
+  and no state change. A client that reported success from a resolved promise would hide a duplicate
+  solicitation nobody asked for, so `rfqSummary` reads `package_state` and says plainly when the
+  package did **not** move, and `rfqGate` refuses a package already past draft. An empty save is
+  reported as nothing kept rather than a cheerful zero, and the summary flags a created count that
+  differs from the one the confirmation named, because the server re-groups at write time.
+
+  Uncalled routes **61 → 60**, and the never-assessed dark set **9 → 8** — two different counters,
+  because the two routes sat one on each side of `MIN_SEGMENT`.
+
 - ✅ ⭐ **JURISDICTION-PACKS — a regulator's data requirements, and no way to reach any of them**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
   `apps/web/src/portal/panels/jurisdictionPacks.test.ts`)*

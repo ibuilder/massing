@@ -239,7 +239,11 @@ KNOWN_UNCALLED: set[str] = {
     # `/drawings/schedule.csv`, `/opendata/permits.geojson`, `/modules/{key}/log.pdf`,
     # `/view-templates/{tid}/graphics` left here in v0.3.1138.
     "/projects/{pid}/modules/backfill-references",
-    "/projects/{pid}/procurement/packages/{rid}/send-rfq",
+    # `/procurement/packages/{rid}/send-rfq` left here in v0.3.1144 — BUYOUT-KEEP. It could not be
+    # wired before, and not for a UI reason: the route is keyed on a STORED package's record id, and
+    # `/procurement/packages/save` -- the only thing that creates one -- had no caller either. A
+    # send-RFQ button on a transient grouping would have had nothing to send for. *A dark route can
+    # be dark because the route that feeds it is.*
     # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
     "/projects/{pid}/provenance/admissibility",
     "/projects/{pid}/recipes/replay-plan",

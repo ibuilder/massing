@@ -12,6 +12,24 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Buyout packages can be kept, and their RFQs sent
+
+**Budget → Buyout packages** has always grouped the model's priced quantities into packages, each
+with an RFQ scope. There was no way to keep them: the grouping vanished when you navigated away, and
+the buyout workflow it feeds — draft → RFQ sent → quotes in → awarded — could not be reached from the
+screen that produces its input.
+
+Keeping them now creates one **Buyout Packages** record per group, in draft, visible to the whole
+project and quotable by ref; each one then offers **Send RFQ**, which mints a Bid Solicitation
+carrying the package's name, trade and due date and moves the package to RFQ sent. The confirmation
+says what is being created before it is created, and re-grouping and keeping again is described as
+adding a second set rather than replacing the first, because that is what it does.
+
+Two refusals are reported rather than hidden. A grouping that produced nothing is reported as nothing
+kept, not as a save of zero. And because the server mints a solicitation whether or not the package
+was still in draft, a send that does **not** move the package says so and names the state it is
+actually in — so a second send cannot look like a first one.
+
 ### An authority's data requirements can now be imported, applied and checked
 
 A **requirement pack** is a set of data requirements published by an authority for a jurisdiction —
