@@ -147,6 +147,10 @@ export const DEST_ROOM: Record<string, string> = {
   // Log is now Work. A panel that reports on registers in another room is the split-surface shape
   // the spine exists to prevent.
   __equipment__: "work",
+  // Prefab kits sit with Equipment for the same reason: a kit is a thing that arrives on a
+  // truck against a pull-plan task, and the question it answers -- *is what we ordered still
+  // what the model says* -- is asked in the field, not in the model room.
+  __prefabkits__: "work",
   // ── Operate: the asset in service (R30) ───────────────────────────────────────────────────────
   // These three were filed under Deal because facilities management was sectioned as "Operations"
   // and Operations meant the landlord. A technician opening a work order was landing in a room whose

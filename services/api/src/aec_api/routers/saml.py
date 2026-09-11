@@ -17,6 +17,16 @@ from .. import audit, auth, licensing, saml
 from ..db import get_db
 from ..models import User
 
+# The session cookie is auth's, not a copy of it. This module used to carry its own `_cookie` that
+# claimed to mirror that one, and it had drifted to the wrong NAME: it set `aec-token`, while the
+# cookie `rbac.current_user` reads is `aec_token`. So a correctly verified assertion minted a real
+# token, put it somewhere nothing reads, and returned the browser to the app still signed out --
+# SAML sign-in could not work at all. The paired test asserted the cookie was SET, using the name
+# the copy itself used, so it stayed green over a flow that never once logged anyone in. Importing
+# the one definition removes the way the two can differ again, and picks up the two things the copy
+# had also lost: AEC_COOKIE_SECURE and the 7-day max-age.
+from .auth import _cookie
+
 router = APIRouter()
 
 
@@ -77,12 +87,6 @@ def _acs(request: Request) -> str:
     """Our ACS URL: the configured value (needed behind a reverse proxy where the internal URL
     differs from the public one), else computed from the request."""
     return saml.acs_url() or str(request.url_for("saml_acs"))
-
-
-def _cookie(resp: Response, token: str, request: Request) -> None:
-    """Set the session cookie (mirrors routers/auth._cookie; secure when the request is https)."""
-    secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-    resp.set_cookie("aec-token", token, httponly=True, secure=secure, samesite="lax", path="/")
 
 
 @router.get("/auth/saml/metadata")

@@ -155,6 +155,27 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       available_public: { source_set?: string; origin?: string; tier?: string; note?: string }[];
     }>("/cost/datasets");
   }
+  /**
+   * Build and install a cost vintage from the offline public source (COST-DB).
+   *
+   * **This route had no client method at all.** `costDatasets` above reports what the importer
+   * *could* build — and the budget card says so, in as many words — while the thing that builds it
+   * was reachable only with a hand-rolled HTTP call. `services/api/test_route_reachability.py` did
+   * not say so either: its leaf is `import`, which occurs 2,223 times in this tree as the TypeScript
+   * keyword, so the route vouched for itself.
+   *
+   * **Platform-admin only, and the reason is in the blast radius**: importing flips the global
+   * `is_latest`, which reprices every unpinned project's estimate. That is why the action lives in
+   * Profile & settings → Administration and not on a project's budget card.
+   */
+  importCostDataset(vintage: number | "latest" = "latest", quarter: number | null = null) {
+    return this.json<{
+      id?: string; name?: string; vintage?: number; quarter?: number | null; origin?: string;
+      is_latest?: boolean;
+      /** Set when a `cloud` source was asked for and the offline public build was served instead. */
+      warning: string | null;
+    }>("/cost/datasets/import", { method: "POST", body: JSON.stringify({ vintage, quarter }) });
+  }
   /** The vintage this project's estimate resolves through (pinned, else latest). */
   costVintage(pid: string) {
     return this.json<{

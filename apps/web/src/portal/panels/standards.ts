@@ -1,6 +1,7 @@
 import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -163,8 +164,32 @@ export async function renderStandards(ctx: PanelContext) {
       }
     })();
     root.appendChild(bepCard);
+    // R23-JURISDICTION-PACKS — the authority's data requirements, which are information
+    // requirements for a PLACE rather than for this appointment. It sits here because the EIR/BEP
+    // above is the same question asked by the client instead of by the regulator, and a submitter
+    // needs both answers before a submittal. Its own panel; this is the way in.
+    const jurCard = el("div", "dash-card"); jurCard.style.marginBottom = "8px";
+    jurCard.innerHTML = `<div><b>⚖️ Data requirements (jurisdiction)</b></div>`
+      + `<div class="meta" style="margin-top:2px">Requirement packs published by an authority for a `
+      + `jurisdiction, each carrying its authority, edition and source — and this model checked `
+      + `against the ones that apply here.</div>`;
+    const jurBtn = el("button"); jurBtn.className = "mini-btn on"; jurBtn.textContent = "Open";
+    jurBtn.style.marginTop = "6px";
+    jurBtn.onclick = () => void (async () => {
+      await (await import("./jurisdictionPanel")).renderJurisdiction(ctx);
+    })();
+    jurCard.append(jurBtn); root.appendChild(jurCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
+    //
+    // The card lands in a SLOT appended now rather than straight onto `root` when the read returns.
+    // `root` is shared by every panel and is cleared by whoever renders next, so a late `.then` was
+    // appending this card into a different screen -- visible since the jurisdiction button above
+    // gives the reader something to navigate to while this is still in flight. An empty div has no
+    // visual footprint, and `isConnected` goes false the moment `root.innerHTML` is cleared, which
+    // is the cheapest liveness check there is. Found in review on PR #527.
+    const aiSlot = el("div"); root.appendChild(aiSlot);
     void ctx.host.api.aiReadiness(pid).then((ai) => {
+      if (!aiSlot.isConnected) return;    // the reader moved on; this panel is gone
       const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";
       const ac = el("div", "dash-card"); ac.style.cssText = `border-left:3px solid var(${col});margin-bottom:8px`;
       const dim = (label: string, k: keyof typeof ai.dimensions) => {
@@ -176,7 +201,7 @@ export async function renderStandards(ctx: PanelContext) {
         + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
         + dim("Single source of truth", "single_source_of_truth") + dim("Information completeness", "information_completeness")
         + dim("Model integrity", "model_integrity") + dim("Governance", "governance") + `</table>`;
-      root.appendChild(ac);
+      aiSlot.appendChild(ac);
     }).catch(() => { /* best-effort */ });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     let st; let reg;
@@ -538,6 +563,30 @@ export async function renderModelAnalysis(ctx: PanelContext) {
           cen.appendChild(table(["Class", "Elements", "Triangles", "%"],
             c.by_class.slice(0, 12).map((r) => [r.ifc_class, r.elements, r.triangles, r.pct_triangles])));
         }
+        // The saving above was stated and could not be acted on: `plan.pct_saved` has been rendered
+        // here since the census shipped, while POST .../model/lod/proxy had no client method at all.
+        const offer = proxyOffer(c.plan);
+        const act = el("div"); act.style.marginTop = "6px";
+        if (!offer.can) {
+          act.innerHTML = `<span class="meta">No coarse proxy to build — ${esc(offer.why)}.</span>`;
+        } else {
+          const btn = el("button", "portal-btn") as HTMLButtonElement;
+          btn.textContent = "▣ Build the coarse proxy";
+          btn.onclick = async () => {
+            if (!window.confirm(proxyConfirm(c.plan))) return;
+            btn.disabled = true;
+            try {
+              // The server answers a refusal with `stored: false` and a reason, NOT an error, so the
+              // summary has to read the flag rather than assume a resolved promise means success.
+              ctx.host.setStatus(proxySummary(await ctx.host.api.lodProxy(pid)));
+            } catch (e) {
+              ctx.host.setStatus(`could not build the proxy: ${(e as Error).message}`);
+            }
+            btn.disabled = false;
+          };
+          act.appendChild(btn);
+        }
+        cen.appendChild(act);
     }).catch(fail(cen));
 
     const gt = section("🧵 Golden thread");

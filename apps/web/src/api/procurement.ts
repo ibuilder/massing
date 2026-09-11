@@ -40,6 +40,50 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
   }
   /**
+   * BUYOUT-KEEP — the write that turns a grouping into records somebody can work.
+   *
+   * `buyoutPackages` above computes the same grouping and returns it; this one PERSISTS each group
+   * as a `procurement_package` record in `draft`, which is what makes the buyout workflow
+   * (draft → rfq_sent → quotes_in → awarded) reachable at all. Until 2026-09-11 the screen could
+   * compute packages and had no way to keep them, so the entire downstream chain — this route and
+   * `sendPackageRfq` below — was unreachable from the product.
+   *
+   * Needs the **editor** role, because it writes records the whole project then sees.
+   */
+  saveBuyoutPackages(pid: string, qtoLines: Record<string, unknown>[], by = "trade",
+                     rfqDue?: string) {
+    return this.json<{
+      created: { id: string | number; ref: string; name: string; est_cost: number | null;
+                 line_count: number }[];
+      package_count: number;
+      note: string;
+    }>(`/projects/${pid}/procurement/packages/save`, {
+      method: "POST",
+      body: JSON.stringify({ qto_lines: qtoLines, by, ...(rfqDue ? { rfq_due: rfqDue } : {}) }),
+    });
+  }
+
+  /**
+   * BUYOUT-KEEP — mint a Bid Solicitation (ITB) from a stored package and advance it to `rfq_sent`.
+   *
+   * **`package_state` is the field that matters on the way back.** The server mints the
+   * solicitation unconditionally but only transitions a package that is still in `draft`; sending
+   * twice therefore produces a SECOND ITB and no state change. A client that reports "RFQ sent"
+   * from a resolved promise would hide exactly that, so the caller must read the state it returns
+   * rather than the fact that it returned.
+   */
+  sendPackageRfq(pid: string, rid: string, dueDate?: string) {
+    return this.json<{
+      solicitation: { id: string | number; ref: string };
+      package: string;
+      package_state: string | null;
+    }>(`/projects/${pid}/procurement/packages/${encodeURIComponent(rid)}/send-rfq`, {
+      method: "POST",
+      body: JSON.stringify(dueDate ? { due_date: dueDate } : {}),
+    });
+  }
+
+  /**
    * PROCURE-LEVEL — score returned quotes for ONE package against its RFQ scope.
    *
    * `scope` and `quotes` are typed to the shapes the route documents rather than to
