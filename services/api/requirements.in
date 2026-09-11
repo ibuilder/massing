@@ -111,7 +111,7 @@ rdflib>=7.6.0
 # scripts/export_detector.py to produce the .onnx and must NEVER appear here: the CPU build is
 # 200 MB+ against onnxruntime's ~50 MB, and the service never trains. Detection stays inert without
 # a model file (AEC_PHOTO_MODEL), so installing this does not by itself turn anything on.
-onnxruntime>=1.23
+onnxruntime>=1.29.0
 #
 # Pillow is Tier 1's decoder — `photo_cv.py` does `from PIL import Image, ImageOps` at module scope,
 # and `photo_detect.py` calls it "a hard dep" in a comment. It was nonetheless undeclared, arriving
