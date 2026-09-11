@@ -8,6 +8,7 @@ import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
+import { safetyClassLine, safetyHeadline } from "./safetyCard";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
@@ -1102,10 +1103,9 @@ export class PortalUI {
         health.appendChild(cd);
       }
       const safety = el("div", "meta"); safety.style.margin = "2px 0"; health.appendChild(safety);
+      const sCls = el("div", "meta"); sCls.style.cssText = "margin:1px 0 2px 0;opacity:0.8"; health.appendChild(sCls);
       void this.host.api.safetyMetrics(pid).then((s) => {
-        if (!s.incident_count) { safety.textContent = "Safety: no recordable incidents ✓"; return; }
-        const trir = s.trir != null ? ` · TRIR ${s.trir}` : ""; const dart = s.dart != null ? ` · DART ${s.dart}` : "";
-        safety.textContent = `Safety: ${s.recordable_count} recordable / ${s.incident_count} incidents · ${s.lost_days} lost days${trir}${dart}`;
+        safety.textContent = safetyHeadline(s); sCls.textContent = safetyClassLine(s.by_class) ?? "";
       }).catch(() => {});
       const lean = el("div", "meta"); lean.style.margin = "2px 0"; health.appendChild(lean);
       void this.host.api.leanPpc(pid).then((l) => {

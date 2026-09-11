@@ -176,7 +176,11 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   /** inviteBidders — record companies invited to bid on a package. */
   inviteBidders(pid: string, packageId: string, companies: string[]) {
-    return this.json<{ bidders_invited: number; invited_companies: string[] }>(
+    // `package` echoes the `packageId` this call passed in, so it tells the caller nothing it does
+    // not already hold. Declared anyway: an undeclared key is invisible to the compiler and to every
+    // audit built on these interfaces, and "redundant" is a judgement that has to be written down
+    // somewhere a reader can find it rather than inferred from a type's silence.
+    return this.json<{ package: string; bidders_invited: number; invited_companies: string[] }>(
       `/projects/${pid}/bidding/packages/${packageId}/invite`,
       { method: "POST", body: JSON.stringify({ companies }) });
   }

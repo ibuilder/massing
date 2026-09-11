@@ -260,8 +260,13 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ order: string[]; results: Record<string, Record<string, unknown>>; node_count: number }>(
         "/compute/graph", { method: "POST", body: JSON.stringify(graph) });
     }
+    /** Poll the async publish job. `at` is the ISO timestamp the current state was written — the
+     *  server already relies on it to declare an interrupted worker dead after 900 s, and it is the
+     *  only thing that lets a client tell "converting, two minutes in" from a poll loop that has
+     *  been saying `running` since the page loaded. Absent on the `{state: "idle"}` reply. */
     publishStatus(pid: string) {
-      return this.json<{ state: "idle" | "running" | "done" | "error"; detail?: Record<string, unknown> }>(
+      return this.json<{ state: "idle" | "running" | "done" | "error"; detail?: Record<string, unknown>;
+        at?: string }>(
         `/projects/${pid}/publish/status`);
     }
     /** Generative massing — zoning envelope → program (+ proforma) WITHOUT writing a model. Instant. */

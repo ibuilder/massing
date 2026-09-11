@@ -12,6 +12,55 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A check that looks for unreachable features stopped being fooled by coincidences
+
+Massing has an automated check whose job is to notice when part of the server ships with nothing in
+the app able to reach it — a feature that exists, is tested, and that no user can get to. It decided
+whether something was reachable by searching the app's source for the feature's name, and it searched
+for that name *anywhere*, including in the middle of longer words.
+
+So it could be satisfied by an accident. Adding a field called `available_public` to the cost screen
+was enough to convince it that an entirely unrelated public-listing feature had been reached, because
+the letters matched. The check then reported all clear — for something nobody had ever wired up. It
+had been fooled this way twice before, each time noticed only by chance.
+
+It now requires a whole-word match. That change found five more features the app cannot currently
+reach, which are recorded for a later pass; it was verified not to lose any of the ones that really
+are reachable. The first attempt at the fix was stricter still and would have wrongly declared 23
+working features unreachable — the drawing exports among them — so the check now carries examples of
+both what it must reject and what it must accept.
+
+### Clearing an imported schedule now tells you whether it cleared anything
+
+The "Clear import" button in the schedule panel undoes a Primavera P6 or MS-Project import by
+deleting the activities that import created, leaving anything hand-entered alone. It reported
+success the same way whether it removed four hundred activities or found no import at all — the
+server always answers "cleared", and the count that distinguishes the two was never read. It now
+says how many activities were removed, or that there was no import on record to remove — and when
+it is talking to an older server that does not send the count, it keeps the previous wording rather
+than guessing which of the two happened.
+
+That was one of nine places where the app was throwing away something the server had already told
+it. All nine now read the field; five of them show it:
+
+- **Project health** reports what the incidents *were*, not just how many. The safety figures are
+  broken down by OSHA classification — the first thing the server works out, and the one figure the
+  card could not display — so five incidents no longer read the same whether they were near-misses
+  or recordables.
+- **Waiting for a model to convert** shows how long it has been going. A large model legitimately
+  takes minutes, and the status said "running" from the first second to the last, which is also what
+  a stuck job looks like. The elapsed time comes from the server, so it stays right across a page
+  reload — and it is left out entirely rather than guessed at if the two clocks disagree.
+- **Saving a pro forma scenario** reports the returns it solved to. The server solves the scenario
+  as it saves it and sends the result back; the app discarded it, so a scenario that solved to
+  nothing looked exactly like one that solved well until you opened the Portfolio.
+- **The cost-database card** says what can still be installed. With nothing installed it read "0
+  vintages installed", which sounds like there is no cost data to be had — when an offline public
+  baseline needs no subscription at all.
+
+The remaining four are values that repeat something the app already knew, or belong to screens that
+do not exist yet; they are declared so the compiler and the audits can see them, and noted as such.
+
 ### The app now checks that it declares every field the server sends it
 
 A field the server returns but the web app never declares is invisible — not just on screen, but to

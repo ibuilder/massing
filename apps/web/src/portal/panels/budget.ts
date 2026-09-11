@@ -593,7 +593,24 @@ export async function renderBudget(ctx: PanelContext) {
         const name = v.resolved?.name || (v.resolved?.vintage != null ? String(v.resolved.vintage) : "none");
         bits.push(v.pinned_id ? `Pinned vintage: ${name}` : `Following latest vintage: ${name}`);
       }
-      if (ds) bits.push(`${ds.datasets.length} vintage(s) installed`);
+      if (ds) {
+        bits.push(`${ds.datasets.length} vintage(s) installed`);
+        // The other half of what this route answers. With no vintage installed, `datasets.length`
+        // is 0 and the card said only that — which reads as "there is no cost data to be had",
+        // when in fact the offline public baseline is buildable without a subscription. That key
+        // was undeclared, so the card could not distinguish "none installed" from "none available".
+        if (ds.available_public?.length) {
+          // Worded as what it MEANS to the reader — "offline public build(s)" restated the field
+          // name rather than the fact, and a cost manager does not need the importer's vocabulary
+          // to learn that a baseline is available without paying for one. (It also stops the bare
+          // word from colliding with the leaf of `/projects/{pid}/listings/{lid}/public` in
+          // `services/api/test_route_reachability.py`, which matches route segments against the web
+          // source — a real constraint on prose, and the second reason rather than the first.)
+          const note = ds.available_public[0]?.note;
+          bits.push(`${ds.available_public.length} offline baseline(s) installable — no subscription`
+            + (note ? ` (${note})` : ""));
+        }
+      }
       if (five) {
         bits.push(`${five.priced} of ${five.element_count} elements priced · $${Math.round(five.total_cost).toLocaleString()}`);
       }

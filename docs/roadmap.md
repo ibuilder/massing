@@ -1406,7 +1406,7 @@ instances:
   bigger than the one remaining instance.
 
 - ◧ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
-  2026-09-11; 6 of 15 triaged)*
+  2026-09-11; **all 15 triaged, 9 fixed, 6 open**)*
 
   DEAD-FIELD asks *does the client READ what it DECLARES*. This asks *does the client DECLARE what the
   server SENDS*, and the second failure is strictly worse: an undeclared field is invisible to the
@@ -1446,8 +1446,105 @@ instances:
   template literal only, and reported two perfectly resolvable call sites as UNRESOLVED — a
   concatenation and a conditional query suffix. It now folds `+` and `?:`, and a self-test pins that.
 
-  **TRIAGE: 6 of 15 read, 6 real**, in four categories — and only one is the "invisible field" this
-  item was scoped around:
+  **TRIAGE: all 15 read. Nine are fixed (below); the six still open are listed after them.**
+
+  **THE NINE FIXED 2026-09-11 — every one declared, five of them rendered.** `KNOWN_GAPS` in the gate
+  is asserted exactly in both directions, so this list could only shrink by fixing, and it did: 15 → 6.
+
+  * *a success message that could not distinguish success from nothing-happened* — **the one real
+    defect in the nine.** `DELETE /schedule/import-xer` returns `cleared: true` **unconditionally**:
+    it deletes whatever its code→id index names and reports success whether that index held 412
+    activities or did not exist. `removed_activities` is the only key that separates the two, and the
+    client declared neither, so "⌫ Clear import" showed the same green toast either way and the
+    reload behind it looks identical. Now: the count when there was one, and *"nothing to clear — no
+    P6/MSP import is on record"* when there was not.
+  * *the headline the docstring leads with* — `GET /safety/metrics` computes `by_class` first and
+    names it first (*"incidents by OSHA class"*); the client type omitted it alone, so the project
+    health card could report five incidents without being able to say what any of them were. Now
+    rendered under the safety line, biggest class first.
+  * *a poll loop with no sense of time* — `GET /publish/status` writes an `at` stamp beside the
+    state, and the server already relies on it to declare an interrupted worker dead after 900 s.
+    Undeclared client-side, so a convert that legitimately takes minutes showed `running…` from the
+    first poll to the twelfth, indistinguishable from a stuck job — worst after a reload, where the
+    poller has no idea the job is already old. `elapsedSince` in `apps/web/src/viewer/publishWait.ts`
+    turns it into `2m 14s`; it subtracts a server clock from a browser one, so a future stamp or one
+    beyond a day returns null and the UI says nothing. **Showing no elapsed time is honest; showing
+    `-4m` is worse than the silence it replaced.**
+  * *half the route's own answer* — `GET /cost/datasets` documents itself as vintages *"plus what the
+    offline public importer can build"*, and only the first half was declared. With nothing installed
+    the card said `0 vintage(s) installed`, which reads as *no cost data is obtainable* when the
+    offline public baseline needs no subscription.
+  * *a save that could not report what it saved* — `POST /proforma/scenarios` **solves the assumptions
+    server-side** and hands that solve back as `result`. Typed as `{id}` alone, so "💾 Save scenario"
+    could only report that a POST succeeded; a scenario that solved to nothing looked exactly like one
+    that solved well until somebody opened the Portfolio. Now reports the equity IRR and multiple.
+  * *declared, not rendered, and correctly so* — four keys carry no new information at their one call
+    site and are declared to make them visible to the compiler and to every audit built on these
+    interfaces: `from_upload` and `package` echo what the caller passed in, and `source` (which
+    actuals were analysed — the request's, or the field crew's persisted log when it was empty) and
+    `templates` (the normalised list the server stored) belong to `progressActuals` and
+    `saveViewTemplates`, **neither of which has a UI caller anywhere in `apps/web/src`** — a separate
+    gap, not fixed here.
+
+  **AND A SECOND FAIL-OPEN GATE, WHICH CI FOUND RATHER THAN I DID.**
+  `services/api/test_route_reachability.py` asks *which server routes has no client ever called?* and
+  decided it by `leaf in code` — **a bare substring test**. Declaring the response key
+  `available_public` put the letters `public` into `apps/web/src/api/cost.ts`, and the route
+  `/projects/{pid}/listings/{lid}/public` instantly read as called. An unrelated field name three
+  directories away is not evidence about a route.
+
+  **It fails OPEN, which is why it survived twice before.** A coincidence makes an unreachable route
+  look reachable, so the headline check — *no route the product cannot call* — comes back clean for a
+  route nobody ever called. Only the allowlist's own rot check can see it, and only when a frozen
+  entry flips. The file already records the two earlier instances (`resourced` standing in for the
+  leaf `sourced`; one route path containing another's) and concluded that *"the coarseness is a
+  standing cost … not a bug awaiting a fix"*, because the remedies it weighed — a two-segment needle,
+  and treating a shared leaf as deciding nothing — both cost far more reach than they bought. **Both
+  earlier collisions were answered by renaming the colliding identifier, and that is what runs out
+  here:** the two previous colliders were internal names free to change; this one is the server's
+  wire key. *A rule that can only be satisfied by renaming things it has no business naming has
+  stopped being a measurement.*
+
+  Fixed by requiring the leaf to be a whole token rather than letters inside a longer one — a third
+  option neither earlier analysis considered, and it costs nothing in reach: **0 routes that the
+  substring rule called uncalled become called under it**, and it surfaces 5 that plurals and
+  prefixes had been vouching for (`aggregates` for `/aggregate` twice, `allocated`, `recommended`,
+  `editPrecheck` for `/recheck`), now frozen as untriaged.
+
+  **MY FIRST FIX WAS WRONG IN THE SAME DIRECTION, AND MEASURING IT IS THE ONLY REASON I KNOW.** The
+  obvious rule is *the leaf must sit after a `/`*, since that is how a path is written. It marks
+  **23 genuinely-called routes uncalled**: the client assembles paths from fragments, so
+  `drawingsSection.ts` calls ``openDrawing(`plan.dxf?${q}`)`` and the leaf of
+  `/projects/{pid}/drawings/plan.dxf` begins a template fragment with no slash in front of it.
+  Freezing those would have put live callers behind an exemption — *the same fail-open direction,
+  moved one character along, inside the fix for it.* Four cases are now asserted in the file: two the
+  rule must reject, two it must still accept, because a boundary that only rejects is a boundary that
+  has stopped finding callers.
+
+  **And the word class is NOT fixed, because it cannot be.** `available_public` was an identifier;
+  the same change also put the bare word *public* into a UI string, which no token rule can tell from
+  a route segment. That one was reworded — *"offline baseline(s) installable — no subscription"*,
+  which names the fact instead of the field and is better copy anyway. The standing cost the file
+  describes is real and unchanged; what moved is that it no longer extends to identifiers.
+
+  **AND A FAIL-OPEN GATE FOUND BY MUTATING THE THING IT GUARDS.**
+  `apps/web/src/viewer/tools/authoringPlaceStatus.test.ts` asserts the Place button passes an
+  `onTick`. It sliced the file from `indexOf("⊕ Place selected family")` — which matches the
+  **docstring that mentions the button**, hundreds of lines above the `toolBtn2(...)` that builds it.
+  The slice therefore opened above **Republish** and ran past Place, so *Republish's* callback
+  satisfied an assertion whose name, comment and purpose were all about Place: deleting Place's
+  `onTick` entirely left it green. **An anchor that matches a MENTION of the subject instead of the
+  subject is not a narrower search, it is a different one** — and it fails in the direction that
+  looks safe, because a pass is what you get either way. Now anchored on the construction, with the
+  slice asserted to exclude Republish, and both callbacks mutated separately to prove each bites.
+  *Its other pin was wrong in the opposite direction:* it matched `\(s\)`, the callback's **arity**,
+  so it went red the moment `onTick` gained the elapsed argument and this very call site opted in —
+  **an improvement to the protected behaviour reported as a regression of it.** A source-text gate
+  should match the narrowest thing that would actually be wrong; everything else it happens to match
+  becomes a tripwire under the next person to improve the line.
+
+  **THE SIX STILL OPEN**, in four categories — and only one is the "invisible field" this item was
+  scoped around. Three need *declare **and** render*, not just declare:
 
   * *server ships, client dark* — `/auth/providers` never declares `saml`, and `saml` appears nowhere
     in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
@@ -2574,8 +2671,8 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · PIN-SWEEP-PGNULL *(the pin sweep skips the rows it exists to convert, on PostgreSQL only — a `json` column holding scalar `null` is non-NULL in SQL and decodes to Python `None`. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`, and it landed in `main` via #503 rather than in the PR that found it)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
@@ -2610,8 +2707,33 @@ had to be fixed under a one-change lane assignment because there was no row to p
 
 **It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
 ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
-`proforma/` · `drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · the loose `portal/`
-files · `dev/` · `account/` · `connections/` · `deploy/`.
+`drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `dev/` · `connections/` · `deploy/`.
+
+**The loose `portal/` files came off that list on 2026-09-11, DERIVED the same way `tree/` was** —
+`safetyCard.ts` was extracted from `portal.ts` under the size ratchet, the unowned ratchet went red at
+36 > 34, and the remedy it names is a row. All eleven remaining loose files were placed by asking *who
+imports this*, never by where the name suggests they belong:
+
+| file | importers | owner |
+|---|---|---|
+| `prefs.ts` | `main.ts`, `portal.ts`, `shell/pinnedRail.ts`, `favourites.test.ts` (A) · `register/register.ts` (B) | **A**, 4 of 5 |
+| `safetyCard.ts` | `portal.ts` only | **A**, the one-importer case — same shape as `tree/` |
+| `registerEmpty.test.ts` | imports `PortalUI` from `./portal` | **A** |
+| `panelContext.ts` | 44 files under `portal/panels/`, `register/`, `ui/` (B) · `portal.ts` (A) | **B**, 44 of 45 |
+| `offlineQueue.ts` | `register/uploadQueue.ts` and its test only | **B** |
+| `fieldTypeCoverage.test.ts`, `tableRefColumn.test.ts` | both read `register/register.ts` | **B** |
+| `moduleEvidenceHint.test.ts` | asserts `statusCell`, which is in `register/register.ts` | **B** |
+
+**Two of these would have gone to the wrong lane on their names.** `registerEmpty.test.ts` reads as
+register work (B) and imports `PortalUI` (A); `moduleEvidenceHint.test.ts` carried a docstring saying
+it was *"kept in lockstep with portal.ts"* when the `statusCell` it mirrors has lived in
+`register/register.ts` — corrected in that file at the same time. *A name is a claim about ownership
+that nothing checks; an import is one the compiler already enforces.*
+
+The claims are per-FILE rather than the directory, deliberately: Lane A holds `portal/portal.ts` and
+Lane B holds `portal/panels/`, so a wholesale `portal/` claim would recreate the 2026-07-30 nested
+overlap described below — the one that put the two lanes least likely to be watching each other in
+the same directory. `proforma/` left this list on 2026-09-09 (Lane B).
 
 **`tree/` came off that list on 2026-08-21, and it was DERIVED rather than agreed.** The paragraph
 above warns that guessing an owner for a directory is how the register problem was made, so the

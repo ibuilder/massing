@@ -263,8 +263,13 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `import -> ${res.status}`, res.status); }
     return res.json() as Promise<{ count: number; start: string | null; finish: string | null; preview: { activity_id: string; name: string; start: string; finish: string }[] }>;
   }
+  /** Undo the last P6/MSP import. `cleared` is **unconditionally true** — the route deletes what its
+   *  code→id index names and reports success whether that index held 412 activities or did not exist
+   *  at all. `removed_activities` is therefore the only key that separates "undid your import" from
+   *  "there was nothing to undo", and it went undeclared, so the button said "cleared" either way. */
   clearXer(pid: string) {
-    return this.json<{ cleared: boolean }>(`/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
+    return this.json<{ cleared: boolean; removed_activities: number }>(
+      `/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
   }
   /** SCHED-P6 — export the live schedule for round-trip into a scheduler's tool: Primavera P6 `.xer`
    *  or MS-Project XML (MSPDI). Reflects the current edited state, keyed by the P6 activity code. */
@@ -751,8 +756,35 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   // --- The recordable-rate metrics behind that summary ---
   /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
   safetyMetrics(pid: string) {
-    return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
+    // `by_class` is the breakdown the route's own docstring leads with — incidents per OSHA
+    // classification — and it was the one key this type did not name, so the health card could
+    // report five incidents without being able to say what any of them were.
+    return this.json<{ incident_count: number; by_class: Record<string, number>; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
       `/projects/${pid}/safety/metrics`);
+  }
+  // SCALE-SEAM — PROD-ACTUALS came here from `client.ts` when the size ratchet on that file
+  // asked the question it exists to ask. It belongs beside the safety and field-log rollups:
+  // same question (what happened on site), same records, same `require_role("viewer")`.
+  /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
+  progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
+    type Group = {
+      group: string; material_class: string; unit: string; entries: number;
+      installed_qty: number; productive_hours: number; idle_hours: number;
+      installed_rate: number | null; utilization: number | null; planned_rate: number | null;
+      variance_pct: number | null; status: "ahead" | "on_track" | "behind" | null;
+      planned_qty: number | null; pct_complete: number | null; remaining_qty: number | null;
+      projected_hours_at_rate: number | null;
+    };
+    return this.json<{
+      group_count: number; groups: Group[]; overall_utilization: number | null;
+      total_productive_hours: number; total_idle_hours: number; planned_compared: number;
+      ahead: number; on_track: number; behind: number; worst: string | null; note: string;
+      /** WHICH rows were analysed: `"request"` for the `actuals` this call passed, or
+       *  `"progress_actual module"` when that list was empty and the route fell back to the field
+       *  crew's persisted log. The route silently substitutes one for the other, so an ahead/behind
+       *  read means nothing without it — and it was the one key the type did not name. */
+      source: string;
+    }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
   }
   /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage. */
   fieldLogSummary(pid: string) {

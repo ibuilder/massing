@@ -1664,8 +1664,18 @@ export class ProformaUI {
     save.onclick = async () => {
       if (!pid) { this.setStatus("open a project to save a scenario"); return; }
       const name = await askText("Save scenario", { label: "Save scenario as:", value: "Base case" }); if (!name) return;
-      try { await this.api.createScenario(name, pid, this.a); this.setStatus(`saved scenario “${name}” — now in the Portfolio`); }
-      catch (e) { this.setStatus(`save failed: ${(e as Error).message}`); }
+      // The route solves the assumptions server-side and hands that solve back as `result`. The
+      // reply was typed as `{id}` alone, so the only thing this could report was that a POST had
+      // succeeded — a scenario that solved to nothing looked exactly like one that solved well,
+      // until somebody opened the Portfolio. The returns are already here; say what was saved.
+      try {
+        const sc = await this.api.createScenario(name, pid, this.a);
+        const r = sc.result?.returns;
+        const irr = r?.equity_irr != null ? `${(r.equity_irr * 100).toFixed(1)}% equity IRR` : null;
+        const mult = r?.equity_multiple != null ? `${r.equity_multiple.toFixed(2)}× equity` : null;
+        const solved = [irr, mult].filter(Boolean).join(" · ");
+        this.setStatus(`saved scenario “${name}” — ${solved || "solved with no returns"} · now in the Portfolio`);
+      } catch (e) { this.setStatus(`save failed: ${(e as Error).message}`); }
     };
     tools.append(save, Object.assign(document.createElement("span"), { className: "meta",
       textContent: pid ? "Saved scenarios roll into the Portfolio's developer returns." : "Open a project to save scenarios." }));

@@ -25,7 +25,10 @@ export interface FileIODeps {
   referenceModels: Map<string, { object: THREE.Object3D; label: string; dispose?: () => void }>;
   refreshFederation: () => void;
   fitToModels: () => Promise<void>;
-  waitForPublish: (pid: string, onTick?: (s: string) => void) => Promise<string>;
+  /** `onTick`'s second argument is how long the server has been in that state (null when it
+   *  cannot be known) — see `elapsedSince` in `publishWait.ts`. The other modules declaring
+   *  this seam still take the one-argument form; widen theirs when they want the figure. */
+  waitForPublish: (pid: string, onTick?: (s: string, elapsed: string | null) => void) => Promise<string>;
   loadProjectModel: () => Promise<boolean>;
   buildToolsPanel: () => Promise<void> | void;
   buildClashPanel: () => Promise<void> | void;
@@ -114,7 +117,7 @@ export function installFileIO(d: FileIODeps) {
       d.notify(`${file.name} is large (${mb(file.size)} MB) — converting on the server for smooth streaming…`, "info");
       try {
         await d.api.uploadSourceIfc(pid, file);          // saves + sets source_ifc + publishes off-thread
-        const state = await d.waitForPublish(pid, (s) => d.setStatus(`processing model: ${s}…`));
+        const state = await d.waitForPublish(pid, (s, e) => d.setStatus(`processing model: ${s}${e ? ` · ${e}` : ""}…`));
         if (state === "done") {
           if (created) { enterProject(pid); return; }     // brand-new container: land in it, fully wired
           await d.loadProjectModel();                    // stream the optimized fragments with progress
@@ -146,7 +149,7 @@ export function installFileIO(d: FileIODeps) {
     d.notify(`Adding ${file.name} to the project — generating drawings & analysis…`, "info");
     try {
       await d.api.uploadSourceIfc(pid, file);            // saves + sets source_ifc + publishes off-thread
-      const state = await d.waitForPublish(pid, (s) => d.setStatus(`processing model: ${s}…`));
+      const state = await d.waitForPublish(pid, (s, e) => d.setStatus(`processing model: ${s}${e ? ` · ${e}` : ""}…`));
       void d.buildToolsPanel();                          // re-checks has_source_ifc → un-gates the tools
       void d.buildClashPanel();
       d.notify(state === "done"

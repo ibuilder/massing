@@ -73,8 +73,18 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       "Remove the activities created by the last P6/MSP import? Hand-entered activities are NOT affected. "
       + "Re-import the file to restore them.", ""))) return;
     try {
-      await ctx.host.api.clearXer(pid);
-      toast("imported schedule cleared", "success");
+      // The route's `cleared` is true unconditionally — it reports success whether its code→id index
+      // named 412 activities or did not exist. So this said "cleared" identically after undoing an
+      // import and after doing nothing at all, and the reload that follows looks the same either
+      // way. `removed_activities` is the only key that tells them apart; say which one happened.
+      const r = await ctx.host.api.clearXer(pid);
+      // THREE outcomes, not two. A server too old to send the count leaves it undefined, and
+      // reporting that as "nothing to clear" would invent the very false negative this fix exists
+      // to remove — swapping one collapsed pair for another. Unknown falls back to the old wording.
+      const n = r.removed_activities;
+      if (typeof n !== "number") toast("imported schedule cleared", "success");
+      else if (n > 0) toast(`imported schedule cleared — ${n} imported activit${n === 1 ? "y" : "ies"} removed`, "success");
+      else toast("nothing to clear — no P6/MSP import is on record for this project", "info");
       void renderScheduleViews(ctx, m);
     } catch (e) { toast(`clear failed: ${(e as Error).message}`, "error"); }
   };
