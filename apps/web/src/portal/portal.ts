@@ -130,6 +130,7 @@ export class PortalUI {
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __workqueue__: () => this.renderWorkQueue(),
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
+      __prefabkits__: () => this.renderPrefabKits(),
       __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
       __topicboard__: () => this.renderTopicBoard(),
       __spaceutil__: () => this.renderSpaceUtil(),
@@ -579,6 +580,9 @@ export class PortalUI {
   private async renderEvm() { return (await import("./panels/evm")).renderEvm(this.panelCtx()); }
   private async renderResourceLoading() { return (await import("./panels/resourceLoading")).renderResourceLoading(this.panelCtx()); }
   private async renderWip() { return (await import("./panels/wip")).renderWip(this.panelCtx()); }
+  private async renderPrefabKits() {
+    return (await import("./panels/prefabKitsPanel")).renderPrefabKits(this.panelCtx());
+  }
   private async renderLedger() { return (await import("./panels/ledger")).renderLedger(this.panelCtx()); }
   private async renderTraceability() { return (await import("./panels/traceability")).renderTraceability(this.panelCtx()); }
 

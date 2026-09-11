@@ -12,6 +12,27 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Prefab kits are on the screen, and a released kit's scope can finally be written down
+
+The prefab-kit register was built and had no way in. Every kit, worst first, now appears under
+**Work → Prefab Kits**: its scope, its bill of materials, and the specific things blocking it, in
+the order the shop cares about — a kit whose released scope has *drifted* from the model outranks
+one that is merely late, because a late kit is a known problem and a drifted one is an unknown
+wrong one.
+
+The write that matters is **writing the scope**. Until a kit's scope is written down it is a
+selector — a live query against the model — and a released kit in that state hands the shop
+something that can change under it without anyone being told. Writing it resolves the selector once
+and records the exact list of elements, after which any divergence is reported here instead of
+silently changing what is being fabricated. Re-writing a scope says so plainly, because it can
+change what a fabricator is already building.
+
+The register refuses to write a scope that is empty, that comes from a selector which does not
+parse, or that was cut short by a result cap — the last being the one nobody would notice, since
+the count looks plausible and the list is quietly short. When no model is loaded the panel says the
+figures cannot be checked rather than showing zeroes, which would be a wrong answer in the shape of
+a right one.
+
 ### You can share a saved view — and delete now tells the truth about it
 
 Saved views on a register could already be shared with the whole project. The app just never offered

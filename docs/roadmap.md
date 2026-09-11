@@ -1752,6 +1752,45 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- ✅ ⭐ **PREFAB-DARK — an entire feature with no way in**
+  *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py` and
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  **All three `/projects/{pid}/prefab/kits*` routes had zero references in `apps/web/src`** — the
+  register, the per-kit detail, and the one write. `services/api/src/aec_api/prefab_kit.py` is 394
+  lines of finished work behind them: selector resolution against the model index, a bill of
+  materials, scope-drift detection, and an eleven-code blocker severity order in which a kit whose
+  released scope has *drifted* outranks one that is merely late, *"because a late kit is a known
+  problem and a drifted one is an unknown wrong one"*. None of it was reachable.
+
+  **The consequence has a name.** Freezing a kit writes the GlobalId list the shop fabricates
+  against; without that write a released kit is a live query, and `prefab_kit.py` says in its own
+  words that such a kit *"would be indistinguishable from a correctly released one on every screen"*.
+  That is the failure the module exists to prevent, and the module could not be operated.
+
+  **Found by the gate UNREACHED-IMPORT sharpened, in both of its modes.** `/freeze` surfaced as
+  newly-visible dark the moment `_SEGMENT` stopped letting English vouch for a route — the sentence
+  standing in for it was *"…out of the wet/freeze season"*. The other two could never surface at all:
+  their leaf is `kits`, five characters, and the rule does not assess a leaf that short. They were
+  reachable only because the `MIN_SEGMENT` note had *counted them in prose*, next to the reason the
+  count could not become a check. **A measurement written down where the rule cannot enforce it is
+  still what makes the thing fixable** — and that note is now corrected, since both have callers.
+
+  Shipped: `apps/web/src/api/prefab.ts` (types + three methods),
+  `apps/web/src/portal/panels/prefabKits.ts` (the presentation rules, 21 tests, six mutations all
+  biting) and `prefabKitsPanel.ts` (the DOM), wired as `__prefabkits__` into Work beside Equipment.
+  The panel states `scope_source` **in words on every row** rather than as a badge, because selector
+  and frozen are the distinction the whole module turns on.
+
+  *Three things the build itself had to learn, each caught by a check rather than by review.*
+  **The mixin chain is AT TypeScript's ceiling** — a fifty-first `withX()` on `ApiClient` fails with
+  TS2589, measured by writing it that way first; `withPrefab` composes inside `withDetailing`, the
+  remedy `api/cost.ts` had already recorded. **`clientCallers.test.ts` refused `prefabKit`**, which I
+  had shipped with no caller — answered by using it (re-read one kit after a write instead of
+  re-resolving every other kit's selector), not by exempting it. And **the write and the refresh are
+  separate `try` blocks on purpose**: folding them would let a failed re-read report *"could not write
+  the scope"* about a write that succeeded, and the reader's next move would be to write it again.
+
 - ✅ **RESP-ORPHAN — the RACI banner said "complete" over a grid with nothing in it** *(S — Lane C;
   **CLOSED**, fix in this change)*
 
