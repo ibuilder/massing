@@ -67,7 +67,7 @@ export async function renderPrefabKits(ctx: PanelContext) {
     const title = [kit.ref, kit.name].filter(Boolean).join(" · ") || "(unnamed kit)";
     const meta = [kit.trade, kit.fabricator, kit.state].filter(Boolean).join(" · ");
     card.innerHTML = `<div><b>${esc(title)}</b> <span class="meta">${esc(meta)}</span></div>`
-      + `<div class="meta" style="margin-top:4px">${esc(scopeNote(kit))}</div>`;
+      + `<div class="meta" style="margin-top:4px">${esc(scopeNote(kit, modelLoaded))}</div>`;
 
     const drift = driftLine(kit);
     if (drift) {
@@ -112,7 +112,10 @@ export async function renderPrefabKits(ctx: PanelContext) {
           ctx.host.setStatus(`could not write the scope: ${(e as Error).message}`);
           return;
         }
-        ctx.host.setStatus(freezeSummary(written));
+        // Pass the count the CONFIRMATION named. The server re-resolves at write time, so these can
+        // differ; freezeSummary says so rather than reporting a clean success for a list the reader
+        // never agreed to.
+        ctx.host.setStatus(freezeSummary(written, kit.selector.matched));
         // The re-read is SEPARATE from the write on purpose. Folding both into one try would let a
         // failed refresh report "could not write the scope" about a write that succeeded -- a false
         // statement about a record the shop builds from, and the reader's next move would be to
@@ -142,9 +145,20 @@ export async function renderPrefabKits(ctx: PanelContext) {
     const guids = kit.scope_source === "frozen" ? [] : kit.selector.guids;
     if (guids.length) {
       const show = el("button", "portal-btn") as HTMLButtonElement;
-      show.textContent = "◉ Show in 3D"; show.style.marginLeft = "6px";
+      // A TRUNCATED selector still returns a non-empty array, and highlighting it silently shows a
+      // partial scope as though it were the whole one -- found by review. `freezeGate` already
+      // refuses to WRITE a truncated result; the same fact has to reach the reader who is only
+      // looking, because "these are the kit's elements" is the claim the highlight makes.
+      const cut = kit.selector.truncated === true;
+      show.textContent = cut ? `◉ Show first ${guids.length} in 3D (partial)` : "◉ Show in 3D";
+      show.style.marginLeft = "6px";
       show.onclick = () => ctx.host.onSelectGuids(guids);
       act.appendChild(show);
+      if (cut) {
+        act.insertAdjacentHTML("beforeend",
+          `<span class="meta" style="margin-left:6px">The selector matched ${kit.selector.matched} `
+          + `but was cut off at ${guids.length}; narrow it to see the whole scope.</span>`);
+      }
     } else if (kit.scope_source === "frozen") {
       act.insertAdjacentHTML("beforeend",
         `<span class="meta" style="margin-left:6px">The frozen list is not returned by the register, `

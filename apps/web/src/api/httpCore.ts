@@ -112,7 +112,24 @@ export class HttpCore {
       ...init,
       headers: { "Content-Type": "application/json", ...this.authHeaders(), ...(init?.headers || {}) },
     });
-    if (!res.ok) throw new HttpError(`${init?.method ?? "GET"} ${path} -> ${res.status}`, res.status);
+    if (!res.ok) {
+      // CARRY THE SERVER'S OWN SENTENCE, not just the status. Until 2026-09-11 this threw
+      // `POST /x -> 422` and dropped the body, so every handler that answers a refusal with a
+      // deliberate fixed literal -- `prefab_kit.FREEZE_NO_MATCH`, `FREEZE_TRUNCATED`, and the
+      // 422s across the module routers -- reached the user as a status code. Found by review on a
+      // method whose own comment claimed the literal was being shown: **a comment asserting a
+      // behaviour the platform does not have.**
+      //
+      // `models.ts` already did exactly this at its own call site; doing it here means the next
+      // caller gets it without knowing to ask. Falls back to the old message when the body is not
+      // JSON or carries no `detail`, so nothing loses information.
+      const detail = await res.json().then((b) => (b as { detail?: unknown })?.detail)
+        .catch(() => undefined);
+      throw new HttpError(
+        typeof detail === "string" && detail
+          ? detail : `${init?.method ?? "GET"} ${path} -> ${res.status}`,
+        res.status);
+    }
     return res.json() as Promise<T>;
   }
 

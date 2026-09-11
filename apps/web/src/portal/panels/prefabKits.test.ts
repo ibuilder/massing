@@ -62,7 +62,7 @@ describe("modelCaveat", () => {
 
 describe("scopeNote — the distinction the whole panel exists for", () => {
   it("a selector-sourced kit is named as having nothing written down", () => {
-    const s = scopeNote(kit({ scope_source: "selector", selector: { selector: "x", guids: [], matched: 9 } }));
+    const s = scopeNote(kit({ scope_source: "selector", selector: { selector: "x", guids: [], matched: 9 } }), true);
     expect(s).toContain("Scope is the selector");
     expect(s).toContain("9 elements");
     expect(s).toContain("query rather than a list");
@@ -74,14 +74,31 @@ describe("scopeNote — the distinction the whole panel exists for", () => {
     const s = scopeNote(kit({
       scope_source: "frozen", frozen_count: 12,
       selector: { selector: "x", guids: ["a"], matched: 1 },
-    }));
+    }), true);
     expect(s).toContain("12 GlobalIds");
     expect(s).not.toContain("matching 1");
   });
 
+  it("with NO model loaded it refuses to state a match at all", () => {
+    // `resolve()` matches nothing without an index, so the old wording read "matching 0 elements
+    // right now" -- a measurement on a screen whose own caveat says no measurement is possible.
+    // Found by review. It is the same defect `modelCaveat` was written to prevent, one function
+    // over: writing the guard is not the same as applying it everywhere it belongs.
+    const s = scopeNote(kit({ selector: { selector: "x", guids: [], matched: 0 } }), false);
+    expect(s).toContain("no way to say what it matches");
+    expect(s).not.toMatch(/matching \d/);
+    expect(s).toContain("query rather than a list");
+  });
+
+  it("a FROZEN kit still reports its written count with no model — that number is on the record", () => {
+    // The frozen list is stored on the kit, not resolved from the model, so it is knowable when
+    // nothing else on the card is. Blanking it would lose real information to a blanket caveat.
+    expect(scopeNote(kit({ scope_source: "frozen", frozen_count: 12 }), false)).toContain("12 GlobalIds");
+  });
+
   it("singularises one GlobalId and one element", () => {
-    expect(scopeNote(kit({ scope_source: "frozen", frozen_count: 1 }))).toContain("1 GlobalId,");
-    expect(scopeNote(kit({ selector: { selector: "x", guids: ["a"], matched: 1 } }))).toContain("1 element ");
+    expect(scopeNote(kit({ scope_source: "frozen", frozen_count: 1 }), true)).toContain("1 GlobalId,");
+    expect(scopeNote(kit({ selector: { selector: "x", guids: ["a"], matched: 1 } }), true)).toContain("1 element ");
   });
 });
 
@@ -157,5 +174,23 @@ describe("freezeSummary", () => {
     const s = freezeSummary({ ref: "KIT-004", matched: 12, selector: "x", frozen: 12, note: "written" });
     expect(s).toContain("KIT-004: 12 elements written");
     expect(s).toContain("selector matched 12");
+  });
+
+  it("says so when the written count differs from the one CONFIRMED", () => {
+    // The server re-resolves the selector at write time, so a model that changed between the
+    // confirmation and the write records a different list than the one agreed to. Raised in review.
+    // Closing the race needs a snapshot precondition on the API; what this can do is refuse to let
+    // the difference pass as a clean success, because an unnoticed divergence is what puts the
+    // wrong list in front of a fabricator.
+    const s = freezeSummary({ ref: "KIT-004", matched: 9, selector: "x", frozen: 9, note: "written" }, 12);
+    expect(s).toContain("you confirmed 12");
+    expect(s).toContain("not the one you were shown");
+  });
+
+  it("stays quiet when the write matches the confirmation, and when nothing was confirmed", () => {
+    const same = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, note: "n" }, 5);
+    const none = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, note: "n" });
+    expect(same).not.toContain("you confirmed");
+    expect(none).not.toContain("you confirmed");
   });
 });

@@ -54,11 +54,22 @@ export function modelCaveat(reg: PrefabRegister): string | null {
       + "checked. The counts below are what the records say, not what the model contains.";
 }
 
-/** What defines this kit's scope right now, said in words. */
-export function scopeNote(kit: PrefabKit): string {
+/** What defines this kit's scope right now, said in words.
+ *
+ *  Takes `modelLoaded` because **the selector branch otherwise states a number it cannot know**.
+ *  With no index `resolve()` matches nothing, so the sentence read *"matching 0 elements right
+ *  now"* — a measurement, on a screen whose own caveat says no measurement is possible. Found by
+ *  review, and it is the exact defect `modelCaveat` exists to prevent, one function over:
+ *  **writing the guard is not the same as applying it everywhere it belongs.** */
+export function scopeNote(kit: PrefabKit, modelLoaded: boolean): string {
   if (kit.scope_source === "frozen") {
     return `Scope is the frozen list: ${kit.frozen_count} GlobalId${kit.frozen_count === 1 ? "" : "s"}, `
       + "written when the kit was released. The selector is only the record of how it was arrived at.";
+  }
+  if (!modelLoaded) {
+    return "Scope is the selector, and with no model loaded there is no way to say what it matches. "
+      + "Nothing is written down yet — releasing without writing it hands the shop a query rather "
+      + "than a list.";
   }
   return `Scope is the selector, matching ${kit.selector.matched} element`
     + `${kit.selector.matched === 1 ? "" : "s"} right now. Nothing is written down yet — releasing `
@@ -102,8 +113,20 @@ export function freezeConfirm(kit: PrefabKit): string {
     + "was arrived at, and any later divergence is reported rather than applied.";
 }
 
-/** What the write actually did. */
-export function freezeSummary(r: PrefabFreezeResult): string {
-  return `${r.ref || "Kit"}: ${r.frozen} element${r.frozen === 1 ? "" : "s"} written `
+/** What the write actually did, and whether it matched what was confirmed.
+ *
+ *  `expected` is the count the confirmation named. The server re-resolves the selector at write
+ *  time, so a model that changed in between writes a different list than the one agreed to — a real
+ *  race raised in review. Closing it properly needs an immutable snapshot on the register and a
+ *  precondition on the POST, which is a server API change and is proposed separately. **What this
+ *  can do is refuse to let the difference pass silently**, which is the half that matters: an
+ *  unnoticed divergence is what puts the wrong list in front of a fabricator. */
+export function freezeSummary(r: PrefabFreezeResult, expected?: number): string {
+  const head = `${r.ref || "Kit"}: ${r.frozen} element${r.frozen === 1 ? "" : "s"} written `
     + `(selector matched ${r.matched}). ${r.note}`;
+  if (expected != null && expected !== r.frozen) {
+    return `${head} — NOTE: you confirmed ${expected}. The model changed between confirming and `
+      + "writing, so the written scope is not the one you were shown. Check it before releasing.";
+  }
+  return head;
 }
