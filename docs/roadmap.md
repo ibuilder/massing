@@ -1752,6 +1752,27 @@ instances:
   claim about what an underwriting asserts, not a unit conversion, and it waits on the same domain
   call `/schedule/eot` does.
 
+- 📋 **FROZEN-TRIAGE — what the eight dark routes actually were** *(record, not a work item; 2026-09-11)*
+
+  UNREACHED-IMPORT froze eight newly-visible routes and said, correctly, that freezing is **not**
+  judging. All eight have now been read. **Only four are gaps, and one of those is already built** —
+  which is the point of writing this down: *an uncalled count is a list of questions, not a list of
+  missing features*, and treating 63 as 63 holes would send the next sprint to build duplicates.
+
+  | route | verdict |
+  |---|---|
+  | `/projects/{pid}/model/lod/proxy` | **GAP — built**, see LOD-PROXY below |
+  | `/projects/{pid}/georeference` | **DUPLICATE.** `/projects/{pid}/models/georeferencing` is wired and returns strictly more: a LoGeoRef level, its label, the map conversion, the CRS and the site. Wiring this adds a second answer to one question. |
+  | `/projects/{pid}/clash/coordinate` | **NO DEMAND.** The product's clash flow is `POST /projects/{pid}/clash/federated` with `coordinate=true`, which runs the same intelligence layer and IS wired. This route is the bring-your-own-results variant, for a single-model or external detection run — and the single-model path has no UI either. A button here would invent a workflow, not close a gap. |
+  | `/codes/seeded` | **COVERED.** `/codes/adoptions` is wired and already answers the sharper question per code family — `source: "seed"` or `"baseline"` — so a flat list of seeded jurisdictions adds a catalogue, not an answer. |
+  | `/projects/{pid}/documents/template` | **LARGELY COVERED.** The documents health read already reports required-folder coverage; the template is the static taxonomy behind it. Worth revisiting only if a "what folders should exist" screen is ever wanted on its own. |
+  | `/jurisdiction/packs` ×3 (list, import, delete) | **GENUINE GAP, and the largest left.** The whole import path for an authority's data requirements — no client at all, admin-gated, and the packs are used to fail other people's models. Same shape as PREFAB-DARK: a finished feature with no way in. |
+
+  **Two lessons, both about the gate rather than the routes.** A dark route can be a *duplicate*, and
+  the reachability rule structurally cannot tell that from a hole — only reading the handler can. And
+  a dark route can be an *integration surface* with no UI demand, which is not a defect at all. The
+  gate's job is to make them visible; deciding what they are is still a person's.
+
 - ✅ **LOD-PROXY — a saving quoted on screen with no way to take it**
   *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py`)*
 
@@ -1776,10 +1797,12 @@ instances:
   one question. *A dark route can be a duplicate rather than a hole, and the gate cannot tell the
   difference — reading the handler is what tells them apart.*
 
-  Still frozen and still untriaged: `/codes/seeded`, the three `/jurisdiction/packs` routes,
-  `/projects/{pid}/clash/coordinate` and `/projects/{pid}/documents/template`. The clash one looks
-  like the highest value of those — it is the write that turns a detection run into tracked
-  coordination issues, the same transient-to-record shape as the prefab freeze.
+  The remaining four were triaged the same day — see FROZEN-TRIAGE above — and **the guess this
+  entry originally left here was wrong.** It named `/projects/{pid}/clash/coordinate` as the highest
+  value of the rest, on the transient-to-record shape alone; reading the handler showed the wired
+  `POST /projects/{pid}/clash/federated?coordinate=true` already runs that same write. The largest
+  genuine gap is `/jurisdiction/packs`. *A shape argument is a reason to go and read, never a verdict
+  on its own.*
 
 - ✅ ⭐ **PREFAB-DARK — an entire feature with no way in**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `services/api/test_route_reachability.py` and
