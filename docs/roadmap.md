@@ -1779,6 +1779,41 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **ENV-WIND — a wind answer at the only stage that can act on it**
+  *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/envWind.test.ts` and `services/api/test_route_reachability.py`)*
+
+  `POST …/env/wind` has graded pedestrian wind comfort since ENV-1 — corner acceleration, downwash
+  and channelling against the Lawson categories, offline and deterministic, deriving the mass from
+  the model's bounding box when no dimensions are given. **Nothing called it.** Massing decides most
+  pedestrian wind outcomes and CFD arrives far too late to steer them; an answer only `curl` can
+  reach is not an answer the design has. It now draws under **📐 Design Metrics**, which is the panel
+  that already answers "what is this massing doing" off the same model.
+
+  **Three things about this screen are misread unless the panel says them, and each is a different
+  lie**, so each has its own rule in `apps/web/src/portal/panels/envWind.ts` (25 tests, four
+  mutations all biting):
+
+  * **A check that did not run is not a check that passed.** Channelling is raised only when a gap to
+    a neighbouring mass is supplied. Leave it blank and `acceptable_for_entrances` comes back `true`
+    having never looked at the passage — which is where pedestrian wind complaints actually come
+    from. `unassessed()` names what was skipped and `verdict()` withholds the word *acceptable* while
+    anything is on that list. It reads the **answer** rather than re-deriving the server's
+    applicability rule, because a second copy of that rule would be measuring the copy.
+  * **Every speed is the site wind times a factor**, and the site wind defaults. A screen run on the
+    default and read as a site answer is wrong by exactly the ratio of the two.
+  * **A bounding box is not a building.** With the dimensions blank the server takes the model's
+    world bounds, which span site and context geometry too, so what was actually screened is printed.
+
+  **The gate could not see this route in either direction, for a THIRD new reason.** `wind` is four
+  characters and `MIN_SEGMENT` is five, so it was never in the reachability gate's population at
+  all — not flaggable, not freezable, not in `FOUND`. That file's own note said the sub-threshold
+  routes were "otherwise still unmeasured" and asked for a re-derivation rather than trust; this is
+  that re-derivation, and **one half of it is sound**. 115 of 949 routes fall below the threshold and
+  for 108 the leaf occurs somewhere in the web source, which means nothing — but the coarseness runs
+  in one direction only: *a leaf that appears nowhere cannot be being called, however short it is.*
+  Those seven are now a ratchet that may shrink and never grow. It held **eight** until this item.
+
 - ✅ ⭐ **BUYOUT-KEEP — the buyout plan you could compute and could not keep**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts` and
   `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
