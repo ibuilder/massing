@@ -24,8 +24,9 @@ fully built on the server and has no button anywhere in the app, so an organisat
 it still cannot use it; a signed release publishes the key needed to verify it and the app never
 shows that key, which leaves a verifier trusting the document's own copy rather than an independent
 one; and a saved view can be shared by the server but the app can only ever create a private one.
-Another drops the payment-application schedule of values from a draw package, and one fetches four
-classification vocabularies over the network and keeps one.
+Another drops the payment-application schedule of values from a draw package; one fetches four
+classification vocabularies over the network and keeps one; and one works out where an underwriting
+result's assumptions came from and then never shows it.
 
 None of this was reachable by searching for names. A name can mean two different things in two
 places, and two different fields can share a name — so a text search answers confidently and wrongly

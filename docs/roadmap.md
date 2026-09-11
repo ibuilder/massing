@@ -1453,8 +1453,13 @@ instances:
     in `apps/web/src`, so the SAML sign-in the server fully implements has no affordance at all ·
     `/asset-rights/status` never declares `public_key`, so out-of-band verification is unreachable,
     **and the client interface still carries the comment `Never a key.`, which is the exact rule the
-    server correction removed** · `/modules/{key}/views` never sends or declares `scope`, so every
-    module-register view created from the web UI is private and no shared one is distinguishable.
+    server correction removed** · `/modules/{key}/views` returns `scope`, `owner` and `mine`
+    on both the GET and the POST and the client type declares none of them, so a shared view is
+    indistinguishable from a private one; separately, `saveView` sends no `scope` in its request
+    body, so the server's `default="private"` decides for every view the web UI creates. *(This
+    sentence previously said the route "never sends or declares `scope`", conflating the response
+    the route RETURNS with the request the client POSTS — two different halves, only one of which
+    this axis measures.)*
   * *money-document rendering gap* — `/draw-package` declares neither `g703_totals` (the AIA G703
     schedule of values behind a pay application) nor `forecast_returns`.
   * *fetched-and-discarded* — `/reference/disciplines` returns four payloads and the client's only

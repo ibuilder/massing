@@ -84,6 +84,34 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "PUT /projects/{}/view-templates": ["templates"],
 };
 
+/** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a
+ *  `**spread` or a computed key, so not every key it sends can be named statically. Their
+ *  declared-key gaps below are still real; what is NOT knowable is whether there are MORE.
+ *
+ *  Pinned exactly, both ways, for the same reason as `KNOWN_GAPS`: a new one must fail rather than
+ *  join a silent majority, and one that becomes fully knowable must fail so it leaves this list.
+ *  Closing a route's spread is therefore a visible improvement, not a no-op. */
+const INCOMPLETE_LOWER_BOUND: string[] = [
+  "GET /agent-packs/runs",
+  "GET /projects/{}/agent-packs",
+  "GET /projects/{}/ai/risk-summary",
+  "GET /projects/{}/compliance/expiring",
+  "GET /projects/{}/drawings/sync-status",
+  "GET /projects/{}/elements/color-by",
+  "GET /projects/{}/model/lod/census",
+  "POST /proforma/scenarios/{}/review",
+  "POST /proforma/solve",
+  "POST /projects/{}/ai/ask",
+  "POST /projects/{}/ai/draft-rfi",
+  "POST /projects/{}/ai/estimate",
+  "POST /projects/{}/ai/triage-rfi",
+  "POST /projects/{}/cost/tm",
+  "POST /projects/{}/edit/graph",
+  "POST /projects/{}/model/equipment/spec-check",
+  "POST /projects/{}/proforma/solve",
+  "POST /projects/{}/progress/actuals",
+];
+
 /** A route path as the SERVER writes it, or null when it genuinely cannot be known statically. */
 export function pathOf(n: ts.Node): string | null {
   if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
@@ -109,19 +137,36 @@ export function pathOf(n: ts.Node): string | null {
   return null;
 }
 
-/** GET unless an options object literal names a string `method`. A computed method is UNKNOWN and
- *  fails, never assumed — assuming GET would compare a POST's keys against a GET's declaration. */
+/** GET unless an options object literal names a string `method`. Anything the analyser cannot read
+ *  statically is UNKNOWN and FAILS, never assumed — a POST silently recorded as GET would be
+ *  compared against a GET route's declaration, or match no route at all and be skipped, which is
+ *  undeclared POST keys walking straight past the gate.
+ *
+ *  Two shapes the first draft got wrong, neither with an occupant in the tree today. That is the
+ *  argument for fixing them rather than against it: a fail-open with no current occupant is one
+ *  ordinary commit away from having one, and nothing would go red when it arrives.
+ *
+ *  * A QUOTED key. `p.name.getText()` on `{"method": "POST"}` returns the six characters
+ *    `"method"` INCLUDING the quotes, so it never equalled `method` and fell through to GET.
+ *    The name node is read by kind now, not by source text.
+ *  * A SPREAD. `{...opts}` is a `SpreadAssignment`, which is not a `PropertyAssignment`, so the
+ *    loop skipped it and returned GET — while the spread may both introduce `method` and overwrite
+ *    one written literally beside it. Any spread makes the method unknowable here. */
 export function methodOf(arg: ts.Expression | undefined): string {
   if (arg === undefined) return "GET";
   if (!ts.isObjectLiteralExpression(arg)) return "UNKNOWN";
+  let found: string | null = null;
   for (const p of arg.properties) {
-    if (ts.isPropertyAssignment(p) && p.name.getText() === "method") {
-      const v = p.initializer;
-      if (ts.isStringLiteral(v) || ts.isNoSubstitutionTemplateLiteral(v)) return v.text.toUpperCase();
-      return "UNKNOWN";
-    }
+    if (ts.isSpreadAssignment(p)) return "UNKNOWN";       // can introduce or overwrite `method`
+    if (!ts.isPropertyAssignment(p)) continue;            // getter/setter/shorthand: names nothing
+    const name = ts.isIdentifier(p.name) || ts.isStringLiteral(p.name) ? p.name.text : null;
+    if (name === null) return "UNKNOWN";                  // computed key — may BE `method`
+    if (name !== "method") continue;
+    const v = p.initializer;
+    if (!ts.isStringLiteral(v) && !ts.isNoSubstitutionTemplateLiteral(v)) return "UNKNOWN";
+    found = v.text.toUpperCase();                         // keep scanning: a later spread still wins
   }
-  return "GET";
+  return found ?? "GET";
 }
 
 interface Site { rel: string; line: number; key: string; keys: string[]; opaque: boolean }
@@ -197,7 +242,7 @@ describe("RESPONSE-UNDECLARED", () => {
   // what a reader greps for, and what EXEMPT is keyed on.
   const { rows, unresolved } = extract(program, `${WEB}/src`, WEB);
 
-  const server: Record<string, { keys: string[]; literal: boolean }> = JSON.parse(
+  const server: Record<string, { keys: string[]; literal: boolean; complete: boolean }> = JSON.parse(
     execFileSync("python3", [resolve(REPO, "services/api/response_keys.py")],
                  { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
 
@@ -210,6 +255,14 @@ describe("RESPONSE-UNDECLARED", () => {
   }
 
   const dictRoutes = Object.entries(server).filter(([, v]) => v.literal);
+  // Routes whose key set is a LOWER BOUND, not the whole truth: the literal carries a `**spread` or
+  // a computed key, so `response_keys.py` marks it `complete: false`. Comparing only the keys it
+  // COULD name would let `{**extra, "id": id}` pass whenever `id` is declared, while `extra` sends
+  // anything at all — the exact fail-open this gate exists to catch, inside the gate. They are
+  // tracked, not silently compared as if complete.
+  const incomplete = dictRoutes
+    .filter(([route, v]) => !v.complete && declared.has(route) && !opaque.has(route))
+    .map(([route]) => route).sort();
   const gaps = new Map<string, string[]>();
   for (const [route, v] of dictRoutes) {
     const decl = declared.get(route);
@@ -250,6 +303,13 @@ describe("RESPONSE-UNDECLARED", () => {
       .toEqual(known);
   }, 120_000);
 
+  it("every route whose key set is only a lower bound is tracked as one", () => {
+    expect(incomplete, "a route's response literal carries a `**spread` or a computed key, so the "
+      + "gate can compare only the keys it can NAME. If you ADDED a spread, add the route here; if "
+      + "you REMOVED one, delete it — the comparison became complete and that is worth recording.")
+      .toEqual([...INCOMPLETE_LOWER_BOUND].sort());
+  }, 120_000);
+
   // SELF-TESTS. The four assertions above all pass if `extract` silently stops finding anything, so
   // these run it over synthetic source where the answer is known. They survive fixing every real gap.
   it("detects an undeclared key", () => {
@@ -269,6 +329,24 @@ describe("RESPONSE-UNDECLARED", () => {
     const { rows: r, unresolved: u } = extract(p, root);
     expect(u).toEqual([]);
     expect(r.map((x) => x.key)).toEqual(["GET /p/{}/r"]);
+  });
+
+  it("reads a QUOTED method key, which the first draft defaulted to GET", () => {
+    const { program: p, root } = syntheticProgram(
+      'declare const c: any;\n'
+      + 'function f() { return c.json<{ a: 1 }>("/x", { "method": "POST" }); }\n');
+    const { rows: r, unresolved: u } = extract(p, root);
+    expect(u).toEqual([]);
+    expect(r.map((x) => x.key)).toEqual(["POST /x"]);   // was "GET /x": quotes are part of getText()
+  });
+
+  it("refuses to guess when the options object SPREADS, which can introduce or overwrite method", () => {
+    const { program: p, root } = syntheticProgram(
+      'declare const c: any;\ndeclare const o: any;\n'
+      + 'function f() { return c.json<{ a: 1 }>("/x", { method: "POST", ...o }); }\n');
+    const { rows: r, unresolved: u } = extract(p, root);
+    expect(r).toEqual([]);
+    expect(u.map((x) => x.why)).toEqual(["method not a literal"]);
   });
 
   it("reports a non-literal path rather than guessing one", () => {
