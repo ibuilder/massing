@@ -175,14 +175,18 @@ export function extract(program: ts.Program, root: string, relBase = root):
     { rows: Site[]; unresolved: Unresolved[] } {
   const checker = program.getTypeChecker();
   const rows: Site[] = [], unresolved: Unresolved[] = [];
+  // `sf.fileName` is forward-slashed on every OS; a caller's `path.resolve` is backslashed on
+  // Windows. Compared raw, `startsWith` failed for every file there and the walk found an empty tree.
+  const posix = (p: string) => p.replace(/\\/g, "/");
+  const rootTs = posix(root), baseTs = posix(relBase);
   for (const sf of program.getSourceFiles()) {
-    if (sf.isDeclarationFile || !sf.fileName.startsWith(root)) continue;
+    if (sf.isDeclarationFile || !sf.fileName.startsWith(rootTs)) continue;
     if (sf.fileName.includes("/vendor/") || sf.fileName.endsWith(".test.ts")) continue;
     const visit = (node: ts.Node): void => {
       const pathArg = ts.isCallExpression(node) ? node.arguments[0] : undefined;
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
           && node.expression.name.text === "json" && pathArg !== undefined) {
-        const rel = sf.fileName.slice(relBase.length).replace(/^\//, "");
+        const rel = sf.fileName.slice(baseTs.length).replace(/^\//, "");
         const line = sf.getLineAndCharacterOfPosition(node.getStart()).line + 1;
         const raw = pathOf(pathArg);
         const method = methodOf(node.arguments[1]);
@@ -317,6 +321,18 @@ describe("RESPONSE-UNDECLARED", () => {
     // above, and a test that leans on that ordering is a test that breaks for the wrong reason.
     expect(r.map((x) => ({ key: x.key, keys: x.keys })))
       .toEqual([{ key: "GET /x", keys: ["a"] }]);       // `b` returned by a server would be a gap
+  });
+
+  it("accepts a BACKSLASHED root, which is what `path.resolve` returns on Windows", () => {
+    // The whole-tree run above builds its root with `path.resolve`, which on Linux never contains a
+    // backslash — so CI could not see this. On Windows every file failed the prefix test: four tree
+    // assertions went red, and the fifth, `exactly the known ones`, PASSED — `KNOWN_GAPS` is empty,
+    // and so is a walk that looked at nothing. Only the vacuity guard stood between that and a green
+    // gate. Pinned here, where it runs on every OS.
+    const { program: p } = syntheticProgram(
+      `declare const c: any;\nfunction f() { return c.json<{ a: number }>("/x"); }\n`);
+    const { rows: r } = extract(p, "\\synthetic");
+    expect(r.map((x) => ({ rel: x.rel, key: x.key }))).toEqual([{ rel: "probe.ts", key: "GET /x" }]);
   });
 
   it("analyses a concatenated path, which the first draft reported as unresolvable", () => {
