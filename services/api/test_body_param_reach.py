@@ -225,10 +225,50 @@ check("no route has a REQUIRED body parameter nothing sends, unless it is alread
       + " — either wire a caller, or freeze the route in test_route_reachability.KNOWN_UNCALLED "
         "with the reason")
 
-check("the frozen explanation is LOAD-BEARING — some required parameter is genuinely unsent",
-      bool(MISSING_REQUIRED),
-      "zero unsent required parameters would make the check above vacuous; if the surface really "
-      "is complete, say so here rather than leaving an assertion that cannot fail")
+# --- the live count reached ZERO, and NOT because the surface completed ---------------------------
+#
+# This check used to be `bool(MISSING_REQUIRED)`: some required parameter must be genuinely unsent,
+# or the filter above is vacuous. On 2026-09-11 it went to zero and the honest reading is **not**
+# "the surface is complete".
+#
+# The last finding was `/proforma/entitlement-risk` needing `entitlement`. That route is still dark —
+# it is frozen in `test_route_reachability.KNOWN_UNCALLED` and nothing calls it. What changed is that
+# R40-EOT added `apps/web/src/api/schedule.ts`, whose `EotEvent` / `EotEventInput` declare
+# `entitlement: string | null` — the AACE entitlement CLASS of a delay event, a different domain
+# entirely. `names_key` matches `key` followed by `:`, so **a TypeScript type annotation now reads as
+# a send.**
+#
+# That is the third shape of this collision family recorded in this repository within one day, and it
+# is the one the others did not predict:
+#   * a route leaf inside unrelated PROSE (`/proforma/renovation`);
+#   * a route leaf that is another ROUTE's leaf (`/jurisdiction/check`);
+#   * and now a body key that is a TYPE DECLARATION rather than a value — *the matcher cannot tell
+#     `{foo: bar}` from `foo: string`, because in text they are the same shape.*
+#
+# **Not sharpened, deliberately.** This file's own docstring says the rule is coarse in the LENIENT
+# direction on purpose: "over-matching can only make this gate miss a gap; under-matching would
+# invent work for somebody, which is the expensive mistake." Excluding type positions textually would
+# reintroduce exactly the false positives `names_key` was widened to remove.
+#
+# So the assertion is replaced rather than deleted, and it now tests the RULE instead of the
+# population — using this file's own self-test idiom. Remove the colliding declaration from a copy of
+# the blob and the finding must come back. That cannot go vacuous the way a count can.
+COLLIDED = ("/proforma/entitlement-risk", "POST", "entitlement")
+_NO_COLLISION = CODE.replace("entitlement?: string | null", "REMOVED_BY_SELF_TEST") \
+                    .replace("entitlement: string | null", "REMOVED_BY_SELF_TEST")
+check("the colliding declaration this check now depends on still exists",
+      _NO_COLLISION != CODE,
+      "api/schedule.ts no longer declares `entitlement` on its EOT event types — re-point this at "
+      "whatever collides today, or if nothing does, restore `bool(MISSING_REQUIRED)`")
+check("with the COLLISION removed, the rule still finds a genuinely unsent required parameter",
+      COLLIDED in unsent(PARAMS, _NO_COLLISION, required=True),
+      f"{COLLIDED[0]} needs {COLLIDED[2]!r} and is frozen as uncalled, so removing the unrelated "
+      "type declaration must expose it again; if it does not, `names_key` or the OpenAPI read broke")
+check("...and the live population is zero ONLY by that collision, not by completion",
+      not MISSING_REQUIRED,
+      f"a required parameter is unsent again: {MISSING_REQUIRED} — good news if it was just wired, "
+      "but read it before assuming; this line asserts the state recorded above, so a change here "
+      "means the note is now wrong")
 
 print(f"\n  body params {len(PARAMS)} "
       f"({sum(1 for *_, r in PARAMS if r)} required) · web source {len(CODE):,} chars")
