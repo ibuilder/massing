@@ -61,6 +61,48 @@ describe("the example pack can never read as a compliance finding", () => {
     expect(attributionLine([REAL])).not.toContain("demonstration");
   });
 
+  it("NEVER emits the word Satisfied for an example-only run", () => {
+    // Found in review on PR #527. The attribution clause already named it a demonstration pack, and
+    // that is not enough: "Satisfied" is the word that gets read and quoted, and a qualifier after
+    // it is read second or not at all.
+    const s = checkSummary({
+      model_scored: true, packs: [EXAMPLE], total_requirements: 2,
+      failing_requirements: 0, total_violations: 0, satisfied: true,
+    });
+    expect(s).not.toContain("Satisfied");
+    expect(s).toContain("Demonstration result");
+    expect(s).toContain("no real requirement was evaluated");
+  });
+
+  it("withholds it for a MIXED run too — a summed total cannot be partly valid", () => {
+    const s = checkSummary({
+      model_scored: true, packs: [REAL, EXAMPLE], total_requirements: 6,
+      failing_requirements: 0, total_violations: 0, satisfied: true,
+    });
+    expect(s).not.toContain("Satisfied");
+    expect(s).toContain("Demonstration result");
+    expect(s).toContain("City of Austin DSD");
+  });
+
+  it("withholds the verdict on FAILURES as well — the lie runs both ways", () => {
+    // An example pack reporting failures says a model breaks rules nobody imposed.
+    const s = checkSummary({
+      model_scored: true, packs: [{ ...EXAMPLE, failing_rules: 1, total_violations: 3 }],
+      total_requirements: 2, failing_requirements: 1, total_violations: 3,
+    });
+    expect(s).toContain("Demonstration result");
+    expect(s).toContain("1 of 2");
+  });
+
+  it("still says Satisfied when every pack is real — the caveat must not swallow the verdict", () => {
+    const s = checkSummary({
+      model_scored: true, packs: [REAL], total_requirements: 4,
+      failing_requirements: 0, total_violations: 0, satisfied: true,
+    });
+    expect(s).toContain("Satisfied");
+    expect(s).not.toContain("Demonstration");
+  });
+
   it("still marks it when a real pack ran alongside — a mixed run is not a real run", () => {
     const line = attributionLine([REAL, EXAMPLE]);
     expect(line).toContain("City of Austin DSD");

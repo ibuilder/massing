@@ -137,10 +137,19 @@ export function checkSummary(r: CheckOutcome): string {
     return "No requirements were evaluated, so there is nothing to report — this is not a pass.";
   }
   const failing = r.failing_requirements ?? 0;
-  const verdict = failing === 0
-    ? `Satisfied: ${r.total_requirements} requirement${r.total_requirements === 1 ? "" : "s"} met`
+  const counted = failing === 0
+    ? `${r.total_requirements} requirement${r.total_requirements === 1 ? "" : "s"} met`
     : `${failing} of ${r.total_requirements} requirement${r.total_requirements === 1 ? "" : "s"} `
       + `failing (${r.total_violations ?? 0} violation${(r.total_violations ?? 0) === 1 ? "" : "s"})`;
+  // **The verdict WORD is withheld the moment a demonstration pack took part**, and the attribution
+  // clause is not enough on its own: "Satisfied" is what gets read, screenshotted and quoted, and a
+  // qualifier trailing it is read second or not at all. This applies to the failing branch too --
+  // an example pack reporting failures says a model breaks rules that do not exist, which is the
+  // same lie in the other direction. A mixed run is contaminated rather than partly valid: the
+  // totals are summed across packs, so no honest verdict can be recovered from the aggregate.
+  const verdict = r.packs.some((p) => p.is_example)
+    ? `Demonstration result — ${counted}; no real requirement was evaluated`
+    : failing === 0 ? `Satisfied: ${counted}` : counted;
   return `${verdict}, against ${attributionLine(r.packs)}.`;
 }
 

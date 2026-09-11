@@ -197,6 +197,9 @@ export async function renderJurisdiction(ctx: PanelContext) {
     return box;
   };
 
-  await drawProject();
-  await drawLibrary();
+  // Concurrent, not sequential: the two sections share no state, and `drawProject` waits on a model
+  // check that can take seconds. Awaiting it first left the pack library -- and the import box, the
+  // only way to fix "no pack has been imported for TX" -- blank until that check settled. Found in
+  // review on PR #527. Each half already catches its own failure, so neither can reject here.
+  await Promise.all([drawProject(), drawLibrary()]);
 }

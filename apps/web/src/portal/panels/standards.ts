@@ -180,7 +180,16 @@ export async function renderStandards(ctx: PanelContext) {
     })();
     jurCard.append(jurBtn); root.appendChild(jurCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
+    //
+    // The card lands in a SLOT appended now rather than straight onto `root` when the read returns.
+    // `root` is shared by every panel and is cleared by whoever renders next, so a late `.then` was
+    // appending this card into a different screen -- visible since the jurisdiction button above
+    // gives the reader something to navigate to while this is still in flight. An empty div has no
+    // visual footprint, and `isConnected` goes false the moment `root.innerHTML` is cleared, which
+    // is the cheapest liveness check there is. Found in review on PR #527.
+    const aiSlot = el("div"); root.appendChild(aiSlot);
     void ctx.host.api.aiReadiness(pid).then((ai) => {
+      if (!aiSlot.isConnected) return;    // the reader moved on; this panel is gone
       const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";
       const ac = el("div", "dash-card"); ac.style.cssText = `border-left:3px solid var(${col});margin-bottom:8px`;
       const dim = (label: string, k: keyof typeof ai.dimensions) => {
@@ -192,7 +201,7 @@ export async function renderStandards(ctx: PanelContext) {
         + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
         + dim("Single source of truth", "single_source_of_truth") + dim("Information completeness", "information_completeness")
         + dim("Model integrity", "model_integrity") + dim("Governance", "governance") + `</table>`;
-      root.appendChild(ac);
+      aiSlot.appendChild(ac);
     }).catch(() => { /* best-effort */ });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     let st; let reg;
