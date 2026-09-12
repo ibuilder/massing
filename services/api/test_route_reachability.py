@@ -277,7 +277,6 @@ KNOWN_UNCALLED: set[str] = {
     # to an IdP out of band — but "likeliest" is not "read", and this set records what nobody has
     # read rather than what somebody approved.
     "/auth/saml/metadata",
-    "/benchmarks/vendors",
     "/classifications",
     "/estimate/labor/rates",
     "/plugins/reload",
@@ -871,6 +870,40 @@ check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
       "if this now fails, the matcher changed — re-triage /asset-rights/verify rather than "
       "assuming the green tick above ever meant it was reachable")
 
+# A SIXTH INSTANCE, 2026-09-11, and it is the first one a PULL REQUEST CREATED rather than found.
+# `/benchmarks/vendors` sat in KNOWN_UNCALLED above from the day this gate was written. LEDGER-BROWSE
+# wired `/connections/{cid}/erp/{entity}` and `/connections/{cid}/quickbooks/{entity}`, whose entity
+# list is `["accounts", "vendors", "bills"]` (`apps/web/src/connections/ledgerBrowse.ts`) — so
+# `/connections/{cid}/erp/vendors` is now a URL this client genuinely builds, the leaf `vendors` is
+# genuinely called, and the rot check immediately reported `/benchmarks/vendors` as "quietly become
+# called". It has not. Its five `/benchmarks/*` siblings all have client methods; it still has none.
+#
+# This is the `check` collision above — a leaf colliding with a REAL SIBLING ROUTE, not with prose —
+# but arriving from the other end, and that difference is the reason it is worth its own paragraph:
+#
+#   **WIRING ONE ROUTE CAN BLIND THIS GATE TO A DIFFERENT ONE.** Reachability work is supposed to be
+#   monotone — each sprint lights another route and the dark set shrinks. It is not. A new URL adds a
+#   segment to the corpus, and any dark route sharing that last segment silently leaves the gate's
+#   sight in the same commit. The dark set can shrink by one and lose visibility of another, and the
+#   run still goes green.
+#
+# The one mercy is timing: because the rot check fails in BOTH directions, the loss surfaces in the
+# pull request that caused it rather than years later. That check earned its keep here — it was a
+# bare `print` until 2026-08-20, and under that version this route would have dropped out of the
+# frozen list with no output at all.
+#
+# So it moves out of KNOWN_UNCALLED and is asserted to be in NEITHER set, exactly as with
+# `/asset-rights/verify` and the two jurisdiction routes. `/benchmarks/vendors` is dark; this file no
+# longer has an opinion about it, and says so rather than implying coverage by silence.
+check("the LEDGER-BROWSE collision is still a blind spot: /benchmarks/vendors",
+      "/benchmarks/vendors" not in KNOWN_UNCALLED,
+      "re-triage /benchmarks/vendors rather than re-freezing it — while a sibling route's URL ends "
+      "in `vendors`, this rule cannot tell a caller of one from a caller of the other")
+check("  ...and the collision is REAL, not a guess: the rule does read that leaf as called",
+      "/benchmarks/vendors" in FOUND or leaf_is_called("vendors", _CODE),
+      "the vouching URL is gone — if `ledgerBrowse.ts` no longer offers a `vendors` entity, "
+      "/benchmarks/vendors is visible again and belongs back in KNOWN_UNCALLED")
+
 # A THIRD AND FOURTH INSTANCE, measured 2026-09-11 while triaging the eight routes UNREACHED-IMPORT
 # froze. R23-JURISDICTION-PACKS is dark in **five** routes, not the three this file freezes. The
 # library, import and delete routes are in KNOWN_UNCALLED above; the two that CONSUME a pack --
@@ -944,7 +977,15 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: (`apps/web/src/api/downloadPdf.ts`). A screen that renders the payment application from data
     #: rather than downloading it would use these; none exists yet.
     "/projects/{pid}/cost/g702", "/projects/{pid}/cost/g703",
-    #: The ERP entity bridge: finished server-side, no screen. The next wiring candidate.
+    #: `/connections/{cid}/erp/{entity}` LEFT this set in LEDGER-BROWSE — `connectionLedger` in
+    #: `apps/web/src/api/connections.ts`, called from the "Books" action in
+    #: `apps/web/src/connections/connectionsUI.ts`. Its QuickBooks sibling
+    #: `/connections/{cid}/quickbooks/{entity}` was dark for the whole time it sat here and was
+    #: never in this set NOR in KNOWN_UNCALLED: a ten-character leaf IS assessed by the main rule,
+    #: and the rule believed it called off the word "quickbooks" in a connection-TYPE `<select>`.
+    #: **The two halves of one feature were concealed by a list and by a vocabulary word** — the
+    #: short-leaf ratchet at least records what it is hiding; `leaf_is_called` records nothing,
+    #: which is why its false negatives are the more expensive kind.
     #:
     #: `/projects/{pid}/schedule/eot` LEFT this set in R40-EOT — `scheduleEot` in
     #: `apps/web/src/api/schedule.ts`, called from `apps/web/src/portal/panels/eotClaimPanel.ts`.
@@ -953,7 +994,6 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: `/schedule/eot/sourced` was frozen in KNOWN_UNCALLED above and could have been read any day.
     #: **One feature, two concealments, two different lists** — reading either alone would have
     #: wired half a claim.
-    "/connections/{cid}/erp/{entity}",
 }
 _SHORT = {r for r in PATHS if len(_leaf(r)) < MIN_SEGMENT}
 _SHORT_DARK = {r for r in _SHORT if not leaf_is_called(_leaf(r), _CODE)}

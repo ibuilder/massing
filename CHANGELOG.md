@@ -12,6 +12,42 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### An accounting connection's books can be read from the app
+
+`GET /connections/{cid}/quickbooks/{entity}` and `GET /connections/{cid}/erp/{entity}` return a
+QuickBooks or Sage/Viewpoint chart of accounts, vendor list or bill list. Both were finished on the
+server and callable by nothing. A **Books** action now sits on every QuickBooks, Sage and Viewpoint
+connection in the Data-connections modal.
+
+**The two halves were dark for two different reasons, and only one of them was recorded.**
+`erp` is three characters, under the reachability gate's `MIN_SEGMENT`, so the short-leaf ratchet
+held it and named it as the next wiring candidate. `quickbooks` is ten characters, IS assessed by
+the main rule, and the rule believed it called — off the string `"quickbooks"` in the connection-TYPE
+`<select>`. A product vocabulary word, not a URL. The listed one was the one anybody could see.
+
+Three rules in `apps/web/src/connections/ledgerBrowse.ts`, each because the server's answer and the
+obvious rendering of it say different things:
+
+- **A vendor failure is HTTP 200 with `{"error": …}`.** The route catches the vendor exception and
+  puts the message in the body, so `res.ok` is true and the row list is absent. Rendering that as an
+  empty table tells an accountant their books are EMPTY when the truth is that we could not read
+  them. `outcome()` refuses to collapse the two, and checks `error` first and on its own — testing
+  the rows first would classify every failure as "no records".
+- **The QuickBooks count is capped at 50 and nothing pages past it**, so `count: 50` there is a floor
+  and a company with 200 accounts sees 50 with no indication. The ERP read is uncapped. The same
+  field means different things on the two routes, so it is never printed bare.
+- **Row keys are vendor-cased** — Intuit's `Name`/`Id` against a generic ERP's lowercase — which is
+  the COL-PAIR defect class, and is why the server's own `_info_erp` already hedges.
+
+**Wiring a route blinded the gate to a different one, in the same commit.** The entity list contains
+`vendors`, so `/connections/{cid}/erp/vendors` is now a URL this client builds, and
+`/benchmarks/vendors` — dark since the gate was written, and frozen in `KNOWN_UNCALLED` ever since —
+immediately read as called. It is not; its five `/benchmarks/*` siblings have client methods and it
+still has none. Reachability work is not monotone: a new URL adds a segment to the corpus, and any
+dark route sharing that last segment leaves the gate's sight. It is recorded now as a blind spot in
+neither set, beside `/asset-rights/verify` and the two jurisdiction routes. The rot check earned its
+keep — it was a bare `print` until 2026-08-20, and under that version this route would have dropped
+out of the frozen list with no output at all.
 ### Two type-aware gates now see the tree on Windows
 
 `deadFieldTyped.test.ts` and `responseUndeclared.test.ts` failed 9 tests on Windows and passed on
