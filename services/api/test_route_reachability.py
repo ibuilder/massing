@@ -1108,6 +1108,10 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 # case again -- a dark route can be a duplicate rather than a hole, and the gate cannot tell the
 # difference.* `/proforma/scenarios/{sid}/provenance` has since been WIRED (SCENARIO-SOURCES), so
 # what is left unread is `/bsdd/class` and `/projects/{pid}/workflow/{key}`.
+# *(Superseded 2026-09-12: `/bsdd/class` was wired by BSDD-LOOKUP, leaving
+# `/projects/{pid}/workflow/{key}` as the only unread entry. Left standing rather than edited for the
+# reason the bracket above it gives -- this run of sentences is a RECORD of successive corrections,
+# and rewriting each one in place would erase the thing it documents.)*
 #: **`/proforma/scenarios/{sid}/provenance` LEFT THIS SET IN SCENARIO-SOURCES**, and it was the one
 #: worth building rather than recording: the engine behind it (`assumption_provenance.py`) names WHICH
 #: of a deal's material assumptions carry a document citation and which carry none, and an investment
@@ -1116,11 +1120,56 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 #:
 #: Three remain. One of them is READ AND TRIAGED rather than unread -- see the note above -- and two
 #: are genuinely unexamined.
+#:
+#: **`/bsdd/class` LEFT THIS SET IN BSDD-LOOKUP.** `bsddClass` and `bsddSearch` in
+#: `apps/web/src/api/ids.ts` back a lookup card in `apps/web/src/portal/panels/standards.ts`: search
+#: the dictionary, open a class, read the properties it defines. It was worth building because the
+#: same panel already scored *what fraction* of the model carries a bSDD URI and offered no way to
+#: look one up -- a coverage number with no means of closing the gap it reports.
+#:
+#: **And finding it forced two corrections to this section, both about the list rather than the
+#: routes.**
+#:
+#: FIRST: `/bsdd/search` was never in this list, and it is the IDENTICAL case -- same route group,
+#: same absent `/bsdd/` fragment, leaf vouched by the English word "search". The screen that produced
+#: the five above is described as covering "every route whose leaf this rule reads as called but
+#: which never appears path-shaped anywhere in the web source". Re-running exactly that query returns
+#: **twenty-six** routes; this list named three of them. Most of the rest are legitimately
+#: web-callerless -- `/scim/v2/Users` is for an identity provider, `/bcf/2.1/projects` for external
+#: BIM tools -- so twenty-six is an upper bound on candidates and not a defect count. But the gap
+#: between "derived by screening every route" and "three entries" is the thing: *a list that
+#: DESCRIBES itself as derived, and is in fact hand-curated, reads exactly like a complete one.* The
+#: remaining candidates are not triaged here; that is filed as its own axis rather than smuggled into
+#: a wiring change.
+#:
+#: SECOND, and worse: **nothing here could have noticed.** The three per-entry checks below assert
+#: the blind spot PERSISTS, and all three stay green after a route is wired -- measured, by wiring
+#: `/bsdd/class` and re-running this file unchanged. A fourth check now probes for a real caller and
+#: reds when one appears, with a positive control so it cannot pass by measuring nothing.
 LEAF_COLLISION_DARK = (
-    "/bsdd/class",
     "/proforma/provenance",
     "/projects/{pid}/workflow/{key}",
 )
+
+
+def _wired_probe(route: str) -> str:
+    """The substring a real client caller building `route` must contain.
+
+    The longest run of consecutive STATIC segments ending at the last static one, plus a trailing
+    slash when the route continues into a template. `/bsdd/class` -> `bsdd/class`;
+    `/projects/{pid}/workflow/{key}` -> `workflow/`. Deliberately not the leaf alone: `provenance`
+    alone is carried by `/proforma/scenarios/{sid}/provenance`, a DIFFERENT route that IS wired,
+    and conflating the two is the very collision this section is about.
+    """
+    segs = [x for x in route.split("/") if x]
+    last_static = max((i for i, x in enumerate(segs) if not x.startswith("{")), default=-1)
+    run: list[str] = []
+    for i in range(last_static, -1, -1):
+        if segs[i].startswith("{"):
+            break
+        run.insert(0, segs[i])
+    probe = "/".join(run)
+    return probe + "/" if last_static < len(segs) - 1 else probe
 for _r in LEAF_COLLISION_DARK:
     check(f"the LEAF-COLLISION blind spot is still a blind spot: {_r}",
           _r not in FOUND and _r not in KNOWN_UNCALLED,
@@ -1141,6 +1190,31 @@ for _r in LEAF_COLLISION_DARK:
           leaf_is_called(_leaf(_r), BLOB),
           f"the vouching text for {_leaf(_r)!r} is gone, so this route should now be flaggable -- "
           "move it into KNOWN_UNCALLED with a reason, or wire it")
+
+# **AND THE LIST MUST NOTICE WHEN AN ENTRY STOPS BEING DARK.** The three checks above all assert the
+# blind spot PERSISTS -- not in FOUND, still a route, leaf still vouched. Every one of them stays
+# green after somebody wires the route, because the rule's blindness is a fact about the LEAF
+# COLLISION and has nothing to do with whether a caller exists. So the list could only ever decay in
+# one direction: toward naming routes that are actually reachable, with nothing to say so. *That was
+# measured, not assumed -- BSDD-LOOKUP wired `/bsdd/class` and re-ran this file, and all of its
+# checks passed unchanged.* The probe below is the missing direction: it reds when an entry acquires
+# a real caller, which is the moment the entry must be deleted.
+_STRIPPED = strip_comments(BLOB)
+for _r in LEAF_COLLISION_DARK:
+    _p = _wired_probe(_r)
+    check(f"  ...and it is still UNWIRED -- no client builds {_p!r}",
+          _p not in _STRIPPED,
+          f"{_r} now has a client caller, so it is no longer dark: DELETE it from "
+          "LEAF_COLLISION_DARK and record what wired it, the way /bsdd/class and "
+          "/projects/{pid}/cost/calibration were recorded when they left this set")
+
+# The probe must be able to SEE a caller, or "no client builds it" is a sentence that can only ever
+# come out true -- the can't-fail shape this file exists to prevent. `/bsdd/search`, wired by
+# BSDD-LOOKUP in the same change that removed `/bsdd/class` above, is the positive control.
+check("  the wired-probe can actually detect a caller (positive control: /bsdd/search)",
+      _wired_probe("/bsdd/search") in _STRIPPED,
+      "the probe found no caller for a route this repo demonstrably wired -- it is measuring "
+      "nothing, and every 'still unwired' verdict above is vacuous")
 
 print()
 if FAILED:

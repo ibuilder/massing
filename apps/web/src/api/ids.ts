@@ -9,10 +9,41 @@
  *  splitting on transport would put two halves of one feature in two files.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
+ *
+ *  **BSDD-LOOKUP added `bsddSearch` / `bsddClass` here, and NOT as their own mixin, because
+ *  `client.ts` has hit a hard compiler ceiling.** Route-group `/bsdd` is its own group, so by this
+ *  file's own stated rule — the seam is the ROUTE — they should have been `withBsdd`. Adding a 51st
+ *  mixin to the chain in `client.ts` makes `tsc` fail outright with TS2589, *"Type instantiation is
+ *  excessively deep and possibly infinite"*, on the `extends` clause; removing it makes the error
+ *  vanish, so the count is the cause and not anything in the new code. **That quietly reverses the
+ *  SCALE-SEAM strategy: new route groups can no longer get their own mixin, they must lodge with a
+ *  neighbour, until the chain is composed in stages.** Recorded here rather than worked around
+ *  silently, because the next person to reach for `withX()` will hit the same wall and the error
+ *  message names neither the cause nor the limit.
+ *
+ *  Of the available neighbours this is the honest one: bSDD and IDS are both buildingSMART
+ *  REFERENCE surfaces — one says what a class *is*, the other what a deliverable must *carry* — and
+ *  both are consumed by the same screen (`portal/panels/standards.ts`). They are also the only
+ *  methods in this file that are **not** project-scoped: a bSDD class is the same class for every
+ *  project, which is why the server caches it module-wide.
  */
 import { HttpCore, HttpError } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
+
+/** One hit from a bSDD free-text search (`GET /bsdd/search`). */
+export interface BsddHit {
+  uri: string | null;
+  name: string | null;
+  code: string | null;
+  dictionary: string | null;
+}
+
+/** One bSDD class with the properties the dictionary defines for it (`GET /bsdd/class`). */
+export interface BsddClass extends BsddHit {
+  properties: { name: string | null; code: string | null; dataType: string | null }[];
+}
+
 
 export function withIds<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Ids extends Base {
@@ -55,6 +86,22 @@ export function withIds<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   unpinProjectIds(pid: string) {
     return this.json<{ deleted: boolean }>(`/projects/${pid}/ids`, { method: "DELETE" });
+  }
+
+  /** One hit from a bSDD free-text search. Every field is nullable: the live bSDD response shape
+   *  varies by dictionary and `bsdd.py` parses it defensively rather than asserting a schema. */
+  bsddSearch(q: string, opts: { dictionary?: string; limit?: number } = {}) {
+    const params = new URLSearchParams({ q });
+    if (opts.dictionary) params.set("dictionary", opts.dictionary);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    return this.json<{ classes: BsddHit[] }>(`/bsdd/search?${params.toString()}`);
+  }
+  /** One bSDD class and the properties the dictionary defines for it, by full class URI.
+   *  404 when the dictionary has no such class; 502 when bSDD itself is unreachable — the caller
+   *  MUST tell those two apart, because an outage and an empty dictionary look identical on screen
+   *  and mean opposite things. Both arrive as `HttpError`, which carries `.status`. */
+  bsddClass(uri: string) {
+    return this.json<BsddClass>(`/bsdd/class?uri=${encodeURIComponent(uri)}`);
   }
   };
 }

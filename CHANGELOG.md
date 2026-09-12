@@ -12,6 +12,62 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### You can now look up a buildingSMART class, not just be told how few you have
+
+The standards panel has always scored *what fraction* of the model carries a bSDD classification
+URI -- "bSDD / classification coverage, 38%" -- and offered no way whatsoever to look one up. **A
+coverage number with no means of closing the gap it reports.** The engine was already complete:
+`services/api/src/aec_api/bsdd.py` is a read-only buildingSMART Data Dictionary client, and
+`GET /bsdd/search` and `GET /bsdd/class` had been exposed for months with **no client caller at
+all**. There is now a lookup card beside that figure: search the dictionary, open a class, read the
+properties it defines.
+
+**An outage must not render as an empty result.** bSDD is a remote service, so three states look
+identical as a blank list and mean opposite things -- the dictionary is unreachable (try again), the
+dictionary has no such class (it does not exist), your search matched nothing (your query was
+wrong). `routers/standards.py` already separated the first two into 502 and 404 for exactly this
+reason; `apps/web/src/portal/panels/bsddLookup.ts` is the pure rule that spends them, tested without
+a DOM. 500 and 503 deliberately do **not** fold into "unavailable": those are our own bug and our own
+deployment, not evidence about buildingSMART, and saying otherwise sends the reader to wait for a
+recovery that is not coming.
+
+#### Two corrections to the reachability gate, both about the list rather than the routes
+
+`/bsdd/class` was one of three routes frozen in `LEAF_COLLISION_DARK` in
+`services/api/test_route_reachability.py` -- routes the reachability rule cannot see because their
+last segment is also an ordinary English or HTML word (`class` is vouched for by ~1,756
+`class="..."` attributes). Wiring it turned up two problems with the *list*:
+
+**It was never complete.** `/bsdd/search` is the identical case -- same route group, same absent
+`/bsdd/` fragment, leaf vouched by the English word -- and was not in it. The list describes itself
+as the output of screening "every route whose leaf this rule reads as called but which never appears
+path-shaped anywhere in the web source"; re-running exactly that query returns **twenty-six** routes
+against three entries. Most of the remainder are legitimately web-callerless (`/scim/v2/Users` is for
+an identity provider, `/bcf/2.1/projects` for external BIM tools), so twenty-six is an upper bound on
+candidates and not a defect count -- but *a hand-curated list that describes itself as derived reads
+exactly like a complete one.* The remaining candidates are filed as their own axis rather than
+smuggled into a wiring change.
+
+**And nothing could have noticed the fix.** All three per-entry checks assert the blind spot
+*persists* -- not flagged, still a live route, leaf still vouched -- and every one of them stays green
+after the route is wired, because the blindness is a fact about the leaf collision and has nothing to
+do with whether a caller exists. That was measured, not assumed: `/bsdd/class` was wired and the file
+re-run unchanged, all green. So the list could only ever decay in one direction, toward naming routes
+that are actually reachable. A fourth check now probes for a real caller and reds when one appears,
+with a positive control (`/bsdd/search`, wired by this change) so it cannot pass by measuring nothing.
+
+#### `client.ts` has hit a hard compiler ceiling, and it changes where new routes can live
+
+`/bsdd` is its own route group, so by the rule the API client has followed for ~20 SCALE-SEAM PRs --
+*the seam is the ROUTE* -- these two methods should have been their own `withBsdd` mixin. They are
+not. **Adding a 51st mixin to the chain in `apps/web/src/api/client.ts` makes `tsc` fail outright**
+with TS2589, *"Type instantiation is excessively deep and possibly infinite"*, on the `extends`
+clause; removing it makes the error vanish, so the count is the cause and not anything in the new
+code. New route groups can no longer get their own mixin -- they must lodge with a neighbour -- until
+the chain is composed in stages. Recorded in `apps/web/src/api/ids.ts`, which took them, because the
+next person to reach for `withX()` will hit the same wall and the error message names neither the
+cause nor the limit.
+
 ### Test scratch directories no longer make `git status` read as uncommitted work
 
 A stop hook flagged `services/api/_shelf_famgeom/` as work somebody had forgotten to commit. It was
