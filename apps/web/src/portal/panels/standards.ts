@@ -1,6 +1,8 @@
+import { HttpError } from "../../api/httpCore";
 import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import type { PanelContext } from "../panelContext";
 
@@ -359,6 +361,102 @@ export async function renderStandards(ctx: PanelContext) {
       q.innerHTML = `<b>openBIM model quality</b><div class="meta">Load a model (Model workspace) to `
         + `score LOIN, IDS compliance, export health and bSDD alignment.</div>`;
     }
+
+    // --- bSDD lookup: search the buildingSMART Data Dictionary and read one class ---------------
+    // Reference data, not project data — the same class for every project. It sits in this panel
+    // because this is where classification is already being scored ("bSDD / classification
+    // coverage" above): the score tells you how much of the model is aligned, this tells you what
+    // to align it TO.
+    const bd = el("div", "dash-card"); bd.style.marginTop = "8px";
+    const bdHead = el("div");
+    bdHead.innerHTML = `<b>🔤 buildingSMART Data Dictionary</b> `
+      + `<span class="meta">look up a classification class and the properties it defines</span>`;
+    const bdForm = el("form"); bdForm.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px";
+    const bdQ = el("input", "portal-filter") as HTMLInputElement;
+    bdQ.type = "search"; bdQ.placeholder = "e.g. exterior wall"; bdQ.style.minWidth = "180px";
+    bdQ.setAttribute("aria-label", "bSDD search text");
+    const bdDict = el("select", "portal-filter") as HTMLSelectElement;
+    bdDict.setAttribute("aria-label", "bSDD dictionary");
+    // A short list of the dictionaries an AEC author actually reaches for, plus "all". The URIs are
+    // bSDD identifiers, not our own — they are passed through to the server verbatim.
+    const DICTS: [string, string][] = [
+      ["", "All dictionaries"],
+      ["https://identifier.buildingsmart.org/uri/buildingsmart/ifc", "IFC"],
+      ["https://identifier.buildingsmart.org/uri/nbs/uniclass", "Uniclass"],
+    ];
+    bdDict.innerHTML = DICTS.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    const bdBtn = el("button", "mini-btn on") as HTMLButtonElement;
+    bdBtn.type = "submit"; bdBtn.textContent = "Search";
+    bdForm.append(bdQ, bdDict, bdBtn);
+    const bdOut = el("div"); bdOut.style.marginTop = "6px";
+    bd.append(bdHead, bdForm, bdOut);
+    body.append(bd);
+
+    // The 502-vs-404-vs-empty decision lives in `bsddLookup.ts` so it can be tested without a DOM;
+    // this only picks the colour, which is the part that genuinely needs an element.
+    const bdFail = (e: unknown, what: string) => {
+      const kind = bsddFailure(e instanceof HttpError ? e.status : 0);
+      const text = esc(bsddFailureText(kind, what, (e as Error)?.message ?? ""));
+      const warn = kind === "unavailable" ? ` style="color:var(--status-warn)"` : "";
+      return `<div class="meta"${warn}>${kind === "unavailable" ? "⚠️ " : ""}${text}</div>`;
+    };
+
+    // ONE gate for both actions: they race over `bdOut`, not over their own endpoints. A slower
+    // earlier request must not overwrite a newer result. `bsddLookup.test.ts` asserts both the
+    // gate's behaviour AND that this panel wires a single instance into both writers.
+    const bdGate = requestGate();
+
+    const bdShowClass = async (uri: string) => {
+      const gen = bdGate.start();
+      bdOut.innerHTML = `<div class="meta">loading class…</div>`;
+      let cls;
+      try { cls = await ctx.host.api.bsddClass(uri); }
+      catch (e) { if (bdGate.isCurrent(gen)) bdOut.innerHTML = bdFail(e, "that class"); return; }
+      if (!bdGate.isCurrent(gen)) return;      // a newer search or class won the output
+      const back = el("button", "mini-btn"); back.textContent = "← results";
+      bdOut.innerHTML = `<div><b>${esc(cls.name ?? cls.code ?? "(unnamed class)")}</b> `
+        + `<span class="meta">${esc(cls.code ?? "")}${cls.dictionary ? ` · ${esc(cls.dictionary)}` : ""}</span></div>`
+        + `<div class="meta" style="word-break:break-all;margin-top:2px">${esc(cls.uri ?? uri)}</div>`
+        + (cls.properties.length
+          ? `<table class="fin-table" style="width:100%;font-size:12px;margin-top:6px">`
+            + `<tr><th style="text-align:left">Property</th><th style="text-align:left">Code</th>`
+            + `<th style="text-align:left">Data type</th></tr>`
+            + cls.properties.map((p) => `<tr><td>${esc(p.name ?? "—")}</td><td>${esc(p.code ?? "—")}</td>`
+              + `<td>${esc(p.dataType ?? "—")}</td></tr>`).join("")
+            + `</table>`
+          : `<div class="meta" style="margin-top:6px">This class defines no properties.</div>`);
+      bdOut.append(back);
+      back.onclick = () => void bdSearch();
+    };
+
+    const bdSearch = async () => {
+      const q = bdQ.value.trim();
+      const gen = bdGate.start();
+      if (!q) { bdOut.innerHTML = `<div class="meta">Type something to search for.</div>`; return; }
+      bdOut.innerHTML = `<div class="meta">searching…</div>`;
+      let hits;
+      try { hits = (await ctx.host.api.bsddSearch(q, { dictionary: bdDict.value || undefined })).classes; }
+      catch (e) { if (bdGate.isCurrent(gen)) bdOut.innerHTML = bdFail(e, "the dictionary"); return; }
+      if (!bdGate.isCurrent(gen)) return;      // a newer search or class won the output
+      if (!hits.length) {
+        bdOut.innerHTML = `<div class="meta">No classes match “${esc(q)}”.</div>`;
+        return;
+      }
+      bdOut.innerHTML = `<div class="meta">${hits.length} class(es)</div>`;
+      const list = el("div"); list.style.cssText = "display:flex;flex-direction:column;gap:2px;margin-top:4px";
+      for (const h of hits) {
+        const row = el("button", "file-btn") as HTMLButtonElement;
+        row.style.cssText = "text-align:left;font-size:12px";
+        row.innerHTML = `<b>${esc(h.name ?? h.code ?? "(unnamed)")}</b>`
+          + `<span class="meta"> ${esc(h.code ?? "")}${h.dictionary ? ` · ${esc(h.dictionary)}` : ""}</span>`;
+        // A hit with no URI cannot be read back — bSDD returned a name without an identifier.
+        if (!h.uri) { row.disabled = true; row.title = "this hit carries no class URI"; }
+        else row.onclick = () => void bdShowClass(h.uri as string);
+        list.append(row);
+      }
+      bdOut.append(list);
+    };
+    bdForm.onsubmit = (ev) => { ev.preventDefault(); void bdSearch(); };
   }
 
   // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------
