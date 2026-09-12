@@ -297,12 +297,26 @@ export function hotSinks(src: string): string[] {
  * WHAT COUNTS AS A VALUE BINDING: a function PARAMETER, or a name bound by a DESTRUCTURING pattern
  * (`for (const [label, val] of cards)`). Both are values handed in from elsewhere.
  *
- * WHAT DOES NOT, and why the line is drawn there: a plain `const x = …` local. 157 of those reach
+ * WHAT DOES NOT, and why the line is drawn there: a plain `const x = …` local. 134 of those reach
  * innerHTML in this tree and most hold HTML assembled earlier in the same function — `rows`,
  * `thead`, `bars`, `cells`, `pts`. Escaping those would destroy the markup, so the rule would have
  * to carry judgement about which locals are values, and a rule with judgement in it is a rule that
  * can be argued with. The exclusion is stated here rather than left implicit: a local assigned from
  * user data and interpolated bare is NOT caught by either rule in this file.
+ *
+ * THAT EXCLUSION WAS TRIAGED, NOT ASSUMED — because an exclusion nobody measures is just a blind
+ * spot with a justification attached. All 134 were classified by their declaration's initialiser
+ * (41 build markup, 39 literal, 15 numeric, 1 already escaped, 36 suspect, 2 unresolvable) and
+ * every suspect and unresolvable one was read. Exactly ONE was a real sink: `schedule.ts`'s
+ * critical-path line, where the server builds `critical_path` as `[r["ref"] or r["id"] …]` — stored,
+ * user-entered activity refs — and the panel joined and interpolated them raw. It is escaped now.
+ *
+ * Two things that triage is worth recording. **The classifier's first draft resolved declarations
+ * file-wide and kept the LAST match**, so `design.ts`'s `gap` (a number, `p.eui_gap_pct`) was
+ * attributed to an unrelated `el("div")` hundreds of lines away and reported suspect; the lookup is
+ * scope-aware now, and the bug surfaced only because the suspects were READ rather than counted.
+ * And the one real finding was a LOCAL — so the gap this comment describes was live, not
+ * theoretical, which is the argument for measuring an exclusion instead of asserting it.
  *
  * Deliberately NOT filtered by HOT/COLD. `budget.ts` interpolated a bare `val` and `evm.ts` a bare
  * `sub`; neither matches HOT, so both were invisible to the ratchet above while being exactly the

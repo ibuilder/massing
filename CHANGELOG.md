@@ -56,6 +56,21 @@ because 157 of those reach `innerHTML` in this tree and most hold markup assembl
 earlier (`rows`, `thead`, `bars`, `cells`) where escaping would destroy it. A local assigned from
 user data and interpolated bare is caught by neither rule in this file, and the test says so.
 
+**The excluded class was then triaged, not assumed** — an exclusion nobody measures is a blind spot
+with a justification attached. All 134 bare locals were classified by their declaration's initialiser
+(41 build markup, 39 literal, 15 numeric, 1 already escaped, 36 suspect, 2 unresolvable) and every
+suspect and unresolvable one was read. Exactly **one was a real sink**: the CPM panel's critical-path
+line, where the server builds `critical_path` as `[r["ref"] or r["id"] …]` — stored, user-entered
+activity refs — and the panel joined and interpolated them raw into `innerHTML`. Anyone who can name
+a schedule activity could put markup in it and have it run for everyone who opens that panel. Fixed.
+
+Two things about that triage are worth keeping. Its first draft resolved declarations **file-wide and
+kept the last match**, so one panel's `gap` (a number) was attributed to an unrelated `el("div")`
+hundreds of lines away and reported suspect — the lookup is scope-aware now, and the bug surfaced
+only because the suspects were *read* rather than counted. And the single real finding was a **local**,
+i.e. in the class the new rule deliberately excludes: *the documented gap was live, not theoretical,*
+which is the whole argument for measuring an exclusion instead of asserting one.
+
 One test had to be repaired as a consequence, and the repair is the point. The substitution check
 hardcoded `portal/panels/evm.ts` and the identity `"value"` as its fixture; this change escaped
 every sink in that file, so a legitimate improvement red the test with a message about a missing

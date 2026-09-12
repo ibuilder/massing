@@ -698,7 +698,11 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   ctx.root.appendChild(estBtn);
   void ctx.host.api.scheduleCpm(pid).then((c) => {
     if (!c.activity_count) { cpmBox.textContent = "CPM: no activities with durations yet."; return; }
-    const cp = c.critical_path.slice(0, 12).join(" → ") || "—";
+    // `critical_path` is a list of stored activity REFS (schedule_engine builds it as
+    // `[r["ref"] or r["id"] ...]`), so it is user-entered text reaching innerHTML. Escaped AFTER the
+    // join because the " → " separator holds nothing escapable. Found by triaging the bare-local
+    // class this PR's new rule deliberately leaves out: 134 sites classified, this the one real one.
+    const cp = esc(c.critical_path.slice(0, 12).join(" → ")) || "—";
     cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
       + `<span style="color:var(--status-crit)">critical path</span>${c.has_cycle ? " · ⚠ cycle broken" : ""}<br>`
       + `<span class="meta">Critical: ${cp}</span>`;
