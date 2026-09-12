@@ -40,14 +40,34 @@ route set and the builder did not, is carried into the builder so consolidating 
 Two more things fell out of reading it:
 
 - **Every application was called "App 1."** `app_no` defaulted to `1` server-side *and* the client
-  always sent `1`. It is optional now in both places, and the server numbers from the applications
-  that exist. The button is relabelled **"Owner application from draw"**, because that is what it
-  makes.
+  always sent `1`. It is optional now in both places, and the server allocates the number from the
+  same atomic `ref_counters` row the human refs use. The button is relabelled **"Owner application
+  from draw"**, because that is what it makes.
 - **The period roll had two implementations too**, and they disagreed. `…/cost/pay-app/advance` was
   dark and counted *every* SOV row; the live `…/cost/advance-period` counts only rows with work
   billed this period. The dark one also returned a `next_application_no` derived from an
   `application_no` field on SOV lines that nothing sets. It is retired, and `test_closeout.py` — which
   had been written against the dark route's response shape — now exercises the live one.
+
+**Review found that the first draft of that numbering was itself a defect, and named the wrong half
+of it.** It read `app_no = 1 + len(records)`. `RefCounter`'s own docstring, in `services/api/src/aec_api/models.py`,
+says that counter exists *because* a COUNT(*) scheme let a later create reuse a number after a
+delete — so the fix for a money bug had reintroduced, on a money register, the exact scheme this
+codebase retired for refs. The review described it as a race between concurrent requests, which is
+real: no unique index on `data.number` refuses either writer, so two applications both become
+"App 3". But the reuse half needs no concurrency at all — delete application 3 and the next one is
+"App 3" again, every time — and that is the half that leaves a register unable to say which
+application was paid. *A race-shaped description hides the half that reproduces deterministically,
+and the deterministic half is the worse one.*
+
+The allocation now goes through `modules.next_counter`, extracted from `_next_ref` so the primitive
+is shared rather than private to its first caller. Its seed is a callable, consulted only when the
+counter row does not yet exist, so the ordinary path stays one atomic `UPDATE … RETURNING`.
+Two more from the same review: a non-positive `app_no` stored `"App -2"` while the route's
+trailing-digit parse reported `2` — refused now at the builder, so a direct caller cannot bypass it —
+and the "Owner application from draw" button is disabled for its own round trip, since creating an
+application is not idempotent and server-side numbering labels duplicates rather than preventing
+them.
 
 Six regression assertions pin the money, including that the retired builder stays retired: its
 response shape differed, so a caller written against it would silently receive a record where the

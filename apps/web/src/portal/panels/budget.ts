@@ -598,10 +598,15 @@ export async function renderBudget(ctx: PanelContext) {
     invBtn.textContent = "＋ Owner application from draw";
     invBtn.title = "Freeze the current G702/G703 into a draft application — its continuation sheet "
       + "and all nine certificate lines, so a later SOV edit cannot restate it";
+    // Disabled for the whole round trip, and re-enabled ONLY on failure. Creating an application
+    // is not idempotent — a second click before the first resolves freezes a second owner_invoice,
+    // and server-side numbering cannot help: it labels the duplicates, it does not prevent them.
+    // On success the handler navigates away, so the button re-enables when the panel next renders.
     invBtn.onclick = async () => {
+      invBtn.disabled = true;
       try { const r = await ctx.host.api.payAppInvoice(pid);
         ctx.host.setStatus(`owner invoice created: $${Math.round(r.amount).toLocaleString()}`); jumpTo("owner_invoice"); }
-      catch (e) { ctx.host.setStatus(`invoice failed: ${(e as Error).message}`); }
+      catch (e) { invBtn.disabled = false; ctx.host.setStatus(`invoice failed: ${(e as Error).message}`); }
     };
     // C1 — CLOSE THE PERIOD. `cost.advance_period` is the only code anywhere that rolls an SOV
     // line's `completed_this` into `completed_prev`, and its route had no caller until v0.3.1050:

@@ -1805,6 +1805,20 @@ instances:
 
   Routes **949 → 947**, uncalled **58 → 56**, short-leaf ratchet **5 → 3**.
 
+  **Review caught the replacement numbering doing the thing the fix was about.** The first draft
+  allocated with `app_no = 1 + len(records)` — and `RefCounter` in `services/api/src/aec_api/models.py`
+  documents that it exists *because* a COUNT(*) scheme let a delete free a number for reuse. A money
+  bug's fix had therefore reintroduced, on a money register, the scheme this repo already retired for
+  refs. The review framed it as a concurrency race, which it also is; but the reuse half needs no
+  threads (delete application 3, the next one is "App 3") and is the half that leaves a register
+  unable to say which application was paid. *A race-shaped description hides the deterministic half,
+  and the deterministic half is worse.* Now allocated through `modules.next_counter`, extracted from
+  `_next_ref` so the atomic primitive is shared rather than private to its first caller; the seed is
+  a callable so the ordinary path stays one `UPDATE … RETURNING`. Also from that review: a
+  non-positive `app_no` stored `"App -2"` and was reported back as `2`, refused now at the builder
+  so no direct caller bypasses it; and the create button is disabled for its own round trip, because
+  creating an application is not idempotent and numbering labels duplicates rather than stopping them.
+
 - ✅ ⭐ **VENDOR-SCORECARD — a trade partner's record with your firm, and the limits of it**
   *(S — Lanes B/I; **CLOSED 2026-09-12**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/portal/panels/vendorScorecard.test.ts` and `services/api/test_route_reachability.py`)*

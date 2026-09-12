@@ -189,6 +189,38 @@ with TestClient(app) as c:
     check("  OVERBILL: the second builder is retired — one route builds an application",
           gone.status_code == 404, gone.status_code)
 
+    # --- 3c. APP-NO: the number is allocated, not counted --------------------------------------------
+    # Review of the consolidation above found that `app_no = 1 + len(records)` had been introduced
+    # here. `RefCounter`'s own docstring in `models.py` says that counter exists *because* a
+    # COUNT(*) scheme let a later create reuse a number after a delete — so this reintroduced, on a
+    # money register, the scheme the codebase had already retired for refs.
+    #
+    # The race half needs threads to show. THE REUSE HALF DOES NOT, and it is the worse of the two:
+    # a register with two rows both reading "App 3" has no way to say which application was paid.
+    # *A race-shaped description of this defect hides the half that reproduces deterministically.*
+    n1 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    n2 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    check("  APP-NO: successive applications get successive numbers",
+          n2["application_no"] == n1["application_no"] + 1,
+          (n1["application_no"], n2["application_no"]))
+    c.delete(f"/projects/{p2}/modules/owner_invoice/{n2['owner_invoice']['id']}")
+    n3 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    check("  APP-NO: deleting an application does NOT free its number for reuse",
+          n3["application_no"] > n2["application_no"],
+          f"deleted App {n2['application_no']}, next was App {n3['application_no']}")
+    check("  APP-NO: ...and the stored record agrees with the number the route reported",
+          n3["owner_invoice"]["data"]["number"] == f"App {n3['application_no']}",
+          n3["owner_invoice"]["data"]["number"])
+
+    # `number` is a DISPLAY string and the route reads the count back off its trailing digits, so a
+    # negative app_no stored "App -2" and was reported as 2 — the response and the record
+    # disagreeing about which application had just been created. Refused at the builder rather than
+    # at the route, so a direct caller cannot get round it.
+    for bad in (0, -2):
+        r = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={"app_no": bad})
+        check(f"  APP-NO: app_no={bad} is refused before any record is created",
+              r.status_code == 422, r.status_code)
+
     # --- 4. the form is a form ----------------------------------------------------------------------
     mods = {m["key"]: m for m in c.get("/modules").json()}
     oi = mods["owner_invoice"]

@@ -6,12 +6,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from . import modules as me
 from . import money
 
 DEFAULT_RETAINAGE = 5.0
+
+#: Counter key for pay-application numbers. NOT a module key — `modules.next_counter` requires a
+#: key no module can hold, and module keys are directory names under `services/api/modules/`, which
+#: cannot contain a colon.
+APP_NO_COUNTER = "owner_invoice:app_no"
 
 
 def _n(v: Any) -> float:
@@ -181,9 +187,23 @@ def build_application(db: Session, pid: str, app_no: int | None = None, period: 
     record the arithmetic can no longer be checked against, and here something downstream was
     already trying to check.*
     """
+    # Rejected BEFORE anything is created, and here rather than in the route, so a direct caller
+    # cannot get round it. `number` is a display string, so `app_no=-2` stored "App -2" while the
+    # route's trailing-digit parse read it back as 2: the response and the record disagreed.
+    if app_no is not None and app_no < 1:
+        raise HTTPException(422, "app_no must be 1 or greater")
     sheet = g703(db, pid)
     if app_no is None:
-        app_no = 1 + len(_records(db, "owner_invoice", pid))
+        # ATOMIC, not `1 + len(_records(...))`. That was a COUNT(*) allocation — and `RefCounter`'s
+        # own docstring says it exists because a COUNT(*) scheme let a later create reuse a number
+        # after a delete. So the first draft of this consolidation reintroduced, on a money
+        # register, the exact scheme this codebase had already retired for refs: two concurrent
+        # applications both became "App 3" (no unique index on `data.number` refuses either), and
+        # deleting application 3 made the next one "App 3" again — deterministically, no
+        # concurrency needed. *The second is the worse half and it is the half a race-shaped
+        # description hides.*
+        app_no = me.next_counter(db, pid, APP_NO_COUNTER,
+                                 lambda: len(_records(db, "owner_invoice", pid)))
     cert = g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage,
                 previous_certificates=_certified_to_date(db, pid))
     data = {
