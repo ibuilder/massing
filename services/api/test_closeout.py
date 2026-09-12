@@ -98,9 +98,17 @@ with TestClient(app) as c:
     # period 1 lien waiver = current payment due (completed - retainage)
     lw = c.post(f"/projects/{pid}/cost/lien-waiver", json={"app_no": 1, "vendor": "Concrete Co"}, headers=H)
     assert lw.status_code == 201 and lw.json()["amount"] == 237_500, lw.text
-    # advance the period: this -> prev, ready for application no. 2
-    adv = c.post(f"/projects/{pid}/cost/pay-app/advance", headers=H).json()
-    assert adv["advanced_lines"] == 1 and adv["next_application_no"] >= 1, adv
+    # advance the period: this -> prev, ready for application no. 2.
+    #
+    # PAY-APP retired `/cost/pay-app/advance`, a SECOND implementation of this roll that this test
+    # used to call, and the two did not agree: the retired one advanced every SOV row and counted
+    # them all (`advanced_lines`), while this one touches only rows with work billed this period and
+    # counts those (`lines_advanced`). It also returned a `next_application_no` derived from an
+    # `application_no` field on the SOV lines, which nothing sets — the real next number comes from
+    # `cost.build_application`, which counts the applications that exist. *Two implementations of one
+    # money operation, disagreeing on both the count and the number, one of them dark.*
+    adv = c.post(f"/projects/{pid}/cost/advance-period", headers=H).json()
+    assert adv["lines_advanced"] == 1, adv
     g703 = c.get(f"/projects/{pid}/cost/g703", headers=H).json()
     assert g703["totals"]["prev"] == 250_000 and g703["totals"]["this"] == 0, g703["totals"]
 

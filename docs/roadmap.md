@@ -1780,6 +1780,31 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **PAY-APP — two builders for one document, and the one the product called over-billed**
+  *(M — Lanes C/G/I; **CLOSED 2026-09-12**; gated by `services/api/test_pay_application.py`,
+  `services/api/test_closeout.py` and `services/api/test_route_reachability.py`)*
+
+  **A live over-billing bug, reproduced before it was fixed.** $100k line, 10% retainage, $18,000
+  genuinely due. Create an owner invoice from the Budget panel, submit it, and G702 line 7 went
+  **45,000 → 0** while line 8 went **18,000 → 63,000**: the next draw claimed everything earned to
+  date all over again.
+
+  `cost.build_application` freezes the whole application and had **no caller, ever**. The button
+  called `…/cost/pay-app/invoice`, which built its own record from `g702()` line 8 and stored five
+  keys. `cost._certified_to_date` fills line 7 by reading `current_payment_due` off submitted
+  applications — absent from that record — so the sum was `0.0`. **`0.0` is not `None`**, and `None`
+  was the sentinel that would have fallen back to a correct reconstruction. *Using the feature is
+  what broke it*, which is why the suite had never seen it.
+
+  Consolidated rather than patched, per the maintainer's call: one builder, the dark route retired,
+  the `prime_contract` link carried into the survivor so nothing is traded away. Two further finds
+  in the same read — every application was numbered "App 1" (`app_no` defaulted to 1 on *both* sides
+  of the wire), and the period roll also had two implementations, the dark one counting every SOV row
+  where the live one counts only rows with work. `test_closeout.py` had been written against the dark
+  route's response shape, which is how that pair announced itself.
+
+  Routes **949 → 947**, uncalled **58 → 56**, short-leaf ratchet **5 → 3**.
+
 - ✅ ⭐ **VENDOR-SCORECARD — a trade partner's record with your firm, and the limits of it**
   *(S — Lanes B/I; **CLOSED 2026-09-12**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/portal/panels/vendorScorecard.test.ts` and `services/api/test_route_reachability.py`)*

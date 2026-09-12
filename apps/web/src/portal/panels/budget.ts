@@ -592,10 +592,14 @@ export async function renderBudget(ctx: PanelContext) {
         ctx.host.setStatus("pay-app PDF generated"); }
       catch (e) { ctx.host.setStatus(`pay app failed: ${(e as Error).message}`); }
     };
+    // PAY-APP — the application, frozen. No `app_no` is passed: the server numbers from the
+    // applications that exist, where this used to send `1` every time and label them all "App 1".
     const invBtn = document.createElement("button"); invBtn.className = "tool-btn"; invBtn.dataset.cap = "edit";
-    invBtn.textContent = "＋ Owner invoice from draw";
+    invBtn.textContent = "＋ Owner application from draw";
+    invBtn.title = "Freeze the current G702/G703 into a draft application — its continuation sheet "
+      + "and all nine certificate lines, so a later SOV edit cannot restate it";
     invBtn.onclick = async () => {
-      try { const r = await ctx.host.api.payAppInvoice(pid, 1);
+      try { const r = await ctx.host.api.payAppInvoice(pid);
         ctx.host.setStatus(`owner invoice created: $${Math.round(r.amount).toLocaleString()}`); jumpTo("owner_invoice"); }
       catch (e) { ctx.host.setStatus(`invoice failed: ${(e as Error).message}`); }
     };

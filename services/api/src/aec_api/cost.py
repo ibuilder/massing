@@ -165,6 +165,21 @@ def build_application(db: Session, pid: str, app_no: int | None = None, period: 
 
     Draft, deliberately. This produces the record; submitting and certifying it are workflow
     transitions a person performs, because a certificate nobody signed is not a certificate.
+
+    **THIS IS THE ONLY BUILDER, since PAY-APP.** A second one lived in the router
+    (`/cost/pay-app/invoice`) and was the one the product actually called. It ran `g702()`, kept
+    LINE 8 ALONE, and stored `{number, amount, period, status, prime_contract}` — no line items, no
+    lines 1-7 or 9, no `sov_snapshot_at`. That was not merely a thinner record; it was an
+    OVER-BILLING BUG, and `_certified_to_date` above is why. It reads `current_payment_due` from
+    submitted applications; the thin record has no such key, so the sum came out 0.0 — **not None**.
+    None would have fallen through to the reconstruction and been right. 0.0 is a number, so line 7
+    became zero and the next application re-billed the whole earned-to-date. Measured on a $100k
+    line at 10% retainage with $18,000 genuinely due: submitting the invoice the button created
+    moved line 7 from 45,000 to 0 and line 8 from 18,000 to 63,000.
+
+    *A record that stores the answer and discards the arithmetic is not a smaller record — it is a
+    record the arithmetic can no longer be checked against, and here something downstream was
+    already trying to check.*
     """
     sheet = g703(db, pid)
     if app_no is None:
@@ -187,6 +202,12 @@ def build_application(db: Session, pid: str, app_no: int | None = None, period: 
         "sov_snapshot_at": _now_date(),
         "status": "draft",
     }
+    # The prime contract this draw bills against. Carried in from the thin `/cost/pay-app/invoice`
+    # builder this function replaced (PAY-APP): it was the one field that route set and this one did
+    # not, and dropping it on consolidation would have traded one missing fact for another.
+    pc = next((r for r in me.list_records(db, "prime_contract", pid, limit=1)), None)
+    if pc:
+        data["prime_contract"] = pc["id"]
     return me.create_record(db, "owner_invoice", pid, {"data": data}, actor, "GC")
 
 

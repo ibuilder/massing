@@ -12,6 +12,50 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A submitted pay application no longer makes the next one re-bill the whole job
+
+**This is an over-billing bug that shipped**, and it is fixed. On a $100k line at 10% retainage with
+$18,000 genuinely due, creating an owner invoice with the button in Finance → Budget and submitting
+it moved G702 **line 7 from $45,000 to $0 and line 8 from $18,000 to $63,000**. The next draw asked
+for everything earned to date, again.
+
+**Why.** There were two builders for the same document. `cost.build_application` freezes the whole
+application — the G703 continuation sheet, all nine certificate lines, `sov_snapshot_at` — and sat
+behind `POST …/cost/pay-application` with **no client caller ever**. The route the button actually
+called, `…/cost/pay-app/invoice`, assembled its own record from `g702()` **line 8 alone** and stored
+`{number, amount, period, status, prime_contract}`.
+
+The thin record was not merely smaller. `cost._certified_to_date` fills line 7 by reading
+`current_payment_due` off submitted applications — a key the thin record does not have. So the sum
+came out `0.0`, and **`0.0` is not `None`**. `None` is the sentinel meaning *fall back to
+reconstructing from `completed_prev`*, which would have been right. A real number suppresses the
+fallback. Creating the invoice therefore replaced a correct answer with a wrong zero — *the failure
+needed the feature to be used*, which is why nothing caught it.
+
+**The fix, and it is a consolidation rather than a patch.** `…/cost/pay-app/invoice` now calls
+`build_application`, so there is exactly one builder and the record it writes carries its own
+arithmetic. `…/cost/pay-application` is retired. The `prime_contract` link, the one field the thin
+route set and the builder did not, is carried into the builder so consolidating trades no fact away.
+
+Two more things fell out of reading it:
+
+- **Every application was called "App 1."** `app_no` defaulted to `1` server-side *and* the client
+  always sent `1`. It is optional now in both places, and the server numbers from the applications
+  that exist. The button is relabelled **"Owner application from draw"**, because that is what it
+  makes.
+- **The period roll had two implementations too**, and they disagreed. `…/cost/pay-app/advance` was
+  dark and counted *every* SOV row; the live `…/cost/advance-period` counts only rows with work
+  billed this period. The dark one also returned a `next_application_no` derived from an
+  `application_no` field on SOV lines that nothing sets. It is retired, and `test_closeout.py` — which
+  had been written against the dark route's response shape — now exercises the live one.
+
+Six regression assertions pin the money, including that the retired builder stays retired: its
+response shape differed, so a caller written against it would silently receive a record where the
+survivor returns an envelope. Routes 949 → 947, uncalled 58 → 56, short-leaf ratchet 5 → 3.
+
+*A record that keeps the answer and discards the arithmetic is not a smaller record — it is one that
+something downstream was already trying to read.*
+
 ### Every trade partner's record with your firm, and what it does not cover
 
 `GET /benchmarks/vendors` has reported each subcontractor's cross-project commercial and compliance

@@ -85,31 +85,6 @@ def compliance_expiring(pid: str, within_days: int = 30, db: Session = Depends(g
             "count": len(out["expired"]) + len(out["expiring"])}
 
 
-@router.post("/projects/{pid}/cost/pay-app/advance")
-def payapp_advance(pid: str, db: Session = Depends(get_db),
-                   actor: str = Depends(require_role("editor"))):
-    """Close the current pay-app period: roll each SOV line's `completed_this` into
-    `completed_prev` and zero `completed_this`, so the next G702/G703 application starts a fresh
-    period with the prior work correctly shown as previous certificates. Returns the next app no."""
-    if "sov" not in me.TABLES:
-        raise HTTPException(409, "SOV module not loaded")
-    rows = me.list_records(db, "sov", pid, limit=1_000_000)
-    if not rows:
-        raise HTTPException(409, "no schedule-of-values lines to advance")
-    advanced = 0
-    for r in rows:
-        d = dict(r.get("data") or {})
-        this = float(d.get("completed_this") or 0)
-        prev = float(d.get("completed_prev") or 0)
-        d["completed_prev"] = round(prev + this, 2)
-        d["completed_this"] = 0
-        me.update_record(db, "sov", pid, r["id"], {"completed_prev": d["completed_prev"],
-                                                    "completed_this": 0}, actor, "GC")
-        advanced += 1
-    next_app = int(max((float((r.get("data") or {}).get("application_no") or 0) for r in rows), default=0)) + 1
-    return {"advanced_lines": advanced, "next_application_no": next_app}
-
-
 @router.post("/projects/{pid}/cost/lien-waiver", status_code=201)
 def lien_waiver_from_payapp(pid: str, app_no: int = Body(1, embed=True),
                             vendor: str = Body("", embed=True),
