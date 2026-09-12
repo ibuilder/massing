@@ -52,6 +52,8 @@ import { join, relative } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
+import { escapeHtml } from "./feedback";
+
 const SRC = join(__dirname, "..");
 
 /** Escapers that make an interpolation safe. Tested per `${…}`, never per line. */
@@ -76,18 +78,26 @@ const COLD = /^(i|idx|j|n|k|len|count|total|pct|num|\d+)$/i;
  * should CHECK rather than trust — which is what the counting version claimed and could not deliver,
  * because a number does not say which sink it is describing.
  */
+// SIX of these entries are the class that must NOT be escaped, and they are all one shape: a
+// ternary whose branches are LITERAL MARKUP or a literal glyph — `row.gap ? ' <span …>⚠️</span>' :
+// ""`, `s.name === r.best ? " ★" : ""`, `s.daylight_limited ? ' title="…"' : ""` — plus `mark`
+// (a ✓/✗/– glyph) and `discColorByName[disc]` (a colour constant from a lookup). They match HOT on
+// their CONDITION, not on their value. Wrapping any of them in esc() would render the markup as
+// visible text. They are baselined rather than fixed because the fix would be the bug.
 const BASELINE: Record<string, readonly string[]> = {
   "main.ts": [
     "it.label",
   ],
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
+    "mark",
     "r.message || \"No bids to level.\"",
     "r.recommendation.missing_scope.length ? \"var(--status-warn)\" : \"var(--status-good)\"",
     "r.recommendation.note",
     "r.source === \"claude\" ? \"AI\" : \"extract\"",
     "r.source === \"claude\" ? \"AI\" : \"rules\"",
     "r.source === \"claude\" ? \"AI\" : \"rules\"",
+    "row.gap ? ' <span title=\"scope gap\">⚠️</span>' : \"\"",
   ],
   "portal/panels/analytics.ts": [
     "c.cost_code",
@@ -167,6 +177,11 @@ const BASELINE: Record<string, readonly string[]> = {
     "row(\"Plus land\", money(v.cost.land_value))",
     "x.code",
   ],
+  "proforma/testfitTab.ts": [
+    "s.daylight_limited ? ' title=\"deep plate — dark interior earns no rent\"' : \"\"",
+    "s.name === r.best ? \" ★\" : \"\"",
+    "s.name === r.best ? ' style=\"font-weight:700\"' : \"\"",
+  ],
   "reportCenter.ts": [
     "money(s.approved_value)",
     "money(s.executed_value)",
@@ -189,6 +204,7 @@ const BASELINE: Record<string, readonly string[]> = {
     "m.value",
   ],
   "viewer/app.ts": [
+    "discColorByName[disc]",
     "reason",
   ],
   "viewer/tools/authoringSection.ts": [
@@ -250,6 +266,7 @@ export function interpolations(src: string): string[] {
     }
     ts.forEachChild(node, collect);
   };
+  const bound = new Set<string>();                 // names reaching innerHTML as a bare identifier
   const walk = (node: ts.Node): void => {
     const isInnerHtmlWrite =
       ts.isBinaryExpression(node)
@@ -259,10 +276,37 @@ export function interpolations(src: string): string[] {
           || (ts.isElementAccessExpression(node.left)
               && ts.isStringLiteral(node.left.argumentExpression)
               && node.left.argumentExpression.text === "innerHTML"));
-    if (isInnerHtmlWrite) collect(node.right);
+    if (isInnerHtmlWrite) {
+      const before = out.length;
+      collect(node.right);
+      for (let i = before; i < out.length; i++) if (/^[A-Za-z_$][\w$]*$/.test(out[i]!)) bound.add(out[i]!);
+    }
     ts.forEachChild(node, walk);
   };
   walk(sf);
+
+  // ONE LEVEL OF INDIRECTION — the blind spot a review finding on #544 exposed through
+  // `main.ts`'s `${d.name}`. Markup is very often assembled into a local FIRST and only then
+  // interpolated:
+  //
+  //     const rows = p.deals.map((d) => `<tr><th>${d.name}</th>…`).join("");
+  //     panel.innerHTML = `…${rows}…`;
+  //
+  // The walk above only sees spans lexically inside the `innerHTML =` expression, so `${d.name}`
+  // was invisible to BOTH rules in this file — not baselined, not flagged, live. It reached
+  // innerHTML through exactly one hop, and 15 hot interpolations across 8 files sat behind that
+  // hop. A sink one assignment away from the write is still a sink; the scanner was measuring
+  // syntax where the question is reachability.
+  //
+  // Only one hop is followed, deliberately. Two hops would need real dataflow, and the honest
+  // statement of a bounded rule beats a rule that quietly stops somewhere undocumented: a local
+  // built from ANOTHER local that then reaches innerHTML is still not covered.
+  const followBuilders = (n: ts.Node): void => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && bound.has(n.name.text)
+        && n.initializer) collect(n.initializer);
+    ts.forEachChild(n, followBuilders);
+  };
+  followBuilders(sf);
   return out;
 }
 
@@ -325,9 +369,12 @@ export function hotSinks(src: string): string[] {
  */
 export function valueBindingSinks(src: string): string[] {
   const sf = ts.createSourceFile("x.ts", src, ts.ScriptTarget.Latest, true);
+  // Constructors and setters carry parameters like any other callable, and leaving them out made
+  // this a coverage gap in a security gate rather than a style question (review finding on #544).
   const isFn = (n: ts.Node): boolean =>
     ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)
-    || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
+    || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)
+    || ts.isConstructorDeclaration(n) || ts.isSetAccessorDeclaration(n);
 
   const bindNames = (name: ts.BindingName, into: Set<string>): void => {
     if (ts.isIdentifier(name)) { into.add(name.text); return; }
@@ -338,15 +385,44 @@ export function valueBindingSinks(src: string): string[] {
     for (const p of (fn as ts.SignatureDeclaration).parameters ?? []) bindNames(p.name, out);
     return out;
   };
-  // Destructured names are collected file-wide rather than per-scope: this rule only ever asks
-  // "is this name a value binding somewhere", and a false positive costs one `esc()` that was
-  // already correct, while a false negative is a live sink. Err toward escaping.
-  const destructured = new Set<string>();
-  const collectDestructured = (n: ts.Node): void => {
-    if (ts.isVariableDeclaration(n) && !ts.isIdentifier(n.name)) bindNames(n.name, destructured);
-    ts.forEachChild(n, collectDestructured);
+  // LEXICALLY SCOPED. The first version collected destructured names file-wide and justified it as
+  // "a false positive only costs one esc() that was already correct". That reasoning was WRONG, and
+  // a review finding on #544 said so: a destructured `rows` in one function made an unrelated plain
+  // local `rows` in a SIBLING function fail the plain-local exclusion — and that exclusion exists
+  // precisely because those locals hold assembled markup, so the "harmless" fix would have escaped
+  // HTML and broken the page. A false positive is only cheap when the suggested fix is safe.
+  // Same for the upward parameter walk: a nearer local shadowing an outer parameter was reported.
+  // So resolve each interpolation to its NEAREST binding and report only when that binding is a
+  // parameter or a destructuring element.
+  const isScope = (n: ts.Node): boolean =>
+    isFn(n) || ts.isBlock(n) || ts.isSourceFile(n)
+    || ts.isForOfStatement(n) || ts.isForInStatement(n) || ts.isForStatement(n)
+    || ts.isCaseClause(n) || ts.isCatchClause(n);
+
+  /** The nearest binding of `name` visible at `use`: "param", "destructured", "local", or null. */
+  const nearestBinding = (name: string, use: ts.Node): string | null => {
+    for (let scope: ts.Node | undefined = use.parent; scope; scope = scope.parent) {
+      if (!isScope(scope)) continue;
+      if (isFn(scope) && paramsOf(scope).has(name)) return "param";
+      // Variable declarations belonging to THIS scope only — never descend into a nested
+      // function, whose locals are not visible here (that descent is what made a sibling
+      // function's `rows` shadow this one's).
+      let found: string | null = null;
+      const look = (n: ts.Node): void => {
+        if (found) return;
+        if (ts.isVariableDeclaration(n)) {
+          const names = new Set<string>();
+          bindNames(n.name, names);
+          if (names.has(name)) found = ts.isIdentifier(n.name) ? "local" : "destructured";
+        }
+        if (n !== scope && isFn(n)) return;
+        ts.forEachChild(n, look);
+      };
+      look(scope);
+      if (found) return found;
+    }
+    return null;
   };
-  collectDestructured(sf);
 
   const out: string[] = [];
   const collect = (node: ts.Node, into: ts.Expression[]): void => {
@@ -370,12 +446,8 @@ export function valueBindingSinks(src: string): string[] {
       collect(node.right, exprs);
       for (const e of exprs) {
         if (!ts.isIdentifier(e) || SAFE.test(e.text)) continue;
-        let scope: ts.Node | undefined = e.parent, isParam = false;
-        while (scope) {
-          if (isFn(scope) && paramsOf(scope).has(e.text)) { isParam = true; break; }
-          scope = scope.parent;
-        }
-        if (isParam || destructured.has(e.text)) out.push(e.text);
+        const binding = nearestBinding(e.text, e);
+        if (binding === "param" || binding === "destructured") out.push(e.text);
       }
     }
     ts.forEachChild(node, walk);
@@ -605,6 +677,77 @@ describe("innerHTML escaping ratchet (identity-keyed)", () => {
       + "There is no baseline for this rule: the identity is the binding NAME, which does not move "
       + "when a caller starts passing user data, so grandfathering one would freeze a sink open.")
       .toBe("none");
+  });
+
+  // ---- Review findings on #544, each pinned so it cannot come back silently -------------------
+
+  it("FOLLOWS ONE HOP through a builder local — the blind spot that hid a live sink", () => {
+    // Markup is usually assembled into a local first and only then interpolated. The scanner walked
+    // only the spans lexically inside the `innerHTML =` expression, so `${d.name}` in main.ts was
+    // invisible to BOTH rules here: not baselined, not flagged, live. A reviewer found the symptom;
+    // the cause was that the scanner measured SYNTAX where the question is REACHABILITY.
+    const builder = `
+      const rows = p.deals.map((d) => \`<tr><th>\${d.name}</th></tr>\`).join("");
+      panel.innerHTML = \`<table>\${rows}</table>\`;`;
+    expect(hotSinks(builder)).toEqual(["d.name"]);
+    // ...and the escaped form clears it, so the fix is reachable.
+    expect(hotSinks(builder.replace("${d.name}", "${esc(d.name)}"))).toEqual([]);
+  });
+
+  it("stops at ONE hop, and says so rather than pretending to do dataflow", () => {
+    // A local built from another local is NOT covered. Asserting the limit keeps it honest: a
+    // silent boundary is how a gate ends up reporting good news about ground it never walked.
+    const twoHops = `
+      const inner = items.map((r) => \`<td>\${r.name}</td>\`).join("");
+      const outer = \`<tr>\${inner}</tr>\`;
+      el.innerHTML = \`<table>\${outer}</table>\`;`;
+    expect(hotSinks(twoHops), "two hops is a known, documented gap").toEqual([]);
+  });
+
+  it("sees parameters of CONSTRUCTORS and SETTERS, not just functions and methods", () => {
+    // Review finding: `isFn` omitted both, so a parameter in either body passed the guard. A
+    // coverage hole in a security gate, not a style question.
+    expect(valueBindingSinks(
+      "class A { constructor(label) { this.el.innerHTML = `<b>${label}</b>`; } }")).toEqual(["label"]);
+    expect(valueBindingSinks(
+      "class A { set title(value) { this.el.innerHTML = `<b>${value}</b>`; } }")).toEqual(["value"]);
+  });
+
+  it("resolves bindings LEXICALLY, so a sibling scope cannot make a plain local look unsafe", () => {
+    // Review finding, and my own rationale for the file-wide set was wrong: I argued a false
+    // positive "costs one esc() that was already correct". For THIS exclusion it costs the opposite
+    // — the plain-local carve-out exists because those locals hold assembled markup, so the
+    // "harmless" fix would have escaped HTML and broken the page. A false positive is only cheap
+    // when the fix it suggests is safe.
+    const siblings = `
+      function a([label, rows]) { x.innerHTML = \`<i>\${rows}</i>\`; }
+      function b(items) { const rows = items.map((r) => "<td></td>").join(""); y.innerHTML = \`<i>\${rows}</i>\`; }`;
+    // `rows` is destructured in a(), a plain local in b(). Only a()'s may be reported.
+    expect(valueBindingSinks(siblings)).toEqual(["rows"]);
+
+    // And a nearer local shadowing an outer parameter resolves to the LOCAL, so it is not reported.
+    const shadowed = `
+      function outer(value) {
+        function inner() { const value = "<b>x</b>"; z.innerHTML = \`<i>\${value}</i>\`; }
+      }`;
+    expect(valueBindingSinks(shadowed)).toEqual([]);
+  });
+
+  it("escapes an option VALUE as well as its text, so the value round-trips", () => {
+    // Review finding on schedule.ts. `esc` turns `&` into `&amp;`; the old `.replace(/"/g, …)` did
+    // not, so a milestone literally named `A &amp; B` came back out of the attribute as `A & B` and
+    // the next request queried the wrong milestone. Escaping only the TEXT made the two disagree.
+    // Asserted through a real DOM parse rather than by eyeballing the template.
+    const name = 'A &amp; B "quoted" <b>';
+    const sel = document.createElement("select");
+    sel.innerHTML = `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+    expect(sel.value, "the value must survive innerHTML parsing unchanged").toBe(name);
+    expect(sel.options[0]!.textContent).toBe(name);
+
+    // the old shape did not round-trip — this is the regression being pinned
+    const bad = document.createElement("select");
+    bad.innerHTML = `<option value="${name.replace(/"/g, "&quot;")}">${escapeHtml(name)}</option>`;
+    expect(bad.value).not.toBe(name);
   });
 
   it("sees the free-text identifiers added with this change", () => {

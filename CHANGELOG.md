@@ -71,6 +71,34 @@ only because the suspects were *read* rather than counted. And the single real f
 i.e. in the class the new rule deliberately excludes: *the documented gap was live, not theoretical,*
 which is the whole argument for measuring an exclusion instead of asserting one.
 
+**A review round then found the detector's real boundary, and it was hiding a live sink.** The
+scanner walked only the interpolations lexically inside an `innerHTML =` expression. But markup is
+usually assembled into a local FIRST and only then interpolated — `const rows = deals.map(d =>
+\`<tr><th>${d.name}</th>\`)`, then `panel.innerHTML = \`…${rows}…\``. Every span inside that builder
+was invisible to **both** rules: not baselined, not flagged, live. The reviewer found one symptom
+(`d.name`, a saved scenario name that any user can set); behind that one hop sat **15 hot
+interpolations across 8 files**. *The scanner was measuring syntax where the question is
+reachability.* It now follows one hop, and stops there deliberately — a local built from another
+local is still uncovered, and the test asserts that limit rather than leaving it to be discovered.
+
+Nine of the fifteen were real and are escaped: a scenario name, vendor names in a bid-levelling
+matrix, carbon hotspot element names, a takt trade name, project-health domain labels, sources-uses
+line labels, forecast line names, and test-fit scheme names. The remaining six are one shape — a
+ternary whose branches are literal markup or a glyph (`s.name === r.best ? " ★" : ""`) — which match
+the term list on their *condition*, never their value. Escaping any of them would render markup as
+visible text, so they are baselined with that reason: **the fix would be the bug.**
+
+Three more findings from the same round, all real. The value-binding rule ignored **constructor and
+setter parameters** — a coverage hole in a security gate. It resolved bindings **file-wide**, so a
+destructured `rows` in one function made an unrelated plain local `rows` in a sibling fail the
+plain-local exclusion; the rationale written beside that code ("a false positive only costs one
+`esc()` that was already correct") was wrong, because for *this* exclusion the suggested fix escapes
+assembled HTML and breaks the page — *a false positive is only cheap when the fix it suggests is
+safe.* Bindings resolve lexically now. And a milestone `<option>` escaped its **text but not its
+value**: `esc` turns `&` into `&amp;` and the old `.replace(/"/g, …)` did not, so a milestone named
+`A &amp; B` parsed back out as `A & B` and the next request queried the wrong one — asserted now
+through a real DOM parse rather than by reading the template.
+
 One test had to be repaired as a consequence, and the repair is the point. The substitution check
 hardcoded `portal/panels/evm.ts` and the identity `"value"` as its fixture; this change escaped
 every sink in that file, so a legitimate improvement red the test with a message about a missing

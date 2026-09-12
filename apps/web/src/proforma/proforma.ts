@@ -929,7 +929,7 @@ export class ProformaUI {
     host.appendChild(body); this.root.appendChild(host);
     void this.api.sourcesUses(pid).then((su) => {
       const rows = (items: { label: string; amount: number }[]) =>
-        items.map((i) => `<tr><th style="text-align:left;font-weight:400">${i.label}</th><td style="text-align:right">${money(i.amount)}</td></tr>`).join("");
+        items.map((i) => `<tr><th style="text-align:left;font-weight:400">${escapeHtml(i.label)}</th><td style="text-align:right">${money(i.amount)}</td></tr>`).join("");
       body.innerHTML =
         `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">`
         + `<div><div class="section-title" style="font-size:12px;margin:0 0 2px">Uses</div>`
@@ -1454,7 +1454,7 @@ export class ProformaUI {
     const delta = f.irr_delta == null ? "" : `${f.irr_delta >= 0 ? "+" : ""}${(f.irr_delta * 100).toFixed(1)}pp`;
     const dColor = (f.irr_delta ?? 0) >= 0 ? "#2ecc71" : "#e74c3c";
     const rows = f.lines.map((L) =>
-      `<tr><th style="text-align:left">${L.name}</th><td>${money(L.budget)}</td>` +
+      `<tr><th style="text-align:left">${escapeHtml(L.name)}</th><td>${money(L.budget)}</td>` +
       `<td>${money(L.actual_to_date)}</td><td>${money(L.forecast_at_completion)}</td>` +
       `<td style="color:${L.variance_to_budget > 0 ? "#e74c3c" : "#2ecc71"}">${L.variance_to_budget >= 0 ? "+" : ""}${money(L.variance_to_budget)}</td></tr>`).join("");
     document.getElementById("pf-fc-out")!.innerHTML =

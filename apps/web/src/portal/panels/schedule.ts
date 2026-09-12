@@ -429,7 +429,11 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       // milestone options (only rebuild once)
       if (!msSel.options.length) {
         msSel.innerHTML = `<option value="">All phases</option>`
-          + b.milestones.map((m) => `<option value="${m.replace(/"/g, "&quot;")}">${esc(m)}</option>`).join("");
+          // esc() on BOTH, and the value matters as much as the text: `esc` turns `&` into `&amp;`
+          // but `.replace(/"/g, …)` did not, so a milestone literally named `A &amp; B` parsed back
+          // out of the attribute as `A & B` and `loadPull()` then queried the wrong milestone on
+          // two API calls. Escaping the text alone made the two disagree.
+          + b.milestones.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
       }
       if (!b.total) { ppBody.innerHTML = `<div class="meta">No pull-plan tasks yet — click <b>✎ Sticky notes</b> to add them. Work backward from a milestone; each trade posts its tasks and hand-offs, and constraints are cleared to make work ready.</div>`; return; }
       ppBody.innerHTML = "";
@@ -783,7 +787,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       + ` · lead ${pg.lead_trade ?? "—"} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
       + ` · PPC <b>${Math.round((tp.ppc.ppc ?? 0) * 100)}%</b> (${tp.ppc.rating})</div>`;
     const rows = pg.rows.map((r) =>
-      `<tr><td>${r.trade}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`
+      `<tr><td>${esc(r.trade)}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`
       + `<td style="text-align:right;color:${color(r.status)}">${r.variance_floors > 0 ? "+" : ""}${r.variance_floors}</td>`
       + `<td style="text-align:right">${r.actual_floors_per_week}</td><td style="text-align:right">${r.planned_floors_per_week}</td></tr>`).join("");
     taktBody.innerHTML = head + (pg.rows.length

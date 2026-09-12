@@ -448,7 +448,7 @@ export async function renderRiskCost(ctx: PanelContext) {
         carbonCompSlot.append(t);
       }
       if (e.hotspots?.length) {
-        const tops = e.hotspots.slice(0, 3).map((h) => `${h.name || h.guid} (${h.category}, ${(h.kgco2e / 1000).toFixed(1)} t)`).join(" · ");
+        const tops = e.hotspots.slice(0, 3).map((h) => `${esc(h.name || h.guid)} (${esc(h.category)}, ${(h.kgco2e / 1000).toFixed(1)} t)`).join(" · ");
         carbonCompSlot.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:2px">Hotspots: ${tops}</div>`);
       }
     }).catch(() => { carbonCompSlot.innerHTML = `<div class="meta">Load a model in the Model workspace to compute per-element carbon.</div>`; });

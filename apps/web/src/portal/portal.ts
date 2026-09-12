@@ -941,9 +941,9 @@ export class PortalUI {
         const dot = (s: string) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${tone[s] || "#9aa0a6"};margin-right:5px"></span>`;
         const c = tone[h.overall_status] || "#9aa0a6";
         const chips = h.domains.map((d) =>
-          `<span title="${d.headline.replace(/"/g, "&quot;")}" style="display:inline-flex;align-items:center;font-size:11px;background:#ffffff10;border:1px solid #ffffff22;border-radius:12px;padding:2px 8px;margin:2px 4px 2px 0">${dot(d.status)}${d.label}</span>`).join("");
+          `<span title="${esc(d.headline)}" style="display:inline-flex;align-items:center;font-size:11px;background:#ffffff10;border:1px solid #ffffff22;border-radius:12px;padding:2px 8px;margin:2px 4px 2px 0">${dot(d.status)}${esc(d.label)}</span>`).join("");
         const att = h.attention_items.slice(0, 4).map((a) =>
-          `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px;margin:2px 0">${dot(a.status)}<span><b>${a.domain}</b> — ${a.issue}</span></div>`).join("");
+          `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px;margin:2px 0">${dot(a.status)}<span><b>${esc(a.domain)}</b> — ${esc(a.issue)}</span></div>`).join("");
         hb.innerHTML = `<div class="dash-card" style="border-left:4px solid ${c};margin-top:8px">`
           + `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">`
           + `<div style="font-size:30px;font-weight:800;color:${c};line-height:1">${h.health_score ?? "—"}<span style="font-size:13px;font-weight:600;opacity:.6">/100</span></div>`

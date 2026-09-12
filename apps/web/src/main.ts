@@ -1306,7 +1306,7 @@ async function openPortfolioTab() {
     ["Portfolio IRR", pc(t.portfolio_irr ?? null)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
-    `<tr><th style="text-align:left">${d.name}</th><td>${m(d.total_uses)}</td>` +
+    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${m(d.total_uses)}</td>` +
     `<td>${m(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
   panel.innerHTML =
     `<div class="section-title">Portfolio roll-up — ${p.deal_count} deal(s)</div>` +
