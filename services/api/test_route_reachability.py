@@ -1208,6 +1208,148 @@ for _r in LEAF_COLLISION_DARK:
           "LEAF_COLLISION_DARK and record what wired it, the way /bsdd/class and "
           "/projects/{pid}/cost/calibration were recorded when they left this set")
 
+# ---------------------------------------------------------------------------------------------
+# THE BLIND SPOT, MEASURED — and it is 70 routes wide, not the two named above.
+#
+# DARK-LIST-DERIVE. `LEAF_COLLISION_DARK` is a TRIAGED list: routes somebody read, confirmed dark,
+# and wrote down. It was never the population. The population is every route this rule cannot see
+# AT ALL -- leaf long enough to be checked, leaf vouched by `leaf_is_called` (so the rule stays
+# silent), and no caller found by `_wired_probe`. Deriving that set instead of listing it gives
+# **70** of 947 routes.
+#
+# *The previous note put this at 26.* That was measured with a looser probe -- it asked whether the
+# route's PARENT fragment appeared (`/lod/`), which any sibling route satisfies, so a called
+# `/lod/assessment` vouched for an uncalled `/lod/matrix` exactly the way the English word "matrix"
+# vouches for the leaf. **The same collision, one segment up.** 70 is the count when the question is
+# "does a caller build THIS path", which is the question that was meant. The 26 is corrected rather
+# than quietly replaced, because a number that moves toward the conclusion it supports is the
+# hardest kind to notice.
+#
+# **This is a RECORD, not an allowlist**, on exactly the terms `KNOWN_UNCALLED` above states: 70 is
+# not a target and most entries are probably fine. `/scim/v2/Users` is for an identity provider and
+# `/bcf/2.1/projects` for external BIM tools -- neither should ever have a web caller. Others are
+# reached through a helper that takes a relative suffix (`openDrawing("plan.dxf?…")` in
+# `apps/web/src/viewer/tools/drawingsSection.ts` builds `/projects/{pid}/drawings/plan.dxf` without
+# the literal ever appearing), which this probe cannot see and which is a FALSE POSITIVE here.
+#
+# **So why freeze it at all?** Because the alternative is what was here before: a blind spot of
+# unknown size, with two of its members written down and nothing able to report the rest. Frozen,
+# the set can only shrink, and route 71 arrives with a name instead of silently. Triaging the 70 is
+# its own work and is NOT done here -- no purely syntactic probe can classify them (the leaf is
+# vouched, which is the whole problem, and a leaf-based helper search returns 685 hits for
+# `projects` and 44 for `status`). Each one needs a read.
+LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
+    "/admin/baseline",
+    "/admin/licenses",
+    "/admin/licenses/{lid}",
+    "/asset-rights/verify",
+    "/bcf/2.1/projects",
+    "/bcf/3.0/projects",
+    "/bcf/versions",
+    "/codes/families",
+    "/connections/{cid}/quickbooks/{entity}",
+    "/contractor-statements/portfolio",
+    "/estimate/resources/catalog",
+    "/families/coverage",
+    "/firm/rules",
+    "/lifecycle/reference",
+    "/metrics/budget",
+    "/openbim/capabilities",
+    "/payments/status",
+    "/pricing/status",
+    "/proforma/compare",
+    "/proforma/provenance",
+    "/projects/{pid}/ai/audit",
+    "/projects/{pid}/assistant/snapshot",
+    "/projects/{pid}/authoring/capabilities",
+    "/projects/{pid}/carbon/elements",
+    "/projects/{pid}/clash/analyze",
+    "/projects/{pid}/classify/coverage",
+    "/projects/{pid}/cost/estimate",
+    "/projects/{pid}/cv-progress/ingest",
+    "/projects/{pid}/cv-progress/status",
+    "/projects/{pid}/design/options/board.pdf",
+    "/projects/{pid}/design/options/carbon",
+    "/projects/{pid}/design/options/compare",
+    "/projects/{pid}/design/standards",
+    "/projects/{pid}/design/standards/check",
+    "/projects/{pid}/doctext/search",
+    "/projects/{pid}/draft/scope",
+    "/projects/{pid}/draft/submittal-summary",
+    "/projects/{pid}/drawings/elevation.dxf",
+    "/projects/{pid}/drawings/plan.dxf",
+    "/projects/{pid}/drawings/section.dxf",
+    "/projects/{pid}/drawings/stream",
+    "/projects/{pid}/egress/plan.svg",
+    "/projects/{pid}/elements/properties",
+    "/projects/{pid}/envelope/check",
+    "/projects/{pid}/lod/matrix",
+    "/projects/{pid}/logistics/clash",
+    "/projects/{pid}/mep/graph",
+    "/projects/{pid}/mep/schedule",
+    "/projects/{pid}/model/connections",
+    "/projects/{pid}/model/export.csv",
+    "/projects/{pid}/model/options",
+    "/projects/{pid}/model/options/{slug}",
+    "/projects/{pid}/naming/validate",
+    "/projects/{pid}/notices/draft",
+    "/projects/{pid}/notifications/digest/preview",
+    "/projects/{pid}/productivity/summary",
+    "/projects/{pid}/progress/reconciliation",
+    "/projects/{pid}/project-package/contents",
+    "/projects/{pid}/properties/index",
+    "/projects/{pid}/recipes/export",
+    "/projects/{pid}/reports/catalog",
+    "/projects/{pid}/review/contract",
+    "/projects/{pid}/review/scope",
+    "/projects/{pid}/scene/package",
+    "/projects/{pid}/schedule/status",
+    "/projects/{pid}/stakeholders/analysis",
+    "/projects/{pid}/warranties/expiring",
+    "/projects/{pid}/workflow/{key}",
+    "/scim/v2/Users",
+    "/scim/v2/Users/{user_id}",
+})
+
+
+def _blind_spot() -> set[str]:
+    """Routes this rule is structurally unable to flag: long leaf, leaf vouched, no caller found."""
+    stripped = strip_comments(BLOB)
+    out: set[str] = set()
+    for r in PATHS:
+        if r in FOUND or r in KNOWN_UNCALLED:
+            continue
+        leaf = _leaf(r)
+        if len(leaf) < MIN_SEGMENT or not leaf_is_called(leaf, stripped):
+            continue
+        probe = _wired_probe(r)
+        if probe and probe in stripped:
+            continue
+        out.add(r)
+    return out
+
+
+_BLIND = _blind_spot()
+
+# The derivation must be able to separate the two answers, or every verdict below is vacuous. Both
+# controls are live routes, so neither can pass by naming something that stopped existing.
+check("  the blind-spot derivation SEPARATES wired from unwired (controls)",
+      "/bsdd/search" not in _BLIND and "/scim/v2/Users" in _BLIND,
+      "/bsdd/search was wired by BSDD-LOOKUP and must fall out; /scim/v2/Users has no web caller "
+      "by design and must stay in. If either flipped, the derivation is measuring something else")
+
+check(f"no NEW route joined the blind spot ({len(_BLIND)} frozen)",
+      not (_BLIND - LEAF_COLLISION_BLIND),
+      f"newly blind: {sorted(_BLIND - LEAF_COLLISION_BLIND)[:6]} — this rule cannot see these at "
+      "all, so wire one, or add it to LEAF_COLLISION_BLIND. Adding is not an admission of a "
+      "defect: most of this set is correctly web-callerless")
+
+_LEFT_BLIND = sorted(LEAF_COLLISION_BLIND - _BLIND)
+if _LEFT_BLIND:
+    print(f"  (ratchet down: {len(_LEFT_BLIND)} left the blind spot — delete them from "
+          f"LEAF_COLLISION_BLIND: {_LEFT_BLIND[:6]})")
+
+# ---------------------------------------------------------------------------------------------
 # The probe must be able to SEE a caller, or "no client builds it" is a sentence that can only ever
 # come out true -- the can't-fail shape this file exists to prevent. `/bsdd/search`, wired by
 # BSDD-LOOKUP in the same change that removed `/bsdd/class` above, is the positive control.
