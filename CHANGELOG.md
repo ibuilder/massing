@@ -12,6 +12,21 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A saved scenario's name could run script in the Finance home
+
+`ScenarioIn.name` is an unconstrained `str` that `create_scenario` persists verbatim, and the Finance
+home interpolated it into `innerHTML` unescaped — stored XSS, one `escapeHtml()` away, in a line the
+SCENARIO-SOURCES change happened to touch. Now escaped, like every other interpolation in that file.
+
+**The interesting part is why nothing caught it.** `apps/web/src/ui/innerHtmlGuard.test.ts` exists
+precisely for this class and was green over it for months, because that file's BASELINE listed
+`"main.ts": 2` — and this was one of the two. **The ratchet is one-directional by design (a count may
+fall, never rise), so a frozen sink is invisible for as long as nobody adds another.** The entry
+means "a future reader should check this"; the check never happened, and a review bot found it by
+reading the code the baseline had frozen. The baseline is now `1`, verified by counting rather than
+assumed. *A number that licenses a defect is indistinguishable from a number that merely records
+one — only reading the site tells them apart.*
+
 ### Which deal assumptions have a document behind them, and which came from nowhere
 
 `GET /proforma/scenarios/{sid}/provenance` walks a saved scenario's material numeric drivers — the

@@ -39,7 +39,14 @@ const COLD = /^(i|idx|j|n|k|len|count|total|pct|num|\d+)$/i;
  * rather than trust. Lower a number freely; raising one needs a reason.
  */
 const BASELINE: Record<string, number> = {
-  "main.ts": 2,
+  // 2 -> 1 on 2026-09-12 (SCENARIO-SOURCES review). One of the two WAS a live stored XSS:
+  // `Latest scenario: <b>${latest.name}</b>`, where `ScenarioIn.name` is an unconstrained `str`
+  // persisted verbatim by `create_scenario`. **This ratchet stayed green over it for months,
+  // because counting a sink is how this file records one** — the entry says "a future reader
+  // should check this", and the check never happened. A review bot found it by reading the
+  // code the baseline had frozen. *A number that licenses a defect is indistinguishable from a
+  // number that merely describes one; only reading the site tells them apart.*
+  "main.ts": 1,
   "portal/panels/aiassist.ts": 3,
   "portal/panels/analytics.ts": 6,
   "portal/panels/budget.ts": 4,

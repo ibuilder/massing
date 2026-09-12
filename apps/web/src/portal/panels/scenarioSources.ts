@@ -95,9 +95,22 @@ export function stalenessNote(s: Staleness, p: ScenarioProvenance): string {
  * whenever any readable citation exists, regardless of the revision it names, so coverage and
  * currency are different axes and the headline carries only one. Reporting the percentage without the
  * other axis is how a memo comes to say "fully sourced" about documents nobody has re-checked.
+ *
+ * **`material_count > 0` is load-bearing, and its absence was a real defect found in review.** Every
+ * other conjunct holds VACUOUSLY on a scenario with nothing in it: nothing is uncited, nothing is
+ * malformed, and a supplied revision with zero citations to compare reads as "all-current". So this
+ * returned `true` for a deal carrying nothing to be whole ABOUT, while `headline()` returned
+ * `"nothing-to-trace"` off the same response and `summary()` handed a reader both at once.
+ *
+ * *"No assumption lacks a source" is true of a deal with no assumptions — and that is the one case
+ * where it means nothing.* The same shape as the two hazards above: a verdict stronger than the
+ * evidence under it.
  */
 export function coverageIsWhole(p: ScenarioProvenance): boolean {
-  return p.uncited_count === 0 && p.malformed_citation_count === 0 && staleness(p) === "all-current";
+  return p.material_count > 0
+    && p.uncited_count === 0
+    && p.malformed_citation_count === 0
+    && staleness(p) === "all-current";
 }
 
 /** What a reader must be told first, in the order it has to be said. */

@@ -115,6 +115,24 @@ describe("headline order — what a reader must be told first", () => {
     expect(headlineNote("unreadable-sources", p)).toContain("different fix");
   });
 
+  it("a scenario with NO material assumptions is not 'whole' — vacuous truth is not provenance", () => {
+    // Found in review. Every conjunct held vacuously: nothing uncited, nothing malformed, and a
+    // revision supplied with zero stale — so `coverageIsWhole` said TRUE about a scenario carrying
+    // nothing to be whole ABOUT, while `headline()` said "nothing-to-trace" off the same response.
+    // `summary()` then handed a reader both at once.
+    //
+    // This is the defect this whole module exists to prevent, in the module itself: a verdict
+    // stronger than the evidence under it. "No assumption lacks a source" is true of a deal with no
+    // assumptions, and it is the one case where it means nothing.
+    const p = fixture({ material_count: 0, cited_count: 0, uncited_count: 0, coverage_pct: 0,
+      current_revision: "rev-9", stale_citation_count: 0 });
+    expect(coverageIsWhole(p)).toBe(false);
+    expect(headline(p)).toBe("nothing-to-trace");
+    // ...and the two agree, which is the property that was broken rather than either alone.
+    expect(summary(p).whole).toBe(false);
+    expect(summary(p).headline).toBe("nothing-to-trace");
+  });
+
   it("says there is nothing to trace rather than reporting 0% coverage", () => {
     const p = fixture({ material_count: 0, cited_count: 0, coverage_pct: 0 });
     expect(headline(p)).toBe("nothing-to-trace");
