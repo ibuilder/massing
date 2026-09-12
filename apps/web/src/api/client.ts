@@ -75,7 +75,16 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))))) {
+//: MIXIN-CEILING — the chain is composed in TWO STAGES, and it has to be. One nested `extends`
+//: stops compiling at 50 mixins (TS2589), it is instantiation DEPTH rather than accumulated
+//: members, and only a `class` DECLARATION clears it — a `const` split does not. All four
+//: measurements, and why this is enforced by a test rather than by this comment, are in
+//: `api/mixinStaging.test.ts`; `api/surface.test.ts` floors the method count.
+class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))) {}
+
+class _ApiStageB extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(_ApiStageA)))))))))))))))))))))))) {}
+
+export class ApiClient extends _ApiStageB {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *

@@ -12,6 +12,40 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The API client could not take another mixin, and now it can
+
+`apps/web/src/api/client.ts` composed its 49 mixins in one nested `extends` expression. Adding a
+50th made `tsc` fail outright — TS2589, *"Type instantiation is excessively deep and possibly
+infinite"* — which is how BSDD-LOOKUP ended up lodging two `/bsdd` methods in `ids.ts` against the
+route-seam rule ~20 SCALE-SEAM PRs have followed. **A ceiling nobody had measured was silently
+setting architecture.**
+
+Measured in both directions, and two plausible fixes ruled out before the working one:
+
+| composition | mixins | `tsc` |
+|---|---|---|
+| one nested `extends` | 49 | passes |
+| one nested `extends` | 50 | **TS2589** |
+| `const Stage = withA(withB(…))` split | 50 | **TS2589** |
+| `class _StageA extends …` declarations | 50 | **passes** |
+
+- **It is depth, not accumulated members.** A 50th mixin declaring *no methods at all* fails
+  identically, so trimming the API surface would have bought nothing.
+- **A `const` split does not work** — it infers the same nested anonymous type, so the depth is
+  unchanged. Only a `class` *declaration* names the type nominally, letting the second stage start
+  from a resolved base instead of re-walking the first.
+
+`client.ts` now stages 25 + 24 through two class declarations, and `api/mixinStaging.test.ts` holds
+the shape: a tidy refactor that inlines the stages compiles fine *today* at 49 and strands the next
+person at 50, with an error naming neither the cause nor the limit.
+
+**Two corrections this forced.** The BSDD-LOOKUP entry above said the chain broke at a *51st* mixin;
+it held **49**, so it was the 50th. That number was asserted, never counted — `git grep -c` would
+have settled it in a second, and it shipped. *An unmeasured number reads exactly like a measured one.*
+And while mutation-testing the new gate, one mutation **silently failed to apply** and the suite
+reported green — indistinguishable from a correct implementation. The mutation now asserts the file
+changed before running. *A mutation that does not apply is a test that was never exercised.*
+
 ### The reachability gate's blind spot was 70 routes wide, and only two were written down
 
 `LEAF_COLLISION_DARK` is a **triaged** list — routes somebody read, confirmed dark, and recorded. It
@@ -126,7 +160,12 @@ with a positive control (`/bsdd/search`, wired by this change) so it cannot pass
 
 `/bsdd` is its own route group, so by the rule the API client has followed for ~20 SCALE-SEAM PRs --
 *the seam is the ROUTE* -- these two methods should have been their own `withBsdd` mixin. They are
-not. **Adding a 51st mixin to the chain in `apps/web/src/api/client.ts` makes `tsc` fail outright**
+not. **Adding one more mixin to the chain in `apps/web/src/api/client.ts` makes `tsc` fail outright**
+*(Corrected by MIXIN-CEILING below: this said "a 51st" and the chain held **49**, so it was the 50th.
+The count was asserted, never counted. And the 50-mixin ceiling is now BYPASSED, not gone: staging
+clears the measured failure, but TS2589 is a property of instantiation depth and a deep enough
+composition still hits it. Where the staged limit actually sits has not been measured — saying
+"gone" would repeat, in the correction itself, the exact error it corrects. See that entry.)*
 with TS2589, *"Type instantiation is excessively deep and possibly infinite"*, on the `extends`
 clause; removing it makes the error vanish, so the count is the cause and not anything in the new
 code. New route groups can no longer get their own mixin -- they must lodge with a neighbour -- until

@@ -12,14 +12,19 @@
  *
  *  **BSDD-LOOKUP added `bsddSearch` / `bsddClass` here, and NOT as their own mixin, because
  *  `client.ts` has hit a hard compiler ceiling.** Route-group `/bsdd` is its own group, so by this
- *  file's own stated rule — the seam is the ROUTE — they should have been `withBsdd`. Adding a 51st
- *  mixin to the chain in `client.ts` makes `tsc` fail outright with TS2589, *"Type instantiation is
- *  excessively deep and possibly infinite"*, on the `extends` clause; removing it makes the error
- *  vanish, so the count is the cause and not anything in the new code. **That quietly reverses the
- *  SCALE-SEAM strategy: new route groups can no longer get their own mixin, they must lodge with a
- *  neighbour, until the chain is composed in stages.** Recorded here rather than worked around
- *  silently, because the next person to reach for `withX()` will hit the same wall and the error
- *  message names neither the cause nor the limit.
+ *  file's own stated rule — the seam is the ROUTE — they should have been `withBsdd`. A single
+ *  nested `extends` in `client.ts` stops compiling at **50** mixins: `tsc` fails outright with
+ *  TS2589, *"Type instantiation is excessively deep and possibly infinite"*.
+ *
+ *  **CORRECTION (MIXIN-CEILING): this said "a 51st", and the chain held 49, not 50.** The count was
+ *  asserted rather than counted — `git grep -c` was never run — and the off-by-one shipped in the
+ *  BSDD-LOOKUP CHANGELOG entry too. *An unmeasured number reads exactly like a measured one.*
+ *
+ *  **The ceiling is GONE** as of MIXIN-CEILING: `client.ts` now composes in two stages via `class`
+ *  declarations, which clears TS2589 at 50 where both a single chain and a `const` split fail. So
+ *  a new route group CAN have its own mixin again, and these two could be moved out if anyone wants
+ *  to; they stay here because `/bsdd` and `/ids` are both buildingSMART reference surfaces consumed
+ *  by the same screen, which was always the better half of the argument.
  *
  *  Of the available neighbours this is the honest one: bSDD and IDS are both buildingSMART
  *  REFERENCE surfaces — one says what a class *is*, the other what a deliverable must *carry* — and
