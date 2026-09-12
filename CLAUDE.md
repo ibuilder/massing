@@ -181,6 +181,22 @@ asserted the analyser still *reported* an unresolvable read, so a mutation routi
 read to "safe" PASSED. *Reporting a site and classifying it are two different questions, and asserting
 one is not asserting the other.* The verdict function is now separate so it can be mutated directly.
 
+**A ninth joined them on 2026-09-12: `services/api/test_scratch_ignored.py`** — is every scratch
+directory the suite creates actually git-ignored? Thirteen were not, so a concurrent or crashed run
+left residue that **`git status` reports identically to uncommitted work** — a stop hook read
+`_shelf_famgeom/` exactly that way. The gate derives the population by parsing `"./<name>"` literals
+and then asks **git itself** rather than reimplementing `.gitignore` matching. **Its first two drafts
+were each wrong in the house style: the checker did not fail, it ANSWERED.** Without a trailing slash
+git cannot tell an absent path is a directory, so every directory-only pattern missed and it reported
+**377** uncovered; asked from `services/` rather than the repo root the paths resolved nowhere, the
+per-directory `services/api/.gitignore` was never read, and it reported **35** — which would have had
+nineteen redundant patterns added to fix nothing. *A wrong question returns a confident number, and a
+number with a list attached reads as evidence.* Hence three self-tests, one per way of asking wrongly,
+run before any verdict is printed. **And the per-directory canary is DERIVED, not named:** an earlier
+draft hardcoded the one pattern it probed, so removing that pattern legitimately would have redded the
+self-test with a message blaming the wrong cause — *a check whose failure message can misdiagnose is
+worse than one that stays silent, because somebody acts on it.*
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

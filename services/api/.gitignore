@@ -23,3 +23,15 @@ seedtest_i/
 wt2.db
 wt2_s/
 wt2_i/
+# Scratch directories the suite creates and (usually) removes. Derived and enforced by
+# `test_scratch_ignored.py` -- a name here that the gate cannot reach is dead weight, and a scratch
+# dir NOT here makes `git status` read as uncommitted work the moment a run is concurrent or crashes.
+# A stop hook read `_shelf_famgeom/` exactly that way, which is what prompted this block.
+_ifc_*/
+_shelf_*/
+_demo_capture_ifc/
+_stb/
+_stcobie/
+test_digest_tmp/
+# `_body_param_reach_store`, `_route_reach_store` -- the two reachability gates' fixture stores.
+_*_reach_store/
