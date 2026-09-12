@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLAMP_HIGH, CLAMP_LOW, type Calibration,
-  basisNote, basisTotal, clamped, direction, misPricePct, rawRatio, summary, trust, trustNote,
+  basisNote, basisTotal, clamped, direction, factorClaim, misPricePct, rawRatio, summary, trust,
+  trustNote,
 } from "./costCalibration";
 
 /** A $10M estimate — the scale at which the clamp's damage is easiest to see in whole dollars. */
@@ -191,5 +192,72 @@ describe("summary", () => {
     // first is the defect this screen exists to stop.
     expect(s.factor).toBe(0.5);
     expect(s.raw).toBeLessThan(0.001);
+  });
+});
+
+describe("the server's own clamp verdict wins over a local reconstruction", () => {
+  // The route divides UNROUNDED totals and then quantizes them to cents in the response, so
+  // recomputing here divides different numbers. They disagree at exactly the boundary that matters.
+  it("trusts raw_ratio over the totals when the rounded totals would say otherwise", () => {
+    // 200.021 / 100.01 = 2.00001... — above the band, so the route clamped. The response's ROUNDED
+    // totals are 200.02 / 100.01 = exactly 2.0, which a local division reads as un-clamped.
+    const c = fixture({ estimate_total: 100.01, committed_total: 200.02, basis: "committed",
+      calibration_factor: 2, raw_ratio: 200.021 / 100.01, clamped: true });
+    expect(200.02 / 100.01).toBeCloseTo(2, 10);        // what the fallback would have computed
+    expect(rawRatio(c)).toBeGreaterThan(CLAMP_HIGH);   // what the route actually divided
+    expect(clamped(c)).toBe(true);
+    expect(trust(c)).toBe("clamped");
+  });
+
+  it("falls back to the local division when the server did not send one", () => {
+    const c = fixture({ committed_total: 12_000_000, basis: "committed", calibration_factor: 1.2 });
+    expect(c.raw_ratio).toBeUndefined();
+    expect(rawRatio(c)).toBeCloseTo(1.2, 6);
+    expect(clamped(c)).toBe(false);
+  });
+
+  it("honours an explicit clamped:false even where the local rule would flag it", () => {
+    // Defensive, and the direction that matters: the route is the authority in BOTH directions.
+    const c = fixture({ estimate_total: 100, committed_total: 100, basis: "committed",
+      calibration_factor: 1, raw_ratio: 1, clamped: false });
+    expect(clamped(c)).toBe(false);
+  });
+});
+
+describe("what the factor may be CALLED beside the number", () => {
+  it("gives a clamp boundary no mis-pricing percentage — the defect this module exists to stop", () => {
+    // Shipped once: the panel rendered `${pct}% ${direction}` unconditionally, so this case read
+    // "50% over-priced" — a percentage taken from the clamp floor, stated as a measurement.
+    const c = fixture({ committed_total: 8_000_000, actual_total: 500,
+      basis: "actual", calibration_factor: 0.5 });
+    expect(trust(c)).toBe("clamped");
+    expect(factorClaim(c)).toBe("a clamp boundary, not a measured difference");
+    expect(factorClaim(c)).not.toContain("%");
+    expect(factorClaim(c)).not.toContain("over-priced");
+  });
+
+  it("calls a mid-job actuals factor provisional, not a measured difference", () => {
+    const c = fixture({ committed_total: 9_000_000, actual_total: 6_000_000,
+      basis: "actual", calibration_factor: 0.6 });
+    expect(factorClaim(c)).toContain("provisional");
+    expect(factorClaim(c)).not.toContain("%");
+  });
+
+  it("refuses a percentage for an unverifiable factor too", () => {
+    const c = fixture({ estimate_total: 0, committed_total: 5_000, basis: "committed",
+      calibration_factor: 2 });
+    expect(factorClaim(c)).toContain("not verifiable");
+    expect(factorClaim(c)).not.toContain("%");
+  });
+
+  it("DOES give the percentage when the factor is usable — the claim is earned, not withheld", () => {
+    const c = fixture({ committed_total: 12_000_000, basis: "committed", calibration_factor: 1.2 });
+    expect(trust(c)).toBe("usable");
+    expect(factorClaim(c)).toBe("20% under-priced versus this project's outcome");
+  });
+
+  it("says 'level' rather than '0% under-priced' at exactly 1", () => {
+    const c = fixture({ committed_total: 10_000_000, basis: "committed", calibration_factor: 1 });
+    expect(factorClaim(c)).toContain("level with");
   });
 });

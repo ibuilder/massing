@@ -1078,7 +1078,22 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 #
 # The other four stay here, frozen exactly as `/asset-rights/verify` and the jurisdiction pair are:
 # not in FOUND (the rule reads their leaves as called) and not freezable in KNOWN_UNCALLED (the rot
-# check would immediately report them as "quietly become called"). Nobody has read them.
+# check would immediately report them as "quietly become called").
+#
+# **THREE of them are unread; the fourth was read and is a DUPLICATE, not a hole.** That correction
+# is recorded rather than quietly applied, because the line above said "nobody has read them" and
+# was falsified by the next thing its own author did. `/proforma/provenance` is R24-TRACE-UI ② --
+# `routers/proforma.py` returns `_provenance.derive(declared_from(a), solve(...))`, the
+# DECLARED-vs-DEFAULTED shape that `POST /proforma/solve` already returns in its own `provenance`
+# field and that `apps/web/src/proforma/provenanceLine.ts` already renders. A client holding a solve
+# result already has this data, so wiring it would add a second way to ask one question.
+#
+# It stays in this list because the list's claim is about VISIBILITY, not about debt: the rule still
+# cannot see it, and that is what the checks below assert. But it is not a gap, and a reader taking
+# all four as gaps would build something the product already has. *The `/projects/{pid}/georeference`
+# case again -- a dark route can be a duplicate rather than a hole, and the gate cannot tell the
+# difference.* The remaining three -- `/bsdd/class`, `/proforma/scenarios/{sid}/provenance` and
+# `/projects/{pid}/workflow/{key}` -- are still unread.
 LEAF_COLLISION_DARK = (
     "/bsdd/class",
     "/proforma/provenance",

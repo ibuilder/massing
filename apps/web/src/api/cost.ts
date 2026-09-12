@@ -382,6 +382,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   costCalibration(pid: string) {
     return this.json<{ estimate_total: number; committed_total: number; actual_total: number;
       basis: "actual" | "committed" | null; calibration_factor: number | null;
+      raw_ratio: number | null; clamped: boolean | null;
       apply_hint: string; note: string }>(`/projects/${pid}/cost/calibration`);
   }
   // SCALE-SEAM (81) — *what is the market doing to my costs?* Regional escalation, labour

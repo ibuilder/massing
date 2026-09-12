@@ -3,7 +3,7 @@ import { installableNote } from "../../account/costVintage";
 import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
-import { basisNote, summary, trustNote } from "./costCalibration";
+import { basisNote, factorClaim, summary, trustNote } from "./costCalibration";
 import { renderCostBrief } from "./costBrief";
 import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
@@ -474,11 +474,13 @@ export async function renderBudget(ctx: PanelContext) {
     try {
       const c = await ctx.host.api.costCalibration(pid);
       const s = summary(c);
+      // The claim beside the number comes from `factorClaim`, never from `s.pct` directly: only a
+      // trustworthy factor earns a mis-pricing percentage. A clamp boundary rendered as
+      // "50% over-priced" is precisely the defect this screen exists to prevent.
       const head = s.factor == null
         ? `<div style="font-weight:600;margin-bottom:4px">No calibration yet</div>`
         : `<div style="font-weight:600;margin-bottom:4px">Calibration factor — <b>${s.factor}</b>`
-          + `<span class="meta"> · the model is ${s.direction === "level" ? "level with"
-            : `${Math.abs(s.pct ?? 0)}% ${s.direction}`} this project's outcome</span></div>`;
+          + `<span class="meta"> · ${esc(factorClaim(c))}</span></div>`;
       // The raw ratio is shown ONLY when the clamp moved it — otherwise it is the same number twice
       // and reads as noise. When it did move, it is the whole point.
       const rawLine = s.trust === "clamped" && s.raw != null

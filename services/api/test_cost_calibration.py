@@ -10,8 +10,9 @@ a screen has to be able to rely on.
 
   1. THE CLAMP CAN RETURN A BOUNDARY RATHER THAN A MEASUREMENT. `max(0.5, min(2.0, observed/estimate))`
      turns one posted invoice on a whole-building estimate into a confident-looking `0.5`. The route
-     returns all three totals, so the raw ratio is recoverable — but only if the clamp really does
-     fire where we think, which is asserted rather than assumed.
+     reports `raw_ratio` and `clamped` so a caller never has to reconstruct that verdict — it cannot
+     do so correctly, because the factor is computed from UNROUNDED totals while the response
+     quantizes them to cents, and the two disagree exactly at the band edge. Asserted, not assumed.
 
   2. `benchmark_factor` IS NOT THE WAY TO APPLY IT, and the old `apply_hint` said it was. That
      parameter aligns the GFA benchmark's DOLLAR-YEAR; feeding it a calibration ratio raises the
@@ -145,6 +146,20 @@ with TestClient(app) as c:
     check("...and the raw ratio a client recomputes agrees with it — so the clamp did NOT fire",
           abs(cal1["committed_total"] / cal1["estimate_total"] - cal1["calibration_factor"]) < 0.02,
           (cal1["committed_total"], cal1["estimate_total"], cal1["calibration_factor"]))
+    check("...and the route reports that verdict rather than leaving it to be inferred",
+          cal1["clamped"] is False and abs(cal1["raw_ratio"] - 1.2) < 0.02, cal1)
+
+    # --- 4b. WHY THE ROUTE MUST REPORT THE CLAMP RATHER THAN THE CLIENT RECONSTRUCTING IT ---------
+    # The factor is computed from UNROUNDED totals; the response quantizes all three to cents. At
+    # the band edge the two disagree, and the reconstruction is the one that says "not clamped".
+    _est, _committed = 100.01, 200.021
+    check("a ratio just above the band is clamped by the route",
+          round(max(0.5, min(2.0, _committed / _est)), 3) == 2.0 and _committed / _est > 2.0)
+    check("...but recomputing from the CENT-ROUNDED totals lands exactly on 2.0 and reads as clean",
+          round(_committed, 2) / round(_est, 2) <= 2.0,
+          (round(_committed, 2) / round(_est, 2)))
+    check("...so `raw_ratio`/`clamped` are the route's answer, not a convenience",
+          "raw_ratio" in cal1 and "clamped" in cal1, sorted(cal1))
     check("the shipped hint WITH a real factor is safe too — the branch that used to be wrong",
           hint_is_safe(cal1["apply_hint"]), cal1["apply_hint"])
 
@@ -162,7 +177,9 @@ with TestClient(app) as c:
     check("...the true ratio is far below the clamp floor", raw < 0.5, raw)
     check("...but the reported factor is exactly the floor — a boundary, not a measurement",
           cal2["calibration_factor"] == 0.5, cal2["calibration_factor"])
-    check("...which a client can DETECT, because all three totals come back",
+    check("...and the ROUTE says so itself: raw_ratio is reported and clamped is True",
+          abs(cal2["raw_ratio"] - raw) < 1e-12 and cal2["clamped"] is True, cal2)
+    check("...which a client no longer has to reconstruct — all three totals still come back too",
           cal2["estimate_total"] > 0 and cal2["committed_total"] > 0 and cal2["actual_total"] > 0,
           cal2)
     check("...and the note tells a reader the clamp can do this and how to undo it",

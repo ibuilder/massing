@@ -27,6 +27,18 @@ export interface Calibration {
   basis: "actual" | "committed" | null;
   /** `observed ÷ estimate`, **clamped to 0.5–2.0** and rounded to 3dp. Null without a basis. */
   calibration_factor: number | null;
+  /**
+   * `observed ÷ estimate` BEFORE the clamp, unrounded, as the route computed it — and whether the
+   * clamp moved it.
+   *
+   * Optional only so a response from an older server still parses. **Prefer these over the local
+   * reconstruction below whenever they are present**: the route divides UNROUNDED totals and then
+   * quantizes them to cents in the response, so recomputing here divides different numbers. The two
+   * disagree exactly at the boundary that matters — `200.021 / 100.01` is above 2.0 and was
+   * clamped, while the rounded `200.02 / 100.01` is exactly 2.0 and reads as un-clamped.
+   */
+  raw_ratio?: number | null;
+  clamped?: boolean | null;
   apply_hint: string;
   note: string;
 }
@@ -45,12 +57,16 @@ export function basisTotal(c: Calibration): number {
 /**
  * `observed ÷ estimate` **before** the clamp — what the project's history actually says.
  *
- * The engine returns only the clamped figure, so this is the number nobody could see. It is
- * recoverable because the response carries all three totals, which is the one piece of luck here.
+ * **The route reports this directly, and that is the answer to prefer.** It used to be reconstructed
+ * here from the three totals, which worked for every case except the one that matters: the route
+ * divides unrounded totals and then quantizes them to cents, so at the band edge the reconstruction
+ * and the route disagree, and the reconstruction is the one that says "not clamped". The local
+ * division survives only as a fallback for a response that does not carry `raw_ratio`.
  */
 export function rawRatio(c: Calibration): number | null {
+  if (c.raw_ratio != null) return c.raw_ratio;      // the side that did the clamping
   if (!c.basis || c.estimate_total <= 0) return null;
-  return basisTotal(c) / c.estimate_total;
+  return basisTotal(c) / c.estimate_total;          // fallback: cent-rounded, may miss the boundary
 }
 
 /**
@@ -62,6 +78,7 @@ export function rawRatio(c: Calibration): number | null {
  * reliable.* A boundary value reported as a measurement is the failure this flag exists to prevent.
  */
 export function clamped(c: Calibration): boolean {
+  if (c.clamped != null) return c.clamped;          // the route's own verdict, from unrounded totals
   const raw = rawRatio(c);
   if (raw == null) return false;
   return raw < CLAMP_LOW || raw > CLAMP_HIGH;
@@ -157,6 +174,28 @@ export function trustNote(t: Trust, c: Calibration): string {
 export function misPricePct(factor: number | null): number | null {
   if (factor == null) return null;
   return Math.round((factor - 1) * 1000) / 10;
+}
+
+/**
+ * What the factor may be CALLED, beside the number, given how far it can be trusted.
+ *
+ * **This lives here rather than in the panel because putting it in the panel is how it went wrong.**
+ * The first version rendered `${pct}% ${direction}` unconditionally, so the $500-on-$10M case — the
+ * very case this module was written to catch — printed *"50% over-priced"*: a percentage computed
+ * from the clamp boundary, stated as a measured difference. The rules said "clamped" and the screen
+ * said "50% over-priced" in the same breath, and the warning underneath did not undo the headline.
+ *
+ * *A module that decides whether a number is trustworthy has not finished the job until it also
+ * decides what the number may be called.* Only `usable` earns a mis-pricing claim.
+ */
+export function factorClaim(c: Calibration): string {
+  const t = trust(c);
+  if (t === "clamped") return "a clamp boundary, not a measured difference";
+  if (t === "partial") return "provisional — this job is still running";
+  if (t === "unverifiable") return "not verifiable from this response";
+  const d = direction(c.calibration_factor);
+  if (d === "level") return "level with this project's outcome";
+  return `${Math.abs(misPricePct(c.calibration_factor) ?? 0)}% ${d} versus this project's outcome`;
 }
 
 /** The headline an estimator reads: the factor, which way it points, and whether to believe it. */

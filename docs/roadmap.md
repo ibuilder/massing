@@ -1786,7 +1786,9 @@ instances:
 
   `GET /projects/{pid}/cost/calibration` (`services/api/src/aec_api/routers/cost.py`) compares the
   model takeoff estimate against the project's **committed** (awarded subcontracts) and **spent**
-  (posted direct costs) totals and returns the ratio. It is COST-AGENT's learn-from-history half, it
+  (posted direct costs) totals and returns the **clamped** calibration factor alongside all three
+  totals plus the unclamped `raw_ratio` — not the ratio itself, which is the distinction the screen
+  exists to keep. It is COST-AGENT's learn-from-history half, it
   has worked since v0.3.475, and it had no client caller — while "cost calibration (475)" sits in
   `docs/roadmap-completed.md` under a heading that reads as shipped. *A completed entry is a claim
   about an engine; it was read as a claim about reach.*

@@ -357,13 +357,22 @@ def cost_calibration(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     actual = _sum("direct_cost", "amount")
     basis, basis_total = (("actual", actual) if actual > 0 else
                           ("committed", committed) if committed > 0 else (None, 0.0))
-    factor = None
-    if basis and est_total > 0:
-        factor = round(max(0.5, min(2.0, basis_total / est_total)), 3)
+    # THE RAW RATIO IS REPORTED, NOT LEFT TO BE RECONSTRUCTED. A caller cannot recover it from the
+    # response: `factor` is computed here from UNROUNDED totals, while the three totals below are
+    # quantized to cents, so a recomputation divides different numbers. It diverges exactly at the
+    # boundary that matters -- 200.021 / 100.01 is above 2.0 and IS clamped, but the rounded
+    # 200.02 / 100.01 is exactly 2.0 and reads as un-clamped, so a client reconstructing the ratio
+    # would vouch for a figure this route had already replaced with a boundary. *The side that did
+    # the clamping is the only side that can say it clamped.*
+    raw_ratio = (basis_total / est_total) if (basis and est_total > 0) else None
+    factor = None if raw_ratio is None else round(max(0.5, min(2.0, raw_ratio)), 3)
     return {
         "estimate_total": round(est_total, 2), "committed_total": round(committed, 2),
         "actual_total": round(actual, 2), "basis": basis,
         "calibration_factor": factor,
+        #: `observed / estimate` BEFORE the clamp, unrounded, and whether the clamp moved it.
+        "raw_ratio": raw_ratio,
+        "clamped": None if raw_ratio is None else not (0.5 <= raw_ratio <= 2.0),
         "apply_hint": ("carry this factor into the next estimate by hand — no API parameter applies "
                        "it, and benchmark_factor is not it (that one aligns the GFA benchmark's "
                        "dollar-year and would move `recommended` the wrong way)"
