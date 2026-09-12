@@ -1780,6 +1780,35 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **COST-CALIBRATE — the estimate could never be judged against what this job actually cost**
+  *(S — Lanes B/C; **CLOSED 2026-09-12**; gated by `apps/web/src/portal/panels/costCalibration.test.ts`,
+  `services/api/test_cost_calibration.py` and `services/api/test_route_reachability.py`)*
+
+  `GET /projects/{pid}/cost/calibration` (`services/api/src/aec_api/routers/cost.py`) compares the
+  model takeoff estimate against the project's **committed** (awarded subcontracts) and **spent**
+  (posted direct costs) totals and returns the **clamped** calibration factor alongside all three
+  totals plus the unclamped `raw_ratio` — not the ratio itself, which is the distinction the screen
+  exists to keep. It is COST-AGENT's learn-from-history half, it
+  has worked since v0.3.475, and it had no client caller — while "cost calibration (475)" sits in
+  `docs/roadmap-completed.md` under a heading that reads as shipped. *A completed entry is a claim
+  about an engine; it was read as a claim about reach.*
+
+  **Calibrate from this job** in the Budget panel's Estimate card is the caller. The rules in
+  `apps/web/src/portal/panels/costCalibration.ts` do the part that makes it safe to look at: the
+  engine clamps the factor to 0.5–2.0, so a $500 invoice on a $10M estimate returns a confident
+  **0.5**, and the raw ratio is recoverable only because all three totals come back. The screen also
+  names the basis — actuals are history, commitments are a forecast, and `cost.py` prefers actuals
+  the moment any exist, which is right at completion and wrong at the start.
+
+  **The route's own `apply_hint` was aimed at the wrong parameter** and is fixed here: it named
+  `benchmark_factor`, which no HTTP surface accepts and which exists to align the GFA benchmark's
+  dollar-year. Feeding it a calibration ratio pushes `recommended` away from the model — asserted on
+  the real function in `services/api/test_cost_calibration.py`, not argued.
+
+  Screening the same axis confirmed four more routes dark and invisible for the same reason (a leaf
+  vouched for by the same word in another sense); they are recorded in
+  `services/api/test_route_reachability.py` with the collision asserted rather than assumed.
+
 - ✅ ⭐ **PAY-APP-SCREEN — the application could be frozen and downloaded, never read**
   *(S — Lanes B/C; **CLOSED 2026-09-12**; gated by `apps/web/src/portal/panels/payAppReview.test.ts`
   and `services/api/test_route_reachability.py`)*

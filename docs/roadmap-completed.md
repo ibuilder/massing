@@ -2048,6 +2048,17 @@ W9-4 doc_text cited retrieval (486) · REL-8 docstrings enforced (487) · E3 ske
 extrude/pull (488) · B5 connection assemblies (490) · UX-1 full ribbon merge (491) · R14 ring
 planned + doc_text ReDoS round 2 (492). DISC-poché (469).
 
+> **A correction to what "shipped" meant in one of those entries, added 2026-09-12.** "cost
+> calibration (475)" above records an ENGINE: `GET /projects/{pid}/cost/calibration` was built,
+> tested and released in v0.3.475, and every word of that is true. **No user could reach it for the
+> sixty-odd releases that followed** — it had no client caller until COST-CALIBRATE, and the route
+> reachability gate could not see it dark because its leaf collides with PDF *scale* calibration.
+> The line is left exactly as written, because it is a historical record and it was not a lie. What
+> it never said, and what nothing in this file's format can say, is whether the thing it names had a
+> way in. *A completed-roadmap entry is a claim about an engine; read as a claim about reach it is
+> confident and unfounded, and the two are not distinguished anywhere here.* If another entry in
+> this file looks like a capability, check for a caller before believing it is one.
+
 ## 🗓 Session v0.3.413–425 (2026-07-17) — the four-lane audit → prioritized upgrade cycle
 
 A full-platform evaluation (four parallel audit lanes: backend bugs, web frontend, docs/repo surface,

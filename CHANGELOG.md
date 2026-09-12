@@ -12,6 +12,49 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The estimate can be calibrated against what this job actually cost
+
+`GET /projects/{pid}/cost/calibration` compares the model's takeoff estimate with what the project has
+**committed** (awarded subcontracts) and **spent** (posted direct costs) and returns the ratio as a
+factor. It is the "learns from historical cost data" half of COST-AGENT, it has worked since v0.3.475,
+`docs/roadmap-completed.md` records it under "P2 ring (shipped through 492)" — and **no client has
+ever called it.** *A completed-roadmap entry is a claim about an engine; it was read as a claim about
+reach, and nothing distinguishes the two.* **Calibrate from this job**, in the Estimate card of
+Finance → Budget, is the first way to see it.
+
+**Two things the screen refuses to do, and they are the reason it is more than a button.**
+
+The engine clamps the factor to 0.5–2.0. One $500 mobilisation invoice against a $10M estimate is a
+raw ratio of 0.00005, which comes back as a confident-looking **0.5** — read plainly, a finding that
+the model over-prices by half. *The clamp does not make an unreliable ratio safe; it makes it look
+reliable.* All three totals are returned, so `apps/web/src/portal/panels/costCalibration.ts` recovers
+the raw ratio and says whether the figure was measured or is a boundary.
+
+It also names what the basis IS. `cost.py` picks actuals over commitments whenever any direct cost has
+been posted — right at completion, where actuals are the truth, and wrong at the start, where they are
+a fraction of the job. *The preference that is correct at the end is wrong at the beginning, and
+nothing in the route knows which end it is at.* Detected rather than guessed: while a job runs, more is
+committed than posted, so `actual < committed` is "still running".
+
+**The route's own advice was pointing at the wrong parameter.** Its `apply_hint` and docstring said to
+apply the factor by passing `benchmark_factor` to `estimate_from_takeoff`. No HTTP surface accepts a
+caller-supplied one — every call site derives it from the project's cost vintage — and the parameter is
+already spoken for: it puts the GFA benchmark in the same **dollar-year** as the model total. Feeding
+it a calibration ratio raises the benchmark, and since the engine trusts the model only while
+`total >= 0.4 * benchmark`, that pushes `recommended` *away* from the model and reports an inflated
+benchmark instead. `services/api/test_cost_calibration.py` asserts that direction on the real function
+rather than arguing it, and refuses a hint that names the parameter without an explicit negation —
+checking itself against the pre-fix wording first.
+
+**Reachability.** The route was invisible to `services/api/test_route_reachability.py` because its leaf
+`calibration` is vouched for by 85 uses of PDF-takeoff *scale* calibration. Screening that axis found
+four more dark routes hidden the same way — `/bsdd/class` behind ~1,756 `class="…"` attributes,
+`/proforma/provenance` and its scenario sibling behind a response *field* of that name, and
+`/projects/{pid}/workflow/{key}` behind the plain English noun. They are now recorded there as a named
+blind spot that asserts the collision is real, not merely that nothing was flagged. **A route leaf that
+is also a common domain noun will be vouched for by the noun** — the rule matches a string without
+matching its role, and unlike the earlier one-off collisions this one is a class, not an accident.
+
 ### The pay application can be read before it is signed
 
 A GC could **freeze** a pay application and **download** it as a PDF, but never *look* at it. The nine

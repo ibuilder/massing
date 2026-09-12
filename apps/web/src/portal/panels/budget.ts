@@ -3,6 +3,7 @@ import { installableNote } from "../../account/costVintage";
 import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { basisNote, factorClaim, summary, trustNote } from "./costCalibration";
 import { renderCostBrief } from "./costBrief";
 import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
@@ -456,7 +457,51 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px"><b>${w.installed_elements ?? 0}</b> of <b>${w.total_elements ?? 0}</b> element(s) installed. Derived from installed quantity, not from a typed percentage.</div>`);
     } catch (err) { fillEst(`<div class="meta">Model progress unavailable: ${(err as Error).message}</div>`); }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, schedBtn, boeBtn, wipBtn, dxfLabel);
+  // COST-CALIBRATE — the estimate judged against this project's OWN outcomes, which is the only
+  // benchmark that is about this builder rather than about the market. The engine has answered this
+  // since v0.3.475 and nothing called it.
+  //
+  // What the screen must not do is print `calibration_factor` on its own. It is clamped to 0.5–2.0,
+  // so one $500 invoice on a $10M job comes back as a confident-looking 0.5. The rules in
+  // `costCalibration.ts` recover the raw ratio from the three totals and say whether the figure was
+  // measured or is the boundary.
+  const calBtn = document.createElement("button"); calBtn.className = "tool-btn";
+  calBtn.textContent = "🎯 Calibrate from this job";
+  calBtn.title = "Compare the model estimate against what this project has actually committed and "
+    + "spent, and report the factor — never applies it";
+  calBtn.onclick = async () => {
+    fillEst(`<div class="meta">Reading this project's committed and posted costs…</div>`);
+    try {
+      const c = await ctx.host.api.costCalibration(pid);
+      const s = summary(c);
+      // The claim beside the number comes from `factorClaim`, never from `s.pct` directly: only a
+      // trustworthy factor earns a mis-pricing percentage. A clamp boundary rendered as
+      // "50% over-priced" is precisely the defect this screen exists to prevent.
+      const head = s.factor == null
+        ? `<div style="font-weight:600;margin-bottom:4px">No calibration yet</div>`
+        : `<div style="font-weight:600;margin-bottom:4px">Calibration factor — <b>${s.factor}</b>`
+          + `<span class="meta"> · ${esc(factorClaim(c))}</span></div>`;
+      // The raw ratio is shown ONLY when the clamp moved it — otherwise it is the same number twice
+      // and reads as noise. When it did move, it is the whole point.
+      const rawLine = s.trust === "clamped" && s.raw != null
+        ? `<div class="meta" style="margin-top:4px">Underlying ratio <b>${s.raw < 0.001
+            ? s.raw.toExponential(1) : (Math.round(s.raw * 1000) / 1000)}</b> — the figure above is `
+          + `the clamp boundary, not a measurement.</div>`
+        : "";
+      const badge = s.usable ? "" : `<div class="meta" style="margin-top:4px;color:var(--status-crit)">`
+        + `⚠ ${esc(trustNote(s.trust, c))}</div>`;
+      fillEst(head
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><tbody>`
+        + `<tr><td>Model estimate</td><td style="text-align:right">${usd(c.estimate_total)}</td></tr>`
+        + `<tr><td>Committed (awarded subcontracts)</td><td style="text-align:right">${usd(c.committed_total)}</td></tr>`
+        + `<tr><td>Actual (posted direct costs)</td><td style="text-align:right">${usd(c.actual_total)}</td></tr>`
+        + `</tbody></table></div>`
+        + `<div class="meta" style="margin-top:6px">Basis: ${esc(basisNote(c.basis))}.</div>`
+        + rawLine + badge
+        + (s.usable ? `<div class="meta" style="margin-top:4px">${esc(trustNote(s.trust, c))}</div>` : ""));
+    } catch (err) { fillEst(`<div class="meta">Calibration unavailable: ${(err as Error).message}</div>`); }
+  };
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, schedBtn, boeBtn, wipBtn, calBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);
