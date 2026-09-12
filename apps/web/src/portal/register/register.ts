@@ -2321,7 +2321,7 @@ export class RegisterUI {
         if (isPdf) {
           // open in the in-app viewer for markup; saving posts a marked-up copy back as a new attachment
           const pc = document.createElement("button"); pc.className = "att-cell att-file"; pc.title = `${a.filename} · ${kb} — open in viewer / mark up`;
-          pc.innerHTML = `<span class="att-ic">📄</span><span class="att-name">${a.filename}</span>`;
+          pc.innerHTML = `<span class="att-ic">📄</span><span class="att-name">${esc(a.filename)}</span>`;
           pc.onclick = async () => {
             const { openPdfUrl } = await import("../../drawings/openPdf");
             await openPdfUrl(this.ctx.host.api, url, a.filename, {
@@ -2338,7 +2338,7 @@ export class RegisterUI {
         if (isImg) {
           const img = document.createElement("img"); img.src = url; img.loading = "lazy"; img.alt = a.filename; cell.appendChild(img);
         } else {
-          cell.classList.add("att-file"); cell.innerHTML = `<span class="att-ic">📎</span><span class="att-name">${a.filename}</span>`;
+          cell.classList.add("att-file"); cell.innerHTML = `<span class="att-ic">📎</span><span class="att-name">${esc(a.filename)}</span>`;
         }
         gallery.appendChild(cell);
       }
@@ -2415,8 +2415,8 @@ export class RegisterUI {
       };
       for (const c of data.columns[state] ?? []) {
         const card = document.createElement("div"); card.className = "kan-card"; card.draggable = true;
-        card.innerHTML = `<div class="kc-ref">${c.ref}</div><div class="kc-title">${c.title ?? ""}</div>` +
-          (c.assignee ? `<div class="kc-asg">@${c.assignee}</div>` : "");
+        card.innerHTML = `<div class="kc-ref">${esc(c.ref)}</div><div class="kc-title">${esc(c.title ?? "")}</div>` +
+          (c.assignee ? `<div class="kc-asg">@${esc(c.assignee)}</div>` : "");
         card.ondragstart = (e) => { e.dataTransfer?.setData("rid", c.id); e.dataTransfer?.setData("from", state); };
         card.onclick = () => this.openRecord(m, c.id);
         col.appendChild(card);

@@ -302,7 +302,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Lever</th><th scope="col" style="text-align:left">Activity</th>`
         + `<th scope="col">Saves</th></tr></thead><tbody>`
         + levers.map((l) => `<tr><td><span class="meta">${l.kind}</span></td>`
-          + `<td>${l.name || l.ref || ""} <span class="meta">— ${l.detail}</span></td>`
+          + `<td>${esc(l.name || l.ref || "")} <span class="meta">— ${esc(l.detail)}</span></td>`
           + `<td style="text-align:center;color:var(--status-good)">${l.days}d</td></tr>`).join("") + `</tbody>`;
       accBody.append(t);
     }
@@ -446,7 +446,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       const tb = document.createElement("tbody");
       for (const lane of b.swimlanes) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td style="text-align:left;font-weight:600;position:sticky;left:0;background:var(--panel)">${lane.trade}</td>`
+        tr.innerHTML = `<td style="text-align:left;font-weight:600;position:sticky;left:0;background:var(--panel)">${esc(lane.trade)}</td>`
           + b.weeks.map((w) => {
             const cell = lane.tasks.filter((x) => x.week === w);
             return `<td style="vertical-align:top">` + cell.map((x) =>
@@ -591,8 +591,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         laBody.appendChild(h);
         for (const a of wk.activities) {
           const row = document.createElement("div"); row.className = "meta"; row.style.margin = "1px 0";
-          row.innerHTML = `<span style="color:${statusColor(a.status)}">●</span> ${a.name}`
-            + `${a.trade ? ` · <span class="meta">${a.trade}</span>` : ""}`
+          row.innerHTML = `<span style="color:${statusColor(a.status)}">●</span> ${esc(a.name)}`
+            + `${a.trade ? ` · <span class="meta">${esc(a.trade)}</span>` : ""}`
             + ` · ${a.percent}% · <span class="meta">${a.status.replace("_", " ")}</span>`;
           laBody.appendChild(row);
         }

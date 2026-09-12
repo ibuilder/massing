@@ -7,7 +7,7 @@
 import type { ApiClient } from "../api/client";
 import { permanentRejection } from "../api/httpCore";
 import { currentIdentity, ownedByMe } from "../api/identity";
-import { toast } from "./../ui/feedback";
+import { escapeHtml as esc, toast } from "./../ui/feedback";
 import { attachDictation } from "./dictate";
 import { mountFieldChrome, readFieldMode, shouldOpenCaptureHome } from "./fieldMode";
 import "./fieldMode.css";
@@ -259,7 +259,7 @@ export class FieldCapture {
           ? `<div style="font-size:12px;color:var(--danger,#e5534b)">⚠ ${it.rejected} — retrying will not help</div>`
           : "";
         rowEl.innerHTML = `<span style="font-size:18px">${it.rejected ? "⚠" : it.photo ? "🖼" : "📝"}</span>`
-          + `<span style="flex:1;font-size:13px">${(it.label || it.module)} — ${String(it.data.subject || "").slice(0, 60)}${geo}${why}</span>`;
+          + `<span style="flex:1;font-size:13px">${esc(it.label || it.module)} — ${esc(String(it.data.subject || "").slice(0, 60))}${geo}${why}</span>`;
         const del = document.createElement("button"); del.className = "tool-btn"; del.textContent = "✕"; del.title = "Discard";
         del.onclick = () => { saveQueue(loadQueue().filter((x) => x.id !== it.id)); this.refreshBadge(); render(); };
         rowEl.append(del); card.append(rowEl);

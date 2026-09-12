@@ -12,6 +12,74 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A stored XSS the security ratchet had been counting for months
+
+`apps/web/src/ui/innerHtmlGuard.test.ts` froze a per-file **number** of unescaped `innerHTML`
+interpolations. A number has no identity, so a file sitting inside its allowance was never looked at
+again -- you could delete a safe sink and add a live one in the same file and the gate stayed green
+both times.
+
+It was doing exactly that. `register.ts` was allowed 6 and had 4, and two of the four were
+`${a.filename}`:
+
+| step | where |
+|---|---|
+| raw multipart filename, unsanitised | `services/api/src/aec_api/routers/modules.py` (single + bulk upload) |
+| persisted verbatim | `modules.py` -> `record_attachments.filename` |
+| returned verbatim | `modules.py` list_attachments |
+| rendered **unescaped** into `innerHTML` | `apps/web/src/portal/register/register.ts`, both branches |
+
+A user with the `reviewer` role uploads an attachment named `<img src=x onerror=...>.pdf`; everyone
+who opens that record's attachment list runs it. The default CSP is framing-only, so inline handlers
+execute; `AEC_CSP=1` blocks the script but not the content injection. `esc` was already imported in
+that file and used 200 lines away -- the inconsistency the gate's own docstring diagnoses, on the
+exact vector it names ("an upload filename").
+
+**There was headroom at the top, too.** `BASELINE_TOTAL` was 85 against 77 actual, and SEVEN files
+the baseline had never heard of were sitting in that slack, passing silently. All seven read benign;
+the defect is that nothing had assessed them.
+
+**And it was blind to half its own population**, which is the worse of the two defects. The rule
+needed `innerHTML` and `${` on the SAME LINE, so any statement wrapped across lines -- the normal
+shape for a non-trivial row -- was scanned only as far as its first chunk. Measured while converting
+it: **under the OLD same-line rule**, 62 sinks visible and **58 more on continuation lines it could
+not see**, among them `v.vendor`, `s.company`, `r.text`, `t.title` and `cert.ref`. *Scope is a
+separate question from rule, and a green ratchet is what makes a scope error invisible* -- the same
+lesson `services/api/test_ruff_scope.py` paid for.
+
+**Those 62/58 figures are a diagnostic of the old detector, not a remediation count.** They are not
+comparable with the numbers below, which come from the new whole-statement detector with widened
+terms: the two rules see different populations, so 62 + 58 and 146 do not describe the same set and
+no arithmetic relates them. The scan now accumulates the whole statement AND parses interpolations
+by brace depth.
+
+**The baseline is now keyed on IDENTITY -- `file :: expression` -- and the count is derived, never
+asserted.** An expression the list has not seen fails even when the total is flat or under. A
+vanished entry still never fails, deliberately: improving the code must not red the build.
+
+Fixed in the same change: **33 sinks escaped, 30 identities removed** -- measured under ONE
+rule against `origin/main` (146 sinks / 125 identities) and this head (113 / 95), because the first
+attempt at that figure ADDED two counts taken under the narrow and wide detectors and got 29. *An
+arithmetic total across two different scopes is not a measurement.*
+
+Escaped: the filename pair, kanban `title`/`assignee`/`ref`, BCF topic fields in `viewer/app.ts`,
+imported schedule activity + trade, an `<option value>` attribute pair, vendor/company/trade across
+the analytics panels, a saved-search name, an AI-topic code/section/title row, a certificate ref, a
+field-capture label + subject, and a portal comment body. Two PARTIAL escapes were completed -- they
+escaped `&`/`<` only, or `"` only, which is worse than none because it reads as handled.
+
+**Two escapers had different coverage.** `ui/feedback.escapeHtml` covers `& < > " '`; `ui/charts.esc`
+omitted `'`, and `esc(x)` reads identically whichever you imported. There is now one.
+
+Server side, `serving.stored_filename` normalises the persisted value (basename, control characters,
+length) at both upload doors. It deliberately does NOT strip `&` or `<`: those are legal in a
+filename, and mangling them would corrupt real names while giving false assurance. **Escaping stays
+the renderer's job** -- input filtering fixes an XSS only until the next sink.
+
+The decisive test is a SUBSTITUTION: delete one baselined sink, add a different one in the same
+file, count identical. The old rule passed it; the new one names the identity. Verified by mutating
+a real source file and watching the gate go red, not by reading it.
+
 ### The API client could not take another mixin, and now it can
 
 `apps/web/src/api/client.ts` composed its 49 mixins in one nested `extends` expression. Adding a

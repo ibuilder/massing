@@ -373,7 +373,7 @@ export async function renderRiskCost(ctx: PanelContext) {
       if (!r.count) { pqSlot.innerHTML = `<div class="meta">No prequalification records yet.</div>`; return; }
       const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
       t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Company</th><th scope="col">Trade</th><th scope="col">Score</th><th scope="col" style="text-align:left">Flags</th></tr></thead><tbody>`
-        + r.subs.map((s) => `<tr><td>${s.company || ""}</td><td style="text-align:center">${s.trade || ""}</td>`
+        + r.subs.map((s) => `<tr><td>${esc(s.company || "")}</td><td style="text-align:center">${esc(s.trade || "")}</td>`
           + `<td style="text-align:center;color:${tone(s.risk_band)}"><b>${s.score}</b> ${s.risk_band}</td>`
           + `<td>${(s.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
       pqSlot.append(t);
@@ -386,7 +386,7 @@ export async function renderRiskCost(ctx: PanelContext) {
         const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
         rows.forEach((x) => { const li = el("li");
           li.innerHTML = `<span style="color:${x.k === "EXPIRED" ? "var(--status-crit)" : "var(--status-warn)"}">${x.k}</span> `
-            + `${x.vendor || ""} — ${x.coverage_type || ""} exp ${x.expires} (${x.days}d)`; ul.append(li); });
+            + `${esc(x.vendor || "")} — ${esc(x.coverage_type || "")} exp ${x.expires} (${x.days}d)`; ul.append(li); });
         coiSlot.append(ul);
       }
     }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
@@ -397,7 +397,7 @@ export async function renderRiskCost(ctx: PanelContext) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col" style="text-align:left">Issues</th>`
           + `<th scope="col">Bid</th><th scope="col">Bill</th></tr></thead><tbody>`
-          + r.vendors.map((v) => `<tr><td>${v.vendor}</td><td>${v.issues.map((i) => `<span style="color:var(--status-warn)">${i}</span>`).join("; ")}</td>`
+          + r.vendors.map((v) => `<tr><td>${esc(v.vendor)}</td><td>${v.issues.map((i) => `<span style="color:var(--status-warn)">${esc(i)}</span>`).join("; ")}</td>`
             + `<td style="text-align:center">${v.can_bid ? "✅" : "⛔"}</td>`
             + `<td style="text-align:center">${v.can_bill ? "✅" : "⛔"}</td></tr>`).join("") + `</tbody>`;
         gateSlot.append(t);
@@ -413,7 +413,7 @@ export async function renderRiskCost(ctx: PanelContext) {
       if (risky.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th><th scope="col">Unconditional waived</th><th scope="col">Exposure</th></tr></thead><tbody>`
-          + risky.map((v) => `<tr><td>${v.vendor}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
+          + risky.map((v) => `<tr><td>${esc(v.vendor)}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
             + `<td style="text-align:right">${cmoney(v.waived_unconditional)}</td>`
             + `<td style="text-align:right;color:var(--status-crit)">${cmoney(v.exposure)}</td></tr>`).join("") + `</tbody>`;
         lienSlot.append(t);

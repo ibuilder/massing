@@ -810,7 +810,7 @@ export async function renderBudget(ctx: PanelContext) {
         + `· retainage ${usd(t.retainage)} · paid ${usd(t.paid)} · remaining ${usd(t.remaining)}</div>`;
       for (const s of sb.subs.slice(0, 8)) {
         const r = document.createElement("div"); r.className = "meta"; r.style.margin = "1px 0";
-        r.innerHTML = `${s.vendor ?? s.subcontract_ref ?? "—"}${s.trade ? ` · ${s.trade}` : ""}: billed <b>${usd(s.billed)}</b>`
+        r.innerHTML = `${esc(s.vendor ?? s.subcontract_ref ?? "—")}${s.trade ? ` · ${esc(s.trade)}` : ""}: billed <b>${usd(s.billed)}</b>`
           + (s.contract_value ? ` / ${usd(s.contract_value)}` : "") + ` · retainage ${usd(s.retainage)} · paid ${usd(s.paid)}`;
         sbody.appendChild(r);
       }
