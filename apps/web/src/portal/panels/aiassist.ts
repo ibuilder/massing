@@ -211,7 +211,7 @@ export async function renderAiAssist(ctx: PanelContext) {
     };
     const list = (title: string, items: string[]) => {
       const w = el("div"); w.style.marginTop = "6px";
-      const h = el("div", "meta"); h.innerHTML = `<b>${title}</b> (${items.length})`; w.appendChild(h);
+      const h = el("div", "meta"); h.innerHTML = `<b>${esc(title)}</b> (${items.length})`; w.appendChild(h);
       const ul = el("ul"); ul.style.cssText = "margin:2px 0 0 16px;font-size:12px";
       items.forEach((s) => { const li = el("li"); li.textContent = s; ul.appendChild(li); });
       if (!items.length) { const li = el("div", "meta"); li.textContent = "—"; li.style.marginLeft = "4px"; w.appendChild(li); }

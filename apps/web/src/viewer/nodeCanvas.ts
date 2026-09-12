@@ -8,6 +8,7 @@
  */
 
 import { applySlider, sliderSpecs } from "./nodeSliders";
+import { escapeHtml as esc } from "../ui/feedback";
 
 type Graph = { nodes: { id: string; recipe: string; params: Record<string, unknown> }[];
                edges: { from: string; to: string }[] };
@@ -216,7 +217,7 @@ export function openNodeCanvas(opts: NodeCanvasOpts): void {
     const bar = document.createElement("div");
     bar.style.cssText = "display:flex;align-items:center;gap:4px;padding:4px 6px;cursor:grab;"
       + "background:var(--accent-weak,#233047);border-radius:8px 8px 0 0";
-    bar.innerHTML = `<span style="font-weight:600">${id}</span><span style="opacity:.75">${recipe}</span>`;
+    bar.innerHTML = `<span style="font-weight:600">${id}</span><span style="opacity:.75">${esc(recipe)}</span>`;
     const del = document.createElement("button"); del.textContent = "✕"; del.title = "Remove node";
     del.style.cssText = "margin-left:auto;background:none;border:none;color:inherit;cursor:pointer;font-size:11px";
     del.onclick = (ev) => { ev.stopPropagation(); removeNode(id); };

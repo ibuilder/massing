@@ -30,7 +30,7 @@ export async function renderBenchmarks(ctx: PanelContext) {
       rr.innerHTML = "";
       const card = (title: string, m: { total: number; open: number; avg_turnaround_days: number | null; overdue: number; overdue_pct: number }) => {
         const c = el("div", "kpi-card"); c.style.cssText = "display:inline-block;margin:4px 8px 4px 0;padding:8px 12px;border:1px solid var(--line);border-radius:8px";
-        c.innerHTML = `<div class="meta"><b>${title}</b></div>`
+        c.innerHTML = `<div class="meta"><b>${esc(title)}</b></div>`
           + `<div style="font-size:12px">${m.total} total · ${m.open} open · ${m.overdue} overdue (${m.overdue_pct}%)`
           + ` · avg turnaround ${m.avg_turnaround_days ?? "—"} d</div>`;
         return c;
@@ -491,10 +491,10 @@ export async function renderRiskCost(ctx: PanelContext) {
       ceWrap.innerHTML = "";
       const type = el("select", "portal-filter") as HTMLSelectElement; type.style.cssText = "margin:2px 4px 2px 0";
       type.setAttribute("aria-label", "Building type");
-      type.innerHTML = cat.building_types.map((t) => `<option value="${t}">${t}</option>`).join("");
+      type.innerHTML = cat.building_types.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
       const region = el("select", "portal-filter") as HTMLSelectElement; region.style.cssText = "margin:2px 4px";
       region.setAttribute("aria-label", "Region");
-      region.innerHTML = cat.regions.map((rg) => `<option value="${rg}"${rg === "us_average" ? " selected" : ""}>${rg}</option>`).join("");
+      region.innerHTML = cat.regions.map((rg) => `<option value="${esc(rg)}"${rg === "us_average" ? " selected" : ""}>${esc(rg)}</option>`).join("");
       const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.setAttribute("aria-label", "Gross floor area (sf)"); gfa.style.cssText = "width:110px;margin:2px 4px";
       const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Estimate";
       const out = el("div"); out.style.marginTop = "6px";

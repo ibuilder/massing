@@ -717,7 +717,7 @@ export class RegisterUI {
     const td = document.createElement("td");
     const parties = this.ballInCourt(m, r.workflow_state);
     td.innerHTML = parties.length
-      ? parties.map((p) => `<span class="ball-badge">${p}</span>`).join(" ")
+      ? parties.map((p) => `<span class="ball-badge">${esc(p)}</span>`).join(" ")
       : `<span class="meta">—</span>`;
     return td;
   }
@@ -2022,7 +2022,7 @@ export class RegisterUI {
     catch (e) { toast(`triage failed: ${(e as Error).message}`, "error"); return; }
     const { card, ready } = modalShell("RFI triage (AI)", 360);
     if (!t.ai_enabled) card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "AI not configured — showing a template suggestion." }));
-    const kv = (k: string, v: string) => { const d = document.createElement("div"); d.className = "meta"; d.innerHTML = `<b>${k}:</b> `; d.append(v); card.appendChild(d); };
+    const kv = (k: string, v: string) => { const d = document.createElement("div"); d.className = "meta"; d.innerHTML = `<b>${esc(k)}:</b> `; d.append(v); card.appendChild(d); };
     kv("Discipline", t.discipline); kv("Category", t.category); kv("Urgency", t.urgency); kv("Ball-in-court", t.ball_in_court);
     const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "6px"; h.innerHTML = "<b>Draft response:</b>"; card.appendChild(h);
     const body = document.createElement("div"); body.style.cssText = "white-space:pre-wrap;font-size:12.5px"; body.textContent = t.draft_response; card.appendChild(body); ready();   // R24-PERF-BUDGET: the triage fetch is above, before the shell
@@ -2293,7 +2293,7 @@ export class RegisterUI {
       const cap = document.createElement("div"); cap.className = "meta"; cap.textContent = caption; box.appendChild(cap);
       for (const b of items) {
         const row = document.createElement("button"); row.className = "portal-mod";
-        row.innerHTML = `<span class="ic">${icon}</span> <b>${esc(labelOf(b))}</b> ${esc(b.ref)} ${esc(b.title ?? "")} ${statusChip(b.state)}`;
+        row.innerHTML = `<span class="ic">${esc(icon)}</span> <b>${esc(labelOf(b))}</b> ${esc(b.ref)} ${esc(b.title ?? "")} ${statusChip(b.state)}`;
         row.onclick = () => this.openByBrief(b.module, b.id);
         box.appendChild(row);
       }

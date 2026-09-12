@@ -654,7 +654,7 @@ export class PortalUI {
     const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
     for (const [ic, label, on] of tiles) {
       const c = el("div", "dash-card"); c.style.cssText = "cursor:pointer;text-align:center";
-      c.innerHTML = `<div style="font-size:22px">${ic}</div><div style="font-weight:600">${label}</div>`;
+      c.innerHTML = `<div style="font-size:22px">${esc(ic)}</div><div style="font-weight:600">${esc(label)}</div>`;
       c.onclick = on; grid.appendChild(c);
     }
     root.appendChild(grid);
@@ -676,7 +676,7 @@ export class PortalUI {
           const c = el("div", "dash-card" + (go ? " kpi-click" : "")); c.style.minWidth = "128px";
           if (go) { c.style.cursor = "pointer"; c.onclick = go; }
           if (title) c.title = title;
-          c.innerHTML = `<div style="font-size:20px;font-weight:600">${big}</div><div class="meta">${small}</div>`;
+          c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(big)}</div><div class="meta">${esc(small)}</div>`;
           row.appendChild(c);
         };
         if (health?.overall_score != null) {
@@ -708,7 +708,7 @@ export class PortalUI {
       for (const [key, label] of regs) {
         const n = cnt(key); if (!n) continue; any = true;
         const tile = el("div", "dash-card kpi-click"); tile.style.minWidth = "120px"; tile.style.cursor = "pointer";
-        tile.innerHTML = `<div style="font-size:20px;font-weight:600">${n}</div><div class="meta">${label}</div>`;
+        tile.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(n)}</div><div class="meta">${esc(label)}</div>`;
         tile.onclick = () => jump(key); cards.appendChild(tile);
       }
       if (any) {
@@ -924,7 +924,7 @@ export class PortalUI {
       const cards = order.map((k) => pool[k]).filter((c): c is NonNullable<typeof c> => Boolean(c));
       for (const [label, val, onClick] of cards) {
         const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
-        c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
+        c.innerHTML = `<div class="kpi-v">${esc(val)}</div><div class="kpi-l">${esc(label)}</div>`;
         if (onClick) {
           c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button");
           c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); };

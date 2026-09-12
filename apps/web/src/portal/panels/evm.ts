@@ -59,8 +59,8 @@ export async function renderEvm(ctx: PanelContext) {
   const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
   const card = (label: string, value: string, color?: string, sub?: string) => {
     const c = el("div", "dash-card"); c.style.cssText = `min-width:104px${color ? `;border-left:3px solid ${color}` : ""}`;
-    c.innerHTML = `<div style="font-size:19px;font-weight:600${color ? `;color:${color}` : ""}">${value}</div>`
-      + `<div class="meta">${label}</div>` + (sub ? `<div class="meta" style="font-size:10px">${sub}</div>` : "");
+    c.innerHTML = `<div style="font-size:19px;font-weight:600${color ? `;color:${esc(color)}` : ""}">${esc(value)}</div>`
+      + `<div class="meta">${esc(label)}</div>` + (sub ? `<div class="meta" style="font-size:10px">${esc(sub)}</div>` : "");
     return c;
   };
   const es = d.earned_schedule;

@@ -132,7 +132,7 @@ export async function renderMargin(ctx: PanelContext) {
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.actual)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${marginCol(r.buyout_margin)}">${usd(r.buyout_margin)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${marginCol(r.variance)}">${usd(r.variance)}</td>`
-          + `<td style="text-align:left" data-act="${i}"></td></tr>`;
+          + `<td style="text-align:left" data-act="${esc(i)}"></td></tr>`;
       }).join("") + `</tbody>`;
     // UX-ACT: inject the one-click resolve buttons into each flagged row's Fix cell (onclick needs DOM)
     m.rows.forEach((r, i) => {

@@ -104,7 +104,7 @@ export async function renderLifecycle(ctx: PanelContext) {
           + `<div><b>${ph.riba_stage}</b> <span class="meta">→ ${ph.aia_phase}</span></div>`
           + `<span class="badge">${ph.state}</span></div>`
           + `<div class="meta" style="margin-top:2px">Fee ${ph.design_fee_pct || 0}%${fee} · ${ph.iso_status || ""}</div>`
-          + (ph.deliverables.length ? `<ul style="margin:4px 0 0 16px;font-size:12px">${ph.deliverables.map((d) => `<li>${d}</li>`).join("")}</ul>` : "");
+          + (ph.deliverables.length ? `<ul style="margin:4px 0 0 16px;font-size:12px">${ph.deliverables.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : "");
         // gate actions
         const actions = el("div"); actions.style.cssText = "margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center";
         const act = (label: string, action: string, pre?: () => Promise<boolean>) => {
@@ -481,7 +481,7 @@ export async function renderEsg(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     const card = (label: string, value: string) => {
       const c = el("div", "dash-card"); c.style.minWidth = "125px";
-      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(value)}</div><div class="meta">${esc(label)}</div>`;
       return c;
     };
     cards.append(

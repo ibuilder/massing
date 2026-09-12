@@ -1583,7 +1583,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           : title.startsWith("Document") ? "Document" : "Data";
       if (opts.tool && primary && !isPrimary) group.dataset.secondary = "1";
       const head = document.createElement("button"); head.type = "button"; head.className = "tool-group-head";
-      head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span>`
+      head.innerHTML = `<span class="chev">▸</span><span class="t">${escapeHtml(title)}</span>`
         + (opts.tool && primary && !isPrimary ? `<span class="why">more</span>` : "")
         + (ok ? "" : `<span class="why">${reason}</span>`);
       const body = document.createElement("div"); body.className = "tool-group-body";
@@ -2184,7 +2184,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (heading) {
       const head = document.createElement("button");
       head.type = "button"; head.className = "tool-group-head";
-      head.innerHTML = `<span class="chev">▾</span><span class="t">${heading}</span>`;
+      head.innerHTML = `<span class="chev">▾</span><span class="t">${escapeHtml(heading)}</span>`;
       head.onclick = () => sec.classList.toggle("open");
       sec.append(head, body);
     } else {

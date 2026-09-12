@@ -648,14 +648,14 @@ function errorsModal() {
       data.errors.map((e, i) => {
         const where = [e.method, e.path].filter(Boolean).join(" ") + (e.status ? ` · ${e.status}` : "");
         const rid = e.request_id ? `<div class="meta" style="font-size:10px">${escapeHtml(e.request_id)}</div>` : "";
-        const tb = e.traceback ? `<button class="tool-btn" data-tb="${i}" style="font-size:10px;padding:1px 6px">trace</button>` : "";
+        const tb = e.traceback ? `<button class="tool-btn" data-tb="${escapeHtml(i)}" style="font-size:10px;padding:1px 6px">trace</button>` : "";
         return `<tr>` +
           c(new Date(e.ts).toLocaleString(), "white-space:nowrap") + c(badge(e.source)) +
           c(escapeHtml(e.kind ?? "—"), "white-space:nowrap") +
           c(escapeHtml(where) + rid) +
           c(escapeHtml((e.message ?? "").slice(0, 160)), "color:var(--muted)") + c(tb) +
           `</tr>` +
-          (e.traceback ? `<tr id="tb-${i}" style="display:none"><td colspan="6" style="padding:0 8px 8px"><pre style="white-space:pre-wrap;font-size:11px;max-height:220px;overflow:auto;background:var(--panel-2,rgba(128,128,128,.08));padding:8px;border-radius:6px">${escapeHtml(e.traceback)}</pre></td></tr>` : "");
+          (e.traceback ? `<tr id="tb-${escapeHtml(i)}" style="display:none"><td colspan="6" style="padding:0 8px 8px"><pre style="white-space:pre-wrap;font-size:11px;max-height:220px;overflow:auto;background:var(--panel-2,rgba(128,128,128,.08));padding:8px;border-radius:6px">${escapeHtml(e.traceback)}</pre></td></tr>` : "");
       }).join("") + `</table>`;
     table.querySelectorAll<HTMLButtonElement>("button[data-tb]").forEach((b) => {
       b.onclick = () => { const row = table.querySelector<HTMLElement>(`#tb-${b.dataset.tb}`); if (row) row.style.display = row.style.display === "none" ? "table-row" : "none"; };

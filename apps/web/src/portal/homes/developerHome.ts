@@ -15,6 +15,7 @@ import type { ModuleDef } from "../../api/types";
 import { countNarrative } from "../../ui/chips";
 import { usd } from "../../ui/charts";
 import type { PortalHost } from "../portal";
+import { escapeHtml as esc } from "../../ui/feedback";
 
 /** Exactly what this screen needs off the portal class — deliberately not the class itself. */
 export interface DeveloperHomeCtx { host: PortalHost; mods: ModuleDef[] }
@@ -70,7 +71,7 @@ export async function renderDeveloperHome(ctx: DeveloperHomeCtx, root: HTMLEleme
     ];
     for (const [label, val, onClick] of cards) {
       const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
-      c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
+      c.innerHTML = `<div class="kpi-v">${esc(val)}</div><div class="kpi-l">${esc(label)}</div>`;
       if (onClick) { c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button"); c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); }; }
       kpis.appendChild(c);
     }

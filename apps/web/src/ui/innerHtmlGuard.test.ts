@@ -80,9 +80,6 @@ const BASELINE: Record<string, readonly string[]> = {
   "main.ts": [
     "it.label",
   ],
-  "portal/homes/developerHome.ts": [
-    "label",
-  ],
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
     "r.message || \"No bids to level.\"",
@@ -91,7 +88,6 @@ const BASELINE: Record<string, readonly string[]> = {
     "r.source === \"claude\" ? \"AI\" : \"extract\"",
     "r.source === \"claude\" ? \"AI\" : \"rules\"",
     "r.source === \"claude\" ? \"AI\" : \"rules\"",
-    "title",
   ],
   "portal/panels/analytics.ts": [
     "c.cost_code",
@@ -107,47 +103,27 @@ const BASELINE: Record<string, readonly string[]> = {
     "r.pricing_source",
     "r.pricing_source",
     "s.note",
-    "title",
   ],
   "portal/panels/budget.ts": [
     "g.contract_value ? \" · \" : \"\"",
-    "label",
     "usd(g.contract_value)",
     "usd(s.contract_value)",
     "usd(t.contract_value)",
   ],
   "portal/panels/design.ts": [
-    "label",
-    "value",
     "x.label",
-  ],
-  "portal/panels/evm.ts": [
-    "label",
-    "value",
   ],
   "portal/panels/masterBuilder.ts": [
     "st.label",
   ],
   "portal/panels/operations.ts": [
     "d.code ?? \"\"",
-    "label",
-    "label",
-    "title",
-    "value",
-    "value",
   ],
   "portal/panels/portfolio.ts": [
-    "label",
-    "t.cross_project ? ` <span style=\"color:${col}\" title=\"on ${t.project_count} projects — can be double-booked\">⇄</span>` : \"\"",
     "usd(w.weighted_value)",
-  ],
-  "portal/panels/resourceLoading.ts": [
-    "label",
-    "value",
   ],
   "portal/panels/schedule.ts": [
     "mi.name",
-    "title",
     "title.toLowerCase()",
   ],
   "portal/panels/selections.ts": [
@@ -158,34 +134,20 @@ const BASELINE: Record<string, readonly string[]> = {
     "dp.next_deliverable.ref ?? \"\"",
     "dp.next_deliverable.type",
     "els.map((e) => e.label).join(\", \")",
-    "label",
-    "label",
-    "label",
     "m.parent_type",
     "m.type",
     "n.ref ?? n.title ?? \"?\"",
     "o.ref ?? \"\"",
     "o.type",
-    "value",
-    "value",
   ],
   "portal/panels/topicBoard.ts": [
     "e.detail?.reply_to ? \"↳ \" : \"\"",
     "e.kind === \"comment\" ? \"💬 \" : \"\"",
   ],
-  "portal/panels/traceability.ts": [
-    "label",
-    "value",
-  ],
   "portal/panels/wip.ts": [
     "flagText",
-    "label",
-    "value",
   ],
   "portal/portal.ts": [
-    "label",
-    "label",
-    "label",
     "n.reason === \"assigned\" ? \"rfi\" : \"open\"",
     "rs.source === \"claude\" ? \"AI\" : \"rules\"",
     "top.reason",
@@ -193,32 +155,17 @@ const BASELINE: Record<string, readonly string[]> = {
   "portal/register/register.ts": [
     "c.geo ? \"\" : \" (text search only)\"",
   ],
-  "proforma/massingTab.ts": [
-    "label",
-  ],
   "proforma/proforma.ts": [
     "cd.by_cost_code.length - top.length",
     "cipNote",
     "e.source === \"cip\" ? \" <span class=\\\"meta\\\">(CIP)</span>\" : \"\"",
-    "label",
-    "label",
-    "label",
-    "label",
-    "label",
-    "label",
-    "label",
     "money(pf.terminal_value)",
     "money(rec.value)",
     "money(v.cost.value)",
     "money(v.income.value)",
     "money(v.sales_comparison.value)",
     "row(\"Plus land\", money(v.cost.land_value))",
-    "title",
-    "title",
     "x.code",
-  ],
-  "proforma/testfitTab.ts": [
-    "label",
   ],
   "reportCenter.ts": [
     "money(s.approved_value)",
@@ -234,10 +181,8 @@ const BASELINE: Record<string, readonly string[]> = {
     "it.label",
   ],
   "ui/onboarding.ts": [
-    "desc",
     "s.body",
     "s.title",
-    "title",
   ],
   "ui/result.ts": [
     "m.label",
@@ -245,7 +190,6 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "viewer/app.ts": [
     "reason",
-    "title",
   ],
   "viewer/tools/authoringSection.ts": [
     "r.imported.slice(0, 3).map((i) => i.name).join(\", \")",
@@ -258,7 +202,6 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "viewer/tools/qaSection.ts": [
     "a.r_value",
-    "label",
   ],
 };
 
@@ -326,6 +269,105 @@ export function interpolations(src: string): string[] {
 /** Every hot, unescaped interpolation reaching innerHTML, as its expression text. */
 export function hotSinks(src: string): string[] {
   return interpolations(src).filter((e) => !SAFE.test(e) && !COLD.test(e) && HOT.test(e));
+}
+
+
+/**
+ * THE SECOND RULE, and the reason the first one is not enough.
+ *
+ * The identity ratchet above freezes `file :: expression`. That works when the expression NAMES its
+ * source — `${a.filename}` tells you a filename is being rendered, so a caller cannot change what
+ * flows in without changing the identity. It does NOT work when the interpolation is a bare value
+ * binding:
+ *
+ *     const card = (label: string, value: string) => {
+ *       c.innerHTML = `<div>${value}</div><div class="meta">${label}</div>`;   // identity: "value"
+ *     };
+ *
+ * `value` is the identity whatever the caller passes. Every caller could switch from a literal to a
+ * user-controlled field and the baseline would not move — the sink goes live while the gate stays
+ * green. That is the SAME defect this file was built to fix (a frozen key that does not vary with
+ * the thing it is supposed to constrain), one level up: there the key was a count with no identity,
+ * here it is an identity with no source.
+ *
+ * So this rule takes no baseline and admits no exemption: a bare value binding reaching innerHTML
+ * must be escaped. The fix is always available and always correct — wrap it in `esc()` — which is
+ * why there is nothing to grandfather.
+ *
+ * WHAT COUNTS AS A VALUE BINDING: a function PARAMETER, or a name bound by a DESTRUCTURING pattern
+ * (`for (const [label, val] of cards)`). Both are values handed in from elsewhere.
+ *
+ * WHAT DOES NOT, and why the line is drawn there: a plain `const x = …` local. 157 of those reach
+ * innerHTML in this tree and most hold HTML assembled earlier in the same function — `rows`,
+ * `thead`, `bars`, `cells`, `pts`. Escaping those would destroy the markup, so the rule would have
+ * to carry judgement about which locals are values, and a rule with judgement in it is a rule that
+ * can be argued with. The exclusion is stated here rather than left implicit: a local assigned from
+ * user data and interpolated bare is NOT caught by either rule in this file.
+ *
+ * Deliberately NOT filtered by HOT/COLD. `budget.ts` interpolated a bare `val` and `evm.ts` a bare
+ * `sub`; neither matches HOT, so both were invisible to the ratchet above while being exactly the
+ * shape this rule exists to catch. A term list derived from what someone happened to be looking at
+ * cannot bound a population — the SHAPE can.
+ */
+export function valueBindingSinks(src: string): string[] {
+  const sf = ts.createSourceFile("x.ts", src, ts.ScriptTarget.Latest, true);
+  const isFn = (n: ts.Node): boolean =>
+    ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)
+    || ts.isArrowFunction(n) || ts.isMethodDeclaration(n);
+
+  const bindNames = (name: ts.BindingName, into: Set<string>): void => {
+    if (ts.isIdentifier(name)) { into.add(name.text); return; }
+    for (const el of name.elements) if (ts.isBindingElement(el)) bindNames(el.name, into);
+  };
+  const paramsOf = (fn: ts.Node): Set<string> => {
+    const out = new Set<string>();
+    for (const p of (fn as ts.SignatureDeclaration).parameters ?? []) bindNames(p.name, out);
+    return out;
+  };
+  // Destructured names are collected file-wide rather than per-scope: this rule only ever asks
+  // "is this name a value binding somewhere", and a false positive costs one `esc()` that was
+  // already correct, while a false negative is a live sink. Err toward escaping.
+  const destructured = new Set<string>();
+  const collectDestructured = (n: ts.Node): void => {
+    if (ts.isVariableDeclaration(n) && !ts.isIdentifier(n.name)) bindNames(n.name, destructured);
+    ts.forEachChild(n, collectDestructured);
+  };
+  collectDestructured(sf);
+
+  const out: string[] = [];
+  const collect = (node: ts.Node, into: ts.Expression[]): void => {
+    if (ts.isTemplateExpression(node)) {
+      for (const span of node.templateSpans) { into.push(span.expression); collect(span.expression, into); }
+      return;
+    }
+    ts.forEachChild(node, (c) => collect(c, into));
+  };
+  const walk = (node: ts.Node): void => {
+    const isInnerHtmlWrite =
+      ts.isBinaryExpression(node)
+      && (node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+          || node.operatorToken.kind === ts.SyntaxKind.PlusEqualsToken)
+      && ((ts.isPropertyAccessExpression(node.left) && node.left.name.text === "innerHTML")
+          || (ts.isElementAccessExpression(node.left)
+              && ts.isStringLiteral(node.left.argumentExpression)
+              && node.left.argumentExpression.text === "innerHTML"));
+    if (isInnerHtmlWrite) {
+      const exprs: ts.Expression[] = [];
+      collect(node.right, exprs);
+      for (const e of exprs) {
+        if (!ts.isIdentifier(e) || SAFE.test(e.text)) continue;
+        let scope: ts.Node | undefined = e.parent, isParam = false;
+        while (scope) {
+          if (isFn(scope) && paramsOf(scope).has(e.text)) { isParam = true; break; }
+          scope = scope.parent;
+        }
+        if (isParam || destructured.has(e.text)) out.push(e.text);
+      }
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return out;
 }
 
 
@@ -400,20 +442,26 @@ describe("innerHTML escaping ratchet (identity-keyed)", () => {
   it("CATCHES A SUBSTITUTION, which the counting version could not", () => {
     // This is the whole argument for the rewrite. Take a real baselined file, DELETE one known sink
     // and ADD a different unescaped one. The count is unchanged, so the old rule stayed green.
-    const file = "portal/panels/evm.ts";
-    const known = BASELINE[file]!;
-    expect(known, "fixture file must still be baselined").toContain("value");
+    // The fixture is DERIVED, not named. It used to hardcode `portal/panels/evm.ts` / "value" —
+    // and HELPER-ESCAPE escaped every sink in that file, so a legitimate improvement red this test
+    // with a message about a missing baseline entry rather than about the substitution it guards.
+    // A failure message that can misdiagnose is worse than one that stays silent, because somebody
+    // acts on it (test_scratch_ignored.py, the same lesson). Pick any file with ≥ 2 known sinks.
+    const file = Object.keys(BASELINE).find((f) => (BASELINE[f] ?? []).length >= 2);
+    expect(file, "no baselined file has two sinks left — pick a different fixture shape").toBeTruthy();
+    const known = BASELINE[file!]!;
+    const victim = known[0]!;
 
-    const before = { [file]: [...known] };
-    const after = { [file]: known.filter((e) => e !== "value").concat("attacker.name") };
+    const before = { [file!]: [...known] };
+    const after = { [file!]: known.filter((e) => e !== victim).concat("attacker.name") };
 
     // The mutation must actually have applied — a mutation that does not apply is a test that was
     // never exercised, and it reports green exactly like a passing one (mixinStaging.test.ts, #542).
-    expect(after[file]).not.toEqual(before[file]);
-    expect(after[file]!.length, "substitution must keep the COUNT identical").toBe(before[file]!.length);
+    expect(after[file!]).not.toEqual(before[file!]);
+    expect(after[file!]!.length, "substitution must keep the COUNT identical").toBe(before[file!]!.length);
 
     // Old rule: count <= allowance. Same length, so it passed.
-    expect(after[file]!.length <= before[file]!.length).toBe(true);
+    expect(after[file!]!.length <= before[file!]!.length).toBe(true);
     // New rule: the identity is unknown, so it fails.
     expect(unknownIdentities(after, BASELINE)).toEqual([`${file} :: attacker.name`]);
   });
@@ -471,6 +519,78 @@ describe("innerHTML escaping ratchet (identity-keyed)", () => {
     expect(unknownIdentities({ "a.ts": ["user.name"] }, baseline)).toEqual([]);
     expect(unknownIdentities({ "a.ts": ["user.name", "user.name"] }, baseline))
       .toEqual(["a.ts :: user.name"]);
+  });
+
+  // ---- THE SECOND RULE: no bare value binding reaches innerHTML unescaped. No baseline. --------
+
+  it("finds the pre-fix helper shape — the derivation is proved to REACH, not just to run", () => {
+    // This is `card` from portal/panels/operations.ts EXACTLY as it stood before this change. The
+    // gate must find it. test_seeding_sweep.py paid for this rule twice: a sweep whose own first
+    // draft reported the tree clean, because its predicate never looked at the site. So the checker
+    // runs against the known-bad text first, and a mutation that makes it lenient fails HERE.
+    const preFix = `
+      const card = (label: string, value: string) => {
+        const c = el("div", "dash-card");
+        c.innerHTML = \`<div style="font-size:20px">\${value}</div><div class="meta">\${label}</div>\`;
+        return c;
+      };`;
+    expect(valueBindingSinks(preFix).sort()).toEqual(["label", "value"]);
+  });
+
+  it("finds a DESTRUCTURED binding, which a parameter-only rule missed", () => {
+    // The first draft of this rule tested only for parameters and reported the tree clean at 85
+    // fixed sites. 23 more were live, in this shape — `label`/`val` are values handed in from
+    // elsewhere exactly as a parameter is, and the name says nothing about the source either way.
+    // A predicate that decides what to LOOK at hides everything it excludes from its own count.
+    const loop = `
+      for (const [label, val] of cards) {
+        c.innerHTML = \`<div class="kpi-v">\${val}</div><div class="kpi-l">\${label}</div>\`;
+      }`;
+    expect(valueBindingSinks(loop).sort()).toEqual(["label", "val"]);
+  });
+
+  it("catches names HOT cannot see — which is why this rule is not term-filtered", () => {
+    // `val` and `sub` match no HOT term, so the identity ratchet above was blind to both while they
+    // sat unescaped in budget.ts and evm.ts. Shape bounds a population; a keyword list does not.
+    for (const name of ["val", "sub", "color", "icon", "recipe"]) {
+      expect(hotSinks("const f = (" + name + ") => { e.innerHTML = `<b>${" + name + "}</b>`; };"),
+        `${name} is invisible to HOT — that is the point`).toEqual([]);
+      expect(valueBindingSinks("const f = (" + name + ") => { e.innerHTML = `<b>${" + name + "}</b>`; };"))
+        .toEqual([name]);
+    }
+  });
+
+  it("accepts the escaped form, so the fix actually clears the gate", () => {
+    expect(valueBindingSinks(
+      "const f = (label) => { e.innerHTML = `<b>${esc(label)}</b>`; };")).toEqual([]);
+    expect(valueBindingSinks(
+      "const f = (label) => { e.innerHTML = `<b>${escapeHtml(label)}</b>`; };")).toEqual([]);
+  });
+
+  it("does NOT flag a plain local — the stated exclusion, asserted rather than described", () => {
+    // 157 bare locals reach innerHTML in this tree and most hold markup built a few lines earlier.
+    // Escaping those would destroy it, so they are out of scope BY DESIGN. Asserting the exclusion
+    // keeps it honest: if someone later widens the rule to all bare identifiers, this test says so
+    // rather than the build going red 157 times with no explanation.
+    const local = `
+      function render(items) {
+        const rows = items.map((r) => \`<tr><td>\${esc(r.name)}</td></tr>\`).join("");
+        tbl.innerHTML = \`<tbody>\${rows}</tbody>\`;
+      }`;
+    expect(valueBindingSinks(local)).toEqual([]);
+  });
+
+  it("has ZERO value-binding sinks across the tree, with no baseline to grandfather into", () => {
+    const found: string[] = [];
+    for (const file of walk(SRC)) {
+      const hits = valueBindingSinks(readFileSync(file, "utf8"));
+      for (const h of hits) found.push(`${relative(SRC, file).replace(/\\/g, "/")} :: ${h}`);
+    }
+    expect(found.sort().join("\n") || "none",
+      "A bare parameter or destructured binding reached innerHTML unescaped. Wrap it in esc(). "
+      + "There is no baseline for this rule: the identity is the binding NAME, which does not move "
+      + "when a caller starts passing user data, so grandfathering one would freeze a sink open.")
+      .toBe("none");
   });
 
   it("sees the free-text identifiers added with this change", () => {

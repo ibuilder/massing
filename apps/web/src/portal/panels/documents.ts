@@ -59,11 +59,11 @@ export async function renderDocuments(ctx: PanelContext) {
   const roleSel = el("select", "portal-filter") as HTMLSelectElement;
   roleSel.setAttribute("aria-label", "Filter folders by owner role");
   roleSel.innerHTML = ["All roles", "PM", "Superintendent", "Architect", "Engineer", "QS"]
-    .map((r) => `<option>${r}</option>`).join("");
+    .map((r) => `<option>${esc(r)}</option>`).join("");
   const phaseSel = el("select", "portal-filter") as HTMLSelectElement;
   phaseSel.setAttribute("aria-label", "Check required documents for a design phase");
   phaseSel.innerHTML = `<option value="">Phase gaps…</option>`
-    + ["SD", "DD", "CD", "CA", "CLOSEOUT"].map((p) => `<option>${p}</option>`).join("");
+    + ["SD", "DD", "CD", "CA", "CLOSEOUT"].map((p) => `<option>${esc(p)}</option>`).join("");
   controls.append(roleSel, phaseSel); root.appendChild(controls);
 
   // two-pane, but wraps to stacked on narrow viewports (min-width:0 lets the table scroll, not overflow)

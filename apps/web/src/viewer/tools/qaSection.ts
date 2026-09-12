@@ -355,7 +355,7 @@ export function buildQaSection(d: QaDeps): void {
               if (!guids.length) continue;
               const row = document.createElement("div");
               row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
-              row.innerHTML = `<b>${label}</b>: ${guids.length}`;
+              row.innerHTML = `<b>${escapeHtml(label)}</b>: ${guids.length}`;
               row.title = "Select these elements";
               row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
               body.appendChild(row);

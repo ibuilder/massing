@@ -83,7 +83,7 @@ export class ProformaUI {
     const form = document.createElement("div"); form.className = "pf-form";
     for (const [label, path, kind] of FIELDS) {
       const wrap = document.createElement("label"); wrap.className = "pf-field";
-      wrap.innerHTML = `<span>${label}</span>`;
+      wrap.innerHTML = `<span>${escapeHtml(label)}</span>`;
       const inp = document.createElement("input"); inp.type = "number"; inp.step = "any";
       const raw = get(this.a, path);
       inp.value = String(kind === "pct" ? +(raw * 100).toFixed(3) : raw);
@@ -103,7 +103,7 @@ export class ProformaUI {
     // optional debt-sizing constraints (blank = off → loan sized by LTC only)
     const sizingField = (label: string, path: string, scale: number, placeholder: string) => {
       const wrap = document.createElement("label"); wrap.className = "pf-field";
-      wrap.innerHTML = `<span>${label}</span>`;
+      wrap.innerHTML = `<span>${escapeHtml(label)}</span>`;
       const inp = document.createElement("input"); inp.type = "number"; inp.step = "any"; inp.placeholder = placeholder;
       const raw = get(this.a, path);
       inp.value = raw == null ? "" : String(+(raw * scale).toFixed(3));
@@ -178,7 +178,7 @@ export class ProformaUI {
 
     const stmt = (title: string, lines: StatementLine[]) => {
       const box = document.createElement("div"); box.className = "fin-card";
-      box.innerHTML = `<div class="section-title" style="margin:0 0 4px">${title}</div>`;
+      box.innerHTML = `<div class="section-title" style="margin:0 0 4px">${escapeHtml(title)}</div>`;
       const t = document.createElement("table"); t.className = "fin-table";
       for (const ln of lines) {
         const tr = document.createElement("tr");
@@ -202,7 +202,7 @@ export class ProformaUI {
     const two = document.createElement("div"); two.className = "fin-twoside";
     const col = (head: string, lines: StatementLine[], total: number) => {
       const c = document.createElement("table"); c.className = "fin-table";
-      c.innerHTML = `<tr class="fin-sub"><td>${head}</td><td class="num"></td></tr>`
+      c.innerHTML = `<tr class="fin-sub"><td>${escapeHtml(head)}</td><td class="num"></td></tr>`
         + lines.map((l) => `<tr><td>${escapeHtml(l.label)}</td><td class="num">${money(l.amount)}</td></tr>`).join("")
         + `<tr class="fin-total"><td>Total</td><td class="num">${money(total)}</td></tr>`;
       return c;
@@ -282,9 +282,9 @@ export class ProformaUI {
     // per-year columnar statements (years across the top) — the standard financial-statement layout
     const columnar = (title: string, yrs: number[], rows: { label: string; values: number[]; cls?: string }[]) => {
       const card = document.createElement("div"); card.className = "fin-card fin-wide";
-      card.innerHTML = `<div class="section-title" style="margin:0 0 4px">${title}</div>`;
+      card.innerHTML = `<div class="section-title" style="margin:0 0 4px">${escapeHtml(title)}</div>`;
       const t = document.createElement("table"); t.className = "fin-table";
-      t.innerHTML = `<tr class="fin-sub"><td></td>${yrs.map((y) => `<td class="num">Yr ${y}</td>`).join("")}</tr>`
+      t.innerHTML = `<tr class="fin-sub"><td></td>${yrs.map((y) => `<td class="num">Yr ${escapeHtml(y)}</td>`).join("")}</tr>`
         + rows.map((r) => `<tr class="${r.cls ?? ""}"><td>${escapeHtml(r.label)}</td>`
           + r.values.map((v) => `<td class="num">${money(v)}</td>`).join("") + "</tr>").join("");
       card.appendChild(t); return card;
@@ -437,7 +437,7 @@ export class ProformaUI {
     for (const c of rec.contributions) cur[c.approach] = c.weight;
     for (const [k, label] of wKeys) {
       const f = document.createElement("label"); f.className = "pf-field";
-      f.innerHTML = `<span>${label} %</span>`;
+      f.innerHTML = `<span>${escapeHtml(label)} %</span>`;
       const inp = document.createElement("input"); inp.type = "number"; inp.step = "any";
       inp.value = String(Math.round((cur[k] ?? 0) * 100)); inputs[k] = inp; f.appendChild(inp); wrap.appendChild(f);
     }
@@ -895,7 +895,7 @@ export class ProformaUI {
       let timer = 0; const save = () => { clearTimeout(timer); timer = window.setTimeout(() => void this.api.saveProperty(pid, prop).then((r) => { sumEl.textContent = summary(r.summary.total_taxes, r.summary.purchase_price); }), 500); };
       const grid = document.createElement("div"); grid.className = "pf-form";
       const field = (label: string, key: string, taxes = false) => {
-        const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
+        const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${escapeHtml(label)}</span>`;
         const i = document.createElement("input"); i.type = "number"; i.step = "any";
         i.value = String(taxes ? (prop.taxes?.[key] ?? 0) : (prop[key] ?? 0));
         i.oninput = () => { const v = parseFloat(i.value) || 0; if (taxes) { prop.taxes = prop.taxes || {}; prop.taxes[key] = v; } else prop[key] = v; save(); };
@@ -979,7 +979,7 @@ export class ProformaUI {
         const grid = document.createElement("div"); grid.className = "pf-form";
         for (const [label, group, key] of FIELDS) {
           params[group] = params[group] || {};
-          const wrap = document.createElement("label"); wrap.className = "pf-field"; wrap.innerHTML = `<span>${label}</span>`;
+          const wrap = document.createElement("label"); wrap.className = "pf-field"; wrap.innerHTML = `<span>${escapeHtml(label)}</span>`;
           const inp = document.createElement("input"); inp.type = "number"; inp.step = "any";
           inp.value = String((params[group] as Record<string, number>)[key] ?? 0);
           inp.oninput = () => { (params[group] as Record<string, number>)[key] = parseFloat(inp.value) || 0; save(); };
@@ -1137,7 +1137,7 @@ export class ProformaUI {
         const col = m.position === "within_iqr" ? "var(--status-good)" : "var(--status-warn)";
         memory.innerHTML = `🏛 Your own history: this deal's hard cost is <b>$${m.entered}/SF</b> `
           + `(${money(m.hard_cost ?? 0)} ÷ ${Math.round(m.gfa_sf ?? 0).toLocaleString()} SF) — `
-          + `<span style="color:${col}">${at}</span> the range your <b>${m.count}</b> closed `
+          + `<span style="color:${escapeHtml(col)}">${at}</span> the range your <b>${m.count}</b> closed `
           + `project(s) landed in ($${m.p25}–$${m.p75}, median $${m.median}). `
           + `A comparison, not a verdict. <button class="tool-btn" id="pf-dm-more" `
           + `style="font-size:10px;padding:1px 6px">which projects?</button>`;
@@ -1200,7 +1200,7 @@ export class ProformaUI {
         const col = g.in_sync ? "var(--status-good)" : (g.delta > 0 ? "var(--status-crit)" : "var(--status-warn)");
         recon.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">`
           + `<span class="meta">🤝 GC GMP <b>${money(g.gc_gmp)}</b> · EAC ${money(g.gmp_eac)} vs hard cost <b>${money(g.dev_hard_cost)}</b> · `
-          + `<span style="color:${col}">${g.in_sync ? "in sync" : (g.delta > 0 ? "GMP over by " : "GMP under by ") + money(Math.abs(g.delta))}</span></span>`
+          + `<span style="color:${escapeHtml(col)}">${g.in_sync ? "in sync" : (g.delta > 0 ? "GMP over by " : "GMP under by ") + money(Math.abs(g.delta))}</span></span>`
           + `<button class="tool-btn" id="pf-sync-gmp"${g.in_sync ? " disabled" : ""}>⤵ Set hard cost = GMP</button></div>`;
         const btn = recon.querySelector<HTMLButtonElement>("#pf-sync-gmp");
         if (btn) btn.onclick = async () => {
@@ -1268,7 +1268,7 @@ export class ProformaUI {
         for (const [cat, label] of CATS) {
           const head = document.createElement("div"); head.className = "section-title"; head.style.cssText = "margin:8px 0 2px;font-size:12px";
           const subtotal = sum?.categories[cat];
-          head.innerHTML = `${label} <span class="meta" style="font-weight:400">${subtotal ? "· " + money(subtotal.subtotal) + (subtotal.contingency ? " + " + money(subtotal.contingency) + " contingency" : "") : ""}</span>`;
+          head.innerHTML = `${escapeHtml(label)} <span class="meta" style="font-weight:400">${subtotal ? "· " + money(subtotal.subtotal) + (subtotal.contingency ? " + " + money(subtotal.contingency) + " contingency" : "") : ""}</span>`;
           body.appendChild(head);
           const tbl = document.createElement("table"); tbl.className = "sens-table"; tbl.style.fontSize = "12px";
           tbl.innerHTML = `<tr><th style="text-align:left">Description</th><th>$/unit</th><th>Qty</th><th>Total</th><th></th></tr>`;
@@ -1276,10 +1276,10 @@ export class ProformaUI {
             if (ln.category !== cat) return;
             const tr = document.createElement("tr");
             const tot = (ln.unit_cost || 0) * (ln.quantity || 1);
-            tr.innerHTML = `<td><input data-i="${i}" data-k="description" value="${escapeHtml(ln.description || "")}" style="width:150px"></td>`
-              + `<td><input data-i="${i}" data-k="unit_cost" type="number" step="any" value="${ln.unit_cost || 0}" style="width:90px"></td>`
-              + `<td><input data-i="${i}" data-k="quantity" type="number" step="any" value="${ln.quantity ?? 1}" style="width:60px"></td>`
-              + `<td style="text-align:right">${money(tot)}</td><td><button class="tool-btn" data-rm="${i}" title="Remove">✕</button></td>`;
+            tr.innerHTML = `<td><input data-i="${escapeHtml(i)}" data-k="description" value="${escapeHtml(ln.description || "")}" style="width:150px"></td>`
+              + `<td><input data-i="${escapeHtml(i)}" data-k="unit_cost" type="number" step="any" value="${ln.unit_cost || 0}" style="width:90px"></td>`
+              + `<td><input data-i="${escapeHtml(i)}" data-k="quantity" type="number" step="any" value="${ln.quantity ?? 1}" style="width:60px"></td>`
+              + `<td style="text-align:right">${money(tot)}</td><td><button class="tool-btn" data-rm="${escapeHtml(i)}" title="Remove">✕</button></td>`;
             tbl.appendChild(tr);
           });
           body.appendChild(tbl);
@@ -1594,7 +1594,7 @@ export class ProformaUI {
       `<div class="section-title">Monte Carlo — Equity IRR (${mc.solved} draws: exit cap × hard cost × rent)</div>` +
       `<div class="kpi-grid">` +
       [["P10", pct(m.p10)], ["P50 (median)", pct(m.p50)], ["P90", pct(m.p90)], [`P(IRR ≥ ${target * 100}%)`, `${prob}%`]]
-        .map(([l, v]) => `<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`).join("") +
+        .map(([l, v]) => `<div class="kpi"><div class="kpi-v">${escapeHtml(v)}</div><div class="kpi-l">${escapeHtml(l)}</div></div>`).join("") +
       `</div>` +
       `<div class="pf-hist" title="equity IRR distribution (P10 → P90)">${bars}</div>` +
       `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
@@ -1690,7 +1690,7 @@ export class ProformaUI {
     const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";
     const kpi = (label: string, val: string, color?: string) => {
       const c = card(); c.style.flex = "1";
-      c.innerHTML = `<div class="meta">${label}</div><div style="font-size:18px;font-weight:700${color ? `;color:${color}` : ""}">${val}</div>`;
+      c.innerHTML = `<div class="meta">${escapeHtml(label)}</div><div style="font-size:18px;font-weight:700${color ? `;color:${escapeHtml(color)}` : ""}">${escapeHtml(val)}</div>`;
       return c;
     };
     kpis.append(kpi("Equity IRR", pct(ret.equity_irr), irrColor), kpi("Equity multiple", `${ret.equity_multiple}×`),
@@ -1797,7 +1797,7 @@ export class ProformaUI {
     const out = document.getElementById("pf-out")!;
     out.innerHTML =
       `<div class="kpi-grid">` +
-      kpis.map(([l, v]) => `<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`).join("") +
+      kpis.map(([l, v]) => `<div class="kpi"><div class="kpi-v">${escapeHtml(v)}</div><div class="kpi-l">${escapeHtml(l)}</div></div>`).join("") +
       `</div>` +
       `<div class="section-title">Sources & Uses</div>` +
       `<div class="portal-kv">` +

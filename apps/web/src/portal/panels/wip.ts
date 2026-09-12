@@ -46,8 +46,8 @@ export async function renderWip(ctx: PanelContext) {
   const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
   const card = (label: string, value: string, color?: string, sub?: string) => {
     const cc = el("div", "dash-card"); cc.style.cssText = `min-width:112px${color ? `;border-left:3px solid ${color}` : ""}`;
-    cc.innerHTML = `<div style="font-size:18px;font-weight:600${color ? `;color:${color}` : ""}">${value}</div>`
-      + `<div class="meta">${label}</div>` + (sub ? `<div class="meta" style="font-size:10px">${sub}</div>` : "");
+    cc.innerHTML = `<div style="font-size:18px;font-weight:600${color ? `;color:${esc(color)}` : ""}">${esc(value)}</div>`
+      + `<div class="meta">${esc(label)}</div>` + (sub ? `<div class="meta" style="font-size:10px">${esc(sub)}</div>` : "");
     return cc;
   };
   const over = w.billing_status === "over-billed";
@@ -78,7 +78,7 @@ export async function renderWip(ctx: PanelContext) {
     ["Profit earned to date", usd(w.profit_to_date)], ["Retainage held", usd(w.retainage)],
   ];
   const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px";
-  tbl.innerHTML = `<tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${v}</td></tr>`).join("")}</tbody>`;
+  tbl.innerHTML = `<tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${esc(v)}</td></tr>`).join("")}</tbody>`;
   body.append(tbl);
 
   // --- model cross-check: physical % complete (installed elements ÷ total, by GlobalId) vs cost ---

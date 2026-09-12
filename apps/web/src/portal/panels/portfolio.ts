@@ -44,7 +44,7 @@ export async function renderPortfolio(ctx: PanelContext) {
     const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";
     const kpi = (label: string, val: string, color?: string) => {
       const c = document.createElement("div"); c.className = "dash-card"; c.style.flex = "1";
-      c.innerHTML = `<div class="meta">${label}</div><div style="font-size:18px;font-weight:700${color ? `;color:${color}` : ""}">${val}</div>`;
+      c.innerHTML = `<div class="meta">${esc(label)}</div><div style="font-size:18px;font-weight:700${color ? `;color:${esc(color)}` : ""}">${esc(val)}</div>`;
       return c;
     };
     const irrPct = (v: number | null) => v == null ? "—" : `${(v * 100).toFixed(1)}%`;
@@ -69,7 +69,7 @@ export async function renderPortfolio(ctx: PanelContext) {
       const [lbl, col] = pill[p.status] ?? ["—", "var(--muted)"];
       const irrCol = p.equity_irr == null ? "var(--muted)" : p.equity_irr >= 0.15 ? "var(--status-good)" : p.equity_irr >= 0.12 ? "var(--status-warn)" : "var(--status-crit)";
       tr.innerHTML = `<td>${esc(p.name)}${p.id === here ? " ·" : ""}</td>`
-        + `<td><span class="ball-badge" style="background:${col}22;color:${col};border-color:${col}">${lbl}</span></td>`
+        + `<td><span class="ball-badge" style="background:${esc(col)}22;color:${esc(col)};border-color:${esc(col)}">${esc(lbl)}</span></td>`
         + `<td style="text-align:right;color:${p.cpi == null ? "var(--muted)" : p.cpi >= 0.95 ? "var(--status-good)" : "var(--status-crit)"}">${p.cpi ?? "—"}</td>`
         + `<td style="text-align:right;color:${p.spi == null ? "var(--muted)" : p.spi >= 0.95 ? "var(--status-good)" : "var(--status-crit)"}">${p.spi ?? "—"}</td>`
         + `<td style="text-align:right">${p.pct_complete}%</td><td style="text-align:right">${usd(p.gmp)}</td>`
@@ -201,7 +201,7 @@ export async function renderPortfolio(ctx: PanelContext) {
         // A trade on more than one project is the only kind that CAN be double-booked, so it is
         // the only kind worth colouring — this is a fact from the data, not a severity guess.
         const col = t.cross_project ? "var(--status-warn)" : "var(--muted)";
-        tr.innerHTML = `<td>${esc(t.trade)}${t.cross_project ? ` <span style="color:${col}" title="on ${t.project_count} projects — can be double-booked">⇄</span>` : ""}</td>`
+        tr.innerHTML = `<td>${esc(t.trade)}${t.cross_project ? ` <span style="color:${esc(col)}" title="on ${t.project_count} projects — can be double-booked">⇄</span>` : ""}</td>`
           + `<td style="text-align:right;font-weight:600">${t.peak_units}</td>`
           + `<td class="meta">${esc(t.peak_week ?? "—")}</td>`
           + `<td style="text-align:right">${t.project_count}</td>`

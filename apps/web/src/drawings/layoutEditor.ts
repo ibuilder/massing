@@ -1,6 +1,7 @@
 import type { ApiClient } from "../api/client";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { PAGE_CATALOG, isSheetPage, readSheetPage, writeSheetPage } from "../viewer/sheetSpecs";
+import { escapeHtml as esc } from "../ui/feedback";
 
 /** SHEET-VIEWPORTS — the interactive paper-space editor over the v0.3.449 layout endpoints.
  *
@@ -47,7 +48,7 @@ export function openLayoutEditor(api: ApiClient, pid: string, mount: HTMLElement
   };
   const mkSel = (opts: string[], val?: string) => {
     const s = document.createElement("select"); s.className = "portal-filter";
-    s.innerHTML = opts.map((o) => `<option${o === val ? " selected" : ""}>${o}</option>`).join("");
+    s.innerHTML = opts.map((o) => `<option${o === val ? " selected" : ""}>${esc(o)}</option>`).join("");
     return s;
   };
   const mkNum = (val: number | "" = "", step = 0.05, w = 62) => {

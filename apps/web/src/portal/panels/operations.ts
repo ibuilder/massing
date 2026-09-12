@@ -52,7 +52,7 @@ export async function renderOperations(ctx: PanelContext) {
       const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
       const card = (label: string, value: string, warn = false) => {
         const c = el("div", "dash-card"); c.style.cssText = `min-width:110px${warn ? ";border-left:3px solid var(--status-warn)" : ""}`;
-        c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+        c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(value)}</div><div class="meta">${esc(label)}</div>`;
         return c;
       };
       cards.append(card("open work orders", String(k.open)),
@@ -272,7 +272,7 @@ export async function renderSpine(ctx: PanelContext) {
       const gapList = (title: string, items: string[]) => {
         if (!items.length) return;
         const d = el("div", "meta"); d.style.margin = "3px 0";
-        d.innerHTML = `<b>${title} (${items.length}):</b> ${items.slice(0, 12).map(esc).join(", ")}${items.length > 12 ? " …" : ""}`;
+        d.innerHTML = `<b>${esc(title)} (${items.length}):</b> ${items.slice(0, 12).map(esc).join(", ")}${items.length > 12 ? " …" : ""}`;
         gc.appendChild(d);
       };
       gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref));
@@ -436,7 +436,7 @@ export async function renderEnergy(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     const card = (label: string, value: string) => {
       const c = el("div", "dash-card"); c.style.minWidth = "120px";
-      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(value)}</div><div class="meta">${esc(label)}</div>`;
       return c;
     };
     cards.append(card("EUI (kBtu/sf/yr)", e0.eui_kbtu_sf_yr != null ? String(e0.eui_kbtu_sf_yr) : "—"),

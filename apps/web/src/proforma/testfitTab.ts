@@ -2,6 +2,7 @@
  *  ranked. The TestFit-style "explore scenarios, find the deal that pencils" surface. Extracted from
  *  the ProformaUI god class along its LCOM4 seam; behavior pinned by proforma.render.test.ts. */
 import type { ApiClient } from "../api/client";
+import { escapeHtml as esc } from "../ui/feedback";
 
 export interface TestFitTabCtx {
   api: ApiClient;
@@ -15,7 +16,7 @@ export function renderTestFitTab(root: HTMLElement, ctx: TestFitTabCtx): void {
     + `<div class="meta" style="margin-bottom:6px">Fit a unit mix to a floor plate; compare yield + parking across schemes.</div>`;
   const grid = document.createElement("div"); grid.className = "pf-form";
   const inp = (label: string, val: number) => {
-    const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
+    const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${esc(label)}</span>`;
     const i = document.createElement("input"); i.type = "number"; i.step = "any"; i.value = String(val); w.appendChild(i); grid.appendChild(w); return i;
   };
   const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);

@@ -52,8 +52,8 @@ export async function renderResourceLoading(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     const card = (label: string, value: string, color?: string, sub?: string) => {
       const cc = el("div", "dash-card"); cc.style.cssText = `min-width:104px${color ? `;border-left:3px solid ${color}` : ""}`;
-      cc.innerHTML = `<div style="font-size:19px;font-weight:600${color ? `;color:${color}` : ""}">${value}</div>`
-        + `<div class="meta">${label}</div>` + (sub ? `<div class="meta" style="font-size:10px">${sub}</div>` : "");
+      cc.innerHTML = `<div style="font-size:19px;font-weight:600${color ? `;color:${esc(color)}` : ""}">${esc(value)}</div>`
+        + `<div class="meta">${esc(label)}</div>` + (sub ? `<div class="meta" style="font-size:10px">${esc(sub)}</div>` : "");
       return cc;
     };
     const overCount = ld.over_allocation.length;
@@ -68,7 +68,7 @@ export async function renderResourceLoading(ctx: PanelContext) {
     const hist = el("div", "dash-card"); hist.style.marginBottom = "8px";
     hist.innerHTML = stackedBar(ld.histogram.map((w) => ({
       label: w.week.slice(5), segments: ld.trades.map((t) => ({ name: t, value: w.by_trade[t] || 0 })),
-    })), { title: `Manpower histogram (units/week, by trade) · cap ${cap}`, fmt: (n) => `${n}`, height: 200 });
+    })), { title: `Manpower histogram (units/week, by trade) · cap ${cap}`, fmt: (n) => `${esc(n)}`, height: 200 });
     body.append(hist);
 
     // cost S-curve

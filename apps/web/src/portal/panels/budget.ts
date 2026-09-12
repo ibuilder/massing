@@ -522,7 +522,7 @@ export async function renderBudget(ctx: PanelContext) {
     const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";
     const kpi = (label: string, val: string, color?: string) => {
       const c = document.createElement("div"); c.className = "dash-card"; c.style.flex = "1";
-      c.innerHTML = `<div class="meta">${label}</div><div style="font-size:18px;font-weight:700${color ? `;color:${color}` : ""}">${val}</div>`;
+      c.innerHTML = `<div class="meta">${esc(label)}</div><div style="font-size:18px;font-weight:700${color ? `;color:${esc(color)}` : ""}">${esc(val)}</div>`;
       return c;
     };
     // defensive defaults so the page renders against any API version (new fields fill once present)
