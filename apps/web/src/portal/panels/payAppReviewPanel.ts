@@ -92,12 +92,24 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
     // or a period-close committing between them gives a certificate from one SOV state beside a sheet
     // from another. `consistent` uses the cross-document identities as the detector — see its note —
     // and a torn pair resolves on the re-read while a genuinely wrong certificate does not.
-    let [cert, sheet] = await Promise.all([api.g702(pid), api.g703(pid)]);
+    let [cert, sheet, frozen] = await Promise.all([
+      api.g702(pid), api.g703(pid), api.moduleRecords(pid, "owner_invoice")]);
     let reread = false;
     if (!consistent(cert, sheet)) {
       [cert, sheet] = await Promise.all([api.g702(pid), api.g703(pid)]);
       reread = true;
     }
+    // WHICH application is this? Not the one `cert.application_no` names. `GET /cost/g702` defaults
+    // `app_no` to 1 and only ECHOES it — lines 1-9 do not depend on it — so a project with three
+    // frozen applications still had this screen headed "Application 1", and the PDF button asked for
+    // application 1 too. *A live view is not application 1; it is the one that has not been made yet.*
+    //
+    // `frozen.length + 1` is what `cost.build_application` will allocate in the ordinary case, since
+    // its counter seeds from the same count. It is a PREDICTION, not a promise: delete an application
+    // and the atomic counter stays ahead of the count, which is exactly the reuse PAY-APP fixed. The
+    // label says "next" rather than naming a certificate, so a shifted number reads as an estimate
+    // moving rather than a document changing its identity.
+    const nextNo = frozen.length + 1;
     const s = summary(cert, sheet);
     body.textContent = "";
     body.className = "";
@@ -109,7 +121,7 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
     due.textContent = money(s.due);
     const ctx = document.createElement("div");
     ctx.className = "meta";
-    ctx.textContent = `Application ${cert.application_no}`
+    ctx.textContent = `Next application (${nextNo}) · live, not yet frozen`
       + (cert.period ? ` · ${cert.period}` : "")
       + ` · ${s.percent}% complete`
       + (cert.retainage_released ? " · retainage released" : "");
@@ -172,10 +184,10 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
       pdf.disabled = true;
       note.textContent = "";
       try {
-        const blob = await api.payAppPdf(pid, cert.application_no);
+        const blob = await api.payAppPdf(pid, nextNo);
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `pay-app-${cert.application_no}.pdf`;
+        a.download = `pay-app-${nextNo}.pdf`;
         a.click();
         URL.revokeObjectURL(a.href);
       } catch (e) {
