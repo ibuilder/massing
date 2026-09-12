@@ -1780,6 +1780,76 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **VENDOR-SCORECARD — a trade partner's record with your firm, and the limits of it**
+  *(S — Lanes B/I; **CLOSED 2026-09-12**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/vendorScorecard.test.ts` and `services/api/test_route_reachability.py`)*
+
+  `GET /benchmarks/vendors` (`services/api/src/aec_api/vendor_memory.py`) has answered
+  R22-PROCURE-DEPTH ③ since it was built — each sub's cross-project commercial and compliance record,
+  from the six registers that carry a vendor — and had no client caller. Its five `/benchmarks/*`
+  siblings all did. It now renders in the Benchmarks panel, ordered watch → unknown → clear.
+
+  **This is the route LEDGER-BROWSE blinded the gate to, wired in the same pull request**, so the
+  blind spot's SUBJECT is gone rather than only its record. The two assertions stay: the gate could
+  not see it dark and cannot see it wired, and saying so is worth more than a PASS that means nothing.
+
+  Three rules, all of them the server's own, moved from a JSON field nobody rendered into pixels:
+
+  * **`no_history` is not `clear`.** The engine names this the most expensive mistake the module
+    could make; it is a rendering mistake as much as an engine one, since three verdicts that reach
+    the same pixel are one verdict. An unrecognised fourth verdict does not inherit green.
+  * **A clean record is silence about quality, not a pass** — `ncr` and `inspection` carry no vendor
+    field. Stated even when the payload omits it: the silence belongs to the route, not to one
+    response, and a missing caveat reads as no caveat.
+  * **A certificate with no expiry is not cover** — expired, unknown and none-recorded are three
+    states, and "0 expired" for a vendor with no certificate is `no_history` one field down.
+
+- ✅ ⭐ **LEDGER-BROWSE — an accounting connection's books, and what the reading is worth**
+  *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/connections/ledgerBrowse.test.ts` and `services/api/test_route_reachability.py`)*
+
+  `GET …/connections/{cid}/quickbooks/{entity}` and `GET …/connections/{cid}/erp/{entity}` read a
+  chart of accounts, vendor list or bill list from QuickBooks Online, Sage or Viewpoint. Both were
+  finished server-side and callable by nothing. A **Books** action now sits on every connection of
+  those three types.
+
+  **Two halves, two concealments — and only one of them was written down.** `erp` is three characters,
+  under `MIN_SEGMENT`, so it sat in the short-leaf ratchet and was named there as the next wiring
+  candidate. `quickbooks` is ten characters, IS assessed by the main rule, and the rule read it as
+  called — off the word `"quickbooks"` in the connection-TYPE `<select>`. **A product vocabulary word
+  is not a URL**, and the list that records what it hides is safer than the rule that records nothing.
+
+  `apps/web/src/connections/ledgerBrowse.ts` holds three rules, each because the server's answer and
+  the obvious rendering of it disagree:
+
+  * **A vendor failure is HTTP 200 with `{"error": …}`.** The route catches the vendor exception into
+    the body, so `res.ok` is true and the row list is absent. An empty table there tells an accountant
+    their books are EMPTY when we merely could not read them. `outcome()` checks `error` first and on
+    its own — reading rows first classifies every failure as "no records".
+  * **The QuickBooks count is capped at 50 with no paging**, so `count: 50` is a floor and a company
+    with 200 accounts sees 50 silently. The ERP read is uncapped. *The same field means different
+    things on the two routes*, so it is never printed bare.
+  * **Row keys are vendor-cased** — Intuit's `Name`/`Id` against a generic ERP's lowercase — the
+    COL-PAIR class, which the server's own `_info_erp` already hedges against.
+
+  **WIRING ONE ROUTE BLINDED THE GATE TO ANOTHER, IN THE SAME COMMIT.** The entity list contains
+  `vendors`, so `/connections/{cid}/erp/vendors` is now a URL this client builds, and
+  `/benchmarks/vendors` — dark since the gate was written and frozen in `KNOWN_UNCALLED` ever since —
+  instantly read as called. It was not: its five `/benchmarks/*` siblings had client methods and it
+  had none. *(VENDOR-SCORECARD above then gave it one, in this same pull request — so the sentence
+  is past tense on purpose. A review bot caught it written in the present, which it had stopped
+  being one commit later: **a roadmap entry describes a moment, and the moment moved under it**.)*
+  **Reachability work is not monotone.** A new URL adds a segment to the corpus and any dark route
+  sharing that last segment leaves the gate's sight.
+
+  So read the numbers with that in hand. Uncalled routes **59 → 58** and the short-leaf ratchet
+  **6 → 5** — but *the 59 → 58 is entirely the collision*, because the two routes this sprint wired
+  are short-leaf and were never in the main population at all. **The headline number improved because
+  the gate went blind, not because anything got wired.** `/benchmarks/vendors` now sits outside both
+  sets as a recorded blind spot beside `/asset-rights/verify`. The rot check is what caught it — it
+  was a bare `print` until 2026-08-20, and under that version the route would have left the frozen
+  list with no output at all.
+
 - ✅ ⭐ **R40-EOT — an extension of time, with the method that produced it**
   *(M — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/portal/panels/eotClaim.test.ts` and `services/api/test_route_reachability.py`)*
@@ -3112,7 +3182,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · PIN-SWEEP-PGNULL *(the pin sweep skips the rows it exists to convert, on PostgreSQL only — a `json` column holding scalar `null` is non-NULL in SQL and decodes to Python `None`. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`, and it landed in `main` via #503 rather than in the PR that found it)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
@@ -3147,7 +3217,8 @@ had to be fixed under a one-change lane assignment because there was no row to p
 
 **It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
 ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
-`drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `dev/` · `connections/` · `deploy/`.
+`drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `dev/` · `deploy/`
+*(`connections/` came off this list on 2026-09-12 — Lane B claims it; see the row above.)*
 
 **The loose `portal/` files came off that list on 2026-09-11, DERIVED the same way `tree/` was** —
 `safetyCard.ts` was extracted from `portal.ts` under the size ratchet, the unowned ratchet went red at
@@ -3242,10 +3313,20 @@ actually edit is inside your lane — the table's own greenness is not evidence 
 **Unowned paths — found while fixing the above, 2026-08-03. NOT decided here.** The lane check asserts
 that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `apps/web/src/drawings/`,
 `proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
-`portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
+`portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belonged to no lane, which the
 carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
 deliberately. The live case: **`R36-DRAWINGS-RETURN` is Lane A and lands in
 `apps/web/src/drawings/`**, so `drawings/` remains unowned rather than assigned by guess.
+*(**This list is AS MEASURED ON 2026-08-03 and is not maintained** — `account/` went to Lane A,
+`proforma/` to Lane B on 2026-09-09, `connections/` to Lane B on 2026-09-12, and the loose `portal/`
+files were split between A and B on 2026-09-11, none of which are edited out above. A review bot
+asked for `connections/` to be struck from it; **taking only that one out would have been the worse
+change** — the list would have read as current while still naming three claimed directories, which is
+exactly how a stale inventory earns trust it has not got. The authority is the lane table plus the
+unowned ratchet in `apps/web/src/shell/roadmapLanes.test.ts`, which is computed; this paragraph is a
+dated finding. The live to-do list of directories still to claim is the one above the table, and
+that one IS maintained.)*
+
 It needs its own premise-check; guessing an owner for a directory a lane is already aimed at
 is how the register problem was made.
 

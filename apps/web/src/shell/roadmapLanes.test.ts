@@ -715,7 +715,13 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 25;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+const UNOWNED_CEILING = 23;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+//: 25 → 23 (2026-09-12): Lane B claimed `apps/web/src/connections/`. LEDGER-BROWSE added two
+//: files to that directory and this went red; the remedy it names took all FOUR out, because
+//: the directory had never been claimed at all. That is the third time in four days the same
+//: shape has repeated — `proforma/`, the loose `portal/` files, now this — and each time the
+//: ratchet found the unowned DIRECTORY rather than the files that tripped it. Re-seated to
+//: the measured 23: slack left here is a directory nobody has to claim.
 //: 34 → 25 (2026-09-11): Lanes A and B split the eleven loose `portal/` files between them,
 //: derived by IMPORTER rather than by name (the table below `roadmapLanes` records which went
 //: where and why). Extracting `safetyCard.ts` out of `portal.ts` under the size ratchet is what

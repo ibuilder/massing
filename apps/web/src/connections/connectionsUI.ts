@@ -10,6 +10,10 @@ import type { ApiClient, ConnectionItem, SyncScheduleItem } from "../api/client"
 import { modalShell, confirmModal } from "../ui/modal";
 import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
+import {
+  ENTITIES, countLine, emptyLine, errorLine, outcome, rowId, rowLabel, vendorFor,
+} from "./ledgerBrowse";
+import type { LedgerVendor } from "./ledgerBrowse";
 
 type GetPid = () => string | null;
 
@@ -109,6 +113,58 @@ function mappingModal(api: ApiClient, connectionId: string, name: string) {
   card.appendChild(msg); void render().finally(ready);
 }
 
+/**
+ * Read an accounting connection's books.
+ *
+ * Every wording rule lives in `ledgerBrowse.ts`; this only draws them. The one that shapes the
+ * markup is `outcome()`: an error, an empty ledger and a list of rows are three states, and the
+ * first two must not render the same. A failed read that showed an empty table would tell an
+ * accountant their books are empty when we simply could not read them.
+ */
+function ledgerModal(api: ApiClient, id: string, name: string, vendor: LedgerVendor) {
+  const { card, msg, ready } = modalShell(`Books — ${name}`, 720);
+  msg.style.color = "var(--err)";
+  const bar = document.createElement("div");
+  bar.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+  const pick = document.createElement("select");
+  pick.className = "portal-filter";
+  for (const e of ENTITIES) { const o = document.createElement("option"); o.value = o.textContent = e; pick.appendChild(o); }
+  const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Read";
+  const note = document.createElement("div"); note.className = "meta"; note.style.cssText = "margin-top:8px";
+  const grid = document.createElement("div"); grid.style.cssText = "overflow:auto;max-height:46vh;margin-top:8px";
+  bar.append(pick, go);
+
+  const read = async () => {
+    const entity = pick.value;
+    msg.textContent = ""; note.textContent = "reading…"; grid.innerHTML = "";
+    // `pick` is disabled with `go`, not just `go`: the entity is captured at the top of this
+    // function, so changing the select mid-flight would render THIS entity's rows under THAT
+    // entity's label — a mislabelled ledger, which is the same class as the error/empty collapse
+    // this whole module exists to prevent.
+    go.disabled = true; pick.disabled = true;
+    try {
+      const res = await api.connectionLedger(id, vendor, entity);
+      const out = outcome(res, entity);
+      if (out.state === "error") { note.textContent = ""; msg.textContent = errorLine(vendor, out.message); return; }
+      if (out.state === "empty") { note.textContent = emptyLine(entity); return; }
+      note.textContent = countLine(vendor, entity, out.rows.length);
+      // Arbitrary ledger content — escaped, like every other cell in this file.
+      const tr = out.rows.map((r) =>
+        `<tr><td>${escapeHtml(rowId(r) || "—")}</td><td>${escapeHtml(rowLabel(r))}</td></tr>`).join("");
+      grid.innerHTML = `<table class="portal-table"><thead><tr><th scope="col">ID</th>`
+        + `<th scope="col">Name</th></tr></thead><tbody>${tr}</tbody></table>`;
+    } catch (e) {
+      note.textContent = "";
+      msg.textContent = `Request failed: ${(e as Error).message}`;
+    } finally {
+      go.disabled = false; pick.disabled = false;
+    }
+  };
+  go.onclick = () => { void read(); };
+  card.append(bar, note, grid, msg);
+  ready();
+}
+
 /** Read-only data browser for a SQL connection (local / Postgres / Supabase): table list +
  *  a SELECT console with a results grid. Closes the interoperability gap — data, not just config. */
 function browseConnection(api: ApiClient, id: string, name: string) {
@@ -202,6 +258,13 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
           schedulesModal(api, getPid, cx.id);
         }));
         row.append(act("Mapping", async () => mappingModal(api, cx.id, cx.name)));
+      }
+      // Books, for the three connection types that keep them. `vendorFor` is the only thing that
+      // decides — the route family (`/quickbooks/` vs `/erp/`) follows from the vendor, not from
+      // the connection type, since Sage and Viewpoint share one reader.
+      const ledgerVendor = vendorFor(cx.type);
+      if (ledgerVendor) {
+        row.append(act("Books", async () => ledgerModal(api, cx.id, cx.name, ledgerVendor)));
       }
       if (cx.type === "acc") {
         row.append(act("Issues", async () => {

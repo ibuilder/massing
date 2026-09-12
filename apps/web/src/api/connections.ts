@@ -53,6 +53,21 @@ export function withConnections<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ kind?: string; count?: number; issues?: Record<string, unknown>[]; error?: string }>(
       `/connections/${id}/acc/projects/${projectId}/issues`);
   }
+  /**
+   * Read a connection's books — chart of accounts, vendors or bills.
+   *
+   * `vendor` is "quickbooks" or "erp" (Sage / Viewpoint share the generic REST reader), matching
+   * the two route families. **A vendor failure comes back as HTTP 200 with `{"error": …}`**, not a
+   * status code, so the caller must check the body — `connections/ledgerBrowse.ts` is where that
+   * rule lives, and its `outcome()` is what stops a failed read rendering as an empty ledger.
+   *
+   * The rows arrive under the entity's own name (`{kind, count, accounts: [...]}`), which is why
+   * the return type is open rather than a fixed row key.
+   */
+  connectionLedger(id: string, vendor: "quickbooks" | "erp", entity: string) {
+    return this.json<{ kind?: string; count?: number; error?: string; [k: string]: unknown }>(
+      `/connections/${id}/${vendor}/${encodeURIComponent(entity)}`);
+  }
   /** Editable Procore->module field mapping for a connection (admin). */
   connectionMappings(id: string) {
     return this.json<{ mappings: Record<string, { module: string; fields: { field: string; label: string; default: string; path: string }[] }> }>(

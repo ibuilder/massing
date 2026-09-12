@@ -196,6 +196,30 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       code_count: number; min_samples: number; codes_below_threshold: number; message?: string | null }>(
       `/benchmarks/costs?min_samples=${minSamples}`);
   }
+  /**
+   * Each trade partner's record with your firm, across projects (R22-PROCURE-DEPTH ③).
+   *
+   * Placed here beside `benchmarkCosts` by what it ANSWERS, the rule that cell records: this is
+   * cross-project commercial history, which is a cost question.
+   *
+   * **`no_history` is a distinct verdict from `clear` and must stay distinct at the pixel.** The
+   * wording rules are in `apps/web/src/portal/panels/vendorScorecard.ts`; `attributable` carries the
+   * server's own statement that `ncr` and `inspection` have no vendor field, so quality and schedule
+   * performance are NOT in this scorecard and a clean record here is silence on that subject.
+   */
+  vendorScorecards() {
+    return this.json<{
+      vendors: { vendor: string; verdict: string; verdict_note: string; project_count: number;
+        subcontract_value: number; committed: number; spent: number; invoiced: number;
+        lien_waivers_value: number; coi_expired: number; coi_missing_expiry: number;
+        warranties_live: number; record_counts: Record<string, number>; flags: string[];
+        trades: string[] }[];
+      vendor_count: number; repeat_vendors: number; watch_count: number;
+      verdict_meanings: Record<string, string>;
+      attributable: { from: string[]; not_from: string[]; note: string };
+      note: string; message: string | null;
+    }>("/benchmarks/vendors");
+  }
   /** Actual unit rates per cost code across the caller's projects (cost ÷ installed quantity). */
   unitRates(minProjects = 3) {
     return this.json<{
