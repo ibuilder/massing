@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { bsddFailure, bsddFailureText } from "./bsddLookup";
+import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
 
 /**
  * BSDD-LOOKUP's behavioural half. `api/bsdd.test.ts` proves the client CARRIES the status;
@@ -59,5 +62,89 @@ describe("what the reader is told", () => {
     // ...and never leaks the transport's words into the two states the product can describe itself.
     expect(bsddFailureText("unavailable", "x", "boom")).not.toContain("boom");
     expect(bsddFailureText("not-found", "x", "boom")).not.toContain("boom");
+  });
+});
+
+/**
+ * The stale-response guard (CodeRabbit review, PR #540). The lookup card's two actions — search,
+ * and open a class — both write their result into the SAME element after an await, so before this
+ * the slower request won regardless of which was asked for last.
+ *
+ * Tested here rather than through the DOM because the defect is a SCHEDULING ORDER. A rendering
+ * test would have to provoke a specific interleaving to see it, and would pass by accident whenever
+ * the responses happened to arrive in request order — which is most of the time, and is exactly why
+ * this kind of bug ships.
+ */
+describe("the shared request gate", () => {
+  it("lets the newest request write", () => {
+    const g = requestGate();
+    const gen = g.start();
+    expect(g.isCurrent(gen)).toBe(true);
+  });
+
+  it("locks out an earlier request once a later one starts", () => {
+    const g = requestGate();
+    const first = g.start();
+    const second = g.start();
+    // The real sequence: search "wall", search "door", then "wall" resolves LAST and must not win.
+    expect(g.isCurrent(first)).toBe(false);
+    expect(g.isCurrent(second)).toBe(true);
+  });
+
+  it("is shared across both actions, so a class detail cannot overwrite a newer search", () => {
+    // One gate, not one per endpoint. Two independent counters would each be internally consistent
+    // and still let this through, because what is contended is the output element, not the route.
+    const g = requestGate();
+    const openClass = g.start();     // user clicks a result
+    const newSearch = g.start();     // user hits "← results" / searches again before it lands
+    expect(g.isCurrent(openClass)).toBe(false);
+    expect(g.isCurrent(newSearch)).toBe(true);
+  });
+
+  it("gives each request a distinct generation, so none can be mistaken for another", () => {
+    const g = requestGate();
+    const seen = new Set([g.start(), g.start(), g.start()]);
+    expect(seen.size).toBe(3);
+  });
+
+  it("starts with nothing current, so a generation never claimed cannot write", () => {
+    // Guards the off-by-one: if `current` began at 1 and `start()` returned the pre-increment
+    // value, a request holding 0 would read as current and the gate would be open by default.
+    const g = requestGate();
+    expect(g.isCurrent(0)).toBe(false);
+  });
+});
+
+/**
+ * ...and that the PANEL actually wires ONE gate into both writers.
+ *
+ * The unit tests above assert a property of a single `requestGate()` instance. They say nothing
+ * about how `standards.ts` uses it — giving each action its OWN gate typechecks cleanly, leaves
+ * every test above green, and reinstates exactly the bug they exist to forbid, because what is
+ * contended is the output element rather than the endpoint.
+ *
+ * *Asserting an outcome without asserting the path to it ran is vacuous.* So this reads the panel.
+ */
+describe("the standards panel wires one gate, not one per action", () => {
+  //: `__dirname`, not `import.meta.url` — under vitest's transform the module URL is a virtual
+  //: path that does not exist on disk (the reason `api/httpStatus.test.ts` gives).
+  const src = readFileSync(join(resolve(__dirname), "standards.ts"), "utf8");
+
+  it("is reading the panel it thinks it is", () => {
+    // Without this the two assertions below pass forever against an empty string.
+    expect(src).toContain("bsddSearch");
+    expect(src).toContain("bsddClass");
+  });
+
+  it("constructs exactly one request gate", () => {
+    const gates = src.match(/requestGate\(\)/g) ?? [];
+    expect(gates).toHaveLength(1);
+  });
+
+  it("guards every write that follows an await on it", () => {
+    // Both async writers must consult the gate before touching the shared element: one `start()`
+    // each, and a check in both the success and the failure path (4 checks total).
+    expect((src.match(/bdGate\.start\(\)/g) ?? [])).toHaveLength(2);
+    expect((src.match(/bdGate\.isCurrent\(/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 });

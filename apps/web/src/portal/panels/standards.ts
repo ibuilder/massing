@@ -2,7 +2,7 @@ import { HttpError } from "../../api/httpCore";
 import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
-import { bsddFailure, bsddFailureText } from "./bsddLookup";
+import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import type { PanelContext } from "../panelContext";
 
@@ -401,11 +401,18 @@ export async function renderStandards(ctx: PanelContext) {
       return `<div class="meta"${warn}>${kind === "unavailable" ? "⚠️ " : ""}${text}</div>`;
     };
 
+    // ONE gate for both actions: they race over `bdOut`, not over their own endpoints. A slower
+    // earlier request must not overwrite a newer result. `bsddLookup.test.ts` asserts both the
+    // gate's behaviour AND that this panel wires a single instance into both writers.
+    const bdGate = requestGate();
+
     const bdShowClass = async (uri: string) => {
+      const gen = bdGate.start();
       bdOut.innerHTML = `<div class="meta">loading class…</div>`;
       let cls;
       try { cls = await ctx.host.api.bsddClass(uri); }
-      catch (e) { bdOut.innerHTML = bdFail(e, "that class"); return; }
+      catch (e) { if (bdGate.isCurrent(gen)) bdOut.innerHTML = bdFail(e, "that class"); return; }
+      if (!bdGate.isCurrent(gen)) return;      // a newer search or class won the output
       const back = el("button", "mini-btn"); back.textContent = "← results";
       bdOut.innerHTML = `<div><b>${esc(cls.name ?? cls.code ?? "(unnamed class)")}</b> `
         + `<span class="meta">${esc(cls.code ?? "")}${cls.dictionary ? ` · ${esc(cls.dictionary)}` : ""}</span></div>`
@@ -424,11 +431,13 @@ export async function renderStandards(ctx: PanelContext) {
 
     const bdSearch = async () => {
       const q = bdQ.value.trim();
+      const gen = bdGate.start();
       if (!q) { bdOut.innerHTML = `<div class="meta">Type something to search for.</div>`; return; }
       bdOut.innerHTML = `<div class="meta">searching…</div>`;
       let hits;
       try { hits = (await ctx.host.api.bsddSearch(q, { dictionary: bdDict.value || undefined })).classes; }
-      catch (e) { bdOut.innerHTML = bdFail(e, "the dictionary"); return; }
+      catch (e) { if (bdGate.isCurrent(gen)) bdOut.innerHTML = bdFail(e, "the dictionary"); return; }
+      if (!bdGate.isCurrent(gen)) return;      // a newer search or class won the output
       if (!hits.length) {
         bdOut.innerHTML = `<div class="meta">No classes match “${esc(q)}”.</div>`;
         return;

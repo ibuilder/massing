@@ -31,6 +31,26 @@ a DOM. 500 and 503 deliberately do **not** fold into "unavailable": those are ou
 deployment, not evidence about buildingSMART, and saying otherwise sends the reader to wait for a
 recovery that is not coming.
 
+#### A slower answer could overwrite a newer one
+
+Review (CodeRabbit, PR #540) found a stale-render race, and it was real: the card's two actions —
+search, and open a class — both write their result into the **same** element after an await, so the
+slower request won regardless of which was asked for last. Search "wall", search "door", and if
+"wall" resolved second you read wall results under the door query; clicking a class and then
+"← results" raced the same way.
+
+`requestGate()` in `apps/web/src/portal/panels/bsddLookup.ts` is one shared generation counter for
+both actions. **One gate, not one per action** — two independent counters would each be internally
+consistent and still let a stale class detail overwrite a newer search, because what is contended is
+the output element, not the endpoint. Its own test then caught an off-by-one in it: generations count
+from 1, so `0` — the value a caller holds before claiming anything — compared equal to the initial
+state and read as the live request.
+
+And asserting the gate's behaviour is not the same as asserting the panel uses it that way: giving
+each action its own gate **typechecks cleanly** and leaves every behavioural test green. So the tests
+also read `standards.ts` and assert one `requestGate()` construction with a guard on both writers.
+*Asserting an outcome without asserting the path to it ran is vacuous.*
+
 #### Two corrections to the reachability gate, both about the list rather than the routes
 
 `/bsdd/class` was one of three routes frozen in `LEAF_COLLISION_DARK` in

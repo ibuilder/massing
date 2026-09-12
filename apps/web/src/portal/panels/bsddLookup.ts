@@ -43,3 +43,30 @@ export function bsddFailureText(kind: BsddFailure, what: string, detail = ""): s
   if (kind === "not-found") return "The dictionary has no such class.";
   return `failed: ${detail}`;
 }
+
+/** A last-writer-wins guard for a single output element shared by several async actions.
+ *
+ *  The lookup card has two actions — search, and open a class — that both write their result into
+ *  the SAME element after an await. Without a guard the slower request wins regardless of which was
+ *  asked for last: search "wall", search "door", and if "wall" resolves second the card shows wall
+ *  results under the door query. Clicking a class and then "← results" races the same way.
+ *
+ *  **One gate shared by both actions, not one each.** Two independent counters would each be
+ *  internally consistent and still let a stale class detail overwrite a newer search, because the
+ *  thing being contended is the element, not the endpoint.
+ *
+ *  Separated from the DOM so the rule can be tested directly: the failure it prevents is a
+ *  scheduling order, which a rendering test would only reproduce by accident.
+ */
+export function requestGate(): { start: () => number; isCurrent: (gen: number) => boolean } {
+  let current = 0;
+  return {
+    /** Claim the output for a new request and return its generation. */
+    start: () => ++current,
+    /** True only if `gen` claimed the output and no later request has started since.
+     *  The `> 0` is not decoration: generations count from 1, so 0 is the value a caller holds
+     *  before it has claimed anything — and without this it compared equal to the initial
+     *  `current` and read as the live request. Found by its own test, not by review. */
+    isCurrent: (gen: number) => gen > 0 && gen === current,
+  };
+}
