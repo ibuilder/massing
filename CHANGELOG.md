@@ -162,7 +162,10 @@ with a positive control (`/bsdd/search`, wired by this change) so it cannot pass
 *the seam is the ROUTE* -- these two methods should have been their own `withBsdd` mixin. They are
 not. **Adding one more mixin to the chain in `apps/web/src/api/client.ts` makes `tsc` fail outright**
 *(Corrected by MIXIN-CEILING below: this said "a 51st" and the chain held **49**, so it was the 50th.
-The count was asserted, never counted. And the ceiling is now gone — see that entry.)*
+The count was asserted, never counted. And the 50-mixin ceiling is now BYPASSED, not gone: staging
+clears the measured failure, but TS2589 is a property of instantiation depth and a deep enough
+composition still hits it. Where the staged limit actually sits has not been measured — saying
+"gone" would repeat, in the correction itself, the exact error it corrects. See that entry.)*
 with TS2589, *"Type instantiation is excessively deep and possibly infinite"*, on the `extends`
 clause; removing it makes the error vanish, so the count is the cause and not anything in the new
 code. New route groups can no longer get their own mixin -- they must lodge with a neighbour -- until
