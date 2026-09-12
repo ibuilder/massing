@@ -63,6 +63,15 @@ and the deterministic half is the worse one.*
 The allocation now goes through `modules.next_counter`, extracted from `_next_ref` so the primitive
 is shared rather than private to its first caller. Its seed is a callable, consulted only when the
 counter row does not yet exist, so the ordinary path stays one atomic `UPDATE … RETURNING`.
+**And a second review round found the counter half-wired.** Only the *allocating* path moved the
+mark, so a number chosen explicitly by a caller did not. Measured rather than argued: applications
+1, explicit 7, then omitted produced **[1, 7, 2]** — no duplicate yet, which is exactly why the
+first round missed it. The collision is deferred to whichever allocation later climbs back to 7 and
+names an application that already exists. `modules.raise_counter` now lifts the mark to any explicit
+number, atomically and portably (`CASE WHEN n < :v THEN :v ELSE n END` — Postgres spells the scalar
+maximum `GREATEST`, SQLite has no such function and its `MAX` is the aggregate). *An off-by-one you
+can see is safer than a collision you have to wait for.*
+
 Two more from the same review: a non-positive `app_no` stored `"App -2"` while the route's
 trailing-digit parse reported `2` — refused now at the builder, so a direct caller cannot bypass it —
 and the "Owner application from draw" button is disabled for its own round trip, since creating an

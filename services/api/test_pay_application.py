@@ -212,6 +212,20 @@ with TestClient(app) as c:
           n3["owner_invoice"]["data"]["number"] == f"App {n3['application_no']}",
           n3["owner_invoice"]["data"]["number"])
 
+    # An EXPLICIT app_no must move the high-water mark too. Review round two: the counter only
+    # advanced when a number was allocated, so an explicit number and a later omitted one could name
+    # the same application. Sequenced here rather than described, because the reviewer's trace and
+    # the real one differ by a step and only the run settles it.
+    p3 = c.post("/projects", json={"name": "G702 AppNo"}).json()["id"]
+    c.post(f"/projects/{p3}/modules/sov", json={"data": {
+        "item_no": "01", "description": "Sitework", "scheduled_value": 1000, "completed_this": 100}})
+    seq = [c.post(f"/projects/{p3}/cost/pay-app/invoice", json={}).json()["application_no"]]
+    seq.append(c.post(f"/projects/{p3}/cost/pay-app/invoice",
+                      json={"app_no": 7}).json()["application_no"])
+    seq.append(c.post(f"/projects/{p3}/cost/pay-app/invoice", json={}).json()["application_no"])
+    check("  APP-NO: an explicit number advances the counter, so the next one cannot collide",
+          len(set(seq)) == len(seq) and seq[2] > seq[1], seq)
+
     # `number` is a DISPLAY string and the route reads the count back off its trailing digits, so a
     # negative app_no stored "App -2" and was reported as 2 — the response and the record
     # disagreeing about which application had just been created. Refused at the builder rather than

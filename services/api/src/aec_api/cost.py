@@ -204,6 +204,13 @@ def build_application(db: Session, pid: str, app_no: int | None = None, period: 
         # description hides.*
         app_no = me.next_counter(db, pid, APP_NO_COUNTER,
                                  lambda: len(_records(db, "owner_invoice", pid)))
+    else:
+        # An explicit number must move the mark too, or the allocator hands it out again later.
+        # Measured before fixing: applications 1, explicit 7, then omitted gave [1, 7, 2] — no
+        # duplicate yet, which is exactly why it survived the first round of this review. The
+        # collision is deferred to the allocation that reaches 7.
+        me.raise_counter(db, pid, APP_NO_COUNTER, app_no,
+                         lambda: len(_records(db, "owner_invoice", pid)))
     cert = g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage,
                 previous_certificates=_certified_to_date(db, pid))
     data = {
