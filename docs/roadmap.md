@@ -1780,6 +1780,24 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **SCENARIO-SOURCES — a deal's assumptions could not be traced to the documents behind them**
+  *(S — Lanes B/C; **CLOSED 2026-09-12**; gated by `apps/web/src/portal/panels/scenarioSources.test.ts`,
+  `services/api/test_scenario_provenance.py` and `services/api/test_route_reachability.py`)*
+
+  `GET /proforma/scenarios/{sid}/provenance` (`services/api/src/aec_api/routers/proforma.py`, engine in
+  `services/api/src/aec_api/assumption_provenance.py`) reports which of a scenario's material numeric
+  drivers carry a document citation and **names the ones that do not**. R22-PROVENANCE ②, with no
+  client caller until now. **🔎 Sources** on the Finance home is the caller.
+
+  The two hazards are asserted against the live route in `services/api/test_scenario_provenance.py`,
+  not argued: coverage can read **100% with every citation stale** (the engine marks a path `cited`
+  regardless of revision), and `stale_citation_count` is **0 whenever no `?revision=` was supplied**,
+  which is indistinguishable from "none stale" unless the caller reads `current_revision` back. The
+  screen reads it and reports *not checked*.
+
+  Uncited and malformed stay separate lists — different fixes, and the engine allows a path to be
+  both. Distinct from `apps/web/src/proforma/provenanceLine.ts`, which renders declared-vs-defaulted.
+
 - ✅ ⭐ **COST-CALIBRATE — the estimate could never be judged against what this job actually cost**
   *(S — Lanes B/C; **CLOSED 2026-09-12**; gated by `apps/web/src/portal/panels/costCalibration.test.ts`,
   `services/api/test_cost_calibration.py` and `services/api/test_route_reachability.py`)*
