@@ -988,10 +988,17 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: Scheduler polls. `/routines/due` and its per-project sibling are read by the server-side
     #: runner, not by a browser.
     "/routines/due", "/projects/{pid}/routines/due",
-    #: JSON siblings of the AIA G702/G703 PDF routes, which ARE called
-    #: (`apps/web/src/api/downloadPdf.ts`). A screen that renders the payment application from data
-    #: rather than downloading it would use these; none exists yet.
-    "/projects/{pid}/cost/g702", "/projects/{pid}/cost/g703",
+    #: `/projects/{pid}/cost/g702` and `/cost/g703` LEFT this set in PAY-APP-SCREEN. They sat here
+    #: with the note that "a screen that renders the payment application from data rather than
+    #: downloading it would use these; none exists yet" — and that note was the whole entry: it named
+    #: the missing work, and nothing ever came back to read it. `payAppReviewModal` in
+    #: `apps/web/src/portal/panels/payAppReviewPanel.ts` now calls both through `g702`/`g703` in
+    #: `apps/web/src/api/cost.ts`, from the "Review pay app" button in the Owner billing card.
+    #:
+    #: **What it cost to leave them here is measurable.** The over-billing defect PAY-APP fixed lived
+    #: in G702 line 7, and line 7 could only be seen inside a PDF blob — so a wrong zero there was
+    #: invisible until the next draw re-billed the whole job. *A ratchet entry that records a missing
+    #: SCREEN is recording a missing pair of eyes, not just a missing caller.*
     #: `/connections/{cid}/erp/{entity}` LEFT this set in LEDGER-BROWSE — `connectionLedger` in
     #: `apps/web/src/api/connections.ts`, called from the "Books" action in
     #: `apps/web/src/connections/connectionsUI.ts`. Its QuickBooks sibling

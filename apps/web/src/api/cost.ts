@@ -280,6 +280,36 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ created: number; lines?: number; scheduled_value?: number; skipped?: number; note?: string }>(
       `/projects/${pid}/cost/sov/from-budget?replace=${replace}`, { method: "POST" });
   }
+  /**
+   * The G702 certificate as DATA — lines 1-9 as the engine computes them right now.
+   *
+   * PAY-APP-SCREEN: this is the live view, the answer to "where do we stand today". Its opposite is
+   * the FROZEN `owner_invoice` a submitted application stores, which does not move when the SOV
+   * does. Both matter and they are not interchangeable: the over-billing bug PAY-APP fixed was
+   * invisible for as long as line 7 could only be read inside a PDF blob.
+   */
+  g702(pid: string, appNo?: number) {
+    const q = appNo === undefined ? "" : `?app_no=${appNo}`;
+    return this.json<{
+      application_no: number; period: string | null; retainage_released: boolean;
+      line1_original_contract_sum: number; line2_net_change_orders: number;
+      line3_contract_sum_to_date: number; line4_total_completed_stored: number;
+      line5_retainage: number; line6_total_earned_less_retainage: number;
+      line7_less_previous_certificates: number; line8_current_payment_due: number;
+      line9_balance_to_finish_incl_retainage: number;
+    }>(`/projects/${pid}/cost/g702${q}`);
+  }
+  /** The G703 continuation sheet — the Schedule of Values with AIA computed columns, plus totals. */
+  g703(pid: string) {
+    return this.json<{
+      lines: { item_no: string | null; description: string | null; cost_code: string | null;
+        scheduled_value: number; completed_prev: number; completed_this: number;
+        materials_stored: number; total_completed_stored: number; percent: number;
+        balance_to_finish: number; retainage: number; retainage_prev: number }[];
+      totals: { scheduled: number; prev: number; this: number; stored: number; completed: number;
+        balance: number; retainage: number; retainage_prev: number };
+    }>(`/projects/${pid}/cost/g703`);
+  }
   /** The owner pay application (G702 certificate + G703 continuation) as a signable PDF blob. */
   async payAppPdf(pid: string, appNo = 1) {
     const res = await fetch(this.url(`/projects/${pid}/cost/g702.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
