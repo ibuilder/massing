@@ -12,6 +12,27 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two type-aware gates now see the tree on Windows
+
+`deadFieldTyped.test.ts` and `responseUndeclared.test.ts` failed 9 tests on Windows and passed on
+CI. Both compared a root built with `path.resolve` — backslashed on Windows — against TypeScript's
+`sf.fileName`, which is forward-slashed on every OS, so `startsWith` rejected every source file and
+both derivations walked an empty tree. Linux has no backslashes, which is why CI never saw it.
+(`ts.sys.resolvePath` is not the fix: it hands the backslashed path back unchanged.)
+
+They failed closed, which is the point of their vacuity guards — with one exception worth naming:
+*"the tree's undeclared keys are exactly the known ones"* **passed** on the empty tree, because
+`KNOWN_GAPS` is empty and so is a walk that looked at nothing. Only the guard beside it went red.
+
+The fix had a trap in it. `deadFieldTyped`'s two filesystem scans compared their walked paths
+against the same `API` prefix, and matched on Windows only because both sides were backslashed.
+Normalising the prefix alone lets `api/` into both scans and every assertion still passes —
+measured: the sound candidate set fell from 386 to 348, all green. So the two identical walks are
+now one normalised walk, and a new assertion requires every declaring file the checker found to be
+one the scans' `api/` exclusion removes; the un-normalised walk now fails it. `extract()` normalises
+its own root, and a new self-test hands it a backslashed one, so the regression is caught on Linux
+CI too.
+
 ### An npm override can no longer disagree with the dependency it overrides
 
 `eslint` moves to **10.10.0**, and the engineering standards say so — `toolchainDocs.test.ts`

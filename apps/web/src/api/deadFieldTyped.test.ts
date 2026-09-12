@@ -44,8 +44,14 @@ import { describe, expect, it } from "vitest";
  * rather than vanish, which is the failure mode that looks like a finding.
  */
 
-const WEB = resolve(process.cwd(), "src");
-const API = resolve(WEB, "api");
+/** TypeScript reports every `sf.fileName` with forward slashes on every OS, while `resolve` and
+ *  `join` return backslashes on Windows — so every path compared below goes through this first.
+ *  Before it, `startsWith(WEB)` was false for EVERY source file on Windows and the derivation found
+ *  nothing; the positive control caught it, which is the case for having one. (`ts.sys.resolvePath`
+ *  does not help: it hands the backslashed path back unchanged.) */
+const posix = (p: string) => p.replace(/\\/g, "/");
+const WEB = posix(resolve(process.cwd(), "src"));
+const API = `${WEB}/api`;
 const isApiDecl = (f: string) =>
   f.startsWith(API) && !f.endsWith("schema.d.ts") && !f.endsWith(".test.ts");
 const isTest = (f: string) => f.endsWith(".test.ts") || f.endsWith(".test.tsx");
@@ -123,18 +129,24 @@ function derive() {
   return { keyToFile, readers };
 }
 
+/** Every .ts/.tsx under src/, in TypeScript's slash form so `startsWith(API)` below compares like
+ *  with like. The two scans that read it once walked separately and un-normalised, which matched
+ *  only because `API` was backslashed too; normalising one side alone lets api/ into both scans and
+ *  every assertion still passes — which is why the exclusion's reach is asserted below. */
+const walk = (dir: string, out: string[] = []): string[] => {
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (p.endsWith(".ts") || p.endsWith(".tsx")) out.push(posix(p));
+  }
+  return out;
+};
+const webFiles = walk(WEB);
+
 /** Every string literal appearing outside `api/` — the typed pass's blind spot, made measurable. */
 function stringLiterals(): Set<string> {
-  const walk = (dir: string, out: string[] = []): string[] => {
-    for (const e of readdirSync(dir)) {
-      const p = join(dir, e);
-      if (statSync(p).isDirectory()) walk(p, out);
-      else if (p.endsWith(".ts") || p.endsWith(".tsx")) out.push(p);
-    }
-    return out;
-  };
   const out = new Set<string>();
-  for (const f of walk(WEB)) {
+  for (const f of webFiles) {
     if (f.startsWith(API) || isTest(f)) continue;
     for (const m of readFileSync(f, "utf-8").matchAll(/["'`]([A-Za-z_]\w*)["'`]/g)) out.add(m[1]!);
   }
@@ -146,16 +158,8 @@ function stringLiterals(): Set<string> {
  *  This is the derivation's SECOND blind spot, and unlike the first it cannot be narrowed by a better
  *  checker — it is a limit of static reading, not of this implementation. */
 function dynamicallyReadInterfaces(): Set<string> {
-  const walk = (dir: string, out: string[] = []): string[] => {
-    for (const e of readdirSync(dir)) {
-      const p = join(dir, e);
-      if (statSync(p).isDirectory()) walk(p, out);
-      else if (p.endsWith(".ts") || p.endsWith(".tsx")) out.push(p);
-    }
-    return out;
-  };
   const out = new Set<string>();
-  for (const f of walk(WEB)) {
+  for (const f of webFiles) {
     if (f.startsWith(API) || isTest(f)) continue;
     const src = readFileSync(f, "utf-8");
     if (!/Object\.(keys|entries|values)|\.\.\./.test(src)) continue;
@@ -180,6 +184,18 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     expect(readersOutsideDecl("Appraisal.reconciliation.value").length,
       "the checker resolved NO reader for a field the valuation panel renders — the derivation is "
       + "broken, and an unread count taken from it would be fiction").toBeGreaterThan(0);
+  });
+
+  it("the scans' api/ exclusion reaches every file the declarations came from", () => {
+    // The two scans walk the FILESYSTEM; the declarations come from the CHECKER. Unless both spell a
+    // path the same way, `startsWith(API)` excludes nothing from the scans and api/'s own literals
+    // clear candidates they should not — measured on Windows with the walk left un-normalised: the
+    // sound set fell 386 → 348 and every other assertion in this file still passed.
+    const declFiles = new Set(keyToFile.values());
+    const excluded = new Set(webFiles.filter((f) => f.startsWith(API)));
+    expect(declFiles.size).toBeGreaterThan(0);
+    expect([...declFiles].filter((f) => !excluded.has(f)),
+      "declaring files the scans' api/ exclusion does not match").toEqual([]);
   });
 
   it("sees NESTED members, which the identifier derivation's two-space anchor could not", () => {
