@@ -616,7 +616,7 @@ export async function renderTurnover(ctx: PanelContext) {
         const certified = (d.signatures || []).some((s) => s.party === "Architect" && s.certifies);
         const card = el("div", "dash-card"); card.style.cssText = "margin:6px 0";
         card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">`
-          + `<b>${cert.ref || "Certificate"}</b><span class="badge">${cert.workflow_state}</span></div>`
+          + `<b>${esc(cert.ref || "Certificate")}</b><span class="badge">${esc(cert.workflow_state)}</span></div>`
           + `<div class="meta">${certified ? `✅ Architect certified · record model v${d.record_model_version ?? "—"}` : "Awaiting architect certification"}</div>`;
         const actions = el("div"); actions.style.cssText = "margin-top:6px;display:flex;gap:6px;flex-wrap:wrap";
         if (!certified) {

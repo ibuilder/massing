@@ -1276,7 +1276,7 @@ export class ProformaUI {
             if (ln.category !== cat) return;
             const tr = document.createElement("tr");
             const tot = (ln.unit_cost || 0) * (ln.quantity || 1);
-            tr.innerHTML = `<td><input data-i="${i}" data-k="description" value="${(ln.description || "").replace(/"/g, "&quot;")}" style="width:150px"></td>`
+            tr.innerHTML = `<td><input data-i="${i}" data-k="description" value="${escapeHtml(ln.description || "")}" style="width:150px"></td>`
               + `<td><input data-i="${i}" data-k="unit_cost" type="number" step="any" value="${ln.unit_cost || 0}" style="width:90px"></td>`
               + `<td><input data-i="${i}" data-k="quantity" type="number" step="any" value="${ln.quantity ?? 1}" style="width:60px"></td>`
               + `<td style="text-align:right">${money(tot)}</td><td><button class="tool-btn" data-rm="${i}" title="Remove">✕</button></td>`;

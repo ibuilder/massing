@@ -1,23 +1,50 @@
 /**
- * SEC — a ratchet on unescaped `innerHTML` interpolation.
+ * SEC — an IDENTITY ratchet on unescaped `innerHTML` interpolation.
  *
  * The 2026-07 audit found user-controlled text reaching `innerHTML` unescaped: a submittal title
- * lifted from an UPLOADED document, a `trade` parameter echoed straight back, an upload filename, and
- * server error strings (a 422 detail can quote the caller's own input). Each was one missed `esc()`
- * away from stored XSS, and the surrounding code in those very functions already used `textContent` —
- * so the defect was inconsistency, not ignorance.
+ * lifted from an UPLOADED document, a `trade` parameter echoed straight back, an upload filename,
+ * and server error strings. Each was one missed `esc()` away from stored XSS, and the surrounding
+ * code in those very functions already used `textContent` — the defect was inconsistency, not
+ * ignorance.
  *
- * Escaping every remaining site at once is not safe to do blind: many interpolations are literals
- * passed to a helper (`stat("Budget", n)`) and a few deliberately carry markup (rail icons). So this
- * does not demand zero — it demands that the number never grows.
+ * **THIS GATE USED TO COUNT, AND A COUNT HAS NO IDENTITY.** The baseline was a per-file NUMBER, so
+ * a file sitting inside its allowance was never looked at again: you could remove a safe sink and
+ * add a live XSS sink in the same file and the gate stayed green both times. On 2026-09-12 it was
+ * doing exactly that. `register.ts` was allowed 6 and had 4, and two of the four were
+ * `${a.filename}` — the raw multipart filename, unsanitised from `routers/modules.py`, persisted
+ * verbatim, and rendered into `innerHTML`. A reviewer role could upload `<img src=x onerror=…>.pdf`
+ * and every viewer of that record ran it. The gate had counted it for months, on the exact vector
+ * its own docstring names.
  *
- * **Improving the code must never fail the build.** An earlier draft also failed when a file dropped
- * BELOW its baseline, to keep the numbers honest. That punished the exact behaviour it wanted: a
- * contributor who escaped one interpolation got a red build, and on this repo an autonomous agent
- * commits straight to main and would trip it without knowing this file exists. The rule is now
- * one-directional — down is always fine, up is never fine.
+ * There was headroom at the top level too: BASELINE_TOTAL was 85 against 77 actual, and SEVEN files
+ * the baseline had never heard of were sitting in that slack, passing silently.
  *
- * CLAUDE.md: "If a rule matters, write it as a test — anything held only as prose will drift."
+ * **AND IT WAS BLIND TO HALF ITS OWN POPULATION, which is the worse of the two defects.** The rule
+ * required `innerHTML` and `${` on the SAME LINE, so a statement wrapped across lines — the normal
+ * shape for any non-trivial row — was scanned only as far as its first chunk. Measured 2026-09-12
+ * while converting this file: 62 sinks visible to the line-scoped rule, and **58 more sitting on
+ * continuation lines it could not see**, among them `v.vendor`, `s.company`, `r.text`, `t.title`
+ * and `cert.ref`. *A ratchet's SCOPE is a separate question from its RULE, and a green ratchet is
+ * exactly what makes a scope error invisible* — the lesson `services/api/test_ruff_scope.py` paid
+ * for, repeated here in a different file. `hotSinks` now accumulates the whole statement.
+ *
+ * **So the baseline is now keyed on IDENTITY — `file :: expression` — and the count is derived,
+ * never asserted.** An expression this list has not seen fails even when the total is flat or under.
+ * A substitution can no longer hide inside an allowance, because there is no allowance.
+ *
+ * **Down is still always fine, and that is deliberate.** An entry that VANISHES never fails. An
+ * earlier draft of the counting version failed when a file dropped below its baseline, which
+ * punished the exact behaviour it wanted — a contributor who escaped one interpolation got a red
+ * build. Improving the code must never fail a build. Prune vanished entries when convenient;
+ * nothing forces it.
+ *
+ * WHAT THE ENTRIES ARE. Most are helper PARAMETERS — `card(label, value)` in `operations.ts:53` and
+ * its ~14 siblings — whose callers today all pass string literals and `String(n)`. That is safe by
+ * accident of caller, not by construction: the parameter is typed `string`, so the day a caller
+ * passes server text this gate sees NO CHANGE, because the identity is already frozen. Identity
+ * keying closes substitution within a file; it cannot see an argument's source change. The durable
+ * fix for those is `esc()` INSIDE each helper, which deletes ~30 entries at once and cannot rot.
+ * That is follow-up work, and it can only ever remove entries from this list.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -28,51 +55,189 @@ const SRC = join(__dirname, "..");
 
 /** Escapers that make an interpolation safe. Tested per `${…}`, never per line. */
 const SAFE = /\b(esc|escapeHtml|sanitizeSvg|safeUrl)\s*\(/;
-/** Identifiers that carry free text a user or a third-party document controls. */
+/**
+ * Identifiers that carry free text a user or a third-party document controls.
+ *
+ * `assignee`, `ref`, `owner`, `party` and `recipient` were added on 2026-09-12. They cost NOTHING —
+ * zero new entries — because the sites carrying them were escaped in the same change; what they buy
+ * is that re-introducing `${c.assignee}` unescaped now fails. `status` was CONSIDERED AND REJECTED:
+ * it added 14 hits of which ~12 were CSS-variable ternaries (`good ? "var(--status-good)" : …`) and
+ * `statusColor(a.status)`, all of which produce colour literals. *A detector that mostly reports
+ * false positives makes the frozen list worse, because it buries the real entries in it.*
+ */
 const HOT =
-  /(name|title|desc|description|message|label|file|filename|user|author|comment|note|text|trade|source|summary|subject|company|vendor|email|address|code|mark|tag|reason|detail|question|answer|value|key|spec_section|type)\b/i;
+  /(name|title|desc|description|message|label|file|filename|user|author|comment|note|text|trade|source|summary|subject|company|vendor|email|address|code|mark|tag|reason|detail|question|answer|value|key|spec_section|type|assignee|ref|owner|party|recipient)\b/i;
 /** Structurally safe to interpolate: loop counters, lengths, numbers. */
 const COLD = /^(i|idx|j|n|k|len|count|total|pct|num|\d+)$/i;
 
 /**
- * Known unescaped interpolations, per file. Every entry is a place a future reader should check
- * rather than trust. Lower a number freely; raising one needs a reason.
+ * Known unescaped interpolations, as `file -> expressions`. Every entry is a place a future reader
+ * should CHECK rather than trust — which is what the counting version claimed and could not deliver,
+ * because a number does not say which sink it is describing.
  */
-const BASELINE: Record<string, number> = {
-  // 2 -> 1 on 2026-09-12 (SCENARIO-SOURCES review). One of the two WAS a live stored XSS:
-  // `Latest scenario: <b>${latest.name}</b>`, where `ScenarioIn.name` is an unconstrained `str`
-  // persisted verbatim by `create_scenario`. **This ratchet stayed green over it for months,
-  // because counting a sink is how this file records one** — the entry says "a future reader
-  // should check this", and the check never happened. A review bot found it by reading the
-  // code the baseline had frozen. *A number that licenses a defect is indistinguishable from a
-  // number that merely describes one; only reading the site tells them apart.*
-  "main.ts": 1,
-  "portal/panels/aiassist.ts": 3,
-  "portal/panels/analytics.ts": 6,
-  "portal/panels/budget.ts": 4,
-  "portal/panels/design.ts": 2,
-  "portal/panels/evm.ts": 1,
-  "portal/panels/operations.ts": 5,
-  "portal/panels/resourceLoading.ts": 1,
-  "portal/panels/schedule.ts": 6,
-  "portal/panels/standards.ts": 8,
-  "portal/panels/traceability.ts": 1,
-  "portal/panels/wip.ts": 1,
-  // v0.3.850 split the register renderer out of `portal.ts`; the 14 that lived in one file are now
-  // 8 + 6 across two. Re-split rather than left at 14, because a per-file allowance parked above the
-  // file's real count is headroom for a new sink — the repo-wide total below never noticed the move.
-  "portal/portal.ts": 8,
-  "portal/register/register.ts": 6,
-  "proforma/proforma.ts": 16,
-  "reportCenter.ts": 4,
-  "studio/nodeEditor.ts": 1,
-  "ui/onboarding.ts": 1,
-  "ui/result.ts": 3,
-  "viewer/app.ts": 6,
-  "viewer/draft/draftPanel.ts": 1,
+const BASELINE: Record<string, readonly string[]> = {
+  "main.ts": [
+    "it.label",
+  ],
+  "portal/homes/developerHome.ts": [
+    "label",
+  ],
+  "portal/panels/aiassist.ts": [
+    "(p.title || p.ref || p.id) as string",
+    "r.message || \"No bids to level.\"",
+    "r.recommendation.note",
+    "r.source === \"claude\" ? \"AI\" : \"extract\"",
+    "r.source === \"claude\" ? \"AI\" : \"rules\"",
+    "title",
+  ],
+  "portal/panels/analytics.ts": [
+    "c.cost_code",
+    "cb.message || \"No cost history yet.\"",
+    "o.label",
+    "o.label === s.recommended ? \"★ \" : \"\"",
+    "o.label === s.recommended ? ' style=\"background:var(--hover)\"' : \"\"",
+    "r.label",
+    "r.message || \"No material quantities.\"",
+    "r.message || \"No reclassification suggestions (load a model in the Model workspace).\"",
+    "r.pricing_source",
+    "s.note",
+    "title",
+  ],
+  "portal/panels/budget.ts": [
+    "g.contract_value ? \" · \" : \"\"",
+    "label",
+    "usd(g.contract_value)",
+    "usd(s.contract_value)",
+    "usd(t.contract_value)",
+  ],
+  "portal/panels/design.ts": [
+    "(e as Error).message",
+    "label",
+    "value",
+    "x.label",
+  ],
+  "portal/panels/evm.ts": [
+    "label",
+    "value",
+  ],
+  "portal/panels/masterBuilder.ts": [
+    "st.label",
+  ],
+  "portal/panels/operations.ts": [
+    "d.code ?? \"\"",
+    "label",
+    "title",
+    "value",
+  ],
+  "portal/panels/portfolio.ts": [
+    "label",
+    "usd(w.weighted_value)",
+  ],
+  "portal/panels/resourceLoading.ts": [
+    "label",
+    "value",
+  ],
+  "portal/panels/schedule.ts": [
+    "mi.name",
+    "title",
+    "title.toLowerCase()",
+  ],
+  "portal/panels/selections.ts": [
+    "dirLabel",
+  ],
+  "portal/panels/standards.ts": [
+    "cov.complete ? \"✅ core documents on file (EIR, BEP, AIR)\"\n        : `⏳ missing core: ${cov.missing.map(esc).join(\", \")",
+    "dp.next_deliverable.ref ?? \"\"",
+    "els.map((e) => e.label).join(\", \")",
+    "label",
+    "m.parent_type",
+    "m.type",
+    "n.ref ?? n.title ?? \"?\"",
+    "o.ref ?? \"\"",
+    "o.type",
+    "value",
+  ],
+  "portal/panels/topicBoard.ts": [
+    "e.detail?.reply_to ? \"↳ \" : \"\"",
+    "e.kind === \"comment\" ? \"💬 \" : \"\"",
+  ],
+  "portal/panels/traceability.ts": [
+    "label",
+    "value",
+  ],
+  "portal/panels/wip.ts": [
+    "flagText",
+    "label",
+    "value",
+  ],
+  "portal/portal.ts": [
+    "label",
+    "n.reason === \"assigned\" ? \"rfi\" : \"open\"",
+    "rs.source === \"claude\" ? \"AI\" : \"rules\"",
+    "top.reason",
+  ],
+  "portal/register/register.ts": [
+    "c.geo ? \"\" : \" (text search only)\"",
+  ],
+  "proforma/massingTab.ts": [
+    "label",
+  ],
+  "proforma/proforma.ts": [
+    "cd.by_cost_code.length - top.length",
+    "cipNote",
+    "e.source === \"cip\" ? \" <span class=\\\"meta\\\">(CIP)</span>\" : \"\"",
+    "label",
+    "money(pf.terminal_value)",
+    "money(rec.value)",
+    "title",
+    "x.code",
+  ],
+  "proforma/testfitTab.ts": [
+    "label",
+  ],
+  "reportCenter.ts": [
+    "money(s.approved_value)",
+    "money(s.executed_value)",
+    "money(s.pending_value)",
+    "money(s.total_value)",
+  ],
+  "shell/nextAction.ts": [
+    "action.label",
+  ],
+  "studio/nodeEditor.ts": [
+    "spec.label",
+  ],
+  "ui/checklist.ts": [
+    "isDone ? \"text-decoration:line-through\" : \"\"",
+    "it.label",
+  ],
+  "ui/onboarding.ts": [
+    "desc",
+    "s.title",
+    "title",
+  ],
+  "ui/result.ts": [
+    "m.label",
+    "m.value",
+  ],
+  "viewer/app.ts": [
+    "reason",
+    "title",
+  ],
+  "viewer/tools/authoringSection.ts": [
+    "r.imported.slice(0, 3).map((i) => i.name).join(\", \")",
+  ],
+  "viewer/tools/contentLibrarySection.ts": [
+    "it.label",
+  ],
+  "viewer/tools/modelReviewPanel.ts": [
+    "statusChip(LABEL[r.review_status], { tone: TONE[r.review_status]",
+  ],
+  "viewer/tools/qaSection.ts": [
+    "a.r_value",
+    "label",
+  ],
 };
-
-const BASELINE_TOTAL = Object.values(BASELINE).reduce((a, b) => a + b, 0);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -84,63 +249,134 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Count EVERY hot, unescaped interpolation pushed into innerHTML — not one per line.
+ * Every hot, unescaped interpolation pushed into innerHTML, as its expression text.
  *
- * An earlier draft stopped at the first hot match on a line, which meant adding a second unescaped
- * value to an already-counted line was invisible: `` `<b>${d.label}</b>` `` growing into
- * `` `<b>${d.label}</b><i>${d.author}</i>` `` kept the count at 1. That is exactly the shape of edit
- * that grows an existing render function.
+ * Per `${…}`, not per line: an earlier draft stopped at the first hot match on a line, so adding a
+ * second unescaped value to an already-counted line was invisible.
  */
-function hotSinks(src: string): number {
-  let n = 0;
-  for (const line of src.split("\n")) {
-    if (!line.includes("innerHTML") || !line.includes("${")) continue;
-    for (const m of line.matchAll(/\$\{([^}]*)\}/g)) {
+export function hotSinks(src: string): string[] {
+  const out: string[] = [];
+  const lines = src.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i]!.includes("innerHTML")) continue;
+    // Accumulate the WHOLE statement, not just this line. An `innerHTML = ` + `...`` assignment
+    // wrapped across lines put every continuation line out of reach of the original line-scoped
+    // rule: it required `innerHTML` and `${` on the SAME line, so a statement broken after the
+    // first template chunk was half-invisible. Measured 2026-09-12: 58 hot sinks were sitting on
+    // continuation lines, against 62 the line-scoped rule could see — the gate was blind to
+    // roughly half its own population, and had been since it was written.
+    let stmt = lines[i]!;
+    for (let j = i + 1; j < Math.min(i + STATEMENT_SPAN, lines.length); j++) {
+      if (/;\s*$/.test(stmt) || lines[j]!.includes("innerHTML")) break;
+      stmt += "\n" + lines[j];
+    }
+    if (!stmt.includes("${")) continue;
+    for (const m of stmt.matchAll(/\$\{([^}]*)\}/g)) {
       const expr = (m[1] ?? "").trim();
       if (SAFE.test(expr) || COLD.test(expr)) continue;
-      if (HOT.test(expr)) n++;
+      if (HOT.test(expr)) out.push(expr);
     }
   }
-  return n;
+  return out;
+}
+
+/** How many lines a single `innerHTML = ...` statement may span before the scan gives up. */
+const STATEMENT_SPAN = 8;
+
+/**
+ * THE VERDICT, separate from the reporting, and mutated directly by the self-tests below.
+ *
+ * `mixinStaging.test.ts` records why: a check that asserts a site was REPORTED is not asserting how
+ * it was CLASSIFIED, and an analyser mutated to call everything safe can still pass a
+ * "was it reported?" test. So this returns the failing set and the tests mutate this function's
+ * input, not the file walker's.
+ */
+export function unknownIdentities(
+  actual: Record<string, readonly string[]>,
+  baseline: Record<string, readonly string[]>,
+): string[] {
+  const out: string[] = [];
+  for (const [file, exprs] of Object.entries(actual)) {
+    const known = new Set(baseline[file] ?? []);
+    for (const e of exprs) if (!known.has(e)) out.push(`${file} :: ${e}`);
+  }
+  return out.sort();
 }
 
 const ADVICE =
   "Wrap the interpolated value in esc()/escapeHtml() — an uploaded document's title, a filename, " +
-  "or a 422 detail quoting the caller's own input is attacker-controlled text.";
+  "or a 422 detail quoting the caller's own input is attacker-controlled text. If it is genuinely " +
+  "a local literal, add the exact expression to BASELINE with a note saying why.";
 
-describe("innerHTML escaping ratchet", () => {
-  const actual: Record<string, number> = {};
-  for (const file of walk(SRC)) {
-    const n = hotSinks(readFileSync(file, "utf8"));
-    if (n) actual[relative(SRC, file).replace(/\\/g, "/")] = n;
-  }
-  const total = Object.values(actual).reduce((a, b) => a + b, 0);
+const actual: Record<string, string[]> = {};
+for (const file of walk(SRC)) {
+  const hits = hotSinks(readFileSync(file, "utf8"));
+  if (hits.length) actual[relative(SRC, file).replace(/\\/g, "/")] = hits;
+}
+const sinkCount = Object.values(actual).reduce((a, b) => a + b.length, 0);
 
-  it("adds no unescaped innerHTML interpolation to an already-known file", () => {
-    // Only files the baseline names. A file that was renamed away simply reports 0 here, which can
-    // never fail — the total below is what keeps a rename from laundering a new sink.
-    const regressions: string[] = [];
-    for (const [file, allowed] of Object.entries(BASELINE)) {
-      const n = actual[file] ?? 0;
-      if (n > allowed) regressions.push(`${file}: ${n} unescaped, baseline ${allowed}. ${ADVICE}`);
-    }
-    expect(regressions).toEqual([]);
+describe("innerHTML escaping ratchet (identity-keyed)", () => {
+  it("is reading a real source tree", () => {
+    // Without this, a walker returning nothing reports a clean tree — "found nothing" and "did not
+    // look" must not be the same output.
+    expect(Object.keys(actual).length, "no files with hot sinks at all — the walker is broken")
+      .toBeGreaterThan(15);
+    expect(sinkCount, "no sinks at all — the matcher is broken").toBeGreaterThan(40);
   });
 
-  it("does not grow the repo-wide count", () => {
-    // Rename-proof and improvement-friendly: moving a file keeps the total flat, escaping anything
-    // lowers it, and only genuinely NEW unescaped text can push it up. This is also the gate that
-    // covers files the baseline has never heard of.
-    const newcomers = Object.keys(actual)
-      .filter((f) => !(f in BASELINE))
-      .map((f) => `${f} (${actual[f]})`);
-    expect(
-      `${total} unescaped interpolation(s)` +
-        (total > BASELINE_TOTAL && newcomers.length ? ` — not baselined: ${newcomers.join(", ")}` : ""),
-    ).toBe(
-      total > BASELINE_TOTAL
-        ? `at most ${BASELINE_TOTAL}. ${ADVICE}`
-        : `${total} unescaped interpolation(s)`,
-    );
+  it("introduces no interpolation this list has not seen", () => {
+    expect(unknownIdentities(actual, BASELINE).join("\n") || "none", ADVICE).toBe("none");
+  });
+
+  it("never fails because an entry VANISHED — improving the code must not red the build", () => {
+    // SYNTHETIC `actual`, deliberately not the live tree. The first draft of this asserted
+    // `unknownIdentities(actual, {...BASELINE, ghost}) === []` against the real scan, which mixes
+    // two questions: it fails whenever ANY new sink exists, with a message blaming the ghost
+    // ("improving the code must not red the build") while the real cause is that somebody ADDED an
+    // interpolation. *A failure message that can misdiagnose is worse than one that stays silent,
+    // because somebody acts on it* — the lesson `test_scratch_ignored.py` paid for. Caught here by
+    // mutating a real file and reading BOTH failures instead of only the expected one.
+    const fixture = { "a.ts": ["kept.name"] };
+    const withGhosts = { "a.ts": ["kept.name", "gone.title"], "no/such/file.ts": ["ghost.name"] };
+    expect(unknownIdentities(fixture, withGhosts), "a vanished entry must be silent").toEqual([]);
+    // ...while the opposite direction still fires: no baseline at all means every sink is unknown.
+    expect(unknownIdentities(fixture, {})).toEqual(["a.ts :: kept.name"]);
+  });
+
+  it("CATCHES A SUBSTITUTION, which the counting version could not", () => {
+    // This is the whole argument for the rewrite. Take a real baselined file, DELETE one known sink
+    // and ADD a different unescaped one. The count is unchanged, so the old rule stayed green.
+    const file = "portal/panels/evm.ts";
+    const known = BASELINE[file]!;
+    expect(known, "fixture file must still be baselined").toContain("value");
+
+    const before = { [file]: [...known] };
+    const after = { [file]: known.filter((e) => e !== "value").concat("attacker.name") };
+
+    // The mutation must actually have applied — a mutation that does not apply is a test that was
+    // never exercised, and it reports green exactly like a passing one (mixinStaging.test.ts, #542).
+    expect(after[file]).not.toEqual(before[file]);
+    expect(after[file]!.length, "substitution must keep the COUNT identical").toBe(before[file]!.length);
+
+    // Old rule: count <= allowance. Same length, so it passed.
+    expect(after[file]!.length <= before[file]!.length).toBe(true);
+    // New rule: the identity is unknown, so it fails.
+    expect(unknownIdentities(after, BASELINE)).toEqual([`${file} :: attacker.name`]);
+  });
+
+  it("detects the filename sink this gate used to count", () => {
+    // register.ts's `${a.filename}` was a LIVE stored XSS sitting inside a count allowance. It is
+    // escaped now, so it must NOT appear — and the matcher must still be able to see its shape.
+    expect(hotSinks('x.innerHTML = `<span>${a.filename}</span>`;')).toEqual(["a.filename"]);
+    expect(hotSinks('x.innerHTML = `<span>${esc(a.filename)}</span>`;')).toEqual([]);
+    expect(BASELINE["portal/register/register.ts"] ?? []).not.toContain("a.filename");
+  });
+
+  it("sees the free-text identifiers added with this change", () => {
+    // The widened HOT terms, asserted directly: re-introducing any of these unescaped must fail.
+    for (const expr of ["c.assignee", "c.ref", "s.vendor", "lane.trade", "x.owner", "p.recipient"]) {
+      expect(hotSinks("e.innerHTML = `<b>${" + expr + "}</b>`;"), `${expr} must be detected`)
+        .toEqual([expr]);
+    }
   });
 });

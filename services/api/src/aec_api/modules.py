@@ -708,12 +708,17 @@ def add_attachment(db: Session, key: str, project_id: str, rid: str, filename: s
     the row cannot record a size the stored object does not have. It is used twice below (the row and
     the response) and both now read the same variable rather than re-deriving it.
     """
-    from . import storage
+    from . import serving, storage
     from .models import RecordAttachment
 
     if (data is None) == (chunks is None):
         raise ValueError("pass exactly one of `data` or `chunks`")
     get_record(db, key, project_id, rid)  # 404 if missing
+    # The multipart filename is attacker-controlled and is BOTH persisted for display and spliced
+    # into the storage key. `storage.validate_key` already refuses `..`/absolute/NUL keys; this
+    # normalises the value that gets stored and rendered back to other users. Escaping stays the
+    # renderer's job -- an XSS fixed by input filtering stays fixed only until the next sink.
+    filename = serving.stored_filename(filename)
     aid = str(uuid.uuid4())
     skey = f"records/{project_id}/{key}/{rid}/{aid}_{filename}"
     if chunks is not None:

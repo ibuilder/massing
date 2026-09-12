@@ -27,6 +27,30 @@ def content_disposition(filename: str | None, disposition: str = "attachment",
     return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
 
 
+def stored_filename(filename: str | None, fallback: str = "file") -> str:
+    """Normalise a client-supplied filename for PERSISTENCE — the value that goes in a row and is
+    later rendered back to other users.
+
+    Strips any path component and every control character, and caps the length. It deliberately
+    does NOT touch `&`, `<`, `>` or quotes: those are legal in a filename (`Q&A notes.pdf`), and
+    mangling them here would corrupt real names while giving a false sense of safety. **Escaping is
+    the renderer's job** — an XSS fixed by input filtering stays fixed only until the next sink.
+
+    This is hygiene, not the XSS control. The control is `escapeHtml` at the point of interpolation.
+
+    One surprise worth naming, because the first check written against this "failed" on it: a name
+    containing `/` is truncated at the last one, so `Q&A <b>notes</b>.pdf` stores as `b>.pdf`. That
+    is `os.path.basename` doing its job, not this function mangling markup — `/` is a path separator
+    and is not legal in a filename on any mainstream filesystem, so a multipart value carrying one
+    is already either a path or an attack. `Q&A notes.pdf`, `a<b>c.pdf` and quoted names all pass
+    through untouched. *The check was wrong, not the code* — which is only obvious once you print
+    `os.path.basename` on its own.
+    """
+    raw = os.path.basename(filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    raw = "".join(c for c in raw if ord(c) >= 32 and c != "\x7f").strip()
+    return raw[:255] or fallback
+
+
 def range_response(request: Request, key: str, media_type: str,
                    filename: str | None = None, disposition: str = "inline",
                    immutable: bool = True) -> Response:

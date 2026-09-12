@@ -18,7 +18,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from . import classification, folder_template, naming, pid_lock, storage
+from . import classification, folder_template, naming, pid_lock, serving, storage
 from .timeutil import utc_now
 
 _INDEX = "{pid}/docs/_index.json"
@@ -154,6 +154,9 @@ def upload(pid: str, folder: str, filename: str, data: bytes | None, actor: str,
         # Refused rather than defaulted. Accepting both would make it ambiguous which one was
         # stored; accepting neither would write a zero-byte document and index it as real.
         raise ValueError("pass exactly one of `data` or `chunks`")
+    # Same attacker-controlled multipart value as `modules.add_attachment`, and it reaches further
+    # here: `title` and `ext` are both derived from it below, so it lands in the document index.
+    filename = serving.stored_filename(filename)
     if not folder_template.is_valid(folder):
         raise ValueError(f"'{folder}' is not a standard folder — file into the standard taxonomy")
     node = folder_template.node(folder)

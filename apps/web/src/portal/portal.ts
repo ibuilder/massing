@@ -340,7 +340,7 @@ export class PortalUI {
     // the ONLY nodes carrying that attribute were the pinned rail's own buttons — so its
     // "open what I pinned" handler matched itself and clicked itself instead of navigating.
     b.dataset.dest = d.key;
-    b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
+    b.innerHTML = `<span class="ic">${d.icon}</span> ${esc(d.label)}`;
     // A `goto` destination hands off to another workspace and renders NOTHING here, so it must not
     // mark itself active. v0.3.770 tried that — to make a `goto` destination usable as a room's
     // landing target — and it was wrong in the worst direction: the marker is sticky, nothing clears
@@ -850,7 +850,7 @@ export class PortalUI {
       for (const a of withNew) {
         const m = this.mods.find((x) => x.key === a.module); if (!m) continue;
         const chip = el("button", "tool-btn");
-        chip.innerHTML = `${a.name} <span class="badge">${a.new} new</span> <span class="meta">of ${a.total}</span>`;
+        chip.innerHTML = `${esc(a.name)} <span class="badge">${a.new} new</span> <span class="meta">of ${a.total}</span>`;
         chip.title = `${m.name} — open this saved search`;
         chip.onclick = async () => {
           this.reg.sort[m.key] = a.config.sort as (typeof this.reg.sort)[string];
@@ -975,7 +975,7 @@ export class PortalUI {
           + `<div class="meta" style="margin:2px 0 6px">${rs.headline}</div>`
           + rs.risks.map((r) => `<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0;font-size:12px">`
             + `<span style="color:${colors[r.level] || "#9aa0a6"};font-weight:700;text-transform:uppercase;font-size:10px;min-width:54px">${r.level}</span>`
-            + `<span>${r.text}</span></div>`).join("");
+            + `<span>${esc(r.text)}</span></div>`).join("");
         // The evidence line. Values are server numbers, so a template is safe here; the alert text
         // below is server FREE TEXT and goes through textContent instead.
         const dr = rs.drivers ?? { schedule: {}, cost: {}, top_alerts: [] };

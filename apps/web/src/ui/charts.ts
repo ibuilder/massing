@@ -40,9 +40,18 @@ export function chartColor(i: number): string {
   return SERIES_PALETTE[i % SERIES_PALETTE.length] ?? SERIES_PALETTE[0]!;
 }
 
-export function esc(s: unknown): string {
-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+/** The ONE escaper, re-exported under the name chart code already imports.
+ *
+ *  This was a SECOND implementation covering `& < > "` but NOT `'` — a hole the moment its output
+ *  lands in a single-quoted attribute, and invisible at the call site, since `esc(x)` reads
+ *  identically whichever of the two you imported. Two escapers with different coverage is exactly
+ *  the drift this repo keeps paying for, so there is now one.
+ *
+ *  Imported rather than `export ... from`: this module uses `esc` internally in ~30 places, and a
+ *  bare re-export does not bind the name locally. (Caught by `tsc`, which is the point of having it.) */
+import { escapeHtml as esc } from "./feedback";
+
+export { esc };
 
 /** Compact number: 1.2B / 3.4M / 450k / 87. */
 export function compact(n: number): string {

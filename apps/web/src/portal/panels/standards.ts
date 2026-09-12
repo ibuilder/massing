@@ -475,7 +475,7 @@ export async function renderIds(ctx: PanelContext) {
       body.innerHTML = "";
       const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
       pick.setAttribute("aria-label", "IDS use case");
-      pick.innerHTML = cat.use_cases.map((u) => `<option value="${u.key}">${u.label}</option>`).join("");
+      pick.innerHTML = cat.use_cases.map((u) => `<option value="${esc(u.key)}">${esc(u.label)}</option>`).join("");
       const detail = el("div"); detail.style.margin = "8px 0";
       const showDetail = () => {
         const uc = cat.use_cases.find((u) => u.key === pick.value);
