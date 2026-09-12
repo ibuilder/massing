@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Test scratch directories no longer make `git status` read as uncommitted work
+
+A stop hook flagged `services/api/_shelf_famgeom/` as work somebody had forgotten to commit. It was
+not work -- `test_family_geometry.py` creates and removes it -- but nothing ignored it, so for the
+seconds it existed it was indistinguishable from the real thing. **That is the entire cost, and it is
+not cosmetic: a dirty `git status` from a concurrent or crashed suite run looks exactly like
+uncommitted changes, to a hook and to a person.** Thirteen scratch directories were uncovered. The
+suite already counted the residue on every run -- "N dir(s) this runner does not own" -- so it was
+visible to the tooling and invisible to `.gitignore`.
+
+`services/api/test_scratch_ignored.py` derives the population (every `"./<name>"` directory literal
+in `services/api/*.py`) and delegates the verdict to **git itself** rather than reimplementing its
+matcher. **Its first two drafts were both wrong in the way this repository keeps re-learning: the
+checker did not fail, it answered.** Asked without a trailing slash, git cannot tell an absent path
+is a directory, so every directory-only pattern missed and it reported 377 uncovered. Asked from
+`services/` instead of the repo root, the paths resolved nowhere, the per-directory
+`services/api/.gitignore` was never consulted, and it reported 35 -- which would have had nineteen
+redundant patterns added to fix nothing. *A wrong question returns a confident number, and a number
+with a list attached reads as evidence.*
+
+So the gate now carries three self-tests, one per way of asking wrongly, and they run **before**
+anything else -- a failed classifier prints no verdicts at all. The per-directory canary is
+**derived** rather than named: an earlier draft hardcoded `test_ifc*/`, which made removing that
+pattern for a legitimate reason red the self-test with a message confidently blaming the wrong cause.
+*A check whose failure message can misdiagnose is worse than one that stays silent, because somebody
+acts on it.*
+
 ### A saved scenario's name could run script in the Finance home
 
 `ScenarioIn.name` is an unconstrained `str` that `create_scenario` persists verbatim, and the Finance
