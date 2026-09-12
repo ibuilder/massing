@@ -49,6 +49,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const SRC = join(__dirname, "..");
@@ -95,6 +96,7 @@ const BASELINE: Record<string, readonly string[]> = {
   "portal/panels/analytics.ts": [
     "c.cost_code",
     "cb.message || \"No cost history yet.\"",
+    "o.compliant ? \"✓\" : `<span style=\"color:var(--status-crit)\" title=\"${o.violations.join(\"; \")}\">✗</span>`",
     "o.label",
     "o.label === s.recommended ? \"★ \" : \"\"",
     "o.label === s.recommended ? ' style=\"background:var(--hover)\"' : \"\"",
@@ -115,7 +117,6 @@ const BASELINE: Record<string, readonly string[]> = {
     "usd(t.contract_value)",
   ],
   "portal/panels/design.ts": [
-    "(e as Error).message",
     "label",
     "value",
     "x.label",
@@ -154,6 +155,8 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "portal/panels/standards.ts": [
     "cov.complete ? \"✅ core documents on file (EIR, BEP, AIR)\"\n        : `⏳ missing core: ${cov.missing.map(esc).join(\", \")}`",
+    "dp.next_deliverable.ref ?? \"\"",
+    "dp.next_deliverable.type",
     "els.map((e) => e.label).join(\", \")",
     "label",
     "label",
@@ -206,6 +209,10 @@ const BASELINE: Record<string, readonly string[]> = {
     "label",
     "money(pf.terminal_value)",
     "money(rec.value)",
+    "money(v.cost.value)",
+    "money(v.income.value)",
+    "money(v.sales_comparison.value)",
+    "row(\"Plus land\", money(v.cost.land_value))",
     "title",
     "title",
     "x.code",
@@ -218,10 +225,6 @@ const BASELINE: Record<string, readonly string[]> = {
     "money(s.executed_value)",
     "money(s.pending_value)",
     "money(s.total_value)",
-  ],
-  "shell/nextAction.ts": [
-    "action.label",
-    "action.label",
   ],
   "studio/nodeEditor.ts": [
     "spec.label",
@@ -269,72 +272,62 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Every hot, unescaped interpolation pushed into innerHTML, as its expression text.
+ * Every interpolation that reaches an `innerHTML` assignment, via the TYPESCRIPT PARSER.
  *
- * Per `${…}`, not per line: an earlier draft stopped at the first hot match on a line, so adding a
- * second unescaped value to an already-counted line was invisible.
- */
-export function hotSinks(src: string): string[] {
-  const out: string[] = [];
-  const lines = src.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (!lines[i]!.includes("innerHTML")) continue;
-    // Accumulate the WHOLE statement, not just this line. An `innerHTML = ` + `...`` assignment
-    // wrapped across lines put every continuation line out of reach of the original line-scoped
-    // rule: it required `innerHTML` and `${` on the SAME line, so a statement broken after the
-    // first template chunk was half-invisible. Measured 2026-09-12: 58 hot sinks were sitting on
-    // continuation lines, against 62 the line-scoped rule could see — the gate was blind to
-    // roughly half its own population, and had been since it was written.
-    let stmt = lines[i]!;
-    for (let j = i + 1; j < Math.min(i + STATEMENT_SPAN, lines.length); j++) {
-      if (/;\s*$/.test(stmt) || lines[j]!.includes("innerHTML")) break;
-      stmt += "\n" + lines[j];
-    }
-    if (!stmt.includes("${")) continue;
-    for (const expr of interpolations(stmt)) {
-      if (SAFE.test(expr) || COLD.test(expr)) continue;
-      if (HOT.test(expr)) out.push(expr);
-    }
-  }
-  return out;
-}
-
-/**
- * Every `${...}` in `src`, matched by BRACE DEPTH rather than by a regex.
+ * Three hand-rolled scanners preceded this, and each one drew a review finding that was correct:
  *
- * `/\$\{([^}]*)\}/g` stops at the FIRST `}`, so any interpolation containing one — an object
- * literal, a nested template, a `.map()` with a block body — was captured truncated. The proof was
- * sitting in this file's own baseline: `statusChip(LABEL[r.review_status], { tone: TONE[...]` had
- * been frozen with its tail cut off at the inner brace. A truncated identity is worse than a
- * missing one, because it is a string that can match a DIFFERENT real expression later.
+ *  1. `/\$\{([^}]*)\}/g` on a single LINE — blind to any statement wrapped across lines, which was
+ *     58 of ~120 sinks.
+ *  2. The same regex over an accumulated statement — truncated at the first `}`, so an object
+ *     literal or nested template was frozen as a FRAGMENT. This file's own baseline carried one.
+ *  3. A brace-depth scanner with an 8-line span — still blind to `}` inside a regex literal
+ *     (`/}/`) or a comment (`/* } *\/`, `// }`), still capped by an arbitrary line budget, and
+ *     still returning only the OUTER expression of a nested template, so an outer `esc(...)` made
+ *     `SAFE` accept an unescaped inner value.
  *
- * Tracks backticks and quotes so a `}` inside a string literal does not close the interpolation.
+ * *Each fix made the scanner more elaborate and left a narrower version of the same gap.* The
+ * convergent answer is not a fourth scanner: `typescript` is already a dependency and
+ * `api/responseUndeclared.test.ts` already parses with it. The real parser handles nesting,
+ * comments, regex literals and statement spans by construction, and cannot be wrong about them in
+ * the way a character scanner is wrong.
+ *
+ * Nested spans are returned INDEPENDENTLY, which is the security-relevant part: an unescaped inner
+ * value is judged on its own rather than hidden behind an outer `esc(`.
  */
 export function interpolations(src: string): string[] {
+  const sf = ts.createSourceFile("x.ts", src, ts.ScriptTarget.Latest, true);
   const out: string[] = [];
-  for (let i = 0; i + 1 < src.length; i++) {
-    if (src[i] !== "$" || src[i + 1] !== "{") continue;
-    let depth = 1, j = i + 2, quote = "";
-    for (; j < src.length && depth > 0; j++) {
-      const c = src[j]!;
-      if (quote) {
-        if (c === "\\") j++;
-        else if (c === quote) quote = "";
-        continue;
+  const collect = (node: ts.Node): void => {
+    if (ts.isTemplateExpression(node)) {
+      for (const span of node.templateSpans) {
+        out.push(span.expression.getText(sf).trim());
+        collect(span.expression);            // nested templates yield their own spans
       }
-      if (c === '"' || c === "'" || c === "`") quote = c;
-      else if (c === "{") depth++;
-      else if (c === "}") depth--;
+      return;
     }
-    if (depth !== 0) continue;              // unterminated within the captured statement
-    out.push(src.slice(i + 2, j - 1).trim());
-    i = j - 1;
-  }
+    ts.forEachChild(node, collect);
+  };
+  const walk = (node: ts.Node): void => {
+    const isInnerHtmlWrite =
+      ts.isBinaryExpression(node)
+      && (node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+          || node.operatorToken.kind === ts.SyntaxKind.PlusEqualsToken)
+      && ((ts.isPropertyAccessExpression(node.left) && node.left.name.text === "innerHTML")
+          || (ts.isElementAccessExpression(node.left)
+              && ts.isStringLiteral(node.left.argumentExpression)
+              && node.left.argumentExpression.text === "innerHTML"));
+    if (isInnerHtmlWrite) collect(node.right);
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
   return out;
 }
 
-/** How many lines a single `innerHTML = ...` statement may span before the scan gives up. */
-const STATEMENT_SPAN = 8;
+/** Every hot, unescaped interpolation reaching innerHTML, as its expression text. */
+export function hotSinks(src: string): string[] {
+  return interpolations(src).filter((e) => !SAFE.test(e) && !COLD.test(e) && HOT.test(e));
+}
+
 
 /**
  * THE VERDICT, separate from the reporting, and mutated directly by the self-tests below.
@@ -443,11 +436,25 @@ describe("innerHTML escaping ratchet (identity-keyed)", () => {
     // test was wrong, not the parser.
     expect(hotSinks('e.innerHTML = `<b>${chip(x, { tone: T[s.name] })}</b>`;'))
       .toEqual(["chip(x, { tone: T[s.name] })"]);
-    // a `}` inside a string literal must not close the interpolation
-    expect(interpolations('${f("a}b")}')).toEqual(['f("a}b")']);
-    // a nested template literal
-    expect(interpolations("${xs.map((i) => `<i>${i.name}</i>`).join(\"\")}"))
-      .toEqual(['xs.map((i) => `<i>${i.name}</i>`).join("")']);
+    // a `}` inside a string literal must not close the interpolation. NB the fixture has to be a
+    // complete `innerHTML` assignment now: the AST walker collects from innerHTML WRITES, so a bare
+    // `${...}` fragment correctly yields nothing — the first draft of this line passed a fragment
+    // and read as a parser failure.
+    expect(interpolations('x.innerHTML = `${f("a}b")}`;')).toEqual(['f("a}b")']);
+    // A nested template returns the outer expression AND the inner span, independently. The
+    // earlier draft asserted the outer ONLY, which is the hole a reviewer then found: `SAFE`
+    // matches `esc(` anywhere in the outer text, so an outer escape made an unescaped INNER value
+    // invisible. Judging each span on its own is the security-relevant behaviour.
+    expect(interpolations("x.innerHTML = `${xs.map((i) => `<i>${i.name}</i>`).join(\"\")}`;"))
+      .toEqual(['xs.map((i) => `<i>${i.name}</i>`).join("")', "i.name"]);
+    // ...so an outer esc() no longer launders an inner unescaped value
+    expect(hotSinks("x.innerHTML = `${esc(a) + xs.map((i) => `${i.name}`).join(\"\")}`;"))
+      .toEqual(["i.name"]);
+    // `}` inside a regex literal or a comment does not terminate the interpolation
+    expect(interpolations("x.innerHTML = `${v && /}/ ? a.name : b.name}`;"))
+      .toEqual(["v && /}/ ? a.name : b.name"]);
+    expect(interpolations("x.innerHTML = `${v /* } */ .label}`;")).toEqual(["v /* } */ .label"]);
+    expect(interpolations("x.innerHTML = `${v // }\n .label}`;")).toEqual(["v // }\n .label"]);
     // and no baselined entry may be a truncated fragment ending mid-expression
     for (const [file, exprs] of Object.entries(BASELINE)) {
       for (const e of exprs) {
