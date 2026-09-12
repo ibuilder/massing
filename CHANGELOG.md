@@ -12,6 +12,46 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The reachability gate's blind spot was 70 routes wide, and only two were written down
+
+`LEAF_COLLISION_DARK` is a **triaged** list — routes somebody read, confirmed dark, and recorded. It
+was never the population, and the note above it described it as though it were. The population is
+every route the reachability rule cannot see *at all*: leaf long enough to check, leaf vouched by an
+ordinary English or HTML word (so the rule stays silent), and no caller that builds the path.
+Deriving that instead of listing it gives **70 of 947 routes**.
+
+`services/api/test_route_reachability.py` now derives and freezes that set as `LEAF_COLLISION_BLIND`,
+the way `KNOWN_UNCALLED` already freezes the routes the rule *can* see. It is a **record, not an
+allowlist**: 70 is not a target, and most of the set is probably correct. `/scim/v2/Users` is for an
+identity provider and `/bcf/2.1/projects` for external BIM tools — neither should ever have a web
+caller. Some are false positives of the probe itself: `openDrawing("plan.dxf?…")` builds
+`/projects/{pid}/drawings/plan.dxf` through a helper, so the literal never appears.
+
+**The point is not the number, it is that the number exists.** Before this, the blind spot had no
+measured size and nothing could report a new member; now it can only shrink, and route 71 arrives
+with a name. Triage is deliberately *not* done here — no syntactic probe can classify these, because
+the leaf being vouched is the whole problem (a leaf-based search returns 685 hits for `projects` and
+44 for `status`). Each needs a read, and that is its own work.
+
+**Two review findings, both real, both applied.** The derivation matched its probe against all
+code; `leaf_is_called` directly above it matches inside STRING LITERALS, for the documented reason
+that a bare substring test cannot tell a route from a token containing it — so a probe appearing in
+an identifier could drop a route from the set, and since the ratchet fails only on *additions*, that
+removal would never be reported. *This file's own recurring defect, one level down, inside the
+derivation written to measure it.* The differential was **measured, not assumed: 0 routes today**,
+both controls unmoved — so it is preventive rather than corrective, and applied because it closes the
+silent-shrink path for nothing. Second: a route *leaving* the frozen set only printed. It now fails,
+on `KNOWN_UNCALLED`'s stated reasoning — an entry leaves either because it gained a caller, or
+because it was renamed, and then the frozen name is a stale string pre-authorising whatever reuses
+that path. *"Both need a human; neither should print and pass."* The weaker precedent in the same
+file was the wrong one to copy.
+
+**This took four measurements to get right** — 377 and 35 in a previous gate, then 26 and 70 here —
+and the pattern is identical each time: *the checker did not fail, it answered.* So the derivation
+carries two live controls it must separate: `/bsdd/search`, wired an hour earlier, must fall out;
+`/scim/v2/Users`, callerless by design, must stay in. Mutating the derivation to return nothing reds
+the controls rather than silently reporting a clean tree.
+
 ### You can now look up a buildingSMART class, not just be told how few you have
 
 The standards panel has always scored *what fraction* of the model carries a bSDD classification
@@ -64,7 +104,13 @@ as the output of screening "every route whose leaf this rule reads as called but
 path-shaped anywhere in the web source"; re-running exactly that query returns **twenty-six** routes
 against three entries. Most of the remainder are legitimately web-callerless (`/scim/v2/Users` is for
 an identity provider, `/bcf/2.1/projects` for external BIM tools), so twenty-six is an upper bound on
-candidates and not a defect count -- but *a hand-curated list that describes itself as derived reads
+candidates and not a defect count
+*(Superseded within the hour: **the real figure is 70 of 947 routes.** Twenty-six was measured with a
+looser probe that asked whether the route's PARENT fragment appeared, which any sibling route
+satisfies — so a called `/lod/assessment` vouched for an uncalled `/lod/matrix`, the same collision
+one segment up. DARK-LIST-DERIVE below carries the corrected derivation and freezes it. Recorded
+rather than edited away: a number that drifts toward the conclusion it supports is the hardest kind
+to catch, and this one drifted in the flattering direction.)* -- but *a hand-curated list that describes itself as derived reads
 exactly like a complete one.* The remaining candidates are filed as their own axis rather than
 smuggled into a wiring change.
 
