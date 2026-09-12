@@ -1835,9 +1835,12 @@ instances:
   **WIRING ONE ROUTE BLINDED THE GATE TO ANOTHER, IN THE SAME COMMIT.** The entity list contains
   `vendors`, so `/connections/{cid}/erp/vendors` is now a URL this client builds, and
   `/benchmarks/vendors` — dark since the gate was written and frozen in `KNOWN_UNCALLED` ever since —
-  instantly read as called. It is not: its five `/benchmarks/*` siblings have client methods and it
-  still has none. **Reachability work is not monotone.** A new URL adds a segment to the corpus and
-  any dark route sharing that last segment leaves the gate's sight.
+  instantly read as called. It was not: its five `/benchmarks/*` siblings had client methods and it
+  had none. *(VENDOR-SCORECARD above then gave it one, in this same pull request — so the sentence
+  is past tense on purpose. A review bot caught it written in the present, which it had stopped
+  being one commit later: **a roadmap entry describes a moment, and the moment moved under it**.)*
+  **Reachability work is not monotone.** A new URL adds a segment to the corpus and any dark route
+  sharing that last segment leaves the gate's sight.
 
   So read the numbers with that in hand. Uncalled routes **59 → 58** and the short-leaf ratchet
   **6 → 5** — but *the 59 → 58 is entirely the collision*, because the two routes this sprint wired
@@ -3214,7 +3217,8 @@ had to be fixed under a one-change lane assignment because there was no row to p
 
 **It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
 ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
-`drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `dev/` · `connections/` · `deploy/`.
+`drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `dev/` · `deploy/`
+*(`connections/` came off this list on 2026-09-12 — Lane B claims it; see the row above.)*
 
 **The loose `portal/` files came off that list on 2026-09-11, DERIVED the same way `tree/` was** —
 `safetyCard.ts` was extracted from `portal.ts` under the size ratchet, the unowned ratchet went red at
@@ -3309,10 +3313,20 @@ actually edit is inside your lane — the table's own greenness is not evidence 
 **Unowned paths — found while fixing the above, 2026-08-03. NOT decided here.** The lane check asserts
 that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `apps/web/src/drawings/`,
 `proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
-`portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
+`portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belonged to no lane, which the
 carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
 deliberately. The live case: **`R36-DRAWINGS-RETURN` is Lane A and lands in
 `apps/web/src/drawings/`**, so `drawings/` remains unowned rather than assigned by guess.
+*(**This list is AS MEASURED ON 2026-08-03 and is not maintained** — `account/` went to Lane A,
+`proforma/` to Lane B on 2026-09-09, `connections/` to Lane B on 2026-09-12, and the loose `portal/`
+files were split between A and B on 2026-09-11, none of which are edited out above. A review bot
+asked for `connections/` to be struck from it; **taking only that one out would have been the worse
+change** — the list would have read as current while still naming three claimed directories, which is
+exactly how a stale inventory earns trust it has not got. The authority is the lane table plus the
+unowned ratchet in `apps/web/src/shell/roadmapLanes.test.ts`, which is computed; this paragraph is a
+dated finding. The live to-do list of directories still to claim is the one above the table, and
+that one IS maintained.)*
+
 It needs its own premise-check; guessing an owner for a directory a lane is already aimed at
 is how the register problem was made.
 

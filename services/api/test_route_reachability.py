@@ -908,8 +908,15 @@ check("the LEDGER-BROWSE collision is still a blind spot: /benchmarks/vendors",
       "/benchmarks/vendors" not in KNOWN_UNCALLED,
       "re-triage /benchmarks/vendors rather than re-freezing it — while a sibling route's URL ends "
       "in `vendors`, this rule cannot tell a caller of one from a caller of the other")
+# **This check was FAIL-OPEN on its first draft and a review bot caught it.** It read
+# `"/benchmarks/vendors" in FOUND or leaf_is_called(...)`. `FOUND` is the set of routes the rule
+# flags as UNCALLED, so the left operand is true exactly when the collision is **gone** — an
+# assertion named "the collision is REAL" that passed in the state it exists to exclude, and an `or`
+# that cannot fail in the direction that matters. *The blind-spot record was itself guarded by a
+# check that could not see its own subject*, which is the class the whole file is about, written
+# into the entry documenting the class. Both conditions are now required.
 check("  ...and the collision is REAL, not a guess: the rule does read that leaf as called",
-      "/benchmarks/vendors" in FOUND or leaf_is_called("vendors", _CODE),
+      "/benchmarks/vendors" not in FOUND and leaf_is_called("vendors", _CODE),
       "the vouching URL is gone — if `ledgerBrowse.ts` no longer offers a `vendors` entity, "
       "/benchmarks/vendors is visible again and belongs back in KNOWN_UNCALLED")
 

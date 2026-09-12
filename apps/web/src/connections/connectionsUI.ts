@@ -137,7 +137,11 @@ function ledgerModal(api: ApiClient, id: string, name: string, vendor: LedgerVen
   const read = async () => {
     const entity = pick.value;
     msg.textContent = ""; note.textContent = "reading…"; grid.innerHTML = "";
-    go.disabled = true;
+    // `pick` is disabled with `go`, not just `go`: the entity is captured at the top of this
+    // function, so changing the select mid-flight would render THIS entity's rows under THAT
+    // entity's label — a mislabelled ledger, which is the same class as the error/empty collapse
+    // this whole module exists to prevent.
+    go.disabled = true; pick.disabled = true;
     try {
       const res = await api.connectionLedger(id, vendor, entity);
       const out = outcome(res, entity);
@@ -153,7 +157,7 @@ function ledgerModal(api: ApiClient, id: string, name: string, vendor: LedgerVen
       note.textContent = "";
       msg.textContent = `Request failed: ${(e as Error).message}`;
     } finally {
-      go.disabled = false;
+      go.disabled = false; pick.disabled = false;
     }
   };
   go.onclick = () => { void read(); };

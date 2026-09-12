@@ -122,7 +122,31 @@ describe("worst first", () => {
     expect(ordered(rows).map((r) => r.vendor)).toEqual(["Watch Small", "Unknown", "Clear Big"]);
   });
 
-  it("breaks a tie by exposure, then by name — so the order is stable", () => {
+  it("ranks by MONEY AT RISK, not contract size — a waived giant sits below an unwaived minnow", () => {
+    // The defect a review bot caught: the docstring said "by exposure" and the code sorted by
+    // `subcontract_value`. With the table capped at 25 rows, that pushed the vendor who is actually
+    // owed money off the screen, below one who is owed nothing.
+    const rows = [
+      row({ vendor: "Waived Giant", verdict: "watch", subcontract_value: 9_000_000,
+            invoiced: 9_000_000, lien_waivers_value: 9_000_000 }),
+      row({ vendor: "Unwaived Minnow", verdict: "watch", subcontract_value: 50_000,
+            invoiced: 50_000, lien_waivers_value: 0 }),
+    ];
+    expect(ordered(rows).map((r) => r.vendor)).toEqual(["Unwaived Minnow", "Waived Giant"]);
+  });
+
+  it("a vendor who has not billed ranks with the fully waived — neither has money at risk", () => {
+    const rows = [
+      row({ vendor: "Not billed", verdict: "watch", subcontract_value: 100, invoiced: 0 }),
+      row({ vendor: "Fully waived", verdict: "watch", subcontract_value: 100,
+            invoiced: 500, lien_waivers_value: 500 }),
+      row({ vendor: "At risk", verdict: "watch", subcontract_value: 1, invoiced: 5,
+            lien_waivers_value: 0 }),
+    ];
+    expect(ordered(rows)[0]?.vendor, "exposure outranks size").toBe("At risk");
+  });
+
+  it("falls back to size, then name, at equal exposure — so the order is stable", () => {
     const rows = [
       row({ vendor: "B", verdict: "watch", subcontract_value: 100 }),
       row({ vendor: "A", verdict: "watch", subcontract_value: 100 }),

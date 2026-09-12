@@ -133,11 +133,24 @@ export function summaryLine(mem: VendorMemory): string {
   return `${parts.join(" · ")}.`;
 }
 
-/** Worst first: watch, then unknown, then by exposure. A screen ordered by name buries the finding. */
+/**
+ * Worst first: watch, then unknown, then by EXPOSURE — the money at risk, not the contract size.
+ *
+ * **The first draft said "by exposure" and sorted by `subcontract_value`**, which a review bot
+ * caught. They are not the same thing and the difference is the point of the column: a fully waived
+ * $9M subcontract carries no lien exposure, while a $50k sub with unwaived invoices does. Sorting by
+ * size would have pushed the second below the first — and with the table capped at 25 rows, off the
+ * screen entirely. *A docstring that names the right key does not make the code use it.*
+ *
+ * `lienExposure` is null for a vendor who has not billed; `?? 0` ranks them with the fully-waived,
+ * which is correct here — neither has money at risk. Size stays as the next tiebreak so a large
+ * contract still outranks a small one at equal exposure.
+ */
 export function ordered(rows: VendorRow[]): VendorRow[] {
   const rank = (v: string) => (v === "watch" ? 0 : v === "no_history" ? 1 : 2);
   return [...rows].sort((a, b) =>
     rank(a.verdict) - rank(b.verdict)
+    || (lienExposure(b) ?? 0) - (lienExposure(a) ?? 0)
     || (b.subcontract_value || 0) - (a.subcontract_value || 0)
     || a.vendor.localeCompare(b.vendor));
 }
