@@ -75,7 +75,29 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))))))))))))))) {
+//: MIXIN-CEILING — the chain is composed in TWO STAGES, and it has to be.
+//:
+//: A single nested `extends` expression stops compiling at **50** mixins: `tsc` fails outright with
+//: TS2589, *"Type instantiation is excessively deep and possibly infinite"*, on the `extends` clause
+//: itself. Measured, both directions — 49 compiles, a 50th fails, removing it passes again.
+//:
+//: **It is DEPTH, not accumulated members.** A 50th mixin declaring NO methods at all fails
+//: identically, so the limit is how deep the generic `Ctor<T>` instantiation recurses, not how many
+//: members pile up. That also rules out the obvious escape of trimming the surface.
+//:
+//: **And a `const` split does NOT help** — `const Stage = withA(withB(...))` still infers the same
+//: nested anonymous type, so the depth is unchanged; that was measured too, and it fails. A `class`
+//: DECLARATION does help: it names the type nominally, so the second stage starts from a resolved
+//: base rather than re-walking the first 25. Staged this way, 50 compiles.
+//:
+//: So this shape is load-bearing. Collapsing the two stages back into one expression restores a
+//: build that fails on the next route group anyone adds. `api/surface.test.ts` floors the method
+//: count, and `api/mixinStaging.test.ts` asserts the staging itself.
+class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))) {}
+
+class _ApiStageB extends withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(_ApiStageA)))))))))))))))))))))))) {}
+
+export class ApiClient extends _ApiStageB {
   /**
    * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
    *
