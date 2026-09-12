@@ -23,8 +23,8 @@ disk is a directory. Asked as `test_storage_foo`, git says "not ignored"; asked 
 `test_storage_foo/`, git says "ignored by test_storage_*/". The first draft of this derivation
 omitted the slash and reported **377 uncovered directories** -- confidently, with a list -- when the
 true number was 13. A second draft asked from the wrong directory and reported 35. *A checker that
-asks the wrong question does not fail; it answers.* The three self-tests below exist to red the build
-if any way of asking wrongly comes back -- see `ignored_sources()` for all three.
+asks the wrong question does not fail; it answers.* The self-tests below exist to red the build if
+any way of asking wrongly comes back -- see `ignored_sources()` for each of them.
 
 THE EXEMPTIONS ARE NOT SCRATCH DIRECTORIES AT ALL
 --------------------------------------------------
@@ -46,6 +46,7 @@ import glob
 import os
 import re
 import subprocess
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -106,7 +107,8 @@ def ignored(names: list[str]) -> set[str]:
 LOCAL_IGNORE_FILE = "services/api/.gitignore"
 
 
-def ignored_sources(names: list[str]) -> dict[str, str]:
+def ignored_sources(names: list[str], cwd: str | None = None,
+                    as_dirs: bool = True) -> dict[str, str]:
     """Map each ignored name to the ignore FILE whose rule decided it.
 
     `-v` rather than a bare query, because "is this ignored" and "is this ignored BY THE FILE I MEAN"
@@ -121,6 +123,18 @@ def ignored_sources(names: list[str]) -> dict[str, str]:
     (that is why `--non-matching` is deliberately not passed — absence IS the answer). The source is
     split off from the LEFT because a gitignore *pattern* may itself contain colons, while these
     source paths cannot.
+
+    **A NEGATED RULE IS DROPPED, AND THAT GUARD IS A REGRESSION `-v` INTRODUCED.** Without `-v`, git
+    suppresses a path whose last matching pattern is negated (`builtin/check-ignore.c` clears the
+    pattern unless verbose); WITH `-v` it prints that pattern, `!` prefix intact, for a path that is
+    NOT ignored. So moving to `-v` to learn the source silently widened what counted as ignored --
+    *making a function more informative made it less correct*, and the root `.gitignore` carries five
+    `!` rules today. Raised in review on #539.
+
+    **Honest scope:** no probe could make a TRAILING-SLASH query -- the form this always uses -- emit
+    a negated record; every reproduction needed the bare-name form. That is a failure to construct
+    the case, not a proof it cannot occur, so the guard stays: two lines, fails closed, and correct
+    by git's documented semantics whatever the query form does.
 
     TWO MORE THINGS ARE LOAD-BEARING HERE, AND BOTH WERE WRONG IN AN EARLIER DRAFT.
 
@@ -146,8 +160,9 @@ def ignored_sources(names: list[str]) -> dict[str, str]:
     """
     if not names:
         return {}
-    r = subprocess.run(["git", "check-ignore", "-v", "--no-index", *[f"{n}/" for n in names]],
-                       capture_output=True, text=True, cwd=HERE)
+    args = [f"{n}/" for n in names] if as_dirs else list(names)
+    r = subprocess.run(["git", "check-ignore", "-v", "--no-index", *args],
+                       capture_output=True, text=True, cwd=cwd or HERE)
     # exit 0 = some ignored, 1 = none ignored, >1 = real error. Anything else must not read as clean.
     if r.returncode not in (0, 1):
         raise SystemExit(f"git check-ignore failed ({r.returncode}): {r.stderr[:400]}")
@@ -156,7 +171,13 @@ def ignored_sources(names: list[str]) -> dict[str, str]:
         if "\t" not in line:
             continue
         rule, _, pathname = line.partition("\t")
-        out[pathname.strip().rstrip("/")] = rule.split(":", 2)[0]
+        source, _, pattern = rule.split(":", 2)
+        # A NEGATED rule means the path is NOT ignored, and `-v` prints it anyway -- see the
+        # docstring. Dropping it can only move a name from "covered" to "uncovered", which reds the
+        # build, so this guard fails CLOSED.
+        if pattern.startswith("!"):
+            continue
+        out[pathname.strip().rstrip("/")] = source
     return out
 
 
@@ -212,6 +233,37 @@ check("self-test: per-directory .gitignore files are consulted at all",
       "services/api/.gitignore no longer carries any `<prefix>*/` pattern absent from the root file, "
       "so this canary cannot be built and the per-directory question is UNPROVEN. Fails closed on "
       "purpose: restore such a pattern, or replace this probe with one that proves the same thing.")
+# A NEGATED rule must not read as ignored. Run against a THROWAWAY repo rather than this one, so the
+# probe cannot drift when either `.gitignore` here changes -- and so the fixture can use the bare-name
+# query form, which is the only form observed to make `-v` emit a negated record at all.
+def _negation_probe() -> tuple[bool, bool]:
+    """`(git_emitted_a_negated_record, classifier_dropped_it)` from a temp repo.
+
+    Both halves are returned because asserting only the second is VACUOUS: if git emitted nothing,
+    "keep.log is not in the result" is true for the wrong reason and the guard is never exercised.
+    *The same mistake `test_unique_read_guard` records in its own first draft -- asserting an outcome
+    without asserting the path to it ran.*
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(["git", "init", "-q"], cwd=tmp, check=True, capture_output=True)
+        with open(os.path.join(tmp, ".gitignore"), "w", encoding="utf-8") as fh:
+            fh.write("*.log\n!keep.log\n")
+        raw = subprocess.run(["git", "check-ignore", "-v", "--no-index", "keep.log", "drop.log"],
+                             capture_output=True, text=True, cwd=tmp)
+        emitted = any(":!" in ln for ln in raw.stdout.splitlines())
+        got = ignored_sources(["keep.log", "drop.log"], cwd=tmp, as_dirs=False)
+        return emitted, ("drop.log" in got and "keep.log" not in got)
+
+_NEG_EMITTED, _NEG_DROPPED = _negation_probe()
+check("self-test: the negation fixture actually makes `-v` print a `!` record",
+      _NEG_EMITTED,
+      "git printed no negated rule for the probe, so the check below proves nothing about the guard "
+      "-- it would pass even with the guard deleted. Re-build the fixture until git emits one.")
+check("self-test: a path a `!` rule un-ignores is NOT counted as ignored",
+      _NEG_DROPPED,
+      "`-v` prints negated rules for paths that are NOT ignored; dropping them is what keeps this "
+      "gate from reporting an unignored scratch dir as covered")
+
 check("self-test: a name no pattern can match is classified NOT ignored",
       "_gate_selftest_no_pattern_can_match_this" not in _probe,
       "the classifier calls everything ignored, so this gate can only report good news")
@@ -258,6 +310,8 @@ if FAILED:
     raise SystemExit(1)
 print(f"scratch_ignored: all checks passed -- {len(NAMES)} scratch-directory literals derived from "
       f"services/api/*.py, {len(NAMES) - len(EXEMPT)} of them git-ignored and {len(EXEMPT)} exempt as "
-      "non-directories with a stated reason. The classifier passed all three of its own self-tests "
-      "first -- a dropped trailing slash, a wrong working directory, and a per-directory canary "
-      "satisfied by the WRONG ignore file are each caught before any verdict above is printed.")
+      "non-directories with a stated reason. The classifier passed all five of its own self-tests "
+      "first -- a dropped trailing slash, a wrong working directory, a per-directory canary "
+      "satisfied by the WRONG ignore file, and a `!` rule counted as ignored are each caught "
+      "before any verdict above is printed; the negation probe also asserts git EMITTED the "
+      "record it drops, so that check cannot pass vacuously.")
