@@ -371,6 +371,19 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
 
+  /**
+   * COST-CALIBRATE — this project's own history as a factor: the model's takeoff estimate against
+   * what has been committed (awarded subcontracts) and spent (posted direct costs).
+   *
+   * `calibration_factor` is `observed ÷ estimate` **clamped to 0.5–2.0**, so it can be a boundary
+   * rather than a measurement. All three totals come back, which is what lets
+   * `portal/panels/costCalibration.ts` recover the raw ratio and say which it is.
+   */
+  costCalibration(pid: string) {
+    return this.json<{ estimate_total: number; committed_total: number; actual_total: number;
+      basis: "actual" | "committed" | null; calibration_factor: number | null;
+      apply_hint: string; note: string }>(`/projects/${pid}/cost/calibration`);
+  }
   // SCALE-SEAM (81) — *what is the market doing to my costs?* Regional escalation, labour
   // rates and location index. `marketSnapshot` is global (`/market/snapshot`, no project id);
   // the other two apply that snapshot to one project's schedule.

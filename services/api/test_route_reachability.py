@@ -1045,6 +1045,67 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
       not ({"/projects/{pid}/proforma/rollover", "/projects/{pid}/proforma/income-basis"} & FOUND),
       "a /proforma sibling lost its client caller again; see api/proforma.ts")
 
+# A SEVENTH INSTANCE, measured 2026-09-12 (COST-CALIBRATE), and it is the first that is a CLASS
+# rather than a coincidence. The five below were found by screening every route whose leaf this rule
+# reads as called but which never appears path-shaped anywhere in the web source. Each one is
+# vouched for by THE SAME WORD IN A DIFFERENT SENSE:
+#
+#   /bsdd/class                            <- ~1,756 `class="..."` HTML attributes. The only two
+#                                             `bsdd` occurrences in non-generated web source are a
+#                                             RESPONSE FIELD named `bsdd` (`api/model.ts`, read in
+#                                             `portal/panels/standards.ts`) -- not a path.
+#   /proforma/provenance                   <- `ProformaResult.provenance`, a FIELD (`api/types.ts`).
+#   /proforma/scenarios/{sid}/provenance   <- the same field. `api/proforma.ts` builds twenty paths
+#                                             and neither of these is among them.
+#   /projects/{pid}/cost/calibration       <- 85 hits of PDF-takeoff SCALE calibration under
+#                                             `vendor/massingpdf/`, a different trade entirely.
+#   /projects/{pid}/workflow/{key}         <- `workflow` as an ordinary domain noun, 70 hits, and
+#                                             not one `/workflow/` path build.
+#
+# The earlier instances were each explained by their own accident -- a sibling route, a union
+# member, a short leaf. This one is not an accident: **a route leaf that is also a common domain
+# noun will be vouched for by the noun**, every time, and this API has a lot of them. The rule is
+# matching a STRING without matching its ROLE, and the four categories above (attribute name, field
+# name, other-domain jargon, plain English) are not a list anyone can finish.
+#
+# `/projects/{pid}/cost/calibration` LEFT this class the day it was written: `costCalibration` in
+# `apps/web/src/api/cost.ts` is called from the "Calibrate from this job" button in
+# `apps/web/src/portal/panels/budget.ts`. It was worth building rather than recording because its
+# absence had a consequence a person could name -- `docs/roadmap-completed.md` records "cost
+# calibration (475)" as SHIPPED, and no user has ever been able to reach it in the sixty-odd
+# releases since. *A completed-roadmap entry is a claim about an engine; it was read as a claim
+# about reach, and nothing distinguishes the two.*
+#
+# The other four stay here, frozen exactly as `/asset-rights/verify` and the jurisdiction pair are:
+# not in FOUND (the rule reads their leaves as called) and not freezable in KNOWN_UNCALLED (the rot
+# check would immediately report them as "quietly become called"). Nobody has read them.
+LEAF_COLLISION_DARK = (
+    "/bsdd/class",
+    "/proforma/provenance",
+    "/proforma/scenarios/{sid}/provenance",
+    "/projects/{pid}/workflow/{key}",
+)
+for _r in LEAF_COLLISION_DARK:
+    check(f"the LEAF-COLLISION blind spot is still a blind spot: {_r}",
+          _r not in FOUND and _r not in KNOWN_UNCALLED,
+          "if this fails the matcher changed or the vouching word moved -- re-triage the route "
+          "rather than reading the green tick above as coverage")
+
+# **And the collision is REAL, not a guess.** Asserting only "not in FOUND" would pass just as well
+# if the route had quietly stopped existing, or if the rule had stopped examining it for some
+# unrelated reason -- the same fail-open that let a green lint step hide 726 unlinted files. So the
+# route must still BE a route, and its leaf must still be read as called.
+_ALL_ROUTES = set(PATHS)
+for _r in LEAF_COLLISION_DARK:
+    check(f"  ...and {_r} is still a live route, so 'not flagged' is about the rule, not its absence",
+          _r in _ALL_ROUTES,
+          "the route was renamed or deleted -- update LEAF_COLLISION_DARK rather than leaving an "
+          "entry that passes because its subject is gone")
+    check(f"  ...and its leaf IS read as called, which is WHY it is invisible: {_leaf(_r)}",
+          leaf_is_called(_leaf(_r), BLOB),
+          f"the vouching text for {_leaf(_r)!r} is gone, so this route should now be flaggable -- "
+          "move it into KNOWN_UNCALLED with a reason, or wire it")
+
 print()
 if FAILED:
     print(f"route_reachability: {len(FAILED)} FAILED — {FAILED}")

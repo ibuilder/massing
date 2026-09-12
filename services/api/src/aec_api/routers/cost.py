@@ -313,9 +313,26 @@ def estimate_bands(pid: str, db: Session = Depends(get_db), _: str = Depends(req
 def cost_calibration(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """COST-AGENT — **learn from this project's own history**: compare the model's takeoff estimate
     against what the project has actually **committed** (awarded subcontract values) and **spent**
-    (posted direct costs), and derive a calibration factor (clamped 0.5–2.0) future estimates can
-    apply (`estimate_from_takeoff(benchmark_factor=…)`). Reported, never silently applied — the
-    estimator decides. Needs a source IFC; committed/actuals are optional (factor null without them)."""
+    (posted direct costs), and derive a calibration factor (clamped 0.5–2.0). Reported, never
+    silently applied — the estimator decides. Needs a source IFC; committed/actuals are optional
+    (factor null without them).
+
+    **There is no parameter that applies this, and that is stated rather than implied.** This
+    docstring and `apply_hint` both used to say "pass `benchmark_factor` to
+    `estimate_from_takeoff`". Two things were wrong with that. No HTTP surface accepts a
+    caller-supplied `benchmark_factor` — every call site derives it from the project's cost vintage.
+    And `benchmark_factor` is already spoken for: it puts the GFA benchmark in the SAME DOLLAR-YEAR
+    as the model total, multiplying `gfa_sf * psf` and never the estimate. Feeding a calibration
+    ratio into it would raise the benchmark, and since `estimate.estimate_from_takeoff` decides
+    `trustworthy = element_count >= 10 and total >= 0.4 * benchmark`, that makes the model LESS
+    likely to be trusted — flipping `recommended` to the GFA figure, now inflated by a ratio that
+    has nothing to do with dollar-years. *Following the hint corrupted the one comparison the
+    parameter it named exists to keep honest.*
+
+    **The clamp is a disclosure problem, not a safety feature.** `max(0.5, min(2.0, ratio))` turns a
+    job with one posted invoice against a whole-building estimate into a confident-looking `0.5`.
+    All three totals are returned so a caller can recover the raw ratio and tell a measurement from
+    a boundary; `apps/web/src/portal/panels/costCalibration.ts` is where that is done."""
     from aec_data.qto import takeoff_file  # type: ignore
 
     from .. import estimate as est
@@ -347,11 +364,14 @@ def cost_calibration(pid: str, db: Session = Depends(get_db), _: str = Depends(r
         "estimate_total": round(est_total, 2), "committed_total": round(committed, 2),
         "actual_total": round(actual, 2), "basis": basis,
         "calibration_factor": factor,
-        "apply_hint": ("pass benchmark_factor to estimate_from_takeoff / re-run the estimate with the "
-                       "factor to price the next iteration off this project's own outcomes"
+        "apply_hint": ("carry this factor into the next estimate by hand — no API parameter applies "
+                       "it, and benchmark_factor is not it (that one aligns the GFA benchmark's "
+                       "dollar-year and would move `recommended` the wrong way)"
                        if factor else "award subcontracts or post direct costs to enable calibration"),
         "note": "Factor = observed cost ÷ model estimate, clamped 0.5–2.0 (actuals preferred over "
-                "commitments). Reported for the estimator — never auto-applied.",
+                "commitments). Reported for the estimator — never auto-applied. The clamp can "
+                "return a boundary rather than a measurement: divide the basis total by "
+                "estimate_total for the unclamped ratio.",
     }
 
 
