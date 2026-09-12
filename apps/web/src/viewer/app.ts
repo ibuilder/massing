@@ -2300,9 +2300,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
   function issueCard(t: Topic): HTMLElement {
     const el = document.createElement("div"); el.className = "issue";
-    el.innerHTML = `<div class="t">${escapeHtml(t.title)}</div><div class="meta">`
-      + `<span class="badge ${escapeHtml(t.type)}">${escapeHtml(t.type)}</span> `
-      + `<span class="badge ${escapeHtml(t.status)}">${escapeHtml(t.status)}</span> ${escapeHtml(t.assignee ?? "")}</div>`;
+    el.innerHTML = `<div class="t">${escapeHtml(t.title)}</div><div class="meta"><span class="badge ${escapeHtml(t.type)}">${escapeHtml(t.type)}</span> <span class="badge ${escapeHtml(t.status)}">${escapeHtml(t.status)}</span> ${escapeHtml(t.assignee ?? "")}</div>`;
     el.onclick = async () => {
       const vps = projectId ? await api.viewpoints(projectId, t.id) : [];
       restoreCamera(viewer.world, vps[0] ?? null);
