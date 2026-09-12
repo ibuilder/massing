@@ -66,7 +66,7 @@ const SAFE = /\b(esc|escapeHtml|sanitizeSvg|safeUrl)\s*\(/;
  * false positives makes the frozen list worse, because it buries the real entries in it.*
  */
 const HOT =
-  /(name|title|desc|description|message|label|file|filename|user|author|comment|note|text|trade|source|summary|subject|company|vendor|email|address|code|mark|tag|reason|detail|question|answer|value|key|spec_section|type|assignee|ref|owner|party|recipient)\b/i;
+  /(name|title|desc|description|message|label|file|filename|user|author|comment|note|text|trade|source|summary|subject|company|vendor|email|address|code|mark|tag|reason|detail|question|answer|value|key|spec_section|type|assignee|ref|owner|party|recipient|requirement|section|body|content|remark|scope|clause)\b/i;
 /** Structurally safe to interpolate: loop counters, lengths, numbers. */
 const COLD = /^(i|idx|j|n|k|len|count|total|pct|num|\d+)$/i;
 
@@ -85,8 +85,10 @@ const BASELINE: Record<string, readonly string[]> = {
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
     "r.message || \"No bids to level.\"",
+    "r.recommendation.missing_scope.length ? \"var(--status-warn)\" : \"var(--status-good)\"",
     "r.recommendation.note",
     "r.source === \"claude\" ? \"AI\" : \"extract\"",
+    "r.source === \"claude\" ? \"AI\" : \"rules\"",
     "r.source === \"claude\" ? \"AI\" : \"rules\"",
     "title",
   ],
@@ -97,8 +99,10 @@ const BASELINE: Record<string, readonly string[]> = {
     "o.label === s.recommended ? \"★ \" : \"\"",
     "o.label === s.recommended ? ' style=\"background:var(--hover)\"' : \"\"",
     "r.label",
+    "r.label",
     "r.message || \"No material quantities.\"",
     "r.message || \"No reclassification suggestions (load a model in the Model workspace).\"",
+    "r.pricing_source",
     "r.pricing_source",
     "s.note",
     "title",
@@ -126,11 +130,14 @@ const BASELINE: Record<string, readonly string[]> = {
   "portal/panels/operations.ts": [
     "d.code ?? \"\"",
     "label",
+    "label",
     "title",
+    "value",
     "value",
   ],
   "portal/panels/portfolio.ts": [
     "label",
+    "t.cross_project ? ` <span style=\"color:${col}\" title=\"on ${t.project_count} projects — can be double-booked\">⇄</span>` : \"\"",
     "usd(w.weighted_value)",
   ],
   "portal/panels/resourceLoading.ts": [
@@ -146,15 +153,17 @@ const BASELINE: Record<string, readonly string[]> = {
     "dirLabel",
   ],
   "portal/panels/standards.ts": [
-    "cov.complete ? \"✅ core documents on file (EIR, BEP, AIR)\"\n        : `⏳ missing core: ${cov.missing.map(esc).join(\", \")",
-    "dp.next_deliverable.ref ?? \"\"",
+    "cov.complete ? \"✅ core documents on file (EIR, BEP, AIR)\"\n        : `⏳ missing core: ${cov.missing.map(esc).join(\", \")}`",
     "els.map((e) => e.label).join(\", \")",
+    "label",
+    "label",
     "label",
     "m.parent_type",
     "m.type",
     "n.ref ?? n.title ?? \"?\"",
     "o.ref ?? \"\"",
     "o.type",
+    "value",
     "value",
   ],
   "portal/panels/topicBoard.ts": [
@@ -172,6 +181,8 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "portal/portal.ts": [
     "label",
+    "label",
+    "label",
     "n.reason === \"assigned\" ? \"rfi\" : \"open\"",
     "rs.source === \"claude\" ? \"AI\" : \"rules\"",
     "top.reason",
@@ -187,8 +198,15 @@ const BASELINE: Record<string, readonly string[]> = {
     "cipNote",
     "e.source === \"cip\" ? \" <span class=\\\"meta\\\">(CIP)</span>\" : \"\"",
     "label",
+    "label",
+    "label",
+    "label",
+    "label",
+    "label",
+    "label",
     "money(pf.terminal_value)",
     "money(rec.value)",
+    "title",
     "title",
     "x.code",
   ],
@@ -203,6 +221,7 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "shell/nextAction.ts": [
     "action.label",
+    "action.label",
   ],
   "studio/nodeEditor.ts": [
     "spec.label",
@@ -213,6 +232,7 @@ const BASELINE: Record<string, readonly string[]> = {
   ],
   "ui/onboarding.ts": [
     "desc",
+    "s.body",
     "s.title",
     "title",
   ],
@@ -231,7 +251,7 @@ const BASELINE: Record<string, readonly string[]> = {
     "it.label",
   ],
   "viewer/tools/modelReviewPanel.ts": [
-    "statusChip(LABEL[r.review_status], { tone: TONE[r.review_status]",
+    "statusChip(LABEL[r.review_status], { tone: TONE[r.review_status] })",
   ],
   "viewer/tools/qaSection.ts": [
     "a.r_value",
@@ -271,11 +291,44 @@ export function hotSinks(src: string): string[] {
       stmt += "\n" + lines[j];
     }
     if (!stmt.includes("${")) continue;
-    for (const m of stmt.matchAll(/\$\{([^}]*)\}/g)) {
-      const expr = (m[1] ?? "").trim();
+    for (const expr of interpolations(stmt)) {
       if (SAFE.test(expr) || COLD.test(expr)) continue;
       if (HOT.test(expr)) out.push(expr);
     }
+  }
+  return out;
+}
+
+/**
+ * Every `${...}` in `src`, matched by BRACE DEPTH rather than by a regex.
+ *
+ * `/\$\{([^}]*)\}/g` stops at the FIRST `}`, so any interpolation containing one — an object
+ * literal, a nested template, a `.map()` with a block body — was captured truncated. The proof was
+ * sitting in this file's own baseline: `statusChip(LABEL[r.review_status], { tone: TONE[...]` had
+ * been frozen with its tail cut off at the inner brace. A truncated identity is worse than a
+ * missing one, because it is a string that can match a DIFFERENT real expression later.
+ *
+ * Tracks backticks and quotes so a `}` inside a string literal does not close the interpolation.
+ */
+export function interpolations(src: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i + 1 < src.length; i++) {
+    if (src[i] !== "$" || src[i + 1] !== "{") continue;
+    let depth = 1, j = i + 2, quote = "";
+    for (; j < src.length && depth > 0; j++) {
+      const c = src[j]!;
+      if (quote) {
+        if (c === "\\") j++;
+        else if (c === quote) quote = "";
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+    }
+    if (depth !== 0) continue;              // unterminated within the captured statement
+    out.push(src.slice(i + 2, j - 1).trim());
+    i = j - 1;
   }
   return out;
 }
@@ -297,8 +350,16 @@ export function unknownIdentities(
 ): string[] {
   const out: string[] = [];
   for (const [file, exprs] of Object.entries(actual)) {
-    const known = new Set(baseline[file] ?? []);
-    for (const e of exprs) if (!known.has(e)) out.push(`${file} :: ${e}`);
+    // OCCURRENCE BUDGET, not set membership. With a Set, a file baselined for ONE `${user.name}`
+    // silently accepted a second one — the identity was "known", so duplicating a sink was free.
+    // That is the counting version's hole in miniature, reintroduced one level down.
+    const budget = new Map<string, number>();
+    for (const e of baseline[file] ?? []) budget.set(e, (budget.get(e) ?? 0) + 1);
+    for (const e of exprs) {
+      const left = budget.get(e) ?? 0;
+      if (left > 0) budget.set(e, left - 1);
+      else out.push(`${file} :: ${e}`);
+    }
   }
   return out.sort();
 }
@@ -370,6 +431,39 @@ describe("innerHTML escaping ratchet (identity-keyed)", () => {
     expect(hotSinks('x.innerHTML = `<span>${a.filename}</span>`;')).toEqual(["a.filename"]);
     expect(hotSinks('x.innerHTML = `<span>${esc(a.filename)}</span>`;')).toEqual([]);
     expect(BASELINE["portal/register/register.ts"] ?? []).not.toContain("a.filename");
+  });
+
+  it("parses NESTED braces in an interpolation, not up to the first `}`", () => {
+    // Review finding on #543, and this file's own baseline was the evidence: the entry for
+    // modelReviewPanel.ts had been frozen as `statusChip(LABEL[...], { tone: TONE[...]` — cut at
+    // the inner brace by `/\$\{([^}]*)\}/g`. A TRUNCATED identity is worse than a missing one: it
+    // is a string that can later match a different real expression.
+    // NB the fixture must carry a HOT term: the first draft used `T[s.status]`, and `status` was
+    // deliberately excluded from HOT for being mostly CSS ternaries — so it returned [] and the
+    // test was wrong, not the parser.
+    expect(hotSinks('e.innerHTML = `<b>${chip(x, { tone: T[s.name] })}</b>`;'))
+      .toEqual(["chip(x, { tone: T[s.name] })"]);
+    // a `}` inside a string literal must not close the interpolation
+    expect(interpolations('${f("a}b")}')).toEqual(['f("a}b")']);
+    // a nested template literal
+    expect(interpolations("${xs.map((i) => `<i>${i.name}</i>`).join(\"\")}"))
+      .toEqual(['xs.map((i) => `<i>${i.name}</i>`).join("")']);
+    // and no baselined entry may be a truncated fragment ending mid-expression
+    for (const [file, exprs] of Object.entries(BASELINE)) {
+      for (const e of exprs) {
+        const open = (e.match(/\{/g) ?? []).length, close = (e.match(/\}/g) ?? []).length;
+        expect(open, `${file} :: ${e} — unbalanced braces, likely a truncated capture`).toBe(close);
+      }
+    }
+  });
+
+  it("counts DUPLICATE identities, so a second copy of a known sink is not free", () => {
+    // Review finding on #543. With Set membership a file baselined for one `${user.name}` accepted
+    // a second silently — the counting version's hole, reintroduced one level down.
+    const baseline = { "a.ts": ["user.name"] };
+    expect(unknownIdentities({ "a.ts": ["user.name"] }, baseline)).toEqual([]);
+    expect(unknownIdentities({ "a.ts": ["user.name", "user.name"] }, baseline))
+      .toEqual(["a.ts :: user.name"]);
   });
 
   it("sees the free-text identifiers added with this change", () => {

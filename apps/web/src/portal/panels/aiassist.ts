@@ -365,7 +365,7 @@ export async function renderAiAssist(ctx: PanelContext) {
             tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Code</th><th scope="col" style="text-align:left">Section</th>`
               + `<th scope="col" style="text-align:left">Requirement</th></tr></thead><tbody>`
               + r.topics.map((t) => `<tr><td>${esc(t.code)}</td><td><b>${esc(t.section)}</b> — ${esc(t.title)}</td>`
-                + `<td>${t.requirement}</td></tr>`).join("") + `</tbody>`;
+                + `<td>${esc(t.requirement)}</td></tr>`).join("") + `</tbody>`;
             out.append(tbl);
             const note = el("div", "meta"); note.style.marginTop = "6px";
             note.textContent = r.message || "Confirm all provisions with the Authority Having Jurisdiction (AHJ).";

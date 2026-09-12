@@ -42,11 +42,16 @@ the defect is that nothing had assessed them.
 **And it was blind to half its own population**, which is the worse of the two defects. The rule
 needed `innerHTML` and `${` on the SAME LINE, so any statement wrapped across lines -- the normal
 shape for a non-trivial row -- was scanned only as far as its first chunk. Measured while converting
-it: 62 sinks visible, and **58 more on continuation lines it could not see**, among them `v.vendor`,
-`s.company`, `r.text`, `t.title` and `cert.ref`. *Scope is a separate question from rule, and a green
-ratchet is what makes a scope error invisible* -- the same lesson `services/api/test_ruff_scope.py`
-paid for. The scan now accumulates the whole statement, and the true population is 113 sinks / 95
-identities / 33 files after this change's escaping.
+it: **under the OLD same-line rule**, 62 sinks visible and **58 more on continuation lines it could
+not see**, among them `v.vendor`, `s.company`, `r.text`, `t.title` and `cert.ref`. *Scope is a
+separate question from rule, and a green ratchet is what makes a scope error invisible* -- the same
+lesson `services/api/test_ruff_scope.py` paid for.
+
+**Those 62/58 figures are a diagnostic of the old detector, not a remediation count.** They are not
+comparable with the numbers below, which come from the new whole-statement detector with widened
+terms: the two rules see different populations, so 62 + 58 and 146 do not describe the same set and
+no arithmetic relates them. The scan now accumulates the whole statement AND parses interpolations
+by brace depth.
 
 **The baseline is now keyed on IDENTITY -- `file :: expression` -- and the count is derived, never
 asserted.** An expression the list has not seen fails even when the total is flat or under. A
