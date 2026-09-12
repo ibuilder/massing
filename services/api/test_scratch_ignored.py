@@ -24,7 +24,7 @@ disk is a directory. Asked as `test_storage_foo`, git says "not ignored"; asked 
 omitted the slash and reported **377 uncovered directories** -- confidently, with a list -- when the
 true number was 13. A second draft asked from the wrong directory and reported 35. *A checker that
 asks the wrong question does not fail; it answers.* The three self-tests below exist to red the build
-if either way of asking wrongly comes back -- see `ignored()` for both.
+if any way of asking wrongly comes back -- see `ignored_sources()` for all three.
 
 THE EXEMPTIONS ARE NOT SCRATCH DIRECTORIES AT ALL
 --------------------------------------------------
@@ -91,40 +91,73 @@ def derive() -> set[str]:
 
 
 def ignored(names: list[str]) -> set[str]:
-    """Which of `names` git would ignore, AS DIRECTORIES IN THIS DIRECTORY.
+    """Which of `names` git would ignore, as directories in this directory.
 
-    Two things here are load-bearing and both were wrong in the first draft:
+    The whole contract -- the trailing slash, the working directory, and why each was wrong in an
+    earlier draft -- lives in `ignored_sources()`, which this is a projection of. One code path, so
+    the set and the sources cannot disagree about what "ignored" means.
+    """
+    return set(ignored_sources(names))
+
+
+#: The ignore file this package's own patterns live in, as `git check-ignore -v` names it. The source
+#: is reported RELATIVE TO THE REPO ROOT whatever directory git is invoked from, so this string
+#: distinguishes a per-directory match from a root-file one (`.gitignore`) without any path fixing up.
+LOCAL_IGNORE_FILE = "services/api/.gitignore"
+
+
+def ignored_sources(names: list[str]) -> dict[str, str]:
+    """Map each ignored name to the ignore FILE whose rule decided it.
+
+    `-v` rather than a bare query, because "is this ignored" and "is this ignored BY THE FILE I MEAN"
+    are different questions, and the self-test below needs the second. Raised in review on #539: the
+    per-directory canary asserted only that its probe was ignored, while `_local_only_prefix()` rules
+    the root file out by LITERAL substring — so a root *wildcard* could match the probe without ever
+    containing the prefix text, and the canary would pass while the per-directory file went unread,
+    which is the exact failure it exists to catch. *An assertion one step weaker than its claim is
+    how a canary dies quietly.*
+
+    Output format is `<source>:<line>:<pattern>\t<pathname>`; non-matching paths print nothing at all
+    (that is why `--non-matching` is deliberately not passed — absence IS the answer). The source is
+    split off from the LEFT because a gitignore *pattern* may itself contain colons, while these
+    source paths cannot.
+
+    TWO MORE THINGS ARE LOAD-BEARING HERE, AND BOTH WERE WRONG IN AN EARLIER DRAFT.
 
     **The trailing slash.** `.gitignore` patterns ending in `/` match DIRECTORIES ONLY, and git
     cannot tell that a path which does not exist on disk is one. Asked as `test_storage_foo`, git
     says "not ignored"; asked as `test_storage_foo/`, it says "ignored by test_storage_*/". Omitting
     it made this derivation report **377 uncovered directories**, confidently and with a list, when
-    the true number was 16.
+    the true number was 13.
 
     **The directory it asks FROM.** Names are passed bare and resolved against `cwd=HERE`, so git
-    consults the per-directory `services/api/.gitignore` the way it would for a real working-tree
-    path. The first draft prefixed `services/api/` and ran from `join(HERE, "..")` -- which is
-    `services/`, not the repo root -- so every path resolved to a location that does not exist, git
-    fell back to the ROOT `.gitignore` alone, and the nineteen dirs covered only by
-    `services/api/.gitignore`'s `test_ifc*/` were reported as uncovered. It would have had me add
-    nineteen redundant patterns to fix nothing.
+    consults `services/api/.gitignore` the way it would for a real working-tree path. An earlier
+    draft prefixed `services/api/` and ran from `join(HERE, "..")` -- which is `services/`, not the
+    repo root -- so every path resolved to a location that does not exist, git fell back to the ROOT
+    file alone, and the nineteen dirs covered only by this package's `test_ifc*/` were reported as
+    uncovered. Acting on that would have added nineteen redundant patterns to fix nothing.
 
-    *Both bugs have the same shape as the defect this file exists to prevent, and the same shape as
-    the ones the other gates in this tree keep re-learning: **the checker did not fail, it answered**
-    -- a wrong question returns a confident number, and a number with a list attached reads as
-    evidence.* Hence the three self-tests below, one per way of asking wrongly.
+    *All three bugs have the same shape as the defect this file exists to prevent: **the checker did
+    not fail, it answered** -- a wrong question returns a confident number, and a number with a list
+    attached reads as evidence.* Hence one self-test per way of asking wrongly.
 
     `--no-index` lets this answer for paths that do not currently exist, which is the normal case:
     a scratch dir exists only while its test is mid-run.
     """
     if not names:
-        return set()
-    r = subprocess.run(["git", "check-ignore", "--no-index", *[f"{n}/" for n in names]],
+        return {}
+    r = subprocess.run(["git", "check-ignore", "-v", "--no-index", *[f"{n}/" for n in names]],
                        capture_output=True, text=True, cwd=HERE)
     # exit 0 = some ignored, 1 = none ignored, >1 = real error. Anything else must not read as clean.
     if r.returncode not in (0, 1):
         raise SystemExit(f"git check-ignore failed ({r.returncode}): {r.stderr[:400]}")
-    return {line.strip().rstrip("/") for line in r.stdout.splitlines() if line.strip()}
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        if "\t" not in line:
+            continue
+        rule, _, pathname = line.partition("\t")
+        out[pathname.strip().rstrip("/")] = rule.split(":", 2)[0]
+    return out
 
 
 # --- the self-test runs FIRST, and nothing below may be believed until it passes ------------------
@@ -166,13 +199,15 @@ check("self-test: a name matching a directory-only pattern is classified IGNORED
       "the classifier has stopped seeing directory-only patterns -- the likeliest cause is a missing "
       "trailing slash in ignored(), which makes git answer about a FILE and report every "
       "`test_storage_*` dir as uncovered")
+_LOCAL_SOURCE = ignored_sources([_LOCAL_PROBE]).get(_LOCAL_PROBE) if _LOCAL_PROBE else None
 check("self-test: per-directory .gitignore files are consulted at all",
-      _LOCAL_PROBE is not None and _LOCAL_PROBE in _probe,
-      f"probe {_LOCAL_PROBE!r} (from the `{_LOCAL_PREFIX}*/` pattern in services/api/.gitignore, "
-      "which the root file does not mention) came back UNIGNORED. The classifier is not reading "
-      "per-directory ignore files -- it is asking from the wrong working directory, or about a path "
-      "that does not resolve. Every dir covered only by services/api/.gitignore would be reported as "
-      "uncovered."
+      _LOCAL_SOURCE == LOCAL_IGNORE_FILE,
+      f"probe {_LOCAL_PROBE!r} (from the `{_LOCAL_PREFIX}*/` pattern in {LOCAL_IGNORE_FILE}) was "
+      f"decided by {_LOCAL_SOURCE!r}, not {LOCAL_IGNORE_FILE!r}. Either the classifier is not reading "
+      "per-directory ignore files -- asking from the wrong working directory, or about a path that "
+      "does not resolve, in which case every dir covered only by this package's own file is reported "
+      "as uncovered -- or a ROOT pattern now wildcard-matches the probe, which makes the canary "
+      "vacuous and means `_local_only_prefix()` needs a probe the root file genuinely cannot reach."
       if _LOCAL_PREFIX else
       "services/api/.gitignore no longer carries any `<prefix>*/` pattern absent from the root file, "
       "so this canary cannot be built and the per-directory question is UNPROVEN. Fails closed on "
@@ -224,5 +259,5 @@ if FAILED:
 print(f"scratch_ignored: all checks passed -- {len(NAMES)} scratch-directory literals derived from "
       f"services/api/*.py, {len(NAMES) - len(EXEMPT)} of them git-ignored and {len(EXEMPT)} exempt as "
       "non-directories with a stated reason. The classifier passed all three of its own self-tests "
-      "first, so neither a dropped trailing slash nor a wrong working directory can make this "
-      "report a clean tree.")
+      "first -- a dropped trailing slash, a wrong working directory, and a per-directory canary "
+      "satisfied by the WRONG ignore file are each caught before any verdict above is printed.")
