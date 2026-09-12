@@ -159,7 +159,7 @@ KNOWN_UNCALLED: set[str] = {
     # reads the sourced rules. Leaving it frozen would have claimed it was still unreachable.
     # "/projects/{pid}/code/amendments" REMOVED v0.3.1137 — Model Analysis shows the local overlay.
     # "/projects/{pid}/cost-vintage" REMOVED v0.3.1137 — Budget reports the resolved vintage.
-    "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",
+    "/projects/{pid}/dev-budget/sync-from-model",
     # "/projects/{pid}/documents/file-model" REMOVED v0.3.1137 — Documents files source.ifc on demand.
     # "/projects/{pid}/documents/model-history" REMOVED v0.3.1137 — Documents lists filed revisions.
     # --- 2026-08-20: MASKED BY THE GENERATED TYPES, not newly broken -----------------------------
@@ -284,7 +284,6 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/accounting/journal",
     "/projects/{pid}/classify/proposals",
     "/projects/{pid}/coordination/stale",
-    "/projects/{pid}/cost/pay-app/advance",
     "/projects/{pid}/design/options/economics",
     "/projects/{pid}/drawing-set/references",
     "/projects/{pid}/drawings/schedule.svg",

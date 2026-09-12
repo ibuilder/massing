@@ -286,10 +286,22 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
     if (!res.ok) throw new HttpError(`pay-app PDF -> ${res.status}`, res.status);
     return res.blob();
   }
-  /** Create an owner-invoice record from the current pay application (amount = current payment due). */
-  payAppInvoice(pid: string, appNo = 1) {
+  /**
+   * Create the owner pay application — the FROZEN document, not a receipt for its total.
+   *
+   * **`appNo` is omitted by default on purpose.** It used to default to `1` and was always sent, so
+   * every application in the register was numbered "App 1". The server numbers from the applications
+   * that already exist when it is not told; pass one only to re-state a specific application.
+   *
+   * Since PAY-APP this route stores the whole G703 continuation sheet and G702 lines 1-9, not line 8
+   * alone. That is what makes the next draw correct: `cost._certified_to_date` fills line 7 by
+   * reading `current_payment_due` off submitted applications, and the old thin record had no such
+   * key — so line 7 read zero and the next application re-billed everything earned to date.
+   */
+  payAppInvoice(pid: string, appNo?: number) {
     return this.json<{ owner_invoice: ModuleRecord; application_no: number; amount: number }>(
-      `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
+      `/projects/${pid}/cost/pay-app/invoice`,
+      { method: "POST", body: JSON.stringify(appNo === undefined ? {} : { app_no: appNo }) });
   }
 
   /**

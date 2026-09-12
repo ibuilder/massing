@@ -11,11 +11,13 @@ Implements the patent-described system (provisional 514712205), modernised on Fa
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import (
     Float,
+    case,
     cast,
     func,
     insert,
@@ -168,10 +170,24 @@ def _validate_values(mod: dict, data: dict) -> None:
         raise HTTPException(422, "; ".join(problems))
 
 
-def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
-    """Atomically allocate the next ref number from a per-(project, module) counter row, taking a row
-    lock (Postgres) so concurrent creates can't read the same value and mint duplicate refs. On first
-    use the counter seeds from the current row count so existing data keeps its sequence."""
+def next_counter(db: Session, project_id: str, counter_key: str,
+                 seed: Callable[[], int] = lambda: 0) -> int:
+    """Atomically allocate the next integer from the per-(project, `counter_key`) `ref_counters` row.
+
+    Extracted from `_next_ref` in PAY-APP so that anything needing a per-project sequence uses this
+    primitive instead of growing its own. The one that prompted it was a pay application's number,
+    which had been `1 + len(records)` — the COUNT(*) scheme `RefCounter`'s own docstring says it
+    exists to replace, reintroduced on a money register a year later. *A retired scheme is not gone
+    while the primitive that replaced it is private to its first caller.*
+
+    `seed` is a CALLABLE on purpose. It is consulted ONLY when the counter row does not exist yet,
+    so the ordinary path stays a single atomic UPDATE and no caller pays for a COUNT it will not
+    use — which is what a plain `int` parameter would have cost on every allocation.
+
+    `counter_key` is the module key for refs. Any other caller must pass a key no module can hold:
+    module keys are directory names under `services/api/modules/` (139 of them), so a ':' is
+    unavailable to them and is what the non-module keys use.
+    """
     from sqlalchemy import update as sa_update
     from sqlalchemy.exc import IntegrityError
 
@@ -187,12 +203,12 @@ def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
     for _ in range(2):
         n = db.execute(
             sa_update(RefCounter)
-            .where(RefCounter.project_id == project_id, RefCounter.module == key)
+            .where(RefCounter.project_id == project_id, RefCounter.module == counter_key)
             .values(n=RefCounter.n + 1)
             .returning(RefCounter.n)
         ).scalar()
         if n is not None:
-            return f"{mod.get('ref_prefix', key.upper())}-{n:03d}"
+            return n
 
         # No counter row yet — seed it. SEEDING is the one moment no row-level mechanism can
         # protect (there is no row), so two concurrent FIRST creates can both get here; the
@@ -201,14 +217,59 @@ def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
         # SAVEPOINT so the loser's refusal stays local (the same pattern, for the same reason, as
         # `rbac.consume_stepup`), and the loser simply loops back into the atomic increment against
         # the winner's row.
-        seed = db.execute(select(func.count()).select_from(TABLES[key])
-                          .where(TABLES[key].c.project_id == project_id)).scalar() or 0
         try:
             with db.begin_nested():
-                db.add(RefCounter(project_id=project_id, module=key, n=seed))
+                db.add(RefCounter(project_id=project_id, module=counter_key, n=seed()))
         except IntegrityError:
             pass                                    # another writer seeded first — use their row
     raise RuntimeError("ref counter neither existed nor could be seeded")   # unreachable
+
+
+def raise_counter(db: Session, project_id: str, counter_key: str, at_least: int,
+                  seed: Callable[[], int] = lambda: 0) -> None:
+    """Raise the counter to at least `at_least`, so a number chosen EXPLICITLY by a caller cannot be
+    handed out again later by `next_counter`.
+
+    An allocator and an explicit choice draw from the same namespace, and only the allocator was
+    moving the mark: create application 1, then an explicit 7, and the next allocation was 2 — not a
+    duplicate yet, which is what makes it easy to miss. The collision arrives later, when the counter
+    climbs back to 7 and names an application that already exists. *An off-by-one you can see is
+    safer than a collision you have to wait for.*
+
+    `case` rather than `GREATEST`/`MAX`: Postgres spells the scalar maximum `GREATEST` while SQLite
+    has no such function, and SQLite's `MAX` is the aggregate — so the portable atomic form is a
+    single `UPDATE ... SET n = CASE WHEN n < :v THEN :v ELSE n END`.
+    """
+    from sqlalchemy import update as sa_update
+    from sqlalchemy.exc import IntegrityError
+
+    from .models import RefCounter
+
+    for _ in range(2):
+        n = db.execute(
+            sa_update(RefCounter)
+            .where(RefCounter.project_id == project_id, RefCounter.module == counter_key)
+            .values(n=case((RefCounter.n < at_least, at_least), else_=RefCounter.n))
+            .returning(RefCounter.n)
+        ).scalar()
+        if n is not None:
+            return
+        try:                                        # same seed-once-then-retry shape as next_counter
+            with db.begin_nested():
+                db.add(RefCounter(project_id=project_id, module=counter_key,
+                                  n=max(seed(), at_least)))
+        except IntegrityError:
+            pass                                    # another writer seeded first — raise theirs
+    raise RuntimeError("ref counter neither existed nor could be seeded")   # unreachable
+
+
+def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
+    """The human ref (RFI-001, …), allocated from the shared atomic counter above. On first use the
+    counter seeds from the current row count so existing data keeps its sequence."""
+    n = next_counter(db, project_id, key,
+                     lambda: db.execute(select(func.count()).select_from(TABLES[key])
+                                        .where(TABLES[key].c.project_id == project_id)).scalar() or 0)
+    return f"{mod.get('ref_prefix', key.upper())}-{n:03d}"
 
 
 def create_record(db: Session, key: str, project_id: str, body: dict, actor: str,

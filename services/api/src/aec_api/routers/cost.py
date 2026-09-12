@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from datetime import date
 from pathlib import Path
 
@@ -366,28 +367,6 @@ def g702(pid: str, app_no: int = 1, period: str | None = None, release_retainage
                      previous_certificates=cost._certified_to_date(db, pid))
 
 
-@router.post("/projects/{pid}/cost/pay-application", status_code=201)
-def build_pay_application(pid: str, app_no: int | None = Body(None, embed=True),
-                          period: str | None = Body(None, embed=True),
-                          period_from: str | None = Body(None, embed=True),
-                          period_to: str | None = Body(None, embed=True),
-                          release_retainage: bool = Body(False, embed=True),
-                          db: Session = Depends(get_db),
-                          user: str = Depends(require_role("reviewer"))):
-    """MOD-G702 — snapshot the live SOV and G702 into a draft `owner_invoice`.
-
-    `GET /cost/g702` stays a live view, which is the right thing for "where do we stand today". This
-    is the other thing: the application you actually send, with its numbers frozen. A pay application
-    is a claim made on a date, and everything feeding it keeps moving afterwards — so a certificate
-    reassembled on demand silently restates applications already signed and paid.
-
-    Created as a DRAFT. Submitting and certifying are transitions a person performs; a certificate
-    nobody signed is not a certificate.
-    """
-    return cost.build_application(db, pid, app_no, period, period_from, period_to,
-                                  release_retainage, user)
-
-
 def _proforma_hard(p) -> float | None:
     if not p or not p.dev_budget:
         return None
@@ -423,22 +402,44 @@ def g702_pdf(pid: str, app_no: int = 1, period: str | None = None, release_retai
 
 
 @router.post("/projects/{pid}/cost/pay-app/invoice", status_code=201)
-def payapp_invoice(pid: str, app_no: int = Body(1, embed=True), period: str | None = Body(None, embed=True),
+def payapp_invoice(pid: str, app_no: int | None = Body(None, embed=True),
+                   period: str | None = Body(None, embed=True),
+                   period_from: str | None = Body(None, embed=True),
+                   period_to: str | None = Body(None, embed=True),
                    release_retainage: bool = Body(False, embed=True),
                    db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
-    """Create an owner-invoice record from the current pay application — amount = G702 current payment
-    due — so each draw produces its owner invoice, linked to the prime contract. Closes the loop:
-    budget → SOV → G702/G703 → owner invoice."""
+    """Create the owner pay application — the FROZEN document, not a receipt for its total.
+
+    Closes the loop budget → SOV → G702/G703 → owner invoice, and since PAY-APP it does so through
+    the one builder, `cost.build_application`. This route used to assemble its own record from
+    `g702()` line 8 and nothing else. Two things were wrong with that and only one was cosmetic:
+
+    * **It over-billed.** `cost._certified_to_date` reads `current_payment_due` off submitted
+      applications to fill line 7. The thin record had no such key, so the sum was 0.0 rather than
+      `None` — and `None` is the value that means "fall back to the reconstruction". Submitting a
+      draw therefore drove line 7 to zero and made the NEXT application re-bill everything earned to
+      date. Reproduced before the fix: line 7 45,000 → 0, line 8 18,000 → 63,000.
+    * **It always said "App 1".** `app_no` defaulted to 1 rather than to None, and the web client
+      passed 1 explicitly, so every application in the register carried the same number. `app_no` is
+      now optional and `build_application` numbers from what already exists when it is omitted.
+
+    `GET /cost/g702` remains the live view — the right thing for "where do we stand today". This is
+    the other thing: the claim as made on its date, with its numbers and its continuation sheet
+    frozen into it.
+    """
     if "owner_invoice" not in me.TABLES:
         raise HTTPException(409, "owner_invoice module not loaded")
-    g702 = cost.g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage)
-    amount = round(float(g702["line8_current_payment_due"]), 2)
-    pc = next((r for r in me.list_records(db, "prime_contract", pid, limit=1)), None)
-    data = {"number": f"App {app_no}", "amount": amount, "period": period or "", "status": "draft"}
-    if pc:
-        data["prime_contract"] = pc["id"]
-    rec = me.create_record(db, "owner_invoice", pid, {"data": data}, actor, "GC")
-    return {"owner_invoice": rec, "application_no": app_no, "amount": amount}
+    rec = cost.build_application(db, pid, app_no, period, period_from, period_to,
+                                 release_retainage, actor)
+    data = rec.get("data") or {}
+    # `number` is a DISPLAY string ("App 3"), so the count comes off its trailing digits rather than
+    # from `float()`, which raised on the prefix. The first draft of this consolidation parsed it as
+    # a bare number and would have 500'd the moment the format matched the records already stored —
+    # *a round-trip through a human-facing field is a parse, and a parse needs a format it agrees on.*
+    m = re.search(r"(\d+)\s*$", str(data.get("number") or ""))
+    return {"owner_invoice": rec,
+            "application_no": int(m.group(1)) if m else 0,
+            "amount": data.get("current_payment_due")}
 
 
 @router.post("/projects/{pid}/cost/advance-period")

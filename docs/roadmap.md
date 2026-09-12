@@ -1780,6 +1780,45 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **PAY-APP — two builders for one document, and the one the product called over-billed**
+  *(M — Lanes C/G/I; **CLOSED 2026-09-12**; gated by `services/api/test_pay_application.py`,
+  `services/api/test_closeout.py` and `services/api/test_route_reachability.py`)*
+
+  **A live over-billing bug, reproduced before it was fixed.** $100k line, 10% retainage, $18,000
+  genuinely due. Create an owner invoice from the Budget panel, submit it, and G702 line 7 went
+  **45,000 → 0** while line 8 went **18,000 → 63,000**: the next draw claimed everything earned to
+  date all over again.
+
+  `cost.build_application` freezes the whole application and had **no caller, ever**. The button
+  called `…/cost/pay-app/invoice`, which built its own record from `g702()` line 8 and stored five
+  keys. `cost._certified_to_date` fills line 7 by reading `current_payment_due` off submitted
+  applications — absent from that record — so the sum was `0.0`. **`0.0` is not `None`**, and `None`
+  was the sentinel that would have fallen back to a correct reconstruction. *Using the feature is
+  what broke it*, which is why the suite had never seen it.
+
+  Consolidated rather than patched, per the maintainer's call: one builder, the dark route retired,
+  the `prime_contract` link carried into the survivor so nothing is traded away. Two further finds
+  in the same read — every application was numbered "App 1" (`app_no` defaulted to 1 on *both* sides
+  of the wire), and the period roll also had two implementations, the dark one counting every SOV row
+  where the live one counts only rows with work. `test_closeout.py` had been written against the dark
+  route's response shape, which is how that pair announced itself.
+
+  Routes **949 → 947**, uncalled **58 → 56**, short-leaf ratchet **5 → 3**.
+
+  **Review caught the replacement numbering doing the thing the fix was about.** The first draft
+  allocated with `app_no = 1 + len(records)` — and `RefCounter` in `services/api/src/aec_api/models.py`
+  documents that it exists *because* a COUNT(*) scheme let a delete free a number for reuse. A money
+  bug's fix had therefore reintroduced, on a money register, the scheme this repo already retired for
+  refs. The review framed it as a concurrency race, which it also is; but the reuse half needs no
+  threads (delete application 3, the next one is "App 3") and is the half that leaves a register
+  unable to say which application was paid. *A race-shaped description hides the deterministic half,
+  and the deterministic half is worse.* Now allocated through `modules.next_counter`, extracted from
+  `_next_ref` so the atomic primitive is shared rather than private to its first caller; the seed is
+  a callable so the ordinary path stays one `UPDATE … RETURNING`. Also from that review: a
+  non-positive `app_no` stored `"App -2"` and was reported back as `2`, refused now at the builder
+  so no direct caller bypasses it; and the create button is disabled for its own round trip, because
+  creating an application is not idempotent and numbering labels duplicates rather than stopping them.
+
 - ✅ ⭐ **VENDOR-SCORECARD — a trade partner's record with your firm, and the limits of it**
   *(S — Lanes B/I; **CLOSED 2026-09-12**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/portal/panels/vendorScorecard.test.ts` and `services/api/test_route_reachability.py`)*

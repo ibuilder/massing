@@ -80,10 +80,10 @@ with TestClient(app) as c:
           g["line8_current_payment_due"] == 18000.0, g["line8_current_payment_due"])
 
     # --- 2. THE FREEZE ------------------------------------------------------------------------------
-    made = c.post(f"/projects/{pid}/cost/pay-application",
+    made = c.post(f"/projects/{pid}/cost/pay-app/invoice",
                   json={"period_from": "2026-07-01", "period_to": "2026-07-31"})
-    check("  POST /cost/pay-application creates a record", made.status_code == 201, made.text[:200])
-    app1 = made.json()
+    check("  POST /cost/pay-app/invoice creates a record", made.status_code == 201, made.text[:200])
+    app1 = made.json()["owner_invoice"]
     d1 = app1["data"]
     check("  it is a DRAFT — a certificate nobody signed is not a certificate",
           app1["workflow_state"] == "draft", app1["workflow_state"])
@@ -115,8 +115,14 @@ with TestClient(app) as c:
     check("  line 7 comes from the submitted certificate, not from completed_prev",
           g["line7_less_previous_certificates"] == 63000.0, g["line7_less_previous_certificates"])
 
-    app2 = c.post(f"/projects/{pid}/cost/pay-application", json={"period_to": "2026-08-31"}).json()
-    check("  the next application numbers itself", app2["data"]["number"] == "2", app2["data"]["number"])
+    app2 = c.post(f"/projects/{pid}/cost/pay-app/invoice",
+                  json={"period_to": "2026-08-31"}).json()["owner_invoice"]
+    # "App 2", not "2": the display format every owner_invoice already in the field carries. This
+    # assertion said "2" until PAY-APP, because it was written against the DARK builder, which had
+    # never written a record anybody kept. `test_project_budget.py` asserted "App 1" against the
+    # live one — *two tests disagreeing about a money register's display format, and only the one
+    # exercising the shipped route was describing reality.*
+    check("  the next application numbers itself", app2["data"]["number"] == "App 2", app2["data"]["number"])
     check("  and deducts what app 1 certified",
           app2["data"]["previous_certificates"] == 63000.0, app2["data"]["previous_certificates"])
     # completed 140k (50k prev + 90k this); retainage 14k; earned 126k; less 63k = 63k due
@@ -132,11 +138,102 @@ with TestClient(app) as c:
           g["line7_less_previous_certificates"] == 113000.0, g["line7_less_previous_certificates"])
 
     # a DRAFT certifies nothing — it has been signed by nobody
-    draft = c.post(f"/projects/{pid}/cost/pay-application", json={}).json()
+    draft = c.post(f"/projects/{pid}/cost/pay-app/invoice", json={}).json()["owner_invoice"]
     g2 = c.get(f"/projects/{pid}/cost/g702").json()
     check("  an unsubmitted draft does not move line 7",
           g2["line7_less_previous_certificates"] == 113000.0, g2["line7_less_previous_certificates"])
     assert draft["workflow_state"] == "draft"
+
+    # --- 3b. PAY-APP — THE RECORD THE PRODUCT ACTUALLY CREATED WAS AN OVER-BILLING BUG -------------
+    # Until PAY-APP there were TWO builders. This route assembled its own record from `g702()` line 8
+    # and stored `{number, amount, period, status, prime_contract}` — while `cost.build_application`,
+    # which freezes everything, sat behind `/cost/pay-application` with NO client caller. The button
+    # in `apps/web/src/portal/panels/budget.ts` called the thin one.
+    #
+    # That was not a cosmetic difference. `_certified_to_date` fills line 7 by reading
+    # `current_payment_due` off submitted applications. The thin record has no such key, so the sum
+    # came to 0.0 — and 0.0 is NOT None. None is the sentinel that means "fall back to reconstructing
+    # from completed_prev", which would have been right. A real number suppresses the fallback, so
+    # line 7 went to zero and the next application re-billed everything earned to date.
+    #
+    # Measured on this fixture before the fix: line 7 45,000 -> 0 and line 8 18,000 -> 63,000.
+    # *A record that keeps the answer and discards the arithmetic is not a smaller record — it is one
+    # that something downstream was already trying to read.*
+    p2 = c.post("/projects", json={"name": "G702 Overbill"}).json()["id"]
+    c.post(f"/projects/{p2}/modules/sov", json={"data": {
+        "item_no": "01", "description": "Sitework", "scheduled_value": 100000,
+        "completed_prev": 50000, "completed_this": 20000, "retainage_pct": 10}})
+    before = c.get(f"/projects/{p2}/cost/g702").json()
+    check("  OVERBILL: $18,000 is due before any application exists",
+          before["line8_current_payment_due"] == 18000.0, before["line8_current_payment_due"])
+
+    made2 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()["owner_invoice"]
+    stored = made2["data"]
+    check("  OVERBILL: the record the BUTTON creates stores line 8 under the key line 7 reads",
+          stored.get("current_payment_due") == 18000.0, sorted(stored))
+    check("  OVERBILL: ...and its continuation sheet, so the total can be checked against its parts",
+          isinstance(stored.get("line_items"), list) and stored["line_items"], stored.get("line_items"))
+    c.post(f"/projects/{p2}/modules/owner_invoice/{made2['id']}/transition", json={"action": "submit"})
+
+    after = c.get(f"/projects/{p2}/cost/g702").json()
+    check("  OVERBILL: submitting it moves line 7 to what was certified, NOT to zero",
+          after["line7_less_previous_certificates"] == 63000.0,
+          after["line7_less_previous_certificates"])
+    check("  OVERBILL: so the next draw asks for nothing more, not for the whole job again",
+          after["line8_current_payment_due"] == 0.0, after["line8_current_payment_due"])
+
+    # The one-builder guarantee, asserted rather than trusted: the retired route must stay retired,
+    # because its return SHAPE differed and a caller written against it would silently get a record
+    # instead of an envelope.
+    gone = c.post(f"/projects/{p2}/cost/pay-application", json={})
+    check("  OVERBILL: the second builder is retired — one route builds an application",
+          gone.status_code == 404, gone.status_code)
+
+    # --- 3c. APP-NO: the number is allocated, not counted --------------------------------------------
+    # Review of the consolidation above found that `app_no = 1 + len(records)` had been introduced
+    # here. `RefCounter`'s own docstring in `models.py` says that counter exists *because* a
+    # COUNT(*) scheme let a later create reuse a number after a delete — so this reintroduced, on a
+    # money register, the scheme the codebase had already retired for refs.
+    #
+    # The race half needs threads to show. THE REUSE HALF DOES NOT, and it is the worse of the two:
+    # a register with two rows both reading "App 3" has no way to say which application was paid.
+    # *A race-shaped description of this defect hides the half that reproduces deterministically.*
+    n1 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    n2 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    check("  APP-NO: successive applications get successive numbers",
+          n2["application_no"] == n1["application_no"] + 1,
+          (n1["application_no"], n2["application_no"]))
+    c.delete(f"/projects/{p2}/modules/owner_invoice/{n2['owner_invoice']['id']}")
+    n3 = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={}).json()
+    check("  APP-NO: deleting an application does NOT free its number for reuse",
+          n3["application_no"] > n2["application_no"],
+          f"deleted App {n2['application_no']}, next was App {n3['application_no']}")
+    check("  APP-NO: ...and the stored record agrees with the number the route reported",
+          n3["owner_invoice"]["data"]["number"] == f"App {n3['application_no']}",
+          n3["owner_invoice"]["data"]["number"])
+
+    # An EXPLICIT app_no must move the high-water mark too. Review round two: the counter only
+    # advanced when a number was allocated, so an explicit number and a later omitted one could name
+    # the same application. Sequenced here rather than described, because the reviewer's trace and
+    # the real one differ by a step and only the run settles it.
+    p3 = c.post("/projects", json={"name": "G702 AppNo"}).json()["id"]
+    c.post(f"/projects/{p3}/modules/sov", json={"data": {
+        "item_no": "01", "description": "Sitework", "scheduled_value": 1000, "completed_this": 100}})
+    seq = [c.post(f"/projects/{p3}/cost/pay-app/invoice", json={}).json()["application_no"]]
+    seq.append(c.post(f"/projects/{p3}/cost/pay-app/invoice",
+                      json={"app_no": 7}).json()["application_no"])
+    seq.append(c.post(f"/projects/{p3}/cost/pay-app/invoice", json={}).json()["application_no"])
+    check("  APP-NO: an explicit number advances the counter, so the next one cannot collide",
+          len(set(seq)) == len(seq) and seq[2] > seq[1], seq)
+
+    # `number` is a DISPLAY string and the route reads the count back off its trailing digits, so a
+    # negative app_no stored "App -2" and was reported as 2 — the response and the record
+    # disagreeing about which application had just been created. Refused at the builder rather than
+    # at the route, so a direct caller cannot get round it.
+    for bad in (0, -2):
+        r = c.post(f"/projects/{p2}/cost/pay-app/invoice", json={"app_no": bad})
+        check(f"  APP-NO: app_no={bad} is refused before any record is created",
+              r.status_code == 422, r.status_code)
 
     # --- 4. the form is a form ----------------------------------------------------------------------
     mods = {m["key"]: m for m in c.get("/modules").json()}
@@ -159,7 +256,7 @@ if FAILED:
     print(f"PAY-APPLICATION FAILED ({len(FAILED)}): " + "; ".join(FAILED))
     raise SystemExit(1)
 print("PAY-APPLICATION OK - G702 line 7 now retains at each line's own rate, so a 10% contract no "
-      "longer reports a NEGATIVE payment due (closeout.py reads that number); POST /cost/pay-application "
+      "longer reports a NEGATIVE payment due (closeout.py reads that number); POST /cost/pay-app/invoice "
       "freezes the G703 continuation sheet and lines 1-9 into an owner_invoice, so editing the SOV "
       "cannot restate an application already submitted; and line 7 deducts what was actually "
       "certified — including a reduced architect certification — instead of reconstructing it.")
