@@ -12,6 +12,64 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A saved scenario's name could run script in the Finance home
+
+`ScenarioIn.name` is an unconstrained `str` that `create_scenario` persists verbatim, and the Finance
+home interpolated it into `innerHTML` unescaped — stored XSS, one `escapeHtml()` away, in a line the
+SCENARIO-SOURCES change happened to touch. Now escaped, like every other interpolation in that file.
+
+**The interesting part is why nothing caught it.** `apps/web/src/ui/innerHtmlGuard.test.ts` exists
+precisely for this class and was green over it for months, because that file's BASELINE listed
+`"main.ts": 2` — and this was one of the two. **The ratchet is one-directional by design (a count may
+fall, never rise), so a frozen sink is invisible for as long as nobody adds another.** The entry
+means "a future reader should check this"; the check never happened, and a review bot found it by
+reading the code the baseline had frozen. The baseline is now `1`, verified by counting rather than
+assumed. *A number that licenses a defect is indistinguishable from a number that merely records
+one — only reading the site tells them apart.*
+
+### Which deal assumptions have a document behind them, and which came from nowhere
+
+`GET /proforma/scenarios/{sid}/provenance` walks a saved scenario's material numeric drivers — the
+numbers under timing, debt, equity, operations, exit and waterfall that produce the IRR an investment
+committee acts on — and reports, per dotted path, whether a document citation is recorded against it.
+It is R22-PROVENANCE ②, and **it had no client caller**: its leaf `provenance` was read as reachable
+because `ProformaResult.provenance` is a *field* of that name on a different reply. **🔎 Sources**, in
+Finance → home beside the returns it qualifies, is the first way to see it.
+
+**The engine's own docstring sets the rule the screen has to honour:** *"A coverage figure with no
+named gaps is the shape that gets quoted in a memo; the named list is the part that gets fixed."* So
+the percentage is never the deliverable — the named paths are, and a `To fix` list renders every one
+of them rather than a sample.
+
+**Two ways a true number reads as a stronger claim than it is, and the screen refuses both.**
+
+A scenario can report **100% coverage while every citation points at a superseded revision**. The
+engine marks a path `cited` whenever any readable citation exists, regardless of the revision it
+names, so coverage and currency are different axes and the headline carries only one. Currency is now
+its own line, always.
+
+And **`stale_citation_count: 0` means two different things.** Staleness is computed only when the
+caller supplies `?revision=`, so with no revision the count is zero *because nothing was compared* —
+indistinguishable from zero because everything is current. The response echoes `current_revision`,
+which is the only thing separating them; the screen reads it and says **not checked** rather than
+printing a check that never ran. It also offers the input that would actually run it.
+
+**Two distinctions the screen keeps that a summary would collapse.** "No source recorded" and "a
+source is recorded but is not a readable citation" are different fixes — find one, versus repair the
+one you made — and the engine allows a path to be both. And this is **not** the provenance
+`proforma/provenanceLine.ts` already renders: that one is declared-vs-defaulted, this one is
+cited-vs-uncited. A number can be declared by the underwriter and have nothing behind it, which is the
+ordinary and dangerous case.
+
+**A third instance of the leaf-collision class, created by this change rather than found by it.** The
+rules module declared `type Headline = … | "stale" | …`, and a bare `"stale"` string literal is a
+whole path segment — so `/projects/{pid}/coordination/stale`, frozen as callerless, read as called and
+`services/api/test_route_reachability.py`'s rot check fired within a minute. Renamed to
+`"superseded-sources"`, which matches its sibling `"unreadable-sources"` and is the better word anyway.
+*Three instances, three syntactic categories — a route path, an identifier, now a string-literal union
+member. That the categories cannot be enumerated is the argument for the rot check rather than for a
+naming rule.*
+
 ### The estimate can be calibrated against what this job actually cost
 
 `GET /projects/{pid}/cost/calibration` compares the model's takeoff estimate with what the project has

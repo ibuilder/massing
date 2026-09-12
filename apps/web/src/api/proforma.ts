@@ -95,6 +95,30 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/proforma/scenarios?project_id=${encodeURIComponent(projectId)}`);
   }
 
+  /**
+   * SCENARIO-SOURCES — which of a saved scenario's MATERIAL assumptions carry a document citation.
+   *
+   * **Pass `revision` or the currency axis is silently absent.** The engine computes staleness only
+   * when a revision is supplied, so `stale_citation_count` comes back 0 when nothing was compared —
+   * indistinguishable from 0 because everything is current. `current_revision` is echoed back and is
+   * the only thing that separates them; `portal/panels/scenarioSources.ts` reads it for exactly that.
+   *
+   * Not to be confused with `ProformaResult.provenance`, which is DECLARED-vs-DEFAULTED.
+   */
+  scenarioProvenance(sid: string, revision?: string) {
+    const q = revision ? `?revision=${encodeURIComponent(revision)}` : "";
+    return this.json<{ scenario_id: string | null; scenario_name: string | null;
+      material_count: number; cited_count: number; uncited_count: number; coverage_pct: number;
+      assumptions: { path: string; status: "cited" | "uncited"; status_note: string;
+        citation_count: number; citations: unknown[]; confidence?: number | null;
+        stale_citations?: number; malformed_citations?: number }[];
+      uncited: string[]; orphaned_sources: string[]; malformed_citation_paths: string[];
+      malformed_citation_count: number; stale_citation_count: number;
+      current_revision: string | null; status_meanings: Record<string, string>;
+      basis: string; note: string; message: string | null }>(
+      `/proforma/scenarios/${encodeURIComponent(sid)}/provenance${q}`);
+  }
+
   /** Bridge underwriting → construction draws: the scenario's cost tree becomes Schedule-of-Values
    *  records, and out come the AIA G702/G703.
    *

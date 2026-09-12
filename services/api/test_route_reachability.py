@@ -146,6 +146,17 @@ KNOWN_UNCALLED: set[str] = {
     # English word containing a route leaf, which no naming convention prevents. **The rule's
     # coarseness is a standing cost of keeping 328 shared-leaf routes in reach, not a bug awaiting a
     # fix** — and the cost is paid by whoever writes the colliding word next.
+    #
+    # THIRD INSTANCE, 2026-09-12 (SCENARIO-SOURCES), and this one was paid by the author of the note
+    # above, in the same pull request that documents the class. A UNION MEMBER did it: a screen about
+    # citation currency declared `type Headline = ... | "stale" | ...`, and a bare `"stale"` string
+    # literal is a whole path segment, so `/projects/{pid}/coordination/stale` -- frozen here, still
+    # callerless -- read as called and this rot check fired within a minute of the file being written.
+    # Fixed by renaming the member to `"superseded-sources"`, which matches its sibling
+    # `"unreadable-sources"` and is the more precise word anyway: a citation is not stale, the revision
+    # it names has been superseded. *Third time, third syntactic category -- a route path, an
+    # identifier, and now a string-literal union member. The categories are not a list anyone can
+    # finish, which is the argument for the rot check rather than for a naming rule.*
     "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
     # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
     # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as
@@ -1080,7 +1091,10 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 # not in FOUND (the rule reads their leaves as called) and not freezable in KNOWN_UNCALLED (the rot
 # check would immediately report them as "quietly become called").
 #
-# **THREE of them are unread; the fourth was read and is a DUPLICATE, not a hole.** That correction
+# **THREE of them are unread; the fourth was read and is a DUPLICATE, not a hole.** *(Count
+# superseded 2026-09-12 -- one of the three was wired; see the SCENARIO-SOURCES note below the
+# paragraph. Left standing rather than rewritten because the sentence after it is a record of a
+# correction, and editing the number in place would destroy what it is a record OF.)* That correction
 # is recorded rather than quietly applied, because the line above said "nobody has read them" and
 # was falsified by the next thing its own author did. `/proforma/provenance` is R24-TRACE-UI ② --
 # `routers/proforma.py` returns `_provenance.derive(declared_from(a), solve(...))`, the
@@ -1092,12 +1106,19 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 # cannot see it, and that is what the checks below assert. But it is not a gap, and a reader taking
 # all four as gaps would build something the product already has. *The `/projects/{pid}/georeference`
 # case again -- a dark route can be a duplicate rather than a hole, and the gate cannot tell the
-# difference.* The remaining three -- `/bsdd/class`, `/proforma/scenarios/{sid}/provenance` and
-# `/projects/{pid}/workflow/{key}` -- are still unread.
+# difference.* `/proforma/scenarios/{sid}/provenance` has since been WIRED (SCENARIO-SOURCES), so
+# what is left unread is `/bsdd/class` and `/projects/{pid}/workflow/{key}`.
+#: **`/proforma/scenarios/{sid}/provenance` LEFT THIS SET IN SCENARIO-SOURCES**, and it was the one
+#: worth building rather than recording: the engine behind it (`assumption_provenance.py`) names WHICH
+#: of a deal's material assumptions carry a document citation and which carry none, and an investment
+#: committee was acting on returns whose inputs nobody could trace. `scenarioProvenance` in
+#: `apps/web/src/api/proforma.ts` is called from the Finance home, beside the IRR it qualifies.
+#:
+#: Three remain. One of them is READ AND TRIAGED rather than unread -- see the note above -- and two
+#: are genuinely unexamined.
 LEAF_COLLISION_DARK = (
     "/bsdd/class",
     "/proforma/provenance",
-    "/proforma/scenarios/{sid}/provenance",
     "/projects/{pid}/workflow/{key}",
 )
 for _r in LEAF_COLLISION_DARK:

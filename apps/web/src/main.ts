@@ -1388,8 +1388,20 @@ function openFinanceHomeTab() {
     const irr = r.equity_irr ?? null;
     const scEl = document.getElementById("fin-home-scenario");
     if (scEl) scEl.innerHTML = latest
-      ? `Latest scenario: <b>${latest.name}</b>`
+      ? `Latest scenario: <b>${escapeHtml(latest.name)}</b> `
+        + `<button id="fin-home-sources" class="tool-btn" style="font-size:11px;padding:1px 6px">🔎 Sources</button>`
       : "No solved scenario yet — build one in the Proforma tab and its returns land here.";
+    // SCENARIO-SOURCES. The returns above are only as good as the assumptions behind them, and until
+    // now nothing said which of those assumptions had a document behind it: the engine answering that
+    // (`GET /proforma/scenarios/{sid}/provenance`) had no caller at all. Placed HERE, beside the IRR
+    // it qualifies, rather than on a screen of its own — a provenance figure read apart from the
+    // number it is about is the one that gets quoted without it.
+    if (latest) {
+      document.getElementById("fin-home-sources")?.addEventListener("click", () => {
+        void import("./portal/panels/scenarioSourcesPanel")
+          .then((m) => m.scenarioSourcesModal(api, latest.id, latest.name));
+      });
+    }
     const kEl = document.getElementById("fin-home-kpis");
     if (kEl) kEl.innerHTML =
       kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
