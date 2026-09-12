@@ -7,12 +7,12 @@
  * in line 7 shipped and survived until the next draw asked for the whole job again.
  */
 import type { ApiClient } from "../../api/client";
-import { usd } from "../../ui/charts";
 import { modalShell } from "../../ui/modal";
+import { usdCents as money } from "../../ui/charts";
 
 import {
   CERT_LINES, type Certificate, type Sheet,
-  line7Basis, line7Note, summary,
+  consistent, line7Basis, line7Note, summary,
 } from "./payAppReview";
 
 const cell = (text: string, align: "left" | "right" = "left", bold = false) => {
@@ -31,7 +31,7 @@ function certTable(cert: Certificate): HTMLTableElement {
     const emphasis = l.no === 8;
     tr.style.cssText = `border-top:1px solid var(--line)${emphasis ? ";background:var(--hover)" : ""}`;
     tr.append(cell(String(l.no), "left"), cell(l.label, "left", emphasis),
-              cell(usd(cert[l.key] as number), "right", emphasis));
+              cell(money(cert[l.key] as number), "right", emphasis));
     t.appendChild(tr);
   }
   return t;
@@ -56,19 +56,19 @@ function sheetTable(sheet: Sheet): HTMLTableElement {
     const tr = document.createElement("tr");
     tr.style.cssText = "border-top:1px solid var(--line)";
     tr.append(cell(l.item_no ?? "—"), cell(l.description ?? "—"),
-              cell(usd(l.scheduled_value), "right"), cell(usd(l.completed_prev), "right"),
-              cell(usd(l.completed_this), "right"), cell(usd(l.materials_stored), "right"),
-              cell(usd(l.total_completed_stored), "right"), cell(`${l.percent}%`, "right"),
-              cell(usd(l.balance_to_finish), "right"), cell(usd(l.retainage), "right"));
+              cell(money(l.scheduled_value), "right"), cell(money(l.completed_prev), "right"),
+              cell(money(l.completed_this), "right"), cell(money(l.materials_stored), "right"),
+              cell(money(l.total_completed_stored), "right"), cell(`${l.percent}%`, "right"),
+              cell(money(l.balance_to_finish), "right"), cell(money(l.retainage), "right"));
     t.appendChild(tr);
   }
   const tot = document.createElement("tr");
   tot.style.cssText = "border-top:2px solid var(--line);font-weight:600";
   const T = sheet.totals;
-  tot.append(cell(""), cell("Totals", "left", true), cell(usd(T.scheduled), "right", true),
-             cell(usd(T.prev), "right", true), cell(usd(T.this), "right", true),
-             cell(usd(T.stored), "right", true), cell(usd(T.completed), "right", true),
-             cell("", "right"), cell(usd(T.balance), "right", true), cell(usd(T.retainage), "right", true));
+  tot.append(cell(""), cell("Totals", "left", true), cell(money(T.scheduled), "right", true),
+             cell(money(T.prev), "right", true), cell(money(T.this), "right", true),
+             cell(money(T.stored), "right", true), cell(money(T.completed), "right", true),
+             cell("", "right"), cell(money(T.balance), "right", true), cell(money(T.retainage), "right", true));
   t.appendChild(tot);
   return t;
 }
@@ -88,7 +88,16 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
   card.appendChild(body);
 
   try {
-    const [cert, sheet] = await Promise.all([api.g702(pid), api.g703(pid)]);
+    // ONE RETRY on an inconsistent pair. These are two requests in two database sessions, so a seed
+    // or a period-close committing between them gives a certificate from one SOV state beside a sheet
+    // from another. `consistent` uses the cross-document identities as the detector — see its note —
+    // and a torn pair resolves on the re-read while a genuinely wrong certificate does not.
+    let [cert, sheet] = await Promise.all([api.g702(pid), api.g703(pid)]);
+    let reread = false;
+    if (!consistent(cert, sheet)) {
+      [cert, sheet] = await Promise.all([api.g702(pid), api.g703(pid)]);
+      reread = true;
+    }
     const s = summary(cert, sheet);
     body.textContent = "";
     body.className = "";
@@ -97,7 +106,7 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
     head.style.cssText = "display:flex;gap:14px;flex-wrap:wrap;align-items:baseline";
     const due = document.createElement("div");
     due.style.cssText = "font-size:20px;font-weight:600";
-    due.textContent = usd(s.due);
+    due.textContent = money(s.due);
     const ctx = document.createElement("div");
     ctx.className = "meta";
     ctx.textContent = `Application ${cert.application_no}`
@@ -115,7 +124,10 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
     if (s.sound) {
       verdict.textContent = "✓ The certificate adds up — all six identities hold against the continuation sheet.";
     } else {
-      verdict.textContent = `⚠ ${s.failures.length} check(s) failed:`;
+      verdict.textContent = reread
+        ? `⚠ ${s.failures.length} check(s) failed, and still failed after re-reading both documents `
+          + `— so this is the certificate, not two reads taken a moment apart:`
+        : `⚠ ${s.failures.length} check(s) failed:`;
       for (const f of s.failures) {
         const li = document.createElement("div");
         li.className = "meta";
@@ -146,13 +158,19 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
     scroll.appendChild(sheetTable(sheet));
     body.appendChild(scroll);
 
+    const note = document.createElement("div");
+    note.className = "meta";
+    note.style.cssText = "margin-top:10px;text-align:right;color:var(--status-crit)";
+    body.appendChild(note);
+
     const row = document.createElement("div");
-    row.style.cssText = "display:flex;gap:6px;justify-content:flex-end;margin-top:14px";
+    row.style.cssText = "display:flex;gap:6px;justify-content:flex-end;margin-top:6px";
     const pdf = document.createElement("button");
     pdf.className = "tool-btn";
     pdf.textContent = "⬇ Download as PDF";
     pdf.onclick = async () => {
       pdf.disabled = true;
+      note.textContent = "";
       try {
         const blob = await api.payAppPdf(pid, cert.application_no);
         const a = document.createElement("a");
@@ -160,6 +178,11 @@ export async function payAppReviewModal(api: ApiClient, pid: string): Promise<vo
         a.download = `pay-app-${cert.application_no}.pdf`;
         a.click();
         URL.revokeObjectURL(a.href);
+      } catch (e) {
+        // The outer try only covers the initial load, so a rejection here reached nobody: the button
+        // re-enabled and the download silently never happened. A failed download that looks like a
+        // cancelled one is the shape of bug this whole screen exists to stop.
+        note.textContent = `Download failed: ${(e as Error).message}`;
       } finally { pdf.disabled = false; }
     };
     const done = document.createElement("button");

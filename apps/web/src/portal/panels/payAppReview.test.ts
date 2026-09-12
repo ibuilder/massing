@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   CERT_LINES, type Certificate, type Sheet,
-  checks, line7Basis, line7Note, percentComplete, summary,
+  checks, consistent, line7Basis, line7Note, percentComplete, summary,
 } from "./payAppReview";
+import { usdCents as money } from "../../ui/charts";
 
 /** A $100k line at 10% retainage, $50k billed previously and $20k this period — the fixture the
  *  PAY-APP over-billing bug was reproduced on, so the numbers here are the ones that actually moved. */
@@ -56,7 +57,7 @@ describe("the certificate's own arithmetic", () => {
     const drifted: Sheet = { ...sheet, totals: { ...sheet.totals, completed: 71000 } };
     const failed = checks(cert, drifted).filter((c) => !c.ok);
     expect(failed.map((c) => c.label)).toContain("Line 4 = the continuation sheet's completed total");
-    expect(failed[0]?.detail).toContain("71000");
+    expect(failed[0]?.detail).toContain("$71,000.00");   // to the cent, since the check is
   });
 
   it("fails when line 3 does not equal line 1 plus line 2", () => {
@@ -96,6 +97,67 @@ describe("the certificate's own arithmetic", () => {
     };
     expect(0.1 + 0.2).not.toBe(0.3);                       // the hazard, stated
     expect(checks(cert, sheet).filter((c) => !c.ok)).toEqual([]);
+  });
+});
+
+describe("money is printed to the cent", () => {
+  it("keeps two decimals, because the checks compare in cents", () => {
+    // `ui/charts`'s usd rounds to whole dollars. Using it here meant a certificate failing by a penny
+    // rendered as two IDENTICAL numbers beside a red verdict — the screen showing no reason to
+    // believe itself. This test fails against that formatter.
+    expect(money(45000.01)).toBe("$45,000.01");
+    expect(money(45000)).toBe("$45,000.00");
+    expect(money(0.5)).toBe("$0.50");
+  });
+
+  it("marks a negative with a true minus sign, not a hyphen", () => {
+    expect(money(-1234.5)).toBe("\u2212$1,234.50");
+  });
+
+  it("shows the penny that a failing check is about", () => {
+    const { cert, sheet } = fixture();
+    const offByAPenny: Sheet = { ...sheet, totals: { ...sheet.totals, completed: 70000.01 } };
+    const failed = checks(cert, offByAPenny).filter((c) => !c.ok);
+    expect(failed).toHaveLength(1);
+    // The two numbers must be DISTINGUISHABLE in the message, which is the whole point.
+    expect(failed[0]?.detail).toContain("$70,000.01");
+    expect(failed[0]?.detail).toContain("$70,000.00");
+  });
+});
+
+describe("cross-document consistency (the torn-read detector)", () => {
+  it("is true when the certificate and sheet describe the same SOV", () => {
+    const { cert, sheet } = fixture();
+    expect(consistent(cert, sheet)).toBe(true);
+  });
+
+  it("is false when the two documents were read from different states", () => {
+    const { cert, sheet } = fixture();
+    expect(consistent(cert, { ...sheet, totals: { ...sheet.totals, completed: 71000 } })).toBe(false);
+  });
+
+  it("looks ONLY at the two cross-document identities, not the certificate's internal ones", () => {
+    // A certificate that is internally wrong is not a torn read, and re-reading will not fix it.
+    // Conflating the two would make the panel retry forever on a real engine bug.
+    const { cert, sheet } = fixture();
+    const internallyWrong: Certificate = { ...cert, line3_contract_sum_to_date: 999 };
+    const failed = checks(internallyWrong, sheet).filter((c) => !c.ok);
+    // Two, not one: restating line 3 breaks both "3 = 1 + 2" and "9 = 3 − 6". Asserting an exact
+    // count here was my error, and the count is incidental — what matters is that the failures are
+    // all INTERNAL and none of them is a cross-document one.
+    expect(failed.length).toBeGreaterThan(0);
+    expect(failed.map((c) => c.label).join(" ")).not.toContain("continuation sheet");
+    expect(consistent(internallyWrong, sheet)).toBe(true);
+  });
+
+  it("does not call a final application torn just because line 5 is zero", () => {
+    const { cert, sheet } = fixture();
+    const final: Certificate = {
+      ...cert, retainage_released: true, line5_retainage: 0,
+      line6_total_earned_less_retainage: 70000, line8_current_payment_due: 25000,
+      line9_balance_to_finish_incl_retainage: 30000,
+    };
+    expect(consistent(final, sheet)).toBe(true);
   });
 });
 

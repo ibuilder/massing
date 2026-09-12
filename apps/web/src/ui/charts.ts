@@ -75,6 +75,23 @@ export const usd = (n: number | null | undefined): string =>
   n == null ? "—" : (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
 
 /**
+ * Money to the CENT — always two decimals, for documents whose arithmetic is the point.
+ *
+ * `usd` rounds to whole dollars, which is right for a dashboard and wrong for an AIA G702: PAY-APP-SCREEN
+ * checks that certificate in integer cents, so a form failing by a penny rendered as two IDENTICAL
+ * numbers beside a red verdict — *the screen showing its reader no reason to believe it.* A view whose
+ * job is to display arithmetic must print the unit the arithmetic uses.
+ *
+ * It lives here, beside `usd` and `rate`, because of the rule the ban in `charts.test.ts` enforces:
+ * eighteen local currency formatters once disagreed about negatives and ten put the `$` on the wrong
+ * side of the minus. **A second formatter is fine; a second PLACE to define one is not.** Same
+ * conventions as its siblings — minus outside the currency mark, em-dash for absent money.
+ */
+export const usdCents = (n: number | null | undefined): string =>
+  n == null ? "—" : (n < 0 ? "−$" : "$")
+    + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
  * A grouped count — thousands separators, no currency.
  *
  * Exists because one of the eighteen (`operations.ts`, the stormwater card) was a `const usd` that

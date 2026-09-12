@@ -1,3 +1,5 @@
+import { usdCents as money } from "../../ui/charts";
+
 /**
  * PAY-APP-SCREEN — the AIA G702 certificate and its G703 continuation sheet, on screen, from data.
  *
@@ -97,22 +99,22 @@ export function checks(cert: Certificate, sheet: Sheet): Check[] {
     { label: "Line 3 = line 1 + line 2",
       ok: c("line3_contract_sum_to_date")
         === c("line1_original_contract_sum") + c("line2_net_change_orders"),
-      detail: `${cert.line1_original_contract_sum} + ${cert.line2_net_change_orders} = ${cert.line3_contract_sum_to_date}` },
+      detail: `${money(cert.line1_original_contract_sum)} + ${money(cert.line2_net_change_orders)} = ${money(cert.line3_contract_sum_to_date)}` },
     { label: "Line 6 = line 4 − line 5",
       ok: c("line6_total_earned_less_retainage")
         === c("line4_total_completed_stored") - c("line5_retainage"),
-      detail: `${cert.line4_total_completed_stored} − ${cert.line5_retainage} = ${cert.line6_total_earned_less_retainage}` },
+      detail: `${money(cert.line4_total_completed_stored)} − ${money(cert.line5_retainage)} = ${money(cert.line6_total_earned_less_retainage)}` },
     { label: "Line 8 = line 6 − line 7",
       ok: c("line8_current_payment_due")
         === c("line6_total_earned_less_retainage") - c("line7_less_previous_certificates"),
-      detail: `${cert.line6_total_earned_less_retainage} − ${cert.line7_less_previous_certificates} = ${cert.line8_current_payment_due}` },
+      detail: `${money(cert.line6_total_earned_less_retainage)} − ${money(cert.line7_less_previous_certificates)} = ${money(cert.line8_current_payment_due)}` },
     { label: "Line 9 = line 3 − line 6",
       ok: c("line9_balance_to_finish_incl_retainage")
         === c("line3_contract_sum_to_date") - c("line6_total_earned_less_retainage"),
-      detail: `${cert.line3_contract_sum_to_date} − ${cert.line6_total_earned_less_retainage} = ${cert.line9_balance_to_finish_incl_retainage}` },
+      detail: `${money(cert.line3_contract_sum_to_date)} − ${money(cert.line6_total_earned_less_retainage)} = ${money(cert.line9_balance_to_finish_incl_retainage)}` },
     { label: "Line 4 = the continuation sheet's completed total",
       ok: c("line4_total_completed_stored") === cents(sheet.totals.completed),
-      detail: `sheet ${sheet.totals.completed} → line 4 ${cert.line4_total_completed_stored}` },
+      detail: `sheet ${money(sheet.totals.completed)} → line 4 ${money(cert.line4_total_completed_stored)}` },
     { label: "Line 5 = the continuation sheet's retainage total",
       // Skipped, not failed, on a final application: `release_retainage` zeroes line 5 deliberately
       // while the sheet still carries the per-line amounts. Asserting equality there would report a
@@ -120,8 +122,27 @@ export function checks(cert: Certificate, sheet: Sheet): Check[] {
       ok: cert.retainage_released || c("line5_retainage") === cents(sheet.totals.retainage),
       detail: cert.retainage_released
         ? "retainage released on this application — line 5 is zero by design"
-        : `sheet ${sheet.totals.retainage} → line 5 ${cert.line5_retainage}` },
+        : `sheet ${money(sheet.totals.retainage)} → line 5 ${money(cert.line5_retainage)}` },
   ];
+}
+
+/**
+ * Are these two documents describing the same schedule of values?
+ *
+ * `GET /cost/g702` and `GET /cost/g703` are separate requests in separate database sessions, so a
+ * seed or a period-close committing between them yields a TORN READ: a certificate computed from one
+ * SOV state beside a sheet from another. Nothing in either response carries a revision to compare.
+ *
+ * What saves it is that the certificate is DERIVED from the sheet — `cost.g702` calls `g703` — so the
+ * two cross-document identities (lines 4 and 5) hold for any single state and fail for a torn pair.
+ * *The consistency check the screen already needed is also the torn-read detector; it did not need a
+ * second mechanism, it needed to be believed.* The panel re-reads once when this is false: a torn
+ * pair resolves, a genuinely inconsistent engine does not, and the two are then distinguishable
+ * rather than both surfacing as "the certificate does not add up".
+ */
+export function consistent(cert: Certificate, sheet: Sheet): boolean {
+  const cross = checks(cert, sheet).slice(-2);
+  return cross.every((c) => c.ok);
 }
 
 export type Line7Basis = "matches-reconstruction" | "differs-from-reconstruction";
