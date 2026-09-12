@@ -12,6 +12,38 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The pay application can be read before it is signed
+
+A GC could **freeze** a pay application and **download** it as a PDF, but never *look* at it. The nine
+G702 certificate lines and the G703 continuation sheet existed on screen nowhere. **Review pay app**
+in Finance → Budget now renders both from data, between seeding the SOV and creating the owner
+invoice — which is the order the work actually happens in.
+
+**This is the direct sequel to the over-billing bug below, and the reason it is worth doing.** That
+defect lived in line 7, "less previous certificates for payment". Line 7 could only be seen inside a
+PDF blob, so a wrong zero there was invisible until the next draw asked for the whole job again.
+*A number a person cannot see is a number nothing checks.*
+
+The screen does more than print. It verifies the certificate's own arithmetic — line 3 = 1 + 2,
+line 6 = 4 − 5, line 8 = 6 − 7, line 9 = 3 − 6, and lines 4 and 5 against the continuation sheet's
+totals — and says so above the numbers, because a certificate that does not add up is what a reviewer
+most needs told. Comparisons are in integer cents: this codebase has already had HALF_EVEN and
+HALF_UP disagree by a penny inside one G702, and `0.1 + 0.2 !== 0.3`. Line 5 is *skipped* rather than
+failed on a final application, where `release_retainage` zeroes it by design — a check that reports a
+correct certificate as broken teaches the reviewer to ignore the checks.
+
+It also names **where line 7 came from**: deducted from what a submitted application actually
+certified, or equal to the schedule of values re-added. Those are not the same fact — the first is
+historical and does not move when the SOV is edited; the second is a reconstruction that does. Saying
+which keeps a reconstruction from reading as a signature.
+
+`GET …/cost/g702` and `GET …/cost/g703` had answered all of this since they were built and had no
+client caller. They sat in the reachability gate's `CONFIRMED_DARK_SHORT_LEAF` with a note saying a
+screen rendering the application from data would use them and none existed — and that note was the
+whole entry, naming the missing work and waiting. Short-leaf ratchet **5 → 3**, and the three that
+remain are all *correctly* dark: the SAML assertion-consumer endpoint the IdP POSTs to, and two
+scheduler polls the server-side runner reads. **The ratchet no longer records any parked work.**
+
 ### A submitted pay application no longer makes the next one re-bill the whole job
 
 **This is an over-billing bug that shipped**, and it is fixed. On a $100k line at 10% retainage with

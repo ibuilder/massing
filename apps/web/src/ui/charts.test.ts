@@ -149,8 +149,8 @@ describe("every chart says 'no data' rather than drawing an empty frame", () => 
     // Helpers go in this list; CHARTS do not. Anything exported and not named here must be a chart
     // that honours the whole grammar — which is why adding a helper is a deliberate edit here rather
     // than something that silently widens what the gate ignores.
-    const HELPERS = ["esc", "compact", "money", "usd", "rate", "qty", "chartColor", "noData",
-                     "fmtFor", "yGrid", "legendRow"];
+    const HELPERS = ["esc", "compact", "money", "usd", "usdCents", "rate", "qty", "chartColor",
+                     "noData", "fmtFor", "yGrid", "legendRow"];
     const exported = Object.entries(Charts as unknown as Record<string, unknown>)
       .filter(([name, v]) => typeof v === "function" && !HELPERS.includes(name))
       .map(([name]) => name);
@@ -326,6 +326,23 @@ describe("R24-CHARTS-GRAMMAR ② — one currency format for the whole app", () 
     expect(DECL.test('  const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;')).toBe(true);
     expect(DECL.test('  const usd = (n: number) => cmoney(n);')).toBe(true);
     expect(DECL.test("  out.textContent = usd(total);")).toBe(false);   // a CALL is fine
+  });
+
+  describe("usdCents", () => {
+    it("always shows two decimals, so a penny difference is visible", () => {
+      // PAY-APP-SCREEN checks an AIA G702 in integer cents. Rendering those numbers with `usd` meant
+      // a certificate failing by a penny printed two IDENTICAL values beside a red verdict.
+      expect(Charts.usdCents(45_000)).toBe("$45,000.00");
+      expect(Charts.usdCents(45_000.01)).toBe("$45,000.01");
+      expect(Charts.usdCents(45_000)).not.toBe(Charts.usdCents(45_000.01));
+    });
+
+    it("follows the house conventions its siblings do", () => {
+      expect(Charts.usdCents(-1234.5)).toBe("−$1,234.50");    // minus outside the currency mark
+      expect(Charts.usdCents(-1234.5)).not.toBe("$-1,234.50"); // the spelling ten files once had
+      expect(Charts.usdCents(null)).toBe("—");                 // absent money is not $0.00
+      expect(Charts.usdCents(0)).toBe("$0.00");
+    });
   });
 
   describe("usd", () => {

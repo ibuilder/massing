@@ -1780,6 +1780,33 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **PAY-APP-SCREEN — the application could be frozen and downloaded, never read**
+  *(S — Lanes B/C; **CLOSED 2026-09-12**; gated by `apps/web/src/portal/panels/payAppReview.test.ts`
+  and `services/api/test_route_reachability.py`)*
+
+  `GET /projects/{pid}/cost/g702` and `/cost/g703` (`services/api/src/aec_api/cost.py`) have returned
+  the AIA certificate and its continuation sheet as data since they were built, and had no client
+  caller. The only caller of anything G702-shaped was the PDF at `apps/web/src/api/cost.ts`.
+
+  **Found by reading the reachability gate's own frozen list rather than by guessing.** Both sat in
+  `CONFIRMED_DARK_SHORT_LEAF` with the note that a screen rendering the application from data would
+  use them and none existed — a ratchet entry that names its own missing work and then waits for
+  somebody to re-read it.
+
+  **It is the sequel to PAY-APP above.** That over-billing defect lived in line 7, which could only
+  be seen inside a PDF blob; a wrong zero there was invisible until the next draw re-billed the job.
+  *A ratchet entry recording a missing SCREEN is recording a missing pair of eyes, not just a missing
+  caller.*
+
+  `payAppReviewModal` (`apps/web/src/portal/panels/payAppReviewPanel.ts`) renders both, checks the
+  certificate's six identities against the continuation sheet in integer cents, skips line 5 on a
+  final application where `release_retainage` zeroes it by design, and names whether line 7 is a
+  certified historical figure or a reconstruction. Wired from the Owner billing card in
+  `apps/web/src/portal/panels/budget.ts`, between Seed SOV and Freeze.
+
+  Short-leaf ratchet **5 → 3**; the three remaining are correctly dark (SAML ACS, two scheduler
+  polls), so it now records **no parked work at all**.
+
 - ✅ ⭐ **PAY-APP — two builders for one document, and the one the product called over-billed**
   *(M — Lanes C/G/I; **CLOSED 2026-09-12**; gated by `services/api/test_pay_application.py`,
   `services/api/test_closeout.py` and `services/api/test_route_reachability.py`)*

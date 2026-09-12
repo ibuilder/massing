@@ -4,6 +4,7 @@ import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 import { renderCostBrief } from "./costBrief";
+import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
 
 /**
@@ -585,6 +586,18 @@ export async function renderBudget(ctx: PanelContext) {
         ctx.host.setStatus(`SOV seeded: ${r.created} lines${r.scheduled_value ? ` = $${Math.round(r.scheduled_value).toLocaleString()}` : ""}`); }
       catch (e) { ctx.host.setStatus(`SOV seed failed: ${(e as Error).message}`); }
     };
+    // PAY-APP-SCREEN — READ the application before freezing it. This sits between seeding the SOV
+    // and creating the owner invoice because that is the order the work happens in, and because the
+    // over-billing defect PAY-APP fixed lived in a line nobody could see: line 7 existed only inside
+    // the PDF below, so a wrong zero there was invisible until the next draw re-billed the job.
+    const reviewBtn = document.createElement("button"); reviewBtn.className = "tool-btn";
+    reviewBtn.textContent = "🔍 Review pay app";
+    reviewBtn.title = "The G702 certificate and G703 continuation sheet as they stand right now, "
+      + "with the form's own arithmetic checked";
+    reviewBtn.onclick = async () => {
+      try { await payAppReviewModal(ctx.host.api, pid); }
+      catch (e) { ctx.host.setStatus(`pay-app review failed: ${(e as Error).message}`); }
+    };
     const pdfBtn = document.createElement("button"); pdfBtn.className = "tool-btn"; pdfBtn.textContent = "⬇ Pay app (PDF)";
     pdfBtn.onclick = async () => {
       try { const blob = await ctx.host.api.payAppPdf(pid, 1);
@@ -636,7 +649,7 @@ export async function renderBudget(ctx: PanelContext) {
           : "pay period closed — no lines had work billed this period");
       } catch (e) { ctx.host.setStatus(`close failed: ${(e as Error).message}`); }
     };
-    brow.append(seedBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
+    brow.append(seedBtn, reviewBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
     const lwRow = document.createElement("div");
     lwRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px";
     const lwBtn = document.createElement("button"); lwBtn.className = "tool-btn";
