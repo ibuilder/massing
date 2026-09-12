@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from datetime import date
 from pathlib import Path
 
@@ -431,8 +432,13 @@ def payapp_invoice(pid: str, app_no: int | None = Body(None, embed=True),
     rec = cost.build_application(db, pid, app_no, period, period_from, period_to,
                                  release_retainage, actor)
     data = rec.get("data") or {}
+    # `number` is a DISPLAY string ("App 3"), so the count comes off its trailing digits rather than
+    # from `float()`, which raised on the prefix. The first draft of this consolidation parsed it as
+    # a bare number and would have 500'd the moment the format matched the records already stored —
+    # *a round-trip through a human-facing field is a parse, and a parse needs a format it agrees on.*
+    m = re.search(r"(\d+)\s*$", str(data.get("number") or ""))
     return {"owner_invoice": rec,
-            "application_no": int(float(data.get("number") or 0)),
+            "application_no": int(m.group(1)) if m else 0,
             "amount": data.get("current_payment_due")}
 
 

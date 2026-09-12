@@ -117,7 +117,12 @@ with TestClient(app) as c:
 
     app2 = c.post(f"/projects/{pid}/cost/pay-app/invoice",
                   json={"period_to": "2026-08-31"}).json()["owner_invoice"]
-    check("  the next application numbers itself", app2["data"]["number"] == "2", app2["data"]["number"])
+    # "App 2", not "2": the display format every owner_invoice already in the field carries. This
+    # assertion said "2" until PAY-APP, because it was written against the DARK builder, which had
+    # never written a record anybody kept. `test_project_budget.py` asserted "App 1" against the
+    # live one — *two tests disagreeing about a money register's display format, and only the one
+    # exercising the shipped route was describing reality.*
+    check("  the next application numbers itself", app2["data"]["number"] == "App 2", app2["data"]["number"])
     check("  and deducts what app 1 certified",
           app2["data"]["previous_certificates"] == 63000.0, app2["data"]["previous_certificates"])
     # completed 140k (50k prev + 90k this); retainage 14k; earned 126k; less 63k = 63k due

@@ -187,7 +187,11 @@ def build_application(db: Session, pid: str, app_no: int | None = None, period: 
     cert = g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage,
                 previous_certificates=_certified_to_date(db, pid))
     data = {
-        "number": str(app_no), "period": period or "", "period_from": period_from or "",
+        # "App N", not "N" — the format every owner_invoice already in the field carries, because
+        # the thin router builder this replaced wrote it that way. Two tests disagreed about this
+        # and the shipped records broke the tie: a money register whose rows read "App 1, App 2, 3"
+        # is worse than either format consistently.
+        "number": f"App {app_no}", "period": period or "", "period_from": period_from or "",
         "period_to": period_to or "",
         "line_items": sheet["lines"],
         "original_contract_sum": cert["line1_original_contract_sum"],
