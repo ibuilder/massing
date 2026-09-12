@@ -33,6 +33,19 @@ with a name. Triage is deliberately *not* done here — no syntactic probe can c
 the leaf being vouched is the whole problem (a leaf-based search returns 685 hits for `projects` and
 44 for `status`). Each needs a read, and that is its own work.
 
+**Two review findings, both real, both applied.** The derivation matched its probe against all
+code; `leaf_is_called` directly above it matches inside STRING LITERALS, for the documented reason
+that a bare substring test cannot tell a route from a token containing it — so a probe appearing in
+an identifier could drop a route from the set, and since the ratchet fails only on *additions*, that
+removal would never be reported. *This file's own recurring defect, one level down, inside the
+derivation written to measure it.* The differential was **measured, not assumed: 0 routes today**,
+both controls unmoved — so it is preventive rather than corrective, and applied because it closes the
+silent-shrink path for nothing. Second: a route *leaving* the frozen set only printed. It now fails,
+on `KNOWN_UNCALLED`'s stated reasoning — an entry leaves either because it gained a caller, or
+because it was renamed, and then the frozen name is a stale string pre-authorising whatever reuses
+that path. *"Both need a human; neither should print and pass."* The weaker precedent in the same
+file was the wrong one to copy.
+
 **This took four measurements to get right** — 377 and 35 in a previous gate, then 26 and 70 here —
 and the pattern is identical each time: *the checker did not fail, it answered.* So the derivation
 carries two live controls it must separate: `/bsdd/search`, wired an hour earlier, must fall out;

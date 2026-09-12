@@ -1313,8 +1313,22 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
 
 
 def _blind_spot() -> set[str]:
-    """Routes this rule is structurally unable to flag: long leaf, leaf vouched, no caller found."""
+    """Routes this rule is structurally unable to flag: long leaf, leaf vouched, no caller found.
+
+    The probe is matched inside STRING LITERALS, not against all code, for the reason
+    `leaf_is_called` gives directly above: a bare substring test cannot tell a route from a token
+    that happens to contain it. Matching the whole blob would let a probe appearing in an
+    identifier or a non-path string read as a caller and drop that route from the set — and since
+    the ratchet below fails on ADDITIONS, a route removed that way is never reported. *That is this
+    file's own recurring defect, one level down, inside the derivation written to measure it.*
+
+    Found in review, and the differential was **measured rather than assumed: 0 routes today**, both
+    controls unmoved. It is applied anyway because it costs nothing and closes the silent-shrink
+    path before something lands in it — the same argument the string-literal restriction above was
+    made on in 2026-09-11.
+    """
     stripped = strip_comments(BLOB)
+    literals = string_blob(stripped)
     out: set[str] = set()
     for r in PATHS:
         if r in FOUND or r in KNOWN_UNCALLED:
@@ -1323,7 +1337,7 @@ def _blind_spot() -> set[str]:
         if len(leaf) < MIN_SEGMENT or not leaf_is_called(leaf, stripped):
             continue
         probe = _wired_probe(r)
-        if probe and probe in stripped:
+        if probe and probe in literals:
             continue
         out.add(r)
     return out
@@ -1344,10 +1358,18 @@ check(f"no NEW route joined the blind spot ({len(_BLIND)} frozen)",
       "all, so wire one, or add it to LEAF_COLLISION_BLIND. Adding is not an admission of a "
       "defect: most of this set is correctly web-callerless")
 
+# **A departure has to FAIL, not print.** The short-leaf ratchet above prints and passes, and this
+# followed it; `KNOWN_UNCALLED`'s own rot check does not, and its reasoning applies here verbatim:
+# an entry leaves either because the route gained a caller (good news the list must record) or
+# because it was renamed or deleted — and then the frozen name is a stale string pre-authorising
+# whatever later reuses that path. *"Both need a human; neither should print and pass."* Raised in
+# review; the weaker precedent was the wrong one to copy.
 _LEFT_BLIND = sorted(LEAF_COLLISION_BLIND - _BLIND)
-if _LEFT_BLIND:
-    print(f"  (ratchet down: {len(_LEFT_BLIND)} left the blind spot — delete them from "
-          f"LEAF_COLLISION_BLIND: {_LEFT_BLIND[:6]})")
+check("no frozen blind-spot route has quietly become called or vanished",
+      not _LEFT_BLIND,
+      f"{len(_LEFT_BLIND)}: {_LEFT_BLIND[:6]} — if it now has a caller, DELETE the entry (that is "
+      "the ratchet coming down, and is always welcome); if the path changed, update it. Leaving it "
+      "freezes a name that no longer refers to anything")
 
 # ---------------------------------------------------------------------------------------------
 # The probe must be able to SEE a caller, or "no client builds it" is a sentence that can only ever
