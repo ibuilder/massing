@@ -1780,6 +1780,30 @@ instances:
   PREFAB-FREEZE-RACE, and filed the same way rather than left in a review thread — **a follow-up held
   only in a thread closes by default when the PR merges.**
 
+- ✅ ⭐ **VENDOR-SCORECARD — a trade partner's record with your firm, and the limits of it**
+  *(S — Lanes B/I; **CLOSED 2026-09-12**; gated by `apps/web/src/api/clientCallers.test.ts`,
+  `apps/web/src/portal/panels/vendorScorecard.test.ts` and `services/api/test_route_reachability.py`)*
+
+  `GET /benchmarks/vendors` (`services/api/src/aec_api/vendor_memory.py`) has answered
+  R22-PROCURE-DEPTH ③ since it was built — each sub's cross-project commercial and compliance record,
+  from the six registers that carry a vendor — and had no client caller. Its five `/benchmarks/*`
+  siblings all did. It now renders in the Benchmarks panel, ordered watch → unknown → clear.
+
+  **This is the route LEDGER-BROWSE blinded the gate to, wired in the same pull request**, so the
+  blind spot's SUBJECT is gone rather than only its record. The two assertions stay: the gate could
+  not see it dark and cannot see it wired, and saying so is worth more than a PASS that means nothing.
+
+  Three rules, all of them the server's own, moved from a JSON field nobody rendered into pixels:
+
+  * **`no_history` is not `clear`.** The engine names this the most expensive mistake the module
+    could make; it is a rendering mistake as much as an engine one, since three verdicts that reach
+    the same pixel are one verdict. An unrecognised fourth verdict does not inherit green.
+  * **A clean record is silence about quality, not a pass** — `ncr` and `inspection` carry no vendor
+    field. Stated even when the payload omits it: the silence belongs to the route, not to one
+    response, and a missing caveat reads as no caveat.
+  * **A certificate with no expiry is not cover** — expired, unknown and none-recorded are three
+    states, and "0 expired" for a vendor with no certificate is `no_history` one field down.
+
 - ✅ ⭐ **LEDGER-BROWSE — an accounting connection's books, and what the reading is worth**
   *(S — Lanes B/D; **CLOSED 2026-09-11**; gated by `apps/web/src/api/clientCallers.test.ts`,
   `apps/web/src/connections/ledgerBrowse.test.ts` and `services/api/test_route_reachability.py`)*

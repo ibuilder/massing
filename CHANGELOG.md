@@ -12,6 +12,39 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Every trade partner's record with your firm, and what it does not cover
+
+`GET /benchmarks/vendors` has reported each subcontractor's cross-project commercial and compliance
+history since R22-PROCURE-DEPTH ③ — subcontracts, commitments, invoices, COIs, lien waivers and
+warranties, from six registers — and had no client caller the whole time. Its five `/benchmarks/*`
+siblings all had one. It now renders in the Benchmarks panel, worst first.
+
+**It is the route the entry below blinded the reachability gate to, wired in the same pull request.**
+LEDGER-BROWSE's entity list contains `vendors`, so `/connections/{cid}/erp/vendors` became a URL this
+client builds and the leaf `vendors` read as called — by something else. Wiring this removes the
+blind spot's *subject* rather than leaving a record of it. The gate's two assertions pass unchanged
+either way, which is exactly why they stay: **it could not see this route dark and cannot see it
+wired.** Its verdict was, and remains, no verdict.
+
+Three rules in `apps/web/src/portal/panels/vendorScorecard.ts` (20 tests), and all three are the
+server's own — stated there in prose and enforced here, because a caveat that lives only in a JSON
+field nobody renders is a caveat nobody reads:
+
+- **`no_history` is NOT `clear`.** A sub who has never worked for you is an unknown. The engine calls
+  a clean-looking record for an unexamined vendor "the single most expensive mistake this module
+  could make" — and it is a *rendering* mistake as much as an engine one: three verdicts that reach
+  the same pixel are one verdict. An unrecognised fourth verdict does not inherit green either.
+- **A clean record here is silence about quality, not a pass.** `ncr` and `inspection` carry no vendor
+  field, so nothing in this scorecard has looked at quality or schedule performance. The attribution
+  line is stated even when the payload omits it — the silence is a property of the route, and a
+  missing caveat reads as no caveat.
+- **A certificate with no expiry is not cover.** "Expired", "expiry unknown" and "none recorded" are
+  three states; printing "0 expired" for a vendor with no certificate at all is the `no_history`
+  error one field down.
+
+The headline states how many vendors have no record at all beside the watch count, so "3 on watch"
+cannot be read as "and the rest are fine".
+
 ### An accounting connection's books can be read from the app
 
 `GET /connections/{cid}/quickbooks/{entity}` and `GET /connections/{cid}/erp/{entity}` return a

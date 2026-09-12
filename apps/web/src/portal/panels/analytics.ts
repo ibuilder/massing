@@ -3,6 +3,9 @@ import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import { renderPlanningBrief } from "./planningBrief";
+import {
+  attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
+} from "./vendorScorecard";
 
 /**
  * Analytics & benchmarking panels (cross-project benchmarks, subcontractor risk & cost).
@@ -79,6 +82,66 @@ export async function renderBenchmarks(ctx: PanelContext) {
         tbl.append(thead, tb); ratesSlot.appendChild(tbl);
       }
     } catch (e) { ratesSlot.textContent = `unit rates failed: ${(e as Error).message}`; }
+
+    // --- Vendor scorecards: the firm's own experience of each trade partner, across projects ----
+    // Every wording rule is in `vendorScorecard.ts`. The one that shapes this markup is that
+    // `no_history` must NOT render like `clear` — an unknown vendor that looks vetted is the most
+    // expensive thing this panel could say, and a glance at a coloured pill is all most readers give
+    // a row. The attribution line is not chrome: nothing here has looked at quality or schedule.
+    const vendorSlot = el("div"); vendorSlot.style.marginTop = "14px";
+    vendorSlot.textContent = "loading vendor scorecards…";
+    root.appendChild(vendorSlot);
+    try {
+      const vm = await ctx.host.api.vendorScorecards();
+      vendorSlot.textContent = "";
+      const h = el("div", "meta"); h.style.margin = "10px 0 4px";
+      h.innerHTML = `<b>Trade partners — your own record with them</b>`;
+      const sum = el("div", "meta"); sum.style.fontSize = "12px"; sum.textContent = summaryLine(vm);
+      const attr = el("div", "meta");
+      attr.style.cssText = "font-size:11px;margin:4px 0 6px;border-left:3px solid var(--line);padding-left:8px";
+      attr.textContent = attributionLine(vm);
+      vendorSlot.append(h, sum, attr);
+      const rows = ordered(vm.vendors ?? []);
+      if (rows.length) {
+        const tbl = el("table", "portal-table") as HTMLTableElement;
+        tbl.style.cssText = "width:100%;font-size:12px";
+        const thead = el("thead");
+        thead.innerHTML = '<tr><th scope="col" style="text-align:left">Vendor</th>'
+          + '<th scope="col">Record</th><th scope="col">Projects</th>'
+          + '<th scope="col">Subcontracts</th><th scope="col">Unwaived billing</th>'
+          + '<th scope="col" style="text-align:left">Insurance</th></tr>';
+        const tb = el("tbody");
+        for (const r of rows.slice(0, 25)) {
+          const tr = el("tr");
+          const td = (t: string, align = "right") => {
+            const d = el("td"); d.style.textAlign = align; d.textContent = t; return d;
+          };
+          const tone = verdictTone(r.verdict);
+          const vtd = el("td"); vtd.style.textAlign = "center";
+          const pill = el("span");
+          pill.style.cssText = `display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;`
+            + `background:${tone.colour};color:#101010`;
+          pill.textContent = tone.label;
+          pill.title = r.verdict_note || "";
+          vtd.appendChild(pill);
+          const gap = lienExposure(r);
+          const nm = el("td"); nm.style.textAlign = "left";
+          nm.textContent = r.vendor;
+          if (!isReassuring(r.verdict) && r.flags?.length) nm.title = r.flags.join(" · ");
+          tr.append(nm, vtd, td(String(r.project_count), "center"),
+            td(cmoney(r.subcontract_value)),
+            td(gap === null ? "not billed" : gap ? cmoney(gap) : "—"),
+            td(coiLine(r), "left"));
+          tb.appendChild(tr);
+        }
+        tbl.append(thead, tb); vendorSlot.appendChild(tbl);
+        if (rows.length > 25) {
+          const more = el("div", "meta"); more.style.fontSize = "11px";
+          more.textContent = `Showing the 25 most urgent of ${rows.length} — worst first.`;
+          vendorSlot.appendChild(more);
+        }
+      }
+    } catch (e) { vendorSlot.textContent = `vendor scorecards failed: ${(e as Error).message}`; }
   }
 
   // --- Market Intelligence: regional escalation / labour / location + warm-cold sectors ----------

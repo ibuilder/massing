@@ -893,8 +893,17 @@ check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
 # frozen list with no output at all.
 #
 # So it moves out of KNOWN_UNCALLED and is asserted to be in NEITHER set, exactly as with
-# `/asset-rights/verify` and the two jurisdiction routes. `/benchmarks/vendors` is dark; this file no
-# longer has an opinion about it, and says so rather than implying coverage by silence.
+# `/asset-rights/verify` and the two jurisdiction routes.
+#
+# **AND IT NOW HAS A CALLER** -- `vendorScorecards` in `apps/web/src/api/cost.ts`, rendered by the
+# vendor-scorecard section of `apps/web/src/portal/panels/analytics.ts`, with its wording rules in
+# `apps/web/src/portal/panels/vendorScorecard.ts`. VENDOR-SCORECARD wired it deliberately, in the
+# pull request that blinded the gate to it, so the blind spot's SUBJECT is gone rather than only its
+# record. The two assertions below pass unchanged either way, which is the whole point of leaving
+# them here: **this gate could not see the route dark and cannot see it wired.** Its verdict was, and
+# remains, no verdict -- exactly as the jurisdiction pair above records. Do not read these PASSes as
+# coverage. What proves the wiring is `apps/web/src/api/clientCallers.test.ts`, which refuses an
+# unused client method, plus `apps/web/src/portal/panels/vendorScorecard.test.ts`.
 check("the LEDGER-BROWSE collision is still a blind spot: /benchmarks/vendors",
       "/benchmarks/vendors" not in KNOWN_UNCALLED,
       "re-triage /benchmarks/vendors rather than re-freezing it — while a sibling route's URL ends "
