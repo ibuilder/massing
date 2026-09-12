@@ -1306,12 +1306,12 @@ async function openPortfolioTab() {
     ["Portfolio IRR", pc(t.portfolio_irr ?? null)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
-    `<tr><th style="text-align:left">${d.name}</th><td>${m(d.total_uses)}</td>` +
+    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${m(d.total_uses)}</td>` +
     `<td>${m(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
   panel.innerHTML =
     `<div class="section-title">Portfolio roll-up — ${p.deal_count} deal(s)</div>` +
     `<div class="kpi-grid">` +
-    kpis.map(([l, v]) => `<div class="kpi"><div class="kpi-v" style="font-size:15px">${v}</div><div class="kpi-l">${l}</div></div>`).join("") +
+    kpis.map(([l, v]) => `<div class="kpi"><div class="kpi-v" style="font-size:15px">${escapeHtml(v)}</div><div class="kpi-l">${escapeHtml(l)}</div></div>`).join("") +
     `</div>` +
     (p.deal_count ? `<table class="sens-table"><tr><th>Deal</th><th>Cap</th><th>Equity</th><th>IRR</th><th>EM</th></tr>${rows}</table>`
                   : `<div class="meta" style="margin-top:8px">No solved scenarios yet — build one in the Proforma tab and it rolls up here.</div>`);

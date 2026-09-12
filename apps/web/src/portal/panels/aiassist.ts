@@ -211,7 +211,7 @@ export async function renderAiAssist(ctx: PanelContext) {
     };
     const list = (title: string, items: string[]) => {
       const w = el("div"); w.style.marginTop = "6px";
-      const h = el("div", "meta"); h.innerHTML = `<b>${title}</b> (${items.length})`; w.appendChild(h);
+      const h = el("div", "meta"); h.innerHTML = `<b>${esc(title)}</b> (${items.length})`; w.appendChild(h);
       const ul = el("ul"); ul.style.cssText = "margin:2px 0 0 16px;font-size:12px";
       items.forEach((s) => { const li = el("li"); li.textContent = s; ul.appendChild(li); });
       if (!items.length) { const li = el("div", "meta"); li.textContent = "—"; li.style.marginLeft = "4px"; w.appendChild(li); }
@@ -499,7 +499,7 @@ export async function renderAiAssist(ctx: PanelContext) {
     }
     // scope matrix
     const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:6px";
-    const thead = `<tr><th scope="col" style="text-align:left">Scope item</th>${r.vendors.map((v) => `<th scope="col">${v}</th>`).join("")}</tr>`;
+    const thead = `<tr><th scope="col" style="text-align:left">Scope item</th>${r.vendors.map((v) => `<th scope="col">${esc(v)}</th>`).join("")}</tr>`;
     const rows = r.scope_rows.map((row) => {
       const cells = r.vendors.map((v) => {
         const inc = row.included_by.includes(v); const exc = row.excluded_by.includes(v);
@@ -508,7 +508,7 @@ export async function renderAiAssist(ctx: PanelContext) {
         return `<td style="text-align:center;color:${col}">${mark}</td>`;
       }).join("");
       const bg = row.gap ? ' style="background:var(--status-warn-bg,#3a2a0022)"' : "";
-      return `<tr${bg}><td>${row.item}${row.gap ? ' <span title="scope gap">⚠️</span>' : ""}</td>${cells}</tr>`;
+      return `<tr${bg}><td>${esc(row.item)}${row.gap ? ' <span title="scope gap">⚠️</span>' : ""}</td>${cells}</tr>`;
     }).join("");
     tbl.innerHTML = `<thead>${thead}</thead><tbody>${rows}</tbody>`;
     out.append(tbl);

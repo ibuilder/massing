@@ -69,7 +69,7 @@ export async function renderModuleGraph(ctx: PanelContext) {
   const sel = document.createElement("select"); sel.className = "portal-filter";
   sel.setAttribute("aria-label", "Filter the module-relations graph by workspace");
   sel.innerHTML = `<option value="">All workspaces</option>`
-    + ["construction", "developer", "design", "operations"].map((w) => `<option value="${w}">${w}</option>`).join("");
+    + ["construction", "developer", "design", "operations"].map((w) => `<option value="${esc(w)}">${esc(w)}</option>`).join("");
   controls.appendChild(Object.assign(document.createElement("span"), { className: "meta", textContent: "Workspace:" }));
   controls.appendChild(sel);
   const summary = document.createElement("span"); summary.className = "meta";

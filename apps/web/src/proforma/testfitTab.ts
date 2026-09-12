@@ -2,6 +2,7 @@
  *  ranked. The TestFit-style "explore scenarios, find the deal that pencils" surface. Extracted from
  *  the ProformaUI god class along its LCOM4 seam; behavior pinned by proforma.render.test.ts. */
 import type { ApiClient } from "../api/client";
+import { escapeHtml as esc } from "../ui/feedback";
 
 export interface TestFitTabCtx {
   api: ApiClient;
@@ -15,7 +16,7 @@ export function renderTestFitTab(root: HTMLElement, ctx: TestFitTabCtx): void {
     + `<div class="meta" style="margin-bottom:6px">Fit a unit mix to a floor plate; compare yield + parking across schemes.</div>`;
   const grid = document.createElement("div"); grid.className = "pf-form";
   const inp = (label: string, val: number) => {
-    const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
+    const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${esc(label)}</span>`;
     const i = document.createElement("input"); i.type = "number"; i.step = "any"; i.value = String(val); w.appendChild(i); grid.appendChild(w); return i;
   };
   const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);
@@ -74,7 +75,7 @@ export function renderTestFitTab(root: HTMLElement, ctx: TestFitTabCtx): void {
       if (!r.best) { out.innerHTML = `<div class="meta">no feasible scheme for these targets</div>`; return; }
       const dcol = r.swept_depths.length > 1 ? `<th>Depth</th>` : "";
       const rows = r.ranked.map((s, n) => `<tr${n === 0 ? ' style="font-weight:700"' : ""}>`
-        + `<th style="text-align:left">${s.name}${n === 0 ? " ★" : ""}</th>`
+        + `<th style="text-align:left">${esc(s.name)}${n === 0 ? " ★" : ""}</th>`
         + (r.swept_depths.length > 1 ? `<td style="text-align:right">${s.plate_d ?? ""}m</td>` : "")
         + `<td style="text-align:right">${s.total_units}</td><td style="text-align:right">${(s.efficiency * 100).toFixed(0)}%</td>`
         + `<td style="text-align:right">${s.parking_stalls}</td><td style="text-align:right">${(s.yield_on_cost * 100).toFixed(1)}%</td></tr>`).join("");
@@ -104,7 +105,7 @@ export function renderTestFitTab(root: HTMLElement, ctx: TestFitTabCtx): void {
       const schemes = mix.length ? [{ name: "My mix", unit_types: mix }] : undefined;
       const r = await ctx.api.testFitCompare({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, schemes, with_defaults: !!schemes });
       const rows = r.schemes.map((s) => `<tr${s.name === r.best ? ' style="font-weight:700"' : ""}>`
-        + `<th style="text-align:left">${s.name}${s.name === r.best ? " ★" : ""}</th>`
+        + `<th style="text-align:left">${esc(s.name)}${s.name === r.best ? " ★" : ""}</th>`
         + `<td style="text-align:right">${s.total_units}</td>`
         + `<td style="text-align:right"${s.daylight_limited ? ' title="deep plate — dark interior earns no rent"' : ""}>${(s.daylight_efficiency * 100).toFixed(0)}%${s.daylight_limited ? " ⚠" : ""}</td>`
         + `<td style="text-align:right">${s.avg_unit_sf.toLocaleString()}</td><td style="text-align:right">${s.total_nsf.toLocaleString()}</td>`

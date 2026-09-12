@@ -33,8 +33,8 @@ export async function renderTraceability(ctx: PanelContext) {
   const col = s.coverage_pct >= 75 ? "var(--status-good)" : s.coverage_pct >= 40 ? "var(--status-warn)" : "var(--status-crit)";
   const card = (label: string, value: string, c?: string, sub?: string) => {
     const cc = el("div", "dash-card"); cc.style.cssText = `min-width:110px${c ? `;border-left:3px solid ${c}` : ""}`;
-    cc.innerHTML = `<div style="font-size:18px;font-weight:600${c ? `;color:${c}` : ""}">${value}</div>`
-      + `<div class="meta">${label}</div>` + (sub ? `<div class="meta" style="font-size:10px">${sub}</div>` : "");
+    cc.innerHTML = `<div style="font-size:18px;font-weight:600${c ? `;color:${esc(c)}` : ""}">${esc(value)}</div>`
+      + `<div class="meta">${esc(label)}</div>` + (sub ? `<div class="meta" style="font-size:10px">${esc(sub)}</div>` : "");
     return cc;
   };
   cards.append(

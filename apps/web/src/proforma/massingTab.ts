@@ -40,7 +40,7 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
   const inputs: Record<string, HTMLInputElement> = {};
   for (const [label, key, def, step] of fields) {
     const wrap = document.createElement("label"); wrap.className = "pf-field";
-    wrap.innerHTML = `<span>${label}</span>`;
+    wrap.innerHTML = `<span>${escapeHtml(label)}</span>`;
     const inp = document.createElement("input"); inp.type = "number"; inp.step = step; inp.value = String(def);
     if (key === "height_limit") inp.placeholder = "none";
     inputs[key] = inp; wrap.appendChild(inp); grid.appendChild(wrap);

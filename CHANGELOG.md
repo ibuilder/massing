@@ -12,6 +12,99 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The escaping gate could not see a helper's parameters, so 108 sinks sat outside it
+
+The identity ratchet shipped in the previous entry freezes `file :: expression`. That constrains a
+sink whose expression NAMES its source — `${a.filename}` cannot start carrying something else
+without the identity moving. It does nothing for a bare value binding:
+
+```ts
+const card = (label: string, value: string) => {
+  c.innerHTML = `<div>${value}</div><div class="meta">${label}</div>`;   // identity: "value"
+};
+```
+
+`value` is the identity whatever the caller passes. Every call site could switch from a literal to
+a user-controlled field and the baseline would not move — **the sink goes live while the gate stays
+green**. That is the same defect the ratchet was built to fix, one level up: there the frozen key
+was a count with no identity, here it is an identity with no source.
+
+**108 interpolations across 27 files**, all now escaped. The population was derived by AST — bare
+identifiers reaching `innerHTML` that resolve to a function parameter or a destructuring binding —
+and the fix is verifiable in a way most sweeps are not: escaping a sink can only ever REMOVE entries
+from the ratchet's baseline, never add one. It went **119 → 74 with zero additions**.
+
+Three things this found that the existing gate could not:
+
+- **The HOT term list was hiding 53 of them.** `budget.ts` interpolated a bare `val` and `evm.ts` a
+  bare `sub`; neither word matches any term in the list, so both were invisible to the ratchet while
+  being exactly the shape the new rule exists to catch. Under the term filter the population read
+  32; under the shape rule it read 85. *A keyword list derived from what someone happened to be
+  looking at cannot bound a population — a shape can.*
+- **The first draft of the new rule tested only for parameters, and reported the tree clean at 85
+  fixed sites.** 23 more were live in `for (const [label, val] of cards)` — a destructuring binding
+  is a value handed in from elsewhere exactly as a parameter is, and the name says nothing about the
+  source either way. *A predicate that decides what to LOOK at hides everything it excludes from its
+  own count*, which is why the count looked complete both times.
+- **`register.ts` carried a comment reading "textContent/esc throughout: ref+title are user data
+  (stored-XSS guard)"** directly above the one interpolation on that line that was not escaped.
+
+The new rule takes **no baseline and admits no exemption** — the fix is always available and always
+correct, so there is nothing to grandfather, and grandfathering one would freeze a sink open by
+definition. Its boundary is stated rather than implied: a plain `const x = …` local is out of scope,
+because 157 of those reach `innerHTML` in this tree and most hold markup assembled a few lines
+earlier (`rows`, `thead`, `bars`, `cells`) where escaping would destroy it. A local assigned from
+user data and interpolated bare is caught by neither rule in this file, and the test says so.
+
+**The excluded class was then triaged, not assumed** — an exclusion nobody measures is a blind spot
+with a justification attached. All 134 bare locals were classified by their declaration's initialiser
+(41 build markup, 39 literal, 15 numeric, 1 already escaped, 36 suspect, 2 unresolvable) and every
+suspect and unresolvable one was read. Exactly **one was a real sink**: the CPM panel's critical-path
+line, where the server builds `critical_path` as `[r["ref"] or r["id"] …]` — stored, user-entered
+activity refs — and the panel joined and interpolated them raw into `innerHTML`. Anyone who can name
+a schedule activity could put markup in it and have it run for everyone who opens that panel. Fixed.
+
+Two things about that triage are worth keeping. Its first draft resolved declarations **file-wide and
+kept the last match**, so one panel's `gap` (a number) was attributed to an unrelated `el("div")`
+hundreds of lines away and reported suspect — the lookup is scope-aware now, and the bug surfaced
+only because the suspects were *read* rather than counted. And the single real finding was a **local**,
+i.e. in the class the new rule deliberately excludes: *the documented gap was live, not theoretical,*
+which is the whole argument for measuring an exclusion instead of asserting one.
+
+**A review round then found the detector's real boundary, and it was hiding a live sink.** The
+scanner walked only the interpolations lexically inside an `innerHTML =` expression. But markup is
+usually assembled into a local FIRST and only then interpolated — `const rows = deals.map(d =>
+\`<tr><th>${d.name}</th>\`)`, then `panel.innerHTML = \`…${rows}…\``. Every span inside that builder
+was invisible to **both** rules: not baselined, not flagged, live. The reviewer found one symptom
+(`d.name`, a saved scenario name that any user can set); behind that one hop sat **15 hot
+interpolations across 8 files**. *The scanner was measuring syntax where the question is
+reachability.* It now follows one hop, and stops there deliberately — a local built from another
+local is still uncovered, and the test asserts that limit rather than leaving it to be discovered.
+
+Nine of the fifteen were real and are escaped: a scenario name, vendor names in a bid-levelling
+matrix, carbon hotspot element names, a takt trade name, project-health domain labels, sources-uses
+line labels, forecast line names, and test-fit scheme names. The remaining six are one shape — a
+ternary whose branches are literal markup or a glyph (`s.name === r.best ? " ★" : ""`) — which match
+the term list on their *condition*, never their value. Escaping any of them would render markup as
+visible text, so they are baselined with that reason: **the fix would be the bug.**
+
+Three more findings from the same round, all real. The value-binding rule ignored **constructor and
+setter parameters** — a coverage hole in a security gate. It resolved bindings **file-wide**, so a
+destructured `rows` in one function made an unrelated plain local `rows` in a sibling fail the
+plain-local exclusion; the rationale written beside that code ("a false positive only costs one
+`esc()` that was already correct") was wrong, because for *this* exclusion the suggested fix escapes
+assembled HTML and breaks the page — *a false positive is only cheap when the fix it suggests is
+safe.* Bindings resolve lexically now. And a milestone `<option>` escaped its **text but not its
+value**: `esc` turns `&` into `&amp;` and the old `.replace(/"/g, …)` did not, so a milestone named
+`A &amp; B` parsed back out as `A & B` and the next request queried the wrong one — asserted now
+through a real DOM parse rather than by reading the template.
+
+One test had to be repaired as a consequence, and the repair is the point. The substitution check
+hardcoded `portal/panels/evm.ts` and the identity `"value"` as its fixture; this change escaped
+every sink in that file, so a legitimate improvement red the test with a message about a missing
+baseline entry rather than about the substitution it guards. The fixture is derived now. *A failure
+message that can misdiagnose is worse than one that stays silent, because somebody acts on it.*
+
 ### A stored XSS the security ratchet had been counting for months
 
 `apps/web/src/ui/innerHtmlGuard.test.ts` froze a per-file **number** of unescaped `innerHTML`

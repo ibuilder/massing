@@ -429,7 +429,11 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       // milestone options (only rebuild once)
       if (!msSel.options.length) {
         msSel.innerHTML = `<option value="">All phases</option>`
-          + b.milestones.map((m) => `<option value="${m.replace(/"/g, "&quot;")}">${m}</option>`).join("");
+          // esc() on BOTH, and the value matters as much as the text: `esc` turns `&` into `&amp;`
+          // but `.replace(/"/g, …)` did not, so a milestone literally named `A &amp; B` parsed back
+          // out of the attribute as `A & B` and `loadPull()` then queried the wrong milestone on
+          // two API calls. Escaping the text alone made the two disagree.
+          + b.milestones.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
       }
       if (!b.total) { ppBody.innerHTML = `<div class="meta">No pull-plan tasks yet — click <b>✎ Sticky notes</b> to add them. Work backward from a milestone; each trade posts its tasks and hand-offs, and constraints are cleared to make work ready.</div>`; return; }
       ppBody.innerHTML = "";
@@ -442,7 +446,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       const wrap = document.createElement("div"); wrap.style.cssText = "overflow-x:auto";
       const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "font-size:11px;border-collapse:collapse";
       t.innerHTML = `<thead><tr><th style="text-align:left;position:sticky;left:0;background:var(--panel)">Trade</th>`
-        + b.weeks.map((w) => `<th style="min-width:120px">${w}</th>`).join("") + `</tr></thead>`;
+        + b.weeks.map((w) => `<th style="min-width:120px">${esc(w)}</th>`).join("") + `</tr></thead>`;
       const tb = document.createElement("tbody");
       for (const lane of b.swimlanes) {
         const tr = document.createElement("tr");
@@ -584,7 +588,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const loadLookahead = (weeks: number) => {
     laBody.innerHTML = `<div class="meta">loading…</div>`;
     void ctx.host.api.scheduleLookahead(pid, weeks).then((la) => {
-      if (!la.count) { laBody.innerHTML = `<div class="meta">No activities in the next ${weeks} weeks.</div>`; return; }
+      if (!la.count) { laBody.innerHTML = `<div class="meta">No activities in the next ${esc(weeks)} weeks.</div>`; return; }
       laBody.innerHTML = "";
       for (const wk of la.weeks_detail) {
         const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "margin-top:6px;font-weight:700"; h.textContent = wk.week;
@@ -628,7 +632,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     mrBody.innerHTML = `<div class="meta">loading…</div>`;
     void ctx.host.api.scheduleMakeReady(pid, days).then((mr) => {
       if (!mr.activities.length) {
-        mrBody.innerHTML = `<div class="meta">Nothing starts in the next ${days} days.</div>`; return;
+        mrBody.innerHTML = `<div class="meta">Nothing starts in the next ${esc(days)} days.</div>`; return;
       }
       mrBody.innerHTML = "";
       const chips = document.createElement("div"); chips.className = "meta"; chips.style.marginBottom = "4px";
@@ -698,7 +702,11 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   ctx.root.appendChild(estBtn);
   void ctx.host.api.scheduleCpm(pid).then((c) => {
     if (!c.activity_count) { cpmBox.textContent = "CPM: no activities with durations yet."; return; }
-    const cp = c.critical_path.slice(0, 12).join(" → ") || "—";
+    // `critical_path` is a list of stored activity REFS (schedule_engine builds it as
+    // `[r["ref"] or r["id"] ...]`), so it is user-entered text reaching innerHTML. Escaped AFTER the
+    // join because the " → " separator holds nothing escapable. Found by triaging the bare-local
+    // class this PR's new rule deliberately leaves out: 134 sites classified, this the one real one.
+    const cp = esc(c.critical_path.slice(0, 12).join(" → ")) || "—";
     cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
       + `<span style="color:var(--status-crit)">critical path</span>${c.has_cycle ? " · ⚠ cycle broken" : ""}<br>`
       + `<span class="meta">Critical: ${cp}</span>`;
@@ -754,7 +762,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
     card.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: title }));
     const holder = document.createElement("div"); holder.style.overflowX = "auto";
-    holder.innerHTML = `<div class="meta">loading ${title}…</div>`;
+    holder.innerHTML = `<div class="meta">loading ${esc(title)}…</div>`;
     card.appendChild(holder); ctx.root.appendChild(card);
     void ctx.host.api.scheduleSvg(pid, kind).then((svg) => { holder.innerHTML = svg; })
       .catch(() => { holder.innerHTML = `<div class="meta">No ${title.toLowerCase()} yet — add activities with start/finish dates.</div>`; });
@@ -779,7 +787,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       + ` · lead ${pg.lead_trade ?? "—"} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
       + ` · PPC <b>${Math.round((tp.ppc.ppc ?? 0) * 100)}%</b> (${tp.ppc.rating})</div>`;
     const rows = pg.rows.map((r) =>
-      `<tr><td>${r.trade}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`
+      `<tr><td>${esc(r.trade)}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`
       + `<td style="text-align:right;color:${color(r.status)}">${r.variance_floors > 0 ? "+" : ""}${r.variance_floors}</td>`
       + `<td style="text-align:right">${r.actual_floors_per_week}</td><td style="text-align:right">${r.planned_floors_per_week}</td></tr>`).join("");
     taktBody.innerHTML = head + (pg.rows.length

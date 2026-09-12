@@ -654,7 +654,7 @@ export class PortalUI {
     const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
     for (const [ic, label, on] of tiles) {
       const c = el("div", "dash-card"); c.style.cssText = "cursor:pointer;text-align:center";
-      c.innerHTML = `<div style="font-size:22px">${ic}</div><div style="font-weight:600">${label}</div>`;
+      c.innerHTML = `<div style="font-size:22px">${esc(ic)}</div><div style="font-weight:600">${esc(label)}</div>`;
       c.onclick = on; grid.appendChild(c);
     }
     root.appendChild(grid);
@@ -676,7 +676,7 @@ export class PortalUI {
           const c = el("div", "dash-card" + (go ? " kpi-click" : "")); c.style.minWidth = "128px";
           if (go) { c.style.cursor = "pointer"; c.onclick = go; }
           if (title) c.title = title;
-          c.innerHTML = `<div style="font-size:20px;font-weight:600">${big}</div><div class="meta">${small}</div>`;
+          c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(big)}</div><div class="meta">${esc(small)}</div>`;
           row.appendChild(c);
         };
         if (health?.overall_score != null) {
@@ -708,7 +708,7 @@ export class PortalUI {
       for (const [key, label] of regs) {
         const n = cnt(key); if (!n) continue; any = true;
         const tile = el("div", "dash-card kpi-click"); tile.style.minWidth = "120px"; tile.style.cursor = "pointer";
-        tile.innerHTML = `<div style="font-size:20px;font-weight:600">${n}</div><div class="meta">${label}</div>`;
+        tile.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(n)}</div><div class="meta">${esc(label)}</div>`;
         tile.onclick = () => jump(key); cards.appendChild(tile);
       }
       if (any) {
@@ -924,7 +924,7 @@ export class PortalUI {
       const cards = order.map((k) => pool[k]).filter((c): c is NonNullable<typeof c> => Boolean(c));
       for (const [label, val, onClick] of cards) {
         const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
-        c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
+        c.innerHTML = `<div class="kpi-v">${esc(val)}</div><div class="kpi-l">${esc(label)}</div>`;
         if (onClick) {
           c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button");
           c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); };
@@ -941,9 +941,9 @@ export class PortalUI {
         const dot = (s: string) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${tone[s] || "#9aa0a6"};margin-right:5px"></span>`;
         const c = tone[h.overall_status] || "#9aa0a6";
         const chips = h.domains.map((d) =>
-          `<span title="${d.headline.replace(/"/g, "&quot;")}" style="display:inline-flex;align-items:center;font-size:11px;background:#ffffff10;border:1px solid #ffffff22;border-radius:12px;padding:2px 8px;margin:2px 4px 2px 0">${dot(d.status)}${d.label}</span>`).join("");
+          `<span title="${esc(d.headline)}" style="display:inline-flex;align-items:center;font-size:11px;background:#ffffff10;border:1px solid #ffffff22;border-radius:12px;padding:2px 8px;margin:2px 4px 2px 0">${dot(d.status)}${esc(d.label)}</span>`).join("");
         const att = h.attention_items.slice(0, 4).map((a) =>
-          `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px;margin:2px 0">${dot(a.status)}<span><b>${a.domain}</b> — ${a.issue}</span></div>`).join("");
+          `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px;margin:2px 0">${dot(a.status)}<span><b>${esc(a.domain)}</b> — ${esc(a.issue)}</span></div>`).join("");
         hb.innerHTML = `<div class="dash-card" style="border-left:4px solid ${c};margin-top:8px">`
           + `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">`
           + `<div style="font-size:30px;font-weight:800;color:${c};line-height:1">${h.health_score ?? "—"}<span style="font-size:13px;font-weight:600;opacity:.6">/100</span></div>`

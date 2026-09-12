@@ -5,6 +5,8 @@
  * ~60-second tour of the workspaces, Open menu, project switcher, tools rail and sign-in. Both
  * the welcome and the tour are relaunchable from the Help (?) menu.
  */
+import { escapeHtml as esc } from "./feedback";
+
 const KEY = "aec-onboarded";
 const TOUR_AFTER_SIGNIN = "aec-tour-after-signin";
 
@@ -85,9 +87,9 @@ export function showWelcome(ctx: OnboardCtx): void {
     b.style.cssText = "text-align:left;background:var(--panel2,#25272b);border:1px solid var(--line);"
       + "border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;cursor:pointer;"
       + "transition:border-color .12s,transform .12s;color:var(--text);min-height:128px";
-    b.innerHTML = `<div style="font-size:22px">${icon}</div>`
-      + `<div style="font-weight:600;font-size:14px">${title}</div>`
-      + `<div class="meta" style="font-size:12.5px">${desc}</div>`;
+    b.innerHTML = `<div style="font-size:22px">${esc(icon)}</div>`
+      + `<div style="font-weight:600;font-size:14px">${esc(title)}</div>`
+      + `<div class="meta" style="font-size:12.5px">${esc(desc)}</div>`;
     if (!enabled) { b.style.opacity = "0.5"; b.style.cursor = "not-allowed"; b.disabled = true; }
     else {
       b.onmouseenter = () => { b.style.borderColor = "var(--accent)"; b.style.transform = "translateY(-2px)"; };

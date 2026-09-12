@@ -36,7 +36,7 @@ export async function renderProgram(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     const card = (label: string, value: string) => {
       const c = el("div", "dash-card"); c.style.minWidth = "110px";
-      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(value)}</div><div class="meta">${esc(label)}</div>`;
       return c;
     };
     cards.append(card("spaces", String(s.spaces)),
@@ -97,7 +97,7 @@ export async function renderBimKpi(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     const card = (label: string, value: string, color?: string) => {
       const c = el("div", "dash-card"); c.style.cssText = `min-width:90px${color ? `;border-left:3px solid var(${color})` : ""}`;
-      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${esc(value)}</div><div class="meta">${esc(label)}</div>`;
       return c;
     };
     cards.append(card("health", s.health_pct != null ? `${s.health_pct}%` : "—"),
@@ -215,7 +215,7 @@ export async function renderStandards(ctx: PanelContext) {
     const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
     for (const [k, label] of stages) {
       const c = el("div", "dash-card"); c.style.minWidth = "90px";
-      c.innerHTML = `<div style="font-size:20px;font-weight:600">${st.by_state[k] ?? 0}</div><div class="meta">${label}</div>`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${st.by_state[k] ?? 0}</div><div class="meta">${esc(label)}</div>`;
       cards.append(c);
     }
     body.append(cards);
