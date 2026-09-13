@@ -42,7 +42,7 @@ RUN pip install --prefix=/install --require-hashes -r /tmp/req/requirements.lock
 COPY services/api/src/aec_api/supply_chain.py /tmp/purge/aec_api/supply_chain.py
 RUN touch /tmp/purge/aec_api/__init__.py  && PYTHONPATH=/tmp/purge python -m aec_api.supply_chain --purge  && rm -rf /tmp/purge
 
-FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
@@ -51,7 +51,28 @@ ENV PYTHONUNBUFFERED=1 \
 
 # ONLY the shared libs the scientific wheels (ifcopenshell, shapely) dlopen at runtime — the build
 # toolchain stays in the pybuild stage above and is deliberately not shipped.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+#
+# `apt-get upgrade` applies Debian SECURITY updates on top of the digest-pinned base. The pin fixes
+# the starting point; it does NOT stop the starting point going stale, and the CRITICAL Trivy gate in
+# ci.yml blocks on exactly that staleness. It blocked this image on 2026-09-13 over three fixed
+# CRITICAL perl-base CVEs (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376 — all `Status: fixed`,
+# `5.40.1-6+deb13u1`) that arrived in trixie-security after the base image's last rebuild.
+# Chasing a newer `python:3.12-slim` digest would not have been a fix but a bet on upstream's rebuild
+# cadence: the tag's head at the time was built 2026-09-01, and nothing says a rebuild has happened
+# since a given DSA. Upgrading here is not a weaker supply-chain position than the `install` below
+# already is — same apt, same signed Debian archive, same build-time resolution — and the digest pin
+# is untouched, so the base layers are still exactly the reviewed ones.
+#
+# THIS LAYER MUST NOT BE CACHED, and that is not automatic. Its cache key is the parent (a pinned
+# digest, which never moves) plus this command string (which also never moves), so under the
+# `cache-from: type=gha` both container jobs use, it would be restored from cache for ever and the
+# upgrade would run exactly once — on the build that introduced it. The security update would then
+# freeze at whatever the archive held that day, which is the same staleness this whole block exists
+# to fix, one level up. `ci.yml` therefore passes `no-cache-filters: runtime` for the api image
+# (hence the `AS runtime` above), so this stage is rebuilt on every container build while the
+# expensive `pybuild` and `converter` stages stay cached.
+RUN export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 

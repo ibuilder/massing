@@ -12,6 +12,47 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A digest pin freezes the base image, and the CRITICAL gate blocks on it going stale
+
+The API container build went red on three fixed CRITICAL CVEs in `perl-base` — CVE-2026-13221,
+CVE-2026-42496 and CVE-2026-8376, all `Status: fixed` at `5.40.1-6+deb13u1` — with nothing in the
+diff that touched a Dockerfile. `services/api/Dockerfile` is byte-identical to main, the base images
+are pinned by digest, and the two other images in the same matrix (`node:24-slim`,
+`nginx:1.31-alpine`) passed. Nothing about the change caused it; the pinned `python:3.12-slim`
+simply predates a Debian security update, and the Trivy CRITICAL gate is doing exactly its job.
+
+**The obvious fix is a bet, not a fix.** Bumping to a newer `python:3.12-slim` digest only helps if
+upstream happened to rebuild after the DSA landed — and the tag's head at the time was built
+2026-09-01, with no way from here to establish which packages that rebuild picked up. The egress
+policy in this environment blocks both the Docker blob CDN and `deb.debian.org`, so the candidate
+digest could not be opened and read either; a digest chosen and pushed on the assumption it was
+newer-and-therefore-fixed would have been a guess wearing a checksum.
+
+So the runtime stage applies Debian security updates at build time instead. That is not a weaker
+supply-chain position than what the stage already did — the same `apt`, the same signed archive, the
+same build-time resolution as the `apt-get install` one line below it — and the digest pin is
+untouched, so the base layers are still the reviewed ones. **A pin fixes the starting point; it does
+not stop the starting point going stale**, and a gate that blocks on staleness needs a fix aimed at
+staleness.
+
+**And the first draft of that fix was stale by construction — review caught it.** This entry claimed
+the upgrade "keeps working: the next DSA is picked up by the next build". It would not have. Both
+container jobs build with `cache-from: type=gha`, and the cache key for that `RUN` is its parent
+(a pinned digest, which never moves) plus its command string (which also never moves). The layer
+would have been restored from cache on every later build, so the upgrade would have run **exactly
+once** — on the build that introduced it — and then frozen at whatever the archive held that day.
+`ci.yml` now passes `no-cache-filters: runtime` for the api image, and the stage is named `AS
+runtime` to be addressable; the expensive `pybuild` and `converter` stages stay cached.
+
+The shape is the one this repo keeps meeting: **a mitigation whose self-maintaining property was
+asserted rather than checked.** It is the same failure as a gate that answers instead of failing,
+moved one layer out — the remediation would have been real on the day it was written and inert
+every day after, with a green build both times. *A fix that depends on re-running needs the
+re-running proved, not assumed.* Worth noting where it was caught: not by a test, because nothing
+here can execute a container build — no docker daemon in the authoring environment, and the egress
+policy blocks the registry's blob CDN. The check that could fail was CI, and the reader who spotted
+the gap ahead of it was a review bot.
+
 ### The escaping gate could not see a helper's parameters, so 108 sinks sat outside it
 
 The identity ratchet shipped in the previous entry freezes `file :: expression`. That constrains a
