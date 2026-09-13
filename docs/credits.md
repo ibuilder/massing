@@ -7,7 +7,7 @@ attribution mark, and an attribution you remove from the screen you owe somewher
 
 [`@thatopen/components`](https://github.com/ThatOpen/engine_components),
 [`@thatopen/fragments`](https://github.com/ThatOpen/engine_fragments),
-`@thatopen/components-front`, `@thatopen/ui` — Apache-2.0 / MIT.
+`@thatopen/components-front` — Apache-2.0 / MIT.
 
 **This is the engine under the 3D viewer.** Fragments is the streaming geometry format the whole
 "never parse IFC in the browser" architecture depends on; components provides the world, camera,

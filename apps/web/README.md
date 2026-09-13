@@ -24,7 +24,6 @@ reads them from, and it is the only copy that cannot disagree with what installs
 | @thatopen/components | 3.4.8 | peers: fragments ~3.4, three ≥0.182, web-ifc ≥0.0.77, camera-controls ≥3.1.2 |
 | @thatopen/fragments | 3.4.7 | |
 | @thatopen/components-front | 3.4.4 | front-end tools |
-| @thatopen/ui | 3.4.11 | toolbar |
 | three | 0.185.1 | |
 | @types/three | 0.185.4 | |
 | camera-controls | 3.1.2 | declares engine node ≥22 (warning only; runs in browser) |

@@ -12,6 +12,79 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### @thatopen/ui dropped — the guard was demanding a browser verification of a package that cannot reach the browser
+
+`@thatopen/ui` was a declared dependency that **nothing imported**: zero source references tree-wide,
+absent from the built bundle, and a peer dependency of nothing here — it appears only as a
+*devDependency* of the upstream `components` packages, which imposes nothing on us. Yet
+`scripts/check-fragments-version.mjs` pinned it in `KNOWN_GOOD`, and that guard's failure message
+sets a specific contract: re-verify the viewer — load a model, author, section — and move the pin in
+the same commit.
+
+So every dependabot patch bump demanded a full live viewer pass for a library that **cannot affect
+the running app**. That bill was paid twice: #416 was closed on exactly this cost/benefit, and #545
+paid it again — the live pass was done, and its most useful finding was that there was nothing to
+verify.
+
+Removed from `apps/web/package.json`, the README pinned-version table, `KNOWN_GOOD`, and
+`docs/credits.md` — the last of those mattering because credits name what is *shipped*, and it no
+longer is. The npm lock was regenerated with `--package-lock-only` rather than hand-edited: the
+removal orphans fourteen packages in total (`lit` and its three internals, `chart.js`,
+`chartjs-plugin-datalabels`, `iconify-icon`, the three `@floating-ui` packages, `@iconify/types`,
+`@kurkle/color`), and computing a transitive orphan closure by hand is how a lockfile stops matching
+what `npm ci` will install. **Zero packages added, zero versions changed** — verified by diffing the
+two lockfiles rather than by reading npm's summary, which matters because twenty-one dependencies
+carry `^` ranges that a careless regeneration could have floated.
+
+The general point is worth keeping: **a guard that names something unreachable does not protect it,
+it only charges for it.** The pin looked like coverage and behaved like a toll.
+
+### alembic 1.18.5 → 1.20.0, and a local resolver that confidently reported the wrong answer
+
+Dependabot's #519 carried this floor bump with a recompiled lock and went fully green, including the
+Postgres `alembic upgrade + check + runtime-parity` job. It then became unmergeable: three later
+bumps each recompiled `services/api/requirements.lock`, so the branch conflicted in a generated file
+that must never be merged by hand. Handing it back to dependabot was not available either — comment
+commands posted from this session are rewritten in transit, with U+00B7 injected around the `@` and
+inside the command word, so `recreate` and `rebase` both read correctly in the timeline and did
+nothing. **A command that looks delivered and is inert is worse than one that visibly fails.**
+
+Redone here, with the lock taken from `lockfile.yml`'s own compile in `python:3.12-slim` rather than
+from a local one — and that distinction turned out to matter enormously.
+
+**The local resolve said 34 packages would move.** `anthropic` 1.2.0 → 1.5.0, `websockets` 16.1 →
+17.1, `cryptography`, `sqlalchemy`, `certifi`, and thirty more: a one-line floor bump becoming a
+tree-wide sweep, which is exactly the kind of scope change worth stopping for. It was wrong. CI's
+`Verify` step prints its own diff, and that diff carries `annotated-doc==0.0.4` as an unchanged
+**context** line — the very next package after alembic — while the local resolve moved it. `Verify`
+then passed on the transcribed lock, proving the real change is alembic **and nothing else**.
+
+**The cause was the invocation, not the environment** — and the first explanation written here was
+wrong in a way worth preserving. It blamed the sandbox's package index for serving something
+different from the prod container. That was a guess dressed as a diagnosis, and it would have
+libelled perfectly good local tooling. `pip-compile` treats an EXISTING output file as constraints
+and moves only what the inputs force; the local runs wrote to fresh scratch paths, where there were
+no pins to preserve, so everything resolved to latest. Compiling into a copy of the real lock
+instead moves **zero** packages — which is also why only alembic moved in CI: its floor was the only
+one that changed.
+
+So the reproduction rule is concrete: **compile in place, to the lock you intend to replace.** A
+lockfile regeneration aimed at a new path is not the same operation and does not answer the same
+question.
+
+*A number with a package list attached reads as evidence.* The list was specific, ordered and
+plausible — it was very nearly reported as a finding, and its wrong explanation very nearly outlived
+it. What exposed the number was a context line in someone else's diff; what exposed the explanation
+was checking whether the two versions even existed upstream, and finding that they did, with cp312
+wheels, which left no room for an index story. **When a measurement and a gate disagree, the gate is
+the one that graded the artifact — and the first story that explains the gap is not automatically
+the true one.**
+
+Worth recording that the floor and the pin differ on purpose. `requirements.in` asks `>=1.19.2`,
+what dependabot requested; the lock resolves to the latest satisfying release, 1.20.0. So the
+behaviour under test is 1.18.5 → 1.20.0, wider than the floor names, with alembic 1.19's
+autogenerate CHECK-constraint change inside that span.
+
 ### A digest pin freezes the base image, and the CRITICAL gate blocks on it going stale
 
 The API container build went red on three fixed CRITICAL CVEs in `perl-base` — CVE-2026-13221,
