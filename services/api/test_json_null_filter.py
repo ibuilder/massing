@@ -177,6 +177,34 @@ def _extraction_source(node) -> bool:
     return False
 
 
+#: Nodes that open a NEW scope. A binding inside one of these is not a binding of the enclosing
+#: function's local, so the resolver below must not descend into them.
+_NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+
+
+def _own_scope_bindings(fn: ast.AST, name: str) -> list[ast.AST]:
+    """Every assignment to `name` in `fn`'s OWN scope, nested scopes excluded.
+
+    **`ast.walk` was the wrong tool and this is the correction.** It descends into nested functions
+    and lambdas, so a binding in an inner scope — a different variable that merely shares a name —
+    counted as a binding of this one.
+    """
+    out: list[ast.AST] = []
+
+    def visit(node, top: bool) -> None:
+        if not top and isinstance(node, _NESTED_SCOPES):
+            return                                    # a different scope; its bindings are not ours
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(t, ast.Name) and t.id == name for t in targets):
+                out.append(node)
+        for child in ast.iter_child_nodes(node):
+            visit(child, False)
+
+    visit(fn, True)
+    return out
+
+
 def _resolve(subject, fn: ast.AST | None):
     """`(table, column, kind)` for the expression a NULL test is applied to."""
     # Model.attr
@@ -190,13 +218,26 @@ def _resolve(subject, fn: ast.AST | None):
     if (isinstance(subject, ast.Attribute) and isinstance(subject.value, ast.Attribute)
             and subject.value.attr == "c"):
         return None, subject.attr, "register"
-    # A local name: classify by what it was assigned from, inside the same function.
+    # A LOCAL NAME. Classified only when the binding in effect is PROVEN, never on the first
+    # assignment that happens to look right.
+    #
+    # **The first version returned "extraction" on the first matching `ast.walk` hit**, so
+    # `expr = _json_text(...)` followed by `expr = Topic.labels` followed by `expr.is_(None)` was
+    # SAFE — the analyser answered instead of failing, which is the exact defect this whole change
+    # is about, one level up in the thing checking for it. Found in review of this PR.
+    #
+    # The rule now: every binding in the function's own scope must precede the use AND be an
+    # extraction. A binding at or after the use (a loop rebinding, say) means the value in effect
+    # cannot be read off the source, so the answer is UNKNOWN — which reds the build until a human
+    # reads the site and writes down what it is.
     if isinstance(subject, ast.Name) and fn is not None:
-        for n in ast.walk(fn):
-            if isinstance(n, ast.Assign) and any(
-                    isinstance(tg, ast.Name) and tg.id == subject.id for tg in n.targets):
-                if _extraction_source(n.value):
-                    return None, subject.id, "extraction"
+        binds = _own_scope_bindings(fn, subject.id)
+        use_line = getattr(subject, "lineno", 0)
+        before = [b for b in binds if b.lineno < use_line]
+        after = [b for b in binds if b.lineno >= use_line]
+        if before and not after and all(
+                _extraction_source(b.value) for b in before if getattr(b, "value", None) is not None):
+            return None, subject.id, "extraction"
     return None, (subject.id if isinstance(subject, ast.Name) else None), "unresolved"
 
 
@@ -257,6 +298,71 @@ check("...and `verdict` itself is what decided that, so a mutation can be aimed 
       and verdict(None, None, "unresolved") == "UNKNOWN"
       and verdict(None, "data", "extraction") == "SAFE",
       "the verdict function does not separate the four answers")
+
+# --- THE RESOLVER MUST NOT ANSWER WHEN IT CANNOT KNOW ---------------------------------------------
+# Review of this PR found `_resolve` returning "extraction" on the first `ast.walk` hit: a rebinding
+# after the extraction, or a same-named local in a NESTED scope, both classified the site SAFE. That
+# is an analyser answering instead of failing — the defect this file exists to catch, one level up in
+# the thing doing the catching. Each shape is driven here, because a fix nobody ran against the case
+# that motivated it is a fix on paper.
+def _resolve_src(src: str, subject_line_marker: str):
+    """Resolve the NULL-test subject in a one-function source snippet."""
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "f")
+    for n in ast.walk(fn):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr in _NULL_METHODS and subject_line_marker in ast.unparse(n)):
+            return _resolve(n.func.value, fn)
+    raise AssertionError("no NULL test found in the snippet")
+
+
+_REBIND = """
+def f(db, t):
+    expr = _json_text(db, t.c.data, 'x')
+    expr = Topic.labels
+    return expr.isnot(None)
+"""
+check("A REBINDING AFTER THE EXTRACTION IS NOT SAFE — this is the review finding",
+      _resolve_src(_REBIND, "expr")[2] == "unresolved",
+      f"got {_resolve_src(_REBIND, 'expr')!r} — the NULL test targets the bare JSON column, and "
+      f"classifying it from an earlier, overwritten binding is the analyser answering rather than "
+      f"failing")
+
+_NESTED = """
+def f(db, t):
+    def inner():
+        expr = _json_text(db, t.c.data, 'x')
+        return expr
+    expr = Topic.labels
+    return expr.isnot(None)
+"""
+check("...and a same-named binding in a NESTED scope is not this scope's binding",
+      _resolve_src(_NESTED, "expr")[2] == "unresolved",
+      f"got {_resolve_src(_NESTED, 'expr')!r} — `ast.walk` descends into inner functions, so an "
+      f"unrelated local sharing the name counted as a binding of this one")
+
+_CLEAN = """
+def f(db, t):
+    duecol = _json_text(db, t.c.data, 'due')
+    return duecol.isnot(None)
+"""
+check("...while a single preceding extraction still resolves, or the rule is merely stricter",
+      _resolve_src(_CLEAN, "duecol")[2] == "extraction",
+      f"got {_resolve_src(_CLEAN, 'duecol')!r} — tightening must not turn every real extraction "
+      f"into an exemption; that would be a gate nobody can keep green")
+
+_BRANCHED = """
+def f(db, t):
+    if pg:
+        col = t.c.data.op('->>')('k')
+    else:
+        col = func.json_extract(t.c.data, '$.k')
+    return col.isnot(None)
+"""
+check("...and an if/else where BOTH branches extract still resolves (sync.py's real shape)",
+      _resolve_src(_BRANCHED, "col")[2] == "extraction",
+      f"got {_resolve_src(_BRANCHED, 'col')!r}")
 
 # The reasons two exemptions give must stay true, or the exemption is a stale claim.
 check("no SYSTEM_COLUMN is a JSON column — the modules_query exemptions rest on this",

@@ -83,7 +83,20 @@ _TOPICS = "topics"
 _BATCH = 500
 
 #: `(table, id, column)` for every stored value this sweep cannot judge. **Reported, never swept.**
+#: BOUNDED: only the first `_SKIP_CAP` are retained, because only the first 20 are ever logged and a
+#: register full of unparseable values must not be able to grow this without limit. `SKIPPED_TOTAL`
+#: keeps the real count, so the warning still tells the truth about how many there were.
 SKIPPED: list[tuple[str, str, str]] = []
+SKIPPED_TOTAL = 0
+_SKIP_CAP = 1000
+
+
+def _skip(table: str, rid: str, col: str) -> None:
+    """Record an uninterpretable value, keeping the list bounded and the count exact."""
+    global SKIPPED_TOTAL
+    SKIPPED_TOTAL += 1
+    if len(SKIPPED) < _SKIP_CAP:
+        SKIPPED.append((table, rid, col))
 
 #: What a decoded value must BE for its column. See `b3c9e42d18a5`.
 _SHAPE = {"anchor": dict, "element_guids": list}
@@ -153,6 +166,15 @@ def _sweep(conn, table: str, cols: tuple[str, ...]) -> int:
     has decoded the column. `b3c9e42d18a5` selected the union of both columns and asked Python, which
     on PostgreSQL skipped every legacy row.
 
+    **KEYSET-PAGED, so memory is bounded by `_BATCH` rather than by the table.** The first version
+    drained the whole cursor into a list of ids before updating anything, which on a large register
+    holds every matching id at once; batching the UPDATE does not bound that. Raised in review of this
+    PR. Paging also removes the hazard the previous version had to work around: each page is fully
+    materialised and its cursor closed BEFORE its UPDATE runs, so nothing modifies a table while a
+    SELECT over it is open -- undefined behaviour on SQLite. Ordering by `id` is safe because the
+    sweep only ever nulls the column it filters on and never touches `id`, so the scan is monotonic:
+    a swept row drops out of the predicate, and `id > :last` means it is never revisited anyway.
+
     SQL narrows and Python decides, because these are `JSON` rather than `JSONB` and PostgreSQL's
     `json` type has no equality operator.
     """
@@ -162,31 +184,39 @@ def _sweep(conn, table: str, cols: tuple[str, ...]) -> int:
     have = {c["name"] for c in insp.get_columns(table)}
     changed = 0
     for col in (c for c in cols if c in have):
-        empty_ids: list = []
-        sel = sa.text(f"SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL")
-        # **The options go on the STATEMENT, never on the connection** -- see `f2b6d31a7c04`: set on
-        # the connection they are inherited by alembic's own `UPDATE alembic_version`, which Postgres
-        # then rejects, and SQLite cannot see it because it has no server-side cursor.
-        result = conn.execute(sel.execution_options(stream_results=True, yield_per=_BATCH))
-        for row in result.mappings():
-            ok, decoded = _decode(row[col])
-            if not ok or _wrong_shape(col, decoded):
-                # Not JSON at all, or JSON of a shape this column never holds. Evidence either way.
-                SKIPPED.append((table, str(row["id"]), col))
-                continue
-            if _is_empty_anchor(decoded) if col == "anchor" else _is_empty_guids(decoded):
-                empty_ids.append(row["id"])
+        first = sa.text(f"SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL "
+                        f"ORDER BY id LIMIT :n")
+        page = sa.text(f"SELECT id, {col} FROM {table} WHERE {col} IS NOT NULL AND id > :last "
+                       f"ORDER BY id LIMIT :n")
+        last = None
+        while True:
+            rows = (conn.execute(first, {"n": _BATCH}) if last is None
+                    else conn.execute(page, {"last": last, "n": _BATCH})).mappings().all()
+            if not rows:
+                break
+            last = rows[-1]["id"]
+            empty_ids = []
+            for row in rows:
+                ok, decoded = _decode(row[col])
+                if not ok or _wrong_shape(col, decoded):
+                    # Not JSON at all, or JSON of a shape this column never holds. Evidence either
+                    # way, and the second case is what stopped `_is_empty_guids` raising on a scalar.
+                    _skip(table, str(row["id"]), col)
+                    continue
+                if _is_empty_anchor(decoded) if col == "anchor" else _is_empty_guids(decoded):
+                    empty_ids.append(row["id"])
 
-        # The cursor is fully drained before a single UPDATE runs: modifying a table while iterating
-        # a SELECT over it is undefined behaviour on SQLite.
-        for i in range(0, len(empty_ids), _BATCH):
-            chunk = empty_ids[i:i + _BATCH]
-            names = [f"i{n}" for n in range(len(chunk))]
-            binds = ", ".join(f":{n}" for n in names)
-            res = conn.execute(sa.text(f"UPDATE {table} SET {col} = NULL WHERE id IN ({binds})"),
-                               dict(zip(names, chunk)))
-            # Count what the database changed, not what we intended to change.
-            changed += res.rowcount if res.rowcount is not None and res.rowcount >= 0 else len(chunk)
+            # The page is fully materialised above, so no cursor is open over `table` here.
+            if empty_ids:
+                names = [f"i{n}" for n in range(len(empty_ids))]
+                binds = ", ".join(f":{n}" for n in names)
+                res = conn.execute(sa.text(f"UPDATE {table} SET {col} = NULL WHERE id IN ({binds})"),
+                                   dict(zip(names, empty_ids)))
+                # Count what the database changed, not what we intended to change.
+                changed += (res.rowcount if res.rowcount is not None and res.rowcount >= 0
+                            else len(empty_ids))
+            if len(rows) < _BATCH:
+                break
     return changed
 
 
@@ -198,8 +228,8 @@ def upgrade() -> None:
     if SKIPPED:
         logging.getLogger("alembic.runtime.migration").warning(
             "d7f1a5c3e094: left %d uninterpretable pin value(s) untouched -- unparseable text or the wrong JSON shape for the column (table, id, column): %s",
-            len(SKIPPED), ", ".join(f"{t}/{i}/{c}" for t, i, c in SKIPPED[:20])
-            + (" ..." if len(SKIPPED) > 20 else ""))
+            SKIPPED_TOTAL, ", ".join(f"{t}/{i}/{c}" for t, i, c in SKIPPED[:20])
+            + (" ..." if SKIPPED_TOTAL > 20 else ""))
 
 
 def downgrade() -> None:
