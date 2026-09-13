@@ -12,6 +12,30 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A digest pin freezes the base image, and the CRITICAL gate blocks on it going stale
+
+The API container build went red on three fixed CRITICAL CVEs in `perl-base` — CVE-2026-13221,
+CVE-2026-42496 and CVE-2026-8376, all `Status: fixed` at `5.40.1-6+deb13u1` — with nothing in the
+diff that touched a Dockerfile. `services/api/Dockerfile` is byte-identical to main, the base images
+are pinned by digest, and the two other images in the same matrix (`node:24-slim`,
+`nginx:1.31-alpine`) passed. Nothing about the change caused it; the pinned `python:3.12-slim`
+simply predates a Debian security update, and the Trivy CRITICAL gate is doing exactly its job.
+
+**The obvious fix is a bet, not a fix.** Bumping to a newer `python:3.12-slim` digest only helps if
+upstream happened to rebuild after the DSA landed — and the tag's head at the time was built
+2026-09-01, with no way from here to establish which packages that rebuild picked up. The egress
+policy in this environment blocks both the Docker blob CDN and `deb.debian.org`, so the candidate
+digest could not be opened and read either; a digest chosen and pushed on the assumption it was
+newer-and-therefore-fixed would have been a guess wearing a checksum.
+
+So the runtime stage applies Debian security updates at build time instead. That is not a weaker
+supply-chain position than what the stage already did — the same `apt`, the same signed archive, the
+same build-time resolution as the `apt-get install` one line below it — and the digest pin is
+untouched, so the base layers are still the reviewed ones. Unlike a digest bump it also keeps
+working: the next DSA is picked up by the next build rather than by the next person to notice a red
+gate. **A pin fixes the starting point; it does not stop the starting point going stale**, and a
+gate that blocks on staleness needs a fix aimed at staleness.
+
 ### The escaping gate could not see a helper's parameters, so 108 sinks sat outside it
 
 The identity ratchet shipped in the previous entry freezes `file :: expression`. That constrains a
