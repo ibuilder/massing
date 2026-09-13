@@ -12,6 +12,36 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The PostgreSQL pin gate could be handed a dead server and still exit 0
+
+Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the
+review **body** rather than an inline thread — every inline finding was fixed, and this one was not
+seen until after the PR merged. *Where a finding is posted decides whether it gets read.*
+
+`test_pin_pgnull.py` connects to the PostgreSQL a run asks for, and failed the build on an
+unreachable one only `if _REQUIRED` — that is, only when `AEC_PG_REQUIRED` was set. But `_url()`
+returns a URL under **two** opt-ins: that one, and `AEC_TEST_PG_URL`. So a run that set only
+`AEC_TEST_PG_URL`, pointing at a dead port, took the connect-failure branch, recorded nothing, fell
+through to the no-server path and exited **0** — printing *"no opt-in"* at a caller who had just
+opted in.
+
+Measured before the fix, not reasoned about:
+
+    AEC_TEST_PG_URL=postgresql+psycopg://postgres@127.0.0.1:1/nope   (AEC_PG_REQUIRED unset)
+    -> test_pin_pgnull OK  (no opt-in; ...)      exit 0
+
+This is the same shape as the defect the file's own comment already records one flag earlier —
+*"a flag that guards one branch of two guards nothing"* — and it recurred because the fix at the
+time asked *is this run required to reach a server*, when the question the branch needed was *did
+anything ask for this server at all*. By the time that `except` runs, something always has: the
+failure is now unconditional. **A message that names the wrong cause is worse than a bare failure,
+because somebody acts on it** — the reader would have gone hunting for the opt-in they had supplied.
+
+Verified in four directions: the dead explicit URL now exits 1; `AEC_PG_REQUIRED` with a dead
+`PGHOST` still exits 1; no opt-in at all still passes through the genuine no-server path; and the
+live-PostgreSQL run still passes. CI was never exposed — it sets `AEC_PG_REQUIRED` — which is
+exactly why nothing went red.
+
 ### Sorting a register by `updated_at` was a 500; `SYSTEM_COLUMNS` named two columns that do not exist
 
 `modules_query.SYSTEM_COLUMNS` is the allowlist of row columns a caller may filter and sort a

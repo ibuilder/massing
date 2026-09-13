@@ -140,9 +140,22 @@ if _u:
         with _engine.connect() as _c:
             _c.execute(_sa.text("SELECT 1"))
     except Exception as exc:                              # noqa: BLE001 — any driver/connect error
-        if _REQUIRED:
-            check("AEC_PG_REQUIRED is set, so a reachable PostgreSQL is not optional", False,
-                  f"{_u} — {type(exc).__name__}: {exc}")
+        # UNCONDITIONAL, and the `if _REQUIRED:` that used to stand here was the SAME defect the
+        # comment above `_REQUIRED` describes, one flag along. `_url()` returns a URL only under an
+        # explicit opt-in — `AEC_TEST_PG_URL`, or `AEC_PG_REQUIRED` plus a `PGHOST` to build one
+        # from — so by the time this branch runs, somebody has already said "reach a server". Gating
+        # the failure on the *second* of those two opt-ins meant a run that set only
+        # `AEC_TEST_PG_URL`, at a dead port, exited 0 and printed **"no opt-in"** — asserting the
+        # opposite of what had just happened. Measured before the fix, not reasoned about:
+        # `AEC_TEST_PG_URL=postgresql+psycopg://postgres@127.0.0.1:1/nope` with `AEC_PG_REQUIRED`
+        # unset gave `test_pin_pgnull OK (no opt-in; ...)` and exit 0.
+        #
+        # *A message that names the wrong cause is worse than a bare failure, because somebody acts
+        # on it* — the reader would have gone looking for the missing opt-in they had just supplied.
+        # Found by review on #548 and fixed after that PR merged; it sat in the review BODY rather
+        # than an inline thread, which is how it survived two rounds that fixed everything inline.
+        check("a PostgreSQL that this run explicitly asked for must be REACHABLE", False,
+              f"{_u} — {type(exc).__name__}: {exc}")
         _engine = None
 elif _REQUIRED:
     check("AEC_PG_REQUIRED is set, so a PostgreSQL must be ADDRESSABLE", False,
