@@ -39,6 +39,39 @@ carry `^` ranges that a careless regeneration could have floated.
 The general point is worth keeping: **a guard that names something unreachable does not protect it,
 it only charges for it.** The pin looked like coverage and behaved like a toll.
 
+### numpy 2.5.3 and manifold3d 3.5.3 — two dependabot PRs that could never have gone green alone
+
+#516 (`numpy>=2.5.3`) and #517 (`manifold3d>=3.5.3`) both failed the API test gate, and the reason is
+written in the tree they were editing. `services/api/requirements.in` carries it on the numpy line
+itself: *"floor raised WITH services/data/requirements.txt: pip-compile reads only this file, so a
+floor raised only there cannot move the lock."* Dependabot edits `services/data/requirements.txt`,
+which pip-compile never reads — so the lock kept pinning 2.5.2 and 3.5.2, and
+`test_lock_satisfies_requirements`, which deliberately reads **both** requirements files, kept
+failing. **Structural, not incidental:** no amount of rebasing could have fixed either PR.
+
+Raising both floors lets the recompile follow, and it moves **exactly two pins** — nothing added,
+nothing removed. That was predicted from a measurement before the change was made, then confirmed by
+CI's `Verify` step on the committed bytes.
+
+**This lock was compiled locally, which is the opposite of the previous entry's conclusion — and the
+reversal is the point.** There the bytes were transcribed out of CI because a local resolve had
+produced an unrecognisable answer. Once the cause was understood (a fresh output path preserves
+nothing; an in-place one constrains to the existing pins), the local tool became the same tool CI
+runs, and `Verify` confirmed byte-identity on a lock carrying hundreds of hash lines rather than
+alembic's two.
+
+**The clock said it before the diff did.** The fresh-path compile took over forty minutes because it
+re-resolved and re-hashed the whole graph; the in-place compile took **thirty-nine seconds** because
+it only fetched what moved. A forty-minute run and a forty-second run were never doing the same work,
+and nobody had to read a single package name to see that. *When two runs of "the same" command differ
+by sixty-fold in cost, they are not the same command, and the cheap explanation for their differing
+output is probably not the true one.*
+
+Transcription would not have worked here in any case: the `Verify` step prints `head -60` of its
+diff, which alembic's two hashes fit inside and `manifold3d`'s dozens of wheel hashes do not, and the
+artifact holding the full file sits behind an egress block. Either route ends at the same gate, which
+is what makes either safe.
+
 ### alembic 1.18.5 → 1.20.0, and a local resolver that confidently reported the wrong answer
 
 Dependabot's #519 carried this floor bump with a recompiled lock and went fully green, including the
