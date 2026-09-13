@@ -56,7 +56,7 @@ for (const df of DOCKERFILES) {
 const KNOWN_GOOD = {
   "@thatopen/components": "3.4.8",
   "@thatopen/components-front": "3.4.4",
-  "@thatopen/ui": "3.4.10",
+  "@thatopen/ui": "3.4.11",
   "@thatopen/fragments": "3.4.7",
   "three": "0.185.1",
   "web-ifc": "0.0.77",
