@@ -635,6 +635,48 @@ export interface ResponsibilityMatrix {
   summary: { activities: number; clean: boolean; issues: number };
 }
 
+/**
+ * One pin from `GET /projects/{pid}/pins/all` — the union of BCF topics and anchored register
+ * records. PIN-ONE-CALL: the overlay used to make two calls and draw two shapes; this is the one
+ * shape, so a pin's *kind* is data rather than a branch in the renderer.
+ *
+ * `icon` and `source_name` are server-supplied for BOTH kinds deliberately. A register's come from
+ * its `module.json`; a topic's from the glyph table beside `resolve_pins`, which used to be a
+ * literal in `pins.ts`. The alternative — looking them up client-side — needs `/modules`, which the
+ * viewer does not fetch, so it would have traded one request for another.
+ *
+ * `x`/`y`/`z` are null when the pin is attached to an element the open model cannot place; the
+ * envelope's `unlocated` counts those rather than dropping them silently.
+ */
+export interface ResolvedPin {
+  /** `"topic"`, or the module key for a register record. Decides the click behaviour. */
+  source: string;
+  id: string;
+  guid: string;
+  /** Topic type (`rfi`/`punch`/`clash`/`info`) or the module key. Drives the CSS class only. */
+  kind: string;
+  label: string;
+  status: string | null;
+  element_guid: string | null;
+  icon: string;
+  source_name: string;
+  x: number | null;
+  y: number | null;
+  z: number | null;
+}
+
+/** The `/pins/all` envelope. `total` is the PROJECT's count, `shown` the returned window — a list
+ *  that silently returns fewer pins than exist is the failure this envelope was added to end. */
+export interface PinsEnvelope {
+  pins: ResolvedPin[];
+  shown: number;
+  total: number;
+  total_counts_candidates: boolean;
+  truncated: boolean;
+  unlocated: number;
+  model_available: boolean;
+}
+
 export interface ModulePin {
   module: string;
   module_name: string;

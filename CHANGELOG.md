@@ -12,6 +12,47 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The 3D pin overlay made two calls, and the route meant to replace them had no caller
+
+`apps/web/src/pins/pins.ts` fetched BCF topics through `api.pins()` and register records through
+`api.modulePins()`, building a marker from each of two row shapes. It now makes **one** request to
+`/pins/all` and runs one loop; the only remaining branch is the CLICK, which is genuinely different —
+a topic restores a saved viewpoint, a record opens its register row.
+
+**The roadmap entry understated this by one whole half.** It said the remaining gap was *"what each
+row CARRIES"*. That was true and incomplete: **`/pins/all` had ZERO frontend consumers** — no client
+method, no call site anywhere in `apps/web`. The route was built, server-tested and dark, so the
+overlay made two calls not only because the envelope lacked fields but because nothing had ever been
+wired to the route that replaces them. *An item scoped from what a file lacks will miss what nothing
+does.* `services/api/test_reachable.py` does not catch this and is not wrong to miss it: it measures
+whether a MODULE is reachable, and `pins.py` is imported by two routers. Route-to-client
+reachability is a different question, and no gate here asks it.
+
+**The design question the entry left open is settled by measurement.** It asked whether the envelope
+should carry the viewer's presentation fields or whether the viewer should look them up from
+`/modules`. The viewer does not fetch `/modules` anywhere, so the lookup trades one request for
+another and defeats the item. The envelope carries `icon` and `source_name` for BOTH kinds: a
+register's from its own `module.json`, a topic's from a glyph table moved out of `pins.ts` — where
+it was a literal, which is precisely why the overlay needed a branch per topic type and a second
+loop for register records. `api.modulePins()` is deleted as the dead client method it became; the
+`/module-pins` route stays.
+
+**The gate already existed and was asserting the wrong number.**
+`apps/web/src/kernel/markupPlugin.test.ts` pinned `["load:proj-1", "modulePins:proj-1"]` — the
+two-call behaviour, recorded as a fact. It now pins one entry and a length, so a second request
+fails a build. Mutation-verified: reinstating a second `pins.load` reports
+`expected [ 'load:proj-1', 'load:proj-1' ] to deeply equal [ 'load:proj-1' ]`.
+
+One test changed meaning rather than being deleted. *"A failure part-way through is still contained"*
+asserted that a failure in the SECOND call left the first one's pins drawn — "it got that far". That
+half-loaded overlay is unreachable now, so the test asserts its **absence**; deleting it would have
+removed the record that the state was ever possible.
+
+*And `test_file_sizes` caught `app.ts` at 2,445 against its 2,442 cap — three lines of comment, the
+same shape as the `register.ts` growth one PR earlier. The explanation belongs on the `ResolvedPin`
+type, not inside a file under a shrink ratchet. Learning a lesson and applying it are apparently
+still two events.*
+
 ### Ball-in-court was computed twice, by two rules, and 10 states disagreed
 
 The register screen and every server-side report answered "whose move is it" differently.

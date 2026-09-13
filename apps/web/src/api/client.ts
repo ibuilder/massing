@@ -67,7 +67,7 @@ import { withClassification } from "./classificationRef";
 export type { ClassificationRefs, MfDivision, UfCrosswalk } from "./classificationRef";
 import type {
   Dashboard,
-  ModulePin, RoomAllocation,
+  PinsEnvelope, RoomAllocation,
   PropMapRule,
     SpecManual, WorkItem, VitalsPayload,
     MasterBuilderBrief } from "./types";
@@ -327,8 +327,11 @@ export class ApiClient extends _ApiStageB {
   vitals(pid: string) {
     return this.json<VitalsPayload>(`/projects/${pid}/vitals`);
   }
-  modulePins(pid: string) {
-    return this.json<ModulePin[]>(`/projects/${pid}/module-pins`);
+  /** PIN-ONE-CALL — every pin, however it was attached. Replaced `modulePins()`, whose only caller
+   *  was the viewer overlay; `/module-pins` is the narrower half and `test_pin_anchor` asserts this
+   *  is its superset, so nothing the overlay used to draw is lost. The route itself stays. */
+  allPins(pid: string) {
+    return this.json<PinsEnvelope>(`/projects/${pid}/pins/all`);
   }
   dashboard(pid: string, party?: string) {
     const q = party ? `?party=${encodeURIComponent(party)}` : "";
