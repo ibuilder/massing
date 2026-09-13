@@ -56,6 +56,12 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from aec_api.main import app  # noqa: E402
 
+
+def _items(payload):
+    """The rows, whether the list route answered with an envelope or a bare list."""
+    return payload.get("items", payload) if isinstance(payload, dict) else payload
+
+
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Buyout"}).json()["id"]
     b = c.post(f"/projects/{pid}/procurement/buyout-packages", json={"qto_lines": qto, "by": "trade"})
@@ -84,9 +90,21 @@ with TestClient(app) as c:
     itb = c.get(f"/projects/{pid}/modules/bid_solicitation/{itb_id}").json()
     assert itb["data"]["name"] == "RFQ — Concrete" and itb["data"]["package"] == "Concrete", itb["data"]
     assert itb["data"]["due_date"] == "2026-08-15", itb["data"]
-    # a second send on the already-sent package doesn't error and reports the current state
+    # RFQ-IDEMPOTENT. These three lines used to read: "a second send on the already-sent package
+    # doesn't error and reports the current state" -- asserting a 200 and an unchanged
+    # `package_state`, and the summary below called the route "idempotent on re-send". It was not.
+    # Each send minted ANOTHER Bid Solicitation; measured on the old code, three sends produced
+    # ITB-001, ITB-002 and ITB-003 while every response said 200 / rfq_sent. The test asserted the
+    # two things that stay the same and never counted the thing that changed, so it could not fail.
+    # *A word like "idempotent" in a summary is a claim, and this one had a test shaped around it.*
+    n_before = len(_items(c.get(f"/projects/{pid}/modules/bid_solicitation").json()))
     again = c.post(f"/projects/{pid}/procurement/packages/{conc['id']}/send-rfq", json={})
-    assert again.status_code == 200 and again.json()["package_state"] == "rfq_sent", again.text
+    assert again.status_code == 409, again.text        # declared: send_rfq is legal only from draft
+    assert "send_rfq" in again.text, again.text
+    n_after = len(_items(c.get(f"/projects/{pid}/modules/bid_solicitation").json()))
+    assert n_after == n_before, f"a refused send still minted a solicitation: {n_before} -> {n_after}"
+    assert c.get(f"/projects/{pid}/modules/procurement_package/{conc['id']}"
+                 ).json()["workflow_state"] == "rfq_sent"      # and left the package where it was
     assert c.post(f"/projects/{pid}/procurement/packages/nope/send-rfq", json={}).status_code == 404
 
 print("PROCURE-LEVEL OK - QTO line items group into buyout packages (Concrete $12.5k > HVAC $4k, each with "
@@ -96,5 +114,6 @@ print("PROCURE-LEVEL OK - QTO line items group into buyout packages (Concrete $1
       "weight folding into price+coverage when no lead times are given; both routes return 200. "
       "Persistence: /procurement/packages/save writes one Buyout Packages record per group (est cost, "
       "line count, JSON scope, draft state) and /packages/{rid}/send-rfq mints a Bid Solicitation "
-      "carrying name/trade/due and advances the package draft -> rfq_sent (idempotent on re-send; 404 "
-      "on an unknown package).")
+      "carrying name/trade/due and advances the package draft -> rfq_sent. A SECOND send is refused "
+      "with a 409 and mints nothing -- the module's workflow declares send_rfq legal only from draft, "
+      "and the route no longer overrides that; 404 on an unknown package.")

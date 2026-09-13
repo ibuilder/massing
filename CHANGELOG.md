@@ -12,6 +12,66 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A second "send RFQ" minted a second solicitation, and a test called that idempotent
+
+`POST /projects/{pid}/procurement/packages/{rid}/send-rfq` called `create_record` — which commits —
+and only THEN looked at `workflow_state`, under an `if … == "draft"` that took the transition and an
+`else` that skipped it and reported the unchanged state as a success. So a second send persisted
+**another** Bid Solicitation while making no move. Measured on the old code: three sends produced
+**ITB-001, ITB-002 and ITB-003**, every response 200 / `rfq_sent`. It is now one ITB and a 409.
+
+**The roadmap filed this as needing a contract decision** between a 409, an idempotent no-op, and a
+deliberate re-solicitation with its own round number. **It was already decided, in
+`services/api/modules/procurement_package/module.json`.** That workflow is linear — draft → rfq_sent
+→ quotes_in → awarded — with no path back to draft and no re-solicit action, so `modules.transition`
+answers a second `send_rfq` with a 409 of its own accord; the probe prints
+`action 'send_rfq' not allowed from state 'rfq_sent'`. Deliberate re-solicitation would need a new
+declared transition, which is a product change and not this fix. *The only thing that made the
+refusal invisible was a branch written to route around it* — so there was no decision to take, only
+a declaration to stop overriding. The route now moves first and mints only if the move landed.
+
+**The existing test asserted the bug as the contract, and could not have noticed.** It read *"a
+second send on the already-sent package doesn't error and reports the current state"*, asserted a 200
+and an unchanged `package_state`, and its summary line called the route *"idempotent on re-send"*. It
+asserted the two things that stay the same and **never counted the solicitations** — the one thing
+that changed. *A word like "idempotent" in a summary is a claim, and this one had a test shaped
+around it.* It now asserts the 409 **and** that the refused send minted nothing.
+
+### `transition` was a read-then-write race — in all 139 modules at once
+
+Found while fixing the above, and the more severe half. `modules.transition` read the record, proved
+the move legal **from the state it read**, and then wrote with `update(t).where(t.c.id == rid)` —
+keyed on the id ALONE, with no state predicate and no row lock. Two callers could both read `draft`,
+both pass the check, and both commit. Two concurrent `award` calls both succeeded.
+
+The reach is what makes it worth a release note rather than a line: `transition` is the **only** place
+a record's `workflow_state` moves after creation (`revise` inserts a new row; every other mention of
+the column reads it), so that one statement backed **139 modules and 342 declared transitions**. It is
+now a compare-and-swap — the decided-from state is a predicate, and `rowcount != 1` is a 409 naming
+the race, deliberately worded differently from the ordinary "not allowed from state" refusal so the
+two are distinguishable by something other than a status code.
+
+Not `with_for_update()`: Postgres honours a row lock and **SQLite treats it as a no-op**, so it would
+read as protected on the backend the suite runs on while protecting nothing — the identical trap
+`next_counter` had to be dug out of in August. `services/api/test_race_conditions.py` gated the job
+claim and the ref counter; transitions were never in its population.
+
+**The gate is `services/api/test_transition_cas.py`**, and two of its twelve checks exist because of
+mistakes made writing it. It reinstates the **pre-fix statement shape** against an already-moved row
+and requires the blind write to land, so it cannot pass with the guard removed. And its derivation of
+"who writes this column" is taken at FUNCTION scope rather than from the text inside `.values(...)`:
+the first attempt read only the call's own source, and because `transition` builds a dict and splats
+it as `**vals`, **it found one writer and missed the one under repair** — reporting a tree that looked
+clean. The gate now asserts it reaches `transition` before it may print any verdict. *A predicate that
+decides what to LOOK at is more dangerous than one that decides what to report.*
+
+`apps/web/src/portal/panels/buyoutKeep.ts`'s `rfqSummary` was written against the old rule and told
+the user *"a solicitation has been minted anyway, so check whether this package already had one"*.
+After the fix that is the one thing such a response has failed to establish, and the duplicates it
+sends them hunting for can no longer be created. The branch is kept — a response that is not
+`rfq_sent` now contradicts the contract — but it says that instead. *A defensive branch that outlives
+its cause keeps giving the advice that fitted the bug.*
+
 ### The 3D pin overlay made two calls, and the route meant to replace them had no caller
 
 `apps/web/src/pins/pins.ts` fetched BCF topics through `api.pins()` and register records through

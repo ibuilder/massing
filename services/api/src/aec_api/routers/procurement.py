@@ -80,18 +80,29 @@ def send_rfq(pid: str, rid: str, payload: dict = Body(default={}), db: Session =
     rec = me.get_record(db, "procurement_package", pid, rid)          # 404s if missing
     data = rec.get("data") or {}
     party = rbac.party_role_for(db, pid, actor)
+    # RFQ-IDEMPOTENT — MOVE FIRST, THEN MINT. This used to `create_record` (which commits) and only
+    # afterwards look at `workflow_state`, under an `if … == "draft"` that took the transition and an
+    # `else` that skipped it and reported the unchanged state as success. So a second send persisted
+    # ANOTHER bid_solicitation while making no move, and even the first send committed the ITB
+    # separately from the transition — a failure in between left an ITB with no state change behind
+    # it. The client's `rfqGate` refuses the second send, but that is UI feedback, not enforcement:
+    # a second tab, a retry or a direct API call went straight through.
+    #
+    # The roadmap filed this as needing a contract decision between 409, an idempotent no-op, and a
+    # deliberate re-solicitation. IT WAS ALREADY DECIDED, in `modules/procurement_package/module.json`:
+    # the workflow is linear (draft → rfq_sent → quotes_in → awarded) with no path back to draft and
+    # no re-solicit action, so `transition` answers a second `send_rfq` with a 409 of its own accord.
+    # Deliberate re-solicitation would need a new declared transition — a product change, not this
+    # fix. The only thing that made the refusal invisible was the `else` branch overriding it. So
+    # there is no decision to take here: let the declaration speak, and mint only if it moved.
+    moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
     itb = me.create_record(db, "bid_solicitation", pid, {"data": {
         "name": f"RFQ — {data.get('name') or rec.get('title') or rec['ref']}",
         "package": data.get("name"), "trade": data.get("trade"),
         "due_date": payload.get("due_date") or data.get("rfq_due"),
     }}, actor, party)
-    out = {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"]}
-    if rec.get("workflow_state") == "draft":
-        moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
-        out["package_state"] = moved.get("workflow_state")
-    else:
-        out["package_state"] = rec.get("workflow_state")
-    return out
+    return {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"],
+            "package_state": moved.get("workflow_state")}
 
 
 @router.post("/projects/{pid}/procurement/buyout-schedule")

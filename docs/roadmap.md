@@ -1934,8 +1934,33 @@ instances:
   semantics; **that one was decided on 2026-09-11 (R40-EOT) and this one was not** — they are separate
   calls, and only the schedule half has been made.
 
-- 🟡 **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
-  *(S — Lane G; **OPEN**, raised in review on PR #528 2026-09-11; needs a contract decision)*
+- ✅ ⭐ **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
+  *(S — Lane G; **CLOSED 2026-09-13**; gated by `services/api/test_transition_cas.py`,
+  `services/api/test_procure_level.py` and `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
+
+  **THE CONTRACT DECISION BELOW WAS ALREADY TAKEN, in `services/api/modules/procurement_package/module.json`,
+  and this entry not noticing that is the finding.** That workflow is linear — draft → rfq_sent →
+  quotes_in → awarded — with **no path back to draft and no re-solicit action**, so `modules.transition`
+  already answers a second `send_rfq` with `action 'send_rfq' not allowed from state 'rfq_sent'`. Of the
+  three options weighed below, one was the declaration's own answer, one contradicted it, and the third
+  (deliberate re-solicitation) cannot be expressed without ADDING a transition — a product change, not
+  this fix. *A decision recorded as open, that a declaration in the tree had already made, is a decision
+  nobody will take: it reads as blocked on judgement when it is only blocked on reading.* The route now
+  moves first and mints only if the move landed. Measured: three sends used to yield ITB-001/002/003,
+  all 200; now one ITB and two 409s.
+
+  **The test asserted the bug as the contract.** `test_procure_level.py` read *"a second send … doesn't
+  error and reports the current state"* and its summary called the route *"idempotent on re-send"* — while
+  asserting only the status code and the unchanged `package_state`, and **never counting solicitations**.
+  *It asserted the two things that stay the same and not the one that changed, so it could not fail.*
+
+  **And a second, larger defect came out of it: `modules.transition` was a read-then-write race** —
+  `update(t).where(t.c.id == rid)`, keyed on the id alone, after a separate `get_record`. It is the only
+  place a record's state moves after creation, so that one statement backed **139 modules and 342 declared
+  transitions**; two concurrent `award` calls both succeeded. Now a compare-and-swap. `test_race_conditions.py`
+  gated the job claim and the ref counter — transitions were never in its population, which is why a race
+  sweep that ran twice in August never reached the busiest write in the service. *A sweep is bounded by the
+  population it was given, and this one's was two known defects rather than a derived set.*
 
   `services/api/src/aec_api/routers/procurement.py`'s `send_rfq` calls `me.create_record` — which
   commits by default — and only *then* looks at `workflow_state`. A second request therefore persists
@@ -1946,7 +1971,8 @@ instances:
   retry, or a direct API call still duplicates.
 
   **Not fixed in #528 because the fix requires deciding what a second send MEANS**, and that is a
-  product call rather than a cleanup:
+  product call rather than a cleanup: *(SUPERSEDED — see the correction above. Kept because the three
+  options are still the right frame; what was wrong was believing none of them had been chosen.)*
 
   * **409 Conflict** — a package past `draft` cannot be re-solicited. Simplest, and wrong if a second
     bid round is a real workflow.
@@ -3481,7 +3507,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RFQ-IDEMPOTENT *(the first standalone item this lane has carried, and it earns one: the fix is entirely inside a router's transaction boundary — mint-after-check in one transaction — and belongs to no feature lane. **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file)* |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |

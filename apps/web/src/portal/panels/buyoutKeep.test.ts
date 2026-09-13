@@ -137,12 +137,16 @@ describe("the double-send trap", () => {
     expect(s).not.toContain("did NOT");
   });
 
-  it("reports a send that did NOT move the package as the half-success it is", () => {
+  it("reports a non-rfq_sent answer as a CONTRADICTION, not a half-success", () => {
+    // RFQ-IDEMPOTENT: the server moves first and mints only if the move landed, so this response
+    // can no longer be produced by a second send. It asserted `toContain("minted anyway")` — the
+    // old advice — and that advice is now the one claim such a response has NOT established.
     const s = rfqSummary({ solicitation: { id: 8, ref: "ITB-0008" }, package: "PKG-0001",
                            package_state: "quotes_in" });
     expect(s).toContain("did NOT move");
     expect(s).toContain("quotes in");
-    expect(s).toContain("minted anyway");
+    expect(s).toContain("Reload");
+    expect(s).not.toContain("minted anyway");
   });
 
   it("handles an unreported state without claiming the move happened", () => {
