@@ -198,9 +198,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - { name: api, context: ., dockerfile: services/api/Dockerfile }
-          - { name: web, context: ., dockerfile: apps/web/Dockerfile }
-          - { name: converter, context: ., dockerfile: services/converter/Dockerfile }
+          # `nocache` names stages that must be rebuilt even on a cache hit. The api runtime stage
+          # applies Debian security updates, and its cache key never changes (pinned parent digest +
+          # a fixed command), so without this the upgrade runs once and then rides the cache stale.
+          # Empty for the other two: they have no such stage, and an empty filter is a no-op.
+          - { name: api, context: ., dockerfile: services/api/Dockerfile, nocache: runtime }
+          - { name: web, context: ., dockerfile: apps/web/Dockerfile, nocache: '' }
+          - { name: converter, context: ., dockerfile: services/converter/Dockerfile, nocache: '' }
     steps:
       - uses: actions/checkout@v7
 
@@ -221,6 +225,7 @@ jobs:
           tags: ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: ${{ matrix.nocache }}
 
       # Vulnerability GATE: fixable CRITICAL findings block the publish. (O4 note: we tried gating on
       # HIGH too, but the base images — node's bundled npm CLI tooling and nginx:alpine's apk set —
@@ -343,9 +348,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: api, context: ., dockerfile: services/api/Dockerfile }
-          - { name: web, context: ., dockerfile: apps/web/Dockerfile }
-          - { name: converter, context: ., dockerfile: services/converter/Dockerfile }
+          # `nocache` names stages that must be rebuilt even on a cache hit. The api runtime stage
+          # applies Debian security updates, and its cache key never changes (pinned parent digest +
+          # a fixed command), so without this the upgrade runs once and then rides the cache stale.
+          # Empty for the other two: they have no such stage, and an empty filter is a no-op.
+          - { name: api, context: ., dockerfile: services/api/Dockerfile, nocache: runtime }
+          - { name: web, context: ., dockerfile: apps/web/Dockerfile, nocache: '' }
+          - { name: converter, context: ., dockerfile: services/converter/Dockerfile, nocache: '' }
     steps:
       - uses: actions/checkout@v7
 
@@ -362,6 +371,7 @@ jobs:
           load: true
           tags: massing-${{ matrix.name }}:pr
           cache-from: type=gha
+          no-cache-filters: ${{ matrix.nocache }}
 
       - name: Scan — gate (Trivy, CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0

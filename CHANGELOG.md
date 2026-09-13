@@ -31,10 +31,27 @@ newer-and-therefore-fixed would have been a guess wearing a checksum.
 So the runtime stage applies Debian security updates at build time instead. That is not a weaker
 supply-chain position than what the stage already did — the same `apt`, the same signed archive, the
 same build-time resolution as the `apt-get install` one line below it — and the digest pin is
-untouched, so the base layers are still the reviewed ones. Unlike a digest bump it also keeps
-working: the next DSA is picked up by the next build rather than by the next person to notice a red
-gate. **A pin fixes the starting point; it does not stop the starting point going stale**, and a
-gate that blocks on staleness needs a fix aimed at staleness.
+untouched, so the base layers are still the reviewed ones. **A pin fixes the starting point; it does
+not stop the starting point going stale**, and a gate that blocks on staleness needs a fix aimed at
+staleness.
+
+**And the first draft of that fix was stale by construction — review caught it.** This entry claimed
+the upgrade "keeps working: the next DSA is picked up by the next build". It would not have. Both
+container jobs build with `cache-from: type=gha`, and the cache key for that `RUN` is its parent
+(a pinned digest, which never moves) plus its command string (which also never moves). The layer
+would have been restored from cache on every later build, so the upgrade would have run **exactly
+once** — on the build that introduced it — and then frozen at whatever the archive held that day.
+`ci.yml` now passes `no-cache-filters: runtime` for the api image, and the stage is named `AS
+runtime` to be addressable; the expensive `pybuild` and `converter` stages stay cached.
+
+The shape is the one this repo keeps meeting: **a mitigation whose self-maintaining property was
+asserted rather than checked.** It is the same failure as a gate that answers instead of failing,
+moved one layer out — the remediation would have been real on the day it was written and inert
+every day after, with a green build both times. *A fix that depends on re-running needs the
+re-running proved, not assumed.* Worth noting where it was caught: not by a test, because nothing
+here can execute a container build — no docker daemon in the authoring environment, and the egress
+policy blocks the registry's blob CDN. The check that could fail was CI, and the reader who spotted
+the gap ahead of it was a review bot.
 
 ### The escaping gate could not see a helper's parameters, so 108 sinks sat outside it
 
