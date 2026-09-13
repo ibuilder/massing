@@ -456,31 +456,26 @@ def covered(keys, sites) -> tuple[list, list]:
 #: `ast.walk` + `setdefault` walker returns the OUTER one here, so this check distinguishes the two
 #: implementations — which matters because on today's real tree they agree on every site, and a fix
 #: nothing can tell apart from the bug is a fix nobody can keep.
-_NESTED = """
+#:
+#: **It calls `_owners` — THE function `_sites` uses — and not a copy of it.** The first draft
+#: mirrored the traversal into a local `_probe`, so `_owners` could regress to outer-function
+#: attribution and this check would still pass: *a self-test written to stop a fix being silently
+#: reverted, testing a copy of the fix.* That is the same "cannot fail" family the whole gate is
+#: about, one level up, and the mutation run to verify it was aimed at the COPY, so it proved the
+#: copy behaved as advertised and said nothing about the gate. **Mutate the thing under test, and
+#: make sure the test can reach it.**
+#:
+#: Named `_NESTED_OWNERS` rather than reusing `_NESTED` above, which is a different fixture for the
+#: resolver self-tests — the first draft shadowed it, and the only reason that was harmless is that
+#: the earlier checks happen to run first.
+_NESTED_OWNERS = """
 def outer(col):
     def inner(other):
         return other.is_(None)
     return inner
 """
-_nt = ast.parse(_NESTED)
-_nowner: dict[int, ast.AST] = {}
-_nstack: list[ast.AST] = []
-
-
-def _probe(node: ast.AST) -> None:
-    """Mirror of `_sites`' scope-stack descent, over a synthetic tree."""
-    entered = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    if entered:
-        _nstack.append(node)
-    if _nstack:
-        _nowner[id(node)] = _nstack[-1]
-    for ch in ast.iter_child_nodes(node):
-        _probe(ch)
-    if entered:
-        _nstack.pop()
-
-
-_probe(_nt)
+_nt = ast.parse(_NESTED_OWNERS)
+_nowner = _owners(_nt)
 _ncall = next((n for n in ast.walk(_nt)
                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
                and n.func.attr == "is_"), None)

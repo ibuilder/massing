@@ -106,6 +106,15 @@ turned it into a misattributed key no exemption could match. Replaced with a sco
 why a synthetic nested case is asserted: *a fix nothing can distinguish from the bug is a fix nobody
 can keep.*
 
+**And the first draft of THAT self-test tested a copy of the fix.** It mirrored the traversal into a
+local `_probe` instead of calling `_owners`, so `_owners` could regress to outer-function
+attribution and the check would still pass — *a self-test written to stop a fix being silently
+reverted, unable to observe the fix.* Worse, the mutation run to verify it was aimed at the copy, so
+it proved the copy behaved as advertised and said nothing about the gate. **Mutate the thing under
+test, and prove the test can reach it.** It now calls `_owners` directly, and regressing `_owners`
+itself is what reds the build. The fixture was also shadowing an unrelated `_NESTED` used by the
+resolver self-tests, harmless only because those happen to run first; renamed.
+
 ### The PostgreSQL pin gate could be handed a dead server and still exit 0
 
 Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the
