@@ -87,6 +87,25 @@ under a shrink ratchet precisely because it accumulates. Trimmed to six lines an
 *Both were found by running the suite rather than by reading the diff, and CI's API gate failed on
 the same two — which is the argument for running it before claiming a PR is green.*
 
+**A review round on that fix found three more, and two of them were the same defect I had just
+fixed one file over.** `test_court_primary`'s list lookup unwrapped `{"items": ...}` and then
+iterated whatever was left — a 4xx body is a dict with no `items`, so the unwrap hands the ERROR
+OBJECT back, iteration yields its string keys, and `x.get` raises before `check` can report the
+route failure. And the new self-tests in `test_json_null_filter` opened with a bare `next(...)`,
+which raises `StopIteration` and kills the gate if the site they are built on is ever deleted.
+*Both are "dies instead of reporting", written hours after fixing that exact shape — knowing a
+defect class by name is not the same as recognising it in your own next paragraph.* Both now report
+through `check` and reach the summary; each is mutation-proved by breaking its precondition.
+
+The third was in the rekey itself. `_sites()` mapped each node to its enclosing function with
+`ast.walk` + `setdefault`, which binds to the **outermost** enclosing function, not the nearest — so
+a NULL test inside a nested `def` resolves against the wrong locals. That was already true when the
+owner map only fed `_resolve`; making the function name part of the site's **identity** is what
+turned it into a misattributed key no exemption could match. Replaced with a scope-stack descent.
+**Measured on today's tree the two walkers agree on every one of the 21 sites** — which is precisely
+why a synthetic nested case is asserted: *a fix nothing can distinguish from the bug is a fix nobody
+can keep.*
+
 ### The PostgreSQL pin gate could be handed a dead server and still exit 0
 
 Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the

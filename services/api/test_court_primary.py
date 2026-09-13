@@ -242,7 +242,11 @@ with TestClient(app) as c:
         c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", json={"action": "submit"})
         listed = c.get(f"/projects/{pid}/modules/rfi").json()
         listed = listed.get("items", listed) if isinstance(listed, dict) else listed
-        row = next((x for x in listed if x.get("id") == rid), None)
+        # `isinstance(listed, list)` AFTER the envelope unwrap: a 4xx/5xx body is a dict with no
+        # `items`, so the unwrap hands the ERROR OBJECT back and iterating it yields its string
+        # keys — `x.get` then raises and the gate dies instead of reporting the route failure.
+        listed = listed if isinstance(listed, list) else []
+        row = next((x for x in listed if isinstance(x, dict) and x.get("id") == rid), None)
         one = c.get(f"/projects/{pid}/modules/rfi/{rid}").json()
 
     check("the LIST route sends ball_in_court", row is not None and "ball_in_court" in row,

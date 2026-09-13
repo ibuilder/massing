@@ -252,18 +252,46 @@ def _resolve(subject, fn: ast.AST | None):
     return None, (subject.id if isinstance(subject, ast.Name) else None), "unresolved"
 
 
+def _owners(tree: ast.AST) -> dict[int, ast.AST]:
+    """Every node in `tree` mapped to its NEAREST enclosing function (absent if at module level).
+
+    Defined at module scope rather than inside `_sites`' loop so the recursion does not close over
+    loop-scoped state — which is a real hazard (ruff B023) and not merely a style point.
+    """
+    owner: dict[int, ast.AST] = {}
+    stack: list[ast.AST] = []
+
+    def descend(node: ast.AST) -> None:
+        entered = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if entered:
+            stack.append(node)
+        if stack:
+            owner[id(node)] = stack[-1]
+        for child in ast.iter_child_nodes(node):
+            descend(child)
+        if entered:
+            stack.pop()
+
+    descend(tree)
+    return owner
+
+
 def _sites():
     """Every NULL test in the tree, with its resolved subject. Derived, never listed."""
     found = []
     for f in sorted(SRC.rglob("*.py")):
         rel = f.as_posix()
         tree = ast.parse(f.read_text(encoding="utf-8"), rel)
-        # map each node to its enclosing function, so a local name can be resolved
-        owner: dict[int, ast.AST] = {}
-        for fn in ast.walk(tree):
-            if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                for n in ast.walk(fn):
-                    owner.setdefault(id(n), fn)
+        # Map each node to its NEAREST enclosing function, by descending with a scope stack.
+        #
+        # This was `ast.walk` + `owner.setdefault`, which binds a node to whichever function the
+        # outer walk reached FIRST — the outermost, not the innermost. A NULL test inside a nested
+        # `def` was therefore resolved against the OUTER function's locals. That was already wrong
+        # when the owner was used only by `_resolve`; it became load-bearing when the function name
+        # became part of the site's IDENTITY, because a misattributed site gets a key no exemption
+        # can match and no exemption can be written for. Measured on today's tree the two agree on
+        # every site — *which is exactly why it would have been found only after it mattered.*
+        owner = _owners(tree)
         for n in ast.walk(tree):
             subject = None
             if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
@@ -419,12 +447,61 @@ def covered(keys, sites) -> tuple[list, list]:
 
 # **The self-tests for the key itself, run before any verdict.** The dict this replaces went stale
 # twice in two days, so the two properties that fix it are asserted rather than described.
-_a_site = next(s for s in SITES if s[0] == "src/aec_api/modules_query.py" and s[7] == "_apply_filters")
-_moved = (_a_site[0], _a_site[1] + 137, *_a_site[2:])
+# `next(..., None)` and a check, never a bare `next(...)`: a StopIteration here would kill the gate
+# before it printed anything, which is the same "dies instead of reporting" family the PR that added
+# these self-tests had just fixed one file over. A self-test whose SETUP can abort the run is worse
+# than no self-test, because the run looks crashed rather than failed.
+#: **The nearest-enclosing-function fix, asserted rather than described.** A synthetic module with a
+#: NULL test inside a nested `def` must attribute it to the INNER function. The previous
+#: `ast.walk` + `setdefault` walker returns the OUTER one here, so this check distinguishes the two
+#: implementations — which matters because on today's real tree they agree on every site, and a fix
+#: nothing can tell apart from the bug is a fix nobody can keep.
+_NESTED = """
+def outer(col):
+    def inner(other):
+        return other.is_(None)
+    return inner
+"""
+_nt = ast.parse(_NESTED)
+_nowner: dict[int, ast.AST] = {}
+_nstack: list[ast.AST] = []
+
+
+def _probe(node: ast.AST) -> None:
+    """Mirror of `_sites`' scope-stack descent, over a synthetic tree."""
+    entered = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    if entered:
+        _nstack.append(node)
+    if _nstack:
+        _nowner[id(node)] = _nstack[-1]
+    for ch in ast.iter_child_nodes(node):
+        _probe(ch)
+    if entered:
+        _nstack.pop()
+
+
+_probe(_nt)
+_ncall = next((n for n in ast.walk(_nt)
+               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+               and n.func.attr == "is_"), None)
+check("a NULL test in a NESTED def belongs to the INNER function, not the outer one",
+      _ncall is not None and getattr(_nowner.get(id(_ncall)), "name", None) == "inner",
+      f"attributed to {getattr(_nowner.get(id(_ncall)), 'name', None)!r} — `ast.walk` + "
+      f"`setdefault` binds a node to the OUTERMOST enclosing function, so a nested site resolves "
+      f"against the wrong locals and gets a key no exemption can match")
+
+_a_site = next((s for s in SITES if s[0] == "src/aec_api/modules_query.py"
+                and s[7] == "_apply_filters"), None)
+check("the site these self-tests are built on still exists", _a_site is not None,
+      "no NULL test remains in `modules_query._apply_filters` — if that is intended, delete its "
+      "EXEMPT entry and re-aim these self-tests at another multi-site function; until then the two "
+      "checks below are measuring nothing")
+_moved = (_a_site[0], _a_site[1] + 137, *_a_site[2:]) if _a_site else None
 check("a site's identity does not move when only its LINE moves — the whole point of the rekey",
-      site_key(_moved) == site_key(_a_site),
+      bool(_a_site) and site_key(_moved) == site_key(_a_site),
       f"{site_key(_moved)} != {site_key(_a_site)} — a key carrying the line number is a key every "
-      f"unrelated edit to the file invalidates, which is the defect this replaced")
+      f"unrelated edit to the file invalidates, which is the defect this replaced"
+      if _a_site else "no site to move")
 
 #: `_exemption_count_is_load_bearing`: delete ONE of `_apply_filters`' two sites and require the
 #: count to catch it. Without this, collapsing the line number into the function would let an
