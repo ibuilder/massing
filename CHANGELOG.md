@@ -60,6 +60,33 @@ them, strips a declaration and requires that to be caught, and mutates `court_pa
 first-transition rule and requires **both** wrong answers to return — so the assertions test the
 reader and not merely the config.
 
+Two gates went red on that change and both were right, so both are recorded rather than quietly
+re-pinned:
+
+**`test_json_null_filter` exempted its sites by LINE NUMBER, and went stale twice in two days.** Not
+because the code it describes changed — because unrelated edits further up `modules_query.py` pushed
+those sites down the file. *A line number is a coordinate every edit to the file moves, so an
+exemption keyed on one measures when the file was last touched rather than whether the site is still
+there.* Re-pinning it a second time would have been a fix already known to fail, so the key is now
+`(file, enclosing function, subject)`, which moves only when the code genuinely moves.
+
+Collapsing the line into the function costs the ability to tell two sites in one function apart —
+`_apply_filters` has two — so each entry now carries **how many sites it covers**, and the gate
+deletes one of that pair and requires the count to catch it. Otherwise this would have traded a
+noisy failure for a silent one: an exemption still covering the survivor after its twin was deleted.
+Three mutations pin it: claiming a wrong count, restoring the line-number key, and dropping an entry
+outright are each reported.
+
+**`test_file_sizes` caught `register.ts` growing past its ratchet — by six lines of COMMENT.** The
+code shrank five lines (the local ball-in-court union went away); a seventeen-line doc comment
+explaining why replaced it. The ratchet was right: the substance of that comment is about the
+SERVER's rule and belongs with `court_party` and its gate, not restated in a 2,458-line file that is
+under a shrink ratchet precisely because it accumulates. Trimmed to six lines and the now-dead
+`ModuleDef` parameter dropped from `ballCell`; **2,458 → 2,447**.
+
+*Both were found by running the suite rather than by reading the diff, and CI's API gate failed on
+the same two — which is the argument for running it before claiming a PR is green.*
+
 ### The PostgreSQL pin gate could be handed a dead server and still exit 0
 
 Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the

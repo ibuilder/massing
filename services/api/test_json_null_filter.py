@@ -75,20 +75,31 @@ _EXTRACTORS = {"_json_text", "json_extract"}
 #: Sites whose subject the resolver cannot reach, each READ and cleared by hand. A site belongs here
 #: only with a reason that says what the subject actually is — an entry that merely silences the
 #: analyser is the failure this file's docstring warns about.
-EXEMPT: dict[tuple[str, int, str], str] = {
-    ("src/aec_api/modules_query.py", 202, "expr"):
+#:
+#: **Keyed by the ENCLOSING FUNCTION, not by a line number, and the count is part of the key's
+#: value.** The first version of this dict pinned `(file, line, subject)` and went stale TWICE in
+#: two days — both times because an unrelated edit elsewhere in `modules_query.py` pushed these
+#: sites down the file. A line number is a coordinate every edit to the file moves, so an exemption
+#: keyed on one measures when the file was last touched rather than whether the site is still there.
+#: A function name moves only when the code genuinely moves.
+#:
+#: Collapsing to the function loses the ability to tell two sites in one function apart, which is
+#: why each entry carries HOW MANY sites it covers: delete one of `_apply_filters`' two and the
+#: count no longer matches, so the exemption still cannot outlive its sites. `_exemption_count_is_
+#: load_bearing` below deletes a site and requires that to be caught.
+EXEMPT: dict[tuple[str, str, str], tuple[int, str]] = {
+    ("src/aec_api/modules_query.py", "_apply_filters", "expr"): (2,
         "`_field_expr` returns either `t.c[name]` for a name in SYSTEM_COLUMNS — none of which is a "
         "JSON column (assert_system_columns_are_not_json below pins that) — or `_json_text(...)`, an "
-        "extraction. Neither is a bare JSON column.",
-    ("src/aec_api/modules_query.py", 205, "expr"): "as line 202 — the same `_field_expr` result.",
-    ("src/aec_api/modules_query.py", 407, "expr"):
+        "extraction. Neither is a bare JSON column. Two sites: the `empty` and `nonempty` operators."),
+    ("src/aec_api/modules_query.py", "_apply_sort", "expr"): (1,
         "`_display_expr`, which resolves through `_field_expr` for a plain field and through a "
-        "joined label column for a reference field; neither yields a bare JSON column.",
-    ("src/aec_api/pins.py", 98, "anchor_col"):
+        "joined label column for a reference field; neither yields a bare JSON column."),
+    ("src/aec_api/pins.py", "pin_where", "anchor_col"): (1,
         "a parameter of `pin_where`, bound by every caller to a register `anchor` column, which "
-        "declares none_as_null=True (asserted below, so this exemption cannot outlive its reason).",
-    ("src/aec_api/pins.py", 98, "guids_col"):
-        "a parameter of `pin_where`, bound to `element_guids`, likewise none_as_null=True.",
+        "declares none_as_null=True (asserted below, so this exemption cannot outlive its reason)."),
+    ("src/aec_api/pins.py", "pin_where", "guids_col"): (1,
+        "a parameter of `pin_where`, bound to `element_guids`, likewise none_as_null=True."),
 }
 
 
@@ -263,9 +274,10 @@ def _sites():
                 subject = n.left
             if subject is None:
                 continue
-            tbl, col, kind = _resolve(subject, owner.get(id(n)))
+            fn = owner.get(id(n))
+            tbl, col, kind = _resolve(subject, fn)
             found.append((rel, n.lineno, ast.unparse(subject), tbl, col, kind,
-                          verdict(tbl, col, kind)))
+                          verdict(tbl, col, kind), getattr(fn, "name", "<module>")))
     return found
 
 
@@ -376,34 +388,82 @@ check("the register pin columns still declare none_as_null — the pins.py exemp
 
 # --- THE VERDICTS --------------------------------------------------------------------------------
 #: The one member of the class that is live today, with why it is recorded rather than fixed.
-KNOWN_INSTANCES: dict[tuple[str, int], str] = {
-    ("src/aec_api/client_portal.py", 274):
+#: Keyed like `EXEMPT`, and for the same reason — see the note there.
+KNOWN_INSTANCES: dict[tuple[str, str, str], tuple[int, str]] = {
+    ("src/aec_api/client_portal.py", "_feedback_topic", "Topic.labels"): (1,
         "Topic.labels — over-fetches, does not answer wrongly: the query narrows on `type == "
         "'info'` and then applies the real test in Python. Fixing it needs a sweep of the existing "
-        "`'null'` rows to mean anything, which is a migration of its own.",
+        "`'null'` rows to mean anything, which is a migration of its own."),
 }
 
-_unknown = [s for s in SITES if s[6] == "UNKNOWN" and (s[0], s[1], s[2]) not in EXEMPT]
+def site_key(s) -> tuple[str, str, str]:
+    """A site's identity: file, enclosing function, subject text. Deliberately NOT the line number
+    — see the note on `EXEMPT`. Kept as a function so a mutation can be aimed at it."""
+    return (s[0], s[7], s[2])
+
+
+def covered(keys, sites) -> tuple[list, list]:
+    """`(uncovered_sites, bad_entries)` for a keyed dict of `(count, reason)` against `sites`.
+
+    Both directions, because either alone passes while the other is broken: an entry whose sites
+    are gone is a claim nobody can check, and a site no entry covers is the thing the gate exists
+    to report. The COUNT is checked as well as the key — collapsing a line number to a function
+    would otherwise let an entry keep covering one site after its twin was deleted."""
+    seen: dict[tuple[str, str, str], int] = {}
+    for s in sites:
+        seen[site_key(s)] = seen.get(site_key(s), 0) + 1
+    uncovered = [s for s in sites if site_key(s) not in keys]
+    bad = [(k, n, seen.get(k, 0)) for k, (n, _r) in keys.items() if seen.get(k, 0) != n]
+    return uncovered, bad
+
+
+# **The self-tests for the key itself, run before any verdict.** The dict this replaces went stale
+# twice in two days, so the two properties that fix it are asserted rather than described.
+_a_site = next(s for s in SITES if s[0] == "src/aec_api/modules_query.py" and s[7] == "_apply_filters")
+_moved = (_a_site[0], _a_site[1] + 137, *_a_site[2:])
+check("a site's identity does not move when only its LINE moves — the whole point of the rekey",
+      site_key(_moved) == site_key(_a_site),
+      f"{site_key(_moved)} != {site_key(_a_site)} — a key carrying the line number is a key every "
+      f"unrelated edit to the file invalidates, which is the defect this replaced")
+
+#: `_exemption_count_is_load_bearing`: delete ONE of `_apply_filters`' two sites and require the
+#: count to catch it. Without this, collapsing the line number into the function would let an
+#: exemption keep covering a survivor after its twin was deleted — trading one silent failure for
+#: another. A mutation on the analyser is the only way to know which of the two we got.
+_unknowns = [s for s in SITES if s[6] == "UNKNOWN"]
+_one_deleted = [s for s in _unknowns if s is not _a_site]
+_, _bad_after = covered(EXEMPT, _one_deleted)
+check("deleting ONE of two sites under a single exemption is caught by the count",
+      any(k == site_key(_a_site) for k, _n, _got in _bad_after),
+      f"the mutated tree reported {_bad_after!r} — an exemption claiming 2 sites while only 1 "
+      f"remains is exactly the claim nobody can check that the line-number key used to catch")
+_, _bad_before = covered(EXEMPT, _unknowns)
+check("...and the unmutated tree is clean, so the check above is not passing for free",
+      not _bad_before,
+      f"{_bad_before!r} — a mutation test whose baseline already fails proves nothing")
+
+_unknown, _stale = covered(EXEMPT, [s for s in SITES if s[6] == "UNKNOWN"])
 check("every NULL test resolves, or is exempted with a reason", not _unknown,
       "unresolved subject(s) — read each and add it to EXEMPT with what the subject actually is, "
       "never by widening the resolver until it stops appearing: "
-      + "; ".join(f"{s[0]}:{s[1]} {s[2]}" for s in _unknown))
+      + "; ".join(f"{s[0]}:{s[1]} in {s[7]} — {s[2]}" for s in _unknown))
 
-_stale = [k for k in EXEMPT if not any((s[0], s[1], s[2]) == k for s in SITES)]
-check("no exemption outlives its site", not _stale,
-      f"{_stale!r} — an exemption for a call site that no longer exists is a claim nobody can check")
+check("no exemption outlives its sites, and covers exactly as many as it claims", not _stale,
+      "; ".join(f"{k} claims {n} site(s), found {got}" for k, n, got in _stale)
+      + " — an exemption for a call site that no longer exists is a claim nobody can check, and one "
+        "that silently covers fewer sites than it says has stopped describing the code")
 
-_defects = [s for s in SITES if s[6] == "JSON_NULL_TEST" and (s[0], s[1]) not in KNOWN_INSTANCES]
+_defects, _stale_known = covered(KNOWN_INSTANCES,
+                                 [s for s in SITES if s[6] == "JSON_NULL_TEST"])
 check("no NULL test is applied to a JSON column that can hold the scalar `null`", not _defects,
       "a `IS NULL` / `IS NOT NULL` here filters nothing, silently — declare `none_as_null=True` on "
       "the column and sweep the existing rows, or move the test into Python: "
-      + "; ".join(f"{s[0]}:{s[1]} {s[2]}" for s in _defects))
+      + "; ".join(f"{s[0]}:{s[1]} in {s[7]} — {s[2]}" for s in _defects))
 
-_stale_known = [k for k in KNOWN_INSTANCES
-                if not any((s[0], s[1]) == k and s[6] == "JSON_NULL_TEST" for s in SITES)]
 check("no KNOWN_INSTANCE outlives its defect", not _stale_known,
-      f"{_stale_known!r} — this site is no longer in the class; delete the entry so the list keeps "
-      f"measuring something")
+      "; ".join(f"{k} claims {n} site(s), found {got}" for k, n, got in _stale_known)
+      + " — this site is no longer in the class; delete the entry so the list keeps measuring "
+        "something")
 
 if FAILED:
     print("FAIL test_json_null_filter")
