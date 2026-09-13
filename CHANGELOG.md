@@ -51,10 +51,21 @@ and the route together at the next public-API revision), not silently exempted.
 should carry the viewer's presentation fields or whether the viewer should look them up from
 `/modules`. The viewer does not fetch `/modules` anywhere, so the lookup trades one request for
 another and defeats the item. The envelope carries `icon` and `source_name` for BOTH kinds: a
-register's from its own `module.json`, a topic's from a glyph table moved out of `pins.ts` — where
-it was a literal, which is precisely why the overlay needed a branch per topic type and a second
-loop for register records. `api.modulePins()` is deleted as the dead client method it became; the
-`/module-pins` route stays.
+register's `source_name` and `icon` from its own `module.json` — which is where the old
+`/module-pins` row already read them — and a topic's from a glyph table lifted out of `pins.ts`,
+where it was a literal the server could not see, so no server could name a topic pin.
+
+*That last clause replaces a claim that was simply false, and it is worth leaving the correction
+visible.* This read "which is precisely why the overlay needed a branch per topic type and a second
+loop for register records". Neither half survives looking: the glyph was a **map lookup**, not a
+branch per type, and the register loop **already took `icon` off the server row**, so the literal
+cannot have been what forced it. What forced the second loop was the two ROW SHAPES — `Topic`
+(`anchor`/`title`/`type`) against `ModulePin` (`anchor`/`ref`/`module_name`/`icon`) — which one
+envelope collapses. The click branch stays, because restoring a viewpoint and opening a register row
+are different acts. *A causal sentence is the easiest kind to write without checking, because it
+reads as an explanation whether or not anything caused anything.* Found in review, not by me.
+
+`api.modulePins()` is deleted as the dead client method it became; the `/module-pins` route stays.
 
 **The gate already existed and was asserting the wrong number.**
 `apps/web/src/kernel/markupPlugin.test.ts` pinned `["load:proj-1", "modulePins:proj-1"]` — the
