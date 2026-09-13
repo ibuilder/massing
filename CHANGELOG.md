@@ -12,6 +12,78 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The PostgreSQL pin gate could be handed a dead server and still exit 0
+
+Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the
+review **body** rather than an inline thread — every inline finding was fixed, and this one was not
+seen until after the PR merged. *Where a finding is posted decides whether it gets read.*
+
+`test_pin_pgnull.py` connects to the PostgreSQL a run asks for, and failed the build on an
+unreachable one only `if _REQUIRED` — that is, only when `AEC_PG_REQUIRED` was set. But `_url()`
+returns a URL under **two** opt-ins: that one, and `AEC_TEST_PG_URL`. So a run that set only
+`AEC_TEST_PG_URL`, pointing at a dead port, took the connect-failure branch, recorded nothing, fell
+through to the no-server path and exited **0** — printing *"no opt-in"* at a caller who had just
+opted in.
+
+Measured before the fix, not reasoned about:
+
+    AEC_TEST_PG_URL=postgresql+psycopg://postgres@127.0.0.1:1/nope   (AEC_PG_REQUIRED unset)
+    -> test_pin_pgnull OK  (no opt-in; ...)      exit 0
+
+This is the same shape as the defect the file's own comment already records one flag earlier —
+*"a flag that guards one branch of two guards nothing"* — and it recurred because the fix at the
+time asked *is this run required to reach a server*, when the question the branch needed was *did
+anything ask for this server at all*. By the time that `except` runs, something always has: the
+failure is now unconditional. **A message that names the wrong cause is worse than a bare failure,
+because somebody acts on it** — the reader would have gone hunting for the opt-in they had supplied.
+
+Verified in four directions: the dead explicit URL now exits 1; `AEC_PG_REQUIRED` with a dead
+`PGHOST` still exits 1; no opt-in at all still passes through the genuine no-server path; and the
+live-PostgreSQL run still passes. CI was never exposed — it sets `AEC_PG_REQUIRED` — which is
+exactly why nothing went red.
+
+### Sorting a register by `updated_at` was a 500; `SYSTEM_COLUMNS` named two columns that do not exist
+
+`modules_query.SYSTEM_COLUMNS` is the allowlist of row columns a caller may filter and sort a
+register by. Two of its six names were not columns at all: **`updated_at`** — the register column is
+`modified_at` — and **`ball_in_court`**, which is derived from `workflow_state` by `court_party` and
+never stored. `_resolve_field` returned `{"_system": True}` for both, so `_field_expr` and
+`_display_expr` went straight to `t.c[name]` and raised `KeyError` inside the request handler.
+
+Measured over HTTP against the pre-fix code, on a live register:
+
+| request | before | after |
+|---|---|---|
+| `?sort=not_a_field` | 400 | 400 |
+| `?sort=workflow_state` | 200 | 200 |
+| `?sort=updated_at` | **500** | **400** |
+| `?sort=ball_in_court` | **500** | **400** |
+| `?sort=modified_at` | 400 | **200** |
+| save a view with `{"sort": "updated_at"}` | **201, accepted** | **400, refused** |
+
+That last row is the one worth reading twice. `validate_view_config` resolves `sort`, `group_by`,
+`agg_field`, `columns` and `filters` through the same `_resolve_field`, with no table in scope at
+all — so the phantom could be **stored**. The view saved, the view list returned 200, and the 500
+arrived only when somebody applied it. *The stored form is not a louder version of the transient
+one; it is a quieter one, and its cause sits two screens from its symptom.*
+
+The fix is both halves, because either alone passes while the other is broken. `_system_field`
+validates the name against the register table before the system stub may be returned, so the next
+phantom is the 400 an unknown field was always supposed to get; and the list is corrected —
+`updated_at` renamed to the column it meant (checked against all 139 modules: none declares a field
+by that name, so it shadows nothing), `ball_in_court` dropped. **`?sort=modified_at` now works**,
+which is the capability the wrong name was reaching for.
+
+`updated_at` is the **third** instance of that typo on a module row. `quality.py` and `rfi.register`
+both read it and got a permanent `None` for `avg_days_to_close`, fixed in August. Those two failed
+silently and this one is reachable from a URL — *the same wrong name is not the same severity in two
+places, and the loud one was found last.*
+
+Gated by `services/api/test_system_columns.py`, which asserts the allowlist against the live
+`TABLES` metadata (139 tables), requires its own derivation to re-find both shipped phantoms before
+it may report anything, and then **deletes the runtime guard and requires the `KeyError` to come
+back** — a static check that passes with the guard gone is not testing the guard.
+
 ### The pin sweep skipped exactly the rows it was written to convert, on PostgreSQL only
 
 `b3c9e42d18a5` — the migration that clears empty pin values so `/pins/all` stops counting them as
