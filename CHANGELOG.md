@@ -12,6 +12,39 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### alembic 1.18.5 → 1.20.0, and a local resolver that confidently reported the wrong answer
+
+Dependabot's #519 carried this floor bump with a recompiled lock and went fully green, including the
+Postgres `alembic upgrade + check + runtime-parity` job. It then became unmergeable: three later
+bumps each recompiled `services/api/requirements.lock`, so the branch conflicted in a generated file
+that must never be merged by hand. Handing it back to dependabot was not available either — comment
+commands posted from this session are rewritten in transit, with U+00B7 injected around the `@` and
+inside the command word, so `recreate` and `rebase` both read correctly in the timeline and did
+nothing. **A command that looks delivered and is inert is worse than one that visibly fails.**
+
+Redone here, with the lock taken from `lockfile.yml`'s own compile in `python:3.12-slim` rather than
+from a local one — and that distinction turned out to matter enormously.
+
+**The local resolve said 34 packages would move.** `anthropic` 1.2.0 → 1.5.0, `websockets` 16.1 →
+17.1, `cryptography`, `sqlalchemy`, `certifi`, and thirty more: a one-line floor bump becoming a
+tree-wide sweep, which is exactly the kind of scope change worth stopping for. It was wrong. CI's
+`Verify` step prints its own diff, and that diff carries `annotated-doc==0.0.4` as an unchanged
+**context** line — the very next package after alembic — while the local resolve moved it. Same
+pinned pip-tools, same Python minor, same input file, different answers; whatever this environment's
+egress serves as an index is not what the prod container sees. `Verify` then passed on the
+transcribed lock, proving the real change is alembic **and nothing else**.
+
+*A number with a package list attached reads as evidence.* The list was specific, ordered and
+plausible, and nothing in its shape suggested a wrong index — it was very nearly reported as a
+finding. What exposed it was a context line in someone else's diff: the check that could fail rather
+than the tool that answered. **When a measurement and a gate disagree, the gate is the one that
+graded the artifact.**
+
+Worth recording that the floor and the pin differ on purpose. `requirements.in` asks `>=1.19.2`,
+what dependabot requested; the lock resolves to the latest satisfying release, 1.20.0. So the
+behaviour under test is 1.18.5 → 1.20.0, wider than the floor names, with alembic 1.19's
+autogenerate CHECK-constraint change inside that span.
+
 ### A digest pin freezes the base image, and the CRITICAL gate blocks on it going stale
 
 The API container build went red on three fixed CRITICAL CVEs in `perl-base` — CVE-2026-13221,
