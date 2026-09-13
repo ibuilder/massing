@@ -44,11 +44,11 @@ flatbuffers>=25.2.10
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1.5
-numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pip-compile reads
+numpy>=2.5.3              # floor raised WITH services/data/requirements.txt: pip-compile reads
                           # only this file, so a floor raised only there cannot move the lock
 ifctester>=0.8
 trimesh>=5.1.0
-manifold3d>=3.5.2
+manifold3d>=3.5.3
 scipy>=1.18.1
 # DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,
 # so a grep for import sites says "zero" and the line reads like dead weight. It is the ONLY thing
