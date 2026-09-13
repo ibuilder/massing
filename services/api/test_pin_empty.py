@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import pathlib
+import sqlite3
 import sys
 import types
 import typing
@@ -84,14 +86,32 @@ _spec3.loader.exec_module(mig3)
 check("the anchor migration follows the widening one", mig3.down_revision == mig2.revision,
       f"{mig3.down_revision!r} != {mig2.revision!r} — a sweep off the chain sweeps nothing")
 
+# PIN-SWEEP-PGNULL added a FOURTH sweep, and it is the first that exists because an earlier one was
+# WRONG rather than too narrow. `b3c9e42d18a5` decided per column in Python, beginning
+# `if v is None: continue` — and on PostgreSQL a `json` column holding the scalar `null` is non-NULL
+# in SQL while the driver hands back Python `None`, so it skipped exactly the legacy rows it was
+# written to convert and reported nothing to do. `d7f1a5c3e094` asks the database instead: one SELECT
+# per column, each narrowed to that column being non-NULL.
+_MIG4 = pathlib.Path(
+    "migrations/versions/2026_09_13_1210-d7f1a5c3e094_pin_sweep_sql_null_state.py")
+check("the SQL-null-state migration exists", _MIG4.exists(), f"{_MIG4} not found")
+if not _MIG4.exists():
+    print("FAIL test_pin_empty")
+    sys.exit(1)
+_spec4 = importlib.util.spec_from_file_location("_pin_empty_mig4", _MIG4)
+mig4 = importlib.util.module_from_spec(_spec4)
+_spec4.loader.exec_module(mig4)
+check("the SQL-null-state migration follows the anchor one", mig4.down_revision == mig3.revision,
+      f"{mig4.down_revision!r} != {mig3.revision!r} — a sweep off the chain sweeps nothing")
+
 #: Every register any sweep has reached, by NAME. Kept for the dead-name record below; it is NOT
 #: what coverage is measured on any more — see `SWEPT_PAIRS`.
-SWEPT = set(mig._SPATIAL) | set(mig2._SPATIAL) | set(mig3._SPATIAL)
+SWEPT = set(mig._SPATIAL) | set(mig2._SPATIAL) | set(mig3._SPATIAL) | set(mig4._SPATIAL)
 
-#: All three migrations, so every check below that exercises a COPY of the predicate exercises all
+#: All four migrations, so every check below that exercises a COPY of the predicate exercises all
 #: of them. The copy-don't-import rule is what makes a migration a record of what it did; the price
 #: is that each new copy can drift from the last, and only running every one can see that.
-MIGS = (mig, mig2, mig3)
+MIGS = (mig, mig2, mig3, mig4)
 
 
 def _swept_pairs(m) -> set[tuple[str, str]]:
@@ -442,6 +462,7 @@ class _Copy(typing.NamedTuple):
     evidence: str        #: the substring that would be lost if the row were nulled
     empty: str           #: a value that is non-NULL and fails the exact test
     real: str            #: a value the exact test accepts
+    axis: str = "text"   #: WHICH null representation this copy is the first to handle — see below
 
 
 COPIES = (
@@ -449,21 +470,164 @@ COPIES = (
           "1WrzGm1SD2ev45B_OWQ39B", "[]", '["G9"]'),
     _Copy(mig3, "mod_asi", "anchor", '{"x": 1.5, "y": 2.25, "z"',
           "2.25", "{}", '{"x": 1, "y": 2, "z": 3}'),
+    _Copy(mig4, "mod_rfi", "anchor", '{"x": 9.5, "y": 8.25, "z"',
+          "8.25", "{}", '{"x": 4, "y": 5, "z": 6}', "sql-null-state"),
 )
 
 # Each copy must be exercised on ground no EARLIER copy already covers, or it is being tested
 # through someone else's sweep. Derived from what the migrations do, not from their lists.
-_seen_pairs: set[tuple[str, str]] = set()
+#
+# **"Ground" is (table, column, AXIS), and the third component was added for `d7f1a5c3e094`.** The
+# rule as first written assumed every new sweep WIDENS coverage, so a fourth migration that
+# deliberately re-covers the same thirty-eight tables — because the third one's reader was wrong on
+# PostgreSQL, not because its population was short — could never satisfy it. Dropping the rule was
+# the wrong repair: it is what stops a copy being tested through somebody else's sweep. So the axis
+# names the null REPRESENTATION a copy is the first to handle, and the exemption is earned rather
+# than declared: the section below asserts that on this axis `d7f1a5c3e094` succeeds where
+# `b3c9e42d18a5` fails. A copy that claims a new axis and does not hold it fails there.
+_seen_ground: set[tuple[str, str, str]] = set()
 for _c in COPIES:
     _own = _swept_pairs(_c.mig)
     _c.mig.SKIPPED.clear()
     check(f"{_c.mig.revision} claims ({_c.table}, {_c.col})", (_c.table, _c.col) in _own,
           "the fixture below sweeps a pair this migration does not claim")
-    check(f"{_c.mig.revision}: ...and no earlier copy already swept it",
-          (_c.table, _c.col) not in _seen_pairs,
-          f"({_c.table}, {_c.col}) is already covered — this copy is being tested on ground "
-          f"another one holds, which is how a broken copy passes")
-    _seen_pairs |= _own
+    check(f"{_c.mig.revision}: ...and no earlier copy already swept it on the {_c.axis!r} axis",
+          (_c.table, _c.col, _c.axis) not in _seen_ground,
+          f"({_c.table}, {_c.col}) is already covered on {_c.axis!r} — this copy is being tested "
+          f"on ground another one holds, which is how a broken copy passes")
+    _seen_ground |= {(t, c, _c.axis) for t, c in _own}
+
+# Copies may SHARE the base axis — `f2b6d31a7c04` and `b3c9e42d18a5` do, legitimately, because each
+# holds a (table, column) the other does not. A NON-base axis is different: it exists only to let a
+# copy be exempted from the pair rule, so it must be held by exactly one copy, and that copy must be
+# shown to hold it below rather than merely to have spelled it.
+_by_axis: dict[str, list[str]] = {}
+for _c in COPIES:
+    _by_axis.setdefault(_c.axis, []).append(_c.mig.revision)
+for _axis, _holders in _by_axis.items():
+    check(f"the {_axis!r} axis is held by exactly one copy", _axis == "text" or len(_holders) == 1,
+          f"{_holders!r} — a non-base axis is an exemption from the pair rule; two copies claiming "
+          f"one means the later is exempted by a label rather than by holding new ground")
+
+# --- THE AXIS IS EARNED: `null` IS NOT `NULL`, AND THE DRIVER CANNOT TELL YOU WHICH ---------------
+# PIN-SWEEP-PGNULL. `b3c9e42d18a5` selects every row where EITHER pin column is non-NULL and then
+# decides per column in Python, starting `if v is None: continue`. A `json` column holding the scalar
+# `null` is non-NULL in SQL, and a driver that DECODES the column hands back Python `None` — by then
+# identical to a column that really was SQL NULL. So it walks past every legacy row: exactly the
+# rows the sweep exists to convert, since every `None` written before that migration added
+# `JSON(none_as_null=True)` went in that way. Measured against PostgreSQL 16, before the fix and
+# after, on the same four-row fixture:
+#
+#     b3c9e42d18a5   changed=1   the `jsonnull` row: anchor STILL non-NULL, and SKIPPED was empty
+#     d7f1a5c3e094   changed=4   the `jsonnull` row: anchor now SQL NULL
+#
+# **This is asserted HERE, not only against PostgreSQL, because sqlite3 can be made to decode too.**
+# The dialect was never the mechanism — the DRIVER DECODING the column is, and `detect_types` with a
+# converter registered for the declared type `JSON` reproduces it exactly: a real driver-level
+# decode, not a stub standing in for one. A `test_pin_pgnull.py` case runs the same shapes against a
+# live PostgreSQL in `db-migrations.yml`; this is what makes the defect catchable on every run.
+#
+# **The first draft of this section had only the structural check below, and it was not enough.**
+# Reinstating the exact defect — `if row[col] is None: continue` on top of the corrected SELECT —
+# left the emitted SQL untouched and PASSED. *Asking the right question in SQL and then throwing the
+# answer away are two different failures, and only one of them is visible in the statement.*
+def _decoding_engine():
+    """A SQLite engine whose DRIVER decodes JSON columns, exactly as psycopg does."""
+    sqlite3.register_converter("JSON", lambda b: json.loads(b.decode()))
+    return _sa.create_engine("sqlite://",
+                             connect_args={"detect_types": sqlite3.PARSE_DECLTYPES})
+
+
+def _sweep_json_null(m, table: str, col: str):
+    """Seed the four null representations, sweep, report which rows ended up SQL NULL."""
+    _e = _decoding_engine()
+    m.SKIPPED.clear()
+    with _e.begin() as _conn:
+        _conn.execute(_sa.text(f"CREATE TABLE {table} (id TEXT PRIMARY KEY, {col} JSON)"))
+        for _i, _v in (("sqlnull", None), ("jsonnull", "null"), ("empty", "{}"),
+                       ("real", '{"x": 1, "y": 2, "z": 3}')):
+            _conn.execute(_sa.text(f"INSERT INTO {table} VALUES (:i, :v)"), {"i": _i, "v": _v})
+        _changed = m._sweep(_conn, table, (col,))
+        _nulled = {r["id"]: bool(r["n"]) for r in _conn.execute(
+            _sa.text(f"SELECT id, {col} IS NULL AS n FROM {table}")).mappings()}
+    _sk = sorted(m.SKIPPED)
+    m.SKIPPED.clear()
+    return _changed, _nulled, _sk
+
+
+_ch4, _nl4, _sk4 = _sweep_json_null(mig4, "mod_rfi", "anchor")
+check("d7f1a5c3e094 CONVERTS a JSON scalar `null` a decoding driver hands back as Python None",
+      _nl4["jsonnull"],
+      f"the `jsonnull` row is still non-NULL — {_nl4!r}. These are every row written before "
+      f"`JSON(none_as_null=True)` landed; they satisfy `pins.pin_where`, fail `pins.pin_fields`, "
+      f"and are what puts the `~` on the plan sheet's project total")
+check("...and the empty object beside it, which is the ground the earlier sweeps held",
+      _nl4["empty"], f"{_nl4!r}")
+check("...while a real anchor is untouched", not _nl4["real"], f"{_nl4!r}")
+check("...and a column that was ALREADY SQL NULL stays that way", _nl4["sqlnull"], f"{_nl4!r}")
+check("...and neither empty form is misreported as uninterpretable evidence", _sk4 == [],
+      f"SKIPPED={_sk4!r} — a JSON `null` is absent-shaped data, not a value a human must look at")
+check("...and the count is what actually changed", _ch4 == 2, f"changed={_ch4}, expected 2")
+
+_ch3, _nl3, _sk3 = _sweep_json_null(mig3, "mod_asi", "anchor")
+check("b3c9e42d18a5 DOES NOT — that is the defect, and it proves the check above can fail",
+      not _nl3["jsonnull"],
+      f"{_nl3!r} — if the already-run migration now converts it, either it was edited (it must not "
+      f"be: editing a migration that has run changes nothing on any database that ran it) or the "
+      f"assertion above proves nothing")
+check("...though it did sweep the empty object, which is why its run looked clean",
+      _nl3["empty"], f"{_nl3!r}")
+check("...and said NOTHING about the row it walked past", _sk3 == [],
+      f"SKIPPED={_sk3!r} — the silence is the reason this survived review and a deploy")
+
+# The mechanism, as a property of the statements rather than of the outcome. Kept beside the
+# behavioural checks because it is what makes the fix explicable: the null-state question is
+# answered by the database, which is the only party that can still tell `null` from NULL.
+def _selects_emitted(m, table: str, cols: tuple[str, ...]) -> list[str]:
+    """Every SELECT `m._sweep` issues, in order, against a two-column table."""
+    _seen: list[str] = []
+    _e = _sa.create_engine("sqlite://")
+
+    @_sa.event.listens_for(_e, "before_cursor_execute")
+    def _capture(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+        if statement.lstrip().upper().startswith("SELECT"):
+            _seen.append(" ".join(statement.split()))
+
+    with _e.begin() as _conn:
+        _conn.execute(_sa.text(
+            f"CREATE TABLE {table} (id TEXT PRIMARY KEY, {cols[0]} TEXT, {cols[1]} TEXT)"))
+        _conn.execute(_sa.text(f"INSERT INTO {table} VALUES ('a', '{{}}', '[]')"))
+        m.SKIPPED.clear()
+        m._sweep(_conn, table, cols)
+        m.SKIPPED.clear()
+    return _seen
+
+
+def _asks_sql_per_column(selects: list[str], cols: tuple[str, ...]) -> bool:
+    """Does every column get a SELECT narrowed to ITS OWN null state?
+
+    The point is the narrowing, not the count. A statement whose WHERE also mentions the other
+    column cannot tell the caller which of the two was NULL — which is what `b3c9e42d18a5` then
+    tried, and failed, to recover from the decoded value.
+    """
+    for c in cols:
+        others = [o for o in cols if o != c]
+        if not any(f"WHERE {c} IS NOT NULL" in s
+                   and not any(o in s.split("WHERE", 1)[1] for o in others)
+                   for s in selects if "WHERE" in s):
+            return False
+    return True
+
+
+_COLS2 = ("anchor", "element_guids")
+check("d7f1a5c3e094 asks SQL the null question, one column at a time",
+      _asks_sql_per_column(_selects_emitted(mig4, "mod_rfi", _COLS2), _COLS2),
+      f"emitted {_selects_emitted(mig4, 'mod_rfi', _COLS2)!r} — a SELECT that does not narrow to a "
+      f"single column's null state leaves Python to tell `null` from NULL, which it cannot do once "
+      f"a driver has decoded the column")
+check("...and b3c9e42d18a5 does not, which is the mechanism behind the behaviour above",
+      not _asks_sql_per_column(_selects_emitted(mig3, "mod_asi", _COLS2), _COLS2),
+      f"emitted {_selects_emitted(mig3, 'mod_asi', _COLS2)!r}")
 
 # --- MALFORMED IS NOT EMPTY, and `e4a7c2b81f60` deliberately DISAGREES ----------------------------
 # `_loads` collapses "not JSON at all" and "decoded to nothing" into the same `None`, and
