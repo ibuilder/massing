@@ -12,6 +12,76 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The pin sweep skipped exactly the rows it was written to convert, on PostgreSQL only
+
+`b3c9e42d18a5` — the migration that clears empty pin values so `/pins/all` stops counting them as
+candidates — selects every row where either pin column is non-NULL and then decides per column in
+Python, beginning `if v is None: continue`. A `json` column holding the JSON scalar `null` is **not
+SQL NULL**, and psycopg decodes it, so the driver hands back Python `None`: by the time that line
+runs, a row that was never pinned and a row holding `null` are indistinguishable. It walked past
+every one of them.
+
+Those are precisely the legacy rows the sweep exists for. Every `None` written to `anchor` or
+`element_guids` before that same change added `JSON(none_as_null=True)` went in as the scalar
+`null`; they satisfy the SQL half of the pin predicate, fail the exact test in `pins.pin_fields`,
+and are what puts the `~` on the plan sheet's project total. Measured against PostgreSQL 16 on a
+four-row fixture before anything was written: **the `null` row came out exactly as it went in, and
+`SKIPPED` was empty** — so the run neither converted it nor said anything about having seen it.
+
+*(An earlier draft of this entry led with "`changed=1` → `changed=4`", and review was right that the
+comparison is unsound: the corrected sweep issues one UPDATE per column where the old one grouped a
+row's columns into one, so the number moved from ROWS to COLUMN VALUES in the same change. Two
+counts in different units read as a measurement and are not one. The row states are the evidence;
+the unit change is now pinned by a both-columns fixture in `services/api/test_pin_empty.py`, which
+nothing caught before because every earlier fixture seeded a single column.)*
+
+**SQLite hid it, and not by accident.** There a JSON column is TEXT, the scalar arrives as the four
+characters `null`, and the decode happens *after* the guard has already let the row through — so the
+conversion works and every local test passes. This is the same `null`-is-not-`NULL` distinction that
+migration was itself about, reappearing one layer up in its own reader. *A migration that fixes a
+representation problem has to be careful not to inherit it.*
+
+`d7f1a5c3e094` re-sweeps with the question asked in SQL instead: one SELECT per column, each
+narrowed to that column being non-NULL, so everything it returns is non-NULL in SQL and a Python
+`None` can only be the scalar. It is a new revision rather than an edit, because `b3c9e42d18a5` has
+run — editing it would change nothing on any database that ran it while making the file disagree
+with what was executed there. Verified on the same fixture: the `null` rows are now SQL NULL, the
+already-NULL row is untouched, and a real anchor survives.
+
+**The dialect was never the mechanism — the driver decoding the column is**, and that is why the
+gate does not need a PostgreSQL to be real. `test_pin_empty.py` registers a sqlite3 converter so its
+driver decodes too, and asserts the corrected sweep converts the row while the migration it corrects
+walks past it. The first draft of that section checked only the emitted SQL, and **reinstating the
+exact defect on top of the corrected SELECT passed it** — asking the right question and then
+throwing the answer away are two different failures, and only one is visible in the statement.
+`test_pin_pgnull.py` runs the same shapes against a live PostgreSQL in `db-migrations.yml`; with no
+server it does not pass quietly, it asserts that the CI step which runs it is still there.
+
+### A NULL test on a JSON column is a filter that filters nothing — now a gate
+
+Second half of the same defect, as a class rather than an instance. SQLAlchemy persists a Python
+`None` in a `JSON` column as the scalar `null` unless the column declares `none_as_null=True`, so
+`WHERE <json col> IS NOT NULL` matches every row ever written and `IS NULL` matches none.
+
+`services/api/test_json_null_filter.py` derives every NULL test in `services/api/src/aec_api` by AST
+— **21 sites**, re-derived rather than taken from the roadmap's 20 — and resolves each subject
+against the model metadata. Three answers are safe: not a JSON column, a JSON column with
+`none_as_null=True`, or a JSON *extraction* (`data ->> 'x'`), which is a text scalar and yields SQL
+NULL on both backends for a missing key and for a stored `null` alike. One is not. Result: 15 safe,
+5 unresolvable subjects each read and exempted with what the subject actually is, and **one live
+member of the class** — `Topic.labels` in `client_portal.py`, which narrows on `type == "info"`
+first and applies the real test in Python, so it over-fetches and does not answer wrongly. It is
+recorded rather than fixed: making it right needs a sweep of the existing `'null'` rows.
+
+It fails closed — an unresolved subject reds the build rather than being assumed safe — and it runs
+itself against the known instance before it is allowed to report anything, because a derivation that
+reports a clean tree is indistinguishable from one that reports nothing.
+
+**What it deliberately does not assert** is that every JSON column declares `none_as_null=True`.
+Measured: 588 JSON columns, 308 without it. Turning those on is a write-behaviour change on 308
+columns, not a gate, and almost none of them is ever the subject of a NULL test — which is what
+makes the reader the right place to stand.
+
 ### @thatopen/ui dropped — the guard was demanding a browser verification of a package that cannot reach the browser
 
 `@thatopen/ui` was a declared dependency that **nothing imported**: zero source references tree-wide,

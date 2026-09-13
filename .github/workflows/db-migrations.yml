@@ -141,3 +141,32 @@ jobs:
           if ! diff -u runtime.col alembic.col; then echo "::error::column drift between runtime path and Alembic"; rc=1; fi
           [ "$rc" -eq 0 ] && echo "runtime-path schema and Alembic-upgraded schema are identical"
           exit $rc
+
+      # PIN-SWEEP-PGNULL. `alembic upgrade head` above proves the sweeps APPLY; it proves nothing
+      # about what they convert, because it runs against an empty database. This seeds the four
+      # representations a `json` pin column can hold — SQL NULL, the scalar `null`, `{}`, and a real
+      # anchor — and asserts the corrected sweep converts the scalar `null` while the migration it
+      # corrects walks past it. That row is every `None` written before `JSON(none_as_null=True)`
+      # landed.
+      #
+      # The defect needs a driver that DECODES the column, which is what psycopg does and what the
+      # app's own SQLite path does not — so `alembic upgrade head` on SQLite would convert the row
+      # and look correct. `test_pin_empty.py` reproduces the decode with a registered sqlite3
+      # converter so the behaviour is checked on every run; THIS step is what confirms that
+      # reproduction is faithful to the driver production actually uses.
+      #
+      # RUNS LAST, after runtime-parity, and that is not cosmetic: it creates and drops probe
+      # tables in `mig_runtime`, and the parity step diffs that database's schema against
+      # `mig_alembic`. Placed before it, a probe table left behind by a failed assertion would
+      # surface as schema drift — a second, misleading failure on top of the real one.
+      #
+      # AEC_PG_REQUIRED is what makes this step mean something: without it the script falls back to
+      # its no-server branch and asserts only that this step exists, which here would be circular.
+      # The script asserts in turn that this step is still in this file, so deleting it reds the
+      # normal suite rather than quietly removing the only place the check is real.
+      - name: Pin sweep converts a JSON scalar `null` (Postgres driver, not SQLite)
+        working-directory: services/api
+        env:
+          AEC_PG_REQUIRED: "1"
+          PGDATABASE: mig_runtime
+        run: PYTHONPATH=src:../data/src python test_pin_pgnull.py

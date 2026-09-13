@@ -197,6 +197,28 @@ draft hardcoded the one pattern it probed, so removing that pattern legitimately
 self-test with a message blaming the wrong cause — *a check whose failure message can misdiagnose is
 worse than one that stays silent, because somebody acts on it.*
 
+**A tenth joined them on 2026-09-13: `services/api/test_json_null_filter.py`** — is a NULL test ever
+applied to a JSON column that can hold the JSON scalar `null`? SQLAlchemy stores a Python `None` in a
+`JSON` column as `null` unless the column declares `none_as_null=True`, and that is **not SQL NULL**,
+so `WHERE <json col> IS NOT NULL` matches every row ever written. The gate derives all 21 NULL tests
+by AST and resolves each subject against the model metadata; it fails CLOSED, and it runs itself
+against the one known instance before it may report anything. **The load-bearing distinction is that a
+JSON EXTRACTION is not the JSON column** — `data ->> 'x'` is a text scalar that yields SQL NULL on both
+backends for a missing key and a stored `null` alike — and conflating the two would have flagged every
+register query in the tree. It deliberately does **not** demand `none_as_null=True` on all 588 JSON
+columns (308 lack it): that is a write-behaviour change, not a gate, and the readers are two orders of
+magnitude fewer than the writers.
+
+**The same day, its sibling `services/api/test_pin_pgnull.py` taught the sharper lesson.** The pin
+sweep migration skipped exactly the rows it existed to convert, and the finding was filed as a
+PostgreSQL defect. **It is not a dialect defect — it is a DRIVER-DECODING defect**, and sqlite3
+reproduces it exactly once a converter is registered, so the behavioural check runs on every
+invocation rather than only where a server happens to exist. *A defect attributed to the dialect it
+was found on is a defect nobody looks for anywhere else.* And the first draft of that check asserted
+only the emitted SQL: reinstating the exact defect on top of the corrected statement left the SQL
+identical and PASSED. **Asking the right question and then throwing the answer away are two different
+failures, and only one is visible in the statement.**
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

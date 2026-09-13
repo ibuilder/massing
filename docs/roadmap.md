@@ -103,7 +103,12 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-**EMPTY as of 2026-08-25, and that is a real state rather than a gap in the writing.** Both entries
+**ONE OPEN ENTRY as of 2026-09-13** — SYSTEM-COLUMN-PHANTOM, below, found while resolving an
+exemption in an unrelated gate rather than by a sweep, which is the first time this band has
+been filled that way. *The paragraph below says every entry here has ever arrived from a sweep;
+that is no longer true, and the exception is worth more than the generalisation it breaks — the
+cheapest place to find a defect turned out to be the margin of a check being written for
+something else.* Before that it was empty since 2026-08-25. Both entries
 that occupied this band — **R39-UPLOAD-CAP-APP ①** (v0.3.941–942) and **R41-UPLOAD-WARK**
 (v0.3.1069, the content-addressed resumable handshake) — are complete and their full records are in
 [`roadmap-completed.md`](roadmap-completed.md). FIN-SUITE-BLIND closed here on 2026-08-01 and is
@@ -126,6 +131,28 @@ releases.
 are now spent for this round. The honest next action for this band is therefore *not* another sweep
 immediately: it is to pick the next axis deliberately when the surface has moved again — the
 concurrency record names the specific thing to watch, a fourth sign-in path.
+
+- **SYSTEM-COLUMN-PHANTOM — two names in `SYSTEM_COLUMNS` exist on no register table, and asking
+  for one is a 500** *(XS — Lane C; found 2026-09-13 while resolving a JSON-NULL-CLASS exemption)*
+
+  `modules_query.SYSTEM_COLUMNS` is `{workflow_state, created_at, updated_at, ref, assignee,
+  ball_in_court}`. Measured against the live registry: **`updated_at` and `ball_in_court` are
+  columns on 0 of 139 register tables.** `_resolve_field` nonetheless accepts them — a name in that
+  set short-circuits the declared-field search and returns `{"_system": True}` — and `_field_expr`
+  then does `t.c[name]`, which raises `KeyError`. Nothing on the path catches it.
+
+  So `?sort=updated_at`, or a filter on `ball_in_court`, is a **500 on every register**, in a
+  function whose own docstring promises the opposite: *"Unknown filter/sort field … -> 400, never
+  ignored: a filter that is silently dropped shows MORE rows than the user asked for."* The
+  validation is there and correct; the set it validates against names two columns that do not exist.
+  Reproduced by calling `_field_expr` directly on `mod_rfi` — `KeyError: 'updated_at'`, and
+  `workflow_state` beside it resolves fine, so the mechanism is the name and not the path.
+
+  **Not folded into the change that found it**, because the repair has a choice attached and it is
+  not obvious from here: deleting the two names from the set makes them fall through to the declared
+  -field search, which is right if any module declares a field so named and wrong if none does — and
+  either way the honest fix is probably that `_resolve_field` verifies the column is actually on the
+  table rather than trusting a hand-maintained set. That is a small read, and it wants its own one.
 
 > ### ✅ AUTHZ SWEEP RUN 2026-08-25 (v0.3.1091) — **no live hole; the gate is the finding**
 >
@@ -1228,8 +1255,10 @@ instances:
   no process-isolation pattern to copy — `multiprocessing` appears once, for `cpu_count()`.
   Net-new spawning machinery for a frozen app is not something to land on a PR that CI never ran.
 
-- **PIN-SWEEP-PGNULL — the JSON-null sweep skips the rows it exists to convert, on Postgres**
-  *(S — Lane C; opened 2026-09-10 by review of #504, but the code is in `main` via #503)*
+- ✅ **PIN-SWEEP-PGNULL — the JSON-null sweep skips the rows it exists to convert, on Postgres**
+  *(S — Lane C; opened 2026-09-10 by review of #504; **CLOSED 2026-09-13**, fix in this change.
+  Gated by `services/api/test_pin_empty.py` on every run and by `services/api/test_pin_pgnull.py`
+  against a live PostgreSQL in `db-migrations.yml`)*
 
   `migrations/versions/2026_09_10_1700-b3c9e42d18a5_pin_anchor_register_sweep.py` decodes each value
   and skips `v is None`. On SQLite the JSON scalar `null` arrives as the TEXT `'null'` and decodes to
@@ -1240,9 +1269,27 @@ instances:
 
   This is the same `null`-is-not-`NULL` distinction the PR that introduced the migration was about,
   reappearing one layer up in the sweep's own reader. *A migration that fixes a representation
-  problem has to be careful not to inherit it.* The fix is to select on a SQL-level null-state
-  marker rather than on the decoded value; the gate needs a Postgres case, since the dialect is the
-  whole defect and SQLite cannot express it.
+  problem has to be careful not to inherit it.*
+
+  **Reproduced against PostgreSQL 16 before anything was written**: `changed=1`, `SKIPPED=[]`, with
+  the `null` row untouched — a clean-looking run that had converted one row and ignored two.
+  `d7f1a5c3e094` re-sweeps and asks the question in SQL: one SELECT per column, each narrowed to
+  that column being non-NULL, so a Python `None` in the result can only be the scalar. A NEW
+  revision, not an edit: `b3c9e42d18a5` has run, and editing it would change nothing on any database
+  that ran it while making the file disagree with what was executed there.
+
+  **This entry said the gate "needs a Postgres case, since the dialect … SQLite cannot express it",
+  and that was half right.** The dialect is not the mechanism — a DRIVER THAT DECODES the column is,
+  and sqlite3 does that too once a converter is registered for the declared type. So the behavioural
+  check runs on every invocation of `services/api/test_pin_empty.py`, and the live-PostgreSQL case in
+  `services/api/test_pin_pgnull.py` is what confirms the reproduction is faithful rather than being
+  the only place the defect is visible. *A defect attributed to the dialect it was found on is a
+  defect nobody looks for anywhere else.*
+
+  **And the first draft of that gate checked only the emitted SQL, which was not enough**:
+  reinstating the exact defect on top of the corrected SELECT left the statements identical and
+  PASSED. *Asking the right question and then throwing the answer away are two different failures,
+  and only one of them is visible in the statement.*
 
 - ✅ ⭐ **DESKTOP-FRAGMENTS — the desktop app could author a model but never render one**
   *(M — Lane J; **CLOSED**, fix in this change; the shape was the user's call and they made it:
@@ -1389,8 +1436,9 @@ instances:
   the sheet should carry the viewer's presentation fields at all, or whether the viewer should look
   them up from `/modules` it already has. That is a design call, which is why this is its own entry.
 
-- **JSON-NULL-CLASS — `IS NOT NULL` on a JSON column is a filter that filters nothing** *(XS — Lane C;
-  opened 2026-09-10 by PIN-ANCHOR)*
+- ✅ **JSON-NULL-CLASS — `IS NOT NULL` on a JSON column is a filter that filters nothing** *(XS — Lane C;
+  opened 2026-09-10 by PIN-ANCHOR; **CLOSED 2026-09-13**, gated by
+  `services/api/test_json_null_filter.py`)*
 
   The defect PIN-ANCHOR hit is a class, not an instance: SQLAlchemy's `JSON` type persists a Python
   `None` as the JSON scalar `null` unless `none_as_null=True`, so any `WHERE <json col> IS NOT NULL`
@@ -1401,9 +1449,22 @@ instances:
   wrong. Fixing it needs its own sweep of existing `'null'` rows to mean anything, which is why it is
   not folded in here.
 
-  There is no gate. The honest one would assert that no `JSON` column without `none_as_null=True` is
-  ever the subject of a NULL test, derived from the model metadata and the AST — worth writing, and
-  bigger than the one remaining instance.
+  **That gate now exists, and the population above was slightly wrong: re-derived it is 21, not 20.**
+  `services/api/test_json_null_filter.py` walks every NULL test by AST and resolves each subject
+  against the model metadata. Three answers are safe — not a JSON column, a JSON column declaring
+  `none_as_null=True`, or a JSON **extraction** (`data ->> 'x'`), which is a text scalar and yields
+  SQL NULL on both backends for a missing key and a stored `null` alike. Conflating the extraction
+  with the column would have flagged every register query in the tree, so that distinction is the
+  load-bearing part. Result: **15 safe, 5 unresolvable subjects each read and exempted with what the
+  subject actually is, 1 live instance** — `Topic.labels`, recorded rather than fixed for the reason
+  above.
+
+  It fails CLOSED: an unresolved subject reds the build rather than being assumed safe, and it runs
+  itself against the known instance before it may report anything. **What it deliberately does not
+  assert** is that every JSON column declares `none_as_null=True` — measured, that is 308 of 588
+  columns, a write-behaviour change rather than a gate, and almost none of them is ever the subject
+  of a NULL test. *The reader is the right place to stand when the population of writers is two
+  orders of magnitude larger than the population of readers.*
 
 - ✅ **RESPONSE-UNDECLARED — the inverse of DEAD-FIELD** *(sized 2026-09-10; DERIVED AND GATED
   2026-09-11; **CLOSED the same day — all 15 triaged, all 15 fixed, `KNOWN_GAPS` is EMPTY**)*
@@ -3296,7 +3357,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · JSON-NULL-CLASS · PIN-SWEEP-PGNULL *(the pin sweep skips the rows it exists to convert, on PostgreSQL only — a `json` column holding scalar `null` is non-NULL in SQL and decodes to Python `None`. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`, and it landed in `main` via #503 rather than in the PR that found it)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(two names in `SYSTEM_COLUMNS` are columns on no register table, so sorting or filtering on one is a 500 where the code promises a 400)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
