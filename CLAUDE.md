@@ -219,6 +219,23 @@ only the emitted SQL: reinstating the exact defect on top of the corrected state
 identical and PASSED. **Asking the right question and then throwing the answer away are two different
 failures, and only one is visible in the statement.**
 
+**An eleventh joined them on 2026-09-13: `services/api/test_system_columns.py`** — does the
+allowlist of sortable row columns name columns that EXIST? `modules_query.SYSTEM_COLUMNS` short-circuits
+`_resolve_field`, whose own docstring is *"Never trust a caller-supplied field name"* — and the trust it
+was actually extending was in the three literal lines above it. Two of its six names were columns on 0 of
+139 register tables, so `t.c[name]` raised `KeyError` and `?sort=updated_at` was a **500 on caller input**
+from a function written to return 400. **The stored form was the quieter one and therefore the worse one:**
+`validate_view_config` resolves through the same function with no table in scope, so a saved view carrying
+the phantom returned **201**, listed at **200**, and 500d only when somebody applied it — the cause two
+screens from the symptom. *A defect that is refused loudly is nearly fixed; one that is accepted and stored
+has to be found twice.* The fix is both halves — a runtime check against the table AND a corrected list —
+because **either alone passes every test the other would fail**, so the gate deletes each in turn: it must
+re-find both shipped phantoms before it may report anything, and it reinstates the pre-fix `_system_field`
+and requires the `KeyError` to come back. *A static check that still passes with the guard removed is not
+testing the guard.* `updated_at` was also the THIRD instance of that same typo on a module row — the other
+two returned a permanent `None` and were found in August. **The same wrong name is not the same severity in
+two places, and the loud one was found last.**
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

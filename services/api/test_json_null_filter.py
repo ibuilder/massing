@@ -76,12 +76,12 @@ _EXTRACTORS = {"_json_text", "json_extract"}
 #: only with a reason that says what the subject actually is — an entry that merely silences the
 #: analyser is the failure this file's docstring warns about.
 EXEMPT: dict[tuple[str, int, str], str] = {
-    ("src/aec_api/modules_query.py", 163, "expr"):
+    ("src/aec_api/modules_query.py", 202, "expr"):
         "`_field_expr` returns either `t.c[name]` for a name in SYSTEM_COLUMNS — none of which is a "
         "JSON column (assert_system_columns_are_not_json below pins that) — or `_json_text(...)`, an "
         "extraction. Neither is a bare JSON column.",
-    ("src/aec_api/modules_query.py", 166, "expr"): "as line 163 — the same `_field_expr` result.",
-    ("src/aec_api/modules_query.py", 368, "expr"):
+    ("src/aec_api/modules_query.py", 205, "expr"): "as line 202 — the same `_field_expr` result.",
+    ("src/aec_api/modules_query.py", 407, "expr"):
         "`_display_expr`, which resolves through `_field_expr` for a plain field and through a "
         "joined label column for a reference field; neither yields a bare JSON column.",
     ("src/aec_api/pins.py", 98, "anchor_col"):

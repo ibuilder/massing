@@ -112,7 +112,22 @@ def _fold(db: Session, expr):
 #    which is the one case where the cheap thing is also the right thing.
 
 #: Columns that live on the row rather than inside `data`, and may be filtered/sorted directly.
-SYSTEM_COLUMNS = {"workflow_state", "created_at", "updated_at", "ref", "assignee", "ball_in_court"}
+#:
+#: SYSTEM-COLUMN-PHANTOM. This is an ALLOWLIST, not a schema, and two of its six names were not
+#: columns: `updated_at` (the register column is `modified_at`) and `ball_in_court` (derived from
+#: `workflow_state` by `court_party`, never stored). `_resolve_field` returned `_system: True` for
+#: both, so `_field_expr` and `_display_expr` went straight to `t.c[name]` and raised **KeyError ->
+#: 500** on a caller-supplied `?sort=updated_at`. Measured over HTTP before the fix: `?sort=not_a_field`
+#: 400, `?sort=workflow_state` 200, `?sort=updated_at` 500.
+#:
+#: `updated_at` is the third instance of that exact typo — `quality.py` and `rfi.register` both read
+#: it off a module row and got a permanent `None` for `avg_days_to_close`. Those two failed QUIETLY;
+#: this one is reachable from a URL, which is what makes it the worse of the three.
+#:
+#: An allowlist held only as a literal can only ever be checked by reading it, so the set is now
+#: validated against the register table at resolve time (`_system_field`) and, statically, by
+#: `test_system_columns.py`.
+SYSTEM_COLUMNS = {"workflow_state", "created_at", "modified_at", "ref", "assignee"}
 
 #: How many per-field filters one query may carry. Lives here rather than in the router because it
 #: bounds `_apply_filters`, and `validate_view_config` must apply the SAME cap to a saved view — a
@@ -126,10 +141,34 @@ FILTER_OPS = {"eq", "ne", "gte", "lte", "contains", "in", "empty", "nonempty"}
 _NUMERIC_FIELD_TYPES = {"number", "currency", "percent"}
 
 
+def _system_field(mod: dict, name: str) -> dict | None:
+    """The system-column definition for `name`, or None when this register has no such column.
+
+    SYSTEM-COLUMN-PHANTOM. Membership of `SYSTEM_COLUMNS` is a CLAIM about the schema; this is where
+    the claim is checked. A name the allowlist admits but the table does not have falls through to
+    the module's own declared fields and then to `_resolve_field`'s 400 — which is what an unknown
+    field name is supposed to produce. Without this, `_field_expr` and `_display_expr` both index
+    `t.c[name]` on the strength of `_system: True` alone, and a `KeyError` out of a request handler
+    is a 500 on caller-supplied input.
+
+    Every register table is built by one factory (`modules_registry._table`), so the column set is the
+    same for all 139 of them; the lookup is per-module only because that is the table actually being
+    queried. A module with no registered table keeps the allowlist's answer — `load_registry` writes
+    `REGISTRY[key]` and `TABLES[key]` together so that cannot happen, and `test_system_columns.py`
+    asserts the two agree rather than leaving it to this comment.
+    """
+    if name not in SYSTEM_COLUMNS:
+        return None
+    t = TABLES.get(mod.get("key") or "")
+    if t is not None and name not in t.c:
+        return None
+    return {"name": name, "type": "text", "_system": True}
+
+
 def _resolve_field(mod: dict, name: str) -> dict:
     """The DECLARED definition of `name`, or HTTP 400. Never trust a caller-supplied field name."""
-    if name in SYSTEM_COLUMNS:
-        return {"name": name, "type": "text", "_system": True}
+    if (sysf := _system_field(mod, name)) is not None:
+        return sysf
     for f in mod.get("fields", []):
         if f.get("name") == name:
             return f

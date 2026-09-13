@@ -103,12 +103,17 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-**ONE OPEN ENTRY as of 2026-09-13** — SYSTEM-COLUMN-PHANTOM, below, found while resolving an
-exemption in an unrelated gate rather than by a sweep, which is the first time this band has
-been filled that way. *The paragraph below says every entry here has ever arrived from a sweep;
-that is no longer true, and the exception is worth more than the generalisation it breaks — the
-cheapest place to find a defect turned out to be the margin of a check being written for
-something else.* Before that it was empty since 2026-08-25. Both entries
+**ONE OPEN ENTRY as of 2026-09-13 — COURT-SPLIT**, below. SYSTEM-COLUMN-PHANTOM, which filled this
+band on the same day, is **CLOSED** below; COURT-SPLIT was found *while closing it*, in the web
+register's own ball-in-court helper, and is filed rather than folded in because it has a product
+decision attached.
+
+**Both arrived the same way and neither came from a sweep** — one from the margin of an unrelated
+gate, one from the margin of the fix for the first. *The paragraph below says every entry here has
+ever arrived from a sweep; that is now wrong twice in one day, and the exception is worth more than
+the generalisation it breaks — the cheapest place to find a defect turned out to be the margin of
+whatever was already being read.* Before 2026-09-13 this band was empty since 2026-08-25. Both
+entries
 that occupied this band — **R39-UPLOAD-CAP-APP ①** (v0.3.941–942) and **R41-UPLOAD-WARK**
 (v0.3.1069, the content-addressed resumable handshake) — are complete and their full records are in
 [`roadmap-completed.md`](roadmap-completed.md). FIN-SUITE-BLIND closed here on 2026-08-01 and is
@@ -133,7 +138,8 @@ immediately: it is to pick the next axis deliberately when the surface has moved
 concurrency record names the specific thing to watch, a fourth sign-in path.
 
 - **SYSTEM-COLUMN-PHANTOM — two names in `SYSTEM_COLUMNS` exist on no register table, and asking
-  for one is a 500** *(XS — Lane C; found 2026-09-13 while resolving a JSON-NULL-CLASS exemption)*
+  for one is a 500** — **✅ CLOSED 2026-09-13**, gated by `services/api/test_system_columns.py`
+  *(XS — Lane C; found 2026-09-13 while resolving a JSON-NULL-CLASS exemption)*
 
   `modules_query.SYSTEM_COLUMNS` is `{workflow_state, created_at, updated_at, ref, assignee,
   ball_in_court}`. Measured against the live registry: **`updated_at` and `ball_in_court` are
@@ -148,11 +154,61 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   Reproduced by calling `_field_expr` directly on `mod_rfi` — `KeyError: 'updated_at'`, and
   `workflow_state` beside it resolves fine, so the mechanism is the name and not the path.
 
-  **Not folded into the change that found it**, because the repair has a choice attached and it is
-  not obvious from here: deleting the two names from the set makes them fall through to the declared
-  -field search, which is right if any module declares a field so named and wrong if none does — and
-  either way the honest fix is probably that `_resolve_field` verifies the column is actually on the
-  table rather than trusting a hand-maintained set. That is a small read, and it wants its own one.
+  **Not folded into the change that found it**, because the repair had a choice attached: deleting
+  the two names makes them fall through to the declared-field search, which is right if any module
+  declares a field so named and wrong if none does — and either way the honest fix is probably that
+  `_resolve_field` verifies the column is actually on the table rather than trusting a
+  hand-maintained set. That is a small read, and it wanted its own one.
+
+  **✅ CLOSED — both halves, because either alone passes while the other is broken.**
+  `_system_field` now validates a name against the register table before `_resolve_field` may return
+  `{"_system": True}`, so a future phantom is the 400 an unknown field was always supposed to get;
+  and the set itself is corrected to `{workflow_state, created_at, modified_at, ref, assignee}` —
+  `updated_at` renamed to the column it meant, `ball_in_court` dropped as derived rather than stored.
+  Checked against all 139 modules: no module declares a field named `modified_at`, so the new entry
+  shadows nothing.
+
+  **Measured against the pre-fix code, not reasoned about.** `?sort=updated_at` and
+  `?sort=ball_in_court` were **500**; a saved view carrying `{"sort": "updated_at"}` was accepted
+  with **201** and the view list returned **200** — so the stored form is the *quieter* failure, not
+  the louder one: it saves, it lists, and it 500s only when somebody applies it, two screens from
+  the cause. Both are 400 now, and `?sort=modified_at` is 200, which is the capability the phantom
+  name was reaching for all along.
+
+  `updated_at` is the **third** instance of that exact typo on a module row — `quality.py` and
+  `rfi.register` both read it and got a permanent `None` for `avg_days_to_close` (fixed 2026-08).
+  *The same wrong name is not the same severity in two places, and the loud one was found last.*
+
+- **COURT-SPLIT — the register screen and every server-side report disagree about whose court a
+  record is in, on 10 states across 9 modules** *(S — Lanes B+C; found 2026-09-13 while closing
+  SYSTEM-COLUMN-PHANTOM)*
+
+  Ball-in-court is computed twice, from the same workflow transitions, by two different rules.
+
+  * **Server** — `modules_query.court_party` takes the **first** outgoing transition's parties and
+    `/`-joins them. Its docstring states the rule and the reason: module authors list the primary
+    forward action first, so the first transition's party is the real ball-in-court.
+  * **Web register** — `register.ts`'s `ballInCourt` unions the parties across **every** outgoing
+    transition and renders one badge each.
+
+  Derived over all 139 modules and 267 workflow states: **10 states in 9 modules** produce different
+  answers — `bulletin`, `coordination_issue`, `fault_finding`, `information_container`, `prefab_kit`,
+  `pull_plan_task` (2), `rfi`, `risk`, `selection`. On an **open RFI** the register shows
+  `Consultant`, `OwnersRep` *and* `GC`; `changeorders.py`, `closeout.py`, `quality.py` and every
+  `ball_in_court` rollup in `report_builders/construction.py` say `Consultant/OwnersRep`. The GC
+  appears in that state only because `void` is an escape hatch — *an escape hatch is not a move
+  somebody owes.*
+
+  **This is the SCREEN-VS-REPORT class again** (closed 2026-09-04, PR #498): not a crash, not an
+  error, two surfaces of one product quietly answering the same question differently, where the one
+  people look at all day is the one with no test. The screen is the more generous of the two, which
+  is the worse direction — it names parties who owe nothing, on the field supers and PMs scan first.
+
+  **Filed, not folded in, because which rule is right is a product decision.** The server's is
+  documented and is what the reports are built on; the client's is undocumented and is what everyone
+  sees. Fixing it is small either way — delete one definition — but picking which one to delete is
+  not a code judgement. *Whichever survives, it must be computed in ONE place and asserted across
+  all 267 states, or the two will drift apart again the next time a module adds a transition.*
 
 > ### ✅ AUTHZ SWEEP RUN 2026-08-25 (v0.3.1091) — **no live hole; the gate is the finding**
 >
@@ -3356,8 +3412,8 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(two names in `SYSTEM_COLUMNS` are columns on no register table, so sorting or filtering on one is a 500 where the code promises a 400)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* · COURT-SPLIT *(the register's ball-in-court badges union every outgoing transition's parties; `modules_query.court_party` takes only the first, so 10 states in 9 modules read differently on screen and in every report — shared with Lane C)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
