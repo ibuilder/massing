@@ -133,9 +133,24 @@ with TestClient(app) as c:
                 parents[id(child)] = node
 
         def guarded(node: ast.AST) -> bool:
+            """Is this site under a CONTROL-FLOW CONDITION that tests `_system`?
+
+            Only `If.test` and `IfExp.test`, and that narrowness is the whole correctness of this
+            function. The first draft asked `"_system" in ast.unparse(<any enclosing stmt>)` — and
+            `ast.unparse` of a compound statement includes its entire BODY, so an unrelated
+            `_system` anywhere in the enclosing `for` marked everything inside it guarded.
+            `_apply_filters` has exactly that shape, so making its `t.c[name]` unconditional was
+            invisible: measured, the old predicate reported the mutated tree clean.
+
+            *A checker that asks "does this text appear nearby" is asking about proximity and
+            answering about control flow.* Found by review, and it is the fourth time in this line
+            of work that the checker carried the defect it was written to catch.
+            """
             cur: ast.AST | None = node
             while cur is not None:
-                if isinstance(cur, (ast.stmt, ast.IfExp)) and "_system" in ast.unparse(cur):
+                if isinstance(cur, ast.If) and "_system" in ast.unparse(cur.test):
+                    return True
+                if isinstance(cur, ast.IfExp) and "_system" in ast.unparse(cur.test):
                     return True
                 if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     return False
@@ -151,16 +166,44 @@ with TestClient(app) as c:
 
     _BAD = "def f(t, name):\n    return t.c[name]\n"
     _GOOD = "def f(t, name, f_):\n    if f_.get('_system'):\n        return t.c[name]\n    return None\n"
+    _TERNARY = "def f(t, name, f_, j):\n    return t.c[name] if f_.get('_system') else j\n"
     _LITERAL = "def f(t):\n    return t.c['data']\n"
+    # PROXIMITY IS NOT CONTROL FLOW. An unrelated `_system` in the enclosing loop must NOT clear an
+    # unconditional lookup — this is the exact shape `_apply_filters` has, and the shape the first
+    # draft of `guarded` was blind to.
+    _NEARBY = ("def f(t, name, rows):\n"
+               "    for r in rows:\n"
+               "        if r.get('_system'):\n"
+               "            pass\n"
+               "        x = t.c[name]\n"
+               "    return x\n")
     check("the site derivation FINDS an unguarded t.c[name]", unguarded_sites(_BAD) == ([2], [2]),
           f"got {unguarded_sites(_BAD)}")
     check("...and clears a guarded one", unguarded_sites(_GOOD)[1] == [],
           f"got {unguarded_sites(_GOOD)}")
+    check("...and clears the ternary form", unguarded_sites(_TERNARY)[1] == [],
+          f"got {unguarded_sites(_TERNARY)}")
     check("...and ignores a literal column name", unguarded_sites(_LITERAL) == ([], []),
           "t.c['data'] is not a caller-supplied name and must not be counted")
+    check("...and is NOT fooled by an unrelated `_system` in the enclosing loop",
+          unguarded_sites(_NEARBY) == ([5], [5]),
+          f"got {unguarded_sites(_NEARBY)} — proximity is not control flow; the first draft of this "
+          f"predicate read the whole enclosing statement and cleared this")
 
-    _all, _bad = unguarded_sites(
-        pathlib.Path("src/aec_api/modules_query.py").read_text(encoding="utf-8"))
+    _SRC = pathlib.Path("src/aec_api/modules_query.py").read_text(encoding="utf-8")
+
+    # And the same question asked of the REAL file, not a synthetic: make `_eq_or_pair`'s lookup
+    # unconditional and require the derivation to flag it. The synthetic case above proves the rule;
+    # this proves the rule reaches the site that motivated it.
+    _MUT = _SRC.replace(
+        'text_expr = t.c[name] if f.get("_system") else _json_text(db, t.c.data, name)',
+        "text_expr = t.c[name]")
+    check("the mutation the self-test needs still applies to modules_query.py", _MUT != _SRC,
+          "the `_eq_or_pair` line was reworded — re-derive this mutation rather than deleting it")
+    check("...and removing `_eq_or_pair`'s own guard is CAUGHT", bool(unguarded_sites(_MUT)[1]),
+          f"unguarded in the mutated tree: {sorted(unguarded_sites(_MUT)[1]) or 'NONE — blind'}")
+
+    _all, _bad = unguarded_sites(_SRC)
     check("every dynamic `t.c[...]` is under a `_system` test", not _bad,
           f"{len(_all)} site(s) at lines {sorted(_all)}; unguarded: {sorted(_bad) or 'none'}")
     check("the population is the three known sites, not fewer", len(_all) == 3,
