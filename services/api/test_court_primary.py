@@ -199,14 +199,25 @@ with TestClient(app) as c:
     r = c.post(f"/projects/{pid}/modules/decision",
                json={"data": {"subject": "Slab thickness", "question": "200 or 250?"}})
     check("a decision record exists", r.status_code in (200, 201), f"{r.status_code} {r.text[:200]}")
-    if r.status_code in (200, 201):
-        rec, before = r.json(), r.json().get("party_owner")
-        d = c.post(f"/projects/{pid}/modules/decision/{rec['id']}/transition",
+    #
+    # **`check`'s DETAIL is evaluated even when the condition is false** — Python builds both
+    # arguments before the call. So a detail that dereferences the very thing under test turns a FAIL
+    # into a traceback, and a traceback skips every later check AND the summary line. Reproduced:
+    # with `row = None`, `f"got {row.get('x')}"` raises `AttributeError` and the gate reports nothing
+    # at all, having found a real defect.
+    #
+    # *A checker that dies instead of reporting is the same family as one that answers instead of
+    # failing* — both end with a run that tells you less than it knows. Every id below is therefore
+    # bound defensively, and every detail reads through a guard. Found by review.
+    decision_id = r.json().get("id") if r.status_code in (200, 201) else None
+    before = r.json().get("party_owner") if r.status_code in (200, 201) else None
+    if decision_id:
+        d = c.post(f"/projects/{pid}/modules/decision/{decision_id}/transition",
                    json={"action": "decide"})
         if d.status_code == 200:
             after = d.json()
-            check("deciding moves the record", after["workflow_state"] == "decided",
-                  f"state={after['workflow_state']!r}")
+            check("deciding moves the record", after.get("workflow_state") == "decided",
+                  f"state={after.get('workflow_state')!r}")
             check("...and leaves the last owner rather than naming a new one",
                   after.get("party_owner") == before,
                   f"before={before!r} after={after.get('party_owner')!r} — a resting state owes "
@@ -223,31 +234,35 @@ with TestClient(app) as c:
     # was the detail view that would have been missed.
     rr = c.post(f"/projects/{pid}/modules/rfi",
                 json={"data": {"subject": "Who answers?", "question": "this"}})
-    check("an RFI exists to read back", rr.status_code in (200, 201), f"{rr.status_code}")
-    rid = rr.json()["id"]
-    c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", json={"action": "submit"})
+    check("an RFI exists to read back", rr.status_code in (200, 201),
+          f"{rr.status_code} {rr.text[:200]}")
+    rid = rr.json().get("id") if rr.status_code in (200, 201) else None
+    row = one = None
+    if rid:
+        c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", json={"action": "submit"})
+        listed = c.get(f"/projects/{pid}/modules/rfi").json()
+        listed = listed.get("items", listed) if isinstance(listed, dict) else listed
+        row = next((x for x in listed if x.get("id") == rid), None)
+        one = c.get(f"/projects/{pid}/modules/rfi/{rid}").json()
 
-    listed = c.get(f"/projects/{pid}/modules/rfi").json()
-    listed = listed.get("items", listed) if isinstance(listed, dict) else listed
-    row = next((x for x in listed if x["id"] == rid), None)
     check("the LIST route sends ball_in_court", row is not None and "ball_in_court" in row,
           f"keys: {sorted(row)[:12]}..." if row else "the record was not listed")
     check("...and it is the server's answer, not the union",
-          row and row.get("ball_in_court") == "Consultant/OwnersRep",
-          f"got {row.get('ball_in_court')!r} — the union would have added GC for `void`")
-
-    one = c.get(f"/projects/{pid}/modules/rfi/{rid}").json()
-    check("the RECORD route sends ball_in_court", "ball_in_court" in one,
-          f"keys: {sorted(one)[:12]}...")
-    check("...and both routes agree", one.get("ball_in_court") == (row or {}).get("ball_in_court"),
-          f"list={row and row.get('ball_in_court')!r} record={one.get('ball_in_court')!r}")
+          bool(row) and row.get("ball_in_court") == "Consultant/OwnersRep",
+          f"got {row.get('ball_in_court')!r} — the union would have added GC for `void`"
+          if row else "no row to read")
+    check("the RECORD route sends ball_in_court", bool(one) and "ball_in_court" in one,
+          f"keys: {sorted(one)[:12]}..." if one else "the record was not fetched")
+    check("...and both routes agree",
+          bool(row) and bool(one) and one.get("ball_in_court") == row.get("ball_in_court"),
+          f"list={(row or {}).get('ball_in_court')!r} record={(one or {}).get('ball_in_court')!r}")
 
     # A resting record must send the key with a null, not omit it: a key that appears only sometimes
     # is indistinguishable from a key the server forgot.
-    dd = c.get(f"/projects/{pid}/modules/decision/{rec['id']}").json()
+    dd = c.get(f"/projects/{pid}/modules/decision/{decision_id}").json() if decision_id else None
     check("a resting record sends the key as null rather than omitting it",
-          "ball_in_court" in dd and dd["ball_in_court"] is None,
-          f"got {dd.get('ball_in_court', '<absent>')!r}")
+          bool(dd) and "ball_in_court" in dd and dd["ball_in_court"] is None,
+          f"got {dd.get('ball_in_court', '<absent>')!r}" if dd else "no decision record to read")
 
 print(("FAILED: " + "; ".join(FAILED)) if FAILED else "test_court_primary OK")
 raise SystemExit(1 if FAILED else 0)
