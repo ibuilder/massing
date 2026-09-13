@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### @thatopen/ui dropped — the guard was demanding a browser verification of a package that cannot reach the browser
+
+`@thatopen/ui` was a declared dependency that **nothing imported**: zero source references tree-wide,
+absent from the built bundle, and a peer dependency of nothing here — it appears only as a
+*devDependency* of the upstream `components` packages, which imposes nothing on us. Yet
+`scripts/check-fragments-version.mjs` pinned it in `KNOWN_GOOD`, and that guard's failure message
+sets a specific contract: re-verify the viewer — load a model, author, section — and move the pin in
+the same commit.
+
+So every dependabot patch bump demanded a full live viewer pass for a library that **cannot affect
+the running app**. That bill was paid twice: #416 was closed on exactly this cost/benefit, and #545
+paid it again — the live pass was done, and its most useful finding was that there was nothing to
+verify.
+
+Removed from `apps/web/package.json`, the README pinned-version table, `KNOWN_GOOD`, and
+`docs/credits.md` — the last of those mattering because credits name what is *shipped*, and it no
+longer is. The npm lock was regenerated with `--package-lock-only` rather than hand-edited: the
+removal orphans fourteen packages in total (`lit` and its three internals, `chart.js`,
+`chartjs-plugin-datalabels`, `iconify-icon`, the three `@floating-ui` packages, `@iconify/types`,
+`@kurkle/color`), and computing a transitive orphan closure by hand is how a lockfile stops matching
+what `npm ci` will install. **Zero packages added, zero versions changed** — verified by diffing the
+two lockfiles rather than by reading npm's summary, which matters because twenty-one dependencies
+carry `^` ranges that a careless regeneration could have floated.
+
+The general point is worth keeping: **a guard that names something unreachable does not protect it,
+it only charges for it.** The pin looked like coverage and behaved like a toll.
+
 ### alembic 1.18.5 → 1.20.0, and a local resolver that confidently reported the wrong answer
 
 Dependabot's #519 carried this floor bump with a recompiled lock and went fully green, including the
