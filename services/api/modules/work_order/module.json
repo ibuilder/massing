@@ -148,7 +148,8 @@
           "GC",
           "PM",
           "OwnersRep"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "completed",

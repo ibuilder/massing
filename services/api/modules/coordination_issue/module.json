@@ -93,7 +93,8 @@
         "action": "assign",
         "party": [
           "GC"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "assigned",

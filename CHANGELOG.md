@@ -12,6 +12,54 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Ball-in-court was computed twice, by two rules, and 10 states disagreed
+
+The register screen and every server-side report answered "whose move is it" differently.
+`modules_query.court_party` took the primary outgoing transition; `register.ts` unioned the parties
+of **every** outgoing transition. Derived over all 139 modules and 267 workflow states, **10 states
+in 9 modules** produced different answers. On an open RFI the screen showed Consultant, OwnersRep
+*and* GC, while `changeorders.py`, `closeout.py`, `quality.py` and every `ball_in_court` rollup said
+Consultant/OwnersRep — the GC appearing only because it can `void`. *An escape hatch is not a move
+somebody owes.*
+
+The server's reading survives, because it is what the money reports are built on. But it rested on a
+premise nothing could check: *"module authors list the primary forward action first."* **That premise
+is false in two places, and they are the ones that matter:**
+
+| | listed first | actually owed |
+|---|---|---|
+| `pull_plan_task.made_ready` | `reconstrain` (back to `pulled`) | `commit`, by the Subcontractor |
+| `permit.applied` | `issue` | `start_review` — nothing is issued before review |
+
+**And it cannot be rescued by deriving "forward" from the declared state order**, which was the
+obvious fix and is measurably wrong: `action_item.states` is `['done', 'open']` — alphabetical, not a
+progression. Under that reading 45 states have no forward transition at all and 39 have several.
+*A convention nothing can check is a convention that has already drifted.*
+
+So the primary is **declared**: `"primary": true` on one transition, or the state is listed as
+`resting` — reachable, but owing nobody anything. **Only 17 of 267 states need to declare anything**,
+because 199 have a single outgoing transition and 51 have several that all carry the same parties; for
+250 of them the choice cannot change the answer. That bound is the design — a rule demanding 267 edits
+would have been abandoned halfway and left the tree half-declared.
+
+Five answers change. Two are the corrections above. Three states become **resting** —
+`decision.decided`, `information_container.published`, `spec_section.issued` — and stop naming a
+party at all, which is what had been putting closed records into ball-in-court rollups as though
+someone were sitting on them. Transitioning into a resting state leaves `party_owner` as it was,
+exactly as a terminal state already does.
+
+The register now **reads** the value instead of deriving it, and deliberately has no local fallback:
+recomputing would be the second implementation again. Both the list and the single-record route send
+it, resolved through `workflow_config.effective` — the project's overridden workflow, which is what
+`transition` uses, so the screen and the engine cannot disagree by that door either. Enriched at the
+two **routes** rather than in `modules_query.list_records`, which has **274 call sites** including a
+BCF export built from the row's keys: *the narrowest place that can carry a fact is where it belongs.*
+
+Gated by `services/api/test_court_primary.py`, which derives the ambiguous states rather than listing
+them, strips a declaration and requires that to be caught, and mutates `court_party` back to the
+first-transition rule and requires **both** wrong answers to return — so the assertions test the
+reader and not merely the config.
+
 ### The PostgreSQL pin gate could be handed a dead server and still exit 0
 
 Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the

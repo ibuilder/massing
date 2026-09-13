@@ -126,7 +126,8 @@
         "action": "start_review",
         "party": [
           "GC"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "under_review",

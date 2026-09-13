@@ -103,10 +103,10 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-**ONE OPEN ENTRY as of 2026-09-13 — COURT-SPLIT**, below. SYSTEM-COLUMN-PHANTOM, which filled this
-band on the same day, is **CLOSED** below; COURT-SPLIT was found *while closing it*, in the web
-register's own ball-in-court helper, and is filed rather than folded in because it has a product
-decision attached.
+**EMPTY again as of 2026-09-13.** Both entries that filled this band that day — SYSTEM-COLUMN-PHANTOM
+and COURT-SPLIT, the second found *while closing the first* — are **CLOSED** below. COURT-SPLIT was
+filed rather than folded in because it had a product decision attached; the decision was taken (the
+server's "whose move is it" rule survives, with its premise now enforced) and it shipped.
 
 **Both arrived the same way and neither came from a sweep** — one from the margin of an unrelated
 gate, one from the margin of the fix for the first. *The paragraph below says every entry here has
@@ -180,8 +180,8 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   *The same wrong name is not the same severity in two places, and the loud one was found last.*
 
 - **COURT-SPLIT — the register screen and every server-side report disagree about whose court a
-  record is in, on 10 states across 9 modules** *(S — Lane C; found 2026-09-13 while closing
-  SYSTEM-COLUMN-PHANTOM)*
+  record is in, on 10 states across 9 modules** — **✅ CLOSED 2026-09-13**, gated by
+  `services/api/test_court_primary.py` *(S — Lane C)*
 
   Ball-in-court is computed twice, from the same workflow transitions, by two different rules.
 
@@ -209,6 +209,26 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sees. Fixing it is small either way — delete one definition — but picking which one to delete is
   not a code judgement. *Whichever survives, it must be computed in ONE place and asserted across
   all 267 states, or the two will drift apart again the next time a module adds a transition.*
+
+  **✅ CLOSED — and the enforcement the decision asked for could not be built as specified.** The
+  call was "keep the server's rule and enforce its premise", the premise being that authors list the
+  primary forward action first. Deriving "forward" from the declared state order is the obvious
+  enforcement and is **measurably wrong**: `action_item.states` is `['done', 'open']`, alphabetical
+  rather than a progression, and under that reading 45 states have no forward transition and 39 have
+  several. *The premise is not checkable, so it is now DECLARED* — `"primary": true` on one
+  transition, or the state listed as `resting`.
+
+  **17 of 267 states need it**, because for the other 250 the choice cannot change the answer (199
+  have one outgoing transition, 51 have several sharing one party set). Five answers moved: the two
+  wrong primaries above, and three states that stop naming anyone —`decision.decided`,
+  `information_container.published`, `spec_section.issued` were putting closed records into
+  ball-in-court rollups. The register reads the value now instead of deriving it, from both routes,
+  resolved through `workflow_config.effective` so a project's overridden workflow cannot reopen the
+  same disagreement by another door.
+
+  *One correction to this entry's own first draft: `coordination_issue.open` was listed above as a
+  violation and is not one — `assign` is the owed move. It reached the list through the same
+  state-order test that had to be discarded.*
 
   **Lane C owns it, alone.** The first draft of this entry said "Lanes B+C" and the Lane B row said
   "shared with Lane C" — which contradicts the invariant stated three paragraphs above the lane
@@ -3423,7 +3443,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(ball-in-court is computed twice from the same transitions by two different rules — `modules_query.court_party` takes the first outgoing transition's parties, the web register unions all of them — so 10 states in 9 modules read differently on screen and in every report; the `register.ts` edit follows the call and is not separately owned)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |

@@ -135,7 +135,8 @@
         "party": [
           "GC",
           "Subcontractor"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "fabricating",

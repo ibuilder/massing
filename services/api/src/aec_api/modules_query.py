@@ -54,18 +54,39 @@ def available_actions(mod: dict, state: str, party: str | None) -> list[dict]:
 def court_party(mod: dict, state: str | None) -> str | None:
     """The party whose court a record in `state` is in — who owes the primary next move.
 
-    Taken from the FIRST outgoing transition declared for the state: module authors list the primary
-    forward action first (e.g. an RFI in `open` is answered by the Consultant before the GC's `void`
-    escape hatch), so the first transition's party is the real ball-in-court. `/`-joins a move shared
-    by several parties (Consultant/OwnersRep). Returns None for a terminal state — nobody's move —
-    so `transition` leaves the last owner in place there."""
+    `/`-joins a move shared by several parties (Consultant/OwnersRep). Returns None when nobody owes
+    a move: a terminal state, or one the workflow declares `resting`.
+
+    COURT-SPLIT. This used to take the FIRST outgoing transition, on the stated premise that "module
+    authors list the primary forward action first". **The premise was never checkable and is false in
+    places.** Two registers list a rollback first — `pull_plan_task.made_ready` opens with
+    `reconstrain` (back to `pulled`) when the owed move is the Subcontractor's `commit`, and
+    `permit.applied` opens with `issue` when nothing can be issued before `start_review` — so the
+    reports named the wrong party on those.
+
+    **And it cannot be rescued by deriving "forward" from the state order**, which was the obvious
+    fix and is measurably wrong: `action_item.states` is `['done', 'open']`, alphabetical, not a
+    progression. 45 states have no "forward" transition by that reading and 39 have several. *A
+    convention nothing can check is a convention that has already drifted* — so the primary is now
+    DECLARED, and `test_court_primary.py` fails the build on an ambiguous state that declares
+    neither a primary nor `resting`.
+
+    Only 17 of 267 states need to declare anything: 199 have a single outgoing transition and 51 have
+    several that all carry the same parties, so for 250 of them the choice cannot change the answer
+    and the first transition still decides it. That bound is what keeps this a declaration rather
+    than a migration.
+    """
     if not state:
         return None
-    for t in mod.get("workflow", {}).get("transitions", []):
-        if t["from"] == state:
-            parties = t.get("party") or []
-            return "/".join(parties) if parties else None
-    return None
+    wf = mod.get("workflow") or {}
+    if state in (wf.get("resting") or []):
+        return None                       # a resting state: reachable, but nobody owes the next move
+    out = [t for t in wf.get("transitions", []) if t["from"] == state]
+    if not out:
+        return None
+    chosen = next((t for t in out if t.get("primary")), out[0])
+    parties = chosen.get("party") or []
+    return "/".join(parties) if parties else None
 
 def _json_text(db: Session, col, jkey: str):
     """Portable JSON scalar-as-text extraction (Postgres ->> / SQLite json_extract). `jkey` is a

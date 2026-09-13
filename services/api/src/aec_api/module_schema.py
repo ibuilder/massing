@@ -261,6 +261,12 @@ class Transition(BaseModel):
     # schema does too, normalizing to a list.
     party: list[str] = Field(default_factory=list)
     requires: list[str] = Field(default_factory=list)
+    #: COURT-SPLIT — this is the move somebody OWES from `from_`, as opposed to a rollback, an
+    #: escape hatch or a failure path. Read by `modules_query.court_party`. Only needed where a
+    #: state's outgoing transitions carry DIFFERENT parties, since only then does the choice change
+    #: the answer; `test_court_primary.py` derives exactly those states and requires each to declare
+    #: a primary or be listed as `resting`.
+    primary: bool = False
 
     @field_validator("party", mode="before")
     @classmethod
@@ -275,6 +281,11 @@ class Workflow(BaseModel):
     initial: str | None = None
     states: list[str] = Field(default_factory=list)
     transitions: list[Transition] = Field(default_factory=list)
+    #: States that are REACHABLE but owe nobody a move — a published document, a decided decision.
+    #: They may still have outgoing transitions (archive, supersede, revisit); those are available,
+    #: not owed. `court_party` returns None here, which keeps resting records out of the
+    #: ball-in-court rollups they were previously counted in.
+    resting: list[str] = Field(default_factory=list)
 
 
 class ModuleSchema(BaseModel):
@@ -427,6 +438,22 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
         states = set(m.workflow.states)
         if m.workflow.initial and m.workflow.initial not in states:
             errors.append(f"{key}: workflow.initial {m.workflow.initial!r} not in states")
+        for rs in m.workflow.resting:
+            if rs not in states:
+                errors.append(f"{key}: workflow.resting {rs!r} not in states")
+        # At most one primary per state, and never both a primary and `resting` — either would make
+        # `court_party`'s answer depend on declaration order again, which is the whole defect.
+        primaries: dict[str, list[str]] = {}
+        for t in m.workflow.transitions:
+            if t.primary:
+                primaries.setdefault(t.from_ or "", []).append(t.action or "?")
+        for st, acts in sorted(primaries.items()):
+            if len(acts) > 1:
+                errors.append(f"{key}: state {st!r} declares {len(acts)} primary transitions "
+                              f"({', '.join(sorted(acts))}) — exactly one move is owed")
+            if st in m.workflow.resting:
+                errors.append(f"{key}: state {st!r} is both `resting` and declares a primary "
+                              f"transition ({acts[0]}) — it either owes a move or it does not")
         for t in m.workflow.transitions:
             for label, s in (("from", t.from_), ("to", t.to)):
                 if s and s not in states:

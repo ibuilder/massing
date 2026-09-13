@@ -371,6 +371,13 @@ export interface ModuleRecord {
   links: { module: string; id: string; ref: string }[];
   data: Record<string, unknown>;
   data_refs?: Record<string, RecordBrief>;   // resolved reference fields
+  //: COURT-SPLIT. Whose move it is, computed by the SERVER from the workflow's declared primary
+  //: transition — the same value `court_party` gives every report. The register used to work this
+  //: out itself by unioning every outgoing transition's parties, and 10 states in 9 modules
+  //: disagreed with the reports as a result. Optional because only the register LIST route sends
+  //: it: `list_records` has 274 call sites and widening the engine's row to fix one screen would
+  //: have changed all of them. `null` means nobody owes a move (terminal or resting state).
+  ball_in_court?: string | null;
   revision?: { number: number; revises: RecordBrief | null; superseded_by: RecordBrief | null };
   //: R41-SCHEMA-STALE. Sent on EVERY read, not only when something is wrong — a key that appears
   //: only on failure is indistinguishable from a key the server forgot to send. `stale` means this

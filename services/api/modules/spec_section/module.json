@@ -146,6 +146,9 @@
           "GC"
         ]
       }
+    ],
+    "resting": [
+      "issued"
     ]
   },
   "list_columns": [

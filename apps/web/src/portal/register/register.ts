@@ -704,18 +704,29 @@ export class RegisterUI {
     }
   }
 
-  /** Ball-in-court: which party(ies) own the next action from the current state, read straight from
-   *  the workflow transitions. The "who owes the next move" signal both supers and PMs scan for. */
-  private ballInCourt(m: ModuleDef, state: string): string[] {
-    const parties = new Set<string>();
-    for (const t of m.workflow?.transitions ?? []) {
-      if (t.from === state) (t.party ?? []).forEach((p) => p && parties.add(p));
-    }
-    return [...parties];
+  /**
+   * COURT-SPLIT — ball-in-court, as the SERVER computed it. Read, not derived.
+   *
+   * This used to union the parties of every outgoing transition from the record's state. The server
+   * takes only the move somebody OWES, so the two disagreed on 10 states across 9 modules: an open
+   * RFI showed Consultant, OwnersRep *and* GC here while every report said Consultant/OwnersRep —
+   * the GC appearing only because it can `void`. *An escape hatch is not a move somebody owes.*
+   *
+   * The server's answer wins because it is what the money reports are built on, and it now rests on
+   * a declaration (`primary` / `resting` in the workflow) rather than on transition order.
+   * `services/api/test_court_primary.py` fails the build if a state where the choice matters
+   * declares neither.
+   *
+   * `?? []` rather than a local fallback: an older server that does not send the key renders a dash,
+   * which is visibly nothing. Recomputing it here would be the second implementation again, quietly
+   * right until it wasn't.
+   */
+  private ballInCourt(r: ModuleRecord): string[] {
+    return (r.ball_in_court ?? "").split("/").map((p) => p.trim()).filter(Boolean);
   }
-  private ballCell(m: ModuleDef, r: ModuleRecord): HTMLTableCellElement {
+  private ballCell(_m: ModuleDef, r: ModuleRecord): HTMLTableCellElement {
     const td = document.createElement("td");
-    const parties = this.ballInCourt(m, r.workflow_state);
+    const parties = this.ballInCourt(r);
     td.innerHTML = parties.length
       ? parties.map((p) => `<span class="ball-badge">${esc(p)}</span>`).join(" ")
       : `<span class="meta">—</span>`;
@@ -2079,7 +2090,7 @@ export class RegisterUI {
     this.ctx.root.appendChild(this.ctx.bar(`${r.ref}`, () => this.openModule(m)));
 
     const head = document.createElement("div");
-    const ball = this.ballInCourt(m, r.workflow_state);
+    const ball = this.ballInCourt(r);
     head.innerHTML = `<div class="portal-rec-title">${esc(r.title ?? r.ref)}</div>` +
       `<div class="meta">status <span class="badge">${esc(r.workflow_state)}</span> · ${esc(r.party_owner ?? "")}` +
       (ball.length ? ` · ball-in-court ${ball.map((p) => `<span class="ball-badge">${esc(p)}</span>`).join(" ")}` : "") +

@@ -122,7 +122,8 @@
         "action": "return_pricing",
         "party": [
           "GC"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "priced",
