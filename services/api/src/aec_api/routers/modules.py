@@ -693,9 +693,31 @@ def list_records(request: Request, pid: str, key: str, state: str | None = None,
     in SQL, before the limit."""
     # clamp the caller-supplied page size — an unbounded ?limit= materializes the whole module
     limit = max(1, min(int(limit or 200), 1000))
-    return mod_engine.list_records(db, key, pid, state, q, limit, max(0, int(offset or 0)),
+    rows = mod_engine.list_records(db, key, pid, state, q, limit, max(0, int(offset or 0)),
                                    filters=_parse_filters(request.query_params),
                                    sort=sort, sort_dir=sort_dir)
+    # COURT-SPLIT — ball-in-court travels WITH the row, so the register renders the same answer the
+    # reports do instead of recomputing it by a different rule. It was computed twice: `court_party`
+    # took the primary transition, `register.ts` unioned every outgoing transition's parties, and 10
+    # states in 9 modules disagreed — an open RFI showed the GC on screen purely because the GC can
+    # `void` it.
+    #
+    # Enriched HERE rather than in `mod_engine.list_records`, which has **274 call sites** — a BCF
+    # export, CSV writers, a dozen analytics engines, several of which build their output from the
+    # row's keys. Widening the engine's row would have changed all of them to fix one screen. *The
+    # narrowest place that can carry a fact is where it belongs.*
+    #
+    # Resolved through `workflow_config.effective`, NOT the bare registry: `transition` computes the
+    # court from the project's EFFECTIVE workflow, so reading the shipped one here would have the
+    # screen and the engine disagree again — the same defect, entered by a different door. Resolved
+    # once per request rather than per row. (An override replaces the transition list wholesale, so
+    # it carries its own `primary` flags or falls back to the first transition; `resting` lives on
+    # the workflow and survives.)
+    from .. import workflow_config
+    mod = workflow_config.effective(mod_engine.REGISTRY.get(key) or {}, pid)
+    for row in rows:
+        row["ball_in_court"] = mod_engine.court_party(mod, row.get("workflow_state"))
+    return rows
 
 
 @router.get("/projects/{pid}/modules/{key}/aggregate")
@@ -823,6 +845,10 @@ def get_record(pid: str, key: str, rid: str, db: Session = Depends(get_db),
     mod = workflow_config.effective(mod_engine.get_module(key), pid)
     rec["available_actions"] = mod_engine.available_actions(
         mod, rec["workflow_state"], _party(pid, db, _))
+    # COURT-SPLIT — same value, same rule, same effective workflow as the list route and the engine.
+    # The detail view rendered its own ball-in-court from the module definition; sending it keeps one
+    # computation rather than two that agree until a module adds a transition.
+    rec["ball_in_court"] = mod_engine.court_party(mod, rec["workflow_state"])
     if mod.get("workflow_overridden"):
         rec["workflow_overridden"] = True
     return rec

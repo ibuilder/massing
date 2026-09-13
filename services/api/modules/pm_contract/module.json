@@ -175,7 +175,8 @@
           "Owner",
           "PM",
           "GC"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "expiring",

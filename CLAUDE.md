@@ -236,6 +236,26 @@ testing the guard.* `updated_at` was also the THIRD instance of that same typo o
 two returned a permanent `None` and were found in August. **The same wrong name is not the same severity in
 two places, and the loud one was found last.**
 
+**A twelfth joined them on 2026-09-13: `services/api/test_court_primary.py`** — is the rule that
+picks the ball-in-court *checkable*? `court_party` took the first outgoing transition on the stated
+premise that "module authors list the primary forward action first", and the web register answered
+the same question by unioning ALL of them: 10 states in 9 modules disagreed between the screen and
+every money report. **The premise was false in two places** — `pull_plan_task.made_ready` lists a
+rollback first, `permit.applied` lists `issue` before `start_review`. **And the obvious enforcement
+could not be built**: deriving "forward" from the declared state order is measurably wrong, because
+`action_item.states` is `['done', 'open']` — alphabetical, not a progression — leaving 45 states with
+no forward transition and 39 with several. *A premise that cannot be checked has already drifted; the
+only repair is to stop inferring it and DECLARE it.*
+**The load-bearing move was bounding the population**: only 17 of 267 states need a declaration,
+because for the other 250 the choice cannot change the answer. *A rule demanding 267 edits gets
+abandoned halfway and leaves the tree half-declared, which is worse than not starting* — so the gate
+demands a declaration exactly where one is load-bearing, and derives that set rather than listing it.
+Two further lessons: the value is enriched at the two ROUTES, not in `list_records`, which has 274
+call sites including a BCF export built from the row's keys — *the narrowest place that can carry a
+fact is where it belongs*; and both routes resolve through `workflow_config.effective`, because
+`transition` does, and reading the shipped workflow instead would have reopened the same
+disagreement by a different door.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

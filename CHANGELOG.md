@@ -12,6 +12,109 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Ball-in-court was computed twice, by two rules, and 10 states disagreed
+
+The register screen and every server-side report answered "whose move is it" differently.
+`modules_query.court_party` took the primary outgoing transition; `register.ts` unioned the parties
+of **every** outgoing transition. Derived over all 139 modules and 267 workflow states, **10 states
+in 9 modules** produced different answers. On an open RFI the screen showed Consultant, OwnersRep
+*and* GC, while `changeorders.py`, `closeout.py`, `quality.py` and every `ball_in_court` rollup said
+Consultant/OwnersRep — the GC appearing only because it can `void`. *An escape hatch is not a move
+somebody owes.*
+
+The server's reading survives, because it is what the money reports are built on. But it rested on a
+premise nothing could check: *"module authors list the primary forward action first."* **That premise
+is false in two places, and they are the ones that matter:**
+
+| | listed first | actually owed |
+|---|---|---|
+| `pull_plan_task.made_ready` | `reconstrain` (back to `pulled`) | `commit`, by the Subcontractor |
+| `permit.applied` | `issue` | `start_review` — nothing is issued before review |
+
+**And it cannot be rescued by deriving "forward" from the declared state order**, which was the
+obvious fix and is measurably wrong: `action_item.states` is `['done', 'open']` — alphabetical, not a
+progression. Under that reading 45 states have no forward transition at all and 39 have several.
+*A convention nothing can check is a convention that has already drifted.*
+
+So the primary is **declared**: `"primary": true` on one transition, or the state is listed as
+`resting` — reachable, but owing nobody anything. **Only 17 of 267 states need to declare anything**,
+because 199 have a single outgoing transition and 51 have several that all carry the same parties; for
+250 of them the choice cannot change the answer. That bound is the design — a rule demanding 267 edits
+would have been abandoned halfway and left the tree half-declared.
+
+Five answers change. Two are the corrections above. Three states become **resting** —
+`decision.decided`, `information_container.published`, `spec_section.issued` — and stop naming a
+party at all, which is what had been putting closed records into ball-in-court rollups as though
+someone were sitting on them. Transitioning into a resting state leaves `party_owner` as it was,
+exactly as a terminal state already does.
+
+The register now **reads** the value instead of deriving it, and deliberately has no local fallback:
+recomputing would be the second implementation again. Both the list and the single-record route send
+it, resolved through `workflow_config.effective` — the project's overridden workflow, which is what
+`transition` uses, so the screen and the engine cannot disagree by that door either. Enriched at the
+two **routes** rather than in `modules_query.list_records`, which has **274 call sites** including a
+BCF export built from the row's keys: *the narrowest place that can carry a fact is where it belongs.*
+
+Gated by `services/api/test_court_primary.py`, which derives the ambiguous states rather than listing
+them, strips a declaration and requires that to be caught, and mutates `court_party` back to the
+first-transition rule and requires **both** wrong answers to return — so the assertions test the
+reader and not merely the config.
+
+Two gates went red on that change and both were right, so both are recorded rather than quietly
+re-pinned:
+
+**`test_json_null_filter` exempted its sites by LINE NUMBER, and went stale twice in two days.** Not
+because the code it describes changed — because unrelated edits further up `modules_query.py` pushed
+those sites down the file. *A line number is a coordinate every edit to the file moves, so an
+exemption keyed on one measures when the file was last touched rather than whether the site is still
+there.* Re-pinning it a second time would have been a fix already known to fail, so the key is now
+`(file, enclosing function, subject)`, which moves only when the code genuinely moves.
+
+Collapsing the line into the function costs the ability to tell two sites in one function apart —
+`_apply_filters` has two — so each entry now carries **how many sites it covers**, and the gate
+deletes one of that pair and requires the count to catch it. Otherwise this would have traded a
+noisy failure for a silent one: an exemption still covering the survivor after its twin was deleted.
+Three mutations pin it: claiming a wrong count, restoring the line-number key, and dropping an entry
+outright are each reported.
+
+**`test_file_sizes` caught `register.ts` growing past its ratchet — by six lines of COMMENT.** The
+code shrank five lines (the local ball-in-court union went away); a seventeen-line doc comment
+explaining why replaced it. The ratchet was right: the substance of that comment is about the
+SERVER's rule and belongs with `court_party` and its gate, not restated in a 2,458-line file that is
+under a shrink ratchet precisely because it accumulates. Trimmed to six lines and the now-dead
+`ModuleDef` parameter dropped from `ballCell`; **2,458 → 2,447**.
+
+*Both were found by running the suite rather than by reading the diff, and CI's API gate failed on
+the same two — which is the argument for running it before claiming a PR is green.*
+
+**A review round on that fix found three more, and two of them were the same defect I had just
+fixed one file over.** `test_court_primary`'s list lookup unwrapped `{"items": ...}` and then
+iterated whatever was left — a 4xx body is a dict with no `items`, so the unwrap hands the ERROR
+OBJECT back, iteration yields its string keys, and `x.get` raises before `check` can report the
+route failure. And the new self-tests in `test_json_null_filter` opened with a bare `next(...)`,
+which raises `StopIteration` and kills the gate if the site they are built on is ever deleted.
+*Both are "dies instead of reporting", written hours after fixing that exact shape — knowing a
+defect class by name is not the same as recognising it in your own next paragraph.* Both now report
+through `check` and reach the summary; each is mutation-proved by breaking its precondition.
+
+The third was in the rekey itself. `_sites()` mapped each node to its enclosing function with
+`ast.walk` + `setdefault`, which binds to the **outermost** enclosing function, not the nearest — so
+a NULL test inside a nested `def` resolves against the wrong locals. That was already true when the
+owner map only fed `_resolve`; making the function name part of the site's **identity** is what
+turned it into a misattributed key no exemption could match. Replaced with a scope-stack descent.
+**Measured on today's tree the two walkers agree on every one of the 21 sites** — which is precisely
+why a synthetic nested case is asserted: *a fix nothing can distinguish from the bug is a fix nobody
+can keep.*
+
+**And the first draft of THAT self-test tested a copy of the fix.** It mirrored the traversal into a
+local `_probe` instead of calling `_owners`, so `_owners` could regress to outer-function
+attribution and the check would still pass — *a self-test written to stop a fix being silently
+reverted, unable to observe the fix.* Worse, the mutation run to verify it was aimed at the copy, so
+it proved the copy behaved as advertised and said nothing about the gate. **Mutate the thing under
+test, and prove the test can reach it.** It now calls `_owners` directly, and regressing `_owners`
+itself is what reds the build. The fixture was also shadowing an unrelated `_NESTED` used by the
+resolver self-tests, harmless only because those happen to run first; renamed.
+
 ### The PostgreSQL pin gate could be handed a dead server and still exit 0
 
 Follow-up to the pin-sweep work, and a finding that survived two review rounds because it sat in the

@@ -371,6 +371,20 @@ export interface ModuleRecord {
   links: { module: string; id: string; ref: string }[];
   data: Record<string, unknown>;
   data_refs?: Record<string, RecordBrief>;   // resolved reference fields
+  //: COURT-SPLIT. Whose move it is, computed by the SERVER from the workflow's declared primary
+  //: transition — the same value `court_party` gives every report. The register used to work this
+  //: out itself by unioning every outgoing transition's parties, and 10 states in 9 modules
+  //: disagreed with the reports as a result. Sent by the register LIST route AND the single-record
+  //: route, both enriched in `routers/modules.py` rather than in `mod_engine.list_records` — that
+  //: engine has 274 call sites, and widening its row to fix one screen would have changed all of
+  //: them. Optional because an older server sends it from neither. `null` means nobody owes a move
+  //: (a terminal or a resting state), and is sent as `null` rather than omitted: a key that appears
+  //: only sometimes is indistinguishable from one the server forgot.
+  //:
+  //: *This comment said "only the register LIST route" until review caught it.* The detail-route
+  //: enrichment was added after the comment was written, and a comment naming one of two routes
+  //: invites someone to delete the other — the same drift as a stale number, in prose.
+  ball_in_court?: string | null;
   revision?: { number: number; revises: RecordBrief | null; superseded_by: RecordBrief | null };
   //: R41-SCHEMA-STALE. Sent on EVERY read, not only when something is wrong — a key that appears
   //: only on failure is indistinguishable from a key the server forgot to send. `stale` means this

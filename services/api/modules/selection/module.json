@@ -99,7 +99,8 @@
         "party": [
           "Owner",
           "OwnersRep"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "selected",

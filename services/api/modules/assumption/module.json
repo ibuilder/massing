@@ -79,7 +79,8 @@
           "GC",
           "OwnersRep",
           "Architect"
-        ]
+        ],
+        "primary": true
       },
       {
         "from": "open",
