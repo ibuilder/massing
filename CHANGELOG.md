@@ -25,8 +25,15 @@ Those are precisely the legacy rows the sweep exists for. Every `None` written t
 `element_guids` before that same change added `JSON(none_as_null=True)` went in as the scalar
 `null`; they satisfy the SQL half of the pin predicate, fail the exact test in `pins.pin_fields`,
 and are what puts the `~` on the plan sheet's project total. Measured against PostgreSQL 16 on a
-four-row fixture before anything was written: `changed=1`, `SKIPPED=[]` — a clean-looking run that
-had converted one row and ignored two.
+four-row fixture before anything was written: **the `null` row came out exactly as it went in, and
+`SKIPPED` was empty** — so the run neither converted it nor said anything about having seen it.
+
+*(An earlier draft of this entry led with "`changed=1` → `changed=4`", and review was right that the
+comparison is unsound: the corrected sweep issues one UPDATE per column where the old one grouped a
+row's columns into one, so the number moved from ROWS to COLUMN VALUES in the same change. Two
+counts in different units read as a measurement and are not one. The row states are the evidence;
+the unit change is now pinned by a both-columns fixture in `services/api/test_pin_empty.py`, which
+nothing caught before because every earlier fixture seeded a single column.)*
 
 **SQLite hid it, and not by accident.** There a JSON column is TEXT, the scalar arrives as the four
 characters `null`, and the decode happens *after* the guard has already let the row through — so the
@@ -38,8 +45,8 @@ representation problem has to be careful not to inherit it.*
 narrowed to that column being non-NULL, so everything it returns is non-NULL in SQL and a Python
 `None` can only be the scalar. It is a new revision rather than an edit, because `b3c9e42d18a5` has
 run — editing it would change nothing on any database that ran it while making the file disagree
-with what was executed there. Verified on the same fixture: `changed=4`, the `null` rows converted,
-a real anchor untouched.
+with what was executed there. Verified on the same fixture: the `null` rows are now SQL NULL, the
+already-NULL row is untouched, and a real anchor survives.
 
 **The dialect was never the mechanism — the driver decoding the column is**, and that is why the
 gate does not need a PostgreSQL to be real. `test_pin_empty.py` registers a sqlite3 converter so its

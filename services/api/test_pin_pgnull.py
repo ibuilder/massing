@@ -72,11 +72,25 @@ _ROWS = (
 
 
 def _url() -> str | None:
-    """A libpq-style URL from whatever the environment offers, or None."""
+    """A libpq-style URL, or None when this run has not OPTED IN to writing to a database.
+
+    **Ambient `PG*` is not consent.** This script does `CREATE TABLE` / `DROP TABLE`, and
+    `run_tests.py` forwards the whole environment to every suite (`base = {**os.environ, ...}`) — so
+    reading `PGHOST` on its own meant an ordinary suite run, on any machine with `PG*` exported for
+    unrelated work, would create and drop probe tables in whatever database those variables happened
+    to point at (`PGDATABASE` defaults to `postgres`). That is the hazard class
+    `test_db_url_isolation.py` exists to prevent, arriving through a door it does not watch.
+
+    So the opt-in is explicit and must be deliberate: either `AEC_TEST_PG_URL` names the target
+    outright, or `AEC_PG_REQUIRED` says this run is the one that is supposed to reach a server — which
+    is what `db-migrations.yml` sets, beside a `PGDATABASE` naming a throwaway database it created.
+    """
     if os.environ.get("AEC_TEST_PG_URL"):
         return os.environ["AEC_TEST_PG_URL"]
+    if not os.environ.get("AEC_PG_REQUIRED"):
+        return None                      # ambient PG* alone is not permission to write
     if not os.environ.get("PGHOST"):
-        return None
+        return None                      # required but unaddressable — the caller below fails on it
     host = os.environ["PGHOST"]
     port = os.environ.get("PGPORT", "5432")
     user = os.environ.get("PGUSER", "postgres")
@@ -109,6 +123,14 @@ def _sweep_fixture(sa, engine, mod, table: str):
     return changed, state, skipped
 
 
+#: Does this run claim it will reach a server? Read ONCE, and consulted on every path below —
+#: **the first version of this file only consulted it inside `if _u:`**, so with the variable set and
+#: no `PGHOST` to build a URL from, `_url()` returned None, the no-server branch ran, and the script
+#: exited 0. Clearing or renaming the job-level `PGHOST` would then have left a green CI step whose
+#: only assertion was that the step itself existed — exactly the circularity the workflow comment
+#: claims this design avoids. A flag that guards one branch of two guards nothing.
+_REQUIRED = bool(os.environ.get("AEC_PG_REQUIRED"))
+
 _u = _url()
 _engine = None
 if _u:
@@ -118,10 +140,14 @@ if _u:
         with _engine.connect() as _c:
             _c.execute(_sa.text("SELECT 1"))
     except Exception as exc:                              # noqa: BLE001 — any driver/connect error
-        if os.environ.get("AEC_PG_REQUIRED"):
+        if _REQUIRED:
             check("AEC_PG_REQUIRED is set, so a reachable PostgreSQL is not optional", False,
                   f"{_u} — {type(exc).__name__}: {exc}")
         _engine = None
+elif _REQUIRED:
+    check("AEC_PG_REQUIRED is set, so a PostgreSQL must be ADDRESSABLE", False,
+          "neither AEC_TEST_PG_URL nor PGHOST is set, so no server could even be attempted — this "
+          "run was told it is the one that checks the sweep against a real driver, and it is not")
 
 if _engine is not None:
     _new = _load(_NEW)
@@ -132,7 +158,10 @@ if _engine is not None:
         check(f"d7f1a5c3e094: {_rid!r} ends SQL NULL={_want_null}", _st[_rid] is _want_null,
               f"got {_st[_rid]} — seeded as {_val!r}; state={_st!r}")
     check("d7f1a5c3e094: the count is what actually changed", _ch == 2,
-          f"changed={_ch}, expected 2 (the `jsonnull` and `empty` rows)")
+          f"changed={_ch}, expected 2 — the `jsonnull` and `empty` rows. NOTE the unit: this fixture "
+          f"seeds one column, so rows and column-values coincide here. They do not in general — see "
+          f"the both-columns case in test_pin_empty.py, where this migration returns 2 for ONE row "
+          f"and b3c9e42d18a5 returns 1")
     check("d7f1a5c3e094: neither empty form is misreported as uninterpretable", _sk == [],
           f"SKIPPED={_sk!r}")
 
@@ -162,7 +191,7 @@ else:
           "AEC_PG_REQUIRED" in _text,
           f"{_WF} does not set AEC_PG_REQUIRED — without it the CI run would take this same "
           f"no-server branch and assert only that the workflow mentions the file")
-    _ran = "no server; asserted the CI step that runs it still exists"
+    _ran = "no opt-in; asserted the CI step that runs it for real still exists"
 
 if FAILED:
     print("FAIL test_pin_pgnull")

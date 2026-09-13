@@ -580,6 +580,35 @@ check("...though it did sweep the empty object, which is why its run looked clea
 check("...and said NOTHING about the row it walked past", _sk3 == [],
       f"SKIPPED={_sk3!r} — the silence is the reason this survived review and a deploy")
 
+# --- WHAT THE RETURN VALUE COUNTS, which quietly changed unit -------------------------------------
+# `b3c9e42d18a5` groups a row's empty columns into ONE UPDATE, so it returns 1 for a row with both
+# pin columns empty. `d7f1a5c3e094` issues one UPDATE per column, so the same row returns 2: the
+# number went from ROWS to COLUMN VALUES. Nothing depends on it — `upgrade()` discards it, and the
+# audit is the row state — but two runs reporting "changed=1" and "changed=4" read as comparable
+# when they are measuring different things, and the PR describing this change did exactly that until
+# review caught it.
+#
+# **It slipped through because every fixture above seeds ONE column.** A difference no fixture can
+# express is a difference no test can hold, however many tests there are. This one seeds both, and
+# asserts each copy's own number rather than a shared constant, so the divergence is recorded instead
+# of smoothed over.
+for _m, _want in ((mig3, 1), (mig4, 2)):
+    _e = _sa.create_engine("sqlite://")
+    _m.SKIPPED.clear()
+    with _e.begin() as _conn:
+        _conn.execute(_sa.text(
+            "CREATE TABLE mod_rfi (id TEXT PRIMARY KEY, anchor TEXT, element_guids TEXT)"))
+        _conn.execute(_sa.text("INSERT INTO mod_rfi VALUES ('both', '{}', '[]')"))
+        _got = _m._sweep(_conn, "mod_rfi", ("anchor", "element_guids"))
+        _left = _conn.execute(_sa.text(
+            "SELECT anchor IS NULL AND element_guids IS NULL FROM mod_rfi")).scalar()
+    _m.SKIPPED.clear()
+    check(f"{_m.revision}: one row, both columns empty, returns {_want}", _got == _want,
+          f"returned {_got} — this is the unit the number is in ({'rows' if _want == 1 else 'column values'}); "
+          f"if it moved, say so where the number is quoted rather than letting two runs look comparable")
+    check(f"{_m.revision}: ...and both columns really were nulled either way", bool(_left),
+          "the count is the only thing that differs between the copies here; the OUTCOME must not")
+
 # The mechanism, as a property of the statements rather than of the outcome. Kept beside the
 # behavioural checks because it is what makes the fix explicable: the null-state question is
 # answered by the database, which is the only party that can still tell `null` from NULL.

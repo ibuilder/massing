@@ -137,7 +137,15 @@ def _is_empty_guids(v) -> bool:
 
 
 def _sweep(conn, table: str, cols: tuple[str, ...]) -> int:
-    """NULL out every empty-but-not-null value in `cols`. Returns rows changed.
+    """NULL out every empty-but-not-null value in `cols`. Returns COLUMN VALUES nulled.
+
+    **Not rows, and that is a change of unit from `b3c9e42d18a5`** -- which grouped a row's empty
+    columns into one UPDATE and so counted 1 for a row with both pin columns empty, where this counts
+    2. Measured, not assumed. Nothing depends on the number (`upgrade()` discards it and the audit is
+    the row state, not the count), but it is the kind of quiet redefinition that makes two runs look
+    comparable when they are not, so it is stated here and pinned in `test_pin_empty.py` with a
+    fixture that seeds BOTH columns of one row. The earlier fixtures all seeded one column, which is
+    exactly why nothing noticed.
 
     **One SELECT per column, each narrowed to that column being non-NULL.** That is the whole fix:
     everything a given pass returns is non-NULL in SQL, so a Python `None` in it is the JSON scalar
