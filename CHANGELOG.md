@@ -24,9 +24,28 @@ row CARRIES"*. That was true and incomplete: **`/pins/all` had ZERO frontend con
 method, no call site anywhere in `apps/web`. The route was built, server-tested and dark, so the
 overlay made two calls not only because the envelope lacked fields but because nothing had ever been
 wired to the route that replaces them. *An item scoped from what a file lacks will miss what nothing
-does.* `services/api/test_reachable.py` does not catch this and is not wrong to miss it: it measures
-whether a MODULE is reachable, and `pins.py` is imported by two routers. Route-to-client
-reachability is a different question, and no gate here asks it.
+does.*
+
+**CORRECTION, made before this shipped rather than left standing.** The paragraph above originally
+ended *"Route-to-client reachability is a different question, and no gate here asks it."* **That is
+false.** `services/api/test_route_reachability.py` asks exactly that question, and it is the gate
+that caught this change. `services/api/test_reachable.py` — the one I checked — measures whether a
+MODULE is reachable, and `pins.py` is imported by two routers, so it passes honestly; I concluded
+from one gate's silence that no gate was listening.
+
+**And the real finding is worse than the one I claimed.** The route-reachability gate did not miss
+`/pins/all` — it VOUCHED for it. Measured both ways: on `origin/main` its uncalled set has 56
+entries and `/pins/all` is not among them, while a grep of `apps/web` finds no reference to it at
+all. Its leaf is the single common word `all`, and `leaf_is_called` is the rule that file's own
+comments already describe as a standing cost (*"a shared leaf decides nothing"*; *"an English word
+containing a route leaf, which no naming convention prevents"*). *A false negative in a reachability
+gate is worse than no gate, because the question looks asked.* I did not isolate which string
+vouched for it, and say so rather than guess.
+
+PIN-ONE-CALL corrects the gate in both directions at once: `/pins/all` becomes genuinely called, and
+`/module-pins` becomes genuinely uncalled — which the gate immediately reported as a new unreachable
+route. It is recorded in `KNOWN_UNCALLED` with a reason and an expiry condition (delete the entry
+and the route together at the next public-API revision), not silently exempted.
 
 **The design question the entry left open is settled by measurement.** It asked whether the envelope
 should carry the viewer's presentation fields or whether the viewer should look them up from
