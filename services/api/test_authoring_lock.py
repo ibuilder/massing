@@ -64,10 +64,28 @@ def run_two_bakes() -> list[str]:
     seen: list[str] = []
     seen_lock = threading.Lock()
     barrier = threading.Barrier(2)
+    #: Holds each writer INSIDE the recipe -- i.e. after it has read `p.source_ifc` and before it
+    #: commits -- until the other arrives. Without it the unlocked case was timing-dependent and
+    #: this test failed intermittently: the entry barrier only synchronises when the threads START,
+    #: so an unlocked writer could still read, swap and commit before the other got to its read,
+    #: and the two would chain with no lock in sight. *Synchronising the start of a race does not
+    #: hold its window open.* With the lock the second writer cannot arrive at all, so the first
+    #: times out and proceeds -- the locked run is slower by the timeout, never wrong.
+    in_recipe = threading.Barrier(2)
 
     def fake_recipe(src, recipe, params, out, **kw):
+        """Stand in for `ed.apply_recipe` and RECORD the source version it was handed.
+
+        That recording is the whole assertion: whether the second writer derived from the first's
+        output or from the same base is visible here and nowhere else. The real recipe needs
+        ifcopenshell and a real model, and would prove nothing extra about the lock.
+        """
         with seen_lock:
             seen.append(src)
+        try:
+            in_recipe.wait(timeout=2)      # unlocked: both are here. locked: only ever one.
+        except threading.BrokenBarrierError:
+            pass                           # the lock is holding the other writer out -- expected
         Path(out).write_text(Path(src).read_text())
         return {"changed": 1}
 
@@ -120,6 +138,11 @@ _real_fn = _pl.mutating
 
 @contextlib.contextmanager
 def _no_lock(_pid):
+    """The mutation: `pid_lock.mutating` with the serialisation taken out, signature intact.
+
+    Swapped in for one run so the check below can show the SAME interleaving losing a version. A
+    concurrency test that never observes the unlocked behaviour is measuring thread scheduling.
+    """
     yield
 
 
