@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import cost as cost_engine
 from .. import modules as me
-from .. import provenance_report, rbac
+from .. import pid_lock, provenance_report, rbac
 from ..db import get_db
 from ..models import Project, Scenario
 from ..proforma import approval_risk
@@ -292,8 +292,17 @@ def put_dev_budget(pid: str, body: DevBudgetIn, db: Session = Depends(get_db), _
     if not p:
         raise HTTPException(404, "project not found")
     budget = body.model_dump()
-    p.dev_budget = budget
-    db.commit()
+    # LOCK-BOUNDARY. A plain whole-blob replace, so the read-modify-write sweep never had it -- and
+    # it is the OTHER side of the two `sync_*_to_hard` routes, which rebuild only the `hard` lines
+    # and preserve soft/acquisition/contingency. An editor saving the budget form while someone
+    # clicks "sync GMP" loses one of the two, silently: each caller's 200 is true of its own write.
+    # A lock and not a compare-and-swap, for the reason `connections` chose one: the two edits are
+    # claims on DIFFERENT line categories of one blob, so serialising lets both survive where a 409
+    # would refuse an edit that conflicts with nothing.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        p.dev_budget = budget
+        db.commit()
     return {"budget": budget, "summary": dvb.summarize(budget)}
 
 
@@ -505,13 +514,19 @@ def sync_gmp_to_hard(pid: str, db: Session = Depends(get_db), _sec: str = Depend
         raise HTTPException(404, "project not found")
     gmp = pb.gmp_budget(db, pid)
     gc_gmp = round(gmp["gmp"].get("revised") or gmp["gmp"]["computed"], 2)
-    budget = dict(p.dev_budget or dvb.starter_budget())
-    lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
-    lines.append({"category": "hard", "description": "Construction — GC GMP (synced)",
-                  "unit_cost": gc_gmp, "quantity": 1, "cost_code": ""})
-    budget["lines"] = lines
-    p.dev_budget = budget
-    db.commit()
+    # LOCK-BOUNDARY. The lock spans the READ of `dev_budget` through the commit, because that is the
+    # interval the derivation depends on: the non-hard lines kept here are whatever the row held when
+    # it was read. The GMP lookup above stays outside -- it reads a different table and holding the
+    # project lock across it would serialise more than the invariant needs.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        budget = dict(p.dev_budget or dvb.starter_budget())
+        lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
+        lines.append({"category": "hard", "description": "Construction — GC GMP (synced)",
+                      "unit_cost": gc_gmp, "quantity": 1, "cost_code": ""})
+        budget["lines"] = lines
+        p.dev_budget = budget
+        db.commit()
     return {"synced": True, "hard_cost": gc_gmp, "budget": budget, "summary": dvb.summarize(budget)}
 
 
@@ -555,18 +570,24 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
             classification.discipline_of_ifc_class(ln.get("ifc_class", ""))) or "General"
         by_disc[disc] = round(by_disc.get(disc, 0.0) + float(ln.get("amount") or 0.0), 2)
 
-    budget = dict(p.dev_budget or dvb.starter_budget())
-    lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
-    priced = round(sum(by_disc.values()), 2)
-    if by_disc and abs(priced - total) <= max(1.0, total * 0.02):   # priced lines reconcile to the total
-        for disc, amt in sorted(by_disc.items(), key=lambda x: -x[1]):
-            lines.append({"category": "hard", "description": f"Construction — {disc} (model takeoff)",
-                          "unit_cost": amt, "quantity": 1, "cost_code": ""})
-    else:                                                            # GFA-benchmark won → one lump line
-        lines.append({"category": "hard", "description": "Construction — model takeoff (synced)",
-                      "unit_cost": total, "quantity": 1, "cost_code": ""})
-    budget["lines"] = lines
-    p.dev_budget = budget
+    # LOCK-BOUNDARY, same span and same reason as `sync_gmp_to_hard`. The takeoff and the estimate
+    # above are the expensive part and read no project row, so they stay outside the lock: what has
+    # to be serialised is the read-derive-write of the blob, not the pricing that feeds it.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        budget = dict(p.dev_budget or dvb.starter_budget())
+        lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
+        priced = round(sum(by_disc.values()), 2)
+        if by_disc and abs(priced - total) <= max(1.0, total * 0.02):   # lines reconcile to the total
+            for disc, amt in sorted(by_disc.items(), key=lambda x: -x[1]):
+                lines.append({"category": "hard", "description": f"Construction — {disc} (model takeoff)",
+                              "unit_cost": amt, "quantity": 1, "cost_code": ""})
+        else:                                                        # GFA-benchmark won → one lump line
+            lines.append({"category": "hard", "description": "Construction — model takeoff (synced)",
+                          "unit_cost": total, "quantity": 1, "cost_code": ""})
+        budget["lines"] = lines
+        p.dev_budget = budget
+        db.commit()          # inside the lock: an uncommitted write is invisible to the next holder
     from .. import audit as _audit
     _audit.record(db, action="dev_budget.sync_from_model", actor=_sec, method="POST",
                   path=f"/projects/{pid}/dev-budget/sync-from-model", detail={"hard_cost": total})

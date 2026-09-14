@@ -12,6 +12,39 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 3 — the gate's own seed was failing open, and it hid three live defects
+
+Round 1's gate reported nothing about `Project.dev_budget`, and the reason was in the gate, not the
+code. `generate._finalize_generated` wrote it entirely inside the lock — but took `p` as an
+**un-annotated parameter**, so the receiver was UNKNOWN, the pair never entered the protected seed,
+and the three unlocked writers in `routers/proforma.py` were never compared against anything.
+
+**UNKNOWN was fail-CLOSED where it could excuse an unlocked write and fail-OPEN where it could
+establish that a field is protected at all.** *A predicate that decides what to LOOK at is more
+dangerous than one that decides what to report* — and a seed is exactly such a predicate, so the gate
+was not exempt from the rule it enforces. Found by running the analyser and reading its output, not
+by any test: nothing was red.
+
+Closed in both halves, because either alone is useless. A fifth binding form (a parameter's type
+annotation) put the pair in the seed, which immediately named `proforma.put_dev_budget`,
+`sync_gmp_to_hard` and `sync_model_to_hard`; all three now hold `pid_lock.mutating(pid)`. **Note
+which half did the finding: a one-line signature annotation turned a silent gate into one that named
+three live defects.**
+
+The defect itself is the `connections` shape again on money. `put_dev_budget` replaces the whole
+budget blob from the editor's form; the two `sync_*_to_hard` routes rebuild only the `hard` lines and
+preserve soft/acquisition/contingency. An editor saving the budget while someone clicks "sync GMP"
+lost one of the two silently — each caller's 200 was true of its own write. A lock and not a
+compare-and-swap, for the same reason `connections` chose one: the edits are claims on different line
+categories of one blob, so serialising lets both survive where a 409 would refuse an edit that
+conflicts with nothing.
+
+`test_rmw_sweep`'s ledger is updated from OPEN to LOCKED for the two sync routes, with the reason
+recorded: that sweep could only ever see two of the four writers, because the third is a plain
+replace and the fourth a conditional seed. **A pair is only as closed as its widest member, and that
+derivation could not see the widest.** Sweep open count 4 → 2; the two remaining are
+`drawingset.revise_sheet` and `share_scenario`.
+
 ### LOCK-BOUNDARY round 2 — the lock covered the pointer and not the bytes
 
 Review on #557 caught that the first pass locked the `source_ifc` POINTER and left the file

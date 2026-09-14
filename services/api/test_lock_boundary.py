@@ -43,24 +43,27 @@ sentence claiming it stayed. It is a *different* case now, and the section below
 paragraphs of one docstring disagreeing about one field is the same defect this tree fixed in the
 threat model a day earlier**, and it took a re-read to catch, not a test.)
 
-## Fail closed on the RULE — and NOT on the SEED, which is this gate's live blind spot
+## The SEED can fail open too — found here, and closed here
 
-**Stated because it is true today, not as a hypothetical.** `generate._finalize_generated` writes
-`.dev_budget` with every mention inside the lock — but its receiver is an un-annotated parameter, so
-the analyser reports UNKNOWN and the pair `(Project, dev_budget)` never enters the seed. The three
-unlocked writers in `routers/proforma.py` (`put_dev_budget`, `sync_gmp_to_hard`, `sync_model_to_hard`)
-are therefore NOT reported, and `Project.dev_budget` is the one field in the tree with a locked writer
-and unlocked ones where this gate stays silent.
+**This section described a live blind spot; it now records the fix, which is what it asked its next
+reader to do.** `generate._finalize_generated` wrote `.dev_budget` entirely inside the lock, but
+received `p` as an UN-ANNOTATED parameter — so the analyser reported UNKNOWN, the pair
+`(Project, dev_budget)` never entered the seed, and the three unlocked writers in
+`routers/proforma.py` went unreported. The gate said nothing about the one field in the tree that had
+both a locked writer and unlocked ones.
 
-So: UNKNOWN is fail-CLOSED where it could excuse an unlocked write, and fail-OPEN where it could
-establish that a field is protected at all. *A predicate that decides what to LOOK at is more
-dangerous than one that decides what to report*, and the seed is exactly such a predicate — this file
-is not exempt from the rule it was written to enforce.
+The asymmetry is the lesson and it outlives the instance: **UNKNOWN is fail-CLOSED where it could
+excuse an unlocked write, and was fail-OPEN where it could establish that a field is protected at
+all.** *A predicate that decides what to LOOK at is more dangerous than one that decides what to
+report* — and the seed is exactly such a predicate, so this file was not exempt from the rule it was
+written to enforce.
 
-Closing it needs a fifth binding form (a parameter's type annotation) AND the three locks it would
-then demand, which is a change of its own rather than a line here; it is tracked, and this paragraph
-exists so the gap is visible in the gate rather than only in a tracker. Do not delete this section
-when it is fixed — replace it with what the fix was.
+Closed by binding form 5 below (a parameter's type annotation), which put the pair in the seed, which
+immediately reported the three `proforma` writers — all now under `pid_lock.mutating(pid)`. The fix
+had to be both halves: the form alone would have reported three violations and shipped red, and the
+locks alone would have left the gate unable to see whether they stayed. **Note which half found
+which:** the annotation was a one-line change to a signature, and it is what turned a silent gate
+into one that named three live defects.
 
 ## Fail closed, and the exact shape of "closed"
 
@@ -88,6 +91,10 @@ guessing. A resolver that guesses turns each of these into a confident wrong mod
   4. `p = _project(db, pid)` where `_project` is `from .authoring_shared import project_with_source
      as _project` — an aliased import of a helper in ANOTHER module, resolved through its return
      annotation. A first draft looked for a module-local `def` and left 13 sites unresolved.
+  5. `def _finalize_generated(db, p: Project, ...)` — a PARAMETER's annotation. Added to close the
+     seed blind spot described above; a helper taking an already-fetched row is a normal shape, and
+     without this form every one of them is UNKNOWN and can never establish that a field is
+     protected.
 
 Run: cd services/api && PYTHONPATH="src:../data/src" .venv/bin/python test_lock_boundary.py
 """
@@ -162,8 +169,17 @@ def _model_of_call(call: ast.Call, alias: dict) -> str | None:
 
 
 def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict) -> dict[str, str]:
-    """local variable -> mapped model name, for the four forms the module docstring lists."""
+    """local variable -> mapped model name, for the five forms the module docstring lists."""
     out: dict[str, str] = {}
+    #: Form 5: a PARAMETER whose annotation names a model. Added to close this gate's own seed blind
+    #: spot: `generate._finalize_generated` locks `.dev_budget` but received `p` unannotated, so the
+    #: pair never entered the seed and three unlocked writers of it went unreported. A helper that
+    #: takes an already-fetched row is a normal shape, and without this every one of them is UNKNOWN.
+    for arg in [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]:
+        if isinstance(arg.annotation, ast.Name):
+            resolved = alias.get(arg.annotation.id, ("", arg.annotation.id))[1]
+            if resolved in MODELS:
+                out[arg.arg] = resolved
     for n in ast.walk(fn):
         if not isinstance(n, ast.Assign) or not isinstance(n.value, ast.Call):
             continue

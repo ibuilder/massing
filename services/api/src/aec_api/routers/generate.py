@@ -210,7 +210,8 @@ def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
     return {"seeded": True, "cost_codes": len(divisions), "activities": acts, "gmp": hard}
 
 
-def _finalize_generated(db, p, pid: str, body: MassingIn, metrics: dict, staged, actor: str) -> dict:
+def _finalize_generated(db, p: Project, pid: str, body: MassingIn, metrics: dict, staged,
+                        actor: str) -> dict:
     """The shared tail of every massing generate (box AND dome): durable copy → source-of-truth
     pointer → Finance/GC seeds → audit → off-thread publish → response. One implementation so the
     two shape branches cannot drift apart (they were byte-for-byte clones)."""
