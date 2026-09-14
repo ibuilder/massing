@@ -12,6 +12,35 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 2 — the lock covered the pointer and not the bytes
+
+Review on #557 caught that the first pass locked the `source_ifc` POINTER and left the file
+PRODUCTION outside. Every producer wrote the published `source.ifc` directly: `import_rvt` with a
+bare `write_bytes`, both massing generators and the blank create onto the fixed path, and the upload
+through `stream_to_path` — which does write `<dest>.part` and rename, but **the part name is derived
+from the destination**, so two concurrent uploads to one project share `source.ifc.part` and
+interleave into it before either renames. *A staging name that is a function of the destination is
+not staging, it is a second shared path.*
+
+`bake_layers` and `/edit` take the project lock and then open `p.source_ifc`, so a reader could open
+a file being rewritten underneath it. Locking the assignment alone moved the race rather than
+closing it — the same correction PR #552 forced on `under_pid_lock`, one layer down: *a lock proves
+something about the interval it spans, and the interval has to contain the bytes as well as the
+pointer.*
+
+Now every producer writes to a unique staged path and `authoring_shared.publish_source_ifc` promotes
+it — `os.replace`, storage publish, pointer, commit — inside one critical section. One helper rather
+than the same critical section at five producers, for the reason `connections._lock_key` is one.
+`staged_ifc` is a context manager so a producer that fails before promoting cannot leak its staged
+file; this tree has already run a disk out on orphaned scratch once.
+
+`services/api/test_ifc_publish_atomic.py` is the behavioural half, and it exists because
+`test_lock_boundary` structurally cannot see this: an AST analyser can confirm every
+`p.source_ifc = ...` sits inside the lock and says nothing about which path the bytes went to — the
+whole defect passes it. The test polls the published path while a producer runs and asserts the
+reader only ever sees a complete old or complete new model; the mutation writes straight to the
+published path and the reader catches partial files, so it measures the staging and not the timing.
+
 ### LOCK-BOUNDARY — G-11 was closed yesterday and five writers of the same column were still unlocked
 
 `test_rmw_sweep` derives **read-modify-writes**. `p.source_ifc = str(ifc_path)` reads nothing — it
