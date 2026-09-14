@@ -72,6 +72,7 @@ import ast
 import os
 import pathlib
 import sys
+from datetime import timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "data", "src"))
@@ -722,6 +723,64 @@ finally:
 check("`expected_modified_at` still REFUSES a stale write instead of quietly retrying it",
       "stale_write" in _refused, _refused or "not refused")
 _ = _cur
+
+
+# ---------------------------------------------------------------- 4b. the COLLISION branch runs
+# `_next_stamp` returns `prev + 1us` only when `_now()` fails to advance, which no ordinary test
+# reaches -- so it is the one branch of this concurrency control that could ship broken and stay
+# quiet. Worse, it is the branch that returns a TZ-AWARE datetime while SQLite hands `modified_at`
+# back NAIVE: if the two render differently, the next `WHERE modified_at == <what we just read>`
+# matches nothing and every subsequent edit 409s. Exercised here against the real table by freezing
+# the clock, because *a branch that only runs under contention is a branch only production runs.*
+RID_C = fresh(["GUID-A"])
+s = SessionLocal()
+_frozen = modules.get_record(s, KEY, PID, RID_C)["modified_at"]
+s.close()
+_aware = _frozen.replace(tzinfo=timezone.utc) if _frozen.tzinfo is None else _frozen
+
+_real_now = modules._now
+modules._now = lambda: _aware                     # the clock does not advance, for ANY writer
+try:
+    check("`_next_stamp` advances even when the clock does not -- the branch's whole purpose",
+          modules._next_stamp(_frozen) > _aware,
+          f"{modules._next_stamp(_frozen)!r} vs prev {_aware!r}")
+
+    # THE INTERLEAVING THIS BRANCH EXISTS FOR, run with the clock frozen so B's write cannot move the
+    # token by luck. A holds a snapshot taken before B wrote. With the branch, B's stamp is `S+1us`,
+    # A's predicate on `S` matches nothing, A re-reads and re-applies -- GUID-B survives. Without it,
+    # B leaves the stamp at `S`, A's stale predicate MATCHES, and A's write (derived from the
+    # pre-image) erases GUID-B while reporting success.
+    #
+    # The first draft of this asserted only that a frozen-clock edit LANDS and that the next edit
+    # matches -- both of which stay true with the branch deleted, because SQLite serialises the
+    # writes and each session sees its own. *Two checks that pass under the mutation are two checks
+    # that were measuring the round-trip, not the guard* -- so they are replaced by this one, which
+    # was verified to fail when the branch is removed.
+    s = SessionLocal()
+    SNAP_F = modules.get_record(s, KEY, PID, RID_C)
+    s.close()
+
+    sb = SessionLocal()
+    modules.set_element_guids(sb, KEY, PID, RID_C, ["GUID-B"], "bob", "add")
+    sb.close()
+
+    _r, _f = stale_once(SNAP_F)
+    modules.get_record = _f
+    try:
+        sa = SessionLocal()
+        modules.set_element_guids(sa, KEY, PID, RID_C, ["GUID-C"], "carol", "add")
+        sa.close()
+    finally:
+        modules.get_record = _r
+finally:
+    modules._now = _real_now
+
+s = SessionLocal()
+_frozen_final = sorted(modules.get_record(s, KEY, PID, RID_C).get("element_guids") or [])
+s.close()
+check("with the clock FROZEN, a concurrent tag still survives -- the token advanced although the "
+      "clock did not, which is the only thing keeping the predicate from being reusable",
+      _frozen_final == ["GUID-A", "GUID-B", "GUID-C"], f"element_guids={_frozen_final}")
 
 
 # ================================================================ 6. the ORM population

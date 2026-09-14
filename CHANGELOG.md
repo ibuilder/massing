@@ -165,6 +165,21 @@ for the one before it:
   `bim.promote_markup` among them — which is `promote_comment`'s pre-fix shape, a live instance of a
   defect already solved one module over.
 
+**And the monotonic-stamp branch was itself untested until it was asked to be.** `_next_stamp`'s
+`prev + 1µs` path runs only when the clock fails to advance, so no ordinary test reaches it — *a
+branch that only runs under contention is a branch only production runs.* It is now exercised against
+the real table with the clock frozen, which also settles a question the fix quietly raised: that path
+returns a **tz-aware** datetime while SQLite hands `modified_at` back **naive**, and if the two
+rendered differently the next `WHERE modified_at = <what we just read>` would match nothing and every
+edit would 409.
+
+*The first draft of that check passed under its own mutation.* It asserted that a frozen-clock edit
+LANDS and that the next edit matches — both still true with the branch deleted, because SQLite
+serialises writers and each session sees its own write. It is now the losing interleaving run with
+the clock frozen, and removing the branch reproduces the loss exactly: `['GUID-A', 'GUID-C']`, GUID-B
+gone. **Two checks that pass under the mutation are two checks measuring the round-trip, not the
+guard.**
+
 *Its own self-tests earned their keep within the hour.* Teaching the analyser about mapped model
 classes — so two correctly-guarded writes stopped reporting as UNKNOWN — made it read the `t.c`
 accessor as a column name, so every write looked swapped-on and both pre-fix bodies came back clean.
