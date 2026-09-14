@@ -286,14 +286,23 @@ def get_layers(pid: str, db: Session = Depends(get_db), _: str = Depends(require
 def put_layers(pid: str, stack: dict = Body(...), db: Session = Depends(get_db),
                actor: str = Depends(require_role("editor"))):
     """Replace the layer stack. Pure data — nothing is written to the IFC until baked."""
+    from .. import pid_lock
+
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    p.prop_layers = {"layers": stack.get("layers", [])}
-    audit.record(db, action="layers.save", actor=actor, method="PUT", path=f"/projects/{pid}/layers",
-                 detail={"layers": len(p.prop_layers["layers"])})
-    db.commit()
-    return p.prop_layers
+    # RMW-LOCKGAP (review): this is not itself a read-modify-write -- the stack is replaced wholesale
+    # from the body -- but it must be ORDERED against `bake_layers`, which derives the overrides it
+    # burns into the IFC from this very column. Unlocked, a save landing mid-bake leaves the model
+    # baked from a stack the row no longer holds, and nothing afterwards can tell. *A lock one side
+    # does not take protects nothing*, which is what the `dev_property` pair cost to learn.
+    with pid_lock.mutating(pid):
+        p.prop_layers = saved = {"layers": stack.get("layers", [])}
+        audit.record(db, action="layers.save", actor=actor, method="PUT",
+                     path=f"/projects/{pid}/layers",
+                     detail={"layers": len(saved["layers"])})
+        db.commit()
+    return saved
 
 
 def _base_lookup(source_ifc: str):
@@ -348,15 +357,19 @@ def bake_layers(pid: str, publish: bool = Body(default=True, embed=True),
     from .. import pid_lock
 
     p = _project(db, pid)
-    stack = (p.prop_layers or {}).get("layers", [])
-    overrides = _layers.bake_overrides(stack)
-    if not overrides:
-        return {"baked": 0, "message": "no enabled overrides to bake"}
     # RMW-LOCKGAP: same read->apply->pointer-swap race /edit documents. Two bakes (or a bake and an
     # /edit) both read version N, each write their own N+1, and the second commit orphans the first
     # user's model version -- silently, because each caller's response is true of its own run.
     with pid_lock.mutating(pid):
         db.refresh(p)                                  # the pointer may have moved while we waited
+        # `overrides` is derived from `prop_layers`, so that read belongs inside the lock too. Found
+        # in review: the first draft of this fix moved `source_ifc` in and left `prop_layers` out, so
+        # a `put_layers` landing in between produced a model baked from a stack the row no longer
+        # held. *This PR's own lesson, one field over* -- a lock has to span every read the write is
+        # derived from, not just the one that named the bug.
+        overrides = _layers.bake_overrides((p.prop_layers or {}).get("layers", []))
+        if not overrides:
+            return {"baked": 0, "message": "no enabled overrides to bake"}
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
         base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
         out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))

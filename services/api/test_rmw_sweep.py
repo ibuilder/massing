@@ -1534,6 +1534,22 @@ _dp_lying = [k for k in DEV_PROPERTY if not under_pid_lock(*k)]
 check("...and every `dev_property` read AND write in both is lexically under `pid_lock.mutating`",
       not _dp_lying, f"claimed locked but is not: {_dp_lying}")
 
+#: The layer stack is a DIFFERENT shape from everything else in this file and the ORM derivation
+#: cannot see it: `bake_layers` READS `prop_layers` and writes `source_ifc`, while `put_layers`
+#: WRITES `prop_layers` and reads nothing. Neither is a read-modify-write, so neither is a site --
+#: yet unlocked they interleave into a model baked from a stack the row no longer holds, with
+#: nothing afterwards able to tell. Review found it on PR #555, in the first draft of the fix that
+#: closed G-11: `source_ifc` had been moved inside the lock and `prop_layers` left outside.
+#: *A lock has to span every read the write is derived from, not just the one that named the bug* --
+#: and a sweep bounded by one shape is bounded by the fix that shape suggested.
+_LAYER_PAIR = [("src/aec_api/routers/authoring.py", "bake_layers", "prop_layers"),
+               ("src/aec_api/routers/authoring.py", "put_layers", "prop_layers")]
+_layer_unlocked = [k for k in _LAYER_PAIR if not under_pid_lock(*k)]
+check("the layer stack's read (`bake_layers`) and its write (`put_layers`) are BOTH under the "
+      "project lock -- a bake derives what it burns into the IFC from that column, so the two have "
+      "to be ordered, and locking one of them orders nothing",
+      not _layer_unlocked, f"not under the lock: {_layer_unlocked}")
+
 _claimed_open = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "OPEN")
 # NOT `_secretly_fixed`, which is what this was called for about twenty minutes. CodeQL's
 # `py/clear-text-logging-sensitive-data` classifies a source by its IDENTIFIER NAME, so a local
