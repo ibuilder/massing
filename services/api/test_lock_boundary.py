@@ -363,7 +363,16 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
             resolved = alias.get(arg.annotation.id, ("", arg.annotation.id))[1]
             if resolved in MODELS:
                 out[arg.arg] = resolved
-    for n in ast.walk(fn):
+    #: `_own_nodes`, matching `_stored_attrs`. With `ast.walk` this descended into nested functions,
+    #: so a name rebound inside a HELPER polluted the enclosing function's map -- and once `_bind`
+    #: exists, that pollution is a fail-OPEN rather than a mere inaccuracy: the enclosing locked
+    #: write's receiver becomes CONFLICT, its `(model, attribute)` pair never enters the SEED, and an
+    #: unlocked writer of that same pair elsewhere is then not a violation because nothing protects
+    #: it. *The conflict rule and the over-wide traversal were each defensible alone and a hole
+    #: together* -- and `collect` already accumulates bindings down the scope chain, so a nested
+    #: function still inherits its caller's receiver. Third instance of one lesson: **every traversal
+    #: in this analyser must agree on where a function ends.**
+    for n in _own_nodes(fn):
         if not isinstance(n, ast.Assign) or not isinstance(n.value, ast.Call):
             continue
         names = [t.id for t in n.targets if isinstance(t, ast.Name)]
@@ -643,6 +652,23 @@ _SYNTH = ast.parse(
     "    p.source_ifc = 'written while p is a Project'\n"
     "    p = db.get(SavedView, vid)\n"
     "    p.source_ifc = 'written while p is a SavedView'\n"
+    #: SEED POISONING FROM A NESTED SCOPE. `seeder` is a correct locked writer and is the ONLY thing
+    #: protecting `(Connection, config)` in this fixture. Its nested `_helper` rebinds the same name
+    #: to another model. With `_bindings` walking into nested bodies, that rebinding marked `c`
+    #: CONFLICT, the seed lost the pair, and `unlocked_after_seed` -- a genuine unlocked writer --
+    #: stopped being a violation. **A fail-open that works by REMOVING a seed rather than by
+    #: excusing a write**, which is why it survived every check aimed at the judgement.
+    "def seeder(db, cid, vid):\n"
+    "    c = db.get(Connection, cid)\n"
+    "    with pid_lock.mutating(cid):\n"
+    "        c.config = 'locked write that seeds the pair'\n"
+    "    def _helper():\n"
+    "        c = db.get(SavedView, vid)\n"
+    "        return c\n"
+    "    return _helper\n"
+    "def unlocked_after_seed(db, cid):\n"
+    "    c = db.get(Connection, cid)\n"
+    "    c.config = 'must be a violation, and only is if the seed survived'\n"
 )
 _syn_types = _return_types(_SYNTH)
 _syn_sites = []
@@ -661,8 +687,14 @@ _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred"
               "for_target", "with_target"}
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
       sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer", "impostor_lock",
-                                                        "impostor_alias"}),
+                                                        "impostor_alias", "unlocked_after_seed"}),
       f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: a rebinding inside a NESTED helper does not poison the enclosing function's "
+      "binding map -- the outer locked write must still SEED its pair",
+      ("Connection", "config") in _sp, f"protected={sorted(_sp)}")
+check("  and the unlocked writer of that pair is therefore still a VIOLATION -- a fail-open that "
+      "works by removing a seed is invisible to every check aimed at the judgement",
+      "unlocked_after_seed" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: one function's local `import pid_lock as lock` does NOT certify another "
       "function's unrelated `lock` -- imports resolve in the scope chain, not file-wide",
       "impostor_alias" in {s[1] for s in _sv} and "aliased_lock" not in {s[1] for s in _sv},

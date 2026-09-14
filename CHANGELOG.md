@@ -12,6 +12,40 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 10 — two defensible rules that were a hole together
+
+One finding, and it is the one I asked for: *is there another place where the two traversals still
+disagree about where a function ends?* Yes — `_bindings` was the last `ast.walk(fn)` in the analyser.
+
+Round 9 fixed `_stored_attrs` to use `_own_nodes` (writes belong to their innermost function) and
+added `_bind` (a name meaning two models resolves to neither). Each is right on its own. **Together
+they opened a fail-open neither could cause alone**, because `_bindings` still descended into nested
+bodies: a name rebound inside a *helper* polluted the enclosing function's map, `_bind` marked it
+CONFLICT, and the enclosing function's **locked** write lost its receiver. That write is what SEEDS
+the `(model, attribute)` pair. Lose the seed and an unlocked writer of the same pair elsewhere is no
+longer a violation — because nothing is protecting it.
+
+**This is a fail-open that works by REMOVING A SEED rather than by excusing a write**, which is why
+it survived every self-test aimed at the judgement. All of those ask "is this unlocked write
+reported?"; none asked "did the thing that makes it reportable survive?" The new probe is built the
+other way round: a correct locked writer whose nested helper rebinds the same name, plus a genuine
+unlocked writer of that pair. Reverting `_bindings` to `ast.walk` drops `(Connection, config)` out of
+the protected set entirely and the unlocked writer silently leaves the violations — exactly the shape
+described, reproduced.
+
+Two lessons, and the second is the one worth carrying:
+
+- **Every traversal in this analyser must agree on where a function ends.** Third instance in two
+  rounds: round 9's first attempt attributed a nested write to its enclosing function while the scope
+  maps stopped at the boundary, and this is the same disagreement in the remaining direction.
+- **A rule can be correct in isolation and unsafe in composition.** `_own_nodes` and `_bind` were each
+  argued for on their own merits and reviewed on their own merits. The hole existed only in the
+  interaction, which is precisely what a diff-shaped review cannot see and why every round of this PR
+  has been requested as a full pass over the whole state.
+
+Sites unchanged at **432**, six protected pairs, no new violations — the fix corrects *which scope*
+a binding belongs to, not how many there are.
+
 ### LOCK-BOUNDARY round 9 — three fail-opens in the analyser, and a completeness claim with a filter under it
 
 Three findings from the round-9 review, all inside the diff, all in `test_lock_boundary.py`, all
