@@ -62,7 +62,8 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
     publish, pointer, commit, all inside one critical section. `os.replace` is atomic within a
     filesystem, so a reader holding the lock sees either the old complete file or the new one.
 
-    **The sequence is three steps and only the first undoes itself, so the previous file is kept
+    **The sequence is three steps and only the first is cheap to UNDO -- one more rename, with no
+    data copied; nothing undoes it on its own -- so the previous file is kept
     aside and restored if a later step raises.** *Atomic at each step is not atomic across the
     sequence* — without that, a failing `put_stream` or `commit` left the published local path
     holding the new bytes while nothing else had been published.
@@ -89,7 +90,22 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
         # put back on any failure. *Atomic at each step is not atomic across the sequence.*
         backup = final.with_name(f".rollback-{uuid.uuid4().hex}-{final.name}") if final.exists() else None
         if backup is not None:
-            os.replace(final, backup)
+            # HARD LINK, not a rename. `os.replace(final, backup)` would make the published path
+            # briefly NOT EXIST, and `bake_layers` calls `project_with_source` BEFORE it takes the
+            # lock -- that helper raises 409 "project has no accessible source IFC" on a missing
+            # file, so a concurrent read could be refused during a publication that then SUCCEEDS.
+            # *Round 4 added this backup to make failure atomic, and in doing so broke the
+            # continuity the bare `os.replace(staged, final)` had always given for free: a fix for
+            # one property can cost an unrelated one that nothing was asserting.*
+            # A link is the same inode under two names, so `final` is continuously present; the
+            # `os.replace` below then swaps it atomically and `backup` still holds the old bytes.
+            try:
+                os.link(final, backup)
+            except OSError:
+                # No hard links here (FAT, some network mounts). Fall back to the rename rather than
+                # copying what may be hundreds of MB on every publish; the window returns, and it is
+                # a spurious 409 on a concurrent read rather than any loss of data.
+                os.replace(final, backup)
         try:
             os.replace(staged, final)                # atomic within the filesystem
             storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(final))

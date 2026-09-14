@@ -154,6 +154,56 @@ check("...and the new model really was published (the run is not vacuously clean
       f"final is {len(FINAL.read_bytes())} bytes")
 check("...and the staged file is gone -- promotion renames it away rather than leaving residue",
       not list(WORK.glob(".staged-*")), f"left behind: {[q.name for q in WORK.glob('.staged-*')]}")
+# --- the published path must never be ABSENT, which is not the same property as "never partial" --
+#: Round 4's rollback moved the previous file aside with `os.replace`, leaving a window where
+#: `source.ifc` did not exist. `bake_layers` calls `project_with_source` BEFORE taking the lock, and
+#: that helper raises 409 "project has no accessible source IFC" on a missing file -- so a concurrent
+#: read could be REFUSED during a publication that then succeeded. *A fix for one property can cost
+#: an unrelated one that nothing was asserting.*
+#:
+#: **Tested at the primitive, with a real window, and not through `publish_source_ifc`.** The first
+#: version of this asserted `b"<missing>" not in seen_fixed` during a normal publish -- and reverting
+#: the fix left it PASSING, because two back-to-back renames are microseconds and the reader polls
+#: every millisecond. *A check that cannot observe the interval it describes reports on nothing*, so
+#: the window is made wide here deliberately: with a rename the reader must catch the gap, with a
+#: hard link there is no gap to catch at any width.
+def _backup_window(take_backup) -> bool:
+    """Was the published path ever absent while `take_backup` held the old file aside?"""
+    reset()
+    stop, missed = threading.Event(), []
+
+    def watch():
+        while not stop.is_set():
+            missed.append(not FINAL.exists())
+            time.sleep(0.001)
+
+    w = threading.Thread(target=watch, daemon=True)
+    w.start()
+    try:
+        bk = FINAL.with_name(".probe-backup")
+        with staged_ifc(FINAL) as st:
+            st.write_bytes(NEW)
+            take_backup(FINAL, bk)
+            time.sleep(0.05)            # a WIDE window -- narrow is what made the first draft vacuous
+            os.replace(st, FINAL)
+        bk.unlink(missing_ok=True)
+    finally:
+        time.sleep(0.01)
+        stop.set()
+        w.join(timeout=5)
+    return any(missed)
+
+check("MUTATION: taking the backup with a RENAME does leave the published path missing -- so the "
+      "check below measures the primitive and not the width of the window",
+      _backup_window(os.replace),
+      "a rename left no observable gap; widen the sleep or this proves nothing")
+check("taking it with a HARD LINK never does -- the published path is continuously present, so a "
+      "reader that checks it before taking the lock cannot be refused mid-publication",
+      not _backup_window(os.link), "os.link still left the published path missing")
+check("...and `publish_source_ifc` is the code that uses the link, not just this test",
+      "os.link(final, backup)" in pathlib.Path(
+          "src/aec_api/routers/authoring_shared.py").read_text(encoding="utf-8"),
+      "the helper no longer takes its backup with os.link")
 
 # --- MUTATION: write straight to the published path, as every producer did before this PR --------
 seen_raw = run_producer(write_to_published=True)
@@ -177,7 +227,8 @@ check("a staged file whose producer failed before promoting is removed, not leak
       not _abandoned.exists(), f"{_abandoned} survived")
 
 # --- a FAILED publication must leave the previous model intact --------------------------------
-#: `os.replace` undoes itself for free; `put_stream` and `commit` do not. Before the rollback guard,
+#: A rename is cheap to undo -- one more rename, nothing copied -- but it does not undo itself, and
+#: `put_stream` and `commit` cannot be undone at all. Before the rollback guard,
 #: a storage failure after the rename left the published path holding the new bytes with nothing else
 #: published -- readers opening a model the system had not accepted. *Atomic at each step is not
 #: atomic across the sequence.*

@@ -103,7 +103,9 @@ from __future__ import annotations
 import ast
 import os
 import pathlib
+import shutil
 import sys
+import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///./_lockboundary_test.db"
 os.environ.setdefault("STORAGE_DIR", "./_storage_lockboundary")
@@ -112,12 +114,26 @@ HERE = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(HERE / "src"))
 sys.path.insert(0, str(HERE.parent / "data" / "src"))
 
+from sqlalchemy.orm import configure_mappers
+
 import aec_api.models  # noqa: E402,F401  -- importing it is what populates the mapper registry
 from aec_api.db import Base  # noqa: E402
 
 #: Every mapped class name, read from SQLAlchemy's registry rather than listed here. A list would be
 #: a copy, and a copy is what drifts.
 MODELS: set[str] = {m.class_.__name__ for m in Base.registry.mappers}
+
+#: A receiver PROVED not to be a mapped instance -- distinct from `None`, which means "unresolved"
+#: and fails closed. Only a derivation that cannot be wrong may use this.
+NOT_A_MODEL = "<not-a-model>"
+
+#: Every attribute name mapped on ANY model -- columns AND relationships. `configure_mappers()` is
+#: REQUIRED: mappers are configured lazily, and `m.attrs` on an unconfigured registry returns an
+#: EMPTY set. Measured, not assumed -- the first probe of this returned 0 of 183. An empty set here
+#: would mark every attribute chain "provably not a model", which is a fail-OPEN across the whole
+#: tree, so the self-tests below assert it is populated before any verdict is printed.
+configure_mappers()
+MAPPED_ATTRS: set[str] = {a for m in Base.registry.mappers for a in m.attrs.keys()}
 
 SRC_ROOTS = [HERE / "src", HERE.parent / "data" / "src"]
 
@@ -168,9 +184,38 @@ def _model_of_call(call: ast.Call, alias: dict) -> str | None:
     return None
 
 
+def _rel(p: pathlib.Path) -> str:
+    """Repo-relative path, or the bare path when `p` is outside the tree (the self-test probe)."""
+    try:
+        return str(p.relative_to(HERE.parent.parent))
+    except ValueError:
+        return str(p)
+
+
+def _chain_attrs(node: ast.AST) -> list[str] | None:
+    """The attribute names in `a.b.c`, root-last, or None when the node is not a pure chain."""
+    names: list[str] = []
+    while isinstance(node, ast.Attribute):
+        names.append(node.attr)
+        node = node.value
+    return names if names and isinstance(node, ast.Name) else None
+
+
 def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict) -> dict[str, str]:
     """local variable -> mapped model name, for the five forms the module docstring lists."""
     out: dict[str, str] = {}
+    #: Form 7: bound from an ATTRIBUTE CHAIN whose every name is unmapped anywhere. To reach a mapped
+    #: instance by attribute access you must traverse a mapped RELATIONSHIP, and every relationship
+    #: name is in `MAPPED_ATTRS` -- so a chain that touches none of them cannot yield one. This is
+    #: what resolves `massing.stamp_conformance` (`fn = header.file_name`, an ifcopenshell header)
+    #: WITHOUT the module-level predicate that used to hide the whole file. Deliberately NOT "bound
+    #: from an attribute chain is not a model": `project.owner` would be, which is why the test is
+    #: against the registry rather than against the shape.
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            chain = _chain_attrs(n.value)
+            if chain and not (set(chain) & MAPPED_ATTRS):
+                out.setdefault(n.targets[0].id, NOT_A_MODEL)
     #: Form 5: a PARAMETER whose annotation names a model. Added to close this gate's own seed blind
     #: spot: `generate._finalize_generated` locks `.dev_budget` but received `p` unannotated, so the
     #: pair never entered the seed and three unlocked writers of it went unreported. A helper that
@@ -267,13 +312,28 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
 
     sites: list[tuple] = []
     for p, tree in parsed.items():
-        if not touches_orm(tree):
-            continue
+        # NO MODULE-LEVEL SKIP. `touches_orm` used to stand here and it was this gate's own worst
+        # defect: *a predicate that decides what to LOOK at is more dangerous than one that decides
+        # what to report*, because everything it excludes is invisible to the output -- the exact
+        # lesson CLAUDE.md records for `test_seeding_sweep`, quoted in that function's docstring and
+        # then violated two lines below it. Its justification -- "no ORM import and no Session means
+        # no mapped instance" -- is FALSE: `def stamp(p): p.source_ifc = v` holds one with neither.
+        # Such a module was skipped whole, so the write never reached `verdicts` and could not be
+        # reported UNKNOWN. The fail-closed rule was defeated one layer ABOVE the thing enforcing it.
         alias, local_types = _alias_map(tree), _return_types(tree)
+        enclosing = {f: c.name for c in ast.walk(tree) if isinstance(c, ast.ClassDef)
+                     for f in ast.walk(c) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))}
         for fn in ast.walk(tree):
             if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             binds = _bindings(fn, alias, local_types, foreign)
+            #: Form 6, and the replacement for the module predicate: `self` inside a class. If the
+            #: class IS mapped, `self` is that model -- which the old code could not see at all. If
+            #: it is NOT mapped, `self` is provably not a mapped instance, because it is an instance
+            #: of THAT class. Derived from the model registry, per receiver, and provable in both
+            #: directions -- which is what the module-level predicate only claimed to be.
+            if (cls := enclosing.get(fn)):
+                binds["self"] = cls if cls in MODELS else NOT_A_MODEL
             seen: set[tuple[str, str]] = set()
             for n in ast.walk(fn):
                 if not isinstance(n, ast.Assign):
@@ -285,7 +345,7 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
                         continue
                     seen.add((t.value.id, t.attr))
                     ok, outside = lock_spans(fn, t.attr)
-                    sites.append((str(p.relative_to(HERE.parent.parent)), fn.name,
+                    sites.append((_rel(p), fn.name,
                                   binds.get(t.value.id), t.attr, ok, outside[:4]))
     return sites
 
@@ -354,6 +414,35 @@ _, _gv, _ = verdicts(_guessed)
 check("self-test: a resolver that GUESSES 'Project' for every unresolved receiver produces a "
       "violation the honest one does not -- so UNKNOWN is doing work, not decoration",
       len(_gv) > len(_sv), f"guessed={len(_gv)} honest={len(_sv)}")
+
+check("self-test: the mapped-attribute set is POPULATED -- an empty one would mark every attribute "
+      "chain 'provably not a model', a fail-OPEN across the whole tree, and the first probe of it "
+      "really did return 0 because mappers configure lazily",
+      len(MAPPED_ATTRS) > 50 and "source_ifc" in MAPPED_ATTRS, f"{len(MAPPED_ATTRS)} attrs")
+
+# THE REGRESSION FOR THE REMOVED MODULE PREDICATE. A module that imports neither `models` nor
+# `Session` can still hold a mapped instance -- its caller passes one in. `touches_orm` skipped such
+# a file WHOLE, so this write never reached `verdicts` at all and could not be reported UNKNOWN:
+# the fail-closed rule was defeated one layer above the code enforcing it. Run through `collect`
+# rather than `_bindings`, because the defect was in the file loop, not in the resolver.
+_probe_dir = pathlib.Path(tempfile.mkdtemp(prefix="lockb_"))
+(_probe_dir / "innocent.py").write_text("def stamp(p):\n    p.source_ifc = 'x'\n", encoding="utf-8")
+_probe_sites = collect([_probe_dir])
+_, _pv, _pu = verdicts(_probe_sites + [("seed.py", "w", "Project", "source_ifc", True, [])])
+check("self-test: a module importing neither `models` nor `Session` is STILL scanned -- it can hold "
+      "a mapped instance its caller passed in, which is why the module-level predicate was removed",
+      any(s[3] == "source_ifc" for s in _probe_sites), f"sites={_probe_sites}")
+check("  and that unresolved write is reported UNKNOWN rather than silently dropped",
+      any(s[1] == "stamp" for s in _pu), f"unknown={_pu}")
+
+# MUTATION: put the module predicate back. The probe must VANISH -- if it survives, the removal was
+# not what makes the check above pass and this self-test is decoration.
+_mut = [s for s in _probe_sites
+        if touches_orm(ast.parse((_probe_dir / "innocent.py").read_text(encoding="utf-8")))]
+check("MUTATION: reinstating the `touches_orm` module skip makes that site DISAPPEAR -- so its "
+      "removal is what closes the hole, not an unrelated change",
+      not _mut, f"survived the reinstated predicate: {_mut}")
+shutil.rmtree(_probe_dir, ignore_errors=True)
 
 if FAILED:                      # a broken analyser must not go on to report on the real tree
     print("\nself-tests failed — not reporting on the tree")

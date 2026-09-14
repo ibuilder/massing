@@ -12,6 +12,57 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 6 — the gate's own look-at predicate, and a fix that cost an unrelated property
+
+Three real findings from a full re-review of the head. Two are defects **inside earlier rounds of this
+PR**, which is now the pattern rather than the exception.
+
+**1. The published path was briefly ABSENT, and that is not the same property as "never partial".**
+Round 4 took its rollback backup with `os.replace(final, backup)`, so `source.ifc` did not exist
+between that rename and the promotion. `bake_layers` calls `project_with_source` **before** it takes
+the lock, and that helper raises 409 *"project has no accessible source IFC"* on a missing file — so a
+concurrent read could be refused during a publication that then **succeeded**. The backup is now an
+`os.link`: the same inode under two names, so the path is continuously present and `os.replace` still
+swaps it atomically. *A fix for one property can cost an unrelated one that nothing was asserting* —
+the bare rename had given continuity for free since the beginning, and round 4 spent it without
+noticing.
+
+**And the first test written for this was vacuous.** It asserted no `<missing>` observation during a
+normal publish; reverting the fix left it **passing**, because two back-to-back renames take
+microseconds and the reader polls every millisecond. *A check that cannot observe the interval it
+describes reports on nothing.* It now tests the primitive with a deliberately wide window — with a
+rename the reader must catch the gap, with a link there is no gap at any width — plus an assertion
+that the helper is what uses the link.
+
+**2. `test_lock_boundary`'s module filter was the defect its own docstring warned about.**
+`touches_orm` skipped any module importing neither `models` nor `Session`, justified as *"provably
+incapable of the defect"*. That is **false**: `def stamp(p): p.source_ifc = v` holds a mapped instance
+its caller passed in, with neither import. Such a file was skipped whole, so the write never reached
+`verdicts` and could not be reported UNKNOWN — **the fail-closed rule was defeated one layer above the
+code enforcing it.** The docstring quotes CLAUDE.md's lesson that *a predicate deciding what to LOOK
+at is more dangerous than one deciding what to report* two lines before violating it.
+
+The module skip is gone. Two per-receiver rules replace it, both derived and provable in both
+directions: `self` inside a class resolves to that class when it is mapped and to a proven non-model
+when it is not; and a receiver bound from an attribute chain touching **no** mapped attribute name
+cannot be a mapped instance, because reaching one by attribute access means traversing a mapped
+relationship. Deliberately not *"an attribute chain is not a model"* — `project.owner` would be — so
+the test is against the registry, not the shape.
+
+`MAPPED_ATTRS` needs `configure_mappers()`: the first probe returned **0 of 183**, because mappers
+configure lazily. An empty set would mark every chain "provably not a model" — a fail-open across the
+tree — so a self-test asserts it is populated before any verdict prints. The removal itself has a
+regression test with a mutation: reinstating the predicate makes the planted site disappear.
+
+**3. Wording corrected in three places.** "`os.replace` undoes itself for free" overstates it: a rename
+is cheap to undo — one more rename, nothing copied — but nothing undoes it automatically.
+
+**Declined, with reasons:** the object-storage arm of a failed commit is the residual already recorded
+in the helper's docstring and filed as **#558**, blocked on a retention decision that is the
+maintainer's; and `pid_lock._advisory` degrading to in-process on an acquisition error is a
+pre-existing, documented property of that module affecting all eleven call sites, not something this
+PR introduced — it is tracked separately rather than changed inside a PR already six rounds deep.
+
 ### LOCK-BOUNDARY round 5 — the rollback had a branch that existed doing nothing
 
 Round 4 made publication failure-atomic by moving the previous `source.ifc` aside and putting it back
@@ -48,7 +99,8 @@ in order A, B — so the model is B's — and then A, still to seed, finds `dev_
 it from A's metrics: model B priced by budget A, reported by nothing. Now one outer interval, with
 the publisher re-entering it — which is what the comment had claimed all along.
 
-**Publication was not failure-atomic.** `os.replace` undoes itself for free; `put_stream` and
+**Publication was not failure-atomic.** A rename is CHEAP to undo — one more rename, no data
+copied — but nothing undoes it automatically, and `put_stream` and
 `commit` do not. A failure after the rename left the published local path — the file `bake_layers`
 and the converter open — holding the new bytes while nothing else had been published. *Atomic at
 each step is not atomic across the sequence.* The previous file is now kept aside and restored on
