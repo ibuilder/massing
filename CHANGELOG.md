@@ -12,6 +12,57 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 9 — three fail-opens in the analyser, and a completeness claim with a filter under it
+
+Three findings from the round-9 review, all inside the diff, all in `test_lock_boundary.py`, all
+real. Each mutation-checked.
+
+**1. `_stored_attrs` claimed completeness and then filtered.** Round 8's docstring argued that an
+attribute write *is* `ast.Attribute` carrying `ctx=Store` — the grammar's own marking, complete by
+construction — and the very next line required `isinstance(n.value, ast.Name)`. So
+`ctx.project.source_ifc = v`, whose outer node carries `Store` exactly like any other write, never
+entered the site list and the gate **accepted** it. *A completeness claim with a filter under it is
+not a completeness claim* — and this is the third round running where the fix for an over-narrow
+population was itself over-narrow, now at the level of a single `and` clause. Receivers are no longer
+filtered here: resolving one is `collect`'s job, and an unresolvable receiver is reported UNKNOWN,
+which reds. **The narrow version traded a fail-CLOSED report for silence**, which is the worse of the
+two by the same argument this whole PR rests on.
+
+**2. Imports were collected file-wide, not lexically.** `_alias_map` and `pid_lock_names` walked the
+whole module, so a function-local `from .. import pid_lock` — how most of this tree spells it —
+became a binding for *every* function in the file. One function's `import pid_lock as lock` would
+certify an unrelated `lock.mutating(...)` elsewhere, and a reused model alias could resolve another
+function's receiver to the wrong mapped model. Bindings now resolve along the real scope chain:
+module level, then each enclosing function, then the function itself, with normal shadowing.
+
+**3. One binding per name, applied to every write in the function.** `_bindings` kept the last
+binding and `collect` applied it everywhere, so in `p = Project(...)` → `p.source_ifc = v` →
+`p = SavedView(...)` the unlocked `Project.source_ifc` write was reclassified by a later line and
+left the violations entirely. Resolving per source position needs real flow analysis; refusing to
+resolve a name that means two different things does not, and errs the only safe way — UNKNOWN, which
+reds. Every real site in this tree has one consistent meaning, so nothing legitimate is affected.
+
+**The first version of fix 2 produced two false positives, and reading the code is what caught it.**
+It reported `authoring.py::import_families` and `::content_import` as unlocked writers of
+`Project.source_ifc`. Both are in fact correct — the write sits inside a nested helper that holds
+`pid_lock.mutating(pid)` and imports it locally, the `run_in_threadpool` shape every `async def`
+route here uses. The bug was mine: `_stored_attrs` walked *into* nested functions while the new scope
+maps stopped *at* them, so a write was attributed to the enclosing function while its lock and its
+import were not. **Two traversals over one tree must agree on where a function ends.** Writes are now
+attributed to the innermost enclosing function — which `collect` visits in its own right, so nothing
+is lost — while bindings accumulate down the chain, because a nested helper closes over the receiver
+its caller fetched. *Had this been reported instead of read, it would have been two invented defects
+in working concurrency code.*
+
+Sites scanned **375 → 432**. Fifty-seven more real attribute writes, no new violations, and the six
+protected pairs are unchanged before and after — which is the evidence that the scoping tightened
+nothing legitimate. Three self-tests are planted and each fix is mutation-checked: restoring the
+`Name` filter loses the chained receiver, going back to file-wide imports makes the impostor alias
+*vanish from the violations*, and keeping the last binding loses the rebound site.
+
+One implementation note worth keeping: the first scope-chain build was quadratic (a parent map per
+call, three calls per function) and the gate stopped finishing. It is memoised per module now.
+
 ### LOCK-BOUNDARY round 8 (review) — a certifier that matches on a method NAME, and an inference wearing the shape of a proof
 
 Four findings from the round-8 review, all inside the diff, all real, all fixed.

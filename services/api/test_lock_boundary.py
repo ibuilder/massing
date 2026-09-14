@@ -166,16 +166,67 @@ def check(label: str, ok, detail: str = "") -> None:
 
 # --- the analyser -----------------------------------------------------------------------------
 
-def _alias_map(tree: ast.AST) -> dict[str, tuple[str, str]]:
-    """local name -> (module, original name), for `from m import x as y` and `import x as y`."""
+def _own_nodes(node: ast.AST):
+    """Every node lexically inside `node` WITHOUT descending into nested function bodies.
+
+    Scope is the point. `_alias_map` and `pid_lock_names` used `ast.walk` over the whole file, so a
+    function-local `from .. import pid_lock` -- which is how most of this tree spells it -- became a
+    binding for EVERY function in that file. One function's alias could then certify another's
+    `lock.mutating(...)`, or resolve another's receiver to the wrong mapped model. *A binding that
+    is not scoped the way Python scopes it is a fact about the wrong program.*
+    """
+    stack = list(ast.iter_child_nodes(node))
+    while stack:
+        n = stack.pop()
+        yield n
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            stack.extend(ast.iter_child_nodes(n))
+
+
+def _imports_of(nodes) -> dict[str, tuple[str, str]]:
+    """local name -> (module, original name) for the import statements among `nodes`."""
     out: dict[str, tuple[str, str]] = {}
-    for n in ast.walk(tree):
+    for n in nodes:
         if isinstance(n, ast.ImportFrom):
             for a in n.names:
                 out[a.asname or a.name] = (n.module or "", a.name)
         elif isinstance(n, ast.Import):
             for a in n.names:
                 out[a.asname or a.name] = ("", a.name)
+    return out
+
+
+_PARENTS: dict[int, dict] = {}       #: id(tree) -> {child: parent}, built once per module
+
+
+def _scope_chain(tree: ast.AST, fn: ast.AST | None) -> list[ast.AST]:
+    """`fn` and every function lexically enclosing it, OUTERMOST first, or [] when `fn` is None.
+
+    A nested function closes over its enclosing function's names, so its visible bindings are the
+    chain, not just its own body -- `content_import` binds `p` and `_content_import_locked` uses it.
+    Shadowing then falls out of applying the chain in order.
+    """
+    if fn is None:
+        return []
+    #: Memoised per tree: this is called three times per function and rebuilding the parent map each
+    #: time made the whole scan quadratic (the first version did not finish in two minutes).
+    parent = _PARENTS.get(id(tree))
+    if parent is None:
+        parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+        _PARENTS[id(tree)] = parent
+    chain, cur = [], fn
+    while cur is not None:
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            chain.append(cur)
+        cur = parent.get(cur)
+    return list(reversed(chain))
+
+
+def _alias_map(tree: ast.AST, fn: ast.AST | None = None) -> dict[str, tuple[str, str]]:
+    """Import bindings visible inside `fn`: module level, then each enclosing scope, then `fn`."""
+    out = _imports_of(_own_nodes(tree))
+    for scope in _scope_chain(tree, fn):
+        out.update(_imports_of(_own_nodes(scope)))
     return out
 
 
@@ -222,10 +273,23 @@ def _stored_attrs(fn: ast.AST):
     `ctx=Store` admits every one of them and admits nothing else: a read (`v = p.x`), a call
     argument (`f(p.x)`) and `del p.x` carry `Load`, `Load` and `Del`. There is no seventh form to
     miss, because the set is no longer a list somebody maintains.
+
+    **The receiver is NOT filtered here, and that restriction was this function's own defect.**
+    The first draft yielded only `<Name>.attr`, so `ctx.project.source_ifc = v` -- whose outer node
+    carries `Store` exactly like any other write, but whose receiver is an `ast.Attribute` -- never
+    entered the site list at all and the gate ACCEPTED it. *A completeness claim followed by a
+    filter is no longer a completeness claim*: the docstring above argued the set is the grammar's
+    own and then narrowed it one line later, which is the same shape as the two enumerations it
+    replaced. Deciding whether a receiver resolves is `collect`'s job, and an unresolvable one is
+    reported UNKNOWN, which reds -- so the narrow version traded a fail-CLOSED report for silence.
     """
-    for n in ast.walk(fn):
-        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store) \
-           and isinstance(n.value, ast.Name):
+    #: `_own_nodes`, not `ast.walk`: a write inside a NESTED function belongs to that function, which
+    #: `collect` visits in its own right. Walking into nested bodies attributed the write to the
+    #: enclosing function while the scope maps stopped at the boundary -- so a locked write in an
+    #: inner helper (the `run_in_threadpool` shape used by every `async def` route here) was reported
+    #: unlocked. *Two traversals over the same tree must agree on where a function ends.*
+    for n in _own_nodes(fn):
+        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store):
             yield n
 
 
@@ -235,6 +299,32 @@ def _rel(p: pathlib.Path) -> str:
         return str(p.relative_to(HERE.parent.parent))
     except ValueError:
         return str(p)
+
+
+CONFLICT = "<conflicting-binds>"
+
+
+def _bind(out: dict, name: str, model: str) -> None:
+    """Bind `name` to `model`, or to CONFLICT when it already means a DIFFERENT model here.
+
+    `_bindings` used to keep the LAST binding and `collect` applied it to every write in the
+    function -- so in
+
+        p = db.get(Project, pid)
+        p.source_ifc = v            # a Project write...
+        p = db.get(SavedView, vid)  # ...reclassified as a SavedView one by a later line
+
+    the unlocked `Project.source_ifc` write left the violations entirely, and the `seen` set could
+    merge the two sites so only one was ever considered. *A binding read at the END of a function
+    is not the binding in force in the MIDDLE of it.*
+
+    Resolving each site by source position would need real flow analysis; refusing to resolve a name
+    that means two things does not, and errs the only safe way -- the receiver becomes UNKNOWN, which
+    is fail-CLOSED and reds. A name with one consistent meaning, which is every real site in this
+    tree, is unaffected.
+    """
+    prev = out.get(name)
+    out[name] = CONFLICT if (prev is not None and prev != model) else model
 
 
 def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
@@ -282,20 +372,20 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
         if not names:
             continue
         if (model := _model_of_call(n.value, alias)):
-            out[names[0]] = model
+            _bind(out, names[0], model)
             continue
         fnc = n.value.func                       # ...otherwise a helper whose RETURN TYPE names one
         if isinstance(fnc, ast.Name):
             if (t := local_types.get(fnc.id)) and t in MODELS:
-                out[names[0]] = t
+                _bind(out, names[0], t)
             elif fnc.id in alias:
                 mod, real = alias[fnc.id]
                 if (t := foreign_types.get((mod.rsplit(".", 1)[-1], real))) and t in MODELS:
-                    out[names[0]] = t
-    return out
+                    _bind(out, names[0], t)
+    return {k: v for k, v in out.items() if v is not CONFLICT}
 
 
-def pid_lock_names(tree: ast.AST) -> tuple[set[str], bool]:
+def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], bool]:
     """Which names in this module mean the `pid_lock` MODULE, and is `mutating` imported bare?
 
     Every call site in this tree spells it `from .. import pid_lock` (often function-locally) and
@@ -306,7 +396,10 @@ def pid_lock_names(tree: ast.AST) -> tuple[set[str], bool]:
     """
     names: set[str] = set()
     bare = False
-    for n in ast.walk(tree):
+    nodes = list(_own_nodes(tree))
+    for scope in _scope_chain(tree, fn):
+        nodes += list(_own_nodes(scope))
+    for n in nodes:
         if isinstance(n, ast.ImportFrom):
             for a in n.names:
                 if a.name == "pid_lock":
@@ -405,16 +498,22 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
         # no mapped instance" -- is FALSE: `def stamp(p): p.source_ifc = v` holds one with neither.
         # Such a module was skipped whole, so the write never reached `verdicts` and could not be
         # reported UNKNOWN. The fail-closed rule was defeated one layer ABOVE the thing enforcing it.
-        alias, local_types = _alias_map(tree), _return_types(tree)
-        #: Which names in THIS file mean the pid_lock module. Per file, because most call sites
-        #: import it function-locally. A file with no such import certifies nothing -- fail closed.
-        lock_names, bare_mutating = pid_lock_names(tree)
+        local_types = _return_types(tree)
         enclosing = {f: c.name for c in ast.walk(tree) if isinstance(c, ast.ClassDef)
                      for f in ast.walk(c) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))}
         for fn in ast.walk(tree):
             if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            binds = _bindings(fn, alias, local_types, foreign, _rel(p))
+            #: Scoped to THIS function: module-level bindings with the function's own imports
+            #: shadowing them. File-wide collection let one function's local import certify or
+            #: mis-resolve another's. A function seeing no pid_lock import certifies nothing.
+            alias = _alias_map(tree, fn)
+            lock_names, bare_mutating = pid_lock_names(tree, fn)
+            #: Bindings accumulate down the same chain, so a nested helper inherits the receiver its
+            #: enclosing function fetched (`p = db.get(Project, pid)` outside, used inside).
+            binds: dict[str, str] = {}
+            for _scope in _scope_chain(tree, fn):
+                binds.update(_bindings(_scope, alias, local_types, foreign, _rel(p)))
             #: Form 6, and the replacement for the module predicate: `self` inside a class. If the
             #: class IS mapped, `self` is that model -- which the old code could not see at all. If
             #: it is NOT mapped, `self` is provably not a mapped instance, because it is an instance
@@ -430,12 +529,18 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
             #: silently excludes the others, and the exclusion never appears in the output* -- so
             #: stop spelling, and ask the grammar.
             for t in _stored_attrs(fn):
-                if (t.value.id, t.attr) in seen:
+                #: A bare-Name receiver can be resolved; anything else (`ctx.project.source_ifc`,
+                #: `rows[0].source_ifc`) cannot be, and is keyed by its own identity so it is
+                #: reported UNKNOWN rather than dropped or merged with an unrelated site.
+                if isinstance(t.value, ast.Name):
+                    key, recv = t.value.id, binds.get(t.value.id)
+                else:
+                    key, recv = f"<expr:{id(t.value)}>", None
+                if (key, t.attr) in seen:
                     continue
-                seen.add((t.value.id, t.attr))
+                seen.add((key, t.attr))
                 ok, outside = lock_spans(fn, t.attr, lock_names, bare_mutating)
-                sites.append((_rel(p), fn.name,
-                              binds.get(t.value.id), t.attr, ok, outside[:4]))
+                sites.append((_rel(p), fn.name, recv, t.attr, ok, outside[:4]))
     return sites
 
 
@@ -512,23 +617,66 @@ _SYNTH = ast.parse(
     "    p = db.get(Project, pid)\n"
     "    with session.mutating(pid):\n"
     "        p.source_ifc = 'not actually locked'\n"
+    #: CHAINED RECEIVER. `ctx.project.source_ifc` carries `Store` like any write, but its receiver is
+    #: an `ast.Attribute`. `_stored_attrs`' first draft required a bare `Name` and dropped it
+    #: entirely -- accepted, not reported. It must now surface as UNKNOWN, which is fail-closed.
+    "def chained_receiver(ctx):\n"
+    "    ctx.project.source_ifc = 'chained'\n"
+    #: ALIAS SCOPING, both directions. `aliased_lock` imports the lock under another name IN ITS OWN
+    #: BODY and must still be certified. `impostor_alias` has a parameter of that name and no such
+    #: import, so it must NOT be -- which is the leak the file-wide collection allowed: one
+    #: function's local alias certifying every other function in the file.
+    "def aliased_lock(db, pid):\n"
+    "    from .. import pid_lock as lock\n"
+    "    p = db.get(Project, pid)\n"
+    "    with lock.mutating(pid):\n"
+    "        p.source_ifc = 'genuinely locked, under an alias'\n"
+    "def impostor_alias(db, pid, lock):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with lock.mutating(pid):\n"
+    "        p.source_ifc = 'certified by another function alias'\n"
+    #: CONFLICTING BINDS. `p` means a Project for the first write and a SavedView for the second.
+    #: Keeping the LAST binding reclassified the earlier `Project.source_ifc` write as a SavedView
+    #: one and it left the violations. A name meaning two things now resolves to neither.
+    "def rebound(db, pid, vid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.source_ifc = 'written while p is a Project'\n"
+    "    p = db.get(SavedView, vid)\n"
+    "    p.source_ifc = 'written while p is a SavedView'\n"
 )
-_syn_alias, _syn_types = _alias_map(_SYNTH), _return_types(_SYNTH)
-_syn_lock_names, _syn_bare = pid_lock_names(_SYNTH)
+_syn_types = _return_types(_SYNTH)
 _syn_sites = []
 for _fn in ast.walk(_SYNTH):
     if isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        _syn_alias = _alias_map(_SYNTH, _fn)            # scoped exactly as `collect` scopes it
+        _syn_lock_names, _syn_bare = pid_lock_names(_SYNTH, _fn)
         _b = _bindings(_fn, _syn_alias, _syn_types, {}, "synth.py")
         for _t in _stored_attrs(_fn):
+            _recv = _b.get(_t.value.id) if isinstance(_t.value, ast.Name) else None
             _ok, _out = lock_spans(_fn, _t.attr, _syn_lock_names, _syn_bare)
-            _syn_sites.append(("synth.py", _fn.name, _b.get(_t.value.id), _t.attr, _ok, _out))
+            _syn_sites.append(("synth.py", _fn.name, _recv, _t.attr, _ok, _out))
 
 _sp, _sv, _su = verdicts(_syn_sites)
 _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred",
               "for_target", "with_target"}
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
-      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer", "impostor_lock"}),
+      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer", "impostor_lock",
+                                                        "impostor_alias"}),
       f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: one function's local `import pid_lock as lock` does NOT certify another "
+      "function's unrelated `lock` -- imports resolve in the scope chain, not file-wide",
+      "impostor_alias" in {s[1] for s in _sv} and "aliased_lock" not in {s[1] for s in _sv},
+      f"violations={sorted(s[1] for s in _sv)}")
+check("  and the genuine alias IS still certified, so the scoping did not simply stop recognising "
+      "the lock -- a rule that certifies nothing would pass the check above for the wrong reason",
+      ("Project", "source_ifc") in _sp and "aliased_lock" not in {s[1] for s in _sv},
+      f"protected={sorted(_sp)} violations={sorted(s[1] for s in _sv)}")
+check("self-test: a CHAINED receiver (`ctx.project.source_ifc`) is reported UNKNOWN, not dropped -- "
+      "requiring a bare Name receiver silently removed the write from the population entirely",
+      "chained_receiver" in {s[1] for s in _su}, f"unknown={sorted(s[1] for s in _su)}")
+check("self-test: a name bound to TWO different models resolves to NEITHER, so the earlier write "
+      "cannot be reclassified by a later rebinding and quietly leave the violations",
+      "rebound" in {s[1] for s in _su}, f"unknown={sorted(s[1] for s in _su)}")
 check("self-test: a `with <something-else>.mutating(...)` does NOT certify -- the receiver is "
       "resolved against the file's own pid_lock imports, not matched on the method name",
       "impostor_lock" in {s[1] for s in _sv},
