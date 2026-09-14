@@ -214,22 +214,72 @@ def classify(source: str, path: str) -> list[tuple[str, str, int, str]]:
             else:
                 out.append((path, fn.name, n.lineno, "UNKNOWN"))
                 continue
-            derived = any(x.id in taint for x in ast.walk(values) if isinstance(x, ast.Name))
-            # A column named in the WHERE that is not part of the row's IDENTITY. `id`/`project_id`/
-            # `token` locate the row; anything else is a value the write is swapping on. Both spellings
-            # are read -- `t.c.col` for a Core table and `Model.col` for a mapped class -- because
-            # reading only the first reported every mapped-class guard as absent.
-            cols = set()
-            for w in wheres:
-                for a in ast.walk(w):
+            # The CONCURRENCY TOKEN is not payload. `set_assignee` writes
+            # `modified_at=_next_stamp(rec.get("modified_at"))` -- it reads the row, but only to
+            # advance the stamp other writers swap on; `assignee` is the caller's whole intent and
+            # there is no update to lose. Counting the token as derived made the tightened rule
+            # report a correct writer as the defect it exists to find. *A rule made stricter in one
+            # place has to be re-checked everywhere it already passed.*
+            payload = [kw for kw in values.keywords if kw.arg != "modified_at"]
+            derived = any(x.id in taint for kw in payload
+                          for x in ast.walk(kw) if isinstance(x, ast.Name))
+            written = {kw.arg for kw in values.keywords if kw.arg}
+            # A swap predicate is a non-identity column compared AGAINST SOMETHING THIS FUNCTION READ.
+            #
+            # The first draft asked only whether the WHERE named a non-identity column, and CodeRabbit
+            # found the hole on PR #552: `WHERE id = ? AND deleted_at IS NULL` satisfied that and was
+            # reported CAS, though it compares against a CONSTANT and swaps on nothing. A gate whose
+            # whole design principle is failing closed had a fail-OPEN verdict in it -- *a predicate
+            # that decides what to REPORT is the same hazard as one that decides what to look at when
+            # the wrong answer is the safe-sounding one.*
+            #
+            # So each comparison is taken whole: the column on one side, and the other side must carry
+            # a name tainted from the row (`t.c.modified_at == stamp`, `t.c.workflow_state ==
+            # rec[...]`). Both column spellings are read -- `t.c.col` for a Core table and `Model.col`
+            # for a mapped class -- because reading only the first reported every mapped-class guard
+            # as absent.
+            def _col_of(node, owners=owners):
+                for a in ast.walk(node):
                     if not isinstance(a, ast.Attribute) or a.attr == "c":
-                        continue                 # `t.c` itself is the accessor, not a column
+                        continue
                     base = a.value
-                    if isinstance(base, ast.Attribute) and base.attr == "c":
-                        cols.add(a.attr)
-                    elif isinstance(base, ast.Name) and base.id in owners:
-                        cols.add(a.attr)
-            swapped = bool(cols - _ID_COLS)
+                    if (isinstance(base, ast.Attribute) and base.attr == "c") or \
+                       (isinstance(base, ast.Name) and base.id in owners):
+                        return a.attr
+                return None
+
+            # TWO shapes count as swapping, and collapsing them is what made the first two drafts
+            # wrong in opposite directions:
+            #
+            #   (a) a non-identity column compared against something READ from this row --
+            #       `t.c.modified_at == stamp`, `t.c.workflow_state == rec[...]`;
+            #   (b) a CONSTANT predicate on a column this statement WRITES -- `promote_comment`'s
+            #       `.where(topic_id.is_(None)).values(topic_id=...)`, the conditional-write idiom.
+            #       That is a real guard: the write lands only if the column still holds the value
+            #       the caller decided from.
+            #
+            # `WHERE deleted_at IS NULL` is neither -- a constant compared against a column the
+            # statement does not write is a FILTER, and reading it as a guard is how the first draft
+            # called a blind write safe. The distinction is which column, not which shape.
+            swapped = False
+            for w in wheres:
+                for cmp_ in [x for x in ast.walk(w) if isinstance(x, ast.Compare)]:
+                    sides = [cmp_.left] + list(cmp_.comparators)
+                    col = next((c for c in (_col_of(x) for x in sides) if c), None)
+                    if col is None or col in _ID_COLS:
+                        continue
+                    if any(nm.id in taint for side in sides
+                           for nm in ast.walk(side) if isinstance(nm, ast.Name)) or col in written:
+                        swapped = True
+                # `.is_(None)` is a Call, not a Compare, so it needs its own pass -- and it is the
+                # spelling BOTH shipped conditional writes use.
+                for call in [x for x in ast.walk(w) if isinstance(x, ast.Call)]:
+                    if not (isinstance(call.func, ast.Attribute) and call.func.attr in ("is_", "isnot",
+                                                                                       "is_not")):
+                        continue
+                    col = _col_of(call.func.value)
+                    if col and col not in _ID_COLS and col in written:
+                        swapped = True
             out.append((path, fn.name, n.lineno,
                         "CAS" if swapped else ("BLIND_RMW" if derived else "PLAIN")))
     return out
@@ -265,11 +315,35 @@ _self2 = classify(_PRE_FIX_UPDATE_RECORD, "<pre-fix>")
 check("SELF-TEST: it reaches a SPLATTED values dict too -- the blind spot that cost PR #551 a round",
       [v for *_, v in _self2] == ["BLIND_RMW"], f"got {_self2}")
 
-_GUARDED = _PRE_FIX.replace("t.c.project_id == project_id)",
-                            "t.c.project_id == project_id, t.c.modified_at == stamp)")
+_GUARDED = (_PRE_FIX
+            .replace("    cur = set(", "    stamp = rec.get(\"modified_at\")\n    cur = set(")
+            .replace("t.c.project_id == project_id)",
+                     "t.c.project_id == project_id, t.c.modified_at == stamp)"))
 check("SELF-TEST: adding the swap predicate -- and nothing else -- moves the verdict to CAS",
       [v for *_, v in classify(_GUARDED, "<guarded>")] == ["CAS"],
       f"got {classify(_GUARDED, '<guarded>')}")
+
+# The hole CodeRabbit found on PR #552: a non-identity column compared against a CONSTANT is not a
+# swap, and the first draft of `classify` called it one. This fixture must stay BLIND_RMW.
+_FAKE_GUARD = _PRE_FIX.replace("t.c.project_id == project_id)",
+                               "t.c.project_id == project_id, t.c.deleted_at.is_(None))")
+check("SELF-TEST: a non-identity column compared to a CONSTANT is NOT a swap (`deleted_at IS NULL`)",
+      [v for *_, v in classify(_FAKE_GUARD, "<fake>")] == ["BLIND_RMW"],
+      f"got {classify(_FAKE_GUARD, '<fake>')}")
+
+# The conditional-write idiom, as `promote_comment` ships it: a constant predicate on the column
+# being WRITTEN. Tightening the rule for `deleted_at IS NULL` flagged this correct writer until the
+# rule learned the difference.
+_COND_WRITE = '''
+def promote(db, cid):
+    rec = get_record(db, "k", "p", cid)
+    claim = rec["id"]
+    db.execute(update(RecordComment).where(RecordComment.id == cid, RecordComment.topic_id.is_(None))
+               .values(topic_id=claim))
+'''
+check("SELF-TEST: a CONSTANT predicate on the column being WRITTEN is a guard, not a filter",
+      [v for *_, v in classify(_COND_WRITE, "<cond>")] == ["CAS"],
+      f"got {classify(_COND_WRITE, '<cond>')}")
 
 _UNRESOLVED = '''
 def somewhere(db, whatever):
@@ -330,16 +404,87 @@ WRITERS = register_writers()
 check("the writer derivation REACHES `transition`, whose values are a splatted dict",
       ("src/aec_api/modules.py", "transition") in WRITERS, f"found {len(WRITERS)}: {WRITERS}")
 
+
+def stamps_through_helper(fn: ast.AST) -> bool:
+    """Does this writer set `modified_at` from `_next_stamp(...)`?
+
+    The first draft asked whether the STRING "modified_at" appeared anywhere in `ast.unparse(fn)`,
+    which CodeRabbit pointed out on PR #552 a DOCSTRING satisfies -- and every function here has a
+    long one, several of which discuss the column at length. The check could not have failed. *A
+    check that reads prose is a check that reads its own explanation of itself.*
+
+    It now looks for the assignment, with docstrings stripped, and demands `_next_stamp` rather than
+    any value: a bare `_now()` is what reopens the collision hole `_next_stamp` exists to close, and
+    it would have satisfied a rule that only asked for the column name.
+    """
+    body = list(fn.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+       and isinstance(body[0].value.value, str):
+        body = body[1:]                          # drop the docstring, which is prose, not behaviour
+    for n in [x for b in body for x in ast.walk(b)]:
+        if isinstance(n, ast.keyword) and n.arg == "modified_at" \
+           and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value)):
+            return True
+        if isinstance(n, ast.Assign) and any(
+                isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
+                and t.slice.value == "modified_at" for t in n.targets) \
+           and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value)):
+            return True
+        # A DICT LITERAL key, which is how `transition` builds its `vals` before splatting it. This
+        # arm is here because the check FOUND `transition` missing the moment it was strengthened --
+        # three shapes write this column and the first draft of the detector knew two. *Every
+        # derivation in this file has now been wrong about its population once; that is the argument
+        # for running it against a known instance rather than believing its count.*
+        if isinstance(n, ast.Dict):
+            for k, v in zip(n.keys, n.values):
+                if isinstance(k, ast.Constant) and k.value == "modified_at" \
+                   and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(v)):
+                    return True
+    return False
+
+
+#: A writer whose ONLY mention of the column is prose. The pre-fix check passed this.
+_PROSE_ONLY = ast.parse(
+    'def writer(db, t, rid):\n'
+    '    """This one advances modified_at, honestly it does."""\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(assignee=None))\n').body[0]
+check("SELF-TEST: a DOCSTRING mentioning the column does not count as advancing it",
+      not stamps_through_helper(_PROSE_ONLY), "prose satisfied the stamp check")
+
+#: A writer that stamps with a bare `_now()` -- the collision `_next_stamp` exists to close.
+_BARE_NOW = ast.parse(
+    'def writer(db, t, rid):\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_now()))\n').body[0]
+check("SELF-TEST: a bare `_now()` does not count either -- that is the collision this closes",
+      not stamps_through_helper(_BARE_NOW), "`_now()` satisfied the stamp check")
+
+#: And the shipped writers must PASS it, or the two negatives above prove only that it says no.
+_REAL = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n').body[0]
+check("SELF-TEST: and a writer that DOES stamp through the helper passes, so it is not always-no",
+      stamps_through_helper(_REAL), "the real shape failed the stamp check")
+
+_DICT_SHAPE = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    vals = {"workflow_state": "x", "modified_at": _next_stamp(rec.get("modified_at"))}\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+check("SELF-TEST: the DICT-LITERAL shape counts -- the one the strengthened check first missed",
+      stamps_through_helper(_DICT_SHAPE), "the splatted-dict shape failed the stamp check")
+
 _no_stamp = []
 for path, name in WRITERS:
     tree = ast.parse((HERE / path).read_text(encoding="utf-8"))
     fn = next(f for f in ast.walk(tree)
               if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name == name)
-    if "modified_at" not in ast.unparse(fn):
+    if not stamps_through_helper(fn):
         _no_stamp.append((path, name))
-check("EVERY register-row writer advances `modified_at` -- the column has no `onupdate=`, so the "
-      "token's coverage is a property of the call sites and not of the schema",
-      not _no_stamp, f"{len(WRITERS)} writers; without a stamp: {_no_stamp}")
+check("EVERY register-row writer advances `modified_at` THROUGH `_next_stamp` -- the column has no "
+      "`onupdate=`, so the token's coverage is a property of the call sites, not of the schema, and "
+      "one writer stamping with a bare `_now()` reopens the collision for all of them",
+      not _no_stamp, f"{len(WRITERS)} writers; without a monotonic stamp: {_no_stamp}")
 
 
 # ================================================================ the behavioural half
@@ -534,6 +679,62 @@ ORM_LEDGER = {
         "different column from the one it reads.",
 }
 
+#: The project's `source_ifc` pointer: read the current IFC, derive a NEW version from it, write the
+#: pointer back. That is this file's subject, and it is already guarded -- by `pid_lock.mutating`,
+#: a per-project advisory lock, not by a CAS -- at SIX of its call sites and NOT at the other six.
+#: The check below asserts which, so "the lock is applied" stops being prose.
+#:
+#: Two further `source_ifc` writers -- `upload_source_ifc` and `import_rvt` -- are deliberately NOT
+#: here: they write uploaded bytes to a fixed path, derived from nothing they read, so
+#: last-writer-wins is an upload's specified behaviour rather than a lost update. They are also not
+#: in the ORM population at all, which is how the stale-entry check found them when a first draft
+#: listed them anyway: *an exemption for a site that was never in scope is a claim about nothing, and
+#: it reads exactly like one that matters.*
+IFC_PIPELINE = {
+    ("src/aec_api/routers/authoring.py", "edit"): "under pid_lock",
+    ("src/aec_api/routers/authoring.py", "edit_graph"): "under pid_lock",
+    ("src/aec_api/routers/authoring.py", "edit_batch"): "under pid_lock",
+    ("src/aec_api/routers/authoring.py", "macros_run"): "under pid_lock",
+    ("src/aec_api/routers/authoring.py", "option_activate"): "under pid_lock",
+    ("src/aec_api/mcp_tools.py", "_run_recipe"): "under pid_lock",
+    ("src/aec_api/routers/authoring.py", "bake_layers"): "OPEN -- derives from the current IFC, unlocked",
+    ("src/aec_api/routers/authoring.py", "import_families"): "OPEN -- same",
+    ("src/aec_api/routers/authoring.py", "import_family_pack"): "OPEN -- same",
+    ("src/aec_api/routers/authoring.py", "place_family"): "OPEN -- same",
+    ("src/aec_api/routers/authoring.py", "content_import"): "OPEN -- same",
+    ("src/aec_api/routers/authoring.py", "_restore_version"): "OPEN -- reads the pointer to validate "
+                                                              "containment, then writes it",
+}
+
+#: Reads a field and writes a DIFFERENT one, or writes a value the caller supplied whole. Neither is
+#: a lost update: nothing another writer put in the column being written is destroyed.
+CROSS_FIELD = {
+    ("src/aec_api/jobs.py", "_run_one"):
+        "job lifecycle -- `state`/`result`/`error` are written from the run's own outcome. The CLAIM "
+        "is the contested step and it is already a conditional UPDATE, gated by `test_race_conditions`.",
+    ("src/aec_api/routers/auth.py", "mfa_verify"):
+        "`mfa_recovery = remaining` consumes one code. A concurrent second verify could consume the "
+        "same code twice -- but both requests must already hold a VALID code, so the race grants no "
+        "access the caller did not have; it wastes one code. Named rather than silently exempt "
+        "because 'a code can be used twice' deserves to be someone's deliberate call, not an omission.",
+    ("src/aec_api/routers/bim.py", "promote_markup"):
+        "`m.topic_id = t.id`. The SAME shape `modules.promote_comment` had before it was made a "
+        "conditional UPDATE -- so this is a live instance of an already-solved defect and it is OPEN "
+        "(roadmap: RMW-LOCKGAP). Found by widening this gate, not by the review that prompted it.",
+    ("src/aec_api/drawingset.py", "revise_sheet"): "`m.data = d2`, derived from `m.data` -- OPEN, "
+                                                   "same class, no token on that table.",
+    ("src/aec_api/routers/connections.py", "put_mappings"): "`c.config = cfg` merged from `c.config` "
+                                                            "-- OPEN, same class.",
+    ("src/aec_api/routers/drawings.py", "rekey_storey_markups"): "a one-shot backfill that rewrites "
+                                                                 "`sheet_id` keys; not a concurrent path.",
+    ("src/aec_api/routers/proforma.py", "put_property"):
+        "`dev_property` -- the site this pull request's own fix created and then HID from this "
+        "analyser by hoisting the read into a local. Open for the same reason as `save_appraisal`.",
+    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard"): "`dev_budget` merge -- OPEN, same class, "
+                                                             "`projects` has no `modified_at`.",
+    ("src/aec_api/routers/proforma.py", "sync_model_to_hard"): "`dev_budget` merge -- OPEN, same class.",
+}
+
 #: Open, and deliberately so. Both write a JSON collection on a table with NO `modified_at`, so the
 #: register row's token does not exist for them, and JSON equality is not a swap that behaves the
 #: same on SQLite and Postgres -- the identical trap `FOR UPDATE` is. Fixing them means giving those
@@ -550,12 +751,42 @@ BAND_2 = {
 
 
 def orm_rmw_sites() -> list[tuple[str, str]]:
+    """`obj.attr = <expr derived from obj>` -- INCLUDING through a local.
+
+    The first draft asked only whether the right-hand side mentioned `obj` DIRECTLY, and the fix this
+    very pull request made to `proforma.save_property` hoisted the read into a local
+    (`prior = p.dev_property or {}` ... `p.dev_property = {**body, ...prior...}`) -- so the analyser
+    stopped seeing a site that the same commit had just created. **The fix moved out of its own
+    gate's view**, which is worse than the gate never having covered it: the count stayed the same
+    and nothing said anything.
+
+    So taint propagates one hop through locals, the same way the Core classifier already does it.
+    Written down because the shape is general: *hoisting a read into a variable is the cheapest way
+    to make a pattern-matching check stop matching, and it is what a tidy-up commit looks like.*
+    """
     out = []
     for p in sorted(SRC.rglob("*.py")):
         tree = ast.parse(p.read_text(encoding="utf-8"))
         for fn in ast.walk(tree):
             if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
+            # local -> the object names its value was read from
+            via: dict[str, set[str]] = {}
+            for _ in range(4):                       # fixed point; these chains are one or two hops
+                for n in ast.walk(fn):
+                    if not isinstance(n, ast.Assign):
+                        continue
+                    srcs = {x.value.id for x in ast.walk(n.value)
+                            if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
+                    for nm in ast.walk(n.value):
+                        if isinstance(nm, ast.Name) and nm.id in via:
+                            srcs |= via[nm.id]
+                    if not srcs:
+                        continue
+                    for t in n.targets:
+                        for nm in ast.walk(t):
+                            if isinstance(nm, ast.Name):
+                                via.setdefault(nm.id, set()).update(srcs)
             for n in ast.walk(fn):
                 if not isinstance(n, (ast.Assign, ast.AugAssign)):
                     continue
@@ -563,11 +794,15 @@ def orm_rmw_sites() -> list[tuple[str, str]]:
                 for tgt in targets:
                     if not (isinstance(tgt, ast.Attribute) and isinstance(tgt.value, ast.Name)):
                         continue
-                    if tgt.value.id in ("self", "cls", "os", "sys"):
+                    obj = tgt.value.id
+                    if obj in ("self", "cls", "os", "sys"):
                         continue
                     used = {x.value.id for x in ast.walk(n.value)
                             if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
-                    if isinstance(n, ast.AugAssign) or tgt.value.id in used:
+                    for nm in ast.walk(n.value):
+                        if isinstance(nm, ast.Name) and nm.id in via:
+                            used |= via[nm.id]
+                    if isinstance(n, ast.AugAssign) or obj in used:
                         out.append((str(p.relative_to(HERE)), fn.name))
     return sorted(set(out))
 
@@ -575,20 +810,64 @@ def orm_rmw_sites() -> list[tuple[str, str]]:
 ORM = orm_rmw_sites()
 check("the ORM derivation REACHES a known site, asserted before its count is believed",
       ("src/aec_api/coordination_fresh.py", "recheck") in ORM, f"found {len(ORM)}")
-_unfiled = [s for s in ORM if s not in ORM_LEDGER and s not in BAND_2]
+_KNOWN = {**ORM_LEDGER, **BAND_2, **IFC_PIPELINE, **CROSS_FIELD}
+_unfiled = [s for s in ORM if s not in _KNOWN]
 check("every ORM read-modify-write is either reasoned exempt or named as an open gap",
       not _unfiled, f"unfiled={_unfiled}")
-_stale = [k for k in list(ORM_LEDGER) + list(BAND_2) if k not in ORM]
+_stale = [k for k in _KNOWN if k not in ORM]
 check("no ledger entry outlives the site it describes", not _stale, f"stale={_stale}")
+# ---------------------------------------------------------------- the IFC pipeline's OTHER control
+def under_pid_lock(path: str, name: str) -> bool:
+    """Is every `*.source_ifc = ...` in this function lexically inside `with pid_lock.mutating(...)`?"""
+    tree = ast.parse((HERE / path).read_text(encoding="utf-8"))
+    fn = next((f for f in ast.walk(tree)
+               if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name == name), None)
+    if fn is None:
+        return False
+    outside = []
+
+    class V(ast.NodeVisitor):
+        def __init__(self):
+            self.depth = 0
+
+        def visit_With(self, node):
+            held = any("pid_lock.mutating" in ast.unparse(i.context_expr) for i in node.items)
+            self.depth += 1 if held else 0
+            self.generic_visit(node)
+            self.depth -= 1 if held else 0
+
+        def visit_Assign(self, node):
+            if any(isinstance(t, ast.Attribute) and t.attr == "source_ifc" for t in node.targets) \
+               and not self.depth:
+                outside.append(node.lineno)
+            self.generic_visit(node)
+
+    V().visit(fn)
+    return not outside
+
+
+_claimed_locked = sorted(k for k, v in IFC_PIPELINE.items() if v == "under pid_lock")
+_lying = [k for k in _claimed_locked if not under_pid_lock(*k)]
+check("every site this ledger calls locked IS lexically under `pid_lock.mutating`",
+      not _lying, f"{len(_claimed_locked)} claimed locked; not actually: {_lying}")
+
+_claimed_open = sorted(k for k, v in IFC_PIPELINE.items() if v.startswith("OPEN"))
+_secretly_fixed = [k for k in _claimed_open if under_pid_lock(*k)]
+check("and every site it calls OPEN really is unlocked -- so closing one must update this ledger "
+      "rather than leave a gap recorded that no longer exists",
+      not _secretly_fixed, f"{len(_claimed_open)} open; silently fixed: {_secretly_fixed}")
+
 check("the share-token view counter is no longer an ORM read-modify-write",
       ("src/aec_api/client_portal.py", "model_fragment") not in ORM
       and ("src/aec_api/client_portal.py", "digest") not in ORM,
       "the increment moved into SQL")
 
+_open = len(BAND_2) + sum(1 for v in IFC_PIPELINE.values() if v.startswith("OPEN")) \
+    + sum(1 for v in CROSS_FIELD.values() if "OPEN" in v)
 print()
 print(f"test_rmw_sweep {'FAILED' if FAILED else 'OK'}"
-      f"  ({len(SITES)} register-row update sites, {len(WRITERS)} writers, "
-      f"{len(ORM)} ORM sites: {len(ORM_LEDGER)} exempt, {len(BAND_2)} open)")
+      f"  ({len(SITES)} register-row update sites, {len(WRITERS)} writers stamping monotonically, "
+      f"{len(ORM)} ORM sites: {len(_KNOWN) - _open} reasoned exempt, {_open} named open)")
 if FAILED:
     for f_ in FAILED:
         print(f"  - {f_}")

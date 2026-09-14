@@ -73,6 +73,13 @@ wrote `p.dev_property = body` **wholesale**, and `realestate.save_appraisal` kee
 that same blob — so every ordinary re-save of the property tab deleted the saved appraisal overrides.
 No concurrency required. *A write that reads nothing cannot lose an update — it just deletes one.*
 
+*That sentence is about the code as it WAS, and review pointed out it stops being true of the fix:
+carrying `appraisal` across means reading `dev_property` first, so the repaired route can now lose a
+concurrent appraisal save — a smaller fault than the one it removes, on a table with no concurrency
+token, and it is filed as open rather than implied away.* The same round found the response still
+answering with `body` while the merged dict was what got stored — persisting one value and returning
+another, which is the kind of mismatch that gets discovered from two screens away.
+
 **What the sweep could NOT reach is named rather than left silent**, because that is precisely how
 the seeding sweep lost four sites. `Scenario.shared_with` (a share grant) and `Project.dev_property`
 (the appraisal merge) still lose a concurrent write: neither table carries a `modified_at`, so the
@@ -86,6 +93,45 @@ against the shipped pre-fix bodies of `set_element_guids` *and* `update_record` 
 any verdict — the second because `update_record` splats `**vals`, which is the blind spot that cost
 PR #551 a review round. The behavioural half asserts the **outcome** through the real functions on a
 hand-built interleaving, and a mutation removing the swap predicate must lose the GUID again.
+
+**The review round found three more things, and two of them were holes in this gate rather than in
+the code it guards.** The swap-predicate test asked only whether the `WHERE` named a non-identity
+column — so `WHERE deleted_at IS NULL` read as a compare-and-swap though it compares against a
+constant and swaps on nothing: *a fail-OPEN verdict inside a gate whose whole design is failing
+closed.* Tightening it then flagged two correct writers, which taught the distinction the first two
+drafts had collapsed: a constant predicate on the column being **written** (`promote_comment`'s
+`topic_id IS NULL`) is a real guard, and one on a column the statement does not write is a filter.
+And the token-coverage check searched the function's text for `"modified_at"` — which a **docstring**
+satisfies, and every function here has a long one. It now reads the assignment with docstrings
+stripped and demands `_next_stamp`; strengthening it immediately found `transition`, whose stamp sits
+in a dict literal the detector could not see. *Three shapes write that column and the first draft of
+the detector knew two.*
+
+**The third was a real hole in the lock, not the token.** `_now()` can equal the row's existing
+`modified_at` — same microsecond, or an NTP step backwards — and then the winning write leaves its
+own predicate reusable by the writer it just excluded. Every register-row writer now stamps through
+`modules._next_stamp`, which is strictly monotonic per row. *Rare is not impossible, and a
+concurrency control that is correct except under contention is wrong exactly where it is
+load-bearing.*
+
+**And widening the gate's ORM derivation caught this pull request hiding a site from itself.** The
+`save_property` fix hoisted its read into a local (`prior = p.dev_property or {}`), and the analyser
+only looked for the object named directly on the right-hand side — so the commit that created an RMW
+site removed it from the count in the same edit, and nothing said anything. *Hoisting a read into a
+variable is the cheapest way to make a pattern-matching check stop matching, and it is what a tidy-up
+commit looks like.* With taint propagated one hop the population went **12 → 33**, and the 21 new
+sites are read and classified rather than counted.
+
+**One of them is the biggest thing this round turned up, and no reviewer asked for it.** Twelve routes
+read `Project.source_ifc`, derive a new IFC version from it, and write the pointer back. **Six wrap
+that in `pid_lock.mutating(pid)` and six do not** — and one of the six that does carries the comment
+*"same RMW race as /edit — serialize per project"*, so the control exists, is named in the threat
+model, and covers half its population. Two concurrent `place_family` calls lose one placement with
+both callers answered 200. It is **filed, not fixed** (gap G-11, roadmap RMW-LOCKGAP): wrapping six
+routes that do long IFC I/O is a different blast radius from the register row, in a lane this change
+did not otherwise touch. The set is frozen instead — the gate asserts the split in *both* directions,
+so a new unlocked writer reds the build and closing one of the six forces the ledger to be updated
+rather than leaving a recorded gap that no longer exists.
 
 *Its own self-tests earned their keep within the hour.* Teaching the analyser about mapped model
 classes — so two correctly-guarded writes stopped reporting as UNKNOWN — made it read the `t.c`

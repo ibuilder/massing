@@ -392,11 +392,18 @@ def put_property(pid: str, body: dict, db: Session = Depends(get_db), _sec: str 
     #
     # `body` still wins where the two overlap, so a client that does round-trip `appraisal` is not
     # overridden by the stored copy; the carry-over applies only to a key this form never sends.
+    #
+    # Persist and RETURN the same value. Raised in review: the first draft stored the merged dict and
+    # answered with `body`, so a response could omit the `appraisal` it had just kept -- the response
+    # describing a different row than the one written. Today's only web consumer reads `summary`, so
+    # this is a contract defect rather than a visible one, which is exactly the kind that is found
+    # later and from further away.
     prior = p.dev_property or {}
-    p.dev_property = ({**body, "appraisal": prior["appraisal"]}
-                      if "appraisal" in prior and "appraisal" not in body else body)
+    saved = ({**body, "appraisal": prior["appraisal"]}
+             if "appraisal" in prior and "appraisal" not in body else body)
+    p.dev_property = saved
     db.commit()
-    return {"property": body, "summary": dp.summarize(body)}
+    return {"property": saved, "summary": dp.summarize(saved)}
 
 
 @router.get("/projects/{pid}/sources-uses")

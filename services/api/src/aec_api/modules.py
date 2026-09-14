@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import (
@@ -679,9 +679,12 @@ def _rollup(db: Session, key: str, project_id: str, rid: str, f: dict) -> float 
 def set_assignee(db: Session, key: str, project_id: str, rid: str, assignee: str | None,
                  actor: str, party: str | None) -> dict:
     t = TABLES[key]
-    get_record(db, key, project_id, rid)  # 404 if missing
+    rec = get_record(db, key, project_id, rid)  # 404 if missing
+    # Not a compare-and-swap -- `assignee` is the caller's whole intent, derived from nothing this
+    # function read, so there is no update to lose. It still stamps through `_next_stamp`, because
+    # the token it advances is the one OTHER writers swap on.
     db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
-               .values(assignee=assignee, modified_at=_now()))
+               .values(assignee=assignee, modified_at=_next_stamp(rec.get("modified_at"))))
     _log(db, project_id, key, rid, actor, party, "assign", {"assignee": assignee})
     db.commit()
     return get_record(db, key, project_id, rid)
@@ -690,6 +693,35 @@ def set_assignee(db: Session, key: str, project_id: str, rid: str, assignee: str
 #: How many times a row edit re-reads and retries after losing a race. Small on purpose: a contested
 #: row resolves in one or two rounds, and an unbounded loop turns a hot row into a spin.
 _CAS_RETRIES = 4
+
+
+def _next_stamp(prev) -> datetime:
+    """The next `modified_at` for a register row: now, but STRICTLY LATER than what was there.
+
+    Raised in review on PR #552, and it is the difference between a token and a lock that looks like
+    one. `_now()` has microsecond resolution and nothing guarantees the clock advanced since the
+    previous write -- two writes inside one microsecond, or an NTP step backwards, and the new
+    `modified_at` EQUALS the old one. A concurrent writer still holding that pre-image then matches
+    the CAS predicate and overwrites the winner: the swap succeeded and protected nothing.
+
+    Rare is not the same as impossible, and a concurrency control that is correct except under
+    contention is wrong exactly where it is load-bearing. One microsecond of nudge is invisible to
+    every reader of this column and makes the value monotonic per row, which is all the predicate
+    needs.
+
+    **Every register-row writer uses this, not `_now()` directly** -- `_cas_row_edit`, `set_assignee`
+    and `transition`. A single writer stamping with a bare `_now()` would reopen the hole for all
+    of them, because the collision that matters is between ANY two writes to one row, not between
+    two that happen to share a code path. `test_rmw_sweep.py` asserts the population rather than
+    trusting this paragraph.
+    """
+    now = _now()
+    if isinstance(prev, datetime):
+        if prev.tzinfo is None:                 # SQLite hands back naive datetimes
+            prev = prev.replace(tzinfo=timezone.utc)
+        if now <= prev:
+            return prev + timedelta(microseconds=1)
+    return now
 
 
 def _cas_row_edit(db: Session, t, key: str, project_id: str, rid: str,
@@ -740,7 +772,7 @@ def _cas_row_edit(db: Session, t, key: str, project_id: str, rid: str,
         rec = get_record(db, key, project_id, rid)           # 404s if missing
         vals = recompute(rec)
         stamp = rec.get("modified_at")
-        vals["modified_at"] = _now()
+        vals["modified_at"] = _next_stamp(stamp)
         res = db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id,
                                          t.c.modified_at == stamp).values(**vals))
         if res.rowcount == 1:
@@ -1408,7 +1440,7 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     # move the record AND its ball-in-court: party_owner now tracks whose court the new state is in
     # (WORKFLOW-ENGINE — it was set once at create and then went stale). Terminal states have no next
     # court, so we leave the last owner in place there rather than blanking it.
-    vals: dict = {"workflow_state": tr["to"], "modified_at": _now()}
+    vals: dict = {"workflow_state": tr["to"], "modified_at": _next_stamp(rec.get("modified_at"))}
     new_court = court_party(mod, tr["to"])
     if new_court:
         vals["party_owner"] = new_court

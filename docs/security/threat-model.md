@@ -67,7 +67,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Request untraceability | `X-Request-ID` middleware stamps every request (inbound honored, ≤64 chars), propagated to OTel spans and the error log. |
 | Unattributable or misattributed professional seal | A seal is a personal legal attestation of responsible charge, not an authorisation, so it requires an authenticated caller **plus** a fresh step-up assertion a stored token cannot satisfy, and the identity is derived from the caller's own admin-verified licence rather than from the request. The audit row records the actor, the licence **row id**, `via` (verified licence vs legacy free text) and that a step-up was required — so a human act and an automated one are distinguishable after the fact. Previously the seal endpoints had no authorisation and no audit row at all (v0.3.800). |
 | Untrusted writes into the audit trail | The e-signature provider webhook is the one anonymous surface that writes audit rows (a provider holds no user credential). It verifies an HMAC over the raw request body when `AEC_ESIGN_WEBHOOK_SECRET` is set, is rate-limited and size-capped, bounds every stored string, and stamps each row with whether the signature was verified — so an unverified entry cannot be read as a verified one. |
-| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`. On record updates there are **two** controls, and the entry previously named only the opt-in one. `expected_modified_at` returns 409 when the record moved since the caller loaded it — but it is opt-in, and one of five web call sites passes it, so the register's inline cell editors had nothing. Every read-modify-write on a record row now also carries an in-SQL compare-and-swap on `modified_at` (`modules._cas_row_edit`): a write derived from a stale read matches no row, re-reads and re-applies, so a concurrent edit to a different field is no longer erased. Gated by `services/api/test_rmw_sweep.py`, which fails the build on a register-row write that derives its value from a read it does not swap on. Two JSON collections on tables with no `modified_at` — `Scenario.shared_with` and `Project.dev_property` — are named as open in that gate's `BAND_2` ledger rather than left unstated (gap G-10). |
+| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`. On record updates there are **two** controls, and the entry previously named only the opt-in one. `expected_modified_at` returns 409 when the record moved since the caller loaded it — but it is opt-in, and one of five web call sites passes it, so the register's inline cell editors had nothing. Every read-modify-write on a record row now also carries an in-SQL compare-and-swap on `modified_at` (`modules._cas_row_edit`): a write derived from a stale read matches no row. What happens next depends on who owns the transaction — a caller that owns it RE-READS and re-applies (up to four rounds), so a concurrent edit to a different field is no longer erased; a caller that does not (`update_record(commit=False)`, used for multi-row edits) gets ONE attempt and a 409, because retrying would roll back the rows it had already staged and then report a partial edit as whole. The stamp is advanced through `modules._next_stamp`, which is strictly monotonic per row: a bare `datetime.now()` can repeat inside one microsecond, and a token that repeats leaves the predicate reusable by the very writer it is meant to exclude. Gated by `services/api/test_rmw_sweep.py`, which fails the build on a register-row write that derives its value from a read it does not swap on. Thirteen sites remain open and are named in that gate's ledgers rather than left unstated (gaps G-10 and G-11): JSON collections on tables with no `modified_at`, and six IFC-authoring routes that derive a new model version from the current one outside the per-project lock the other six take. |
 
 ### 7. Supply chain & CI/CD
 | Threat | Control |
@@ -162,7 +162,25 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    the pre-fix tree, so it is known to fail on the real bugs and not only on synthetic ones.
 9. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
    enterprise deployment. Operator action.
-10. **G-10 (S) Two JSON collections still lose a concurrent write** — `Scenario.shared_with` (a
+10. **G-11 (M) Six IFC-authoring routes derive a new model version outside the project lock** —
+   `bake_layers`, `import_families`, `import_family_pack`, `place_family`, `content_import` and
+   `_restore_version` in `services/api/src/aec_api/routers/authoring.py` each read
+   `Project.source_ifc`, produce a NEW IFC version from it, and write the pointer back. Six sibling
+   routes doing the identical thing (`edit`, `edit_graph`, `edit_batch`, `macros_run`,
+   `option_activate`, and `mcp_tools._run_recipe`) wrap that region in `pid_lock.mutating(pid)`,
+   one of them commented *"same RMW race as /edit — serialize per project"* — so the control exists,
+   is documented in the row above, and is applied to half the population. Two concurrent placements
+   lose one, silently, with both callers answered 200. **Found by widening `test_rmw_sweep.py`'s ORM
+   derivation, not by anyone reading the routes**, and the split is now asserted there in both
+   directions: a site the ledger calls locked must be lexically under the lock, and a site it calls
+   open must still be open, so closing one cannot leave a stale gap recorded. Deliberately NOT fixed
+   in the pull request that found it — wrapping six routes that do long IFC I/O is a different blast
+   radius from the register-row change, and is its own item (roadmap: RMW-LOCKGAP).
+   `upload_source_ifc` and `import_rvt` are excluded on purpose: they write uploaded bytes to a
+   fixed path, derived from nothing they read, so last-writer-wins is an upload's specified
+   behaviour.
+
+11. **G-10 (S) Two JSON collections still lose a concurrent write** — `Scenario.shared_with` (a
    share grant) and `Project.dev_property` (an appraisal-override merge). Both read a JSON
    collection and write back what they derived, and neither table carries a `modified_at`, so the
    compare-and-swap the record row uses does not exist for them; JSON equality is not a swap that
