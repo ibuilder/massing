@@ -12,6 +12,45 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY — G-11 was closed yesterday and five writers of the same column were still unlocked
+
+`test_rmw_sweep` derives **read-modify-writes**. `p.source_ifc = str(ifc_path)` reads nothing — it
+installs a new pointer — so it was never in that population, and neither was the conditional-create
+`if not p.source_ifc: ...`. G-11 was closed on 2026-09-13 by locking every `source_ifc`
+read-modify-write in `routers/authoring.py`; **five writers of that same column were left open, two
+of them inside that file.** A pointer swap that reads nothing still orphans the version a concurrent
+`bake_layers` is deriving from.
+
+Now locked: `authoring.upload_source_ifc`, `authoring.import_rvt` (both `async def`, so the lock is
+taken off the event loop via `run_in_threadpool` — the v0.3.703 SSE failure otherwise),
+`generate.create_blank_model`, `generate.ensure_model`, `generate._finalize_generated`.
+`generate.py` had no `pid_lock` import at all.
+
+**`ensure_model` was the sharpest.** It is a CHECK-THEN-ACT, not a read-modify-write: it reads
+`source_ifc`, concludes from its emptiness that no model exists, and installs a blank one. Unlocked,
+two concurrent calls both read empty, both generate over the same fixed `source.ifc` path, and both
+answer `created: true`. The lock spans the DECISION — the early returns are inside it — because a
+lock taken after the branch protects nothing this route does.
+
+**The first diagnosis was wrong, and the correction is the point.** It looked like a FILE boundary:
+`generate.py` contained no lock at all, so the closure seemed to have stopped at the edge of the file
+being worked in. It had not — two of the five are in the "closed" file. What bounds the coverage is
+the SHAPE. *A coincidence that corroborates a wrong theory is the expensive kind, because it ends the
+search.*
+
+`services/api/test_lock_boundary.py` derives the rule from the code rather than a ledger: a
+`(model, attribute)` pair locked in **any** writer must be locked in **every** writer. It resolves
+each receiver to a mapped model — four binding forms, every one added because a probe reported
+UNKNOWN rather than because it was anticipated — and fails closed, because a resolver that guesses
+turns each of those into a confident wrong answer. Receiver resolution is load-bearing, not tidy:
+`modules.save_view` writes `.config` and matches `Connection.config` by NAME, but it is a `SavedView`
+and not a violation at all.
+
+**It states its own limit rather than hiding it:** this finds INCONSISTENT protection, not ABSENT
+protection. `Project.dev_budget` has four writers and no lock anywhere, so it never enters the seed
+and this gate is silent on it — the sweep names two of those four instead. Each derivation is blind
+where the other sees, which is why both exist.
+
 ### Two admins saving one connection: one of the two saves vanished
 
 `Connection.config` had **two** writers and neither took a lock. `update_connection` merges the

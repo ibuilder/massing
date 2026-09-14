@@ -1243,8 +1243,22 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
         storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(ifc_path))
         return n
     size = await run_in_threadpool(_persist)
-    p.source_ifc = str(ifc_path)
-    db.commit()
+
+    def _swap() -> None:
+        """Install the new pointer under the project lock, OFF the event loop.
+
+        LOCK-BOUNDARY. A plain write, not a read-modify-write, so `test_rmw_sweep` never had it --
+        and it still orphans whatever version a concurrent `bake_layers` is deriving from. This
+        route is `async def` and `pid_lock.mutating` blocks on a Postgres advisory lock, so taking
+        it inline would park the loop for every other client: the v0.3.703 SSE failure exactly.
+        """
+        from .. import pid_lock  # function-local, as everywhere else here: module-level
+        with pid_lock.mutating(pid):        # would close an import cycle through `..jobs`
+            db.refresh(p)
+            p.source_ifc = str(ifc_path)
+            db.commit()
+
+    await run_in_threadpool(_swap)
     audit.record(db, action="ifc.upload", actor=actor, method="POST",
                  path=f"/projects/{pid}/source-ifc")
     db.commit()
@@ -1473,8 +1487,18 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
     ifc_path = _ifc_path(pid, "source.ifc")
     ifc_path.write_bytes(ifc)
     storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc)
-    p.source_ifc = str(ifc_path)
-    db.commit()
+
+    def _swap() -> None:
+        """Install the translated model's pointer under the project lock, off the event loop.
+        Same shape and same reason as `upload_source_ifc` above -- a plain pointer swap the
+        read-modify-write sweep cannot see, racing every authoring route that derives from it."""
+        from .. import pid_lock  # function-local, as everywhere else here: module-level
+        with pid_lock.mutating(pid):        # would close an import cycle through `..jobs`
+            db.refresh(p)
+            p.source_ifc = str(ifc_path)
+            db.commit()
+
+    await run_in_threadpool(_swap)
     audit.record(db, action="ifc.import_rvt", actor=actor, method="POST", path=f"/projects/{pid}/import/rvt",
                  detail={"rvt": file.filename, "ifc_bytes": len(ifc)})
     db.commit()

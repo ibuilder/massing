@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import audit, design_phase, soft_costs, storage
+from .. import audit, design_phase, pid_lock, soft_costs, storage
 from ..apppaths import add_data_src_to_path
 from ..db import get_db
 from ..models import Project
@@ -213,11 +213,19 @@ def _finalize_generated(db, p, pid: str, body: MassingIn, metrics: dict, ifc_pat
     """The shared tail of every massing generate (box AND dome): durable copy → source-of-truth
     pointer → Finance/GC seeds → audit → off-thread publish → response. One implementation so the
     two shape branches cannot drift apart (they were byte-for-byte clones)."""
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
-    p.source_ifc = str(ifc_path)
-    if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
-        p.dev_budget = _seed_dev_budget(body, metrics)
-    db.commit()
+    # LOCK-BOUNDARY. The pointer swap is a PLAIN WRITE -- it reads nothing -- so `test_rmw_sweep`,
+    # which derives read-modify-writes, never had it in its population. It still destroys the version
+    # a concurrent `bake_layers` is deriving from: that route reads `source_ifc`, spends a recipe
+    # applying to it, and writes the result back. Whichever commits last wins and the other's work is
+    # orphaned. The `dev_budget` seed below is a conditional create on the same row, which is the
+    # other shape the sweep cannot see, so it belongs inside the same span.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
+        p.source_ifc = str(ifc_path)
+        if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
+            p.dev_budget = _seed_dev_budget(body, metrics)
+        db.commit()
     audit.record(db, action="ifc.generate", actor=actor, method="POST",
                  path=f"/projects/{pid}/generate/massing", detail=metrics)
     db.commit()
@@ -249,10 +257,17 @@ def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_d
         raise HTTPException(404, "project not found")
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _ifc_path(pid, "source.ifc")
-    generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys, storey_height=body.storey_height)
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
-    p.source_ifc = str(ifc_path)
-    db.commit()
+    # LOCK-BOUNDARY. The generate is inside the lock as well as the swap, because the filename is
+    # FIXED (`source.ifc`): two concurrent blank creates do not merely race on the column, they write
+    # the same path. Serialising only the assignment would leave two writers interleaving in the
+    # filesystem under a lock that looked sufficient.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys,
+                           storey_height=body.storey_height)
+        storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
+        p.source_ifc = str(ifc_path)
+        db.commit()
     audit.record(db, action="ifc.blank", actor=actor, method="POST",
                  path=f"/projects/{pid}/model/blank", detail={"storeys": body.storeys})
     db.commit()
@@ -550,35 +565,44 @@ def ensure_model(pid: str, storeys: int = 3, storey_height: float = 3.5,
     if not p:
         raise HTTPException(404, "project not found")
 
-    if p.source_ifc:
-        if os.path.exists(p.source_ifc):
-            return {"status": "found", "created": False, "source_ifc": p.source_ifc,
-                    "note": "the project already has a readable model; nothing was written"}
-        return {"status": "broken_reference", "created": False, "source_ifc": p.source_ifc,
-                "note": "this project points at a model that is not readable. Refusing to replace it "
-                        "with a blank one: that would destroy the only reference to a model which may "
-                        "still be recoverable, and would report success while doing it. Restore the "
-                        "file, or clear source_ifc first if the loss is accepted."}
+    # LOCK-BOUNDARY. This is a CHECK-THEN-ACT, not a read-modify-write: it reads `source_ifc`,
+    # concludes from its emptiness that no model exists, and installs one. Unlocked, two
+    # concurrent calls both read empty, both run `generate_blank_ifc` over the SAME fixed path,
+    # and both report `created: True` — and a call concurrent with a bake or an undo overwrites
+    # that version's pointer with a blank model. The lock has to span the DECISION, not just the
+    # write, which is why the early returns sit inside it: a lock taken after the branch protects
+    # nothing this route does.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        if p.source_ifc:
+            if os.path.exists(p.source_ifc):
+                return {"status": "found", "created": False, "source_ifc": p.source_ifc,
+                        "note": "the project already has a readable model; nothing was written"}
+            return {"status": "broken_reference", "created": False, "source_ifc": p.source_ifc,
+                    "note": "this project points at a model that is not readable. Refusing to replace it "
+                            "with a blank one: that would destroy the only reference to a model which may "
+                            "still be recoverable, and would report success while doing it. Restore the "
+                            "file, or clear source_ifc first if the loss is accepted."}
 
-    # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
-    # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
-    # edit builds the path from something safe_seg never saw.
-    base = _IFC_DIR.resolve()
-    target_dir = (base / storage.safe_seg(pid)).resolve()
-    if not str(target_dir).startswith(str(base) + os.sep):
-        raise HTTPException(400, "invalid project id")
-    target_dir.mkdir(parents=True, exist_ok=True)
-    ifc_path = target_dir / "source.ifc"
-    generate_blank_ifc(str(ifc_path), name=p.name or "Model", storeys=storeys,
-                       storey_height=storey_height)
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
-    p.source_ifc = str(ifc_path)
-    db.commit()
+        # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
+        # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
+        # edit builds the path from something safe_seg never saw.
+        base = _IFC_DIR.resolve()
+        target_dir = (base / storage.safe_seg(pid)).resolve()
+        if not str(target_dir).startswith(str(base) + os.sep):
+            raise HTTPException(400, "invalid project id")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        ifc_path = target_dir / "source.ifc"
+        generate_blank_ifc(str(ifc_path), name=p.name or "Model", storeys=storeys,
+                           storey_height=storey_height)
+        storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
+        p.source_ifc = created_path = str(ifc_path)
+        db.commit()
     audit.record(db, action="ifc.ensure", actor=actor, method="POST",
                  path=f"/projects/{pid}/model/ensure", detail={"storeys": storeys})
     db.commit()
     _publish_bg(pid)
-    return {"status": "created", "created": True, "source_ifc": p.source_ifc,
+    return {"status": "created", "created": True, "source_ifc": created_path,
             "storeys": storeys, "storey_height": storey_height,
             "note": "the project had no model; a blank authorable one was created so drawing can "
                     "start immediately"}
