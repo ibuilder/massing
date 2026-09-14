@@ -173,6 +173,34 @@ returns a **tz-aware** datetime while SQLite hands `modified_at` back **naive**,
 rendered differently the next `WHERE modified_at = <what we just read>` would match nothing and every
 edit would 409.
 
+**A third review round found two more, and both were the gate accepting a SHAPE where it meant to
+check a FACT.** Neither is a live defect in this tree — the population and every count are unchanged
+— which is precisely what makes them worth recording: each one would have gone quiet on the *next*
+ordinary edit, with every number still printing.
+
+- **Naming the guard counted as calling it.** The stamp check asked whether the name `_next_stamp`
+  occurred anywhere in the `modified_at` expression, so `_next_stamp(None)` satisfied it in all three
+  shapes. That argument is not a near-miss: `None` skips the `now <= prev` comparison inside the
+  helper and it returns a bare `_now()` — the exact unguarded clock the helper exists to replace.
+  Under a frozen clock the writer re-emits the token it just read, the loser's CAS predicate still
+  matches, and the swap protects nothing while the gate reports it protected. The argument is now
+  traced back to the row's prior `modified_at`, through a local if it was hoisted into one, and all
+  three shapes route through one function so a fourth inherits the rule. *Naming the guard is not
+  calling it, and calling it is not feeding it.*
+- **Both taint analyses walked `ast.Assign` and not `ast.AnnAssign`.** An annotated
+  `rec: dict = get_record(...)` breaks the Core chain and the write behind it classifies as PLAIN;
+  an annotated `prior: dict = p.dev_property` drops the ORM site out of the population *entirely*,
+  taking its ledger entry with it — at which point the staleness check would have blamed the ledger
+  entry and pointed the next reader at the wrong file. **The blind spot is one `mypy --strict` pass
+  wide.** Adding annotations changes no behaviour, is the most ordinary edit in the language, and
+  would have silently emptied both derivations. *A gate whose reach depends on the syntax somebody
+  happened to use is measuring the author, not the code.*
+
+The ORM analyser was also split out per-file so a **fixture** can be run through it. It could
+previously only be fed the repository — and the shape review found missing does not occur here, so no
+amount of reading the source would have produced a failing case. *An analyser that can only be fed
+the tree cannot be given the input it gets wrong.*
+
 *The first draft of that check passed under its own mutation.* It asserted that a frozen-clock edit
 LANDS and that the next edit matches — both still true with the branch deleted, because SQLite
 serialises writers and each session sees its own write. It is now the losing interleaving run with

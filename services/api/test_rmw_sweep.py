@@ -124,6 +124,29 @@ def _mapped_models() -> set[str]:
 MODELS = _mapped_models()
 
 
+def _assigned(n: ast.AST):
+    """`(targets, value)` for an assignment node, or `None` -- and `x: T = v` IS an assignment.
+
+    Every derivation below walks assignments to follow a value, and each of them walked `ast.Assign`
+    alone. Review caught what that costs on PR #552: an annotated `rec: dict = get_record(...)`
+    breaks the Core taint chain, so the update behind it reads as PLAIN; an annotated
+    `prior: dict = p.dev_property` drops the ORM site out of the population *entirely*, taking its
+    ledger entry with it. **The blind spot is one `mypy --strict` pass wide** -- adding annotations is
+    the most ordinary edit in the language, it changes no behaviour, and it would have silently
+    emptied both derivations while every count still printed.
+
+    `ast.AugAssign` is deliberately NOT folded in here: `x += y` is a read-modify-write by
+    construction, and the ORM detector treats it as one without consulting the right-hand side at
+    all. Returning it from this helper would route it through the "does the value mention the object"
+    test and lose that.
+    """
+    if isinstance(n, ast.Assign):
+        return n.targets, n.value
+    if isinstance(n, ast.AnnAssign) and n.value is not None:
+        return [n.target], n.value
+    return None
+
+
 def _table_names(fn: ast.AST) -> set[str]:
     """Names in this function bound to a register table: `t = TABLES[key]`, plus `_cas_row_edit`'s
     `t` parameter, which IS a register table by contract (every call site passes `TABLES[key]`)."""
@@ -132,9 +155,13 @@ def _table_names(fn: ast.AST) -> set[str]:
         if fn.name == "_cas_row_edit":
             names.add("t")
     for n in ast.walk(fn):
-        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Subscript) \
-           and isinstance(n.value.value, ast.Name) and n.value.value.id == "TABLES":
-            names.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        pair = _assigned(n)
+        if pair is None:
+            continue
+        targets, value = pair
+        if isinstance(value, ast.Subscript) and isinstance(value.value, ast.Name) \
+           and value.value.id == "TABLES":
+            names.update(t.id for t in targets if isinstance(t, ast.Name))
     return names
 
 
@@ -142,8 +169,9 @@ def _tainted(fn: ast.AST) -> set[str]:
     """Names carrying a value read from the row, to a fixed point.
 
     Seeds are `get_record(...)` results and `_cas_row_edit`'s `rec` parameter (the row handed to a
-    recompute callback). Propagation is through plain assignment, which is what makes the PRE-FIX
-    `set_element_guids` visible: `rec` -> `cur` -> `result` -> `.values(element_guids=result)`.
+    recompute callback). Propagation is through assignment -- annotated or not, see `_assigned` --
+    which is what makes the PRE-FIX `set_element_guids` visible: `rec` -> `cur` -> `result` ->
+    `.values(element_guids=result)`.
     """
     taint = set()
     if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name in ("recompute", "supersede"):
@@ -151,13 +179,15 @@ def _tainted(fn: ast.AST) -> set[str]:
     for _ in range(8):                                   # fixed point; the chains here are short
         before = set(taint)
         for n in ast.walk(fn):
-            if not isinstance(n, ast.Assign):
+            pair = _assigned(n)
+            if pair is None:
                 continue
-            txt = ast.unparse(n.value)
+            targets, value = pair
+            txt = ast.unparse(value)
             seeded = "get_record(" in txt or any(
-                isinstance(x, ast.Name) and x.id in taint for x in ast.walk(n.value))
+                isinstance(x, ast.Name) and x.id in taint for x in ast.walk(value))
             if seeded:
-                for t in n.targets:
+                for t in targets:
                     taint.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
         if taint == before:
             break
@@ -321,6 +351,18 @@ _self2 = classify(_PRE_FIX_UPDATE_RECORD, "<pre-fix>")
 check("SELF-TEST: it reaches a SPLATTED values dict too -- the blind spot that cost PR #551 a round",
       [v for *_, v in _self2] == ["BLIND_RMW"], f"got {_self2}")
 
+#: The same pre-fix writer with two locals ANNOTATED -- a change that alters no behaviour whatever.
+#: Before review caught this on PR #552 the taint chain broke at the first annotation and the
+#: statement classified PLAIN: the analyser reported the defect fixed because somebody ran a type
+#: sweep. There is no such writer in the tree today, which is the point -- this shape had to be
+#: CONSTRUCTED to be tested, and an analyser only ever fed the repository never sees it.
+_PRE_FIX_ANNOTATED = (_PRE_FIX
+                      .replace("    rec = get_record(", "    rec: dict = get_record(")
+                      .replace("    cur = set(", "    cur: set = set("))
+check("SELF-TEST: an ANNOTATED assignment carries taint -- `rec: dict = get_record(...)` is a read",
+      [v for *_, v in classify(_PRE_FIX_ANNOTATED, "<annotated>")] == ["BLIND_RMW"],
+      f"got {classify(_PRE_FIX_ANNOTATED, '<annotated>')}")
+
 _GUARDED = (_PRE_FIX
             .replace("    cur = set(", "    stamp = rec.get(\"modified_at\")\n    cur = set(")
             .replace("t.c.project_id == project_id)",
@@ -433,12 +475,81 @@ check("the writer derivation REACHES `transition`, whose values are a splatted d
       ("src/aec_api/modules.py", "transition") in WRITERS, f"found {len(WRITERS)}: {WRITERS}")
 
 
-def _stamp_ok(values: ast.Call) -> bool:
-    """Does THIS `.values(...)` set `modified_at` from `_next_stamp(...)`?"""
+def _reads_prior_stamp(node: ast.AST) -> bool:
+    """Does this expression read the row's `"modified_at"` -- `rec.get("modified_at")`, `rec[...]`?"""
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) \
+           and n.func.attr in ("get", "pop") and n.args \
+           and isinstance(n.args[0], ast.Constant) and n.args[0].value == "modified_at":
+            return True
+        if isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) \
+           and n.slice.value == "modified_at":
+            return True
+    return False
+
+
+def _is_next_stamp_call(node: ast.AST) -> bool:
+    """Is this node a CALL of `_next_stamp` -- as opposed to a mention of the name?"""
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+        and node.func.id == "_next_stamp"
+
+
+def _prior_stamp_names(fn: ast.AST) -> set[str]:
+    """Names holding the row's PRE-IMAGE `modified_at`, which is the only legitimate argument.
+
+    Seeded by any read of that key off an object and propagated through assignment, because
+    `_cas_row_edit` is written in two statements: `stamp = rec.get("modified_at")` ... later ...
+    `vals["modified_at"] = _next_stamp(stamp)`. Assignments whose value is itself a `_next_stamp`
+    call are skipped, so the POST-image never becomes a name this set would accept.
+    """
+    names: set[str] = set()
+    for _ in range(4):                                   # fixed point; these chains are one hop
+        before = set(names)
+        for n in ast.walk(fn):
+            pair = _assigned(n)
+            if pair is None:
+                continue
+            targets, value = pair
+            if _is_next_stamp_call(value):
+                continue                                 # that is the new token, not the old one
+            if _reads_prior_stamp(value) or any(
+                    isinstance(x, ast.Name) and x.id in names for x in ast.walk(value)):
+                for t in targets:
+                    names.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
+        if names == before:
+            break
+    return names
+
+
+def _stamp_arg_ok(value: ast.AST, priors: set[str]) -> bool:
+    """Is this expression a `_next_stamp(<the row's prior modified_at>)` CALL?
+
+    The previous draft asked whether the NAME `_next_stamp` occurred anywhere in the expression, and
+    review caught what that admits on PR #552: `_next_stamp(None)` passed. That argument is not a
+    near-miss -- it makes the helper skip its `now <= prev` comparison and return a bare `_now()`,
+    which is exactly the unguarded clock the helper exists to replace. Under a frozen clock the
+    writer then re-emits the token it just read, the loser's CAS predicate still matches, and the
+    swap protects nothing while every check here says it does.
+
+    *Naming the guard is not calling it, and calling it is not feeding it.* All three shapes route
+    through this one function, so a fourth shape inherits the rule rather than reintroducing the
+    hole.
+    """
+    if not _is_next_stamp_call(value):
+        return False
+    if len(value.args) != 1 or value.keywords:
+        return False                                     # fails closed on anything unfamiliar
+    arg = value.args[0]
+    if _reads_prior_stamp(arg):
+        return True
+    return isinstance(arg, ast.Name) and arg.id in priors
+
+
+def _stamp_ok(values: ast.Call, priors: set[str]):
+    """Does THIS `.values(...)` set `modified_at` from `_next_stamp(<prior token>)`?"""
     for kw in values.keywords:
         if kw.arg == "modified_at":
-            return any(isinstance(c, ast.Name) and c.id == "_next_stamp"
-                       for c in ast.walk(kw.value))
+            return _stamp_arg_ok(kw.value, priors)
     # A splat: the mapping is in a dict built elsewhere, so fall back to the dict literal that
     # supplies it. This is `transition`'s shape and the third one the detector had to learn.
     return None
@@ -458,6 +569,10 @@ def stamps_through_helper(fn: ast.AST) -> bool:
     *A check that answers "yes, somewhere" is not answering the question a sweep asks, which is
     always "every one".* Each update is now validated against its own `.values(...)`, and a function
     with no update at all is not a writer and cannot pass vacuously.
+
+    The third was wrong in the same direction one layer down: it accepted any expression CONTAINING
+    the name `_next_stamp`, so `_next_stamp(None)` -- which returns the bare clock -- satisfied it.
+    See `_stamp_arg_ok`, which every shape now routes through.
     """
     body = list(fn.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
@@ -471,15 +586,19 @@ def stamps_through_helper(fn: ast.AST) -> bool:
     # plain keyword handled in `_stamp_ok`. Listing them is unavoidable; being CAUGHT missing one is
     # what the per-update rewrite bought, since the previous draft passed on any single good stamp
     # and would have said nothing.
-    dict_stamps = [any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(v))
+    priors = _prior_stamp_names(fn)
+    dict_stamps = [_stamp_arg_ok(v, priors)
                    for n in nodes if isinstance(n, ast.Dict)
                    for k, v in zip(n.keys, n.values)
                    if isinstance(k, ast.Constant) and k.value == "modified_at"]
-    dict_stamps += [any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value))
-                    for n in nodes if isinstance(n, ast.Assign)
-                    for t in n.targets
-                    if isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
-                    and t.slice.value == "modified_at"]
+    for n in nodes:
+        pair = _assigned(n)
+        if pair is None:
+            continue
+        targets, value = pair
+        if any(isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
+               and t.slice.value == "modified_at" for t in targets):
+            dict_stamps.append(_stamp_arg_ok(value, priors))
 
     updates = 0
     for n in nodes:
@@ -489,7 +608,7 @@ def stamps_through_helper(fn: ast.AST) -> bool:
         if not parts or parts[2] is None:
             continue
         updates += 1
-        verdict = _stamp_ok(parts[2])
+        verdict = _stamp_ok(parts[2], priors)
         if verdict is False:
             return False                         # this update names the column and not the helper
         if verdict is None:                      # splatted -- every dict literal must supply it
@@ -528,6 +647,57 @@ _DICT_SHAPE = ast.parse(
     '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
 check("SELF-TEST: the DICT-LITERAL shape counts -- the one the strengthened check first missed",
       stamps_through_helper(_DICT_SHAPE), "the splatted-dict shape failed the stamp check")
+
+#: `_next_stamp(None)`, in all three shapes. The argument is not a near-miss: `None` skips the
+#: `now <= prev` comparison inside the helper, so it returns a bare `_now()` -- the very clock the
+#: helper replaces. Every one of these passed the name-presence draft review caught on PR #552.
+_STAMP_NONE_KW = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(None)))\n').body[0]
+_STAMP_NONE_DICT = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    vals = {"workflow_state": "x", "modified_at": _next_stamp(None)}\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+_STAMP_NONE_SUB = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    vals = {"workflow_state": "x"}\n'
+    '    vals["modified_at"] = _next_stamp(None)\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+for _shape, _fx in (("keyword", _STAMP_NONE_KW), ("dict literal", _STAMP_NONE_DICT),
+                    ("subscript assign", _STAMP_NONE_SUB)):
+    check(f"SELF-TEST: `_next_stamp(None)` is REFUSED in the {_shape} shape -- naming the guard is "
+          "not calling it, and calling it is not feeding it the token it must beat",
+          not stamps_through_helper(_fx), f"`_next_stamp(None)` passed as a {_shape}")
+
+#: A name that holds `_now()` rather than the row's token is refused for the same reason.
+_STAMP_WRONG_NAME = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    stamp = _now()\n'
+    '    vals = {"workflow_state": "x"}\n'
+    '    vals["modified_at"] = _next_stamp(stamp)\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+check("SELF-TEST: a local NOT read from the row is refused as the argument, however it is spelled",
+      not stamps_through_helper(_STAMP_WRONG_NAME), "`_next_stamp(_now())` passed through a local")
+
+#: ...and `_cas_row_edit`'s real two-statement shape passes, annotated or not, so the rule above is
+#: not simply always-no. The annotated arm is the `_assigned` fix under its own load.
+_STAMP_VIA_LOCAL = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    stamp = rec.get("modified_at")\n'
+    '    vals = {"workflow_state": "x"}\n'
+    '    vals["modified_at"] = _next_stamp(stamp)\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+check("SELF-TEST: the token read into a LOCAL first passes -- `_cas_row_edit`'s shipped shape",
+      stamps_through_helper(_STAMP_VIA_LOCAL), "the two-statement shape was rejected")
+_STAMP_VIA_ANN = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    stamp: object = rec.get("modified_at")\n'
+    '    vals: dict = {"workflow_state": "x"}\n'
+    '    vals["modified_at"] = _next_stamp(stamp)\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
+check("SELF-TEST: ...and still passes when that local is ANNOTATED, which `transition` already is",
+      stamps_through_helper(_STAMP_VIA_ANN), "annotating the local lost the prior token")
 
 #: TWO updates, only the first stamped. The previous draft returned True on the first good stamp and
 #: never looked at the second -- review caught it on PR #552.
@@ -915,49 +1085,96 @@ def orm_rmw_sites() -> list[tuple[str, str]]:
     So taint propagates one hop through locals, the same way the Core classifier already does it.
     Written down because the shape is general: *hoisting a read into a variable is the cheapest way
     to make a pattern-matching check stop matching, and it is what a tidy-up commit looks like.*
+
+    Review then found the sequel on PR #552, and it is the same sentence with a cheaper edit:
+    ANNOTATING that hoisted local (`prior: dict = p.dev_property`) made the site vanish again,
+    because both loops walked `ast.Assign` alone. See `_assigned`.
     """
     out = []
     for p in sorted(SRC.rglob("*.py")):
-        tree = ast.parse(p.read_text(encoding="utf-8"))
-        for fn in ast.walk(tree):
-            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            # local -> the object names its value was read from
-            via: dict[str, set[str]] = {}
-            for _ in range(4):                       # fixed point; these chains are one or two hops
-                for n in ast.walk(fn):
-                    if not isinstance(n, ast.Assign):
-                        continue
-                    srcs = {x.value.id for x in ast.walk(n.value)
-                            if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
-                    for nm in ast.walk(n.value):
-                        if isinstance(nm, ast.Name) and nm.id in via:
-                            srcs |= via[nm.id]
-                    if not srcs:
-                        continue
-                    for t in n.targets:
-                        for nm in ast.walk(t):
-                            if isinstance(nm, ast.Name):
-                                via.setdefault(nm.id, set()).update(srcs)
-            for n in ast.walk(fn):
-                if not isinstance(n, (ast.Assign, ast.AugAssign)):
-                    continue
-                targets = n.targets if isinstance(n, ast.Assign) else [n.target]
-                for tgt in targets:
-                    if not (isinstance(tgt, ast.Attribute) and isinstance(tgt.value, ast.Name)):
-                        continue
-                    obj = tgt.value.id
-                    if obj in ("self", "cls", "os", "sys"):
-                        continue
-                    used = {x.value.id for x in ast.walk(n.value)
-                            if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
-                    for nm in ast.walk(n.value):
-                        if isinstance(nm, ast.Name) and nm.id in via:
-                            used |= via[nm.id]
-                    if isinstance(n, ast.AugAssign) or obj in used:
-                        out.append((str(p.relative_to(HERE)), fn.name))
+        out += _orm_sites_in(ast.parse(p.read_text(encoding="utf-8")), str(p.relative_to(HERE)))
     return sorted(set(out))
 
+
+def _orm_sites_in(tree: ast.AST, path: str) -> list[tuple[str, str]]:
+    """The per-file half of `orm_rmw_sites`, split out so a FIXTURE can be run through it.
+
+    It was inlined in the loop above, which meant the only way to exercise the analyser was to find a
+    real file exhibiting the shape -- and the shape review found missing (`prior: dict = ...`) does
+    not occur in this tree, so no amount of reading the source would have produced a failing case.
+    *An analyser that can only be fed the repository cannot be given the input it gets wrong.*
+    """
+    out = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        # local -> the object names its value was read from
+        via: dict[str, set[str]] = {}
+        for _ in range(4):                           # fixed point; these chains are one or two hops
+            for n in ast.walk(fn):
+                pair = _assigned(n)
+                if pair is None:
+                    continue
+                targets, value = pair
+                srcs = {x.value.id for x in ast.walk(value)
+                        if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
+                for nm in ast.walk(value):
+                    if isinstance(nm, ast.Name) and nm.id in via:
+                        srcs |= via[nm.id]
+                if not srcs:
+                    continue
+                for t in targets:
+                    for nm in ast.walk(t):
+                        if isinstance(nm, ast.Name):
+                            via.setdefault(nm.id, set()).update(srcs)
+        for n in ast.walk(fn):
+            pair = _assigned(n)
+            if pair is not None:
+                targets, value = pair
+            elif isinstance(n, ast.AugAssign):
+                targets, value = [n.target], n.value
+            else:
+                continue
+            for tgt in targets:
+                if not (isinstance(tgt, ast.Attribute) and isinstance(tgt.value, ast.Name)):
+                    continue
+                obj = tgt.value.id
+                if obj in ("self", "cls", "os", "sys"):
+                    continue
+                used = {x.value.id for x in ast.walk(value)
+                        if isinstance(x, ast.Attribute) and isinstance(x.value, ast.Name)}
+                for nm in ast.walk(value):
+                    if isinstance(nm, ast.Name) and nm.id in via:
+                        used |= via[nm.id]
+                if isinstance(n, ast.AugAssign) or obj in used:
+                    out.append((path, fn.name))
+    return sorted(set(out))
+
+
+#: `proforma.put_property`'s shape, in three spellings. The direct read and the hoisted local were
+#: already covered; the ANNOTATED local is the one review found missing on PR #552, and it dropped
+#: the site out of the population entirely -- taking its ledger entry with it, so `_stale` would then
+#: have reported the ENTRY as the problem and pointed the next reader at the wrong file.
+_ORM_DIRECT = ('def put_property(db, p, body):\n'
+               '    p.dev_property = {**body, "appraisal": (p.dev_property or {}).get("appraisal")}\n')
+_ORM_HOISTED = ('def put_property(db, p, body):\n'
+                '    prior = p.dev_property or {}\n'
+                '    p.dev_property = {**body, "appraisal": prior.get("appraisal")}\n')
+_ORM_ANNOTATED = ('def put_property(db, p, body):\n'
+                  '    prior: dict = p.dev_property or {}\n'
+                  '    p.dev_property = {**body, "appraisal": prior.get("appraisal")}\n')
+for _spelling, _src in (("read inline", _ORM_DIRECT), ("hoisted into a local", _ORM_HOISTED),
+                        ("hoisted and ANNOTATED", _ORM_ANNOTATED)):
+    check(f"SELF-TEST: the ORM analyser sees the read-modify-write with the read {_spelling}",
+          _orm_sites_in(ast.parse(_src), "<fx>") == [("<fx>", "put_property")],
+          f"got {_orm_sites_in(ast.parse(_src), '<fx>')}")
+
+#: ...and a wholesale overwrite is NOT one, so the three positives above are not always-yes. This is
+#: `put_property` as it shipped BEFORE this pull request -- which is a different defect, not a race.
+check("SELF-TEST: a write that reads nothing back is not a read-modify-write",
+      _orm_sites_in(ast.parse('def put_property(db, p, body):\n    p.dev_property = body\n'),
+                    "<fx>") == [],
+      "a wholesale overwrite was counted as a read-modify-write")
 
 ORM = orm_rmw_sites()
 check("the ORM derivation REACHES a known site, asserted before its count is believed",
