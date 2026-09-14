@@ -1179,10 +1179,11 @@ IFC_PIPELINE = {
 #: Sites that read one column and write another, or write a value the caller supplied whole -- plus
 #: the ones that are genuinely open and have no concurrency token available.
 CROSS_FIELD = {
-    ("src/aec_api/routers/bim.py", "promote_markup"): ("OPEN",
-        "`m.topic_id = t.id`. The SAME shape `modules.promote_comment` had before it was made a "
-        "conditional UPDATE -- a live instance of an already-solved defect. Found by widening this "
-        "gate, not by the review that prompted the widening."),
+    # `bim.promote_markup` was here and is CLOSED (MARKUP-PROMOTE) -- it is not merely re-statused,
+    # because the conditional UPDATE removes the `m.topic_id = t.id` assignment and the site leaves
+    # the derived population altogether. **This gate reported the entry stale before the ledger was
+    # touched**, which is the direction it exists for: closing a gap must force the record to move,
+    # or the tree ends up describing a defect nobody can still find.
     ("src/aec_api/drawingset.py", "revise_sheet"): ("OPEN",
         "`m.data = d2`, derived from `m.data`; no token on that table."),
     ("src/aec_api/routers/connections.py", "put_mappings"): ("OPEN",

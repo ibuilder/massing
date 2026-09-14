@@ -119,6 +119,45 @@ with TestClient(app) as c:
     # the SSE route itself is registered (generator behaviour mirrors the tested pull-plan stream)
     assert "/projects/{pid}/drawings/markup/stream" in app.openapi()["paths"], "stream route missing"
 
+    # --- two sessions that both read a null back-link: exactly one promote survives ---------------
+    # RMW-SWEEP (PR #552) found this route by deriving the read-modify-write population, not by
+    # anyone reading it: `if m.topic_id: 409` then a plain `m.topic_id = t.id` is the shape
+    # `modules.promote_comment` had before it was fixed, still live one module over. The guard reads
+    # the SESSION's copy and `SessionLocal` is `expire_on_commit=False`, so a request that loaded the
+    # markup before a concurrent promote committed still sees None however long it holds it.
+    #
+    # Without the conditional UPDATE the second write wins and one markup yields TWO RFI Topics --
+    # the first orphaned, because no markup points at it any more. A double-click is enough.
+    from fastapi import HTTPException  # noqa: E402
+
+    from aec_api.routers.bim import promote_markup as _promote  # noqa: E402
+
+    race = c.post(f"/projects/{pid}/drawings/markup", headers=H,
+                  json={"sheet_id": "S-101", "x": 1, "y": 2, "note": "two people pressed promote"})
+    rid_race = race.json()["id"]
+    before = len(c.get(f"/projects/{pid}/topics", headers=H).json())
+
+    loser, winner = SessionLocal(), SessionLocal()
+    stale = loser.get(DrawingMarkup, rid_race)        # the loser reads first: topic_id is None
+    assert stale.topic_id is None, stale.topic_id
+    won = _promote(pid, rid_race, winner, "winner")
+    assert stale.topic_id is None, "the loser's session still holds the pre-promote read"
+    try:
+        _promote(pid, rid_race, loser, "loser")
+        raise AssertionError("a stale-read promote must be refused, not duplicated")
+    except HTTPException as e:
+        assert e.status_code == 409, e.status_code
+    loser.close()
+    winner.close()
+
+    # the loser left nothing behind: one new Topic, and the markup points at the winner's.
+    after = c.get(f"/projects/{pid}/topics", headers=H).json()
+    assert len(after) == before + 1, f"the loser minted an orphan: {before} -> {len(after)}"
+    assert won["markup"]["topic_id"] == won["topic"]["id"], won["markup"]
+    fresh = [m for m in c.get(f"/projects/{pid}/drawings/markup?sheet=S-101", headers=H).json()
+             if m["id"] == rid_race][0]
+    assert fresh["topic_id"] == won["topic"]["id"], fresh
+
 print("MARKUP OK - takeoff markups persist to the shared drawing_markups store (kind+data), bulk "
       "save/replace scoped per sheet + author, SVG pins untouched, structured markup promotes to RFI "
       "with its measurement, and promoted markups survive replace. SLIP-SHEET: markups stamp the "
