@@ -9,8 +9,9 @@ read-modify-write and never enters the sweep. Neither does the conditional-creat
 `if not p.source_ifc: ... p.source_ifc = ...`.
 
 The consequence, measured rather than feared: G-11 was closed on 2026-09-13 by locking every
-`source_ifc` read-modify-write in `routers/authoring.py`, and **four writers of that same column were
-left unlocked**, two of them in `authoring.py` itself. A pointer swap that reads nothing still
+`source_ifc` read-modify-write in `routers/authoring.py`, and **five writers of that same column were
+left unlocked** — four this gate reported as violations plus one it could only report as an
+unresolvable receiver — two of them in `authoring.py` itself. A pointer swap that reads nothing still
 destroys the version another worker is deriving from — *a lock one side does not take protects
 nothing*, which is the sentence the `dev_property` pair and the `connections` pair each cost a
 release to learn.
@@ -31,10 +32,35 @@ The population is derived from the code's own behaviour, not from a ledger anyon
 > **RULE** — every other writer of that same `(model, attribute)` must be inside the lock too.
 
 **This finds INCONSISTENT protection, not ABSENT protection, and the difference is not a weakness to
-paper over — it is why this file and `test_rmw_sweep` are both necessary.** `Project.dev_budget` has
-four writers and *no* lock anywhere, so it never enters the seed and this gate is silent on it; the
-sweep names two of those four as open read-modify-writes, which is the reach this one lacks. Each
+paper over — it is why this file and `test_rmw_sweep` are both necessary.** A field with no locked
+writer anywhere never enters the seed, so this gate cannot speak about it at all; `test_rmw_sweep`
+reaches those through a different derivation, naming the read-modify-writes among them. Each
 derivation is blind where the other sees. A future instance must now evade both.
+
+(`Project.dev_budget` used to be the example here, described as having "no lock anywhere". That
+stopped being true in this very change — `_finalize_generated`'s seed is now locked — while the
+sentence claiming it stayed. It is a *different* case now, and the section below says which. **Two
+paragraphs of one docstring disagreeing about one field is the same defect this tree fixed in the
+threat model a day earlier**, and it took a re-read to catch, not a test.)
+
+## Fail closed on the RULE — and NOT on the SEED, which is this gate's live blind spot
+
+**Stated because it is true today, not as a hypothetical.** `generate._finalize_generated` writes
+`.dev_budget` with every mention inside the lock — but its receiver is an un-annotated parameter, so
+the analyser reports UNKNOWN and the pair `(Project, dev_budget)` never enters the seed. The three
+unlocked writers in `routers/proforma.py` (`put_dev_budget`, `sync_gmp_to_hard`, `sync_model_to_hard`)
+are therefore NOT reported, and `Project.dev_budget` is the one field in the tree with a locked writer
+and unlocked ones where this gate stays silent.
+
+So: UNKNOWN is fail-CLOSED where it could excuse an unlocked write, and fail-OPEN where it could
+establish that a field is protected at all. *A predicate that decides what to LOOK at is more
+dangerous than one that decides what to report*, and the seed is exactly such a predicate — this file
+is not exempt from the rule it was written to enforce.
+
+Closing it needs a fifth binding form (a parameter's type annotation) AND the three locks it would
+then demand, which is a change of its own rather than a line here; it is tracked, and this paragraph
+exists so the gap is visible in the gate rather than only in a tracker. Do not delete this section
+when it is fixed — replace it with what the fix was.
 
 ## Fail closed, and the exact shape of "closed"
 
