@@ -12,6 +12,53 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 8 (review) — a certifier that matches on a method NAME, and an inference wearing the shape of a proof
+
+Four findings from the round-8 review, all inside the diff, all real, all fixed.
+
+**1. `lock_spans` certified on the method name alone.** It matched any `<anything>.mutating(...)`, so
+`with session.mutating(pid):` — an unrelated object exposing a method of that name — marked every
+write in its body as locked. *A certifier that matches on a method NAME is trusting a string anybody
+may define*, and it fails in the one direction a certifier must not: silently, toward "yes". The
+receiver is now resolved against the file's own `pid_lock` imports (`pid_lock_names`, per file,
+because most call sites import it function-locally), so a module with no such import certifies
+nothing. An impostor is planted in the self-test population; loosening back to name-matching reds it.
+Six protected pairs before and after — the tightening lost no real lock.
+
+**2. Form 7 was an inference wearing the shape of a proof.** Round 6 reasoned: "a variable bound from
+an attribute chain touching no mapped attribute name cannot be a mapped instance, because reaching one
+by attribute access means traversing a mapped relationship." That holds for chains *through the ORM*
+and says nothing about a chain through anything else — `p = ctx.row` on a plain container holding a
+`Project` touches no mapped attribute name and is a mapped instance. **It was a tree-wide fail-open,
+the same defect as the module predicate it replaced, one layer smaller and better argued.**
+
+The repair is the `test_court_primary` move: *a premise that cannot be checked has already drifted;
+stop inferring it and DECLARE it.* What made that affordable is that the population turned out to be
+**one site** — measured by deleting the rule and re-deriving, not assumed. `NON_MODEL_RECEIVERS` now
+carries that one entry with its reason, everything else falls through to UNKNOWN (fail-closed), and
+the ledger is checked in **both** directions: emptying it must bring every declared site back as an
+unresolvable unlocked write (so no entry is decoration, and none can rot into an exemption for its
+next occupant), and nothing undeclared may need one (the direction round 6 failed in).
+
+`MAPPED_ATTRS` and `_chain_attrs` went with the inference. Its self-test went too — a check on a
+variable nothing reads is precisely the thing this PR is about — and the lesson it carried moved to
+`MODELS`, which *is* load-bearing: an unconfigured registry resolves no receiver and leaves an empty
+seed. **That repointed check immediately failed on a threshold copied from the old one** (34 models,
+not the 183 attributes), which is the argument for pointing a check at something live.
+
+**3. `test_ifc_publish_atomic` asserted SOURCE TEXT.** One check read `authoring_shared.py` and looked
+for the literal `"os.link(final, backup)"`. Same defect `test_pin_pgnull` exists to record: *asking the
+right question and then asserting something adjacent to the answer.* It passes on a spelling and on
+dead code alike, and a faithful rewrite (`os.link(src=…, dst=…)`, or the call moved into a helper) reds
+it for nothing. It now wraps `authoring_shared.os.link` and runs a real publication through it;
+reverting the helper to `os.replace` reds it with the call list empty.
+
+**4. A stale `LOCK-BOUNDARY` comment in `generate.py`.** Two paragraphs had stacked: the first still
+claimed generation runs inside the lock and writes the fixed published path, which round 1 stopped
+being true. The second, correct one stays. *The same failure as round 6's "`mutating` is reentrant, so
+this nests safely" — a comment asserting the property the code no longer has, which reads as reasoning
+rather than as the claim it is.*
+
 ### LOCK-BOUNDARY round 8 — the fix for an incomplete enumeration is not a longer enumeration
 
 Round 7 replaced `test_lock_boundary`'s `ast.Assign`-only matcher with a three-statement one

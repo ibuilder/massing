@@ -200,10 +200,42 @@ check("MUTATION: taking the backup with a RENAME does leave the published path m
 check("taking it with a HARD LINK never does -- the published path is continuously present, so a "
       "reader that checks it before taking the lock cannot be refused mid-publication",
       not _backup_window(os.link), "os.link still left the published path missing")
-check("...and `publish_source_ifc` is the code that uses the link, not just this test",
-      "os.link(final, backup)" in pathlib.Path(
-          "src/aec_api/routers/authoring_shared.py").read_text(encoding="utf-8"),
-      "the helper no longer takes its backup with os.link")
+# ...and the helper must actually USE the link, which is a question about behaviour rather than
+# about source text. This asserted `"os.link(final, backup)" in <the module's source>`, which is the
+# same defect `test_pin_pgnull` was built to record: *asking the right question and then asserting
+# something adjacent to the answer.* It passed on a spelling and would pass on dead code, while a
+# faithful rewrite (`os.link(src=final, dst=backup)`, or the call moved into a helper) reds it for
+# no reason. Wrap `authoring_shared.os.link` instead and run a REAL publication through it.
+import aec_api.routers.authoring_shared as _ash  # noqa: E402
+
+_linked: list[tuple[str, str]] = []
+_real_link = _ash.os.link
+
+
+def _spy_link(src, dst):
+    _linked.append((str(src), str(dst)))
+    return _real_link(src, dst)
+
+
+_p = reset()
+_db = SessionLocal()
+_p = _db.get(Project, PID)
+_ash.os.link = _spy_link
+try:
+    with staged_ifc(FINAL) as _st:
+        _st.write_bytes(NEW)
+        publish_source_ifc(_db, _p, PID, _st, FINAL)
+finally:
+    _ash.os.link = _real_link
+    _db.close()
+
+check("...and `publish_source_ifc` really CALLS os.link on a live publication -- behaviour, not a "
+      "source-text match, which would pass on a spelling and on dead code alike",
+      any(s_ == str(FINAL) and "/.rollback-" in d_.replace("\\", "/") for s_, d_ in _linked),
+      f"os.link was not called with (final, .rollback-*): {_linked}")
+check("  and the published file survived that publication intact",
+      FINAL.exists() and FINAL.read_bytes() == NEW,
+      f"final={'missing' if not FINAL.exists() else len(FINAL.read_bytes())} bytes")
 
 # --- MUTATION: write straight to the published path, as every producer did before this PR --------
 seen_raw = run_producer(write_to_published=True)

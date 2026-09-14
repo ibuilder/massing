@@ -121,19 +121,37 @@ from aec_api.db import Base  # noqa: E402
 
 #: Every mapped class name, read from SQLAlchemy's registry rather than listed here. A list would be
 #: a copy, and a copy is what drifts.
+#: `configure_mappers()` is REQUIRED before reading the registry: mappers configure lazily, and the
+#: first probe of `m.attrs` on an unconfigured one returned 0 of 183. `MODELS` is what every receiver
+#: resolution is checked against, so an unconfigured registry would leave it empty, resolve nothing,
+#: and produce an empty SEED -- a gate reporting on nothing while printing a clean verdict. The
+#: self-tests below assert it is populated before any verdict prints.
+configure_mappers()
 MODELS: set[str] = {m.class_.__name__ for m in Base.registry.mappers}
 
 #: A receiver PROVED not to be a mapped instance -- distinct from `None`, which means "unresolved"
 #: and fails closed. Only a derivation that cannot be wrong may use this.
 NOT_A_MODEL = "<not-a-model>"
 
-#: Every attribute name mapped on ANY model -- columns AND relationships. `configure_mappers()` is
-#: REQUIRED: mappers are configured lazily, and `m.attrs` on an unconfigured registry returns an
-#: EMPTY set. Measured, not assumed -- the first probe of this returned 0 of 183. An empty set here
-#: would mark every attribute chain "provably not a model", which is a fail-OPEN across the whole
-#: tree, so the self-tests below assert it is populated before any verdict is printed.
-configure_mappers()
-MAPPED_ATTRS: set[str] = {a for m in Base.registry.mappers for a in m.attrs.keys()}
+#: DECLARED non-model receivers: (repo-relative path, function, local variable) -> why.
+#:
+#: Everything not named here that the analyser cannot resolve is UNKNOWN, which reds the build. That
+#: is the point: the alternative -- inferring "not a model" from the shape of the binding -- is what
+#: round 6 shipped and round 8 removed, because an inference that decides what to STOP asking about
+#: is invisible in its own output. **A declaration is auditable and an inference is not**, and the
+#: cost of the stricter rule is bounded by how many sites actually need it, which is measured
+#: (deleting this ledger reds exactly one site) rather than assumed.
+#:
+#: An entry that no longer matches a live unresolved receiver reds too, so the ledger cannot rot
+#: into a list of exemptions for code that has moved -- the failure mode `test_unique_read_guard`'s
+#: exemption list is checked against for the same reason.
+NON_MODEL_RECEIVERS: dict[tuple[str, str, str], str] = {
+    ("services/data/src/aec_data/massing.py", "stamp_conformance", "fn"):
+        "`fn = header.file_name` on an ifcopenshell file header. `header` comes from `model.header` "
+        "where `model` is an `ifcopenshell.file`; the `.name` it writes is the IFC header's "
+        "FILE_NAME field, which collides by name with the protected `Connection.name` and nothing "
+        "else. aec_data has no ORM session and this function never touches one.",
+}
 
 SRC_ROOTS = [HERE / "src", HERE.parent / "data" / "src"]
 
@@ -219,36 +237,33 @@ def _rel(p: pathlib.Path) -> str:
         return str(p)
 
 
-def _chain_attrs(node: ast.AST) -> list[str] | None:
-    """The attribute names in `a.b.c`, root-last, or None when the node is not a pure chain."""
-    names: list[str] = []
-    while isinstance(node, ast.Attribute):
-        names.append(node.attr)
-        node = node.value
-    return names if names and isinstance(node, ast.Name) else None
-
-
-def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict) -> dict[str, str]:
+def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
+              relpath: str = "") -> dict[str, str]:
     """local variable -> mapped model name, for the five forms the module docstring lists."""
     out: dict[str, str] = {}
-    #: Form 7: bound from an ATTRIBUTE CHAIN whose every name is unmapped anywhere. To reach a mapped
-    #: instance by attribute access you must traverse a mapped RELATIONSHIP, and every relationship
-    #: name is in `MAPPED_ATTRS` -- so a chain that touches none of them cannot yield one. This is
-    #: what resolves `massing.stamp_conformance` (`fn = header.file_name`, an ifcopenshell header)
-    #: WITHOUT the module-level predicate that used to hide the whole file. Deliberately NOT "bound
-    #: from an attribute chain is not a model": `project.owner` would be, which is why the test is
-    #: against the registry rather than against the shape.
+    #: Form 7: a DECLARED non-model receiver. Not inferred -- declared, in `NON_MODEL_RECEIVERS`
+    #: above, with a stated reason and a self-test that the site still exists.
+    #:
+    #: Round 6 inferred this instead: "a variable bound from an attribute chain touching no mapped
+    #: attribute name cannot be a mapped instance, because reaching one by attribute access means
+    #: traversing a mapped relationship." That reads like a proof and is not one. It holds for
+    #: chains *through the ORM* and says nothing about a chain through anything else: `p = ctx.row`
+    #: on a plain container holding a `Project` touches no mapped attribute name and is a mapped
+    #: instance. **The rule was a fail-OPEN wearing the shape of a proof, and it applied tree-wide**
+    #: -- the same defect as the module predicate it replaced, one layer smaller and better argued.
+    #:
+    #: The population it was carrying turned out to be ONE site, which is what makes declaring
+    #: viable: a rule demanding many declarations gets abandoned half-done, a rule demanding one
+    #: does not. Everything else now falls through to UNKNOWN, which is fail-CLOSED and reds.
     #:
     #: This matcher and the model-resolving one below are BOTH `ast.Assign`-only, deliberately, and
     #: that is not the defect `_stored_attrs` fixes. They fail CLOSED: a binding form they miss
     #: leaves the receiver unresolved, the site is reported UNKNOWN and the build reds. `collect`
     #: was the only place a missed spelling meant a write was never LOOKED at. *Whether an
     #: incomplete matcher is a hole depends entirely on which direction its silence points.*
-    for n in ast.walk(fn):
-        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
-            chain = _chain_attrs(n.value)
-            if chain and not (set(chain) & MAPPED_ATTRS):
-                out.setdefault(n.targets[0].id, NOT_A_MODEL)
+    for (decl_path, decl_fn, decl_var) in NON_MODEL_RECEIVERS:
+        if decl_path == relpath and decl_fn == getattr(fn, "name", None):
+            out.setdefault(decl_var, NOT_A_MODEL)
     #: Form 5: a PARAMETER whose annotation names a model. Added to close this gate's own seed blind
     #: spot: `generate._finalize_generated` locks `.dev_budget` but received `p` unannotated, so the
     #: pair never entered the seed and three unlocked writers of it went unreported. A helper that
@@ -280,25 +295,62 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict) 
     return out
 
 
-def lock_spans(fn: ast.AST, attr: str) -> tuple[bool, list[int]]:
+def pid_lock_names(tree: ast.AST) -> tuple[set[str], bool]:
+    """Which names in this module mean the `pid_lock` MODULE, and is `mutating` imported bare?
+
+    Every call site in this tree spells it `from .. import pid_lock` (often function-locally) and
+    then `pid_lock.mutating(...)`, so the module name is what has to be resolved. The bare-`mutating`
+    half is accepted too, for the `from ..pid_lock import mutating` form that nothing uses today --
+    a rule that only admits the one spelling in the tree would fail CLOSED on the other, which is
+    safe, but would also be a lie about what the lock is.
+    """
+    names: set[str] = set()
+    bare = False
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom):
+            for a in n.names:
+                if a.name == "pid_lock":
+                    names.add(a.asname or a.name)
+                elif a.name == "mutating" and (n.module or "").endswith("pid_lock"):
+                    bare = True
+        elif isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name.split(".")[-1] == "pid_lock":
+                    names.add(a.asname or a.name.split(".")[-1])
+    return names, bare
+
+
+def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool = False
+               ) -> tuple[bool, list[int]]:
     """Is EVERY mention of `attr` in this function inside `with pid_lock.mutating(...)`?
 
     Same rule as `test_rmw_sweep.under_pid_lock`, and stricter than strictly necessary on purpose:
     a read kept outside the lock for logging would count. This function decides whether to CERTIFY,
     and the safe direction for a certifier is to refuse what it cannot prove -- *a certifier that
     reasons about which stragglers are harmless is one bad reading away from blessing one.*
+
+    **The receiver is checked, not just the method name.** Until 2026-09-14 this matched any
+    `<anything>.mutating(...)` -- so `with self.mutating(...)`, `with cursor.mutating(...)`, or a
+    local object that happened to expose that method CERTIFIED every write in its body as locked.
+    *A certifier that matches on a method NAME is trusting a string that anybody may define*, and it
+    fails in the one direction a certifier must not: silently, and toward "yes". `lock_names` comes
+    from the file's own imports, so a module with no `pid_lock` import certifies nothing at all.
     """
     outside: list[int] = []
+
+    def is_the_lock(ctx: ast.AST) -> bool:
+        if not isinstance(ctx, ast.Call):
+            return False
+        f = ctx.func
+        if isinstance(f, ast.Attribute) and f.attr == "mutating":
+            return isinstance(f.value, ast.Name) and f.value.id in lock_names
+        return bare_mutating and isinstance(f, ast.Name) and f.id == "mutating"
 
     def walk(node: ast.AST, locked: bool) -> None:
         for ch in ast.iter_child_nodes(node):
             here = locked
             if isinstance(ch, ast.With):
-                for item in ch.items:
-                    ctx = item.context_expr
-                    if (isinstance(ctx, ast.Call) and isinstance(ctx.func, ast.Attribute)
-                            and ctx.func.attr == "mutating"):
-                        here = True
+                here = here or any(is_the_lock(i.context_expr) for i in ch.items)
             if isinstance(ch, ast.Attribute) and ch.attr == attr and not here:
                 outside.append(getattr(ch, "lineno", 0))
             walk(ch, here)
@@ -354,12 +406,15 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
         # Such a module was skipped whole, so the write never reached `verdicts` and could not be
         # reported UNKNOWN. The fail-closed rule was defeated one layer ABOVE the thing enforcing it.
         alias, local_types = _alias_map(tree), _return_types(tree)
+        #: Which names in THIS file mean the pid_lock module. Per file, because most call sites
+        #: import it function-locally. A file with no such import certifies nothing -- fail closed.
+        lock_names, bare_mutating = pid_lock_names(tree)
         enclosing = {f: c.name for c in ast.walk(tree) if isinstance(c, ast.ClassDef)
                      for f in ast.walk(c) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))}
         for fn in ast.walk(tree):
             if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            binds = _bindings(fn, alias, local_types, foreign)
+            binds = _bindings(fn, alias, local_types, foreign, _rel(p))
             #: Form 6, and the replacement for the module predicate: `self` inside a class. If the
             #: class IS mapped, `self` is that model -- which the old code could not see at all. If
             #: it is NOT mapped, `self` is provably not a mapped instance, because it is an instance
@@ -378,7 +433,7 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
                 if (t.value.id, t.attr) in seen:
                     continue
                 seen.add((t.value.id, t.attr))
-                ok, outside = lock_spans(fn, t.attr)
+                ok, outside = lock_spans(fn, t.attr, lock_names, bare_mutating)
                 sites.append((_rel(p), fn.name,
                               binds.get(t.value.id), t.attr, ok, outside[:4]))
     return sites
@@ -399,6 +454,11 @@ def verdicts(sites: list[tuple]) -> tuple[set, list, list]:
 # --- self-tests: the analyser must find a planted defect before it may report on the tree -------
 
 _SYNTH = ast.parse(
+    #: The import is part of the fixture, not decoration: `lock_spans` resolves the `with` receiver
+    #: against the file's own pid_lock bindings, so a synthetic module without this import would
+    #: certify nothing and the SEED below would be empty -- which is exactly the vacuity the seed
+    #: check guards against.
+    "from .. import pid_lock\n"
     "def locked_writer(db, pid):\n"
     "    p = db.get(Project, pid)\n"
     "    with pid_lock.mutating(pid):\n"
@@ -444,22 +504,35 @@ _SYNTH = ast.parse(
     "    p = db.get(Project, pid)\n"
     "    with ctx as p.source_ifc:\n"
     "        pass\n"
+    #: THE IMPOSTOR. Until 2026-09-14 `lock_spans` matched any `<anything>.mutating(...)`, so this
+    #: function -- whose `session` is some unrelated object that happens to expose a method of that
+    #: name -- CERTIFIED as locked and vanished from the violations. *A certifier that matches on a
+    #: method NAME is trusting a string anybody may define.* It must now be reported.
+    "def impostor_lock(db, pid, session):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with session.mutating(pid):\n"
+    "        p.source_ifc = 'not actually locked'\n"
 )
 _syn_alias, _syn_types = _alias_map(_SYNTH), _return_types(_SYNTH)
+_syn_lock_names, _syn_bare = pid_lock_names(_SYNTH)
 _syn_sites = []
 for _fn in ast.walk(_SYNTH):
     if isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        _b = _bindings(_fn, _syn_alias, _syn_types, {})
+        _b = _bindings(_fn, _syn_alias, _syn_types, {}, "synth.py")
         for _t in _stored_attrs(_fn):
-            _ok, _out = lock_spans(_fn, _t.attr)
+            _ok, _out = lock_spans(_fn, _t.attr, _syn_lock_names, _syn_bare)
             _syn_sites.append(("synth.py", _fn.name, _b.get(_t.value.id), _t.attr, _ok, _out))
 
 _sp, _sv, _su = verdicts(_syn_sites)
 _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred",
               "for_target", "with_target"}
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
-      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer"}),
+      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer", "impostor_lock"}),
       f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: a `with <something-else>.mutating(...)` does NOT certify -- the receiver is "
+      "resolved against the file's own pid_lock imports, not matched on the method name",
+      "impostor_lock" in {s[1] for s in _sv},
+      "an unrelated object exposing .mutating() was accepted as the project lock")
 check("  and that INCLUDES ALL SEVEN non-plain spellings -- `ast.Assign` alone hid the first two, "
       "and the three-statement matcher that replaced it still hid the other five, because their "
       "target is a Tuple, a `For.target` or a `withitem`, not a top-level Attribute",
@@ -483,10 +556,31 @@ check("self-test: a resolver that GUESSES 'Project' for every unresolved receive
       "violation the honest one does not -- so UNKNOWN is doing work, not decoration",
       len(_gv) > len(_sv), f"guessed={len(_gv)} honest={len(_sv)}")
 
-check("self-test: the mapped-attribute set is POPULATED -- an empty one would mark every attribute "
-      "chain 'provably not a model', a fail-OPEN across the whole tree, and the first probe of it "
-      "really did return 0 because mappers configure lazily",
-      len(MAPPED_ATTRS) > 50 and "source_ifc" in MAPPED_ATTRS, f"{len(MAPPED_ATTRS)} attrs")
+# THE DECLARED-EXEMPTION LEDGER, checked in BOTH directions. Round 6 inferred "not a model" from
+# the shape of the binding and that inference was a tree-wide fail-open; round 8 replaced it with a
+# declaration, which is only an improvement if the declaration itself cannot rot. So: empty the
+# ledger and re-derive. Every entry must reappear as an UNKNOWN-and-unlocked site -- an entry that
+# names code which has moved or been fixed is dead weight that silently excuses its NEXT occupant --
+# and nothing may appear that is not declared, which is the fail-open the inference used to hide.
+_ledger_backup = dict(NON_MODEL_RECEIVERS)
+NON_MODEL_RECEIVERS.clear()
+_, _, _undeclared = verdicts(collect(SRC_ROOTS))
+NON_MODEL_RECEIVERS.update(_ledger_backup)
+_undeclared_keys = {(u[0].replace("\\", "/"), u[1]) for u in _undeclared}
+_declared_keys = {(path, func) for (path, func, _var) in NON_MODEL_RECEIVERS}
+check("self-test: the exemption ledger is LOAD-BEARING -- deleting it makes every declared site "
+      "come back as an unresolvable unlocked write, so no entry is there for decoration",
+      _declared_keys <= _undeclared_keys,
+      f"declared but not actually needed: {sorted(_declared_keys - _undeclared_keys)}")
+check("  and nothing NEEDS an exemption that does not have one -- this is the direction round 6's "
+      "inference failed in, by answering 'not a model' for every chain it had not been asked about",
+      _undeclared_keys <= _declared_keys,
+      f"undeclared unresolvable writes: {sorted(_undeclared_keys - _declared_keys)}")
+
+check("self-test: the model registry is POPULATED -- mappers configure lazily and the first probe "
+      "of this tree's registry really did return 0, which would resolve no receiver at all and "
+      "leave an EMPTY seed: a gate reporting on nothing while printing a clean verdict",
+      len(MODELS) > 20 and {"Project", "Connection"} <= MODELS, f"{len(MODELS)} models")
 
 # THE REGRESSION FOR THE REMOVED MODULE PREDICATE. A module that imports neither `models` nor
 # `Session` can still hold a mapped instance -- its caller passes one in. `touches_orm` skipped such

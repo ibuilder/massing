@@ -273,10 +273,6 @@ def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_d
         raise HTTPException(404, "project not found")
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _ifc_path(pid, "source.ifc")
-    # LOCK-BOUNDARY. The generate is inside the lock as well as the swap, because the filename is
-    # FIXED (`source.ifc`): two concurrent blank creates do not merely race on the column, they write
-    # the same path. Serialising only the assignment would leave two writers interleaving in the
-    # filesystem under a lock that looked sufficient.
     # LOCK-BOUNDARY. Generate into a UNIQUE staged path, then promote under the lock. Generating
     # straight onto the published `source.ifc` -- even inside the lock -- still exposes a partial
     # file to any reader that does not take the lock, and the fixed filename means two concurrent
