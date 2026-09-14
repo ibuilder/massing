@@ -12,6 +12,45 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The concurrency ledger was keyed by function, and reasoned about one field at a time
+
+`services/api/test_rmw_sweep.py` keys its read-modify-write ledgers by `(path, function)`. **Six
+functions write more than one field**, so a single status and a single sentence covered several
+distinct races — and the sentence names whichever field the author happened to be looking at. The
+rest are exempted by reasoning about a different line.
+
+That is this file's own subject one level up: *an exemption that reasons about part of its subject
+and reports on all of it.* And it had already hidden something. `connections.update_connection` was
+EXEMPT because "`body.name or c.name` is a PATCH keeping an unsent field" — true of `name`, and
+silent about `merged = dict(c.config or {})` … `c.config = merged`, an accumulating merge that keeps
+a stored secret where the form sent it blank. `connections` carries no version column at all, only
+`created_at`.
+
+Worse, it is the **second** writer of the blob `connections.put_mappings` writes, which was already
+listed OPEN. One admin saving connection settings while another saves field mappings loses a write,
+and whatever control that table eventually gets must cover both — *a lock one side does not take
+protects nothing*, the lesson the `dev_property` pair paid for a day earlier.
+
+The key is now `(path, function, attribute)`. The derived population went **32 → 41** and the open
+count **11 → 12**; the count going up is the sweep working rather than failing. Two side effects
+worth naming: `under_pid_lock(*k)` now takes the column straight from the key instead of being told
+it a second time, and the `dev_property` pair is derived by `k[2] == "dev_property"` rather than by
+searching for that string **inside the reason prose** — *a derivation over prose, in the file whose
+own lesson is that a count derived by grepping prose is prose.*
+
+The other five multi-field functions were re-read and their exemptions hold for every field, now
+said per field rather than inherited: `bim._with_kind` sets non-column serialisation fields,
+`verification.set_status` and the three `cloud` sites take whole values or fallbacks from a provider
+response. `cloud_refresh_profile`'s `cloud_roles` and `cloud_tier` get their own sentences despite
+reaching the same verdict, because they are authorisation-bearing and inheriting a reason about a
+display name is how that stops being examined.
+
+A check now asserts that at least one function's fields carry **different** statuses — the thing the
+old key could not express, so the extra column is load-bearing rather than decorative. Its failure
+message names both causes, because today `update_connection` is the only such function and closing
+it legitimately would red the check for the opposite reason: *a check whose failure message can
+misdiagnose is worse than one that stays silent, because somebody acts on it.*
+
 ### Two people pressing "promote" on one markup got two RFIs, and one of them vanished
 
 `bim.promote_markup` checked `if m.topic_id: 409` and then claimed the back-link with a plain
