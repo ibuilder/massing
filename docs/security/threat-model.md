@@ -193,7 +193,12 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    exactly as in G-10. Surfaced by widening `services/api/test_rmw_sweep.py`'s ORM derivation to
    propagate taint through one local — before that, hoisting a read into a variable removed a site
    from the inventory. Frozen in that gate's ledger with a structured status, so a new instance reds
-   the build. `promote_markup` is the one worth doing first: the fix already exists one module over.
+   the build. The four that remain are deliberately **not** ranked here. The first draft of this
+   sentence ranked them and was wrong on the facts within a minute of being written — it called
+   `drawingset.revise_sheet` a lost *sheet revision* with a single writer, when the read-modify-write
+   is actually `m.data = d2` on each **markup** it tags `carried_from`, a blob the markup save and
+   bulk-replace routes also write. *A priority claim is a factual claim about blast radius, and this
+   file has now carried two wrong ones about this same list.* Rank them by reading the sites.
 
 12. **G-10 (S) One JSON collection still loses a concurrent write** — `Scenario.shared_with` (a
    share grant). It reads a JSON collection and writes back what it derived, and that table carries
