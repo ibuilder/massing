@@ -475,17 +475,56 @@ check("the writer derivation REACHES `transition`, whose values are a splatted d
       ("src/aec_api/modules.py", "transition") in WRITERS, f"found {len(WRITERS)}: {WRITERS}")
 
 
-def _reads_prior_stamp(node: ast.AST) -> bool:
-    """Does this expression read the row's `"modified_at"` -- `rec.get("modified_at")`, `rec[...]`?"""
-    for n in ast.walk(node):
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) \
-           and n.func.attr in ("get", "pop") and n.args \
-           and isinstance(n.args[0], ast.Constant) and n.args[0].value == "modified_at":
-            return True
-        if isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) \
-           and n.slice.value == "modified_at":
-            return True
-    return False
+def _row_aliases(fn: ast.AST) -> set[str]:
+    """Names bound to THE REGISTER ROW -- `rec = get_record(...)`, and `other = rec`.
+
+    Deliberately NOT `_tainted`. That is *data dependence*, which is the right question for "did this
+    value come from the row" and the wrong one for "is this the row". Review made the distinction on
+    PR #552: under data dependence `metadata.get("modified_at")` and `stamp + timedelta(days=1)` both
+    qualify as the prior token, and **neither is the value the CAS predicate will be compared
+    against** -- so a writer feeding either one would swap on a token no row ever held, match nothing
+    or match wrongly, and be certified correct on the way past.
+
+    Propagation is through a BARE NAME only (`x = rec`), never through an expression mentioning one.
+    An alias is an identity claim; data dependence is a provenance claim, and this file has now been
+    wrong in both directions by conflating the two.
+    """
+    names: set[str] = set()
+    if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+       and fn.name in ("recompute", "supersede"):
+        names.update(a.arg for a in fn.args.args)        # the row handed to a CAS callback
+    for _ in range(4):                                   # fixed point; these chains are one hop
+        before = set(names)
+        for n in ast.walk(fn):
+            pair = _assigned(n)
+            if pair is None:
+                continue
+            targets, value = pair
+            direct = (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                      and value.func.id == "get_record") \
+                or (isinstance(value, ast.Name) and value.id in names)
+            if direct:
+                names.update(t.id for t in targets if isinstance(t, ast.Name))
+        if names == before:
+            break
+    return names
+
+
+def _is_prior_stamp_read(node: ast.AST, rows: set[str]) -> bool:
+    """Is this node ITSELF `<row>.get("modified_at")` / `<row>["modified_at"]`?
+
+    Not an `ast.walk` containment test, which is what the previous draft did in both directions:
+    `rec.get("modified_at") + timedelta(days=1)` CONTAINS the read and is not it, and
+    `metadata.get("modified_at")` is the right SHAPE off the wrong object.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+       and node.func.attr in ("get", "pop") and node.args \
+       and isinstance(node.args[0], ast.Constant) and node.args[0].value == "modified_at" \
+       and isinstance(node.func.value, ast.Name) and node.func.value.id in rows:
+        return True
+    return isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant) \
+        and node.slice.value == "modified_at" \
+        and isinstance(node.value, ast.Name) and node.value.id in rows
 
 
 def _is_next_stamp_call(node: ast.AST) -> bool:
@@ -494,13 +533,14 @@ def _is_next_stamp_call(node: ast.AST) -> bool:
         and node.func.id == "_next_stamp"
 
 
-def _prior_stamp_names(fn: ast.AST) -> set[str]:
+def _prior_stamp_names(fn: ast.AST, rows: set[str]) -> set[str]:
     """Names holding the row's PRE-IMAGE `modified_at`, which is the only legitimate argument.
 
-    Seeded by any read of that key off an object and propagated through assignment, because
-    `_cas_row_edit` is written in two statements: `stamp = rec.get("modified_at")` ... later ...
-    `vals["modified_at"] = _next_stamp(stamp)`. Assignments whose value is itself a `_next_stamp`
-    call are skipped, so the POST-image never becomes a name this set would accept.
+    Seeded by a read of that key off a ROW ALIAS and carried only through bare-name assignment,
+    because `_cas_row_edit` is written in two statements: `stamp = rec.get("modified_at")` ...
+    later ... `vals["modified_at"] = _next_stamp(stamp)`. A derived value (`stamp + delta`, a
+    `.replace(...)`, a format) is NOT the token and does not propagate -- the previous draft carried
+    taint through any expression mentioning an accepted name, which admitted every one of those.
     """
     names: set[str] = set()
     for _ in range(4):                                   # fixed point; these chains are one hop
@@ -510,49 +550,99 @@ def _prior_stamp_names(fn: ast.AST) -> set[str]:
             if pair is None:
                 continue
             targets, value = pair
-            if _is_next_stamp_call(value):
-                continue                                 # that is the new token, not the old one
-            if _reads_prior_stamp(value) or any(
-                    isinstance(x, ast.Name) and x.id in names for x in ast.walk(value)):
-                for t in targets:
-                    names.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
+            if _is_prior_stamp_read(value, rows) \
+               or (isinstance(value, ast.Name) and value.id in names):
+                names.update(t.id for t in targets if isinstance(t, ast.Name))
         if names == before:
             break
     return names
 
 
-def _stamp_arg_ok(value: ast.AST, priors: set[str]) -> bool:
-    """Is this expression a `_next_stamp(<the row's prior modified_at>)` CALL?
+def _stamp_arg_ok(value: ast.AST, rows: set[str], priors: set[str]) -> bool:
+    """Is this expression a `_next_stamp(<the register row's prior modified_at>)` CALL?
 
-    The previous draft asked whether the NAME `_next_stamp` occurred anywhere in the expression, and
-    review caught what that admits on PR #552: `_next_stamp(None)` passed. That argument is not a
-    near-miss -- it makes the helper skip its `now <= prev` comparison and return a bare `_now()`,
-    which is exactly the unguarded clock the helper exists to replace. Under a frozen clock the
-    writer then re-emits the token it just read, the loser's CAS predicate still matches, and the
-    swap protects nothing while every check here says it does.
+    Two drafts, two directions, one sentence apart.
 
-    *Naming the guard is not calling it, and calling it is not feeding it.* All three shapes route
-    through this one function, so a fourth shape inherits the rule rather than reintroducing the
-    hole.
+    The first asked whether the NAME `_next_stamp` occurred anywhere in the expression, so
+    `_next_stamp(None)` passed -- and `None` makes the helper skip its `now <= prev` comparison and
+    return a bare `_now()`, the unguarded clock it exists to replace. *Naming the guard is not
+    calling it.*
+
+    The second accepted any `"modified_at"` read off any object, and carried names through any
+    expression mentioning one -- so `_next_stamp(metadata.get("modified_at"))` and
+    `_next_stamp(stamp + delta)` passed. *And calling it is not feeding it the token the CAS
+    predicate will be compared against.* Both now resolve through `_row_aliases`.
     """
     if not _is_next_stamp_call(value):
         return False
     if len(value.args) != 1 or value.keywords:
         return False                                     # fails closed on anything unfamiliar
     arg = value.args[0]
-    if _reads_prior_stamp(arg):
+    if _is_prior_stamp_read(arg, rows):
         return True
     return isinstance(arg, ast.Name) and arg.id in priors
 
 
-def _stamp_ok(values: ast.Call, priors: set[str]):
+def _stamp_ok(values: ast.Call, rows: set[str], priors: set[str]):
     """Does THIS `.values(...)` set `modified_at` from `_next_stamp(<prior token>)`?"""
     for kw in values.keywords:
         if kw.arg == "modified_at":
-            return _stamp_arg_ok(kw.value, priors)
-    # A splat: the mapping is in a dict built elsewhere, so fall back to the dict literal that
-    # supplies it. This is `transition`'s shape and the third one the detector had to learn.
+            return _stamp_arg_ok(kw.value, rows, priors)
+    # A splat: the mapping is in a dict built elsewhere, so `_splat_ok` resolves THAT dict.
     return None
+
+
+def _dict_stamp_map(nodes, rows: set[str], priors: set[str]) -> dict[str, list[bool]]:
+    """dict name -> the `modified_at` verdicts assigned INTO that particular dict.
+
+    Keyed by name, which is the whole point. The previous draft pooled every stamp assignment in the
+    function into one flat list, so a correctly-stamped `vals` authorised a second
+    `.values(**other)` whose dict had no stamp at all.
+    """
+    out: dict[str, list[bool]] = {}
+    for n in nodes:
+        pair = _assigned(n)
+        if pair is None:
+            continue
+        targets, value = pair
+        for t in targets:
+            if isinstance(t, ast.Name) and isinstance(value, ast.Dict):
+                out.setdefault(t.id, []).extend(
+                    _stamp_arg_ok(v, rows, priors)
+                    for k, v in zip(value.keys, value.values)
+                    if isinstance(k, ast.Constant) and k.value == "modified_at")
+            elif isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant) \
+                    and t.slice.value == "modified_at" and isinstance(t.value, ast.Name):
+                out.setdefault(t.value.id, []).append(_stamp_arg_ok(value, rows, priors))
+    return out
+
+
+def _splat_ok(values: ast.Call, stamp_map: dict[str, list[bool]],
+              rows: set[str], priors: set[str]) -> bool:
+    """Does the dict THIS `.values(**x)` splats carry a valid stamp -- that dict, not some dict?
+
+    Review's second finding on `c0257bd7`, and it is round two's sentence one level down. That round
+    fixed "yes, somewhere" for UPDATES: each update is validated against its own `.values(...)`. The
+    fix then reintroduced it for the DICTS those updates splat, by pooling every `modified_at`
+    assignment in the function into one list -- so a writer with two splatted updates passed on the
+    strength of the first one's dict. *The same defect can be fixed at one level and recreated at the
+    next by the fix itself, and it reads as the same code both times.*
+
+    Anything unresolvable -- no splat, several, or a splat of something that is not a name or a dict
+    literal -- fails closed.
+    """
+    splats = [kw.value for kw in values.keywords if kw.arg is None]
+    if len(splats) != 1:
+        return False
+    node = splats[0]
+    if isinstance(node, ast.Dict):                       # `.values(**{...})`, checked in place
+        marks = [_stamp_arg_ok(v, rows, priors) for k, v in zip(node.keys, node.values)
+                 if isinstance(k, ast.Constant) and k.value == "modified_at"]
+    elif isinstance(node, ast.Name):
+        marks = stamp_map.get(node.id, [])
+    else:
+        return False
+    return bool(marks) and all(marks)
 
 
 def stamps_through_helper(fn: ast.AST) -> bool:
@@ -585,20 +675,10 @@ def stamps_through_helper(fn: ast.AST) -> bool:
     # (`transition`), a subscript assignment into a dict built earlier (`_cas_row_edit`), and the
     # plain keyword handled in `_stamp_ok`. Listing them is unavoidable; being CAUGHT missing one is
     # what the per-update rewrite bought, since the previous draft passed on any single good stamp
-    # and would have said nothing.
-    priors = _prior_stamp_names(fn)
-    dict_stamps = [_stamp_arg_ok(v, priors)
-                   for n in nodes if isinstance(n, ast.Dict)
-                   for k, v in zip(n.keys, n.values)
-                   if isinstance(k, ast.Constant) and k.value == "modified_at"]
-    for n in nodes:
-        pair = _assigned(n)
-        if pair is None:
-            continue
-        targets, value = pair
-        if any(isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
-               and t.slice.value == "modified_at" for t in targets):
-            dict_stamps.append(_stamp_arg_ok(value, priors))
+    # and would have said nothing. The verdicts are now keyed BY DICT NAME -- see `_splat_ok`.
+    rows = _row_aliases(fn)
+    priors = _prior_stamp_names(fn, rows)
+    stamp_map = _dict_stamp_map(nodes, rows, priors)
 
     updates = 0
     for n in nodes:
@@ -608,11 +688,11 @@ def stamps_through_helper(fn: ast.AST) -> bool:
         if not parts or parts[2] is None:
             continue
         updates += 1
-        verdict = _stamp_ok(parts[2], priors)
+        verdict = _stamp_ok(parts[2], rows, priors)
         if verdict is False:
             return False                         # this update names the column and not the helper
-        if verdict is None:                      # splatted -- every dict literal must supply it
-            if not dict_stamps or not all(dict_stamps):
+        if verdict is None:                      # splatted -- THIS dict must supply it
+            if not _splat_ok(parts[2], stamp_map, rows, priors):
                 return False
     return updates > 0
 
@@ -635,14 +715,16 @@ check("SELF-TEST: a bare `_now()` does not count either -- that is the collision
 
 #: And the shipped writers must PASS it, or the two negatives above prove only that it says no.
 _REAL = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    db.execute(update(t).where(t.c.id == rid)'
     '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n').body[0]
 check("SELF-TEST: and a writer that DOES stamp through the helper passes, so it is not always-no",
       stamps_through_helper(_REAL), "the real shape failed the stamp check")
 
 _DICT_SHAPE = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    vals = {"workflow_state": "x", "modified_at": _next_stamp(rec.get("modified_at"))}\n'
     '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
 check("SELF-TEST: the DICT-LITERAL shape counts -- the one the strengthened check first missed",
@@ -652,15 +734,18 @@ check("SELF-TEST: the DICT-LITERAL shape counts -- the one the strengthened chec
 #: `now <= prev` comparison inside the helper, so it returns a bare `_now()` -- the very clock the
 #: helper replaces. Every one of these passed the name-presence draft review caught on PR #552.
 _STAMP_NONE_KW = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    db.execute(update(t).where(t.c.id == rid)'
     '.values(assignee=None, modified_at=_next_stamp(None)))\n').body[0]
 _STAMP_NONE_DICT = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    vals = {"workflow_state": "x", "modified_at": _next_stamp(None)}\n'
     '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
 _STAMP_NONE_SUB = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    vals = {"workflow_state": "x"}\n'
     '    vals["modified_at"] = _next_stamp(None)\n'
     '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
@@ -672,7 +757,8 @@ for _shape, _fx in (("keyword", _STAMP_NONE_KW), ("dict literal", _STAMP_NONE_DI
 
 #: A name that holds `_now()` rather than the row's token is refused for the same reason.
 _STAMP_WRONG_NAME = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    stamp = _now()\n'
     '    vals = {"workflow_state": "x"}\n'
     '    vals["modified_at"] = _next_stamp(stamp)\n'
@@ -680,10 +766,59 @@ _STAMP_WRONG_NAME = ast.parse(
 check("SELF-TEST: a local NOT read from the row is refused as the argument, however it is spelled",
       not stamps_through_helper(_STAMP_WRONG_NAME), "`_next_stamp(_now())` passed through a local")
 
+#: The right SHAPE off the wrong OBJECT. `metadata` is not the register row, so its `modified_at`
+#: is not the token the CAS predicate compares against -- the writer would swap on a value no row
+#: ever held. The `c0257bd7` draft accepted this because it asked about the KEY and not the object.
+_STAMP_WRONG_OBJECT = ast.parse(
+    'def writer(db, t, rid, key, project_id, metadata):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(metadata.get("modified_at"))))\n').body[0]
+check("SELF-TEST: `modified_at` read off an object that is NOT the register row is refused",
+      not stamps_through_helper(_STAMP_WRONG_OBJECT), "a stamp from an unrelated object passed")
+
+#: The right object, TRANSFORMED. A value derived from the token is not the token: the predicate
+#: `t.c.modified_at == <read>` is compared against what was READ, so anything arithmetic happened to
+#: cannot be it. The `c0257bd7` draft carried names through any expression that mentioned one.
+_STAMP_DERIVED = ast.parse(
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
+    '    stamp = rec.get("modified_at")\n'
+    '    shifted = stamp + timedelta(days=1)\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(shifted)))\n').body[0]
+check("SELF-TEST: a TRANSFORMED prior token is refused -- data dependence is not identity",
+      not stamps_through_helper(_STAMP_DERIVED), "a derived value passed as the prior token")
+
+#: TWO splatted updates, only the FIRST dict stamped. Round two fixed exactly this for updates and
+#: its own fix recreated it for the dicts they splat, by pooling every stamp in the function.
+_TWO_SPLATS = ast.parse(
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
+    '    vals = {"workflow_state": "x", "modified_at": _next_stamp(rec.get("modified_at"))}\n'
+    '    other = {"title": "y"}\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**other))\n').body[0]
+check("SELF-TEST: a SECOND splatted update whose OWN dict has no stamp fails, though the first "
+      "dict's stamp is valid -- \"yes, somewhere\" one level below where round two fixed it",
+      not stamps_through_helper(_TWO_SPLATS), "one dict's stamp authorised another dict's update")
+
+#: ...and both dicts stamped passes, so the per-dict rule is not always-no.
+_TWO_SPLATS_OK = ast.parse(
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
+    '    vals = {"workflow_state": "x", "modified_at": _next_stamp(rec.get("modified_at"))}\n'
+    '    other = {"title": "y", "modified_at": _next_stamp(rec.get("modified_at"))}\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(**other))\n').body[0]
+check("SELF-TEST: ...and two separately-stamped dicts still pass",
+      stamps_through_helper(_TWO_SPLATS_OK), "two correctly stamped dicts were rejected")
+
 #: ...and `_cas_row_edit`'s real two-statement shape passes, annotated or not, so the rule above is
 #: not simply always-no. The annotated arm is the `_assigned` fix under its own load.
 _STAMP_VIA_LOCAL = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    stamp = rec.get("modified_at")\n'
     '    vals = {"workflow_state": "x"}\n'
     '    vals["modified_at"] = _next_stamp(stamp)\n'
@@ -691,7 +826,8 @@ _STAMP_VIA_LOCAL = ast.parse(
 check("SELF-TEST: the token read into a LOCAL first passes -- `_cas_row_edit`'s shipped shape",
       stamps_through_helper(_STAMP_VIA_LOCAL), "the two-statement shape was rejected")
 _STAMP_VIA_ANN = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    stamp: object = rec.get("modified_at")\n'
     '    vals: dict = {"workflow_state": "x"}\n'
     '    vals["modified_at"] = _next_stamp(stamp)\n'
@@ -702,7 +838,8 @@ check("SELF-TEST: ...and still passes when that local is ANNOTATED, which `trans
 #: TWO updates, only the first stamped. The previous draft returned True on the first good stamp and
 #: never looked at the second -- review caught it on PR #552.
 _TWO_UPDATES = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    db.execute(update(t).where(t.c.id == rid)'
     '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n'
     '    db.execute(update(t).where(t.c.id == rid).values(title="x"))\n').body[0]
@@ -711,7 +848,8 @@ check("SELF-TEST: a SECOND update without a stamp fails, even when the first one
 
 #: ...and both stamped passes, so the two-update rule is not simply always-no.
 _TWO_OK = ast.parse(
-    'def writer(db, t, rid, rec):\n'
+    'def writer(db, t, rid, key, project_id):\n'
+    '    rec = get_record(db, key, project_id, rid)\n'
     '    db.execute(update(t).where(t.c.id == rid)'
     '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n'
     '    db.execute(update(t).where(t.c.id == rid)'
@@ -1049,10 +1187,11 @@ CROSS_FIELD = {
         "`m.data = d2`, derived from `m.data`; no token on that table."),
     ("src/aec_api/routers/connections.py", "put_mappings"): ("OPEN",
         "`c.config = cfg` merged from `c.config`; no token on that table."),
-    ("src/aec_api/routers/proforma.py", "put_property"): ("OPEN",
-        "`dev_property` -- the site this pull request's own fix created and then HID from this "
-        "analyser by hoisting the read into a local. Open for the same reason as `save_appraisal`: "
-        "`projects` carries no `modified_at`."),
+    ("src/aec_api/routers/proforma.py", "put_property"): ("LOCKED",
+        "`dev_property` -- the site this pull request's own fix created, then HID from this analyser "
+        "by hoisting the read into a local, then hid AGAIN behind an annotation. `projects` carries "
+        "no `modified_at` to swap on, so it takes `pid_lock.mutating(pid)` instead, as does its "
+        "partner `realestate.save_appraisal`. Verified lexically below, not asserted here."),
     ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard"): ("OPEN",
         "`dev_budget` merge -- same class, same missing token."),
     ("src/aec_api/routers/proforma.py", "sync_model_to_hard"): ("OPEN", "`dev_budget` merge -- same."),
@@ -1065,10 +1204,11 @@ BAND_2 = {
     ("src/aec_api/routers/proforma.py", "share_scenario"): ("OPEN",
         "`shared_with` -- two concurrent grants, one silently dropped. The response echoes the "
         "caller's own target either way, so neither caller can tell it did not take."),
-    ("src/aec_api/routers/realestate.py", "save_appraisal"): ("OPEN",
-        "`dev_property` merge -- a concurrent write to a different key of the same blob is lost. The "
-        "non-concurrent half of this blob's problem WAS fixed here: `proforma.save_property` used to "
-        "replace it wholesale and delete the appraisal on every ordinary save."),
+    ("src/aec_api/routers/realestate.py", "save_appraisal"): ("LOCKED",
+        "`dev_property` merge -- the OTHER writer of the same blob, locked with `put_property` "
+        "because half a lock is none. The non-concurrent half of this blob's problem WAS fixed here: "
+        "`proforma.put_property` used to replace it wholesale and delete the appraisal on every "
+        "ordinary save -- *a write that reads nothing cannot lose an update, it just deletes one.*"),
 }
 
 
@@ -1190,8 +1330,8 @@ check("every ORM read-modify-write is either reasoned exempt or named as an open
 _stale = [k for k in _KNOWN if k not in ORM]
 check("no ledger entry outlives the site it describes", not _stale, f"stale={_stale}")
 # ---------------------------------------------------------------- the IFC pipeline's OTHER control
-def under_pid_lock(path: str, name: str) -> bool:
-    """Is the WHOLE `source_ifc` read-modify-write inside `with pid_lock.mutating(...)`?
+def under_pid_lock(path: str, name: str, col: str = "source_ifc") -> bool:
+    """Is the WHOLE `<col>` read-modify-write inside `with pid_lock.mutating(...)`?
 
     The first draft asked only about the ASSIGNMENT, and review caught that on PR #552: a route can
     read `p.source_ifc`, spend a minute deriving a new IFC version from it, and only then enter the
@@ -1200,18 +1340,22 @@ def under_pid_lock(path: str, name: str) -> bool:
     statement it contains; it proves something about the interval it spans, and this was measuring
     the wrong one.*
 
-    So every `.source_ifc` mention -- read or write -- must be inside the lock. That is stricter than
+    So every `.<col>` mention -- read or write -- must be inside the lock. That is stricter than
     strictly necessary (a read for logging would count), and deliberately so: this function decides
     whether to CERTIFY a route as protected, and the safe direction for a certifier is to refuse
     something it cannot prove.
+
+    `col` is a parameter because the second column arrived: the `dev_property` blob has two writers in
+    two routers, and locking only the one review named would have left the pair exactly as racy as
+    before -- *a lock one side does not take protects nothing.*
     """
     tree = ast.parse((HERE / path).read_text(encoding="utf-8"))
     fn = next((f for f in ast.walk(tree)
                if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name == name), None)
-    return fn is not None and lock_spans_rmw(fn)
+    return fn is not None and lock_spans_rmw(fn, col)
 
 
-def lock_spans_rmw(fn: ast.AST) -> bool:
+def lock_spans_rmw(fn: ast.AST, col: str = "source_ifc") -> bool:
     """The node-level half of `under_pid_lock`, split out so the fixtures below can exercise it."""
     outside = []
 
@@ -1228,7 +1372,7 @@ def lock_spans_rmw(fn: ast.AST) -> bool:
         visit_AsyncWith = visit_With
 
         def visit_Attribute(self, node):
-            if node.attr == "source_ifc" and not self.depth:
+            if node.attr == col and not self.depth:
                 outside.append(node.lineno)
             self.generic_visit(node)
 
@@ -1269,6 +1413,19 @@ _claimed_locked = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "LOCK
 _lying = [k for k in _claimed_locked if not under_pid_lock(*k)]
 check("every site this ledger calls locked IS lexically under `pid_lock.mutating`",
       not _lying, f"{len(_claimed_locked)} claimed locked; not actually: {_lying}")
+
+#: The second locked column. Derived from the ledgers rather than listed, so adding a third writer
+#: of this blob and forgetting to lock it reds the build instead of joining a list nobody re-reads.
+DEV_PROPERTY = sorted(k for k, (st, _) in {**CROSS_FIELD, **BAND_2}.items()
+                      if st == "LOCKED" and "dev_property" in _KNOWN[k][1])
+check("the `dev_property` pair is BOTH writers, derived from the ledgers -- locking one of two is "
+      "locking neither, and this is the shape that makes the omission visible",
+      DEV_PROPERTY == [("src/aec_api/routers/proforma.py", "put_property"),
+                       ("src/aec_api/routers/realestate.py", "save_appraisal")],
+      f"got {DEV_PROPERTY}")
+_dp_lying = [k for k in DEV_PROPERTY if not under_pid_lock(*k, col="dev_property")]
+check("...and every `dev_property` read AND write in both is lexically under `pid_lock.mutating`",
+      not _dp_lying, f"claimed locked but is not: {_dp_lying}")
 
 _claimed_open = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "OPEN")
 # NOT `_secretly_fixed`, which is what this was called for about twenty minutes. CodeQL's

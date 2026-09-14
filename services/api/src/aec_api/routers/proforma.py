@@ -398,11 +398,25 @@ def put_property(pid: str, body: dict, db: Session = Depends(get_db), _sec: str 
     # describing a different row than the one written. Today's only web consumer reads `summary`, so
     # this is a contract defect rather than a visible one, which is exactly the kind that is found
     # later and from further away.
-    prior = p.dev_property or {}
-    saved = ({**body, "appraisal": prior["appraisal"]}
-             if "appraisal" in prior and "appraisal" not in body else body)
-    p.dev_property = saved
-    db.commit()
+    # Raised in review: preserving `appraisal` turned a wholesale write into a READ-modify-write, so
+    # the very fix above introduced the class this sweep is about -- `realestate.save_appraisal`
+    # merges into the same blob, and whichever of the two committed second would write back a dict
+    # built from a pre-image the other had already replaced. *Closing a certain data loss with a
+    # concurrent one is still an improvement, and it is not a reason to leave the concurrent one.*
+    #
+    # `pid_lock.mutating` rather than a compare-and-swap, because `dev_property` has no version
+    # column to swap on and both writers key on the project -- the same control the IFC pipeline
+    # uses. `db.refresh` matters as much as the lock: `db.get` can answer from the session identity
+    # map, so without it the waiter merges into the blob it read BEFORE the winner committed and the
+    # lock serialises two writes of the same stale value.
+    from .. import pid_lock
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        prior = p.dev_property or {}
+        saved = ({**body, "appraisal": prior["appraisal"]}
+                 if "appraisal" in prior and "appraisal" not in body else body)
+        p.dev_property = saved
+        db.commit()
     return {"property": saved, "summary": dp.summarize(saved)}
 
 

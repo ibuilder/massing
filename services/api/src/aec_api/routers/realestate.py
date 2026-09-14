@@ -421,8 +421,15 @@ def save_appraisal(pid: str, overrides: dict = Body(...), db: Session = Depends(
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    p.dev_property = {**(p.dev_property or {}), "appraisal": overrides}
-    db.commit()
+    # The other writer of this blob is `proforma.put_property`, which owns the parcel/tax keys while
+    # this owns `appraisal`. Both are read-modify-writes of one JSON column with no version to swap
+    # on, so both take the per-project lock -- *a lock one side does not take protects nothing*, and
+    # locking only the route review named would have left this pair exactly as racy as before.
+    from .. import pid_lock
+    with pid_lock.mutating(pid):
+        db.refresh(p)                                    # `db.get` may answer from the identity map
+        p.dev_property = {**(p.dev_property or {}), "appraisal": overrides}
+        db.commit()
     return marketing.compute_appraisal(db, pid, overrides)
 
 

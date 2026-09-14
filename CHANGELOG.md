@@ -201,6 +201,32 @@ previously only be fed the repository — and the shape review found missing doe
 amount of reading the source would have produced a failing case. *An analyser that can only be fed
 the tree cannot be given the input it gets wrong.*
 
+**A fourth review round found three more, and the first two are the third round's own fixes failing
+one level down.** The pattern is worth naming on its own: *a fix can recreate, at the next level of
+detail, exactly the defect it just closed — and it reads as the same code both times.*
+
+- **Data dependence is not identity.** Tracing the `_next_stamp` argument accepted a `"modified_at"`
+  read off *any* object, and carried names through *any* expression mentioning an accepted one — so
+  `_next_stamp(metadata.get("modified_at"))` and `_next_stamp(stamp + timedelta(days=1))` both
+  passed. Neither is the value the CAS predicate is compared against, so a writer feeding either
+  would swap on a token no row ever held and be certified correct on the way past. Row *aliases* are
+  now tracked separately (`rec = get_record(...)`, `other = rec`), the read must be off one of them,
+  and prior-token names propagate through a bare name only. *An alias is an identity claim;
+  provenance is a different question, and this file has now been wrong in both directions by
+  conflating them.*
+- **"Yes, somewhere" came back for the dicts.** Round two fixed it for updates — each is validated
+  against its own `.values(...)`. That fix then pooled every `modified_at` assignment in the
+  function into one list, so one correctly-stamped dict authorised a second `.values(**other)` whose
+  dict had no stamp at all. Verdicts are now keyed by dict name, and each splat resolves its own.
+- **And the `dev_property` merge was the class this sweep is about, created by this sweep's own
+  fix.** Preserving `appraisal` turned a wholesale write into a read-modify-write, with
+  `realestate.save_appraisal` merging into the same blob from the other side. Both now take
+  `pid_lock.mutating(pid)` — a lock rather than a swap, because that table has no token to swap on —
+  and **both** is the load-bearing word: *a lock one side does not take protects nothing*, so
+  locking only the route review named would have left the pair exactly as racy. `db.refresh` matters
+  as much as the lock, since `db.get` can answer from the session identity map and the waiter would
+  otherwise merge into the pre-image it read before the winner committed. Open gaps 14 → 12.
+
 *The first draft of that check passed under its own mutation.* It asserted that a frozen-clock edit
 LANDS and that the next edit matches — both still true with the branch deleted, because SQLite
 serialises writers and each session sees its own write. It is now the losing interleaving run with
