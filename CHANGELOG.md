@@ -12,6 +12,45 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 8 — the fix for an incomplete enumeration is not a longer enumeration
+
+Round 7 replaced `test_lock_boundary`'s `ast.Assign`-only matcher with a three-statement one
+(`+AnnAssign`, `+AugAssign`) and called the hole closed. It was the same mistake one size larger.
+**Five further spellings of an attribute write were still invisible, and the gate ACCEPTED each:**
+
+```python
+p.source_ifc, _rest = a, b        # a Tuple target -- the top-level target is not an Attribute
+p.source_ifc, *_tail = xs
+(_a, (p.source_ifc, _c)) = v      # nested arbitrarily deep
+for p.source_ifc in rows: ...     # `For.target` -- reached by no assignment statement at all
+with ctx as p.source_ifc: ...     # `withitem.optional_vars` -- likewise
+```
+
+All legal Python, all writes, none of them a target of the three statements the matcher knew.
+
+The repair is not a sixth case. **An attribute write is not a list of statement types — it is
+`ast.Attribute` carrying `ctx=Store`, which is how Python itself marks one, in every form it has.**
+`_stored_attrs` now yields exactly those, and admits nothing else: a read (`v = p.x`), a call
+argument (`f(p.x)`) and `del p.x` carry `Load`, `Load` and `Del`. There is no seventh form to miss,
+because the set is no longer a list somebody maintains. Sites scanned went **346 → 375** — twenty-nine
+more real attribute writes in the tree, none of them a new violation.
+
+*This is the third round in a row where the previous round's fix was the next round's defect, and
+the first where the shape repeated at the same layer rather than a deeper one.* Round 6 removed a
+module-level predicate for excluding what it had not proved; round 7 widened a statement matcher
+from one spelling to three; round 8 stopped spelling. The lesson the first two did not quite reach:
+**widening an enumeration leaves an enumeration, and its remaining blind spot is invisible in exactly
+the same way** — the count looked more complete each time, and 331, 346 and 375 are all confident
+numbers. Only the last one is derived from something that cannot silently shrink.
+
+Seven non-plain spellings are now planted unlocked in the self-test population, and narrowing
+`_stored_attrs` back to the three statement forms reds two checks, naming the five it stopped seeing.
+
+Worth stating because it is the *reason* only this one site needed fixing: the analyser's other two
+`ast.Assign`-only matchers — Form 7's `NOT_A_MODEL` exclusion and the model-resolving pass — fail
+**closed**. A form they miss leaves the receiver unresolved, which the gate reports as UNKNOWN and
+reds. `collect` was the only one where a missed form meant a site was never looked at.
+
 ### LOCK-BOUNDARY round 7 — a `finally` that deletes the only copy, and two spellings of a write
 
 Three fixed, two declined. The first is the most serious defect this PR has produced, and round 6

@@ -184,13 +184,31 @@ def _model_of_call(call: ast.Call, alias: dict) -> str | None:
     return None
 
 
-def _assign_targets(node: ast.AST) -> list[ast.AST]:
-    """Every assignment target of `node`, for all three statement forms, or [] if not an assignment."""
-    if isinstance(node, ast.Assign):
-        return list(node.targets)
-    if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
-        return [node.target]
-    return []
+def _stored_attrs(fn: ast.AST):
+    """Every `<name>.<attr>` written anywhere in `fn`, derived from the LANGUAGE, not enumerated.
+
+    An attribute write is not a list of statement types -- it is `ast.Attribute` carrying
+    `ctx=Store`, which is how Python itself marks one, in every form it has. Round 7 replaced a
+    one-form matcher (`ast.Assign`) with a three-form one (`+AnnAssign, +AugAssign`) and that was
+    the same mistake one size larger: *the fix for an incomplete enumeration is not a longer
+    enumeration.* Five further spellings were still invisible and the gate ACCEPTED each --
+
+        p.x, q.y = a, b          # a Tuple target; the top-level target is not an Attribute
+        p.x, *rest = a
+        (p.x, (q.y, r.z)) = v    # nested arbitrarily deep
+        for p.x in seq: ...      # `For.target`, reached by no assignment statement at all
+        with ctx as p.x: ...     # `withitem.optional_vars`, likewise
+        [i for p.x in seq]       # a comprehension target, likewise
+
+    -- all legal Python, all writes, none of them an `Assign`/`AnnAssign`/`AugAssign` target.
+    `ctx=Store` admits every one of them and admits nothing else: a read (`v = p.x`), a call
+    argument (`f(p.x)`) and `del p.x` carry `Load`, `Load` and `Del`. There is no seventh form to
+    miss, because the set is no longer a list somebody maintains.
+    """
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store) \
+           and isinstance(n.value, ast.Name):
+            yield n
 
 
 def _rel(p: pathlib.Path) -> str:
@@ -220,6 +238,12 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict) 
     #: WITHOUT the module-level predicate that used to hide the whole file. Deliberately NOT "bound
     #: from an attribute chain is not a model": `project.owner` would be, which is why the test is
     #: against the registry rather than against the shape.
+    #:
+    #: This matcher and the model-resolving one below are BOTH `ast.Assign`-only, deliberately, and
+    #: that is not the defect `_stored_attrs` fixes. They fail CLOSED: a binding form they miss
+    #: leaves the receiver unresolved, the site is reported UNKNOWN and the build reds. `collect`
+    #: was the only place a missed spelling meant a write was never LOOKED at. *Whether an
+    #: incomplete matcher is a hole depends entirely on which direction its silence points.*
     for n in ast.walk(fn):
         if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
             chain = _chain_attrs(n.value)
@@ -344,23 +368,19 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
             if (cls := enclosing.get(fn)):
                 binds["self"] = cls if cls in MODELS else NOT_A_MODEL
             seen: set[tuple[str, str]] = set()
-            for n in ast.walk(fn):
-                #: ALL THREE assignment statements, not just `Assign`. `p.source_ifc: str = v` is an
-                #: `AnnAssign` and `p.source_ifc += v` an `AugAssign`, and both are writes -- the
-                #: augmented one is a read-modify-write, the shape this whole gate exists for. Only
-                #: `Assign` was matched, so either form was invisible and the gate ACCEPTED it. Same
-                #: defect as the module predicate one layer down: *a population derived by matching
-                #: one spelling of a thing silently excludes the others, and the exclusion never
-                #: appears in the output.*
-                for t in _assign_targets(n):
-                    if not (isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)):
-                        continue
-                    if (t.value.id, t.attr) in seen:
-                        continue
-                    seen.add((t.value.id, t.attr))
-                    ok, outside = lock_spans(fn, t.attr)
-                    sites.append((_rel(p), fn.name,
-                                  binds.get(t.value.id), t.attr, ok, outside[:4]))
+            #: EVERY spelling of an attribute write, taken from `ctx=Store` rather than from a list
+            #: of statement types -- see `_stored_attrs`. Matching `Assign` alone hid the annotated
+            #: and augmented forms; matching those three hid tuple-unpacking, `for`, `with` and
+            #: comprehension targets. *A population derived by matching one spelling of a thing
+            #: silently excludes the others, and the exclusion never appears in the output* -- so
+            #: stop spelling, and ask the grammar.
+            for t in _stored_attrs(fn):
+                if (t.value.id, t.attr) in seen:
+                    continue
+                seen.add((t.value.id, t.attr))
+                ok, outside = lock_spans(fn, t.attr)
+                sites.append((_rel(p), fn.name,
+                              binds.get(t.value.id), t.attr, ok, outside[:4]))
     return sites
 
 
@@ -395,35 +415,56 @@ _SYNTH = ast.parse(
     #: passed vacuously because every synthetic receiver resolved.
     "def opaque(thing):\n"
     "    thing.source_ifc = 'y'\n"
-    #: The two statement forms that were invisible until 2026-09-14. `AugAssign` is the sharper of
-    #: the pair: `x += y` is literally a read-modify-write, the shape this gate exists for, and it
-    #: was the one spelling the matcher did not recognise.
+    #: SEVEN spellings of the same write, planted unlocked. The first two were invisible to the
+    #: `ast.Assign`-only matcher; the last five were STILL invisible to the three-statement one that
+    #: replaced it, because their target is not a top-level `Attribute` -- or, for `for`/`with`,
+    #: is not an assignment statement at all. `AugAssign` is the sharpest of the seven: `x += y` is
+    #: literally a read-modify-write, the shape this gate exists for. Narrowing `_stored_attrs`
+    #: back to any statement list reds the checks below, naming the spellings it stopped seeing.
     "def annotated(db, pid):\n"
     "    p = db.get(Project, pid)\n"
     "    p.source_ifc: str = 'ann'\n"
     "def augmented(db, pid):\n"
     "    p = db.get(Project, pid)\n"
     "    p.source_ifc += '.v3'\n"
+    "def unpacked(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.source_ifc, _rest = 'tup', 1\n"
+    "def nested_unpacked(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    (_a, (p.source_ifc, _c)) = (1, ('deep', 3))\n"
+    "def starred(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.source_ifc, *_tail = ['star', 1]\n"
+    "def for_target(db, pid, rows):\n"
+    "    p = db.get(Project, pid)\n"
+    "    for p.source_ifc in rows:\n"
+    "        pass\n"
+    "def with_target(db, pid, ctx):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with ctx as p.source_ifc:\n"
+    "        pass\n"
 )
 _syn_alias, _syn_types = _alias_map(_SYNTH), _return_types(_SYNTH)
 _syn_sites = []
 for _fn in ast.walk(_SYNTH):
     if isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
         _b = _bindings(_fn, _syn_alias, _syn_types, {})
-        for _n in ast.walk(_fn):
-            if True:
-                for _t in _assign_targets(_n):
-                    if isinstance(_t, ast.Attribute) and isinstance(_t.value, ast.Name):
-                        _ok, _out = lock_spans(_fn, _t.attr)
-                        _syn_sites.append(("synth.py", _fn.name, _b.get(_t.value.id), _t.attr, _ok, _out))
+        for _t in _stored_attrs(_fn):
+            _ok, _out = lock_spans(_fn, _t.attr)
+            _syn_sites.append(("synth.py", _fn.name, _b.get(_t.value.id), _t.attr, _ok, _out))
 
 _sp, _sv, _su = verdicts(_syn_sites)
+_SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred",
+              "for_target", "with_target"}
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
-      sorted(s[1] for s in _sv) == ["annotated", "augmented", "sloppy_writer"],
+      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer"}),
       f"violations={sorted(s[1] for s in _sv)}")
-check("  and that INCLUDES the annotated and augmented forms -- matching only `ast.Assign` made "
-      "`p.source_ifc: str = v` and `p.source_ifc += v` invisible, so the gate accepted them",
-      {"annotated", "augmented"} <= {s[1] for s in _sv}, f"violations={[s[1] for s in _sv]}")
+check("  and that INCLUDES ALL SEVEN non-plain spellings -- `ast.Assign` alone hid the first two, "
+      "and the three-statement matcher that replaced it still hid the other five, because their "
+      "target is a Tuple, a `For.target` or a `withitem`, not a top-level Attribute",
+      _SPELLINGS <= {s[1] for s in _sv},
+      f"missed={sorted(_SPELLINGS - {s[1] for s in _sv})}")
 check("self-test: the SEED found the locked writer -- an empty seed would make the rule vacuous "
       "and every check below would pass by finding nothing",
       ("Project", "source_ifc") in _sp, f"protected={sorted(_sp)}")
