@@ -12,6 +12,90 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two people editing one record both saved; only one of the edits survived
+
+RMW-SWEEP. `transition` was one instance of a class, and PR #551 fixed only that instance. The shape
+is: **read a column, compute a new value FROM what you read, write it back under `where(id == rid)`
+alone.** Nothing holds the row still in between, so two callers both read the old value and the
+second write erases the first — and *both* callers are told they succeeded. Reproduced against the
+real functions before anything was written:
+
+```
+set_element_guids: A reads ['GUID-A'] · B commits ['GUID-A','GUID-B'] · A commits ['GUID-A','GUID-C']
+                   FINAL ['GUID-A','GUID-C']        GUID-B survived? False
+link_record:       B commits a link · A commits a link · FINAL holds one of the two
+```
+
+*A lost update that refuses one caller is nearly fixed; one that tells both they succeeded has to be
+found twice* — the same severity inversion the seeding sweep recorded, where a primary key refuses
+the loser and a non-unique index refuses nothing.
+
+**Five sat on the register row**, and `update_record` is the one that matters. It is the path the
+register's inline text and select cells use; it writes `{**what we read, **what you sent}`; and the
+control `docs/security/threat-model.md` names for exactly this threat — `expected_modified_at` — is
+**opt-in**, passed by one of five web call sites. So two people editing *different fields* of one
+record both merged onto the same pre-image and the second erased the first person's field. The
+documented control was real and it was not on the path people use.
+
+All five now route through `modules._cas_row_edit`, which re-reads, recomputes, and writes under
+`WHERE id = ? AND modified_at = ?` — a compare-and-swap in SQL rather than a check in Python.
+
+**Three decisions in it are worth naming, because each has a wrong-looking alternative.**
+
+- **The swap is on `modified_at`, not on the collection.** `element_guids` is a JSON column and JSON
+  equality is not comparable the same way on SQLite and Postgres — the exact trap `with_for_update()`
+  is, which Postgres honours and SQLite silently ignores. `modified_at` is a plain timestamp on both.
+  And **every register-row writer sets it**, which is now asserted rather than assumed: the dynamic
+  register table declares the column with **no `onupdate=`**, so that coverage is a property of the
+  call sites, and one writer forgetting it would make this predicate match a row somebody else had
+  just changed — *a lock that looks present.*
+- **It retries rather than refusing.** A lost `transition` race means the action genuinely is no
+  longer available, so a 409 is honest. "Add GUID-C" is still the caller's intent after somebody else
+  adds GUID-B, so re-reading and re-applying gives the user what they asked for.
+- **…except where the caller does not own the transaction.** A retry rolls back, and
+  `update_record(commit=False)` has callers (`responsibility`, renaming a role column across every
+  row) that have already staged rows in that transaction. Rolling those back and then succeeding here
+  would commit a partial edit and report it as whole — *the very shape of bug this exists to remove.*
+  So `commit=False` gets one attempt and a 409, which aborts the caller's whole edit.
+
+**`revise` was hiding a second defect behind the first.** Its "record already revised" check was
+itself a read-then-write: two concurrent revises both passed it, both minted a revision row, and the
+second supersede write erased the first's `superseded_by` — leaving two live revisions of one record,
+each believing it is the only one, and only one findable from the source. The CAS refuses the second.
+
+**Two off-register instances were found, and one of them was not a race at all.**
+`client_portal`'s share-token view counter was `row.view_count = (row.view_count or 0) + 1` — two
+people opening the same link both read 7 and both wrote 8, so the count drifts *down* under exactly
+the load that makes it interesting. It moved into SQL (`view_count + 1` evaluated by the database),
+with no CAS and no retry, because there is then nothing read in this process for anyone to
+invalidate. The other was the opposite of what the sweep was looking for: `proforma.save_property`
+wrote `p.dev_property = body` **wholesale**, and `realestate.save_appraisal` keeps `appraisal` inside
+that same blob — so every ordinary re-save of the property tab deleted the saved appraisal overrides.
+No concurrency required. *A write that reads nothing cannot lose an update — it just deletes one.*
+
+**What the sweep could NOT reach is named rather than left silent**, because that is precisely how
+the seeding sweep lost four sites. `Scenario.shared_with` (a share grant) and `Project.dev_property`
+(the appraisal merge) still lose a concurrent write: neither table carries a `modified_at`, so the
+register row's token does not exist for them. They are frozen in `test_rmw_sweep.py`'s `BAND_2`
+ledger and filed as gap **G-10** — the set cannot grow silently, because a new instance reds the
+build.
+
+**The gate**, `services/api/test_rmw_sweep.py`, derives the population by AST with transitive taint
+from `get_record`, fails **closed** on an `update()` whose target it cannot resolve, and runs itself
+against the shipped pre-fix bodies of `set_element_guids` *and* `update_record` before it may print
+any verdict — the second because `update_record` splats `**vals`, which is the blind spot that cost
+PR #551 a review round. The behavioural half asserts the **outcome** through the real functions on a
+hand-built interleaving, and a mutation removing the swap predicate must lose the GUID again.
+
+*Its own self-tests earned their keep within the hour.* Teaching the analyser about mapped model
+classes — so two correctly-guarded writes stopped reporting as UNKNOWN — made it read the `t.c`
+accessor as a column name, so every write looked swapped-on and both pre-fix bodies came back clean.
+The population check would have printed "0 blind" over a tree it had not examined. *A widening and a
+rule change are different edits, and widening one can break the other.* And the sibling gate did the
+same for its neighbour: routing `revise` through the helper removed `update(` from its body, so
+`test_transition_cas`'s exemption for it went stale and redded the build the hour the helper landed.
+*An exemption that outlives its site is a hole nobody opened on purpose.*
+
 ### A second "send RFQ" minted a second solicitation, and a test called that idempotent
 
 `POST /projects/{pid}/procurement/packages/{rid}/send-rfq` called `create_record` — which commits —

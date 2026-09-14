@@ -13,7 +13,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 _TOKEN_BYTES = 24          # ~32-char url-safe secret — unguessable
@@ -22,6 +22,28 @@ _MAX_TOKENS = 50           # per-project cap on live tokens (bounded stored data
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _count_view(db: Session, row) -> None:
+    """Record one view of a share token, ATOMICALLY.
+
+    RMW-SWEEP. This was `row.view_count = (row.view_count or 0) + 1`, which reads in Python and
+    writes back what it read: two people opening the same link at once both read 7 and both wrote 8,
+    so the count drifts DOWN under exactly the load that makes it interesting. The increment belongs
+    in the database, where the row is already serialised -- not in the process, where two of them
+    are not.
+
+    No compare-and-swap and no retry, deliberately: `view_count + 1` is evaluated by the database
+    against the row's current value, so there is nothing read in this process for a concurrent writer
+    to invalidate. A CAS here would be a slower way of getting the same answer, and would add a 409
+    path to a page that must never fail on a counter. `share_tokens` also carries no `modified_at`,
+    so the register row's token is not available to it -- which is the reason this instance gets a
+    different fix rather than the same one.
+    """
+    from .models import ShareToken
+    db.execute(update(ShareToken).where(ShareToken.token == row.token)
+               .values(view_count=func.coalesce(ShareToken.view_count, 0) + 1,
+                       last_viewed_at=_now()))
 
 
 def create_token(db: Session, pid: str, label: str | None, actor: str | None,
@@ -171,8 +193,7 @@ def model_fragment(db: Session, token: str) -> tuple[str, bytes]:
     if not storage.exists(key):
         raise KeyError("no published model fragment for this project")
     data = storage.get(key)
-    row.view_count = (row.view_count or 0) + 1
-    row.last_viewed_at = _now()
+    _count_view(db, row)
     db.commit()
     return row.project_id, data
 
@@ -193,8 +214,7 @@ def digest(db: Session, token: str) -> dict[str, Any]:
     if row is None or row.revoked:
         raise KeyError("invalid or revoked token")
     b = master_builder.brief(db, row.project_id)
-    row.view_count = (row.view_count or 0) + 1
-    row.last_viewed_at = _now()
+    _count_view(db, row)
     db.commit()
     return {
         "project": b.get("project"),

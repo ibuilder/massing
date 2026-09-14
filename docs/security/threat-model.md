@@ -67,7 +67,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Request untraceability | `X-Request-ID` middleware stamps every request (inbound honored, ≤64 chars), propagated to OTel spans and the error log. |
 | Unattributable or misattributed professional seal | A seal is a personal legal attestation of responsible charge, not an authorisation, so it requires an authenticated caller **plus** a fresh step-up assertion a stored token cannot satisfy, and the identity is derived from the caller's own admin-verified licence rather than from the request. The audit row records the actor, the licence **row id**, `via` (verified licence vs legacy free text) and that a step-up was required — so a human act and an automated one are distinguishable after the fact. Previously the seal endpoints had no authorisation and no audit row at all (v0.3.800). |
 | Untrusted writes into the audit trail | The e-signature provider webhook is the one anonymous surface that writes audit rows (a provider holds no user credential). It verifies an HMAC over the raw request body when `AEC_ESIGN_WEBHOOK_SECRET` is set, is rate-limited and size-capped, bounds every stored string, and stamps each row with whether the signature was verified — so an unverified entry cannot be read as a verified one. |
-| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`; `expected_modified_at` 409 on record updates. |
+| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`. On record updates there are **two** controls, and the entry previously named only the opt-in one. `expected_modified_at` returns 409 when the record moved since the caller loaded it — but it is opt-in, and one of five web call sites passes it, so the register's inline cell editors had nothing. Every read-modify-write on a record row now also carries an in-SQL compare-and-swap on `modified_at` (`modules._cas_row_edit`): a write derived from a stale read matches no row, re-reads and re-applies, so a concurrent edit to a different field is no longer erased. Gated by `services/api/test_rmw_sweep.py`, which fails the build on a register-row write that derives its value from a read it does not swap on. Two JSON collections on tables with no `modified_at` — `Scenario.shared_with` and `Project.dev_property` — are named as open in that gate's `BAND_2` ledger rather than left unstated (gap G-10). |
 
 ### 7. Supply chain & CI/CD
 | Threat | Control |
@@ -162,6 +162,15 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    the pre-fix tree, so it is known to fail on the real bugs and not only on synthetic ones.
 9. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
    enterprise deployment. Operator action.
+10. **G-10 (S) Two JSON collections still lose a concurrent write** — `Scenario.shared_with` (a
+   share grant) and `Project.dev_property` (an appraisal-override merge). Both read a JSON
+   collection and write back what they derived, and neither table carries a `modified_at`, so the
+   compare-and-swap the record row uses does not exist for them; JSON equality is not a swap that
+   behaves the same on SQLite and Postgres, which is why the same fix was not simply copied. They
+   are listed in `services/api/test_rmw_sweep.py`'s `BAND_2` ledger, so the set is frozen and cannot
+   grow silently — a new instance reds the build. Closing it means giving those tables a concurrency
+   token, which is a migration (roadmap: RMW-TOKEN). Severity is small: the loss needs two grants or
+   two appraisal saves inside one request window, and neither is a privilege boundary.
 
 *Exclusions per the review doctrine: DoS/resource-exhaustion beyond the shipped caps, rate-limit
 tuning, log-spoofing, path-only SSRF, client-side authz, and outdated-dep advisories (handled by the

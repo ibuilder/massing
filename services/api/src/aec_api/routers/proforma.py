@@ -383,7 +383,18 @@ def put_property(pid: str, body: dict, db: Session = Depends(get_db), _sec: str 
     p = db.get(_P, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    p.dev_property = body
+    # RMW-SWEEP found this by looking for writes DERIVED from a read, and found the opposite: a
+    # write that reads nothing. `dev_property` has two owners -- this form owns the parcel/areas/
+    # purchase/tax keys, and `realestate.save_appraisal` writes `appraisal` into the SAME blob -- so
+    # a wholesale replace here deleted the saved appraisal overrides every time somebody re-saved the
+    # property tab. No concurrency needed: *a write that reads nothing cannot lose an update, it just
+    # deletes one*, and it does so on the ordinary path rather than under load.
+    #
+    # `body` still wins where the two overlap, so a client that does round-trip `appraisal` is not
+    # overridden by the stored copy; the carry-over applies only to a key this form never sends.
+    prior = p.dev_property or {}
+    p.dev_property = ({**body, "appraisal": prior["appraisal"]}
+                      if "appraisal" in prior and "appraisal" not in body else body)
     db.commit()
     return {"property": body, "summary": dp.summarize(body)}
 
