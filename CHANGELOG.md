@@ -12,6 +12,455 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 11 — the third traversal, and a correction to what round 10 claimed
+
+Two High findings, both real, both fail-opens, both in `test_lock_boundary.py`.
+
+**1. `lock_spans` crossed nested function boundaries — and round 10's commit message said this could
+not happen.** That commit asserted *"there are now exactly two function-taking traversals and both
+use `_own_nodes`."* **That claim was false.** `lock_spans` is a third, and it was missed because the
+search that produced the claim was `grep 'ast.walk(fn)'` — and `lock_spans` does not call `ast.walk`,
+it recurses through a hand-written closure. **Searching for a spelling is not searching for the
+property**, and the property was "descends into a nested scope". The same lesson this PR has been
+prosecuting for four rounds, applied to my own verification of it and not caught by me.
+
+The consequence is round 10's shape exactly: a nested helper's *unlocked* mention of an attribute made
+the **enclosing** function's locked write report as unlocked; that write is the SEED; losing it means
+an unlocked writer of the pair elsewhere is no longer a violation. All three function-taking
+traversals now stop at `FunctionDef`, `AsyncFunctionDef` and `ClassDef`.
+
+**2. `pid_lock_names` accepted shadowed names.** `def writer(p, pid_lock):` binds a *parameter*, and
+Python resolves `with pid_lock.mutating(...)` inside that function to the parameter, not the imported
+module — as does `pid_lock = other`. The analyser kept `"pid_lock"` in `lock_names` and certified an
+arbitrary object as the project lock. The `impostor_alias` probe added in round 9 could not reach
+this: it binds the name in a *different* function. **The dangerous case is the same scope, where the
+name is right and the binding is wrong.** Names bound by a parameter, assignment, `for` target or
+`with ... as` in any scope on the chain are now subtracted — removed rather than resolved, because
+this is a certifier and refusing what it cannot prove is the fail-closed direction.
+
+**And the reviewer confirmed, unprompted, the thing this round was asked to check:** *"The stable
+432 sites / 6 pairs count does not detect either defect."* It was right to say so. Finding 1 can
+remove one seed while a second locked writer keeps the pair alive; finding 2 can add a **false** seed
+without changing the count at all. That number has been cited in five consecutive entries as evidence
+the tightenings lost nothing — **it is evidence of much less than that**, and it is now retired as an
+argument. The probes are the evidence; the count is a description.
+
+Sites unchanged at **432**, six protected pairs. Each fix mutation-checked: restoring the nested
+descent drops `(Project, prop_layers)` and loses `span_victim`; restoring the unshadowed names loses
+`param_shadow` and `local_shadow`.
+
+### LOCK-BOUNDARY round 10 — two defensible rules that were a hole together
+
+One finding, and it is the one I asked for: *is there another place where the two traversals still
+disagree about where a function ends?* Yes — `_bindings` was the last `ast.walk(fn)` in the analyser.
+
+Round 9 fixed `_stored_attrs` to use `_own_nodes` (writes belong to their innermost function) and
+added `_bind` (a name meaning two models resolves to neither). Each is right on its own. **Together
+they opened a fail-open neither could cause alone**, because `_bindings` still descended into nested
+bodies: a name rebound inside a *helper* polluted the enclosing function's map, `_bind` marked it
+CONFLICT, and the enclosing function's **locked** write lost its receiver. That write is what SEEDS
+the `(model, attribute)` pair. Lose the seed and an unlocked writer of the same pair elsewhere is no
+longer a violation — because nothing is protecting it.
+
+**This is a fail-open that works by REMOVING A SEED rather than by excusing a write**, which is why
+it survived every self-test aimed at the judgement. All of those ask "is this unlocked write
+reported?"; none asked "did the thing that makes it reportable survive?" The new probe is built the
+other way round: a correct locked writer whose nested helper rebinds the same name, plus a genuine
+unlocked writer of that pair. Reverting `_bindings` to `ast.walk` drops `(Connection, config)` out of
+the protected set entirely and the unlocked writer silently leaves the violations — exactly the shape
+described, reproduced.
+
+Two lessons, and the second is the one worth carrying:
+
+- **Every traversal in this analyser must agree on where a function ends.** Third instance in two
+  rounds: round 9's first attempt attributed a nested write to its enclosing function while the scope
+  maps stopped at the boundary, and this is the same disagreement in the remaining direction.
+- **A rule can be correct in isolation and unsafe in composition.** `_own_nodes` and `_bind` were each
+  argued for on their own merits and reviewed on their own merits. The hole existed only in the
+  interaction, which is precisely what a diff-shaped review cannot see and why every round of this PR
+  has been requested as a full pass over the whole state.
+
+Sites unchanged at **432**, six protected pairs, no new violations — the fix corrects *which scope*
+a binding belongs to, not how many there are.
+
+### LOCK-BOUNDARY round 9 — three fail-opens in the analyser, and a completeness claim with a filter under it
+
+Three findings from the round-9 review, all inside the diff, all in `test_lock_boundary.py`, all
+real. Each mutation-checked.
+
+**1. `_stored_attrs` claimed completeness and then filtered.** Round 8's docstring argued that an
+attribute write *is* `ast.Attribute` carrying `ctx=Store` — the grammar's own marking, complete by
+construction — and the very next line required `isinstance(n.value, ast.Name)`. So
+`ctx.project.source_ifc = v`, whose outer node carries `Store` exactly like any other write, never
+entered the site list and the gate **accepted** it. *A completeness claim with a filter under it is
+not a completeness claim* — and this is the third round running where the fix for an over-narrow
+population was itself over-narrow, now at the level of a single `and` clause. Receivers are no longer
+filtered here: resolving one is `collect`'s job, and an unresolvable receiver is reported UNKNOWN,
+which reds. **The narrow version traded a fail-CLOSED report for silence**, which is the worse of the
+two by the same argument this whole PR rests on.
+
+**2. Imports were collected file-wide, not lexically.** `_alias_map` and `pid_lock_names` walked the
+whole module, so a function-local `from .. import pid_lock` — how most of this tree spells it —
+became a binding for *every* function in the file. One function's `import pid_lock as lock` would
+certify an unrelated `lock.mutating(...)` elsewhere, and a reused model alias could resolve another
+function's receiver to the wrong mapped model. Bindings now resolve along the real scope chain:
+module level, then each enclosing function, then the function itself, with normal shadowing.
+
+**3. One binding per name, applied to every write in the function.** `_bindings` kept the last
+binding and `collect` applied it everywhere, so in `p = Project(...)` → `p.source_ifc = v` →
+`p = SavedView(...)` the unlocked `Project.source_ifc` write was reclassified by a later line and
+left the violations entirely. Resolving per source position needs real flow analysis; refusing to
+resolve a name that means two different things does not, and errs the only safe way — UNKNOWN, which
+reds. Every real site in this tree has one consistent meaning, so nothing legitimate is affected.
+
+**The first version of fix 2 produced two false positives, and reading the code is what caught it.**
+It reported `authoring.py::import_families` and `::content_import` as unlocked writers of
+`Project.source_ifc`. Both are in fact correct — the write sits inside a nested helper that holds
+`pid_lock.mutating(pid)` and imports it locally, the `run_in_threadpool` shape every `async def`
+route here uses. The bug was mine: `_stored_attrs` walked *into* nested functions while the new scope
+maps stopped *at* them, so a write was attributed to the enclosing function while its lock and its
+import were not. **Two traversals over one tree must agree on where a function ends.** Writes are now
+attributed to the innermost enclosing function — which `collect` visits in its own right, so nothing
+is lost — while bindings accumulate down the chain, because a nested helper closes over the receiver
+its caller fetched. *Had this been reported instead of read, it would have been two invented defects
+in working concurrency code.*
+
+Sites scanned **375 → 432**. Fifty-seven more real attribute writes, no new violations, and the six
+protected pairs are unchanged before and after — which is the evidence that the scoping tightened
+nothing legitimate. Three self-tests are planted and each fix is mutation-checked: restoring the
+`Name` filter loses the chained receiver, going back to file-wide imports makes the impostor alias
+*vanish from the violations*, and keeping the last binding loses the rebound site.
+
+One implementation note worth keeping: the first scope-chain build was quadratic (a parent map per
+call, three calls per function) and the gate stopped finishing. It is memoised per module now.
+
+### LOCK-BOUNDARY round 8 (review) — a certifier that matches on a method NAME, and an inference wearing the shape of a proof
+
+Four findings from the round-8 review, all inside the diff, all real, all fixed.
+
+**1. `lock_spans` certified on the method name alone.** It matched any `<anything>.mutating(...)`, so
+`with session.mutating(pid):` — an unrelated object exposing a method of that name — marked every
+write in its body as locked. *A certifier that matches on a method NAME is trusting a string anybody
+may define*, and it fails in the one direction a certifier must not: silently, toward "yes". The
+receiver is now resolved against the file's own `pid_lock` imports (`pid_lock_names`, per file,
+because most call sites import it function-locally), so a module with no such import certifies
+nothing. An impostor is planted in the self-test population; loosening back to name-matching reds it.
+Six protected pairs before and after — the tightening lost no real lock.
+
+**2. Form 7 was an inference wearing the shape of a proof.** Round 6 reasoned: "a variable bound from
+an attribute chain touching no mapped attribute name cannot be a mapped instance, because reaching one
+by attribute access means traversing a mapped relationship." That holds for chains *through the ORM*
+and says nothing about a chain through anything else — `p = ctx.row` on a plain container holding a
+`Project` touches no mapped attribute name and is a mapped instance. **It was a tree-wide fail-open,
+the same defect as the module predicate it replaced, one layer smaller and better argued.**
+
+The repair is the `test_court_primary` move: *a premise that cannot be checked has already drifted;
+stop inferring it and DECLARE it.* What made that affordable is that the population turned out to be
+**one site** — measured by deleting the rule and re-deriving, not assumed. `NON_MODEL_RECEIVERS` now
+carries that one entry with its reason, everything else falls through to UNKNOWN (fail-closed), and
+the ledger is checked in **both** directions: emptying it must bring every declared site back as an
+unresolvable unlocked write (so no entry is decoration, and none can rot into an exemption for its
+next occupant), and nothing undeclared may need one (the direction round 6 failed in).
+
+`MAPPED_ATTRS` and `_chain_attrs` went with the inference. Its self-test went too — a check on a
+variable nothing reads is precisely the thing this PR is about — and the lesson it carried moved to
+`MODELS`, which *is* load-bearing: an unconfigured registry resolves no receiver and leaves an empty
+seed. **That repointed check immediately failed on a threshold copied from the old one** (34 models,
+not the 183 attributes), which is the argument for pointing a check at something live.
+
+**3. `test_ifc_publish_atomic` asserted SOURCE TEXT.** One check read `authoring_shared.py` and looked
+for the literal `"os.link(final, backup)"`. Same defect `test_pin_pgnull` exists to record: *asking the
+right question and then asserting something adjacent to the answer.* It passes on a spelling and on
+dead code alike, and a faithful rewrite (`os.link(src=…, dst=…)`, or the call moved into a helper) reds
+it for nothing. It now wraps `authoring_shared.os.link` and runs a real publication through it;
+reverting the helper to `os.replace` reds it with the call list empty.
+
+**4. A stale `LOCK-BOUNDARY` comment in `generate.py`.** Two paragraphs had stacked: the first still
+claimed generation runs inside the lock and writes the fixed published path, which round 1 stopped
+being true. The second, correct one stays. *The same failure as round 6's "`mutating` is reentrant, so
+this nests safely" — a comment asserting the property the code no longer has, which reads as reasoning
+rather than as the claim it is.*
+
+### LOCK-BOUNDARY round 8 — the fix for an incomplete enumeration is not a longer enumeration
+
+Round 7 replaced `test_lock_boundary`'s `ast.Assign`-only matcher with a three-statement one
+(`+AnnAssign`, `+AugAssign`) and called the hole closed. It was the same mistake one size larger.
+**Five further spellings of an attribute write were still invisible, and the gate ACCEPTED each:**
+
+```python
+p.source_ifc, _rest = a, b        # a Tuple target -- the top-level target is not an Attribute
+p.source_ifc, *_tail = xs
+(_a, (p.source_ifc, _c)) = v      # nested arbitrarily deep
+for p.source_ifc in rows: ...     # `For.target` -- reached by no assignment statement at all
+with ctx as p.source_ifc: ...     # `withitem.optional_vars` -- likewise
+```
+
+All legal Python, all writes, none of them a target of the three statements the matcher knew.
+
+The repair is not a sixth case. **An attribute write is not a list of statement types — it is
+`ast.Attribute` carrying `ctx=Store`, which is how Python itself marks one, in every form it has.**
+`_stored_attrs` now yields exactly those, and admits nothing else: a read (`v = p.x`), a call
+argument (`f(p.x)`) and `del p.x` carry `Load`, `Load` and `Del`. There is no seventh form to miss,
+because the set is no longer a list somebody maintains. Sites scanned went **346 → 375** — twenty-nine
+more real attribute writes in the tree, none of them a new violation.
+
+*This is the third round in a row where the previous round's fix was the next round's defect, and
+the first where the shape repeated at the same layer rather than a deeper one.* Round 6 removed a
+module-level predicate for excluding what it had not proved; round 7 widened a statement matcher
+from one spelling to three; round 8 stopped spelling. The lesson the first two did not quite reach:
+**widening an enumeration leaves an enumeration, and its remaining blind spot is invisible in exactly
+the same way** — the count looked more complete each time, and 331, 346 and 375 are all confident
+numbers. Only the last one is derived from something that cannot silently shrink.
+
+Seven non-plain spellings are now planted unlocked in the self-test population, and narrowing
+`_stored_attrs` back to the three statement forms reds two checks, naming the five it stopped seeing.
+
+Worth stating because it is the *reason* only this one site needed fixing: the analyser's other two
+`ast.Assign`-only matchers — Form 7's `NOT_A_MODEL` exclusion and the model-resolving pass — fail
+**closed**. A form they miss leaves the receiver unresolved, which the gate reports as UNKNOWN and
+reds. `collect` was the only one where a missed form meant a site was never looked at.
+
+### LOCK-BOUNDARY round 7 — a `finally` that deletes the only copy, and two spellings of a write
+
+Three fixed, two declined. The first is the most serious defect this PR has produced, and round 6
+made it worse.
+
+**1. The rollback backup was deleted even when the restore FAILED.** The `finally` unlinked it
+unconditionally. If `os.replace(backup, final)` raises, the published path is left holding bytes the
+system refused **and the backup — the user's previous model — is destroyed.** Round 6's `os.link`
+sharpens it: backup and `final` begin as one inode, so after the promotion the backup holds the
+**last** reference to the old bytes. *Cleanup in a `finally` runs on the branch where cleanup is
+exactly the wrong thing to do* — the one case that still needs the file is the case that got there by
+failing. The backup is now removed only when publication succeeded **or** restoration succeeded; a
+surviving `.rollback-*` is evidence that a publication failed and could not be undone, not litter.
+
+**2. `test_lock_boundary` matched `ast.Assign` only.** `p.source_ifc: str = v` is an `AnnAssign` and
+`p.source_ifc += v` an `AugAssign` — both writes, and the augmented one is *literally* a
+read-modify-write, the shape the gate exists for. Neither ever entered the site list, so the gate
+**accepted** them. Same defect as round 6's module predicate one layer down: *a population derived by
+matching one spelling of a thing silently excludes the others, and the exclusion never appears in the
+output.* Sites scanned went **331 → 346** — fifteen attribute writes the gate had never seen. Both
+forms are now planted unlocked in the self-test population, and narrowing the matcher back to
+`ast.Assign` reds two checks.
+
+**3. The hard-link continuity claim was unconditional.** It is a property of the hard-link path; on a
+filesystem without hard links the helper falls back to the rename and the window returns. Qualified.
+
+**Declined, both real, both about the proforma module rather than this diff:** a full-budget `PUT`
+can still overwrite a concurrent sync's hard lines (needs a revision token, i.e. a client contract
+change); and `source_ifc_path` / `takeoff_file` / `open_model` run before the lock in the model-sync
+route, so a publication can swap the IFC between the read and the commit. Both predate this PR, both
+need their own change, and both are tracked.
+
+### LOCK-BOUNDARY round 6 — the gate's own look-at predicate, and a fix that cost an unrelated property
+
+Three real findings from a full re-review of the head. Two are defects **inside earlier rounds of this
+PR**, which is now the pattern rather than the exception.
+
+**1. The published path was briefly ABSENT, and that is not the same property as "never partial".**
+Round 4 took its rollback backup with `os.replace(final, backup)`, so `source.ifc` did not exist
+between that rename and the promotion. `bake_layers` calls `project_with_source` **before** it takes
+the lock, and that helper raises 409 *"project has no accessible source IFC"* on a missing file — so a
+concurrent read could be refused during a publication that then **succeeded**. The backup is now an
+`os.link` — the same inode under two names, so the path stays present and `os.replace` still swaps it
+atomically. **That continuity is a property of the hard-link path, not an unconditional guarantee:**
+on a filesystem without hard links (FAT, some network mounts) the helper falls back to the rename and
+the window returns, because copying what may be hundreds of MB on every publish is the worse trade.
+The fallback costs a spurious 409 on a concurrent read, never data. *A fix for one property can cost an unrelated one that nothing was asserting* —
+the bare rename had given continuity for free since the beginning, and round 4 spent it without
+noticing.
+
+**And the first test written for this was vacuous.** It asserted no `<missing>` observation during a
+normal publish; reverting the fix left it **passing**, because two back-to-back renames take
+microseconds and the reader polls every millisecond. *A check that cannot observe the interval it
+describes reports on nothing.* It now tests the primitive with a deliberately wide window — with a
+rename the reader must catch the gap, with a link there is no gap at any width — plus an assertion
+that the helper is what uses the link.
+
+**2. `test_lock_boundary`'s module filter was the defect its own docstring warned about.**
+`touches_orm` skipped any module importing neither `models` nor `Session`, justified as *"provably
+incapable of the defect"*. That is **false**: `def stamp(p): p.source_ifc = v` holds a mapped instance
+its caller passed in, with neither import. Such a file was skipped whole, so the write never reached
+`verdicts` and could not be reported UNKNOWN — **the fail-closed rule was defeated one layer above the
+code enforcing it.** The docstring quotes CLAUDE.md's lesson that *a predicate deciding what to LOOK
+at is more dangerous than one deciding what to report* two lines before violating it.
+
+The module skip is gone. Two per-receiver rules replace it, both derived and provable in both
+directions: `self` inside a class resolves to that class when it is mapped and to a proven non-model
+when it is not; and a receiver bound from an attribute chain touching **no** mapped attribute name
+cannot be a mapped instance, because reaching one by attribute access means traversing a mapped
+relationship. Deliberately not *"an attribute chain is not a model"* — `project.owner` would be — so
+the test is against the registry, not the shape.
+
+`MAPPED_ATTRS` needs `configure_mappers()`: the first probe returned **0 of 183**, because mappers
+configure lazily. An empty set would mark every chain "provably not a model" — a fail-open across the
+tree — so a self-test asserts it is populated before any verdict prints. The removal itself has a
+regression test with a mutation: reinstating the predicate makes the planted site disappear.
+
+**3. Wording corrected in three places.** "`os.replace` undoes itself for free" overstates it: a rename
+is cheap to undo — one more rename, nothing copied — but nothing undoes it automatically.
+
+**Declined, with reasons:** the object-storage arm of a failed commit is the residual already recorded
+in the helper's docstring and filed as **#558**, blocked on a retention decision that is the
+maintainer's; and `pid_lock._advisory` degrading to in-process on an acquisition error is a
+pre-existing, documented property of that module affecting all eleven call sites, not something this
+PR introduced — it is tracked separately rather than changed inside a PR already six rounds deep.
+
+### LOCK-BOUNDARY round 5 — the rollback had a branch that existed doing nothing
+
+Round 4 made publication failure-atomic by moving the previous `source.ifc` aside and putting it back
+on any exception. Review found the half that does not exist: **when there is no previous file, there
+is no backup, and the `except` branch did nothing at all** — while `os.replace(staged, final)` had
+already put the refused bytes at the published path. That is every FIRST publication: blank create,
+first upload, first generate, first `ensure_model`.
+
+*The inverse of a rename is a rename OR a delete, depending on what was displaced, and a rollback
+written only for the first case is a no-op in the second.*
+
+The orphan is the smaller half. The larger one is what it does to the NEXT publication: that one finds
+`final.exists()` true, adopts the refused bytes as its backup, and on its own failure **restores them**
+— promoting a model the system refused into "the previous model worth keeping".
+
+**Why the round-4 test could not see it.** `test_ifc_publish_atomic`'s rollback arm calls `reset()`,
+which writes the old model to the published path every time, so `final.exists()` was always true and
+the no-backup branch was never entered. *A rollback test that always has something to roll back never
+exercises the branch where there is nothing.* The new arm deletes the published file first, asserts the
+failure leaves nothing behind, and then asserts the follow-on — a later successful publish has no
+refused model to inherit. Deleting the fix reds it with `source.ifc survived holding 4144 refused
+bytes`, so the branch is exercised rather than merely present.
+
+### LOCK-BOUNDARY round 4 — a comment that asserted the safety property the code lacked
+
+Two Major review findings, both real.
+
+**The publication and the budget seed were two lock intervals, not one.** `publish_source_ifc` took
+the lock and RELEASED it; a second `with` then re-took it — and the comment beside it said
+"`mutating` is reentrant, so this nests safely", describing a nesting that did not exist because the
+publisher had already returned. **A comment can assert the exact safety property the code lacks, and
+it reads as the reasoning rather than as the claim it is.** The gap lets generations A and B publish
+in order A, B — so the model is B's — and then A, still to seed, finds `dev_budget` empty and seeds
+it from A's metrics: model B priced by budget A, reported by nothing. Now one outer interval, with
+the publisher re-entering it — which is what the comment had claimed all along.
+
+**Publication was not failure-atomic.** A rename is CHEAP to undo — one more rename, no data
+copied — but nothing undoes it automatically, and `put_stream` and
+`commit` do not. A failure after the rename left the published local path — the file `bake_layers`
+and the converter open — holding the new bytes while nothing else had been published. *Atomic at
+each step is not atomic across the sequence.* The previous file is now kept aside and restored on
+any failure.
+
+**What that does NOT cover is stated in the helper rather than implied:** if `put_stream` succeeds
+and the commit then fails, object storage holds newer bytes than the local file and the row. Storage
+is the durable copy rather than what readers open, and the next successful publish overwrites it —
+but it is a real window, and closing it means publishing immutable versioned artifacts and moving
+the pointer last, which is a design change rather than a guard.
+
+`test_ifc_publish_atomic` gains three checks: a midway failure raises rather than reporting success,
+the previous model is restored byte-for-byte, and no rollback scratch is left. Removing the restore
+reds the second one (`final is 4144 bytes, expected the old 57`) — the guard is exercised, not
+merely present.
+
+### LOCK-BOUNDARY round 3 — the gate's own seed was failing open, and it hid three live defects
+
+Round 1's gate reported nothing about `Project.dev_budget`, and the reason was in the gate, not the
+code. `generate._finalize_generated` wrote it entirely inside the lock — but took `p` as an
+**un-annotated parameter**, so the receiver was UNKNOWN, the pair never entered the protected seed,
+and the three unlocked writers in `routers/proforma.py` were never compared against anything.
+
+**UNKNOWN was fail-CLOSED where it could excuse an unlocked write and fail-OPEN where it could
+establish that a field is protected at all.** *A predicate that decides what to LOOK at is more
+dangerous than one that decides what to report* — and a seed is exactly such a predicate, so the gate
+was not exempt from the rule it enforces. Found by running the analyser and reading its output, not
+by any test: nothing was red.
+
+Closed in both halves, because either alone is useless. A fifth binding form (a parameter's type
+annotation) put the pair in the seed, which immediately named `proforma.put_dev_budget`,
+`sync_gmp_to_hard` and `sync_model_to_hard`; all three now hold `pid_lock.mutating(pid)`. **Note
+which half did the finding: a one-line signature annotation turned a silent gate into one that named
+three live defects.**
+
+The defect itself is the `connections` shape again on money. `put_dev_budget` replaces the whole
+budget blob from the editor's form; the two `sync_*_to_hard` routes rebuild only the `hard` lines and
+preserve soft/acquisition/contingency. An editor saving the budget while someone clicks "sync GMP"
+lost one of the two silently — each caller's 200 was true of its own write. A lock and not a
+compare-and-swap, for the same reason `connections` chose one: the edits are claims on different line
+categories of one blob, so serialising lets both survive where a 409 would refuse an edit that
+conflicts with nothing.
+
+`test_rmw_sweep`'s ledger is updated from OPEN to LOCKED for the two sync routes, with the reason
+recorded: that sweep could only ever see two of the four writers, because the third is a plain
+replace and the fourth a conditional seed. **A pair is only as closed as its widest member, and that
+derivation could not see the widest.** Sweep open count 4 → 2; the two remaining are
+`drawingset.revise_sheet` and `share_scenario`.
+
+### LOCK-BOUNDARY round 2 — the lock covered the pointer and not the bytes
+
+Review on #557 caught that the first pass locked the `source_ifc` POINTER and left the file
+PRODUCTION outside. Every producer wrote the published `source.ifc` directly: `import_rvt` with a
+bare `write_bytes`, both massing generators and the blank create onto the fixed path, and the upload
+through `stream_to_path` — which does write `<dest>.part` and rename, but **the part name is derived
+from the destination**, so two concurrent uploads to one project share `source.ifc.part` and
+interleave into it before either renames. *A staging name that is a function of the destination is
+not staging, it is a second shared path.*
+
+`bake_layers` and `/edit` take the project lock and then open `p.source_ifc`, so a reader could open
+a file being rewritten underneath it. Locking the assignment alone moved the race rather than
+closing it — the same correction PR #552 forced on `under_pid_lock`, one layer down: *a lock proves
+something about the interval it spans, and the interval has to contain the bytes as well as the
+pointer.*
+
+Now every producer writes to a unique staged path and `authoring_shared.publish_source_ifc` promotes
+it — `os.replace`, storage publish, pointer, commit — inside one critical section. One helper rather
+than the same critical section at five producers, for the reason `connections._lock_key` is one.
+`staged_ifc` is a context manager so a producer that fails before promoting cannot leak its staged
+file; this tree has already run a disk out on orphaned scratch once.
+
+`services/api/test_ifc_publish_atomic.py` is the behavioural half, and it exists because
+`test_lock_boundary` structurally cannot see this: an AST analyser can confirm every
+`p.source_ifc = ...` sits inside the lock and says nothing about which path the bytes went to — the
+whole defect passes it. The test polls the published path while a producer runs and asserts the
+reader only ever sees a complete old or complete new model; the mutation writes straight to the
+published path and the reader catches partial files, so it measures the staging and not the timing.
+
+### LOCK-BOUNDARY — G-11 was closed yesterday and five writers of the same column were still unlocked
+
+`test_rmw_sweep` derives **read-modify-writes**. `p.source_ifc = str(ifc_path)` reads nothing — it
+installs a new pointer — so it was never in that population, and neither was the conditional-create
+`if not p.source_ifc: ...`. G-11 was closed on 2026-09-13 by locking every `source_ifc`
+read-modify-write in `routers/authoring.py`; **five writers of that same column were left open, two
+of them inside that file.** A pointer swap that reads nothing still orphans the version a concurrent
+`bake_layers` is deriving from.
+
+Now locked: `authoring.upload_source_ifc`, `authoring.import_rvt` (both `async def`, so the lock is
+taken off the event loop via `run_in_threadpool` — the v0.3.703 SSE failure otherwise),
+`generate.create_blank_model`, `generate.ensure_model`, `generate._finalize_generated`.
+`generate.py` had no `pid_lock` import at all.
+
+**`ensure_model` was the sharpest.** It is a CHECK-THEN-ACT, not a read-modify-write: it reads
+`source_ifc`, concludes from its emptiness that no model exists, and installs a blank one. Unlocked,
+two concurrent calls both read empty, both generate over the same fixed `source.ifc` path, and both
+answer `created: true`. The lock spans the DECISION — the early returns are inside it — because a
+lock taken after the branch protects nothing this route does.
+
+**The first diagnosis was wrong, and the correction is the point.** It looked like a FILE boundary:
+`generate.py` contained no lock at all, so the closure seemed to have stopped at the edge of the file
+being worked in. It had not — two of the five are in the "closed" file. What bounds the coverage is
+the SHAPE. *A coincidence that corroborates a wrong theory is the expensive kind, because it ends the
+search.*
+
+`services/api/test_lock_boundary.py` derives the rule from the code rather than a ledger: a
+`(model, attribute)` pair locked in **any** writer must be locked in **every** writer. It resolves
+each receiver to a mapped model — four binding forms, every one added because a probe reported
+UNKNOWN rather than because it was anticipated — and fails closed, because a resolver that guesses
+turns each of those into a confident wrong answer. Receiver resolution is load-bearing, not tidy:
+`modules.save_view` writes `.config` and matches `Connection.config` by NAME, but it is a `SavedView`
+and not a violation at all.
+
+**It states its own limit rather than hiding it:** this finds INCONSISTENT protection, not ABSENT
+protection. `Project.dev_budget` has four writers and no lock anywhere, so it never enters the seed
+and this gate is silent on it — the sweep names two of those four instead. Each derivation is blind
+where the other sees, which is why both exist.
+
 ### Two admins saving one connection: one of the two saves vanished
 
 `Connection.config` had **two** writers and neither took a lock. `update_connection` merges the

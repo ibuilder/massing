@@ -1259,9 +1259,18 @@ CROSS_FIELD = {
         "by hoisting the read into a local, then hid AGAIN behind an annotation. `projects` carries "
         "no `modified_at` to swap on, so it takes `pid_lock.mutating(pid)` instead, as does its "
         "partner `realestate.save_appraisal`. Verified lexically below, not asserted here."),
-    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard", "dev_budget"): ("OPEN",
-        "`dev_budget` merge -- same class, same missing token."),
-    ("src/aec_api/routers/proforma.py", "sync_model_to_hard", "dev_budget"): ("OPEN", "`dev_budget` merge -- same."),
+    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard", "dev_budget"): ("LOCKED",
+        "`dev_budget` merge -- CLOSED under `pid_lock.mutating(pid)` spanning the read through the "
+        "commit, because the non-hard lines this route preserves are whatever the row held when it "
+        "was read. Found by `test_lock_boundary`, not by this sweep: its THIRD writer "
+        "`proforma.put_dev_budget` is a plain whole-blob replace and its FOURTH "
+        "`generate._finalize_generated` a conditional seed, so neither is a read-modify-write and "
+        "this file could only ever see two of the four. *A pair is only as closed as its widest "
+        "member, and this derivation could not see the widest.*"),
+    ("src/aec_api/routers/proforma.py", "sync_model_to_hard", "dev_budget"): ("LOCKED",
+        "`dev_budget` merge -- CLOSED, same span and same reason. The takeoff and estimate stay "
+        "outside the lock: they read no project row, and holding it across them would serialise "
+        "more than the invariant needs."),
 }
 
 #: JSON collections on tables with NO `modified_at`, so the register row's token does not exist for
