@@ -214,6 +214,44 @@ check("...and the previously published model is restored byte-for-byte -- a read
 check("...and no rollback scratch is left behind",
       not list(WORK.glob(".rollback-*")), f"left: {[q.name for q in WORK.glob('.rollback-*')]}")
 
+# --- and the SAME failure with NO previous file to restore ---------------------------------------
+#: The arm above always had something to roll back, because `reset()` writes OLD to FINAL every time.
+#: *A rollback test that always has a previous file never exercises the branch where there is none* --
+#: and that branch was empty: `backup` is None for a FIRST publication (blank create, first upload,
+#: first generate), so the `except` did nothing while `os.replace(staged, final)` had already put the
+#: refused bytes at the published path. The orphan is the smaller half. The larger one is that the
+#: NEXT publication sees `final.exists()` and adopts those bytes as its backup, so a later failure
+#: RESTORES a model the system refused -- which is why this asserts the follow-on too.
+reset()
+FINAL.unlink(missing_ok=True)                 # a project with no model yet: the no-backup path
+_db2 = SessionLocal()
+_p2 = _db2.get(Project, PID)
+_storage.put_stream = _boom
+try:
+    with staged_ifc(FINAL) as _st2:
+        _st2.write_bytes(NEW)
+        try:
+            publish_source_ifc(_db2, _p2, PID, _st2, FINAL)
+            _raised2 = False
+        except RuntimeError:
+            _raised2 = True
+finally:
+    _storage.put_stream = _real_put
+
+check("a FIRST publication that fails also raises", _raised2, "the no-backup path swallowed it")
+check("...and leaves NO file at the published path -- with no previous model, rolling back means "
+      "leaving nothing, not leaving bytes the system refused to publish",
+      not FINAL.exists(),
+      f"{FINAL.name} survived holding {len(FINAL.read_bytes()) if FINAL.exists() else 0} refused bytes")
+
+# The follow-on: a later SUCCESSFUL publish must not be able to adopt refused bytes as its backup.
+with staged_ifc(FINAL) as _st3:
+    _st3.write_bytes(OLD)
+    publish_source_ifc(_db2, _p2, PID, _st3, FINAL)
+check("...so the next publication publishes its own bytes, with no refused model left to inherit",
+      FINAL.read_bytes() == OLD, f"published {len(FINAL.read_bytes())} bytes, expected {len(OLD)}")
+_db2.close()
+
 print()
 print(f"test_ifc_publish_atomic {'FAILED' if FAILED else 'OK'}"
       + ("" if FAILED else f" - {len(seen_fixed)} reader observations, 0 partial"))

@@ -12,6 +12,29 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 5 — the rollback had a branch that existed doing nothing
+
+Round 4 made publication failure-atomic by moving the previous `source.ifc` aside and putting it back
+on any exception. Review found the half that does not exist: **when there is no previous file, there
+is no backup, and the `except` branch did nothing at all** — while `os.replace(staged, final)` had
+already put the refused bytes at the published path. That is every FIRST publication: blank create,
+first upload, first generate, first `ensure_model`.
+
+*The inverse of a rename is a rename OR a delete, depending on what was displaced, and a rollback
+written only for the first case is a no-op in the second.*
+
+The orphan is the smaller half. The larger one is what it does to the NEXT publication: that one finds
+`final.exists()` true, adopts the refused bytes as its backup, and on its own failure **restores them**
+— promoting a model the system refused into "the previous model worth keeping".
+
+**Why the round-4 test could not see it.** `test_ifc_publish_atomic`'s rollback arm calls `reset()`,
+which writes the old model to the published path every time, so `final.exists()` was always true and
+the no-backup branch was never entered. *A rollback test that always has something to roll back never
+exercises the branch where there is nothing.* The new arm deletes the published file first, asserts the
+failure leaves nothing behind, and then asserts the follow-on — a later successful publish has no
+refused model to inherit. Deleting the fix reds it with `source.ifc survived holding 4144 refused
+bytes`, so the branch is exercised rather than merely present.
+
 ### LOCK-BOUNDARY round 4 — a comment that asserted the safety property the code lacked
 
 Two Major review findings, both real.

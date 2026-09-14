@@ -98,6 +98,17 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
         except BaseException:
             if backup is not None and backup.exists():
                 os.replace(backup, final)            # readers get the previous model back, intact
+            else:
+                # NO PREVIOUS FILE, and this branch existed doing nothing. `os.replace` above has
+                # already put the new bytes at the published path, so "restore what was there" here
+                # means leaving NOTHING, not leaving a model the system refused to publish.
+                # *The inverse of a rename is a rename OR a delete, depending on what was displaced,
+                # and a rollback written only for the first case is a no-op in the second.*
+                # The sharper consequence is not the orphan itself: the NEXT publication finds
+                # `final.exists()` true and takes those rejected bytes as its backup -- so a failure
+                # then RESTORES them, promoting refused bytes to "the previous model".
+                with contextlib.suppress(OSError):
+                    final.unlink(missing_ok=True)
             raise
         finally:
             if backup is not None:
