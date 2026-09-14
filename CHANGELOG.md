@@ -18,7 +18,10 @@ added or dropped in the fold.
 and only THEN looked at `workflow_state`, under an `if … == "draft"` that took the transition and an
 `else` that skipped it and reported the unchanged state as a success. So a second send persisted
 **another** Bid Solicitation while making no move. Measured on the old code: three sends produced
-**ITB-001, ITB-002 and ITB-003**, every response 200 / `rfq_sent`. It is now one ITB and a 409.
+**ITB-001, ITB-002 and ITB-003**, every response 200 / `rfq_sent`. The same three sends now produce
+**one ITB and two 409s**. *(That sentence read "one ITB and a 409" — singular — against a three-send
+example, which is the kind of count a reader checks against the numbers directly above it. Caught in
+review.)*
 
 **The roadmap filed this as needing a contract decision** between a 409, an idempotent no-op, and a
 deliberate re-solicitation with its own round number. **It was already decided, in
@@ -36,6 +39,29 @@ and an unchanged `package_state`, and its summary line called the route *"idempo
 asserted the two things that stay the same and **never counted the solicitations** — the one thing
 that changed. *A word like "idempotent" in a summary is a claim, and this one had a test shaped
 around it.* It now asserts the 409 **and** that the refused send minted nothing.
+
+### And reversing the order installed a worse bug than the one it fixed
+
+Raised in review on PR #551, before this shipped anywhere. The fix above moved the package FIRST and
+minted second — correct about the duplicate, and **wrong about a failure in between**. `transition`
+commits, so a solicitation refused after the move left the package in `rfq_sent` with no ITB — and
+this workflow declares **no path back to `draft`**, so the package was stranded where a retry earns
+only another 409. The old bug was recoverable by retrying (with a duplicate); the new one was not
+recoverable at all.
+
+**It needed no bug to reach.** `create_record` consults `fin_gov.locked_reason`, which raises 409 on
+a locked accounting period — an ordinary business rule, on an ordinary day.
+
+The fix is to STAGE rather than reorder: `create_record(..., commit=False)` writes the solicitation
+into the session without committing, and `transition`'s own commit then carries both writes as one
+transaction. Every refusal now leaves nothing behind — a refused mint never reaches the move, and a
+refused move (sequential 409 or a lost CAS race) discards the staged ITB with the transaction.
+Nothing in `transition` had to change; `create_record` already took `commit=False`.
+
+*A fix that reverses an order can install a worse fault than the one it removes, because the second
+write's failure is the one with nothing left to roll back.* The test drives the real
+`fin_gov.locked_reason` path and asserts the package is still `draft`; reinstating move-first fails
+it with **"refused mint left the package moved"**, so the ordering cannot quietly come back.
 
 ### `transition` was a read-then-write race — in all 139 modules at once
 

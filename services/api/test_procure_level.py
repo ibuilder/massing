@@ -107,6 +107,34 @@ with TestClient(app) as c:
                  ).json()["workflow_state"] == "rfq_sent"      # and left the package where it was
     assert c.post(f"/projects/{pid}/procurement/packages/nope/send-rfq", json={}).status_code == 404
 
+    # RFQ-ATOMIC. Both writes are ONE transaction: the solicitation is staged with `commit=False`
+    # and `transition`'s commit carries both. Raised in review on PR #551 -- the first draft of the
+    # fix moved FIRST and minted second, which is correct about the duplicate and wrong about a
+    # failure in between, because `transition` commits and a refused mint then left the package in
+    # `rfq_sent` with no solicitation AND no declared path back to `draft`.
+    #
+    # Driven through `fin_gov.locked_reason`, which `create_record` consults and which raises 409 --
+    # a REACHABLE business rule, not a synthetic crash. That distinction is why this is a test and
+    # not a comment: the stranding needed no bug to reach it, only a locked period.
+    from aec_api import fin_gov
+    hvac = created[1]
+    _real_locked = fin_gov.locked_reason
+    fin_gov.locked_reason = (lambda key, *a, **k:
+                             "period locked" if key == "bid_solicitation" else None)
+    try:
+        blocked = c.post(f"/projects/{pid}/procurement/packages/{hvac['id']}/send-rfq", json={})
+    finally:
+        fin_gov.locked_reason = _real_locked
+    assert blocked.status_code == 409, blocked.text
+    # the package did NOT move -- which is the whole point; a moved package with no ITB is stranded
+    assert c.get(f"/projects/{pid}/modules/procurement_package/{hvac['id']}"
+                 ).json()["workflow_state"] == "draft", "refused mint left the package moved"
+    assert len(_items(c.get(f"/projects/{pid}/modules/bid_solicitation").json())) == n_before, \
+        "a refused send committed a solicitation anyway"
+    # and the package is still sendable once the lock lifts -- the recovery the stranding destroyed
+    ok = c.post(f"/projects/{pid}/procurement/packages/{hvac['id']}/send-rfq", json={})
+    assert ok.status_code == 200 and ok.json()["package_state"] == "rfq_sent", ok.text
+
 print("PROCURE-LEVEL OK - QTO line items group into buyout packages (Concrete $12.5k > HVAC $4k, each with "
       "an RFQ scope of item/qty/unit to send out); returned quotes for a package are scored against the RFQ "
       "scope on price (extended over scope qty), coverage completeness, and lead time -> Ace (full coverage, "

@@ -93,14 +93,30 @@ def send_rfq(pid: str, rid: str, payload: dict = Body(default={}), db: Session =
     # the workflow is linear (draft → rfq_sent → quotes_in → awarded) with no path back to draft and
     # no re-solicit action, so `transition` answers a second `send_rfq` with a 409 of its own accord.
     # Deliberate re-solicitation would need a new declared transition — a product change, not this
-    # fix. The only thing that made the refusal invisible was the `else` branch overriding it. So
-    # there is no decision to take here: let the declaration speak, and mint only if it moved.
-    moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
+    # fix. The only thing that made the refusal invisible was the `else` branch overriding it.
+    #
+    # BOTH WRITES, ONE TRANSACTION. `create_record(commit=False)` STAGES the solicitation without
+    # committing; `transition` then runs its compare-and-swap and commits, so that single commit
+    # carries the ITB and the state change together. Every failure now leaves nothing behind:
+    #
+    #   * the mint is refused (validation, or `fin_gov.locked_reason` — a REACHABLE business rule,
+    #     not a crash path) → nothing staged is committed and the package never moves;
+    #   * the move is refused (sequential 409, or the CAS losing a race) → `transition` raises
+    #     before or instead of committing, and the staged ITB dies with the transaction.
+    #
+    # The first draft of this fix moved FIRST and minted second. That is correct about the
+    # duplicate and wrong about a failure in between: `transition` commits, so a refused mint left
+    # the package in `rfq_sent` with no solicitation — and this workflow declares no path back to
+    # `draft`, so the package was stranded where a retry only earns another 409. *Fixing an ordering
+    # bug by reversing the order can install a worse one, because the second write's failure is now
+    # the one with nothing to roll back.* Staging rather than reordering is what makes it atomic.
+    # Raised in review on this PR; the reordering alone shipped in neither main nor a release.
     itb = me.create_record(db, "bid_solicitation", pid, {"data": {
         "name": f"RFQ — {data.get('name') or rec.get('title') or rec['ref']}",
         "package": data.get("name"), "trade": data.get("trade"),
         "due_date": payload.get("due_date") or data.get("rfq_due"),
-    }}, actor, party)
+    }}, actor, party, commit=False)
+    moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
     return {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"],
             "package_state": moved.get("workflow_state")}
 
