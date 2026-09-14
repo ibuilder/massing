@@ -62,6 +62,18 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
     publish, pointer, commit, all inside one critical section. `os.replace` is atomic within a
     filesystem, so a reader holding the lock sees either the old complete file or the new one.
 
+    **The sequence is three steps and only the first undoes itself, so the previous file is kept
+    aside and restored if a later step raises.** *Atomic at each step is not atomic across the
+    sequence* — without that, a failing `put_stream` or `commit` left the published local path
+    holding the new bytes while nothing else had been published.
+
+    What this does NOT make atomic, stated rather than implied: if `put_stream` SUCCEEDS and the
+    commit then fails, object storage is left holding the newer bytes while the local file and the
+    row are rolled back. Storage is the durable copy rather than what readers open, and the next
+    successful publish overwrites it — but it is a real window, and closing it properly means
+    publishing immutable versioned artifacts and moving the pointer last, which is a design change
+    rather than a guard. Tracked, not silently accepted.
+
     One helper rather than the same critical section written out at each producer, for the reason
     `connections._lock_key` is one: copies drift, and the drift is invisible until two of them
     interleave. Callers in `async def` routes must run this through `run_in_threadpool` — it blocks
@@ -70,10 +82,27 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
     from .. import pid_lock
     with pid_lock.mutating(pid):
         db.refresh(p)
-        os.replace(staged, final)                    # atomic within the filesystem
-        storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(final))
-        p.source_ifc = str(final)
-        db.commit()
+        # ROLLBACK. `os.replace` is atomic, but the publication is three steps and only the first is
+        # undone for free. If `put_stream` or `commit` raises after the rename, the published local
+        # file -- the one `bake_layers` and the converter open by path -- is already the NEW bytes
+        # while the rest of the publication did not happen. So the previous file is kept aside and
+        # put back on any failure. *Atomic at each step is not atomic across the sequence.*
+        backup = final.with_name(f".rollback-{uuid.uuid4().hex}-{final.name}") if final.exists() else None
+        if backup is not None:
+            os.replace(final, backup)
+        try:
+            os.replace(staged, final)                # atomic within the filesystem
+            storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(final))
+            p.source_ifc = str(final)
+            db.commit()
+        except BaseException:
+            if backup is not None and backup.exists():
+                os.replace(backup, final)            # readers get the previous model back, intact
+            raise
+        finally:
+            if backup is not None:
+                with contextlib.suppress(OSError):
+                    backup.unlink(missing_ok=True)
     return str(final)
 
 

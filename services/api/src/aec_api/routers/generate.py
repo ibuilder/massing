@@ -225,10 +225,19 @@ def _finalize_generated(db, p: Project, pid: str, body: MassingIn, metrics: dict
     # together inside `publish_source_ifc` -- locking the pointer alone would have left a reader able
     # to open the published path mid-generate.
     final = _ifc_path(pid, "source.ifc")
-    publish_source_ifc(db, p, pid, staged, final)
-    # The `dev_budget` seed is a conditional create on the same row -- the other shape the sweep
-    # cannot see -- so it takes the same lock. `mutating` is reentrant, so this nests safely.
+    # ONE interval covering the publication AND the budget seed. They were two: `publish_source_ifc`
+    # took the lock and RELEASED it, then a second `with` re-took it -- and the comment there claimed
+    # "`mutating` is reentrant, so this nests safely", which described a nesting that did not exist.
+    # `publish_source_ifc` had already returned. **A comment can assert the exact safety property the
+    # code lacks, and it reads as the reasoning rather than as the claim it is.**
+    #
+    # The interleaving that gap allows: generations A and B publish in order A, B — so the model is
+    # B's — and then A, still to seed, finds `dev_budget` empty and seeds it from A's metrics. The
+    # project ends up with model B priced by budget A, and nothing anywhere reports it.
+    # `mutating` IS reentrant (test_pid_lock_xproc asserts three-deep nesting), so the publisher
+    # re-entering this lock is safe; what was missing was an outer interval for it to nest in.
     with pid_lock.mutating(pid):
+        publish_source_ifc(db, p, pid, staged, final)
         db.refresh(p)
         if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
             p.dev_budget = _seed_dev_budget(body, metrics)

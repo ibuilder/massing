@@ -176,6 +176,44 @@ check("a staged file whose producer failed before promoting is removed, not leak
       "has already run a disk out on orphaned scratch once",
       not _abandoned.exists(), f"{_abandoned} survived")
 
+# --- a FAILED publication must leave the previous model intact --------------------------------
+#: `os.replace` undoes itself for free; `put_stream` and `commit` do not. Before the rollback guard,
+#: a storage failure after the rename left the published path holding the new bytes with nothing else
+#: published -- readers opening a model the system had not accepted. *Atomic at each step is not
+#: atomic across the sequence.*
+import aec_api.storage as _storage  # noqa: E402
+
+reset()
+_db = SessionLocal()
+_p = _db.get(Project, PID)
+_real_put = _storage.put_stream
+
+
+def _boom(*_a, **_kw):
+    raise RuntimeError("object storage unavailable")
+
+
+_storage.put_stream = _boom
+try:
+    with staged_ifc(FINAL) as _st:
+        _st.write_bytes(NEW)
+        try:
+            publish_source_ifc(_db, _p, PID, _st, FINAL)
+            _raised = False
+        except RuntimeError:
+            _raised = True
+finally:
+    _storage.put_stream = _real_put
+    _db.close()
+
+check("a publication that fails midway RAISES rather than reporting success",
+      _raised, "publish_source_ifc swallowed the storage failure")
+check("...and the previously published model is restored byte-for-byte -- a reader never ends up "
+      "holding a model the system did not finish publishing",
+      FINAL.read_bytes() == OLD, f"final is {len(FINAL.read_bytes())} bytes, expected the old {len(OLD)}")
+check("...and no rollback scratch is left behind",
+      not list(WORK.glob(".rollback-*")), f"left: {[q.name for q in WORK.glob('.rollback-*')]}")
+
 print()
 print(f"test_ifc_publish_atomic {'FAILED' if FAILED else 'OK'}"
       + ("" if FAILED else f" - {len(seen_fixed)} reader observations, 0 partial"))

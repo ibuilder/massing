@@ -12,6 +12,36 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 4 — a comment that asserted the safety property the code lacked
+
+Two Major review findings, both real.
+
+**The publication and the budget seed were two lock intervals, not one.** `publish_source_ifc` took
+the lock and RELEASED it; a second `with` then re-took it — and the comment beside it said
+"`mutating` is reentrant, so this nests safely", describing a nesting that did not exist because the
+publisher had already returned. **A comment can assert the exact safety property the code lacks, and
+it reads as the reasoning rather than as the claim it is.** The gap lets generations A and B publish
+in order A, B — so the model is B's — and then A, still to seed, finds `dev_budget` empty and seeds
+it from A's metrics: model B priced by budget A, reported by nothing. Now one outer interval, with
+the publisher re-entering it — which is what the comment had claimed all along.
+
+**Publication was not failure-atomic.** `os.replace` undoes itself for free; `put_stream` and
+`commit` do not. A failure after the rename left the published local path — the file `bake_layers`
+and the converter open — holding the new bytes while nothing else had been published. *Atomic at
+each step is not atomic across the sequence.* The previous file is now kept aside and restored on
+any failure.
+
+**What that does NOT cover is stated in the helper rather than implied:** if `put_stream` succeeds
+and the commit then fails, object storage holds newer bytes than the local file and the row. Storage
+is the durable copy rather than what readers open, and the next successful publish overwrites it —
+but it is a real window, and closing it means publishing immutable versioned artifacts and moving
+the pointer last, which is a design change rather than a guard.
+
+`test_ifc_publish_atomic` gains three checks: a midway failure raises rather than reporting success,
+the previous model is restored byte-for-byte, and no rollback scratch is left. Removing the restore
+reds the second one (`final is 4144 bytes, expected the old 57`) — the guard is exercised, not
+merely present.
+
 ### LOCK-BOUNDARY round 3 — the gate's own seed was failing open, and it hid three live defects
 
 Round 1's gate reported nothing about `Project.dev_budget`, and the reason was in the gate, not the
