@@ -1529,10 +1529,48 @@ check("and every site it calls OPEN really is unlocked -- so closing one must up
       not _quietly_closed, f"{len(_claimed_open)} open; closed without updating this list: "
                            f"{_quietly_closed}")
 
+def _rmw_functions(sites) -> set[tuple[str, str]]:
+    """`(path, function)` for every discovered ORM site, the attribute projected away.
+
+    Exists because the share-token check below is a MEMBERSHIP test, and **a membership test
+    written against a key SHAPE fails OPEN the moment the shape changes.** It was
+    `("...client_portal.py", "model_fragment") not in ORM`, which was true while `ORM` held
+    `(path, function)` -- and stayed true, permanently and silently, the instant this very PR
+    re-keyed `ORM` to `(path, function, attribute)`: a 2-tuple is not a member of a set of
+    3-tuples no matter what is in it. *The re-key that made the ledger more precise turned one of
+    its own regression checks into three lines that can only say yes* -- the same defect class the
+    whole file is about, committed by the fix for it, and found by review rather than by me.
+
+    So the shape is derived here rather than written out at the call site, and the check is fed a
+    planted site below before it is allowed to report -- because a membership test that cannot
+    fail looks exactly like one that passes.
+    """
+    return {(path, fn) for path, fn, _attr in sites}
+
+
+#: The two share-token readers whose view counter used to be `row.views = row.views + 1`.
+SHARE_TOKEN_FNS = [("src/aec_api/client_portal.py", "model_fragment"),
+                   ("src/aec_api/client_portal.py", "digest")]
+
+#: A population of two, planted -- deliberately NOT built from `ORM`. A canary conditioned on the
+#: real tree fails for two unrelated reasons and cannot say which: its first draft read
+#: `SHARE_TOKEN_FNS[0] in _planted and SHARE_TOKEN_FNS[0] not in _fns`, so reinstating the genuine
+#: `row.view_count += 1` regression made it print *"the projection did not distinguish the planted
+#: site"* -- blaming the analyser for a defect in the subject. *A check whose failure message can
+#: misdiagnose is worse than one that stays silent, because somebody acts on it*, and this file has
+#: now learned that twice.
+_SYNTH = [("synthetic.py", "writer", "col"), (*SHARE_TOKEN_FNS[0], "view_count")]
+check("the projection finds a planted site that RAW membership cannot -- the shape bug reinstated "
+      "and required to come back",
+      SHARE_TOKEN_FNS[0] in _rmw_functions(_SYNTH) and SHARE_TOKEN_FNS[0] not in _SYNTH,
+      "either the projection stopped seeing a planted site, or a 2-tuple has become a member of a "
+      "set of 3-tuples -- either way the check below is back to only ever saying yes")
+
+_fns = _rmw_functions(ORM)
+
+_share_back = [k for k in SHARE_TOKEN_FNS if k in _fns]
 check("the share-token view counter is no longer an ORM read-modify-write",
-      ("src/aec_api/client_portal.py", "model_fragment") not in ORM
-      and ("src/aec_api/client_portal.py", "digest") not in ORM,
-      "the increment moved into SQL")
+      not _share_back, f"back as an ORM site: {_share_back}")
 
 _open = [k for k, (st, _) in _KNOWN.items() if st == "OPEN"]
 print()

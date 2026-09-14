@@ -12,6 +12,29 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The re-key voided one of the gate's own regression checks, silently
+
+Found in review, and it is the same defect the pull request exists to fix, committed by the fix.
+
+The gate carried a regression check that the share-token view counter is no longer an ORM
+read-modify-write, written as `("…client_portal.py", "model_fragment") not in ORM`. That was true
+while `ORM` held `(path, function)` pairs — and it stayed true, permanently, the instant this
+change re-keyed `ORM` to `(path, function, attribute)`: **a 2-tuple is not a member of a set of
+3-tuples no matter what is in it.** Reinstating the original `row.view_count += 1` would have left
+those three lines printing PASS.
+
+*A membership test written against a key SHAPE fails OPEN the moment the shape changes*, and
+nothing about the diff looks like it touched that check. The projection to `(path, function)` is
+now derived by a named function rather than written out at the call site, and the gate plants a
+synthetic site and requires the projection to find one that raw membership cannot — so the shape
+bug has to come back through an assertion that is watching for it.
+
+The canary's first draft was itself conditioned on the real population, and reinstating the genuine
+regression made it report *"the projection did not distinguish the planted site"* — blaming the
+analyser for a defect in its subject. It now runs on a two-element synthetic population and touches
+the tree not at all. *A check whose failure message can misdiagnose is worse than one that stays
+silent, because somebody acts on it.*
+
 ### The concurrency ledger was keyed by function, and reasoned about one field at a time
 
 `services/api/test_rmw_sweep.py` keys its read-modify-write ledgers by `(path, function)`. **Six
