@@ -1106,46 +1106,73 @@ check("with the clock FROZEN, a concurrent tag still survives -- the token advan
 STATUSES = {"EXEMPT", "OPEN", "LOCKED"}
 
 ORM_LEDGER = {
-    ("src/aec_api/coordination_fresh.py", "recheck"): ("EXEMPT",
+    ("src/aec_api/coordination_fresh.py", "recheck", "labels"): ("EXEMPT",
         "`labels |= {one constant}`. `recheck` is the ONLY writer of an EXISTING topic's labels -- "
         "every other site sets them at creation -- so the only caller that can lose a race is "
         "another `recheck` adding the SAME label. Established by grepping the column, not inferred "
         "from the shape of the statement."),
-    ("src/aec_api/routers/bim.py", "_with_kind"): ("EXEMPT",
+    ("src/aec_api/routers/bim.py", "_with_kind", "has_source_ifc"): ("EXEMPT",
         "`p.has_source_ifc = bool(p.source_ifc and Path(...).exists())` -- a response field computed "
         "onto a detached object for serialisation. Never written back to the row."),
-    ("src/aec_api/routers/cloud.py", "_link_account"): ("EXEMPT",
+    ("src/aec_api/routers/bim.py", "_with_kind", "model_kind"): ("EXEMPT",
+        "the other half of the same line's intent -- the function's own comment says it sets `the "
+        "(non-column) fields ProjectOut reads`. Neither is a column, so neither can lose an update."),
+    ("src/aec_api/routers/cloud.py", "_link_account", "refresh_token"): ("EXEMPT",
         "`new or old` keep-the-old-value fallback on an OAuth refresh token. The write is the "
         "caller's COMPLETE intent, not an accumulation, so a lost race overwrites with a whole value "
         "rather than dropping somebody else's contribution -- last-writer-wins is the behaviour the "
         "provider's token rotation actually wants."),
-    ("src/aec_api/routers/cloud.py", "_fresh_access_token"): ("EXEMPT",
+    ("src/aec_api/routers/cloud.py", "_link_account", "local_admin_at_link"): ("EXEMPT",
+        "`local_admin_at_link` records whether the account was ALREADY an admin before the link, so "
+        "role sync demotes only an elevation it granted. Its fallback keeps the earlier answer, and "
+        "the earlier answer is the true one -- a later link cannot make the account less "
+        "pre-existing. Losing the race preserves the safer value."),
+    ("src/aec_api/routers/cloud.py", "_fresh_access_token", "access_token"): ("EXEMPT",
         "same fallback, same rotation."),
-    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile"): ("EXEMPT",
-        "same -- display name and avatar fall back to the stored value when the provider omits them."),
-    ("src/aec_api/routers/connections.py", "update_connection"): ("EXEMPT",
-        "same -- `body.name or c.name` is a PATCH keeping an unsent field."),
-    ("src/aec_api/routers/scim.py", "scim_create_user"): ("EXEMPT",
+    ("src/aec_api/routers/cloud.py", "_fresh_access_token", "refresh_token"): ("EXEMPT", "same."),
+    ("src/aec_api/routers/cloud.py", "_fresh_access_token", "expires_at"): ("EXEMPT",
+        "written in the same statement group as the token it describes, from the same response. A "
+        "lost race replaces the triple wholesale rather than splitting it -- the failure worth "
+        "naming here would be a token from one refresh with an expiry from another, and the three "
+        "writes share one commit."),
+    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile", "display_name"): ("EXEMPT",
+        "same -- display name falls back to the stored value when the provider omits it."),
+    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile", "avatar_url"): ("EXEMPT", "same."),
+    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile", "cloud_roles"): ("EXEMPT",
+        "NOT a fallback -- `link.cloud_roles = roles` is a whole value from the provider's fresh "
+        "`userinfo`, which is the point of the route. Two concurrent refreshes both write what the "
+        "provider currently says, so the loser loses nothing it read. Called out rather than folded "
+        "into the sentence above because this one is authorisation-bearing and deserves its own "
+        "reading."),
+    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile", "cloud_tier"): ("EXEMPT",
+        "same -- entitlement tier, whole value from the same `userinfo` response."),
+    ("src/aec_api/routers/connections.py", "update_connection", "name"): ("EXEMPT",
+        "`body.name or c.name` is a PATCH keeping an unsent field. **This sentence used to cover the "
+        "whole function**, and the function also merges `config` -- see CROSS_FIELD, where that "
+        "attribute now sits as OPEN."),
+    ("src/aec_api/routers/scim.py", "scim_create_user", "external_id"): ("EXEMPT",
         "same -- the re-provision branch keeps `external_id` when the IdP omits it."),
-    ("src/aec_api/routers/scim.py", "_apply_patch_op"): ("EXEMPT",
+    ("src/aec_api/routers/scim.py", "_apply_patch_op", "email"): ("EXEMPT",
         "same -- SCIM PATCH keeps an unparsable email."),
-    ("src/aec_api/routers/verification.py", "set_status"): ("EXEMPT",
+    ("src/aec_api/routers/verification.py", "set_status", "ifc_class"): ("EXEMPT",
         "same -- element metadata falls back to what was already recorded when the model no longer "
         "carries it."),
-    ("src/aec_api/routers/proforma.py", "update_scenario"): ("EXEMPT",
+    ("src/aec_api/routers/verification.py", "set_status", "storey"): ("EXEMPT",
+        "same, from the same property-index lookup one line below."),
+    ("src/aec_api/routers/proforma.py", "update_scenario", "result"): ("EXEMPT",
         "`s.result = solve(s.assumptions)` reads `assumptions` ASSIGNED TWO LINES ABOVE from the "
         "request body, not from the row -- there is no stale read to lose -- and it writes a "
         "different column from the one it reads."),
-    ("src/aec_api/jobs.py", "_run_one"): ("EXEMPT",
+    ("src/aec_api/jobs.py", "_run_one", "result"): ("EXEMPT",
         "job lifecycle -- `state`/`result`/`error` are written from the run's own outcome. The CLAIM "
         "is the contested step and it is already a conditional UPDATE, gated by "
         "`test_race_conditions.py`."),
-    ("src/aec_api/routers/auth.py", "mfa_verify"): ("EXEMPT",
+    ("src/aec_api/routers/auth.py", "mfa_verify", "mfa_recovery"): ("EXEMPT",
         "`mfa_recovery = remaining` consumes one code. A concurrent second verify could consume the "
         "same code twice -- but both requests must already hold a VALID code, so the race grants no "
         "access the caller did not have; it wastes one code. Named rather than silently exempt "
         "because 'a code can be used twice' deserves to be someone's deliberate call."),
-    ("src/aec_api/routers/drawings.py", "rekey_storey_markups"): ("EXEMPT",
+    ("src/aec_api/routers/drawings.py", "rekey_storey_markups", "sheet_id"): ("EXEMPT",
         "a one-shot backfill that rewrites `sheet_id` keys; not a concurrent path."),
 }
 
@@ -1160,19 +1187,19 @@ ORM_LEDGER = {
 #: first draft listed them anyway -- *an exemption for a site that was never in scope is a claim
 #: about nothing, and it reads exactly like one that matters.*
 IFC_PIPELINE = {
-    ("src/aec_api/routers/authoring.py", "edit"): ("LOCKED", "whole RMW inside `pid_lock.mutating`"),
-    ("src/aec_api/routers/authoring.py", "edit_graph"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "edit_batch"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "macros_run"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "option_activate"): ("LOCKED", "same"),
-    ("src/aec_api/mcp_tools.py", "_run_recipe"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "bake_layers"): ("OPEN",
+    ("src/aec_api/routers/authoring.py", "edit", "source_ifc"): ("LOCKED", "whole RMW inside `pid_lock.mutating`"),
+    ("src/aec_api/routers/authoring.py", "edit_graph", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "edit_batch", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "macros_run", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "option_activate", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/mcp_tools.py", "_run_recipe", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "bake_layers", "source_ifc"): ("OPEN",
         "derives a new IFC from the current one, unlocked (gap G-11 / RMW-LOCKGAP)"),
-    ("src/aec_api/routers/authoring.py", "import_families"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "import_family_pack"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "place_family"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "content_import"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "_restore_version"): ("OPEN",
+    ("src/aec_api/routers/authoring.py", "import_families", "source_ifc"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "import_family_pack", "source_ifc"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "place_family", "source_ifc"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "content_import", "source_ifc"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "_restore_version", "source_ifc"): ("OPEN",
         "reads the pointer to validate containment, then writes it -- same class"),
 }
 
@@ -1184,28 +1211,40 @@ CROSS_FIELD = {
     # the derived population altogether. **This gate reported the entry stale before the ledger was
     # touched**, which is the direction it exists for: closing a gap must force the record to move,
     # or the tree ends up describing a defect nobody can still find.
-    ("src/aec_api/drawingset.py", "revise_sheet"): ("OPEN",
+    ("src/aec_api/drawingset.py", "revise_sheet", "data"): ("OPEN",
         "`m.data = d2`, derived from `m.data`; no token on that table."),
-    ("src/aec_api/routers/connections.py", "put_mappings"): ("OPEN",
-        "`c.config = cfg` merged from `c.config`; no token on that table."),
-    ("src/aec_api/routers/proforma.py", "put_property"): ("LOCKED",
+    ("src/aec_api/routers/connections.py", "put_mappings", "config"): ("OPEN",
+        "`c.config = cfg` merged from `c.config`; no token on that table -- `connections` carries "
+        "only `created_at`."),
+    ("src/aec_api/routers/connections.py", "update_connection", "config"): ("OPEN",
+        "**The find that prompted keying this ledger by attribute.** `merged = dict(c.config or {})` "
+        "-> merge the body's keys, KEEPING a stored secret where the form sent it blank -> "
+        "`c.config = merged`. That is an accumulation, not a whole-value write, and it was EXEMPT "
+        "until 2026-09-14 on the strength of a sentence about `body.name or c.name` -- a different "
+        "line of the same function. *An exemption that reasons about part of its subject and reports "
+        "on all of it* is this file's own subject, one level up.\n"
+        "It is the SECOND writer of the blob `put_mappings` writes, so the two are a pair: one admin "
+        "saving connection settings while another saves field mappings loses a write, and whichever "
+        "fix `connections` eventually gets has to cover both. *A lock one side does not take "
+        "protects nothing* -- the lesson `dev_property` paid for."),
+    ("src/aec_api/routers/proforma.py", "put_property", "dev_property"): ("LOCKED",
         "`dev_property` -- the site this pull request's own fix created, then HID from this analyser "
         "by hoisting the read into a local, then hid AGAIN behind an annotation. `projects` carries "
         "no `modified_at` to swap on, so it takes `pid_lock.mutating(pid)` instead, as does its "
         "partner `realestate.save_appraisal`. Verified lexically below, not asserted here."),
-    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard"): ("OPEN",
+    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard", "dev_budget"): ("OPEN",
         "`dev_budget` merge -- same class, same missing token."),
-    ("src/aec_api/routers/proforma.py", "sync_model_to_hard"): ("OPEN", "`dev_budget` merge -- same."),
+    ("src/aec_api/routers/proforma.py", "sync_model_to_hard", "dev_budget"): ("OPEN", "`dev_budget` merge -- same."),
 }
 
 #: JSON collections on tables with NO `modified_at`, so the register row's token does not exist for
 #: them, and JSON equality is not a swap that behaves the same on SQLite and Postgres -- the identical
 #: trap `FOR UPDATE` is. Closing these means a migration (roadmap: RMW-TOKEN, gap G-10).
 BAND_2 = {
-    ("src/aec_api/routers/proforma.py", "share_scenario"): ("OPEN",
+    ("src/aec_api/routers/proforma.py", "share_scenario", "shared_with"): ("OPEN",
         "`shared_with` -- two concurrent grants, one silently dropped. The response echoes the "
         "caller's own target either way, so neither caller can tell it did not take."),
-    ("src/aec_api/routers/realestate.py", "save_appraisal"): ("LOCKED",
+    ("src/aec_api/routers/realestate.py", "save_appraisal", "dev_property"): ("LOCKED",
         "`dev_property` merge -- the OTHER writer of the same blob, locked with `put_property` "
         "because half a lock is none. The non-concurrent half of this blob's problem WAS fixed here: "
         "`proforma.put_property` used to replace it wholesale and delete the appraisal on every "
@@ -1213,7 +1252,7 @@ BAND_2 = {
 }
 
 
-def orm_rmw_sites() -> list[tuple[str, str]]:
+def orm_rmw_sites() -> list[tuple[str, str, str]]:
     """`obj.attr = <expr derived from obj>` -- INCLUDING through a local.
 
     The first draft asked only whether the right-hand side mentioned `obj` DIRECTLY, and the fix this
@@ -1237,13 +1276,21 @@ def orm_rmw_sites() -> list[tuple[str, str]]:
     return sorted(set(out))
 
 
-def _orm_sites_in(tree: ast.AST, path: str) -> list[tuple[str, str]]:
+def _orm_sites_in(tree: ast.AST, path: str) -> list[tuple[str, str, str]]:
     """The per-file half of `orm_rmw_sites`, split out so a FIXTURE can be run through it.
 
     It was inlined in the loop above, which meant the only way to exercise the analyser was to find a
     real file exhibiting the shape -- and the shape review found missing (`prior: dict = ...`) does
     not occur in this tree, so no amount of reading the source would have produced a failing case.
     *An analyser that can only be fed the repository cannot be given the input it gets wrong.*
+
+    It reports the ATTRIBUTE as well as the function, and that is not cosmetic. The ledgers were
+    keyed by `(path, function)` until 2026-09-14, so one status and one sentence covered every
+    read-modify-write in a function -- and **six functions write more than one**. The reason names
+    whichever the author was looking at; the rest are exempted by a sentence about a different line.
+    That is this file's own subject one level up: *an exemption that reasons about part of its
+    subject and reports on all of it.* It had already hidden a live gap -- see
+    `connections.update_connection`.
     """
     out = []
     for fn in ast.walk(tree):
@@ -1288,7 +1335,7 @@ def _orm_sites_in(tree: ast.AST, path: str) -> list[tuple[str, str]]:
                     if isinstance(nm, ast.Name) and nm.id in via:
                         used |= via[nm.id]
                 if isinstance(n, ast.AugAssign) or obj in used:
-                    out.append((path, fn.name))
+                    out.append((path, fn.name, tgt.attr))
     return sorted(set(out))
 
 
@@ -1307,8 +1354,23 @@ _ORM_ANNOTATED = ('def put_property(db, p, body):\n'
 for _spelling, _src in (("read inline", _ORM_DIRECT), ("hoisted into a local", _ORM_HOISTED),
                         ("hoisted and ANNOTATED", _ORM_ANNOTATED)):
     check(f"SELF-TEST: the ORM analyser sees the read-modify-write with the read {_spelling}",
-          _orm_sites_in(ast.parse(_src), "<fx>") == [("<fx>", "put_property")],
+          _orm_sites_in(ast.parse(_src), "<fx>") == [("<fx>", "put_property", "dev_property")],
           f"got {_orm_sites_in(ast.parse(_src), '<fx>')}")
+
+#: ONE function, TWO read-modify-written attributes. The analyser must report both, because the
+#: ledger key is `(path, function, attribute)` and a function that reported only its first attribute
+#: would file one race and leave the other unexamined -- which is precisely what the
+#: `(path, function)` key did until 2026-09-14, and it hid `connections.update_connection`'s `config`
+#: merge behind a sentence about `name`.
+_ORM_TWO_ATTRS = ('def save(db, c, body):\n'
+                  '    c.name = body.get("name") or c.name\n'
+                  '    merged = dict(c.config or {})\n'
+                  '    merged.update(body.get("config") or {})\n'
+                  '    c.config = merged\n')
+check("SELF-TEST: one function writing TWO attributes yields TWO entries, not one",
+      _orm_sites_in(ast.parse(_ORM_TWO_ATTRS), "<fx>") == [("<fx>", "save", "config"),
+                                                           ("<fx>", "save", "name")],
+      f'got {_orm_sites_in(ast.parse(_ORM_TWO_ATTRS), "<fx>")}')
 
 #: ...and a wholesale overwrite is NOT one, so the three positives above are not always-yes. This is
 #: `put_property` as it shipped BEFORE this pull request -- which is a different defect, not a race.
@@ -1319,7 +1381,7 @@ check("SELF-TEST: a write that reads nothing back is not a read-modify-write",
 
 ORM = orm_rmw_sites()
 check("the ORM derivation REACHES a known site, asserted before its count is believed",
-      ("src/aec_api/coordination_fresh.py", "recheck") in ORM, f"found {len(ORM)}")
+      ("src/aec_api/coordination_fresh.py", "recheck", "labels") in ORM, f"found {len(ORM)}")
 _KNOWN = {**ORM_LEDGER, **BAND_2, **IFC_PIPELINE, **CROSS_FIELD}
 _bad_status = sorted((k, v[0]) for k, v in _KNOWN.items() if v[0] not in STATUSES)
 check("every ledger entry carries a STATUS from the declared set, so the open count is structural "
@@ -1330,6 +1392,28 @@ check("every ORM read-modify-write is either reasoned exempt or named as an open
       not _unfiled, f"unfiled={_unfiled}")
 _stale = [k for k in _KNOWN if k not in ORM]
 check("no ledger entry outlives the site it describes", not _stale, f"stale={_stale}")
+
+# The key gained its third column on 2026-09-14, and this is the check that says the third column
+# EARNS its place rather than decorating the file. A `(path, function)` key can carry exactly one
+# status, so a function whose attributes disagree could not be expressed at all -- one of them had to
+# ride on the other's reasoning, and `connections.update_connection` did: `name` EXEMPT as a PATCH
+# default, `config` a genuine accumulating merge, one sentence covering both.
+#
+# *Asserting the re-key is possible is not asserting it was necessary.* This demands a live instance.
+_by_fn: dict[tuple[str, str], set[str]] = {}
+for (_p, _f, _a), (_st, _) in _KNOWN.items():
+    _by_fn.setdefault((_p, _f), set()).add(_st)
+_disagree = sorted(k for k, v in _by_fn.items() if len(v) > 1)
+check("at least one function's attributes carry DIFFERENT statuses -- the thing the old "
+      "(path, function) key could not express, so the extra column is load-bearing and not cosmetic",
+      _disagree,
+      "NO function's attributes disagree. Two very different things cause this and the fix differs: "
+      "(a) somebody collapsed the attribute key back to one value per function, in which case the "
+      "checks above will be red too -- fix those first; or (b) the last genuinely-disagreeing site "
+      "was legitimately CLOSED, today `connections.update_connection` (`name` EXEMPT, `config` "
+      "OPEN), in which case nothing is wrong and this check has outlived its subject: delete it and "
+      "say so in the commit. *A check whose failure message can misdiagnose is worse than one that "
+      "stays silent, because somebody acts on it.*")
 # ---------------------------------------------------------------- the IFC pipeline's OTHER control
 def under_pid_lock(path: str, name: str, col: str = "source_ifc") -> bool:
     """Is the WHOLE `<col>` read-modify-write inside `with pid_lock.mutating(...)`?
@@ -1417,14 +1501,18 @@ check("every site this ledger calls locked IS lexically under `pid_lock.mutating
 
 #: The second locked column. Derived from the ledgers rather than listed, so adding a third writer
 #: of this blob and forgetting to lock it reds the build instead of joining a list nobody re-reads.
+#: The filter was `"dev_property" in <the reason prose>` until the ledger gained an attribute key --
+#: *a derivation over prose, in the file whose own lesson is that a count derived by grepping prose
+#: IS prose.* It reads `k[2] == "dev_property"` now, and `under_pid_lock(*k)` takes the column
+#: straight from the key rather than being told it a second time.
 DEV_PROPERTY = sorted(k for k, (st, _) in {**CROSS_FIELD, **BAND_2}.items()
-                      if st == "LOCKED" and "dev_property" in _KNOWN[k][1])
+                      if st == "LOCKED" and k[2] == "dev_property")
 check("the `dev_property` pair is BOTH writers, derived from the ledgers -- locking one of two is "
       "locking neither, and this is the shape that makes the omission visible",
-      DEV_PROPERTY == [("src/aec_api/routers/proforma.py", "put_property"),
-                       ("src/aec_api/routers/realestate.py", "save_appraisal")],
+      DEV_PROPERTY == [("src/aec_api/routers/proforma.py", "put_property", "dev_property"),
+                       ("src/aec_api/routers/realestate.py", "save_appraisal", "dev_property")],
       f"got {DEV_PROPERTY}")
-_dp_lying = [k for k in DEV_PROPERTY if not under_pid_lock(*k, col="dev_property")]
+_dp_lying = [k for k in DEV_PROPERTY if not under_pid_lock(*k)]
 check("...and every `dev_property` read AND write in both is lexically under `pid_lock.mutating`",
       not _dp_lying, f"claimed locked but is not: {_dp_lying}")
 
@@ -1441,10 +1529,48 @@ check("and every site it calls OPEN really is unlocked -- so closing one must up
       not _quietly_closed, f"{len(_claimed_open)} open; closed without updating this list: "
                            f"{_quietly_closed}")
 
+def _rmw_functions(sites) -> set[tuple[str, str]]:
+    """`(path, function)` for every discovered ORM site, the attribute projected away.
+
+    Exists because the share-token check below is a MEMBERSHIP test, and **a membership test
+    written against a key SHAPE fails OPEN the moment the shape changes.** It was
+    `("...client_portal.py", "model_fragment") not in ORM`, which was true while `ORM` held
+    `(path, function)` -- and stayed true, permanently and silently, the instant this very PR
+    re-keyed `ORM` to `(path, function, attribute)`: a 2-tuple is not a member of a set of
+    3-tuples no matter what is in it. *The re-key that made the ledger more precise turned one of
+    its own regression checks into three lines that can only say yes* -- the same defect class the
+    whole file is about, committed by the fix for it, and found by review rather than by me.
+
+    So the shape is derived here rather than written out at the call site, and the check is fed a
+    planted site below before it is allowed to report -- because a membership test that cannot
+    fail looks exactly like one that passes.
+    """
+    return {(path, fn) for path, fn, _attr in sites}
+
+
+#: The two share-token readers whose view counter used to be `row.views = row.views + 1`.
+SHARE_TOKEN_FNS = [("src/aec_api/client_portal.py", "model_fragment"),
+                   ("src/aec_api/client_portal.py", "digest")]
+
+#: A population of two, planted -- deliberately NOT built from `ORM`. A canary conditioned on the
+#: real tree fails for two unrelated reasons and cannot say which: its first draft read
+#: `SHARE_TOKEN_FNS[0] in _planted and SHARE_TOKEN_FNS[0] not in _fns`, so reinstating the genuine
+#: `row.view_count += 1` regression made it print *"the projection did not distinguish the planted
+#: site"* -- blaming the analyser for a defect in the subject. *A check whose failure message can
+#: misdiagnose is worse than one that stays silent, because somebody acts on it*, and this file has
+#: now learned that twice.
+_SYNTH = [("synthetic.py", "writer", "col"), (*SHARE_TOKEN_FNS[0], "view_count")]
+check("the projection finds a planted site that RAW membership cannot -- the shape bug reinstated "
+      "and required to come back",
+      SHARE_TOKEN_FNS[0] in _rmw_functions(_SYNTH) and SHARE_TOKEN_FNS[0] not in _SYNTH,
+      "either the projection stopped seeing a planted site, or a 2-tuple has become a member of a "
+      "set of 3-tuples -- either way the check below is back to only ever saying yes")
+
+_fns = _rmw_functions(ORM)
+
+_share_back = [k for k in SHARE_TOKEN_FNS if k in _fns]
 check("the share-token view counter is no longer an ORM read-modify-write",
-      ("src/aec_api/client_portal.py", "model_fragment") not in ORM
-      and ("src/aec_api/client_portal.py", "digest") not in ORM,
-      "the increment moved into SQL")
+      not _share_back, f"back as an ORM site: {_share_back}")
 
 _open = [k for k, (st, _) in _KNOWN.items() if st == "OPEN"]
 print()
