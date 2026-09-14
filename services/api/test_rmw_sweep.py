@@ -852,10 +852,17 @@ check("every site this ledger calls locked IS lexically under `pid_lock.mutating
       not _lying, f"{len(_claimed_locked)} claimed locked; not actually: {_lying}")
 
 _claimed_open = sorted(k for k, v in IFC_PIPELINE.items() if v.startswith("OPEN"))
-_secretly_fixed = [k for k in _claimed_open if under_pid_lock(*k)]
+# NOT `_secretly_fixed`, which is what this was called for about twenty minutes. CodeQL's
+# `py/clear-text-logging-sensitive-data` classifies a source by its IDENTIFIER NAME, so a local
+# containing "secret" flowing into the `print` in `check()` is a HIGH alert -- on a gate whose values
+# are file paths and function names. A pure false positive, fixed by naming the variable better
+# rather than by suppressing the query: *a suppression is a claim that has to be re-read and
+# re-believed by everyone who meets it, and this one would have been protecting a synonym.*
+_quietly_closed = [k for k in _claimed_open if under_pid_lock(*k)]
 check("and every site it calls OPEN really is unlocked -- so closing one must update this ledger "
       "rather than leave a gap recorded that no longer exists",
-      not _secretly_fixed, f"{len(_claimed_open)} open; silently fixed: {_secretly_fixed}")
+      not _quietly_closed, f"{len(_claimed_open)} open; closed without updating this list: "
+                           f"{_quietly_closed}")
 
 check("the share-token view counter is no longer an ORM read-modify-write",
       ("src/aec_api/client_portal.py", "model_fragment") not in ORM
