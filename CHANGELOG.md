@@ -12,6 +12,44 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two admins saving one connection: one of the two saves vanished
+
+`Connection.config` had **two** writers and neither took a lock. `update_connection` merges the
+body's keys into the blob — keeping a stored secret where the form sent it blank — and
+`put_mappings` rewrites the whole blob to replace its `mappings` key. So an admin saving credentials
+while another saved field mappings lost one of the two, silently: each caller's 200 is true of its
+own merge. Gap G-12's `connections` pair is closed; the sweep's open count drops six to four.
+
+**A lock, not a compare-and-swap — deliberately the opposite call from the register rows.** There
+the whole row is one logical edit, so a stale write should be REFUSED with a 409. Here the two
+writers touch near-disjoint keys, credentials against `mappings`, so serialising lets the second
+merge onto the first's committed blob and **both survive**, where a 409 would refuse an edit that
+does not actually conflict. *The right control depends on whether the concurrent edits are rival
+claims on one value or independent claims on different ones.* `connections` carries no token to swap
+on in any case — only `created_at`.
+
+**Two checks, and the measurement showing neither is sufficient alone.**
+`services/api/test_connection_lock.py` asserts both edits survive and that neutering the lock loses
+one. Then two mutations were run:
+
+| mutation | sweep | behavioural test |
+|---|---|---|
+| one route's lock deleted | ❌ red | ❌ red |
+| the two routes lock on **different keys** | ✅ **green** | ❌ red |
+
+*Static analysis can see that a lock is present; only behaviour can see that it is the SAME lock.*
+`under_pid_lock` asks whether each mention sits inside *a* `pid_lock.mutating(...)`, and under the
+second mutation both still do — "a lock one side does not take protects nothing" wearing the shape
+of a lock. Hence `_lock_key` is a shared helper rather than an f-string at each call site.
+
+**And the first mutation found a hole in the gate itself.** `test_rmw_sweep`'s "every site this
+ledger calls locked IS lexically under `pid_lock.mutating`" derived from `IFC_PIPELINE` only — the
+one ledger that had LOCKED rows when the check was written. The two new LOCKED rows landed in
+`CROSS_FIELD`, where **nothing asserted them**: the status was prose again, and deleting either lock
+left the sweep green. The derivation now spans every ledger, taking verified locked sites from 6 to
+18. *A gate scoped to the ledger that existed when it was written silently stops covering the
+ledgers that arrive later* — and only mutating the shipped fix surfaced it.
+
 ### Two people authoring at once: one of them lost the whole model version
 
 Six routes in `services/api/src/aec_api/routers/authoring.py` — `bake_layers`, `import_families`,
