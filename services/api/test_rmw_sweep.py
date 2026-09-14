@@ -1231,20 +1231,29 @@ CROSS_FIELD = {
     # or the tree ends up describing a defect nobody can still find.
     ("src/aec_api/drawingset.py", "revise_sheet", "data"): ("OPEN",
         "`m.data = d2`, derived from `m.data`; no token on that table."),
-    ("src/aec_api/routers/connections.py", "put_mappings", "config"): ("OPEN",
-        "`c.config = cfg` merged from `c.config`; no token on that table -- `connections` carries "
-        "only `created_at`."),
-    ("src/aec_api/routers/connections.py", "update_connection", "config"): ("OPEN",
-        "**The find that prompted keying this ledger by attribute.** `merged = dict(c.config or {})` "
-        "-> merge the body's keys, KEEPING a stored secret where the form sent it blank -> "
-        "`c.config = merged`. That is an accumulation, not a whole-value write, and it was EXEMPT "
-        "until 2026-09-14 on the strength of a sentence about `body.name or c.name` -- a different "
-        "line of the same function. *An exemption that reasons about part of its subject and reports "
-        "on all of it* is this file's own subject, one level up.\n"
-        "It is the SECOND writer of the blob `put_mappings` writes, so the two are a pair: one admin "
-        "saving connection settings while another saves field mappings loses a write, and whichever "
-        "fix `connections` eventually gets has to cover both. *A lock one side does not take "
-        "protects nothing* -- the lesson `dev_property` paid for."),
+    # CLOSED 2026-09-14 (RMW-TOKEN). Both writers of this blob now hold
+    # `pid_lock.mutating(_lock_key(cid))`, and the key is a shared helper so the pair cannot drift
+    # onto two different keys -- which would read as locked and protect nothing.
+    ("src/aec_api/routers/connections.py", "put_mappings", "config"): ("LOCKED",
+        "whole RMW inside `pid_lock.mutating` (was gap G-12). `connections` carries no concurrency "
+        "token -- only `created_at` -- so there is nothing to compare-and-swap on; serialising is "
+        "the available control and, here, the better one. See `update_connection` below."),
+    ("src/aec_api/routers/connections.py", "update_connection", "config"): ("LOCKED",
+        "**The find that prompted keying this ledger by attribute**, and now closed. "
+        "`merged = dict(c.config or {})` -> merge the body's keys, KEEPING a stored secret where the "
+        "form sent it blank -> `c.config = merged`. That is an accumulation, not a whole-value "
+        "write, and it was EXEMPT until 2026-09-14 on the strength of a sentence about "
+        "`body.name or c.name` -- a different line of the same function. *An exemption that reasons "
+        "about part of its subject and reports on all of it* is this file's own subject, one level "
+        "up.\n"
+        "A LOCK, not a compare-and-swap, and deliberately the opposite call from the register rows. "
+        "There the whole row is one logical edit, so a stale write should be REFUSED with a 409. "
+        "Here the two writers touch near-disjoint keys -- credentials versus `mappings` -- so "
+        "serialising lets the second merge onto the first's committed blob and BOTH survive, where "
+        "a 409 would refuse an edit that does not actually conflict. *The right control depends on "
+        "whether the concurrent edits are rival claims on one value or independent claims on "
+        "different ones.* Proved by behaviour in `services/api/test_connection_lock.py`: both edits "
+        "survive, and neutering the lock loses one."),
     ("src/aec_api/routers/proforma.py", "put_property", "dev_property"): ("LOCKED",
         "`dev_property` -- the site this pull request's own fix created, then HID from this analyser "
         "by hoisting the read into a local, then hid AGAIN behind an annotation. `projects` carries "
@@ -1512,9 +1521,18 @@ _NO_LOCK = ast.parse(
 check("SELF-TEST: and an unlocked route is unprotected",
       not lock_spans_rmw(_NO_LOCK), "an unlocked route was certified")
 
-_claimed_locked = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "LOCKED")
+#: EVERY ledger, not just `IFC_PIPELINE` -- which is what this derived until RMW-TOKEN, and the
+#: narrowing was invisible because the ledger it did cover was the only one with LOCKED entries when
+#: it was written. Closing the `connections` pair added two LOCKED rows that NOTHING asserted: the
+#: status was prose again, and deleting either lock left the sweep green. Found by mutating the
+#: shipped fix rather than by reading the check -- *a gate scoped to the ledger that existed when it
+#: was written silently stops covering the ledgers that arrive later.*
+#: `LOCKED` is the only status in `STATUSES` that names a mechanism, so every ledger's LOCKED rows
+#: mean the same thing and one derivation is correct for all of them.
+_claimed_locked = sorted(k for k, (st, _) in _KNOWN.items() if st == "LOCKED")
 _lying = [k for k in _claimed_locked if not under_pid_lock(*k)]
-check("every site this ledger calls locked IS lexically under `pid_lock.mutating`",
+check("every site ANY ledger calls locked IS lexically under `pid_lock.mutating` -- a status is a "
+      "claim about the code, and an unasserted claim is the prose this file exists to replace",
       not _lying, f"{len(_claimed_locked)} claimed locked; not actually: {_lying}")
 
 #: The second locked column. Derived from the ledgers rather than listed, so adding a third writer

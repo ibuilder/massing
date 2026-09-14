@@ -28,6 +28,21 @@ def _public(c: Connection) -> dict:
             "config": connectors.public_config(c.type, c.config)}
 
 
+def _lock_key(cid: str) -> str:
+    """The serialisation key for one connection's `config` blob.
+
+    `pid_lock` is named for projects because that is what it was built for, but `advisory_key`
+    hashes any string under a single namespace that `main._AUTOSYNC_LOCK_KEY` already shares. The
+    `connection:` prefix keeps this out of the project id space -- a collision would need a project
+    literally named `connection:<uuid>`.
+
+    It exists as a function so the two writers of this blob CANNOT drift apart: an inline
+    f-string in each would let one of them be edited into a different key, which reads as locked and
+    protects nothing.
+    """
+    return f"connection:{cid}"
+
+
 @router.get("/connections")
 def list_connections(db: Session = Depends(get_db), _: User = Depends(require_admin_user)):
     """Built-in local DB (with live status) + registered external connections (status on demand)."""
@@ -53,21 +68,36 @@ def create_connection(body: ConnectionIn, db: Session = Depends(get_db),
 @router.put("/connections/{cid}")
 def update_connection(cid: str, body: ConnectionIn, db: Session = Depends(get_db),
                       admin: User = Depends(require_admin_user)):
+    from .. import pid_lock
+
     c = db.get(Connection, cid)
     if not c:
         raise HTTPException(404, "no such connection")
-    c.name = body.name or c.name
-    # merge config: a blank secret keeps the stored value (so the form needn't re-send it)
-    merged = dict(c.config or {})
-    for k, v in (body.config or {}).items():
-        if k in _SECRET_KEYS and not (v or "").strip():
-            continue
-        merged[k] = v
-    c.config = merged
-    audit.record(db, action="connection.update", actor=admin.username, method="PUT",
-                 path=f"/connections/{cid}", detail={"id": cid})
-    db.commit()
-    return _public(c)
+    # RMW-TOKEN (gap G-12): `config` is a read-modify-write, and `put_mappings` writes the SAME blob.
+    # Unlocked, an admin saving credentials while another saves field mappings loses one of the two,
+    # silently -- each caller's 200 is true of its own merge.
+    #
+    # A LOCK rather than a compare-and-swap, and that is the opposite call from the register rows on
+    # purpose. There the whole row is one logical edit, so a stale write should be REFUSED with a 409.
+    # Here the two writers touch near-disjoint keys -- credentials versus `mappings` -- so serialising
+    # them lets the second merge onto the first's committed blob and BOTH survive. A 409 would refuse
+    # an edit that does not actually conflict. *The right control depends on whether the concurrent
+    # edits are rival claims on one value or independent claims on different ones.*
+    with pid_lock.mutating(_lock_key(cid)):
+        db.refresh(c)                                  # another writer may have merged while we waited
+        c.name = body.name or c.name
+        # merge config: a blank secret keeps the stored value (so the form needn't re-send it)
+        merged = dict(c.config or {})
+        for k, v in (body.config or {}).items():
+            if k in _SECRET_KEYS and not (v or "").strip():
+                continue
+            merged[k] = v
+        c.config = merged
+        audit.record(db, action="connection.update", actor=admin.username, method="PUT",
+                     path=f"/connections/{cid}", detail={"id": cid})
+        db.commit()
+        public = _public(c)
+    return public
 
 
 @router.delete("/connections/{cid}")
@@ -205,13 +235,21 @@ def get_mappings(cid: str, db: Session = Depends(get_db), _: User = Depends(requ
 def put_mappings(cid: str, mappings: dict = Body(..., embed=True), db: Session = Depends(get_db),
                  admin: User = Depends(require_admin_user)):
     """Save per-field Procore source-path overrides ({kind: {field: path}}) on the connection."""
+    from .. import pid_lock
+
     c = db.get(Connection, cid)
     if not c or c.type != "procore":
         raise HTTPException(400, "field mapping applies to Procore connections")
-    cfg = dict(c.config or {})
-    cfg["mappings"] = {k: dict(v or {}) for k, v in (mappings or {}).items()}
-    c.config = cfg
-    audit.record(db, action="connection.mappings", actor=admin.username, method="PUT",
-                 path=f"/connections/{cid}/mappings", detail={"kinds": sorted(mappings or {})})
-    db.commit()
+    # RMW-TOKEN: the other half of the pair. This one replaces only the `mappings` key, but it reads
+    # and rewrites the WHOLE blob to do it, so unlocked it clobbers a concurrent credential merge.
+    # *A lock one side does not take protects nothing* -- both writers of a blob take it or neither
+    # is protected, which is what the `dev_property` pair cost to learn.
+    with pid_lock.mutating(_lock_key(cid)):
+        db.refresh(c)
+        cfg = dict(c.config or {})
+        cfg["mappings"] = {k: dict(v or {}) for k, v in (mappings or {}).items()}
+        c.config = cfg
+        audit.record(db, action="connection.mappings", actor=admin.username, method="PUT",
+                     path=f"/connections/{cid}/mappings", detail={"kinds": sorted(mappings or {})})
+        db.commit()
     return {"ok": True}
