@@ -1193,14 +1193,32 @@ IFC_PIPELINE = {
     ("src/aec_api/routers/authoring.py", "macros_run", "source_ifc"): ("LOCKED", "same"),
     ("src/aec_api/routers/authoring.py", "option_activate", "source_ifc"): ("LOCKED", "same"),
     ("src/aec_api/mcp_tools.py", "_run_recipe", "source_ifc"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "bake_layers", "source_ifc"): ("OPEN",
-        "derives a new IFC from the current one, unlocked (gap G-11 / RMW-LOCKGAP)"),
-    ("src/aec_api/routers/authoring.py", "import_families", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "import_family_pack", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "place_family", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "content_import", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "_restore_version", "source_ifc"): ("OPEN",
-        "reads the pointer to validate containment, then writes it -- same class"),
+    # RMW-LOCKGAP closed all six of gap G-11 on 2026-09-14. They were structurally `edit` with the
+    # lock deleted -- and `edit` carries a comment describing exactly the race they had.
+    ("src/aec_api/routers/authoring.py", "bake_layers", "source_ifc"): ("LOCKED",
+        "whole RMW inside `pid_lock.mutating` (was gap G-11 / RMW-LOCKGAP)"),
+    ("src/aec_api/routers/authoring.py", "import_family_pack", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "place_family", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "_restore_version", "source_ifc"): ("LOCKED",
+        "same -- and the lock sits in this HELPER, so `edit_undo` and `edit_redo` inherit it from "
+        "the one place that can carry the fact rather than two call sites having to remember"),
+    # The two `async def` routes hold their lock in a nested sync function run through
+    # `run_in_threadpool`, so the derivation names the CLOSURE rather than the route. That is not
+    # cosmetic and the names say which route each belongs to: `pid_lock.mutating` blocks on a
+    # Postgres advisory lock, and taking it inline on the event loop would park every other request
+    # in the process behind one upload -- *trading a rare lost model version for a routine
+    # server-wide stall*, which is the v0.3.703 SSE failure with a different cause.
+    # Each of these two appears TWICE in the derivation -- once as the closure and once as the route
+    # enclosing it, because the walk descends into nested functions. Both are filed on purpose: the
+    # closure is where the lock is, and the route is the name a human looks up.
+    ("src/aec_api/routers/authoring.py", "_import_families_locked", "source_ifc"): ("LOCKED",
+        "same, off the event loop -- the body of `import_families`"),
+    ("src/aec_api/routers/authoring.py", "import_families", "source_ifc"): ("LOCKED",
+        "the route; its whole RMW lives in `_import_families_locked` above"),
+    ("src/aec_api/routers/authoring.py", "_content_import_locked", "source_ifc"): ("LOCKED",
+        "same, off the event loop -- the body of `content_import`"),
+    ("src/aec_api/routers/authoring.py", "content_import", "source_ifc"): ("LOCKED",
+        "the route; its whole RMW lives in `_content_import_locked` above"),
 }
 
 #: Sites that read one column and write another, or write a value the caller supplied whole -- plus
@@ -1515,6 +1533,22 @@ check("the `dev_property` pair is BOTH writers, derived from the ledgers -- lock
 _dp_lying = [k for k in DEV_PROPERTY if not under_pid_lock(*k)]
 check("...and every `dev_property` read AND write in both is lexically under `pid_lock.mutating`",
       not _dp_lying, f"claimed locked but is not: {_dp_lying}")
+
+#: The layer stack is a DIFFERENT shape from everything else in this file and the ORM derivation
+#: cannot see it: `bake_layers` READS `prop_layers` and writes `source_ifc`, while `put_layers`
+#: WRITES `prop_layers` and reads nothing. Neither is a read-modify-write, so neither is a site --
+#: yet unlocked they interleave into a model baked from a stack the row no longer holds, with
+#: nothing afterwards able to tell. Review found it on PR #555, in the first draft of the fix that
+#: closed G-11: `source_ifc` had been moved inside the lock and `prop_layers` left outside.
+#: *A lock has to span every read the write is derived from, not just the one that named the bug* --
+#: and a sweep bounded by one shape is bounded by the fix that shape suggested.
+_LAYER_PAIR = [("src/aec_api/routers/authoring.py", "bake_layers", "prop_layers"),
+               ("src/aec_api/routers/authoring.py", "put_layers", "prop_layers")]
+_layer_unlocked = [k for k in _LAYER_PAIR if not under_pid_lock(*k)]
+check("the layer stack's read (`bake_layers`) and its write (`put_layers`) are BOTH under the "
+      "project lock -- a bake derives what it burns into the IFC from that column, so the two have "
+      "to be ordered, and locking one of them orders nothing",
+      not _layer_unlocked, f"not under the lock: {_layer_unlocked}")
 
 _claimed_open = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "OPEN")
 # NOT `_secretly_fixed`, which is what this was called for about twenty minutes. CodeQL's
