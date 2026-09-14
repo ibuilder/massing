@@ -221,65 +221,70 @@ def classify(source: str, path: str) -> list[tuple[str, str, int, str]]:
             # report a correct writer as the defect it exists to find. *A rule made stricter in one
             # place has to be re-checked everywhere it already passed.*
             payload = [kw for kw in values.keywords if kw.arg != "modified_at"]
-            derived = any(x.id in taint for kw in payload
-                          for x in ast.walk(kw) if isinstance(x, ast.Name))
             written = {kw.arg for kw in values.keywords if kw.arg}
-            # A swap predicate is a non-identity column compared AGAINST SOMETHING THIS FUNCTION READ.
+
+            def _is_tainted(node, taint=taint):
+                return any(x.id in taint for x in ast.walk(node) if isinstance(x, ast.Name))
+
+            # WHICH columns carry a value read from the row, not merely whether any do. A splat
+            # (`**vals`) hides the mapping from column to expression, so a tainted splat makes the
+            # set UNKNOWN -- represented as None, which disables the guard exemption below rather
+            # than silently widening it.
+            splat_tainted = any(kw.arg is None and _is_tainted(kw.value) for kw in payload)
+            tainted_cols = None if splat_tainted else {kw.arg for kw in payload
+                                                       if kw.arg and _is_tainted(kw.value)}
+            derived = splat_tainted or bool(tainted_cols)
+
+            # TWO shapes count as swapping, and collapsing them is what made the earlier drafts wrong
+            # in three different directions:
             #
-            # The first draft asked only whether the WHERE named a non-identity column, and CodeRabbit
-            # found the hole on PR #552: `WHERE id = ? AND deleted_at IS NULL` satisfied that and was
-            # reported CAS, though it compares against a CONSTANT and swaps on nothing. A gate whose
-            # whole design principle is failing closed had a fail-OPEN verdict in it -- *a predicate
-            # that decides what to REPORT is the same hazard as one that decides what to look at when
-            # the wrong answer is the safe-sounding one.*
+            #   (a) a non-identity column compared against something READ from this row --
+            #       `t.c.modified_at == stamp`, `t.c.workflow_state == rec[...]`. This protects the
+            #       whole statement: the row cannot have moved at all since the read.
+            #   (b) a CONSTANT predicate on a column this statement WRITES -- `promote_comment`'s
+            #       `.where(topic_id.is_(None)).values(topic_id=...)`, the conditional-write idiom.
+            #       This protects only THAT COLUMN, so it counts only when the guarded columns cover
+            #       every column carrying a read-derived value.
             #
-            # So each comparison is taken whole: the column on one side, and the other side must carry
-            # a name tainted from the row (`t.c.modified_at == stamp`, `t.c.workflow_state ==
-            # rec[...]`). Both column spellings are read -- `t.c.col` for a Core table and `Model.col`
-            # for a mapped class -- because reading only the first reported every mapped-class guard
-            # as absent.
+            # (b) used to be "the statement writes this column anywhere", which review caught as a
+            # fail-open on PR #552: `.where(status == "open").values(status=..., element_guids=<from
+            # the read>)` passed, though a concurrent `element_guids` change does not move `status`
+            # and the stale write still lands. *Fixing an over-broad rule by narrowing one clause can
+            # leave the same hole one column to the left* -- the first tightening removed
+            # `deleted_at IS NULL` and left this.
+            #
+            # `WHERE deleted_at IS NULL` is neither -- a constant compared against a column the
+            # statement does not write is a FILTER.
             def _col_of(node, owners=owners):
+                """The column name a comparison side refers to: `t.c.col` or `Model.col`."""
                 for a in ast.walk(node):
                     if not isinstance(a, ast.Attribute) or a.attr == "c":
-                        continue
+                        continue                 # `t.c` itself is the accessor, not a column
                     base = a.value
                     if (isinstance(base, ast.Attribute) and base.attr == "c") or \
                        (isinstance(base, ast.Name) and base.id in owners):
                         return a.attr
                 return None
 
-            # TWO shapes count as swapping, and collapsing them is what made the first two drafts
-            # wrong in opposite directions:
-            #
-            #   (a) a non-identity column compared against something READ from this row --
-            #       `t.c.modified_at == stamp`, `t.c.workflow_state == rec[...]`;
-            #   (b) a CONSTANT predicate on a column this statement WRITES -- `promote_comment`'s
-            #       `.where(topic_id.is_(None)).values(topic_id=...)`, the conditional-write idiom.
-            #       That is a real guard: the write lands only if the column still holds the value
-            #       the caller decided from.
-            #
-            # `WHERE deleted_at IS NULL` is neither -- a constant compared against a column the
-            # statement does not write is a FILTER, and reading it as a guard is how the first draft
-            # called a blind write safe. The distinction is which column, not which shape.
-            swapped = False
+            swap_cols, guard_cols = set(), set()
             for w in wheres:
                 for cmp_ in [x for x in ast.walk(w) if isinstance(x, ast.Compare)]:
                     sides = [cmp_.left] + list(cmp_.comparators)
                     col = next((c for c in (_col_of(x) for x in sides) if c), None)
                     if col is None or col in _ID_COLS:
                         continue
-                    if any(nm.id in taint for side in sides
-                           for nm in ast.walk(side) if isinstance(nm, ast.Name)) or col in written:
-                        swapped = True
+                    (swap_cols if any(_is_tainted(side) for side in sides) else guard_cols).add(col)
                 # `.is_(None)` is a Call, not a Compare, so it needs its own pass -- and it is the
                 # spelling BOTH shipped conditional writes use.
                 for call in [x for x in ast.walk(w) if isinstance(x, ast.Call)]:
-                    if not (isinstance(call.func, ast.Attribute) and call.func.attr in ("is_", "isnot",
-                                                                                       "is_not")):
+                    if not (isinstance(call.func, ast.Attribute)
+                            and call.func.attr in ("is_", "isnot", "is_not")):
                         continue
                     col = _col_of(call.func.value)
-                    if col and col not in _ID_COLS and col in written:
-                        swapped = True
+                    if col and col not in _ID_COLS:
+                        guard_cols.add(col)
+            swapped = bool(swap_cols) or (tainted_cols is not None and bool(tainted_cols)
+                                          and tainted_cols <= (guard_cols & written))
             out.append((path, fn.name, n.lineno,
                         "CAS" if swapped else ("BLIND_RMW" if derived else "PLAIN")))
     return out
@@ -345,6 +350,28 @@ check("SELF-TEST: a CONSTANT predicate on the column being WRITTEN is a guard, n
       [v for *_, v in classify(_COND_WRITE, "<cond>")] == ["CAS"],
       f"got {classify(_COND_WRITE, '<cond>')}")
 
+# The hole review found in the FIRST tightening: a constant guard on one written column, beside a
+# DIFFERENT column carrying the read-derived value. `status` not moving says nothing about whether
+# `element_guids` did, so this is still a blind write.
+_GUARD_WRONG_COL = '''
+def half_guarded(db, key, project_id, rid, incoming):
+    t = TABLES[key]
+    rec = get_record(db, key, project_id, rid)
+    merged = sorted(set(rec.get("element_guids") or []) | incoming)
+    db.execute(update(t).where(t.c.id == rid, t.c.status == "open")
+               .values(status="open", element_guids=merged))
+'''
+check("SELF-TEST: a guard on ONE written column does not protect a DIFFERENT column's derived value",
+      [v for *_, v in classify(_GUARD_WRONG_COL, "<half>")] == ["BLIND_RMW"],
+      f"got {classify(_GUARD_WRONG_COL, '<half>')}")
+
+# ...and the same statement IS protected once the guard covers the column that carries the value.
+_GUARD_RIGHT_COL = _GUARD_WRONG_COL.replace('t.c.status == "open")', 't.c.status == "open", '
+                                            't.c.element_guids == rec.get("element_guids"))')
+check("SELF-TEST: ...and covering that column with the guard makes it CAS, so this is not always-no",
+      [v for *_, v in classify(_GUARD_RIGHT_COL, "<full>")] == ["CAS"],
+      f"got {classify(_GUARD_RIGHT_COL, '<full>')}")
+
 _UNRESOLVED = '''
 def somewhere(db, whatever):
     db.execute(update(whatever).where(whatever.c.id == 1).values(x=2))
@@ -405,42 +432,69 @@ check("the writer derivation REACHES `transition`, whose values are a splatted d
       ("src/aec_api/modules.py", "transition") in WRITERS, f"found {len(WRITERS)}: {WRITERS}")
 
 
+def _stamp_ok(values: ast.Call) -> bool:
+    """Does THIS `.values(...)` set `modified_at` from `_next_stamp(...)`?"""
+    for kw in values.keywords:
+        if kw.arg == "modified_at":
+            return any(isinstance(c, ast.Name) and c.id == "_next_stamp"
+                       for c in ast.walk(kw.value))
+    # A splat: the mapping is in a dict built elsewhere, so fall back to the dict literal that
+    # supplies it. This is `transition`'s shape and the third one the detector had to learn.
+    return None
+
+
 def stamps_through_helper(fn: ast.AST) -> bool:
-    """Does this writer set `modified_at` from `_next_stamp(...)`?
+    """Does EVERY register update in this writer stamp `modified_at` from `_next_stamp(...)`?
 
-    The first draft asked whether the STRING "modified_at" appeared anywhere in `ast.unparse(fn)`,
-    which CodeRabbit pointed out on PR #552 a DOCSTRING satisfies -- and every function here has a
-    long one, several of which discuss the column at length. The check could not have failed. *A
-    check that reads prose is a check that reads its own explanation of itself.*
+    Two drafts of this were wrong, both in the direction of passing.
 
-    It now looks for the assignment, with docstrings stripped, and demands `_next_stamp` rather than
-    any value: a bare `_now()` is what reopens the collision hole `_next_stamp` exists to close, and
-    it would have satisfied a rule that only asked for the column name.
+    The first asked whether the STRING "modified_at" appeared anywhere in `ast.unparse(fn)`, which
+    review pointed out a DOCSTRING satisfies -- and every function here has a long one, several
+    discussing that column at length. The check could not have failed.
+
+    The second read the assignment but returned on the FIRST valid stamp anywhere in the function, so
+    a writer with two updates passed while the second one omitted the stamp or used a bare `_now()`.
+    *A check that answers "yes, somewhere" is not answering the question a sweep asks, which is
+    always "every one".* Each update is now validated against its own `.values(...)`, and a function
+    with no update at all is not a writer and cannot pass vacuously.
     """
     body = list(fn.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
        and isinstance(body[0].value.value, str):
         body = body[1:]                          # drop the docstring, which is prose, not behaviour
-    for n in [x for b in body for x in ast.walk(b)]:
-        if isinstance(n, ast.keyword) and n.arg == "modified_at" \
-           and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value)):
-            return True
-        if isinstance(n, ast.Assign) and any(
-                isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
-                and t.slice.value == "modified_at" for t in n.targets) \
-           and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value)):
-            return True
-        # A DICT LITERAL key, which is how `transition` builds its `vals` before splatting it. This
-        # arm is here because the check FOUND `transition` missing the moment it was strengthened --
-        # three shapes write this column and the first draft of the detector knew two. *Every
-        # derivation in this file has now been wrong about its population once; that is the argument
-        # for running it against a known instance rather than believing its count.*
-        if isinstance(n, ast.Dict):
-            for k, v in zip(n.keys, n.values):
-                if isinstance(k, ast.Constant) and k.value == "modified_at" \
-                   and any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(v)):
-                    return True
-    return False
+    nodes = [x for b in body for x in ast.walk(b)]
+
+    # Every way a SPLATTED values dict can receive the stamp. There are three shapes across three
+    # writers and each draft of this detector has known one fewer than exist: a dict literal
+    # (`transition`), a subscript assignment into a dict built earlier (`_cas_row_edit`), and the
+    # plain keyword handled in `_stamp_ok`. Listing them is unavoidable; being CAUGHT missing one is
+    # what the per-update rewrite bought, since the previous draft passed on any single good stamp
+    # and would have said nothing.
+    dict_stamps = [any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(v))
+                   for n in nodes if isinstance(n, ast.Dict)
+                   for k, v in zip(n.keys, n.values)
+                   if isinstance(k, ast.Constant) and k.value == "modified_at"]
+    dict_stamps += [any(isinstance(c, ast.Name) and c.id == "_next_stamp" for c in ast.walk(n.value))
+                    for n in nodes if isinstance(n, ast.Assign)
+                    for t in n.targets
+                    if isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
+                    and t.slice.value == "modified_at"]
+
+    updates = 0
+    for n in nodes:
+        if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)):
+            continue
+        parts = _chain_parts(n)
+        if not parts or parts[2] is None:
+            continue
+        updates += 1
+        verdict = _stamp_ok(parts[2])
+        if verdict is False:
+            return False                         # this update names the column and not the helper
+        if verdict is None:                      # splatted -- every dict literal must supply it
+            if not dict_stamps or not all(dict_stamps):
+                return False
+    return updates > 0
 
 
 #: A writer whose ONLY mention of the column is prose. The pre-fix check passed this.
@@ -473,6 +527,31 @@ _DICT_SHAPE = ast.parse(
     '    db.execute(update(t).where(t.c.id == rid).values(**vals))\n').body[0]
 check("SELF-TEST: the DICT-LITERAL shape counts -- the one the strengthened check first missed",
       stamps_through_helper(_DICT_SHAPE), "the splatted-dict shape failed the stamp check")
+
+#: TWO updates, only the first stamped. The previous draft returned True on the first good stamp and
+#: never looked at the second -- review caught it on PR #552.
+_TWO_UPDATES = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n'
+    '    db.execute(update(t).where(t.c.id == rid).values(title="x"))\n').body[0]
+check("SELF-TEST: a SECOND update without a stamp fails, even when the first one has a good stamp",
+      not stamps_through_helper(_TWO_UPDATES), "one good stamp covered an unstamped sibling")
+
+#: ...and both stamped passes, so the two-update rule is not simply always-no.
+_TWO_OK = ast.parse(
+    'def writer(db, t, rid, rec):\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(assignee=None, modified_at=_next_stamp(rec.get("modified_at"))))\n'
+    '    db.execute(update(t).where(t.c.id == rid)'
+    '.values(title="x", modified_at=_next_stamp(rec.get("modified_at"))))\n').body[0]
+check("SELF-TEST: ...and two correctly-stamped updates still pass",
+      stamps_through_helper(_TWO_OK), "two good stamps were rejected")
+
+#: A function with NO register update is not a writer and must not pass vacuously.
+_NO_UPDATE = ast.parse('def reader(db, t, rid):\n    return db.execute(select(t))\n').body[0]
+check("SELF-TEST: a function with no update at all does not pass the stamp check vacuously",
+      not stamps_through_helper(_NO_UPDATE), "a non-writer satisfied the stamp check")
 
 _no_stamp = []
 for path, name in WRITERS:
@@ -646,107 +725,121 @@ _ = _cur
 
 
 # ================================================================ 6. the ORM population
-#: Every `obj.attr = <expr mentioning obj>` in `src/aec_api`, with the reading that settled it.
-#: A site not listed here reds the build; an entry whose site is gone reds it too.
+#: Every ORM read-modify-write site, with a STATUS and the reading that settled it.
+#:
+#: The status is a structured field, not a word inside the prose. Review caught the reason on PR
+#: #552: the count of open gaps was computed by looking for the substring "OPEN" in the
+#: justification, and one entry had been written with a capital O and lower-case rest -- so the gate
+#: reported 13 open sites when there were 14, and the threat model inherited the wrong number.
+#: *A count derived by grepping prose is prose*, and this file exists to stop exactly that.
+#:
+#: STATUSES: "EXEMPT" (read and reasoned not to be a lost update) · "OPEN" (a real gap, named) ·
+#: "LOCKED" (protected by a control other than the CAS -- today only `pid_lock`). Asserted below, so
+#: a typo cannot quietly drop a site out of every count.
+STATUSES = {"EXEMPT", "OPEN", "LOCKED"}
+
 ORM_LEDGER = {
-    ("src/aec_api/coordination_fresh.py", "recheck"):
+    ("src/aec_api/coordination_fresh.py", "recheck"): ("EXEMPT",
         "`labels |= {one constant}`. `recheck` is the ONLY writer of an EXISTING topic's labels -- "
-        "every other site sets them at creation -- so the only caller that can lose a race is another "
-        "`recheck` adding the SAME label. Established by grepping the column, not inferred from the "
-        "shape of the statement.",
-    ("src/aec_api/routers/bim.py", "_with_kind"):
+        "every other site sets them at creation -- so the only caller that can lose a race is "
+        "another `recheck` adding the SAME label. Established by grepping the column, not inferred "
+        "from the shape of the statement."),
+    ("src/aec_api/routers/bim.py", "_with_kind"): ("EXEMPT",
         "`p.has_source_ifc = bool(p.source_ifc and Path(...).exists())` -- a response field computed "
-        "onto a detached object for serialisation. Never written back to the row.",
-    ("src/aec_api/routers/cloud.py", "_link_account"):
+        "onto a detached object for serialisation. Never written back to the row."),
+    ("src/aec_api/routers/cloud.py", "_link_account"): ("EXEMPT",
         "`new or old` keep-the-old-value fallback on an OAuth refresh token. The write is the "
         "caller's COMPLETE intent, not an accumulation, so a lost race overwrites with a whole value "
         "rather than dropping somebody else's contribution -- last-writer-wins is the behaviour the "
-        "provider's token rotation actually wants.",
-    ("src/aec_api/routers/cloud.py", "_fresh_access_token"): "same fallback, same rotation.",
-    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile"):
-        "same -- display name and avatar fall back to the stored value when the provider omits them.",
-    ("src/aec_api/routers/connections.py", "update_connection"):
-        "same -- `body.name or c.name` is a PATCH keeping an unsent field.",
-    ("src/aec_api/routers/scim.py", "scim_create_user"):
-        "same -- the re-provision branch keeps `external_id` when the IdP omits it.",
-    ("src/aec_api/routers/scim.py", "_apply_patch_op"): "same -- SCIM PATCH keeps an unparsable email.",
-    ("src/aec_api/routers/verification.py", "set_status"):
+        "provider's token rotation actually wants."),
+    ("src/aec_api/routers/cloud.py", "_fresh_access_token"): ("EXEMPT",
+        "same fallback, same rotation."),
+    ("src/aec_api/routers/cloud.py", "cloud_refresh_profile"): ("EXEMPT",
+        "same -- display name and avatar fall back to the stored value when the provider omits them."),
+    ("src/aec_api/routers/connections.py", "update_connection"): ("EXEMPT",
+        "same -- `body.name or c.name` is a PATCH keeping an unsent field."),
+    ("src/aec_api/routers/scim.py", "scim_create_user"): ("EXEMPT",
+        "same -- the re-provision branch keeps `external_id` when the IdP omits it."),
+    ("src/aec_api/routers/scim.py", "_apply_patch_op"): ("EXEMPT",
+        "same -- SCIM PATCH keeps an unparsable email."),
+    ("src/aec_api/routers/verification.py", "set_status"): ("EXEMPT",
         "same -- element metadata falls back to what was already recorded when the model no longer "
-        "carries it.",
-    ("src/aec_api/routers/proforma.py", "update_scenario"):
+        "carries it."),
+    ("src/aec_api/routers/proforma.py", "update_scenario"): ("EXEMPT",
         "`s.result = solve(s.assumptions)` reads `assumptions` ASSIGNED TWO LINES ABOVE from the "
         "request body, not from the row -- there is no stale read to lose -- and it writes a "
-        "different column from the one it reads.",
-}
-
-#: The project's `source_ifc` pointer: read the current IFC, derive a NEW version from it, write the
-#: pointer back. That is this file's subject, and it is already guarded -- by `pid_lock.mutating`,
-#: a per-project advisory lock, not by a CAS -- at SIX of its call sites and NOT at the other six.
-#: The check below asserts which, so "the lock is applied" stops being prose.
-#:
-#: Two further `source_ifc` writers -- `upload_source_ifc` and `import_rvt` -- are deliberately NOT
-#: here: they write uploaded bytes to a fixed path, derived from nothing they read, so
-#: last-writer-wins is an upload's specified behaviour rather than a lost update. They are also not
-#: in the ORM population at all, which is how the stale-entry check found them when a first draft
-#: listed them anyway: *an exemption for a site that was never in scope is a claim about nothing, and
-#: it reads exactly like one that matters.*
-IFC_PIPELINE = {
-    ("src/aec_api/routers/authoring.py", "edit"): "under pid_lock",
-    ("src/aec_api/routers/authoring.py", "edit_graph"): "under pid_lock",
-    ("src/aec_api/routers/authoring.py", "edit_batch"): "under pid_lock",
-    ("src/aec_api/routers/authoring.py", "macros_run"): "under pid_lock",
-    ("src/aec_api/routers/authoring.py", "option_activate"): "under pid_lock",
-    ("src/aec_api/mcp_tools.py", "_run_recipe"): "under pid_lock",
-    ("src/aec_api/routers/authoring.py", "bake_layers"): "OPEN -- derives from the current IFC, unlocked",
-    ("src/aec_api/routers/authoring.py", "import_families"): "OPEN -- same",
-    ("src/aec_api/routers/authoring.py", "import_family_pack"): "OPEN -- same",
-    ("src/aec_api/routers/authoring.py", "place_family"): "OPEN -- same",
-    ("src/aec_api/routers/authoring.py", "content_import"): "OPEN -- same",
-    ("src/aec_api/routers/authoring.py", "_restore_version"): "OPEN -- reads the pointer to validate "
-                                                              "containment, then writes it",
-}
-
-#: Reads a field and writes a DIFFERENT one, or writes a value the caller supplied whole. Neither is
-#: a lost update: nothing another writer put in the column being written is destroyed.
-CROSS_FIELD = {
-    ("src/aec_api/jobs.py", "_run_one"):
+        "different column from the one it reads."),
+    ("src/aec_api/jobs.py", "_run_one"): ("EXEMPT",
         "job lifecycle -- `state`/`result`/`error` are written from the run's own outcome. The CLAIM "
-        "is the contested step and it is already a conditional UPDATE, gated by `test_race_conditions`.",
-    ("src/aec_api/routers/auth.py", "mfa_verify"):
+        "is the contested step and it is already a conditional UPDATE, gated by "
+        "`test_race_conditions.py`."),
+    ("src/aec_api/routers/auth.py", "mfa_verify"): ("EXEMPT",
         "`mfa_recovery = remaining` consumes one code. A concurrent second verify could consume the "
         "same code twice -- but both requests must already hold a VALID code, so the race grants no "
         "access the caller did not have; it wastes one code. Named rather than silently exempt "
-        "because 'a code can be used twice' deserves to be someone's deliberate call, not an omission.",
-    ("src/aec_api/routers/bim.py", "promote_markup"):
-        "`m.topic_id = t.id`. The SAME shape `modules.promote_comment` had before it was made a "
-        "conditional UPDATE -- so this is a live instance of an already-solved defect and it is OPEN "
-        "(roadmap: RMW-LOCKGAP). Found by widening this gate, not by the review that prompted it.",
-    ("src/aec_api/drawingset.py", "revise_sheet"): "`m.data = d2`, derived from `m.data` -- OPEN, "
-                                                   "same class, no token on that table.",
-    ("src/aec_api/routers/connections.py", "put_mappings"): "`c.config = cfg` merged from `c.config` "
-                                                            "-- OPEN, same class.",
-    ("src/aec_api/routers/drawings.py", "rekey_storey_markups"): "a one-shot backfill that rewrites "
-                                                                 "`sheet_id` keys; not a concurrent path.",
-    ("src/aec_api/routers/proforma.py", "put_property"):
-        "`dev_property` -- the site this pull request's own fix created and then HID from this "
-        "analyser by hoisting the read into a local. Open for the same reason as `save_appraisal`.",
-    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard"): "`dev_budget` merge -- OPEN, same class, "
-                                                             "`projects` has no `modified_at`.",
-    ("src/aec_api/routers/proforma.py", "sync_model_to_hard"): "`dev_budget` merge -- OPEN, same class.",
+        "because 'a code can be used twice' deserves to be someone's deliberate call."),
+    ("src/aec_api/routers/drawings.py", "rekey_storey_markups"): ("EXEMPT",
+        "a one-shot backfill that rewrites `sheet_id` keys; not a concurrent path."),
 }
 
-#: Open, and deliberately so. Both write a JSON collection on a table with NO `modified_at`, so the
-#: register row's token does not exist for them, and JSON equality is not a swap that behaves the
-#: same on SQLite and Postgres -- the identical trap `FOR UPDATE` is. Fixing them means giving those
-#: tables a concurrency token, which is a migration and a separate item (roadmap: RMW-TOKEN).
+#: The project's `source_ifc` pointer: read the current IFC, derive a NEW version from it, write the
+#: pointer back. Guarded -- by `pid_lock.mutating`, a per-project advisory lock, not by a CAS -- at
+#: SIX of its twelve call sites. The checks below assert the split in both directions, and demand the
+#: lock span the whole read-modify-write rather than only the assignment.
+#:
+#: `upload_source_ifc` and `import_rvt` are deliberately absent: they write uploaded bytes to a fixed
+#: path, derived from nothing they read, so last-writer-wins is an upload's specified behaviour. They
+#: are also not in the ORM population at all, which is how the stale-entry check found them when a
+#: first draft listed them anyway -- *an exemption for a site that was never in scope is a claim
+#: about nothing, and it reads exactly like one that matters.*
+IFC_PIPELINE = {
+    ("src/aec_api/routers/authoring.py", "edit"): ("LOCKED", "whole RMW inside `pid_lock.mutating`"),
+    ("src/aec_api/routers/authoring.py", "edit_graph"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "edit_batch"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "macros_run"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "option_activate"): ("LOCKED", "same"),
+    ("src/aec_api/mcp_tools.py", "_run_recipe"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "bake_layers"): ("OPEN",
+        "derives a new IFC from the current one, unlocked (gap G-11 / RMW-LOCKGAP)"),
+    ("src/aec_api/routers/authoring.py", "import_families"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "import_family_pack"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "place_family"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "content_import"): ("OPEN", "same"),
+    ("src/aec_api/routers/authoring.py", "_restore_version"): ("OPEN",
+        "reads the pointer to validate containment, then writes it -- same class"),
+}
+
+#: Sites that read one column and write another, or write a value the caller supplied whole -- plus
+#: the ones that are genuinely open and have no concurrency token available.
+CROSS_FIELD = {
+    ("src/aec_api/routers/bim.py", "promote_markup"): ("OPEN",
+        "`m.topic_id = t.id`. The SAME shape `modules.promote_comment` had before it was made a "
+        "conditional UPDATE -- a live instance of an already-solved defect. Found by widening this "
+        "gate, not by the review that prompted the widening."),
+    ("src/aec_api/drawingset.py", "revise_sheet"): ("OPEN",
+        "`m.data = d2`, derived from `m.data`; no token on that table."),
+    ("src/aec_api/routers/connections.py", "put_mappings"): ("OPEN",
+        "`c.config = cfg` merged from `c.config`; no token on that table."),
+    ("src/aec_api/routers/proforma.py", "put_property"): ("OPEN",
+        "`dev_property` -- the site this pull request's own fix created and then HID from this "
+        "analyser by hoisting the read into a local. Open for the same reason as `save_appraisal`: "
+        "`projects` carries no `modified_at`."),
+    ("src/aec_api/routers/proforma.py", "sync_gmp_to_hard"): ("OPEN",
+        "`dev_budget` merge -- same class, same missing token."),
+    ("src/aec_api/routers/proforma.py", "sync_model_to_hard"): ("OPEN", "`dev_budget` merge -- same."),
+}
+
+#: JSON collections on tables with NO `modified_at`, so the register row's token does not exist for
+#: them, and JSON equality is not a swap that behaves the same on SQLite and Postgres -- the identical
+#: trap `FOR UPDATE` is. Closing these means a migration (roadmap: RMW-TOKEN, gap G-10).
 BAND_2 = {
-    ("src/aec_api/routers/proforma.py", "share_scenario"):
+    ("src/aec_api/routers/proforma.py", "share_scenario"): ("OPEN",
         "`shared_with` -- two concurrent grants, one silently dropped. The response echoes the "
-        "caller's own target either way, so neither caller can tell it did not take.",
-    ("src/aec_api/routers/realestate.py", "save_appraisal"):
+        "caller's own target either way, so neither caller can tell it did not take."),
+    ("src/aec_api/routers/realestate.py", "save_appraisal"): ("OPEN",
         "`dev_property` merge -- a concurrent write to a different key of the same blob is lost. The "
         "non-concurrent half of this blob's problem WAS fixed here: `proforma.save_property` used to "
-        "replace it wholesale and delete the appraisal on every ordinary save.",
+        "replace it wholesale and delete the appraisal on every ordinary save."),
 }
 
 
@@ -811,6 +904,10 @@ ORM = orm_rmw_sites()
 check("the ORM derivation REACHES a known site, asserted before its count is believed",
       ("src/aec_api/coordination_fresh.py", "recheck") in ORM, f"found {len(ORM)}")
 _KNOWN = {**ORM_LEDGER, **BAND_2, **IFC_PIPELINE, **CROSS_FIELD}
+_bad_status = sorted((k, v[0]) for k, v in _KNOWN.items() if v[0] not in STATUSES)
+check("every ledger entry carries a STATUS from the declared set, so the open count is structural "
+      "rather than a substring search over prose -- which is how it read 13 when it was 14",
+      not _bad_status, f"{len(_KNOWN)} entries; bad status: {_bad_status}")
 _unfiled = [s for s in ORM if s not in _KNOWN]
 check("every ORM read-modify-write is either reasoned exempt or named as an open gap",
       not _unfiled, f"unfiled={_unfiled}")
@@ -818,12 +915,28 @@ _stale = [k for k in _KNOWN if k not in ORM]
 check("no ledger entry outlives the site it describes", not _stale, f"stale={_stale}")
 # ---------------------------------------------------------------- the IFC pipeline's OTHER control
 def under_pid_lock(path: str, name: str) -> bool:
-    """Is every `*.source_ifc = ...` in this function lexically inside `with pid_lock.mutating(...)`?"""
+    """Is the WHOLE `source_ifc` read-modify-write inside `with pid_lock.mutating(...)`?
+
+    The first draft asked only about the ASSIGNMENT, and review caught that on PR #552: a route can
+    read `p.source_ifc`, spend a minute deriving a new IFC version from it, and only then enter the
+    lock to assign -- passing a check that looks at the write alone while two callers derive from the
+    same old version and the second assignment erases the first. *A lock proves nothing about the
+    statement it contains; it proves something about the interval it spans, and this was measuring
+    the wrong one.*
+
+    So every `.source_ifc` mention -- read or write -- must be inside the lock. That is stricter than
+    strictly necessary (a read for logging would count), and deliberately so: this function decides
+    whether to CERTIFY a route as protected, and the safe direction for a certifier is to refuse
+    something it cannot prove.
+    """
     tree = ast.parse((HERE / path).read_text(encoding="utf-8"))
     fn = next((f for f in ast.walk(tree)
                if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.name == name), None)
-    if fn is None:
-        return False
+    return fn is not None and lock_spans_rmw(fn)
+
+
+def lock_spans_rmw(fn: ast.AST) -> bool:
+    """The node-level half of `under_pid_lock`, split out so the fixtures below can exercise it."""
     outside = []
 
     class V(ast.NodeVisitor):
@@ -836,9 +949,10 @@ def under_pid_lock(path: str, name: str) -> bool:
             self.generic_visit(node)
             self.depth -= 1 if held else 0
 
-        def visit_Assign(self, node):
-            if any(isinstance(t, ast.Attribute) and t.attr == "source_ifc" for t in node.targets) \
-               and not self.depth:
+        visit_AsyncWith = visit_With
+
+        def visit_Attribute(self, node):
+            if node.attr == "source_ifc" and not self.depth:
                 outside.append(node.lineno)
             self.generic_visit(node)
 
@@ -846,12 +960,41 @@ def under_pid_lock(path: str, name: str) -> bool:
     return not outside
 
 
-_claimed_locked = sorted(k for k, v in IFC_PIPELINE.items() if v == "under pid_lock")
+#: The shape review named: read and derive OUTSIDE, assign INSIDE. The first draft passed this.
+_LATE_LOCK = ast.parse(
+    'def route(db, pid, p, ed):\n'
+    '    out = ed.apply_recipe(p.source_ifc, "add_family", {}, "/tmp/new.ifc")\n'
+    '    with pid_lock.mutating(pid):\n'
+    '        p.source_ifc = out\n'
+    '        db.commit()\n').body[0]
+check("SELF-TEST: deriving from `source_ifc` BEFORE the lock and assigning inside is NOT protected",
+      not lock_spans_rmw(_LATE_LOCK), "a read outside the lock was certified as locked")
+
+#: The shape the six shipped routes actually use: the whole thing inside.
+_FULL_LOCK = ast.parse(
+    'def route(db, pid, ed):\n'
+    '    with pid_lock.mutating(pid):\n'
+    '        p = _project(db, pid)\n'
+    '        out = ed.apply_recipe(p.source_ifc, "add_family", {}, "/tmp/new.ifc")\n'
+    '        p.source_ifc = out\n'
+    '        db.commit()\n').body[0]
+check("SELF-TEST: ...and the fully-enclosed shape IS, so the checker is not always-no",
+      lock_spans_rmw(_FULL_LOCK), "a fully locked route was reported unprotected")
+
+#: No lock at all -- the six open sites.
+_NO_LOCK = ast.parse(
+    'def route(db, pid, p, ed):\n'
+    '    out = ed.apply_recipe(p.source_ifc, "add_family", {}, "/tmp/new.ifc")\n'
+    '    p.source_ifc = out\n').body[0]
+check("SELF-TEST: and an unlocked route is unprotected",
+      not lock_spans_rmw(_NO_LOCK), "an unlocked route was certified")
+
+_claimed_locked = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "LOCKED")
 _lying = [k for k in _claimed_locked if not under_pid_lock(*k)]
 check("every site this ledger calls locked IS lexically under `pid_lock.mutating`",
       not _lying, f"{len(_claimed_locked)} claimed locked; not actually: {_lying}")
 
-_claimed_open = sorted(k for k, v in IFC_PIPELINE.items() if v.startswith("OPEN"))
+_claimed_open = sorted(k for k, (st, _) in IFC_PIPELINE.items() if st == "OPEN")
 # NOT `_secretly_fixed`, which is what this was called for about twenty minutes. CodeQL's
 # `py/clear-text-logging-sensitive-data` classifies a source by its IDENTIFIER NAME, so a local
 # containing "secret" flowing into the `print` in `check()` is a HIGH alert -- on a gate whose values
@@ -869,12 +1012,12 @@ check("the share-token view counter is no longer an ORM read-modify-write",
       and ("src/aec_api/client_portal.py", "digest") not in ORM,
       "the increment moved into SQL")
 
-_open = len(BAND_2) + sum(1 for v in IFC_PIPELINE.values() if v.startswith("OPEN")) \
-    + sum(1 for v in CROSS_FIELD.values() if "OPEN" in v)
+_open = [k for k, (st, _) in _KNOWN.items() if st == "OPEN"]
 print()
 print(f"test_rmw_sweep {'FAILED' if FAILED else 'OK'}"
       f"  ({len(SITES)} register-row update sites, {len(WRITERS)} writers stamping monotonically, "
-      f"{len(ORM)} ORM sites: {len(_KNOWN) - _open} reasoned exempt, {_open} named open)")
+      f"{len(ORM)} ORM sites: {len(_KNOWN) - len(_open)} reasoned exempt or locked, "
+      f"{len(_open)} named open)")
 if FAILED:
     for f_ in FAILED:
         print(f"  - {f_}")

@@ -133,6 +133,38 @@ did not otherwise touch. The set is frozen instead — the gate asserts the spli
 so a new unlocked writer reds the build and closing one of the six forces the ledger to be updated
 rather than leaving a recorded gap that no longer exists.
 
+**A second review round found four more, and three were the gate reporting safety it had not
+established.** Each is the same failure wearing a different mask, and each was introduced by the fix
+for the one before it:
+
+- **The conditional-write exemption protected the wrong column.** The first tightening made a
+  constant predicate count as a swap when the statement *writes* that column — correct for
+  `promote_comment`. But `.where(status == "open").values(status=…, element_guids=<from the read>)`
+  also satisfied it, and a concurrent `element_guids` change does not move `status`, so the stale
+  write still lands. The guard now has to cover **every** column carrying a read-derived value, and
+  a splatted `**vals` — which hides the column-to-expression mapping — makes coverage unprovable
+  rather than assumed. *Fixing an over-broad rule by narrowing one clause can leave the same hole one
+  column to the left.*
+- **The stamp check asked "somewhere", not "every".** It returned on the first valid
+  `modified_at=_next_stamp(...)` anywhere in the function, so a writer with two updates passed while
+  the second omitted the stamp. Now validated per update — and doing so immediately failed
+  `_cas_row_edit`, whose stamp is a *subscript assignment* into a dict built earlier. That is the
+  third shape, and **every draft of this detector has known one fewer than exist**.
+- **The lock check measured the write, not the interval.** `under_pid_lock` asked only whether the
+  `source_ifc` assignment sat inside `pid_lock.mutating`. A route can read the pointer, spend a
+  minute deriving a new IFC from it, and *then* enter the lock to assign — passing a check that
+  looks at the write alone while two callers derive from the same old version. Every mention of the
+  column, read or write, must now be inside. *A lock proves nothing about the statement it contains;
+  it proves something about the interval it spans.* All six certified routes survive the stricter
+  test, which is the answer that makes the certification worth having.
+- **And the open-gap count was computed by grepping its own prose.** `_open` matched the substring
+  `"OPEN"`; one entry had been written `"Open"`; the gate reported **13** open sites where there are
+  **14**, and the threat model inherited the wrong number. Status is now a structured field with a
+  declared value set, asserted, so a typo reds the build instead of deleting a gap from the tally.
+  The six non-IFC sites that tally had been under-reporting are now their own named gap (**G-12**),
+  `bim.promote_markup` among them — which is `promote_comment`'s pre-fix shape, a live instance of a
+  defect already solved one module over.
+
 *Its own self-tests earned their keep within the hour.* Teaching the analyser about mapped model
 classes — so two correctly-guarded writes stopped reporting as UNKNOWN — made it read the `t.c`
 accessor as a column name, so every write looked swapped-on and both pre-fix bodies came back clean.
