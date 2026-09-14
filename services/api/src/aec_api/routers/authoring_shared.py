@@ -106,14 +106,24 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
                 # copying what may be hundreds of MB on every publish; the window returns, and it is
                 # a spurious 409 on a concurrent read rather than any loss of data.
                 os.replace(final, backup)
+        #: The backup may be removed only once it is certainly no longer the ONLY copy of the
+        #: previous model. With `os.link` above, `backup` and `final` start as one inode -- and after
+        #: `os.replace(staged, final)` the backup holds the LAST reference to the old bytes. So an
+        #: unconditional `finally: backup.unlink()` destroys the user's previous model whenever the
+        #: restore itself fails, leaving the refused bytes at the published path and nothing to go
+        #: back to. *Cleanup in a `finally` runs on the path where cleanup is the wrong thing to do* --
+        #: the one branch that still needs the file is the branch that got there by failing.
+        published = restored = False
         try:
             os.replace(staged, final)                # atomic within the filesystem
             storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(final))
             p.source_ifc = str(final)
             db.commit()
+            published = True
         except BaseException:
             if backup is not None and backup.exists():
                 os.replace(backup, final)            # readers get the previous model back, intact
+                restored = True
             else:
                 # NO PREVIOUS FILE, and this branch existed doing nothing. `os.replace` above has
                 # already put the new bytes at the published path, so "restore what was there" here
@@ -127,7 +137,10 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
                     final.unlink(missing_ok=True)
             raise
         finally:
-            if backup is not None:
+            # Kept deliberately when neither happened: `final` then holds bytes the system refused
+            # and `backup` is the only previous model there is. A `.rollback-*` file surviving is the
+            # signal that a publication failed AND could not be undone -- it is evidence, not litter.
+            if backup is not None and (published or restored):
                 with contextlib.suppress(OSError):
                     backup.unlink(missing_ok=True)
     return str(final)

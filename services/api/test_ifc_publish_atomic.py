@@ -265,6 +265,50 @@ check("...and the previously published model is restored byte-for-byte -- a read
 check("...and no rollback scratch is left behind",
       not list(WORK.glob(".rollback-*")), f"left: {[q.name for q in WORK.glob('.rollback-*')]}")
 
+# --- and when the RESTORE ITSELF fails, the backup must SURVIVE -------------------------------
+#: The `finally` used to unlink the backup unconditionally. With `os.link`, `backup` and `final`
+#: begin as one inode, and after `os.replace(staged, final)` the backup holds the LAST reference to
+#: the previous model -- so deleting it on the path where the restore failed destroys the user's
+#: model outright and leaves the refused bytes published. *Cleanup in a `finally` runs on the branch
+#: where cleanup is exactly the wrong thing to do.* A surviving `.rollback-*` is evidence that a
+#: publication failed AND could not be undone; it is not litter.
+reset()
+_db3 = SessionLocal()
+_p3 = _db3.get(Project, PID)
+_real_replace = os.replace
+
+
+def _replace_failing_restore(src, dst):
+    """Promotion works; putting the backup BACK does not -- the branch that still needs the file."""
+    if str(src).find(".rollback-") >= 0:
+        raise OSError("restore failed")
+    return _real_replace(src, dst)
+
+
+_storage.put_stream = _boom
+os.replace = _replace_failing_restore
+try:
+    with staged_ifc(FINAL) as _st4:
+        _st4.write_bytes(NEW)
+        try:
+            publish_source_ifc(_db3, _p3, PID, _st4, FINAL)
+        except (RuntimeError, OSError):
+            pass
+finally:
+    os.replace = _real_replace
+    _storage.put_stream = _real_put
+    _db3.close()
+
+_kept = list(WORK.glob(".rollback-*"))
+check("when the restore itself fails the backup is KEPT -- it is the only copy of the previous "
+      "model left, and an unconditional cleanup would destroy it",
+      len(_kept) == 1, f"rollback files: {[q.name for q in _kept]}")
+check("...and it still holds the previous model byte-for-byte, so the model is recoverable",
+      bool(_kept) and _kept[0].read_bytes() == OLD,
+      f"{_kept[0].read_bytes()[:24] if _kept else b''!r}")
+for _q in _kept:
+    _q.unlink(missing_ok=True)
+
 # --- and the SAME failure with NO previous file to restore ---------------------------------------
 #: The arm above always had something to roll back, because `reset()` writes OLD to FINAL every time.
 #: *A rollback test that always has a previous file never exercises the branch where there is none* --

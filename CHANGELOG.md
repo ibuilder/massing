@@ -12,6 +12,38 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 7 — a `finally` that deletes the only copy, and two spellings of a write
+
+Three fixed, two declined. The first is the most serious defect this PR has produced, and round 6
+made it worse.
+
+**1. The rollback backup was deleted even when the restore FAILED.** The `finally` unlinked it
+unconditionally. If `os.replace(backup, final)` raises, the published path is left holding bytes the
+system refused **and the backup — the user's previous model — is destroyed.** Round 6's `os.link`
+sharpens it: backup and `final` begin as one inode, so after the promotion the backup holds the
+**last** reference to the old bytes. *Cleanup in a `finally` runs on the branch where cleanup is
+exactly the wrong thing to do* — the one case that still needs the file is the case that got there by
+failing. The backup is now removed only when publication succeeded **or** restoration succeeded; a
+surviving `.rollback-*` is evidence that a publication failed and could not be undone, not litter.
+
+**2. `test_lock_boundary` matched `ast.Assign` only.** `p.source_ifc: str = v` is an `AnnAssign` and
+`p.source_ifc += v` an `AugAssign` — both writes, and the augmented one is *literally* a
+read-modify-write, the shape the gate exists for. Neither ever entered the site list, so the gate
+**accepted** them. Same defect as round 6's module predicate one layer down: *a population derived by
+matching one spelling of a thing silently excludes the others, and the exclusion never appears in the
+output.* Sites scanned went **331 → 346** — fifteen attribute writes the gate had never seen. Both
+forms are now planted unlocked in the self-test population, and narrowing the matcher back to
+`ast.Assign` reds two checks.
+
+**3. The hard-link continuity claim was unconditional.** It is a property of the hard-link path; on a
+filesystem without hard links the helper falls back to the rename and the window returns. Qualified.
+
+**Declined, both real, both about the proforma module rather than this diff:** a full-budget `PUT`
+can still overwrite a concurrent sync's hard lines (needs a revision token, i.e. a client contract
+change); and `source_ifc_path` / `takeoff_file` / `open_model` run before the lock in the model-sync
+route, so a publication can swap the IFC between the read and the commit. Both predate this PR, both
+need their own change, and both are tracked.
+
 ### LOCK-BOUNDARY round 6 — the gate's own look-at predicate, and a fix that cost an unrelated property
 
 Three real findings from a full re-review of the head. Two are defects **inside earlier rounds of this
@@ -22,8 +54,11 @@ Round 4 took its rollback backup with `os.replace(final, backup)`, so `source.if
 between that rename and the promotion. `bake_layers` calls `project_with_source` **before** it takes
 the lock, and that helper raises 409 *"project has no accessible source IFC"* on a missing file — so a
 concurrent read could be refused during a publication that then **succeeded**. The backup is now an
-`os.link`: the same inode under two names, so the path is continuously present and `os.replace` still
-swaps it atomically. *A fix for one property can cost an unrelated one that nothing was asserting* —
+`os.link` — the same inode under two names, so the path stays present and `os.replace` still swaps it
+atomically. **That continuity is a property of the hard-link path, not an unconditional guarantee:**
+on a filesystem without hard links (FAT, some network mounts) the helper falls back to the rename and
+the window returns, because copying what may be hundreds of MB on every publish is the worse trade.
+The fallback costs a spurious 409 on a concurrent read, never data. *A fix for one property can cost an unrelated one that nothing was asserting* —
 the bare rename had given continuity for free since the beginning, and round 4 spent it without
 noticing.
 

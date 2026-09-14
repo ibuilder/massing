@@ -184,6 +184,15 @@ def _model_of_call(call: ast.Call, alias: dict) -> str | None:
     return None
 
 
+def _assign_targets(node: ast.AST) -> list[ast.AST]:
+    """Every assignment target of `node`, for all three statement forms, or [] if not an assignment."""
+    if isinstance(node, ast.Assign):
+        return list(node.targets)
+    if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        return [node.target]
+    return []
+
+
 def _rel(p: pathlib.Path) -> str:
     """Repo-relative path, or the bare path when `p` is outside the tree (the self-test probe)."""
     try:
@@ -336,9 +345,14 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
                 binds["self"] = cls if cls in MODELS else NOT_A_MODEL
             seen: set[tuple[str, str]] = set()
             for n in ast.walk(fn):
-                if not isinstance(n, ast.Assign):
-                    continue
-                for t in n.targets:
+                #: ALL THREE assignment statements, not just `Assign`. `p.source_ifc: str = v` is an
+                #: `AnnAssign` and `p.source_ifc += v` an `AugAssign`, and both are writes -- the
+                #: augmented one is a read-modify-write, the shape this whole gate exists for. Only
+                #: `Assign` was matched, so either form was invisible and the gate ACCEPTED it. Same
+                #: defect as the module predicate one layer down: *a population derived by matching
+                #: one spelling of a thing silently excludes the others, and the exclusion never
+                #: appears in the output.*
+                for t in _assign_targets(n):
                     if not (isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)):
                         continue
                     if (t.value.id, t.attr) in seen:
@@ -381,6 +395,15 @@ _SYNTH = ast.parse(
     #: passed vacuously because every synthetic receiver resolved.
     "def opaque(thing):\n"
     "    thing.source_ifc = 'y'\n"
+    #: The two statement forms that were invisible until 2026-09-14. `AugAssign` is the sharper of
+    #: the pair: `x += y` is literally a read-modify-write, the shape this gate exists for, and it
+    #: was the one spelling the matcher did not recognise.
+    "def annotated(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.source_ifc: str = 'ann'\n"
+    "def augmented(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.source_ifc += '.v3'\n"
 )
 _syn_alias, _syn_types = _alias_map(_SYNTH), _return_types(_SYNTH)
 _syn_sites = []
@@ -388,15 +411,19 @@ for _fn in ast.walk(_SYNTH):
     if isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
         _b = _bindings(_fn, _syn_alias, _syn_types, {})
         for _n in ast.walk(_fn):
-            if isinstance(_n, ast.Assign):
-                for _t in _n.targets:
+            if True:
+                for _t in _assign_targets(_n):
                     if isinstance(_t, ast.Attribute) and isinstance(_t.value, ast.Name):
                         _ok, _out = lock_spans(_fn, _t.attr)
                         _syn_sites.append(("synth.py", _fn.name, _b.get(_t.value.id), _t.attr, _ok, _out))
 
 _sp, _sv, _su = verdicts(_syn_sites)
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
-      [s[1] for s in _sv] == ["sloppy_writer"], f"violations={[s[1] for s in _sv]}")
+      sorted(s[1] for s in _sv) == ["annotated", "augmented", "sloppy_writer"],
+      f"violations={sorted(s[1] for s in _sv)}")
+check("  and that INCLUDES the annotated and augmented forms -- matching only `ast.Assign` made "
+      "`p.source_ifc: str = v` and `p.source_ifc += v` invisible, so the gate accepted them",
+      {"annotated", "augmented"} <= {s[1] for s in _sv}, f"violations={[s[1] for s in _sv]}")
 check("self-test: the SEED found the locked writer -- an empty seed would make the rule vacuous "
       "and every check below would pass by finding nothing",
       ("Project", "source_ifc") in _sp, f"protected={sorted(_sp)}")
