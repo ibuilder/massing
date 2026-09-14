@@ -405,8 +405,9 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     """
     names: set[str] = set()
     bare = False
+    chain = _scope_chain(tree, fn)
     nodes = list(_own_nodes(tree))
-    for scope in _scope_chain(tree, fn):
+    for scope in chain:
         nodes += list(_own_nodes(scope))
     for n in nodes:
         if isinstance(n, ast.ImportFrom):
@@ -419,7 +420,30 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
             for a in n.names:
                 if a.name.split(".")[-1] == "pid_lock":
                     names.add(a.asname or a.name.split(".")[-1])
-    return names, bare
+
+    #: SHADOWING. `def writer(p, pid_lock):` binds a PARAMETER of that name, and Python resolves the
+    #: `with pid_lock.mutating(...)` inside it to the parameter -- not to the imported module. So did
+    #: `pid_lock = other`. The analyser still had "pid_lock" in `lock_names` and certified an
+    #: arbitrary object as the project lock. The `impostor_alias` probe missed this because it tests
+    #: a name bound in a DIFFERENT function; *the dangerous case is the same scope, where the name
+    #: is right and the binding is wrong.* Removed rather than resolved: this is a certifier, and
+    #: refusing a name it cannot prove is the module is the fail-CLOSED direction.
+    shadowed: set[str] = set()
+    for scope in chain:
+        for arg in [*scope.args.posonlyargs, *scope.args.args, *scope.args.kwonlyargs,
+                    *([scope.args.vararg] if scope.args.vararg else []),
+                    *([scope.args.kwarg] if scope.args.kwarg else [])]:
+            shadowed.add(arg.arg)
+        for n in _own_nodes(scope):
+            if isinstance(n, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                    if isinstance(t, ast.Name):
+                        shadowed.add(t.id)
+            elif isinstance(n, (ast.For, ast.AsyncFor)) and isinstance(n.target, ast.Name):
+                shadowed.add(n.target.id)
+            elif isinstance(n, ast.withitem) and isinstance(n.optional_vars, ast.Name):
+                shadowed.add(n.optional_vars.id)
+    return names - shadowed, (bare and "mutating" not in shadowed)
 
 
 def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool = False
@@ -450,6 +474,15 @@ def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool
 
     def walk(node: ast.AST, locked: bool) -> None:
         for ch in ast.iter_child_nodes(node):
+            #: STOP at a nested function or class, exactly as `_stored_attrs` and `_bindings` do.
+            #: This hand-rolled traversal descended into them, so a nested helper's UNLOCKED mention
+            #: of the attribute made the ENCLOSING function's locked write report as unlocked -- and
+            #: that write is what SEEDS the pair. Same seed-removal fail-open round 10 fixed in
+            #: `_bindings`, in the one traversal that a grep for `ast.walk(fn)` could not find,
+            #: *because this one is spelled by hand.* **Searching for a spelling is not searching for
+            #: the property**, and the property is "descends into a nested scope".
+            if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
             here = locked
             if isinstance(ch, ast.With):
                 here = here or any(is_the_lock(i.context_expr) for i in ch.items)
@@ -669,6 +702,33 @@ _SYNTH = ast.parse(
     "def unlocked_after_seed(db, cid):\n"
     "    c = db.get(Connection, cid)\n"
     "    c.config = 'must be a violation, and only is if the seed survived'\n"
+    #: SEED LOSS THROUGH `lock_spans`, the third traversal. `span_seeder`'s own write is locked and
+    #: seeds `(Project, prop_layers)`. Its nested `_leak` mentions the same attribute UNLOCKED. With
+    #: `lock_spans` descending into nested bodies, that mention marked the OUTER write unlocked, the
+    #: seed vanished, and `span_victim` stopped being a violation. Same shape as round 10's, in the
+    #: one traversal spelled by hand rather than with `ast.walk`.
+    "def span_seeder(db, pid, other):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.prop_layers = 'locked, and this is the seed'\n"
+    "    def _leak():\n"
+    "        other.prop_layers = 'unlocked, and in a different scope'\n"
+    "    return _leak\n"
+    "def span_victim(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    p.prop_layers = 'must stay a violation'\n"
+    #: SHADOWING IN THE SAME SCOPE. `impostor_alias` binds the name in a DIFFERENT function; these
+    #: two bind it right here, which is the dangerous case -- the name is correct and the object is
+    #: not. Python resolves both to the local binding, so neither is the project lock.
+    "def param_shadow(db, pid, pid_lock):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'a parameter is not the module'\n"
+    "def local_shadow(db, pid, other):\n"
+    "    p = db.get(Project, pid)\n"
+    "    pid_lock = other\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'a rebinding is not the module'\n"
 )
 _syn_types = _return_types(_SYNTH)
 _syn_sites = []
@@ -686,8 +746,18 @@ _sp, _sv, _su = verdicts(_syn_sites)
 _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred",
               "for_target", "with_target"}
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
-      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {"sloppy_writer", "impostor_lock",
-                                                        "impostor_alias", "unlocked_after_seed"}),
+      sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {
+          "sloppy_writer", "impostor_lock", "impostor_alias", "unlocked_after_seed",
+          "span_victim", "param_shadow", "local_shadow"}),
+      f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: `lock_spans` stops at a nested function -- a helper's unlocked mention must not "
+      "un-certify the ENCLOSING locked write and destroy the seed with it",
+      ("Project", "prop_layers") in _sp, f"protected={sorted(_sp)}")
+check("  and the separate unlocked writer of that pair is therefore still a VIOLATION",
+      "span_victim" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: a PARAMETER or LOCAL named `pid_lock` shadows the import and is NOT the lock -- "
+      "same scope, right name, wrong object, which `impostor_alias` could not reach",
+      {"param_shadow", "local_shadow"} <= {s[1] for s in _sv},
       f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: a rebinding inside a NESTED helper does not poison the enclosing function's "
       "binding map -- the outer locked write must still SEED its pair",

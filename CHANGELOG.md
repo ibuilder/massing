@@ -12,6 +12,43 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 11 — the third traversal, and a correction to what round 10 claimed
+
+Two High findings, both real, both fail-opens, both in `test_lock_boundary.py`.
+
+**1. `lock_spans` crossed nested function boundaries — and round 10's commit message said this could
+not happen.** That commit asserted *"there are now exactly two function-taking traversals and both
+use `_own_nodes`."* **That claim was false.** `lock_spans` is a third, and it was missed because the
+search that produced the claim was `grep 'ast.walk(fn)'` — and `lock_spans` does not call `ast.walk`,
+it recurses through a hand-written closure. **Searching for a spelling is not searching for the
+property**, and the property was "descends into a nested scope". The same lesson this PR has been
+prosecuting for four rounds, applied to my own verification of it and not caught by me.
+
+The consequence is round 10's shape exactly: a nested helper's *unlocked* mention of an attribute made
+the **enclosing** function's locked write report as unlocked; that write is the SEED; losing it means
+an unlocked writer of the pair elsewhere is no longer a violation. All three function-taking
+traversals now stop at `FunctionDef`, `AsyncFunctionDef` and `ClassDef`.
+
+**2. `pid_lock_names` accepted shadowed names.** `def writer(p, pid_lock):` binds a *parameter*, and
+Python resolves `with pid_lock.mutating(...)` inside that function to the parameter, not the imported
+module — as does `pid_lock = other`. The analyser kept `"pid_lock"` in `lock_names` and certified an
+arbitrary object as the project lock. The `impostor_alias` probe added in round 9 could not reach
+this: it binds the name in a *different* function. **The dangerous case is the same scope, where the
+name is right and the binding is wrong.** Names bound by a parameter, assignment, `for` target or
+`with ... as` in any scope on the chain are now subtracted — removed rather than resolved, because
+this is a certifier and refusing what it cannot prove is the fail-closed direction.
+
+**And the reviewer confirmed, unprompted, the thing this round was asked to check:** *"The stable
+432 sites / 6 pairs count does not detect either defect."* It was right to say so. Finding 1 can
+remove one seed while a second locked writer keeps the pair alive; finding 2 can add a **false** seed
+without changing the count at all. That number has been cited in five consecutive entries as evidence
+the tightenings lost nothing — **it is evidence of much less than that**, and it is now retired as an
+argument. The probes are the evidence; the count is a description.
+
+Sites unchanged at **432**, six protected pairs. Each fix mutation-checked: restoring the nested
+descent drops `(Project, prop_layers)` and loses `span_victim`; restoring the unshadowed names loses
+`param_shadow` and `local_shadow`.
+
 ### LOCK-BOUNDARY round 10 — two defensible rules that were a hole together
 
 One finding, and it is the one I asked for: *is there another place where the two traversals still
