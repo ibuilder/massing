@@ -728,16 +728,17 @@ def _cas_row_edit(db: Session, t, key: str, project_id: str, rid: str,
     did land — a partial edit, reported as whole, which is the very shape of bug this function exists
     to remove. Refusing instead lets the 409 abort the caller's whole edit, which is what it wants.
 
-    `recompute(rec)` is handed the row as just read and returns the `values()` dict for the update, or
-    None to make the call a no-op. **Returns the record as it was read in the winning round — the
-    PRE-image, not the result**; a caller that needs the post-image re-reads after committing.
+    `recompute(rec)` is handed the row as just read and returns the `values()` dict for the update. It
+    may also RAISE, and two callers rely on that: `revise` re-checks "already revised" there and
+    `update_record` re-checks the period lock and the opt-in `expected_modified_at`, each against the
+    row the swap is about to happen on rather than against an earlier read. **Returns the record as it
+    was read in the winning round — the PRE-image, not the result**; a caller that needs the
+    post-image re-reads after committing.
     Raises 409 only if the row stays contested for `retries` rounds.
     """
     for _ in range(retries):
         rec = get_record(db, key, project_id, rid)           # 404s if missing
         vals = recompute(rec)
-        if vals is None:
-            return rec
         stamp = rec.get("modified_at")
         vals["modified_at"] = _now()
         res = db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id,
