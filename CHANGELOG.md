@@ -12,6 +12,31 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two people pressing "promote" on one markup got two RFIs, and one of them vanished
+
+`bim.promote_markup` checked `if m.topic_id: 409` and then claimed the back-link with a plain
+`m.topic_id = t.id`. The check reads the session's own copy, and `SessionLocal` is
+`expire_on_commit=False`, so a request that loaded the markup before a concurrent promote committed
+still sees `None` however long it holds it. Both requests therefore passed the guard, both minted an
+RFI Topic, and the later write won — leaving **two Topics for one markup, the first orphaned**
+because nothing points at it any more, with both callers told 201. A double-click is enough; no load
+is required.
+
+It now claims the link with a conditional `UPDATE ... WHERE topic_id IS NULL` and rolls back the
+flushed Topic on a loss, so the loser leaves nothing behind. That is not a new idea here — it is
+exactly what `modules.promote_comment` was given when the same defect was fixed there, one module
+over. **This instance was found by the read-modify-write sweep's derivation, not by anyone reading
+the route**, which is the argument for deriving a population rather than listing one: *an
+already-solved defect living on elsewhere is the cheapest kind to close and the easiest to never
+look for.*
+
+Two smaller things the fix exposed. The Core `UPDATE` bypasses the ORM, so the session's `m` kept
+its null `topic_id` and the response would have reported the markup unpromoted **in the very call
+that promoted it** — a `db.refresh` before the response fixes that. And closing the site made its
+own ledger entry stale, which `services/api/test_rmw_sweep.py` reported before the ledger was
+touched: *closing a gap has to force the record to move, or the tree ends up describing a defect
+nobody can still find.* Open gaps 12 → 11; G-12 five → four.
+
 ### Two people editing one record both saved; only one of the edits survived
 
 RMW-SWEEP. `transition` was one instance of a class, and PR #551 fixed only that instance. The shape

@@ -7,6 +7,7 @@ import re
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -314,10 +315,30 @@ def promote_markup(pid: str, mid: str, db: Session = Depends(get_db),
               element_guids=[guid] if guid else None)
     db.add(t)
     db.flush()
-    m.topic_id = t.id
+    # The `m.topic_id` check above cannot be the last word, and this route is the shape
+    # `modules.promote_comment` had before PR #434 -- found by RMW-SWEEP's ORM derivation (PR #552,
+    # gap G-12) rather than by anyone looking here. Two requests each hold their own session, each
+    # read a null back-link, and a plain `m.topic_id = t.id` lets the later commit overwrite the
+    # earlier one: one markup yields TWO RFI Topics, the first orphaned because no markup points at
+    # it any more, and both callers get 201. *A double-click on a "promote" button is the ordinary
+    # way to produce this, not a load test.*
+    #
+    # The claim is therefore a conditional UPDATE. Under Postgres read-committed the loser blocks on
+    # the winner's row lock, re-evaluates `topic_id IS NULL` against the committed row and matches
+    # nothing; under SQLite the writes serialize to the same effect. Rolling back discards the Topic
+    # flushed a moment ago, so a losing promote leaves nothing behind.
+    if not db.execute(update(DrawingMarkup)
+                      .where(DrawingMarkup.id == mid, DrawingMarkup.topic_id.is_(None))
+                      .values(topic_id=t.id)).rowcount:
+        db.rollback()
+        raise HTTPException(409, "markup already linked to an RFI")
     audit.record(db, action="markup.promote", actor=actor, method="POST", topic_id=t.id,
                  path=f"/projects/{pid}/drawings/markup/{mid}/promote", detail={"sheet": m.sheet_id})
     db.commit()
+    # The Core UPDATE bypassed the ORM and `SessionLocal` is `expire_on_commit=False`, so `m` still
+    # carries the null `topic_id` it was loaded with. Without this the response would report the
+    # markup as unpromoted in the very call that promoted it.
+    db.refresh(m)
     return {"markup": _markup_out(m), "topic": {"id": t.id, "type": t.type, "title": t.title,
                                                 "status": t.status, "element_guids": t.element_guids}}
 
