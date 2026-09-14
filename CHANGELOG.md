@@ -12,6 +12,163 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A second "send RFQ" minted a second solicitation, and a test called that idempotent
+
+`POST /projects/{pid}/procurement/packages/{rid}/send-rfq` called `create_record` — which commits —
+and only THEN looked at `workflow_state`, under an `if … == "draft"` that took the transition and an
+`else` that skipped it and reported the unchanged state as a success. So a second send persisted
+**another** Bid Solicitation while making no move. Measured on the old code: three sends produced
+**ITB-001, ITB-002 and ITB-003**, every response 200 / `rfq_sent`. The same three sends now produce
+**one ITB and two 409s**. *(That sentence read "one ITB and a 409" — singular — against a three-send
+example, which is the kind of count a reader checks against the numbers directly above it. Caught in
+review.)*
+
+**The roadmap filed this as needing a contract decision** between a 409, an idempotent no-op, and a
+deliberate re-solicitation with its own round number. **It was already decided, in
+`services/api/modules/procurement_package/module.json`.** That workflow is linear — draft → rfq_sent
+→ quotes_in → awarded — with no path back to draft and no re-solicit action, so `modules.transition`
+answers a second `send_rfq` with a 409 of its own accord; the probe prints
+`action 'send_rfq' not allowed from state 'rfq_sent'`. Deliberate re-solicitation would need a new
+declared transition, which is a product change and not this fix. *The only thing that made the
+refusal invisible was a branch written to route around it* — so there was no decision to take, only
+a declaration to stop overriding. The route now moves first and mints only if the move landed.
+
+**The existing test asserted the bug as the contract, and could not have noticed.** It read *"a
+second send on the already-sent package doesn't error and reports the current state"*, asserted a 200
+and an unchanged `package_state`, and its summary line called the route *"idempotent on re-send"*. It
+asserted the two things that stay the same and **never counted the solicitations** — the one thing
+that changed. *A word like "idempotent" in a summary is a claim, and this one had a test shaped
+around it.* It now asserts the 409 **and** that the refused send minted nothing.
+
+### And reversing the order installed a worse bug than the one it fixed
+
+Raised in review on PR #551, before this shipped anywhere. The fix above moved the package FIRST and
+minted second — correct about the duplicate, and **wrong about a failure in between**. `transition`
+commits, so a solicitation refused after the move left the package in `rfq_sent` with no ITB — and
+this workflow declares **no path back to `draft`**, so the package was stranded where a retry earns
+only another 409. The old bug was recoverable by retrying (with a duplicate); the new one was not
+recoverable at all.
+
+**It needed no bug to reach.** `create_record` consults `fin_gov.locked_reason`, which raises 409 on
+a locked accounting period — an ordinary business rule, on an ordinary day.
+
+The fix is to STAGE rather than reorder: `create_record(..., commit=False)` writes the solicitation
+into the session without committing, and `transition`'s own commit then carries both writes as one
+transaction. Every refusal now leaves nothing behind — a refused mint never reaches the move, and a
+refused move (sequential 409 or a lost CAS race) discards the staged ITB with the transaction.
+Nothing in `transition` had to change; `create_record` already took `commit=False`.
+
+*A fix that reverses an order can install a worse fault than the one it removes, because the second
+write's failure is the one with nothing left to roll back.* The test drives the real
+`fin_gov.locked_reason` path and asserts the package is still `draft`; reinstating move-first fails
+it with **"refused mint left the package moved"**, so the ordering cannot quietly come back.
+
+### `transition` was a read-then-write race — in all 139 modules at once
+
+Found while fixing the above, and the more severe half. `modules.transition` read the record, proved
+the move legal **from the state it read**, and then wrote with `update(t).where(t.c.id == rid)` —
+keyed on the id ALONE, with no state predicate and no row lock. Two callers could both read `draft`,
+both pass the check, and both commit. Two concurrent `award` calls both succeeded.
+
+The reach is what makes it worth a release note rather than a line: `transition` is the **only** place
+a record's `workflow_state` moves after creation (`revise` inserts a new row; every other mention of
+the column reads it), so that one statement backed **139 modules and 342 declared transitions**. It is
+now a compare-and-swap — the decided-from state is a predicate, and `rowcount != 1` is a 409 naming
+the race, deliberately worded differently from the ordinary "not allowed from state" refusal so the
+two are distinguishable by something other than a status code.
+
+Not `with_for_update()`: Postgres honours a row lock and **SQLite treats it as a no-op**, so it would
+read as protected on the backend the suite runs on while protecting nothing — the identical trap
+`next_counter` had to be dug out of in August. `services/api/test_race_conditions.py` gated the job
+claim and the ref counter; transitions were never in its population.
+
+**The gate is `services/api/test_transition_cas.py`**, and two of its twelve checks exist because of
+mistakes made writing it. It reinstates the **pre-fix statement shape** against an already-moved row
+and requires the blind write to land, so it cannot pass with the guard removed. And its derivation of
+"who writes this column" is taken at FUNCTION scope rather than from the text inside `.values(...)`:
+the first attempt read only the call's own source, and because `transition` builds a dict and splats
+it as `**vals`, **it found one writer and missed the one under repair** — reporting a tree that looked
+clean. The gate now asserts it reaches `transition` before it may print any verdict. *A predicate that
+decides what to LOOK at is more dangerous than one that decides what to report.*
+
+`apps/web/src/portal/panels/buyoutKeep.ts`'s `rfqSummary` was written against the old rule and told
+the user *"a solicitation has been minted anyway, so check whether this package already had one"*.
+After the fix that is the one thing such a response has failed to establish, and the duplicates it
+sends them hunting for can no longer be created. The branch is kept — a response that is not
+`rfq_sent` now contradicts the contract — but it says that instead. *A defensive branch that outlives
+its cause keeps giving the advice that fitted the bug.*
+
+### The 3D pin overlay made two calls, and the route meant to replace them had no caller
+
+`apps/web/src/pins/pins.ts` fetched BCF topics through `api.pins()` and register records through
+`api.modulePins()`, building a marker from each of two row shapes. It now makes **one** request to
+`/pins/all` and runs one loop; the only remaining branch is the CLICK, which is genuinely different —
+a topic restores a saved viewpoint, a record opens its register row.
+
+**The roadmap entry understated this by one whole half.** It said the remaining gap was *"what each
+row CARRIES"*. That was true and incomplete: **`/pins/all` had ZERO frontend consumers** — no client
+method, no call site anywhere in `apps/web`. The route was built, server-tested and dark, so the
+overlay made two calls not only because the envelope lacked fields but because nothing had ever been
+wired to the route that replaces them. *An item scoped from what a file lacks will miss what nothing
+does.*
+
+**CORRECTION, made before this shipped rather than left standing.** The paragraph above originally
+ended *"Route-to-client reachability is a different question, and no gate here asks it."* **That is
+false.** `services/api/test_route_reachability.py` asks exactly that question, and it is the gate
+that caught this change. `services/api/test_reachable.py` — the one I checked — measures whether a
+MODULE is reachable, and `pins.py` is imported by two routers, so it passes honestly; I concluded
+from one gate's silence that no gate was listening.
+
+**And the real finding is worse than the one I claimed.** The route-reachability gate did not miss
+`/pins/all` — it VOUCHED for it. Measured both ways: on `origin/main` its uncalled set has 56
+entries and `/pins/all` is not among them, while a grep of `apps/web` finds no reference to it at
+all. Its leaf is the single common word `all`, and `leaf_is_called` is the rule that file's own
+comments already describe as a standing cost (*"a shared leaf decides nothing"*; *"an English word
+containing a route leaf, which no naming convention prevents"*). *A false negative in a reachability
+gate is worse than no gate, because the question looks asked.* I did not isolate which string
+vouched for it, and say so rather than guess.
+
+PIN-ONE-CALL corrects the gate in both directions at once: `/pins/all` becomes genuinely called, and
+`/module-pins` becomes genuinely uncalled — which the gate immediately reported as a new unreachable
+route. It is recorded in `KNOWN_UNCALLED` with a reason and an expiry condition (delete the entry
+and the route together at the next public-API revision), not silently exempted.
+
+**The design question the entry left open is settled by measurement.** It asked whether the envelope
+should carry the viewer's presentation fields or whether the viewer should look them up from
+`/modules`. The viewer does not fetch `/modules` anywhere, so the lookup trades one request for
+another and defeats the item. The envelope carries `icon` and `source_name` for BOTH kinds: a
+register's `source_name` and `icon` from its own `module.json` — which is where the old
+`/module-pins` row already read them — and a topic's from a glyph table lifted out of `pins.ts`,
+where it was a literal the server could not see, so no server could name a topic pin.
+
+*That last clause replaces a claim that was simply false, and it is worth leaving the correction
+visible.* This read "which is precisely why the overlay needed a branch per topic type and a second
+loop for register records". Neither half survives looking: the glyph was a **map lookup**, not a
+branch per type, and the register loop **already took `icon` off the server row**, so the literal
+cannot have been what forced it. What forced the second loop was the two ROW SHAPES — `Topic`
+(`anchor`/`title`/`type`) against `ModulePin` (`anchor`/`ref`/`module_name`/`icon`) — which one
+envelope collapses. The click branch stays, because restoring a viewpoint and opening a register row
+are different acts. *A causal sentence is the easiest kind to write without checking, because it
+reads as an explanation whether or not anything caused anything.* Found in review, not by me.
+
+`api.modulePins()` is deleted as the dead client method it became; the `/module-pins` route stays.
+
+**The gate already existed and was asserting the wrong number.**
+`apps/web/src/kernel/markupPlugin.test.ts` pinned `["load:proj-1", "modulePins:proj-1"]` — the
+two-call behaviour, recorded as a fact. It now pins one entry and a length, so a second request
+fails a build. Mutation-verified: reinstating a second `pins.load` reports
+`expected [ 'load:proj-1', 'load:proj-1' ] to deeply equal [ 'load:proj-1' ]`.
+
+One test changed meaning rather than being deleted. *"A failure part-way through is still contained"*
+asserted that a failure in the SECOND call left the first one's pins drawn — "it got that far". That
+half-loaded overlay is unreachable now, so the test asserts its **absence**; deleting it would have
+removed the record that the state was ever possible.
+
+*And `test_file_sizes` caught `app.ts` at 2,445 against its 2,442 cap — three lines of comment, the
+same shape as the `register.ts` growth one PR earlier. The explanation belongs on the `ResolvedPin`
+type, not inside a file under a shrink ratchet. Learning a lesson and applying it are apparently
+still two events.*
+
 ### Ball-in-court was computed twice, by two rules, and 10 states disagreed
 
 The register screen and every server-side report answered "whose move is it" differently.

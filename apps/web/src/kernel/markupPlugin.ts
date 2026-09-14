@@ -31,10 +31,9 @@ import { definePlugin } from "@massingifc/plugin-sdk";
  * checked.
  */
 export interface PinSource<TPin = unknown> {
-  /** Loads model pins; resolves to how many were placed. */
-  load(projectId: string): Promise<number>;
-  /** Loads module-record pins (RFIs, PCOs, CORs…); resolves to how many were placed. */
-  loadModulePins(projectId: string, onClick: (pin: TPin) => void): Promise<number>;
+  /** PIN-ONE-CALL — loads EVERY pin in one request; resolves to how many of each kind were placed.
+   *  Was two methods (`load` + `loadModulePins`), which is what made the overlay issue two calls. */
+  load(projectId: string, onRecordClick: (pin: TPin) => void): Promise<{ topics: number; records: number }>;
 }
 
 export interface MarkupService {
@@ -63,9 +62,8 @@ export function markupPlugin<TPin>(options: MarkupPluginOptions<TPin>) {
         async reload(projectId: string) {
           // The counts are carried through rather than discarded: "0 pins" and "pins failed to
           // load" look identical on an empty overlay, and only one of them is a problem.
-          const model = await options.pins.load(projectId);
-          const mod = await options.pins.loadModulePins(projectId, options.onPinClick);
-          return { model, module: mod };
+          const { topics, records } = await options.pins.load(projectId, options.onPinClick);
+          return { model: topics, module: records };
         },
       };
       context.capabilities.provide(MarkupToken, service);

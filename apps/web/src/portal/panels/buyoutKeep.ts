@@ -125,13 +125,20 @@ export function rfqConfirm(pkg: SavedPackage, due?: string): string {
 }
 
 /**
- * What the send actually did — and this is the load-bearing rule of this file.
+ * What the send actually did.
  *
- * **The server mints the solicitation unconditionally and transitions only a `draft` package.** So a
- * second send produces a second ITB and leaves the state exactly where it was, and a client that
- * says "RFQ sent" because the promise resolved would report a clean success for a duplicate
- * solicitation nobody asked for. When the state did not reach `rfq_sent`, say so and say what the
- * state actually is.
+ * **RFQ-IDEMPOTENT changed the rule this function was written against.** The server used to mint the
+ * solicitation unconditionally and transition only a `draft` package, so a second send produced a
+ * second ITB and left the state alone — and this existed to stop the client reporting that as a
+ * clean success. The server now moves FIRST and mints only if the move landed, so a 200 means both
+ * writes happened and a second send is a 409 that writes nothing.
+ *
+ * The non-`rfq_sent` branch is kept and its MEANING has changed: it is no longer a half-success the
+ * server can produce, it is a response contradicting the contract. So it says that and stops. It
+ * must not repeat the old advice that a solicitation "has been minted anyway" — after this change
+ * that is the one thing such a response has failed to establish — nor send anyone hunting duplicates
+ * the server now refuses to create. *A defensive branch that outlives its cause keeps giving the
+ * advice that fitted the bug.*
  */
 export function rfqSummary(r: RfqResult): string {
   const ref = r.solicitation?.ref || "(unnamed)";
@@ -139,9 +146,9 @@ export function rfqSummary(r: RfqResult): string {
   if (state === "rfq_sent") {
     return `RFQ ${ref} created and ${r.package} moved to RFQ sent.`;
   }
-  return `RFQ ${ref} was created, but ${r.package} did NOT move to RFQ sent — it is `
-    + `${state ? state.replace(/_/g, " ") : "in an unreported state"}. A solicitation has been `
-    + "minted anyway, so check whether this package already had one before sending another.";
+  return `${r.package} did NOT move to RFQ sent — the send answered with `
+    + `${state ? state.replace(/_/g, " ") : "no state"}, which a successful send cannot do. Reload `
+    + `the register before acting on ${ref}.`;
 }
 
 /** Money, in whole dollars — the estimating figures here are never cent-precise. */

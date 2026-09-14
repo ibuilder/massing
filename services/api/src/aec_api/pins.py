@@ -51,6 +51,18 @@ def spatial_modules() -> tuple[str, ...]:
     return tuple(sorted(k for k, m in getattr(mod_engine, "REGISTRY", {}).items()
                         if m.get("pinnable")))
 
+#: The BCF topic glyphs and their display labels. These were a literal map inside the VIEWER, which
+#: meant the overlay could only render a topic pin it had a local branch for — and a register pin
+#: through an entirely separate loop. They live here because `resolve_pins` is the one place that
+#: knows a pin's kind; a register's equivalents are declared in its own `module.json` (`icon`,
+#: `name`) and are read straight off the registry.
+TOPIC_GLYPH = {"rfi": "?", "punch": "!", "clash": "\u2736", "info": "i"}
+TOPIC_LABEL = {"rfi": "RFI", "punch": "Punch", "clash": "Clash", "info": "Info"}
+
+#: What an unknown kind draws. Matches the viewer's previous `?? "\u2022"` exactly — a pin with no
+#: glyph must still be visible, because an invisible pin and an absent one are indistinguishable.
+_FALLBACK_GLYPH = "\u2022"
+
 #: A pin has to be attributable to something a person can open. Anything we cannot name, we do not
 #: draw — an unlabelled balloon on a sheet is worse than no balloon.
 _MAX_PINS = 2000
@@ -231,7 +243,9 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
         if not a and not guids:
             continue                # neither placed nor attached — not a pin, just an issue
         pin = {"source": "topic", "id": t.id, "guid": t.guid, "kind": t.type,
-               "label": t.title or "", "status": t.status, "element_guid": guids[0] if guids else None}
+               "label": t.title or "", "status": t.status, "element_guid": guids[0] if guids else None,
+               "icon": TOPIC_GLYPH.get(t.type or "", _FALLBACK_GLYPH),
+               "source_name": TOPIC_LABEL.get(t.type or "", "Issue")}
         # `anchor_point` rather than `a` — a partial anchor is not a placement, and must not block
         # the element fallback. See its docstring.
         at = anchor_point(a)
@@ -244,6 +258,13 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
         out.append(pin)
 
     # --- register records tied to elements: the half that was invisible ------------------------
+    #
+    # PIN-ONE-CALL: the registry is read ONCE here rather than per row. `icon` and `name` are the
+    # module's own declarations, the same two `modules.project_pins` puts on `/module-pins` — which
+    # is the call this envelope exists to replace, so it has to carry them or the viewer would need
+    # a third request to `/modules` to render a glyph. It does not fetch `/modules` today.
+    from . import modules as mod_engine
+    mods = getattr(mod_engine, "REGISTRY", {})
     for key, table in _record_tables(db).items():
         budget = _MAX_PINS - len(out)
         cond = pin_where(table.c.project_id, table.c.anchor, table.c.element_guids, pid)
@@ -280,7 +301,9 @@ def resolve_pins(db: Session, pid: str, model=None) -> dict:
                 continue
             pin = {"source": key, "id": r.id, "guid": r.ref or r.id, "kind": key,
                    "label": r.title or r.ref or "", "status": r.workflow_state,
-                   "element_guid": guids[0] if guids else None}
+                   "element_guid": guids[0] if guids else None,
+                   "icon": (mods.get(key) or {}).get("icon") or _FALLBACK_GLYPH,
+                   "source_name": (mods.get(key) or {}).get("name") or key}
             at = anchor_point(a)
             if at:
                 pin.update(x=at[0], y=at[1], z=at[2])

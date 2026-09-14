@@ -1302,7 +1302,36 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     new_court = court_party(mod, tr["to"])
     if new_court:
         vals["party_owner"] = new_court
-    db.execute(update(t).where(t.c.id == rid).values(**vals))
+    # TRANSITION-CAS: the UPDATE carries the state we DECIDED from as a predicate, making it a
+    # compare-and-swap rather than a blind write. `_transition` above proved the move is legal
+    # *from the state this session read* — and nothing held the row still in between, so two
+    # callers can both read `draft`, both pass that check, and under a write keyed on `id` alone
+    # both commit. This is the ONLY place a record's workflow_state moves after creation (`revise`
+    # inserts a new row; everything else that names the column reads it), so one predicate here
+    # covers all 139 modules and all 342 declared transitions rather than one route at a time.
+    #
+    # Deliberately NOT `with_for_update()`: Postgres honours the row lock and **SQLite treats it
+    # as a no-op**, so it would read as protected on the backend this suite runs on while
+    # protecting nothing — the identical trap `next_counter` above had to be dug out of. A
+    # predicate inside the UPDATE is serialised by the write path itself on both backends.
+    #
+    # `rowcount != 1` is unambiguous because no declared transition is a self-loop (0 of 342,
+    # asserted in `test_transition_cas.py` so a future `from == to` cannot land unnoticed).
+    res = db.execute(update(t)
+                     .where(t.c.id == rid, t.c.workflow_state == rec["workflow_state"])
+                     .values(**vals))
+    if res.rowcount != 1:
+        # Release the write transaction the zero-row UPDATE opened. `transition` commits on the
+        # success path, so it owns this boundary either way; leaving it to the request teardown
+        # would hold a SQLite write lock for the rest of the handler and make the function unsafe
+        # to call outside a request at all -- which the gate for this does.
+        db.rollback()
+        # A DIFFERENT message from the sequential 409 above, on purpose: that one means the action
+        # is not available from the state the caller can see, this one means the record moved under
+        # a decision already taken. Identical text would make the fix indistinguishable from the bug
+        # in any test that only reads the status code.
+        raise HTTPException(409, f"{action!r} lost a race on this record: it is no longer in state "
+                                 f"{rec['workflow_state']!r}. Re-read it and retry.")
     _log(db, project_id, key, rid, actor, party, f"transition:{action}",
          {"from": rec["workflow_state"], "to": tr["to"], "note": note, "court": new_court})
     db.commit()

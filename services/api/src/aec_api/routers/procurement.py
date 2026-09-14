@@ -80,18 +80,45 @@ def send_rfq(pid: str, rid: str, payload: dict = Body(default={}), db: Session =
     rec = me.get_record(db, "procurement_package", pid, rid)          # 404s if missing
     data = rec.get("data") or {}
     party = rbac.party_role_for(db, pid, actor)
+    # RFQ-IDEMPOTENT — MOVE FIRST, THEN MINT. This used to `create_record` (which commits) and only
+    # afterwards look at `workflow_state`, under an `if … == "draft"` that took the transition and an
+    # `else` that skipped it and reported the unchanged state as success. So a second send persisted
+    # ANOTHER bid_solicitation while making no move, and even the first send committed the ITB
+    # separately from the transition — a failure in between left an ITB with no state change behind
+    # it. The client's `rfqGate` refuses the second send, but that is UI feedback, not enforcement:
+    # a second tab, a retry or a direct API call went straight through.
+    #
+    # The roadmap filed this as needing a contract decision between 409, an idempotent no-op, and a
+    # deliberate re-solicitation. IT WAS ALREADY DECIDED, in `modules/procurement_package/module.json`:
+    # the workflow is linear (draft → rfq_sent → quotes_in → awarded) with no path back to draft and
+    # no re-solicit action, so `transition` answers a second `send_rfq` with a 409 of its own accord.
+    # Deliberate re-solicitation would need a new declared transition — a product change, not this
+    # fix. The only thing that made the refusal invisible was the `else` branch overriding it.
+    #
+    # BOTH WRITES, ONE TRANSACTION. `create_record(commit=False)` STAGES the solicitation without
+    # committing; `transition` then runs its compare-and-swap and commits, so that single commit
+    # carries the ITB and the state change together. Every failure now leaves nothing behind:
+    #
+    #   * the mint is refused (validation, or `fin_gov.locked_reason` — a REACHABLE business rule,
+    #     not a crash path) → nothing staged is committed and the package never moves;
+    #   * the move is refused (sequential 409, or the CAS losing a race) → `transition` raises
+    #     before or instead of committing, and the staged ITB dies with the transaction.
+    #
+    # The first draft of this fix moved FIRST and minted second. That is correct about the
+    # duplicate and wrong about a failure in between: `transition` commits, so a refused mint left
+    # the package in `rfq_sent` with no solicitation — and this workflow declares no path back to
+    # `draft`, so the package was stranded where a retry only earns another 409. *Fixing an ordering
+    # bug by reversing the order can install a worse one, because the second write's failure is now
+    # the one with nothing to roll back.* Staging rather than reordering is what makes it atomic.
+    # Raised in review on this PR; the reordering alone shipped in neither main nor a release.
     itb = me.create_record(db, "bid_solicitation", pid, {"data": {
         "name": f"RFQ — {data.get('name') or rec.get('title') or rec['ref']}",
         "package": data.get("name"), "trade": data.get("trade"),
         "due_date": payload.get("due_date") or data.get("rfq_due"),
-    }}, actor, party)
-    out = {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"]}
-    if rec.get("workflow_state") == "draft":
-        moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
-        out["package_state"] = moved.get("workflow_state")
-    else:
-        out["package_state"] = rec.get("workflow_state")
-    return out
+    }}, actor, party, commit=False)
+    moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
+    return {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"],
+            "package_state": moved.get("workflow_state")}
 
 
 @router.post("/projects/{pid}/procurement/buyout-schedule")

@@ -96,6 +96,26 @@ MIN_SEGMENT = 5
 #: **Not an allowlist of acceptable routes** — a record of what existed when the gate was written, so
 #: the NEXT one cannot arrive unnoticed. Shrinking this set is always allowed and never fails.
 KNOWN_UNCALLED: set[str] = {
+    #: PIN-ONE-CALL, added 2026-09-13. `/module-pins` is the NARROWER half of the pin population and
+    #: `/pins/all` is its asserted superset (`test_pin_anchor.py`). The viewer's overlay was its only
+    #: caller anywhere in `apps/web`; collapsing the overlay to one request left it with none, and
+    #: `api.modulePins()` was deleted rather than kept as a client method nothing calls.
+    #: The ROUTE is kept: it is a public API surface with its own server tests and it is in
+    #: `build_demo_data.py`'s smoke list, so deleting it is a separate decision from collapsing a
+    #: client, not a rider on it.
+    #: Expiry condition: delete this entry AND the route together, the next time the public API
+    #: surface is revised. It is parked work with a name, not a permanent exemption.
+    #:
+    #: **Worth recording beside it: this gate vouched for `/pins/all` while nothing called it.**
+    #: Measured both ways — on `origin/main` the uncalled set has 56 entries and `/pins/all` is not
+    #: among them, yet a grep of `apps/web` finds no reference to it at all. Its leaf is the single
+    #: common word `all`, and `leaf_is_called` is the rule this file's own comments already call a
+    #: standing cost ("a shared leaf decides nothing"; "an English word containing a route leaf,
+    #: which no naming convention prevents"). So the dark route was not missed for want of a gate —
+    #: it was actively vouched for by one. *A false negative in a reachability gate is worse than no
+    #: gate, because the question looks asked.* PIN-ONE-CALL corrects it in both directions at once:
+    #: `/pins/all` becomes genuinely called, `/module-pins` genuinely uncalled.
+    "/projects/{pid}/module-pins",
     #: CLOUD-SSO, added 2026-08-24. `/auth/cloud/callback` has no web caller and **must not have
     #: one**: it is the OAuth redirect target. massing.cloud sends the user's browser here with the
     #: authorization code after they sign in on the site, so the caller is the *broker*, not this

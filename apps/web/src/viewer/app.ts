@@ -75,7 +75,7 @@ import { createTestHarness } from "@massingifc/plugin-sdk";
 
 import { modelIdMapFromRefs } from "../kernel/elementRef";
 import { markupPlugin, reloadMarkup } from "../kernel/markupPlugin";
-import type { ModulePin } from "../api/types";
+import type { ResolvedPin } from "../api/types";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type Topic } from "../api/client";
 import { escapeHtml, withLoading } from "../ui/feedback";
@@ -1318,9 +1318,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       markupKernel = createTestHarness();
       await markupKernel.load(markupPlugin({
         pins,
-        onPinClick: async (p: ModulePin) => {
-          if (p.element_guids?.[0]) await selectByGuid(p.element_guids[0], true);
-          setStatus(`${p.ref} · ${p.module_name} · ${p.status}`);
+        onPinClick: async (p: ResolvedPin) => {
+          if (p.element_guid) await selectByGuid(p.element_guid, true);
+          setStatus(`${p.guid} · ${p.source_name}${p.status ? ` · ${p.status}` : ""}`);
         },
       }));
     }
@@ -2276,10 +2276,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   // ---- issues / pins -------------------------------------------------------
-  const pins = new PinOverlay(viewer.components, viewer.world, api, async (topic, vp) => {
+  const pins = new PinOverlay(viewer.components, viewer.world, api, async (pin, vp) => {
     restoreCamera(viewer.world, vp);
-    if (topic.element_guids?.[0]) await selectByGuid(topic.element_guids[0]);
-    setStatus(`restored: ${topic.title}`);
+    if (pin.element_guid) await selectByGuid(pin.element_guid);
+    setStatus(`restored: ${pin.label}`);
   });
 
   // R24-RUNS-INBOX — clash rail lives in tools/clashPanel.ts (enqueue-and-poll, not the request thread).
@@ -2351,7 +2351,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
     }
     await refreshIssues();
-    await pins.load(projectId);
+    await reloadModelPins();
     setStatus(`created RFI: ${title}`);
   }
   function cameraPos() {

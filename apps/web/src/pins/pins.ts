@@ -2,7 +2,7 @@ import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import { frameLoop } from "../viewer/raf";
 import type { World } from "../viewer/world";
-import type { ApiClient, ModulePin, Topic, Viewpoint } from "../api/client";
+import type { ApiClient, ResolvedPin, Viewpoint } from "../api/client";
 
 /**
  * Pin / markup overlay (guide §7 + GC portal). Renders a screen-projected HTML marker for
@@ -21,7 +21,7 @@ export class PinOverlay {
     _components: OBC.Components,
     private world: World,
     private api: ApiClient,
-    private onRestore: (topic: Topic, viewpoint: Viewpoint | null) => void,
+    private onRestore: (pin: ResolvedPin, viewpoint: Viewpoint | null) => void,
   ) {
     const container = this.world.renderer!.three.domElement.parentElement!;
     this.overlay = document.createElement("div");
@@ -78,37 +78,45 @@ export class PinOverlay {
     }
   }
 
-  /** BCF topic pins. */
-  async load(projectId: string) {
+  /**
+   * PIN-ONE-CALL — every pin, in one request and one loop.
+   *
+   * This was two methods: `load()` for BCF topics via `api.pins()`, `loadModulePins()` for register
+   * records via `api.modulePins()`, each building its own marker from its own row shape. Two shapes
+   * for one concept is how the two drifted — and the glyph map lived HERE, so the overlay could only
+   * draw a topic type it had a local branch for.
+   *
+   * `/pins/all` is the superset of both (asserted by `services/api/test_pin_anchor.py`) and now
+   * carries `icon` and `source_name` for either kind, so the renderer branches on nothing: a pin's
+   * appearance is data. The one remaining branch is the CLICK, which is genuinely different — a
+   * topic restores a saved viewpoint, a record opens its register row.
+   *
+   * Returns both counts. "0 pins" and "pins failed to load" look identical on an empty overlay, and
+   * only one of them is a problem.
+   */
+  async load(projectId: string, onRecordClick: (pin: ResolvedPin) => void) {
     this.clear();
-    const pins = await this.api.pins(projectId);
-    for (const topic of pins) {
-      if (!topic.anchor) continue;
+    const env = await this.api.allPins(projectId);
+    let topics = 0, records = 0;
+    for (const pin of env.pins) {
+      if (pin.x === null || pin.y === null || pin.z === null) continue;   // `unlocated` counts these
       const el = document.createElement("div");
-      el.className = `pin pin-${topic.type}`;
-      el.title = topic.title;
-      el.textContent = { rfi: "?", punch: "!", clash: "✶", info: "i" }[topic.type] ?? "•";
-      el.onclick = async () => {
-        const vps = await this.api.viewpoints(projectId, topic.id);
-        this.onRestore(topic, vps[0] ?? null);
-      };
-      this.addMarker(el, new THREE.Vector3(topic.anchor.x, topic.anchor.y, topic.anchor.z));
-    }
-    return pins.length;
-  }
-
-  /** GC module record pins (RFIs, PCOs, CORs, …). */
-  async loadModulePins(projectId: string, onClick: (pin: ModulePin) => void) {
-    const pins = await this.api.modulePins(projectId);
-    for (const pin of pins) {
-      const el = document.createElement("div");
-      el.className = "pin pin-gc";
-      el.title = `${pin.ref} · ${pin.module_name} · ${pin.status}`;
+      el.className = `pin pin-${pin.kind}`;
+      el.title = `${pin.guid} · ${pin.source_name}${pin.status ? ` · ${pin.status}` : ""}`;
       el.textContent = pin.icon || "•";
-      el.onclick = () => onClick(pin);
-      this.addMarker(el, new THREE.Vector3(pin.anchor.x, pin.anchor.y, pin.anchor.z));
+      if (pin.source === "topic") {
+        topics++;
+        el.onclick = async () => {
+          const vps = await this.api.viewpoints(projectId, pin.id);
+          this.onRestore(pin, vps[0] ?? null);
+        };
+      } else {
+        records++;
+        el.onclick = () => onRecordClick(pin);
+      }
+      this.addMarker(el, new THREE.Vector3(pin.x, pin.y, pin.z));
     }
-    return pins.length;
+    return { topics, records };
   }
 
   clear() {

@@ -1509,8 +1509,8 @@ instances:
   two calls needs those on the envelope first. Recorded as PIN-ONE-CALL below rather than left as a
   sentence that reads like a finished argument.
 
-- **PIN-ONE-CALL — the viewer still makes two pin calls, and now only the FIELDS stand in the way**
-  *(S — Lane C; opened 2026-09-10 by PIN-ANCHOR)*
+- ✅ **PIN-ONE-CALL — the viewer made two pin calls, and the unified route had no caller at all**
+  *(S — Lane C; opened 2026-09-10 by PIN-ANCHOR; **CLOSED 2026-09-13**)*
 
   `apps/web/src/pins/pins.ts` calls `api.pins()` for BCF topics and `api.modulePins()` for register
   records, and draws two overlays from two shapes. PIN-ANCHOR made `/pins/all` return every row both
@@ -1521,6 +1521,40 @@ instances:
   Adding those to `resolve_pins`' envelope is a small change with one real question attached — whether
   the sheet should carry the viewer's presentation fields at all, or whether the viewer should look
   them up from `/modules` it already has. That is a design call, which is why this is its own entry.
+
+  **✅ CLOSED — and the entry above understated the work by one whole half.** *"The remaining gap is
+  what each row CARRIES"* was true and incomplete: **`/pins/all` had ZERO frontend consumers.** No
+  client method, no call site anywhere in `apps/web` — the route was built, server-tested and dark.
+  So the viewer made two calls not only because the envelope lacked fields but because nothing had
+  ever been wired to the route that replaces them. *An item scoped from what a file lacks will miss
+  what nothing does.*
+
+  `services/api/test_reachable.py` does not catch this and is not wrong to miss it: it measures
+  whether a **module** is reachable, and `pins.py` is imported by two routers. Route-to-client
+  reachability is a different question, and no gate here asks it.
+
+  **The design call is settled by measurement, not taste.** The viewer does not fetch `/modules`
+  anywhere — grepped — so the "look it up client-side" option trades one request for another and
+  defeats the item. The envelope carries `icon` and `source_name` for **both** kinds: a register's
+  from its own `module.json`, a topic's from a glyph table moved out of `apps/web/src/pins/pins.ts`,
+  where it was a literal that forced the overlay to branch per topic type and run a second loop for
+  register records.
+
+  Result: one request, one loop, one row shape, and the only remaining branch is the **click**,
+  which is genuinely different — a topic restores a viewpoint, a record opens its register row.
+  `api.modulePins()` is deleted as the dead client method it became; the `/module-pins` route stays
+  (server-tested, and in `build_demo_data.py`'s smoke list).
+
+  **The gate already existed and was asserting the wrong number.**
+  `apps/web/src/kernel/markupPlugin.test.ts` pinned `["load:proj-1", "modulePins:proj-1"]` — the
+  two-call behaviour, as a fact. It now pins one entry and a length, so adding a second request
+  fails a build. Mutation-verified: reinstating a second `pins.load` gives
+  `expected [ 'load:proj-1', 'load:proj-1' ] to deeply equal [ 'load:proj-1' ]`.
+
+  One test changed meaning rather than being deleted: *"a failure part-way through is still
+  contained"* asserted that a failure in the **second** call left the first one's pins drawn. That
+  half-loaded overlay is now unreachable, so the test asserts its absence instead — deleting it
+  would have removed the record that the state was ever possible.
 
 - ✅ **JSON-NULL-CLASS — `IS NOT NULL` on a JSON column is a filter that filters nothing** *(XS — Lane C;
   opened 2026-09-10 by PIN-ANCHOR; **CLOSED 2026-09-13**, gated by
@@ -1900,8 +1934,33 @@ instances:
   semantics; **that one was decided on 2026-09-11 (R40-EOT) and this one was not** — they are separate
   calls, and only the schedule half has been made.
 
-- 🟡 **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
-  *(S — Lane G; **OPEN**, raised in review on PR #528 2026-09-11; needs a contract decision)*
+- ✅ ⭐ **RFQ-IDEMPOTENT — `send_rfq` mints before it checks, so a second send duplicates**
+  *(S — Lane G; **CLOSED 2026-09-13**; gated by `services/api/test_transition_cas.py`,
+  `services/api/test_procure_level.py` and `apps/web/src/portal/panels/buyoutKeep.test.ts`)*
+
+  **THE CONTRACT DECISION BELOW WAS ALREADY TAKEN, in `services/api/modules/procurement_package/module.json`,
+  and this entry not noticing that is the finding.** That workflow is linear — draft → rfq_sent →
+  quotes_in → awarded — with **no path back to draft and no re-solicit action**, so `modules.transition`
+  already answers a second `send_rfq` with `action 'send_rfq' not allowed from state 'rfq_sent'`. Of the
+  three options weighed below, one was the declaration's own answer, one contradicted it, and the third
+  (deliberate re-solicitation) cannot be expressed without ADDING a transition — a product change, not
+  this fix. *A decision recorded as open, that a declaration in the tree had already made, is a decision
+  nobody will take: it reads as blocked on judgement when it is only blocked on reading.* The route now
+  moves first and mints only if the move landed. Measured: three sends used to yield ITB-001/002/003,
+  all 200; now one ITB and two 409s.
+
+  **The test asserted the bug as the contract.** `test_procure_level.py` read *"a second send … doesn't
+  error and reports the current state"* and its summary called the route *"idempotent on re-send"* — while
+  asserting only the status code and the unchanged `package_state`, and **never counting solicitations**.
+  *It asserted the two things that stay the same and not the one that changed, so it could not fail.*
+
+  **And a second, larger defect came out of it: `modules.transition` was a read-then-write race** —
+  `update(t).where(t.c.id == rid)`, keyed on the id alone, after a separate `get_record`. It is the only
+  place a record's state moves after creation, so that one statement backed **139 modules and 342 declared
+  transitions**; two concurrent `award` calls both succeeded. Now a compare-and-swap. `test_race_conditions.py`
+  gated the job claim and the ref counter — transitions were never in its population, which is why a race
+  sweep that ran twice in August never reached the busiest write in the service. *A sweep is bounded by the
+  population it was given, and this one's was two known defects rather than a derived set.*
 
   `services/api/src/aec_api/routers/procurement.py`'s `send_rfq` calls `me.create_record` — which
   commits by default — and only *then* looks at `workflow_state`. A second request therefore persists
@@ -1912,7 +1971,8 @@ instances:
   retry, or a direct API call still duplicates.
 
   **Not fixed in #528 because the fix requires deciding what a second send MEANS**, and that is a
-  product call rather than a cleanup:
+  product call rather than a cleanup: *(SUPERSEDED — see the correction above. Kept because the three
+  options are still the right frame; what was wrong was believing none of them had been chosen.)*
 
   * **409 Conflict** — a package past `draft` cannot be re-solicited. Simplest, and wrong if a second
     bid round is a real workflow.
@@ -3343,6 +3403,28 @@ it is closed by default once the PR merges.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
+- 🟡 **PIN-OPEN-ROW — clicking a register pin in the 3D viewer selects the element but opens nothing**
+  *(S/M — Lanes E/B; **OPEN**, raised in review on PR #551 2026-09-13; needs a UX decision)*
+
+  `apps/web/src/viewer/app.ts`'s `onPinClick` calls `selectByGuid` and `setStatus` and stops. A user
+  who clicks an RFI pin on the model gets the element highlighted and a one-line status, and no way to
+  reach the record the pin stands for.
+
+  **Pre-existing, and explicitly NOT caused by PIN-ONE-CALL** — measured against
+  `git show 312c5aec^:apps/web/src/viewer/app.ts`, the old `ModulePin` handler did the same two acts
+  and no more. The review that raised it read the change as a regression ("register pins **no longer**
+  open their register rows"); it never worked. *Recorded here with that correction attached, because a
+  gap first described as a regression gets fixed against the wrong baseline and its real age is lost.*
+
+  **Why it is not a one-line wire-up:** `grep "openRecord\|openRegister\|registerRow\|navigate"` over
+  `apps/web/src/viewer/app.ts` returns **zero** — there is no opener in the viewer to call. This is
+  cross-surface navigation from the 3D viewer into the portal register, and the decision is the UX one:
+  a new tab, a side panel, or a route change, and whether 3D selection follows the user there.
+
+  **Nothing is blocking it.** `ResolvedPin` already carries `source` (module key) and `id` (record id),
+  which is everything the opener needs; the unified envelope kept both deliberately. So this is a screen
+  to design, not a contract to renegotiate.
+
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
 eighth time running.** The record is below; the previous five are in
 [`roadmap-completed.md`](roadmap-completed.md).
@@ -3443,11 +3525,11 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | PIN-OPEN-ROW *(the click handler is here; the screen it needs to reach is Lane B's, which is why the entry names both and this cell owns it — the pin is where the user is)* · R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RFQ-IDEMPOTENT *(the first standalone item this lane has carried, and it earns one: the fix is entirely inside a router's transaction boundary — mint-after-check in one transaction — and belongs to no feature lane. **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file)* |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
