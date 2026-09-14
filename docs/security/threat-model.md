@@ -210,12 +210,18 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    `drawingset.revise_sheet`, `proforma.sync_gmp_to_hard` and `proforma.sync_model_to_hard`.
    **The two `connections` entries were CLOSED on 2026-09-14 (RMW-TOKEN)**; they are described
    below because the reasoning is the interesting part. They were
-   a **pair on one blob**: `put_mappings` merges `mappings` into `Connection.config` while
-   `update_connection` merges the body's keys into the same column, keeping a stored secret where
-   the form sent it blank. One admin saving connection settings while another saves field mappings
-   loses a write, and whatever concurrency control `connections` eventually gets has to cover both
-   — *a lock one side does not take protects nothing*, which is what the `dev_property` pair cost to
-   learn. (`proforma.put_property` was one of the original six and is now
+   a **pair on one blob**: `put_mappings` merged `mappings` into `Connection.config` while
+   `update_connection` merged the body's keys into the same column, keeping a stored secret where
+   the form sent it blank. One admin saving connection settings while another saved field mappings
+   lost a write. Both routes now take the **same** per-connection advisory lock —
+   `pid_lock.mutating(_lock_key(cid))`, spanning each route's refresh, merge and commit — and the key
+   is built by a shared helper rather than an f-string at each call site, because *a lock one side
+   does not take protects nothing*, which is what the `dev_property` pair cost to learn. The lock
+   rather than a compare-and-swap because the two edits are claims on **different keys** of one blob:
+   serialising lets both survive, where a 409 would refuse an edit that conflicts with nothing.
+   `test_connection_lock.py` asserts both survive, and that locking on two *different* keys reds it
+   while leaving the static sweep green — *static analysis can see that a lock is present; only
+   behaviour can see that it is the SAME lock.* (`proforma.put_property` was one of the original six and is now
    **closed** under the per-project lock — see the `dev_property` note in the concurrent-edit row
    above. `bim.promote_markup` was another and is **closed** too: it claimed the back-link with a
    plain assignment after a `topic_id` check, so two concurrent promotes minted two RFI Topics for
