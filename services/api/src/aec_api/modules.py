@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import (
@@ -365,9 +365,21 @@ def revise(db: Session, key: str, project_id: str, rid: str, actor: str, party: 
         element_guids=src.get("element_guids") or None, links=[], data=data,
         # a revision is a NEW record written now, so it carries today's shape — not the source's.
         schema_version=module_schema.schema_stamp(mod)))
-    superseded = dict(src.get("data") or {}); superseded["superseded_by"] = new_id
-    db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
-               .values(data=superseded, modified_at=_now()))
+    def supersede(rec):
+        # Re-checked against the row the swap is about to happen on, NOT against the `src` read at
+        # the top of this function. Two concurrent revises both passed that check, both minted a
+        # revision row, and the second supersede write erased the first's `superseded_by` -- leaving
+        # two live revisions of one record, each believing it is the only one, and only one of them
+        # findable from the source. The CAS refuses the second.
+        if (rec.get("data") or {}).get("superseded_by"):
+            raise HTTPException(409, "record already revised")
+        return {"data": {**(rec.get("data") or {}), "superseded_by": new_id}}
+
+    # RMW-SWEEP, and `retries=1` is load-bearing rather than cautious: `base`, `rev_n` and the copied
+    # `data` above are all derived from the row read at the top, so a retry would insert a revision
+    # numbered from a row that has since moved. A 409 telling the caller to re-read is both the
+    # honest answer and the smaller change; the rollback discards the INSERT with it.
+    _cas_row_edit(db, t, key, project_id, rid, supersede, "revising", retries=1)
     _log(db, project_id, key, new_id, actor, party, "revise", {"revises": src["ref"], "revision": rev_n})
     _log(db, project_id, key, rid, actor, party, "superseded", {"by": f"{base}.{rev_n}"})
     db.commit()
@@ -667,12 +679,110 @@ def _rollup(db: Session, key: str, project_id: str, rid: str, f: dict) -> float 
 def set_assignee(db: Session, key: str, project_id: str, rid: str, assignee: str | None,
                  actor: str, party: str | None) -> dict:
     t = TABLES[key]
-    get_record(db, key, project_id, rid)  # 404 if missing
+    rec = get_record(db, key, project_id, rid)  # 404 if missing
+    # Not a compare-and-swap -- `assignee` is the caller's whole intent, derived from nothing this
+    # function read, so there is no update to lose. It still stamps through `_next_stamp`, because
+    # the token it advances is the one OTHER writers swap on.
     db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
-               .values(assignee=assignee, modified_at=_now()))
+               .values(assignee=assignee, modified_at=_next_stamp(rec.get("modified_at"))))
     _log(db, project_id, key, rid, actor, party, "assign", {"assignee": assignee})
     db.commit()
     return get_record(db, key, project_id, rid)
+
+
+#: How many times a row edit re-reads and retries after losing a race. Small on purpose: a contested
+#: row resolves in one or two rounds, and an unbounded loop turns a hot row into a spin.
+_CAS_RETRIES = 4
+
+
+def _next_stamp(prev) -> datetime:
+    """The next `modified_at` for a register row: now, but STRICTLY LATER than what was there.
+
+    Raised in review on PR #552, and it is the difference between a token and a lock that looks like
+    one. `_now()` has microsecond resolution and nothing guarantees the clock advanced since the
+    previous write -- two writes inside one microsecond, or an NTP step backwards, and the new
+    `modified_at` EQUALS the old one. A concurrent writer still holding that pre-image then matches
+    the CAS predicate and overwrites the winner: the swap succeeded and protected nothing.
+
+    Rare is not the same as impossible, and a concurrency control that is correct except under
+    contention is wrong exactly where it is load-bearing. One microsecond of nudge is invisible to
+    every reader of this column and makes the value monotonic per row, which is all the predicate
+    needs.
+
+    **Every register-row writer uses this, not `_now()` directly** -- `_cas_row_edit`, `set_assignee`
+    and `transition`. A single writer stamping with a bare `_now()` would reopen the hole for all
+    of them, because the collision that matters is between ANY two writes to one row, not between
+    two that happen to share a code path. `test_rmw_sweep.py` asserts the population rather than
+    trusting this paragraph.
+    """
+    now = _now()
+    if isinstance(prev, datetime):
+        if prev.tzinfo is None:                 # SQLite hands back naive datetimes
+            prev = prev.replace(tzinfo=timezone.utc)
+        if now <= prev:
+            return prev + timedelta(microseconds=1)
+    return now
+
+
+def _cas_row_edit(db: Session, t, key: str, project_id: str, rid: str,
+                  recompute, what: str, *, retries: int = _CAS_RETRIES):
+    """Apply a READ-MODIFY-WRITE edit to a record row, safely.
+
+    RMW-SWEEP. `transition` was one instance of a class, not a one-off. Four more sat on the register
+    row: `set_element_guids`, `link_record`, `update_record` and `revise` each read a column, derived
+    a new value FROM what they read, and wrote it back under `where(id == rid)` — so two concurrent
+    callers both read the old value and the second write erased the first. Reproduced, not theorised:
+    two `add` calls on `["GUID-A"]` left `["GUID-A", "GUID-C"]` and GUID-B was gone, with BOTH callers
+    given a success. *A lost update that refuses one caller is nearly fixed; one that tells both they
+    succeeded has to be found twice* — the same severity inversion the seeding sweep recorded, where a
+    primary key refuses the loser but a non-unique index refuses nothing.
+
+    The swap is on `modified_at`, NOT on the column being edited. `element_guids` is a `JSON` column
+    and JSON equality is not comparable the same way across backends — the sort of mechanism that
+    works on the one you tested and silently matches nothing on the other, which is the trap
+    `next_counter` documents for `FOR UPDATE`. `modified_at` is a plain timestamp on both, and it is
+    already this codebase's concurrency token: `update_record`'s `expected_modified_at` lock compares
+    exactly this value. **Every writer of a register row sets it** — asserted in
+    `test_rmw_sweep.py` rather than assumed, because the dynamic register table declares
+    `modified_at` with no `onupdate=`, so the coverage is a property of the call sites and not of the
+    schema. One writer that forgot it would make this predicate match a row somebody else had just
+    changed, which is the failure mode of a lock that looks present.
+
+    **It RETRIES rather than refusing, and the difference is deliberate.** A lost `transition` race
+    means the action is genuinely no longer available, so a 409 is the honest answer. "Add GUID-C" is
+    still the caller's intent after somebody else adds GUID-B — it is recomputable from a fresh read,
+    so re-reading and re-applying gives the user what they asked for instead of an error they would
+    only answer by retrying by hand.
+
+    **`retries` MUST be 1 when the caller does not own the transaction** (`update_record(commit=False)`
+    is the only such caller today). Retrying rolls back, and a rollback inside a multi-row edit would
+    discard the rows the caller staged *before* this call and then report success for the one row it
+    did land — a partial edit, reported as whole, which is the very shape of bug this function exists
+    to remove. Refusing instead lets the 409 abort the caller's whole edit, which is what it wants.
+
+    `recompute(rec)` is handed the row as just read and returns the `values()` dict for the update. It
+    may also RAISE, and two callers rely on that: `revise` re-checks "already revised" there and
+    `update_record` re-checks the period lock and the opt-in `expected_modified_at`, each against the
+    row the swap is about to happen on rather than against an earlier read. **Returns the record as it
+    was read in the winning round — the PRE-image, not the result**; a caller that needs the
+    post-image re-reads after committing.
+    Raises 409 only if the row stays contested for `retries` rounds.
+    """
+    for _ in range(retries):
+        rec = get_record(db, key, project_id, rid)           # 404s if missing
+        vals = recompute(rec)
+        stamp = rec.get("modified_at")
+        vals["modified_at"] = _next_stamp(stamp)
+        res = db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id,
+                                         t.c.modified_at == stamp).values(**vals))
+        if res.rowcount == 1:
+            return rec
+        # Someone else wrote between our read and our write. Discard the attempt and recompute
+        # against what they left, rather than overwriting it with a value derived from a stale read.
+        # The rollback is also what releases the write transaction the zero-row UPDATE opened --
+        # without it the next read deadlocks against our own session on SQLite.
+        db.rollback()
+    raise HTTPException(409, f"{what} on this record kept losing to concurrent edits; try again")
 
 
 def set_element_guids(db: Session, key: str, project_id: str, rid: str, guids: list[str],
@@ -680,17 +790,25 @@ def set_element_guids(db: Session, key: str, project_id: str, rid: str, guids: l
     """Tie model elements (IFC GlobalIds) to a record. `mode`: add | remove | set. Used to hard-tie
     a schedule activity to the exact elements it builds (so the 4D scrub is precise, not trade-based)."""
     t = TABLES[key]
-    rec = get_record(db, key, project_id, rid)  # 404 if missing
-    cur = set(rec.get("element_guids") or [])
     incoming = {g for g in guids if g}
-    result = sorted(cur | incoming if mode == "add" else cur - incoming if mode == "remove" else incoming)
-    # `or None` for the same reason as the revision copier above: untagging every element must
-    # leave NULL, not `[]`, or the row stays a pin candidate that resolves to no pin.
-    db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
-               .values(element_guids=result or None, modified_at=_now()))
-    _log(db, project_id, key, rid, actor, None, "tag-elements", {"count": len(result), "mode": mode})
+    final: list[str] = []
+
+    def recompute(rec):
+        nonlocal final
+        cur = set(rec.get("element_guids") or [])
+        final = sorted(cur | incoming if mode == "add"
+                       else cur - incoming if mode == "remove" else incoming)
+        # `or None` for the same reason as the revision copier above: untagging every element must
+        # leave NULL, not `[]`, or the row stays a pin candidate that resolves to no pin.
+        return {"element_guids": final or None}
+
+    # RMW-SWEEP: the union/difference is derived from what we just read, so the write has to swap on
+    # that read. Before this it was `where(id == rid)` alone and a concurrent `add` silently erased
+    # the other caller's tag -- on the IFC GlobalId tie, which is what the 4D scrub selects on.
+    _cas_row_edit(db, t, key, project_id, rid, recompute, "tagging elements")
+    _log(db, project_id, key, rid, actor, None, "tag-elements", {"count": len(final), "mode": mode})
     db.commit()
-    return {"element_guids": result, "count": len(result)}
+    return {"element_guids": final, "count": len(final)}
 
 
 # --- attachments (bytes live in storage/MinIO) ------------------------------
@@ -1212,42 +1330,66 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
     renames a role column across every row this way — half of that applied is worse than none of it,
     because the rows left behind carry a role name that is no longer a column."""
     t = TABLES[key]
-    rec = get_record(db, key, project_id, rid)
-    # optimistic lock (opt-in): if the caller passes the modified_at it loaded and the record has since
-    # changed, reject with 409 rather than silently overwriting a concurrent edit. The response carries
-    # the current modified_at so the client can nudge "changed by someone else — reload".
-    if expected_modified_at is not None:
-        cur = rec.get("modified_at")
-        cur_iso = cur.isoformat() if hasattr(cur, "isoformat") else (str(cur) if cur else None)
-        if cur_iso != expected_modified_at:
-            raise HTTPException(409, {"error": "stale_write",
-                                      "message": "This record changed since you opened it — reload to see the latest.",
-                                      "modified_at": cur_iso})
     _validate_values(get_module(key), data)         # partial: only the fields being changed
-    merged = apply_table_totals(get_module(key), {**(rec.get("data") or {}), **data})
-    # FIN-GOV period lock: a record already in a closed month is frozen, and an open-month record
-    # can't be re-dated INTO a closed month — both sides of the merge are checked.
-    if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))
-            or fin_gov.locked_reason(key, project_id, merged)):
-        raise HTTPException(409, why)
-    # MOD-GUID: keep `element_guids` in step with the record's own GlobalId fields. Create-only
-    # mirroring would have missed the ordinary case — file the record, add the GlobalId when you get
-    # back from the field — and left the two stores disagreeing exactly when someone CORRECTS a
-    # mistyped id: the old value would sit in the column forever.
+
+    def recompute(rec):
+        # optimistic lock (opt-in): if the caller passes the modified_at it loaded and the record has
+        # since changed, reject with 409 rather than silently overwriting a concurrent edit. The
+        # response carries the current modified_at so the client can nudge "changed by someone else —
+        # reload".
+        #
+        # RMW-SWEEP moved this INSIDE the retry, which is not a relocation but a second answer: on a
+        # re-read the row demonstrably changed, so a caller that asked to be refused on a concurrent
+        # edit gets refused instead of quietly winning the next round. The two locks say different
+        # things and both are wanted — this one is "refuse if it moved since I opened the form", the
+        # CAS below is "do not erase a field I never read".
+        if expected_modified_at is not None:
+            cur = rec.get("modified_at")
+            cur_iso = cur.isoformat() if hasattr(cur, "isoformat") else (str(cur) if cur else None)
+            if cur_iso != expected_modified_at:
+                raise HTTPException(409, {"error": "stale_write",
+                                          "message": "This record changed since you opened it — reload to see the latest.",
+                                          "modified_at": cur_iso})
+        merged = apply_table_totals(get_module(key), {**(rec.get("data") or {}), **data})
+        # FIN-GOV period lock: a record already in a closed month is frozen, and an open-month record
+        # can't be re-dated INTO a closed month — both sides of the merge are checked.
+        if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))
+                or fin_gov.locked_reason(key, project_id, merged)):
+            raise HTTPException(409, why)
+        # MOD-GUID: keep `element_guids` in step with the record's own GlobalId fields. Create-only
+        # mirroring would have missed the ordinary case — file the record, add the GlobalId when you
+        # get back from the field — and left the two stores disagreeing exactly when someone CORRECTS
+        # a mistyped id: the old value would sit in the column forever.
+        #
+        # Not a blind union. Subtract what this record's fields contributed BEFORE, then add what they
+        # contribute now, so a correction moves the anchor while a GlobalId set by another route (a
+        # pin, a BCF import, anchor-to-selection) is untouched — those were never ours to remove.
+        # R41-SCHEMA-STALE: an edit re-validates the whole merged payload against today's schema, so
+        # the stamp advances to today's shape. Leaving the old stamp would keep flagging a record the
+        # user has just corrected — the flag has to be clearable BY the action that fixes it, or it
+        # is noise.
+        vals = {"data": merged, "schema_version": module_schema.schema_stamp(get_module(key))}
+        was = module_schema.guids_from_fields(rec.get("data") or {})
+        now = module_schema.guids_from_fields(merged)
+        if was != now:
+            col = (set(rec.get("element_guids") or []) - set(was)) | set(now)
+            vals["element_guids"] = sorted(col) or None
+        return vals
+
+    # RMW-SWEEP — the highest-traffic instance of the class, and the one the threat model already
+    # claims is covered. `merged` is `{**what we read, **what the caller sent}`, written under
+    # `where(id == rid)` alone: two people editing DIFFERENT fields of the same record from the
+    # register's inline cells both merged onto the same pre-image, and the second write erased the
+    # first person's field. Both were told it saved. `expected_modified_at` was the documented
+    # control and it is opt-in — one of five web call sites passes it — so the default path, which is
+    # the one people actually use, had none.
     #
-    # Not a blind union. Subtract what this record's fields contributed BEFORE, then add what they
-    # contribute now, so a correction moves the anchor while a GlobalId set by another route (a pin,
-    # a BCF import, anchor-to-selection) is untouched — those were never ours to remove.
-    # R41-SCHEMA-STALE: an edit re-validates the whole merged payload against today's schema, so the
-    # stamp advances to today's shape. Leaving the old stamp would keep flagging a record the user
-    # has just corrected — the flag has to be clearable BY the action that fixes it, or it is noise.
-    vals = {"data": merged, "modified_at": _now(),
-            "schema_version": module_schema.schema_stamp(get_module(key))}
-    was, now = module_schema.guids_from_fields(rec.get("data") or {}), module_schema.guids_from_fields(merged)
-    if was != now:
-        col = (set(rec.get("element_guids") or []) - set(was)) | set(now)
-        vals["element_guids"] = sorted(col) or None
-    db.execute(update(t).where(t.c.id == rid).values(**vals))
+    # `retries=1` under `commit=False` is not an optimisation. A retry rolls back, and this function's
+    # multi-row callers (`responsibility` renaming a role column across every row) have already staged
+    # rows in this transaction: rolling those back and then succeeding here would commit a partial
+    # edit and report it as whole.
+    _cas_row_edit(db, t, key, project_id, rid, recompute, "editing this record",
+                  retries=_CAS_RETRIES if commit else 1)
     _log(db, project_id, key, rid, actor, party, "update", {"fields": list(data.keys())})
     if commit:
         db.commit()
@@ -1298,7 +1440,7 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     # move the record AND its ball-in-court: party_owner now tracks whose court the new state is in
     # (WORKFLOW-ENGINE — it was set once at create and then went stale). Terminal states have no next
     # court, so we leave the last owner in place there rather than blanking it.
-    vals: dict = {"workflow_state": tr["to"], "modified_at": _now()}
+    vals: dict = {"workflow_state": tr["to"], "modified_at": _next_stamp(rec.get("modified_at"))}
     new_court = court_party(mod, tr["to"])
     if new_court:
         vals["party_owner"] = new_court
@@ -1352,11 +1494,15 @@ def link_record(db: Session, key: str, project_id: str, rid: str, target: dict,
                 actor: str, party: str | None) -> dict:
     """Link this record to another (change-order chain). target = {module, id}."""
     t = TABLES[key]
-    rec = get_record(db, key, project_id, rid)
     tmod, tid = target["module"], target["id"]
-    tref = get_record(db, tmod, project_id, tid)["ref"]
-    links = (rec.get("links") or []) + [{"module": tmod, "id": tid, "ref": tref}]
-    db.execute(update(t).where(t.c.id == rid).values(links=links, modified_at=_now()))
+    tref = get_record(db, tmod, project_id, tid)["ref"]        # 404s if the target is missing
+
+    def recompute(rec):
+        # RMW-SWEEP: appending to what we read is a lost update unless the write swaps on the read.
+        # Two concurrent links both appended to the same base list and the second erased the first.
+        return {"links": (rec.get("links") or []) + [{"module": tmod, "id": tid, "ref": tref}]}
+
+    _cas_row_edit(db, t, key, project_id, rid, recompute, "linking")
     _log(db, project_id, key, rid, actor, party, "link", {"to": f"{tmod}:{tref}"})
     db.commit()
     return get_record(db, key, project_id, rid)

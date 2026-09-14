@@ -211,7 +211,12 @@ check("the derivation REACHES `transition` -- the splat blind spot, asserted bef
 #: Everything the derivation surfaces that does NOT move an existing record's state, with why.
 #: `update(` is deliberately a loose sieve, so this list is where the reading is recorded.
 NOT_A_STATE_MOVE = {
-    ("src/aec_api/modules.py", "revise"): "INSERTs a new row at the workflow's initial state",
+    # `revise` left this list when RMW-SWEEP routed its supersede write through `_cas_row_edit`:
+    # the function no longer contains `update(`, so the derivation stops surfacing it. It still
+    # writes `workflow_state`, by INSERT, exactly as `create_record` does -- which is why the claim
+    # below is about POST-CREATION writers and why dropping the entry does not widen it. The stale
+    # check caught this the hour the helper landed, which is the argument for having it: an
+    # exemption that outlives its site is a hole nobody opened on purpose.
     ("src/aec_api/option_carbon.py", "option_carbon"): "`row.update({...})` is a dict merge, not SQL",
     ("src/aec_api/option_economics.py", "option_economics"): "same -- dict merge; reads the column",
     ("src/aec_api/pins.py", "resolve_pins"): "reads `workflow_state` onto the pin envelope",

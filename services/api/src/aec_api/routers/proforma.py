@@ -383,9 +383,41 @@ def put_property(pid: str, body: dict, db: Session = Depends(get_db), _sec: str 
     p = db.get(_P, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    p.dev_property = body
-    db.commit()
-    return {"property": body, "summary": dp.summarize(body)}
+    # RMW-SWEEP found this by looking for writes DERIVED from a read, and found the opposite: a
+    # write that reads nothing. `dev_property` has two owners -- this form owns the parcel/areas/
+    # purchase/tax keys, and `realestate.save_appraisal` writes `appraisal` into the SAME blob -- so
+    # a wholesale replace here deleted the saved appraisal overrides every time somebody re-saved the
+    # property tab. No concurrency needed: *a write that reads nothing cannot lose an update, it just
+    # deletes one*, and it does so on the ordinary path rather than under load.
+    #
+    # `body` still wins where the two overlap, so a client that does round-trip `appraisal` is not
+    # overridden by the stored copy; the carry-over applies only to a key this form never sends.
+    #
+    # Persist and RETURN the same value. Raised in review: the first draft stored the merged dict and
+    # answered with `body`, so a response could omit the `appraisal` it had just kept -- the response
+    # describing a different row than the one written. Today's only web consumer reads `summary`, so
+    # this is a contract defect rather than a visible one, which is exactly the kind that is found
+    # later and from further away.
+    # Raised in review: preserving `appraisal` turned a wholesale write into a READ-modify-write, so
+    # the very fix above introduced the class this sweep is about -- `realestate.save_appraisal`
+    # merges into the same blob, and whichever of the two committed second would write back a dict
+    # built from a pre-image the other had already replaced. *Closing a certain data loss with a
+    # concurrent one is still an improvement, and it is not a reason to leave the concurrent one.*
+    #
+    # `pid_lock.mutating` rather than a compare-and-swap, because `dev_property` has no version
+    # column to swap on and both writers key on the project -- the same control the IFC pipeline
+    # uses. `db.refresh` matters as much as the lock: `db.get` can answer from the session identity
+    # map, so without it the waiter merges into the blob it read BEFORE the winner committed and the
+    # lock serialises two writes of the same stale value.
+    from .. import pid_lock
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        prior = p.dev_property or {}
+        saved = ({**body, "appraisal": prior["appraisal"]}
+                 if "appraisal" in prior and "appraisal" not in body else body)
+        p.dev_property = saved
+        db.commit()
+    return {"property": saved, "summary": dp.summarize(saved)}
 
 
 @router.get("/projects/{pid}/sources-uses")

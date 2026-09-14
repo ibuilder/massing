@@ -12,6 +12,237 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two people editing one record both saved; only one of the edits survived
+
+RMW-SWEEP. `transition` was one instance of a class, and PR #551 fixed only that instance. The shape
+is: **read a column, compute a new value FROM what you read, write it back under `where(id == rid)`
+alone.** Nothing holds the row still in between, so two callers both read the old value and the
+second write erases the first — and *both* callers are told they succeeded. Reproduced against the
+real functions before anything was written:
+
+```
+set_element_guids: A reads ['GUID-A'] · B commits ['GUID-A','GUID-B'] · A commits ['GUID-A','GUID-C']
+                   FINAL ['GUID-A','GUID-C']        GUID-B survived? False
+link_record:       B commits a link · A commits a link · FINAL holds one of the two
+```
+
+*A lost update that refuses one caller is nearly fixed; one that tells both they succeeded has to be
+found twice* — the same severity inversion the seeding sweep recorded, where a primary key refuses
+the loser and a non-unique index refuses nothing.
+
+**Five sat on the register row**, and `update_record` is the one that matters. It is the path the
+register's inline text and select cells use; it writes `{**what we read, **what you sent}`; and the
+control `docs/security/threat-model.md` names for exactly this threat — `expected_modified_at` — is
+**opt-in**, passed by one of five web call sites. So two people editing *different fields* of one
+record both merged onto the same pre-image and the second erased the first person's field. The
+documented control was real and it was not on the path people use.
+
+All five now route through `modules._cas_row_edit`, which re-reads, recomputes, and writes under
+`WHERE id = ? AND modified_at = ?` — a compare-and-swap in SQL rather than a check in Python.
+
+**Three decisions in it are worth naming, because each has a wrong-looking alternative.**
+
+- **The swap is on `modified_at`, not on the collection.** `element_guids` is a JSON column and JSON
+  equality is not comparable the same way on SQLite and Postgres — the exact trap `with_for_update()`
+  is, which Postgres honours and SQLite silently ignores. `modified_at` is a plain timestamp on both.
+  And **every register-row writer sets it**, which is now asserted rather than assumed: the dynamic
+  register table declares the column with **no `onupdate=`**, so that coverage is a property of the
+  call sites, and one writer forgetting it would make this predicate match a row somebody else had
+  just changed — *a lock that looks present.*
+- **It retries rather than refusing.** A lost `transition` race means the action genuinely is no
+  longer available, so a 409 is honest. "Add GUID-C" is still the caller's intent after somebody else
+  adds GUID-B, so re-reading and re-applying gives the user what they asked for.
+- **…except where the caller does not own the transaction.** A retry rolls back, and
+  `update_record(commit=False)` has callers (`responsibility`, renaming a role column across every
+  row) that have already staged rows in that transaction. Rolling those back and then succeeding here
+  would commit a partial edit and report it as whole — *the very shape of bug this exists to remove.*
+  So `commit=False` gets one attempt and a 409, which aborts the caller's whole edit.
+
+**`revise` was hiding a second defect behind the first.** Its "record already revised" check was
+itself a read-then-write: two concurrent revises both passed it, both minted a revision row, and the
+second supersede write erased the first's `superseded_by` — leaving two live revisions of one record,
+each believing it is the only one, and only one findable from the source. The CAS refuses the second.
+
+**Two off-register instances were found, and one of them was not a race at all.**
+`client_portal`'s share-token view counter was `row.view_count = (row.view_count or 0) + 1` — two
+people opening the same link both read 7 and both wrote 8, so the count drifts *down* under exactly
+the load that makes it interesting. It moved into SQL (`view_count + 1` evaluated by the database),
+with no CAS and no retry, because there is then nothing read in this process for anyone to
+invalidate. The other was the opposite of what the sweep was looking for: `proforma.save_property`
+wrote `p.dev_property = body` **wholesale**, and `realestate.save_appraisal` keeps `appraisal` inside
+that same blob — so every ordinary re-save of the property tab deleted the saved appraisal overrides.
+No concurrency required. *A write that reads nothing cannot lose an update — it just deletes one.*
+
+*That sentence is about the code as it WAS, and review pointed out it stops being true of the fix:
+carrying `appraisal` across means reading `dev_property` first, so the repaired route can now lose a
+concurrent appraisal save — a smaller fault than the one it removes, on a table with no concurrency
+token, and it is filed as open rather than implied away.* The same round found the response still
+answering with `body` while the merged dict was what got stored — persisting one value and returning
+another, which is the kind of mismatch that gets discovered from two screens away.
+
+**What the sweep could NOT reach is named rather than left silent**, because that is precisely how
+the seeding sweep lost four sites. `Scenario.shared_with` (a share grant) and `Project.dev_property`
+(the appraisal merge) still lose a concurrent write: neither table carries a `modified_at`, so the
+register row's token does not exist for them. They are frozen in `test_rmw_sweep.py`'s `BAND_2`
+ledger and filed as gap **G-10** — the set cannot grow silently, because a new instance reds the
+build.
+
+**The gate**, `services/api/test_rmw_sweep.py`, derives the population by AST with transitive taint
+from `get_record`, fails **closed** on an `update()` whose target it cannot resolve, and runs itself
+against the shipped pre-fix bodies of `set_element_guids` *and* `update_record` before it may print
+any verdict — the second because `update_record` splats `**vals`, which is the blind spot that cost
+PR #551 a review round. The behavioural half asserts the **outcome** through the real functions on a
+hand-built interleaving, and a mutation removing the swap predicate must lose the GUID again.
+
+**The review round found three more things, and two of them were holes in this gate rather than in
+the code it guards.** The swap-predicate test asked only whether the `WHERE` named a non-identity
+column — so `WHERE deleted_at IS NULL` read as a compare-and-swap though it compares against a
+constant and swaps on nothing: *a fail-OPEN verdict inside a gate whose whole design is failing
+closed.* Tightening it then flagged two correct writers, which taught the distinction the first two
+drafts had collapsed: a constant predicate on the column being **written** (`promote_comment`'s
+`topic_id IS NULL`) is a real guard, and one on a column the statement does not write is a filter.
+And the token-coverage check searched the function's text for `"modified_at"` — which a **docstring**
+satisfies, and every function here has a long one. It now reads the assignment with docstrings
+stripped and demands `_next_stamp`; strengthening it immediately found `transition`, whose stamp sits
+in a dict literal the detector could not see. *Three shapes write that column and the first draft of
+the detector knew two.*
+
+**The third was a real hole in the lock, not the token.** `_now()` can equal the row's existing
+`modified_at` — same microsecond, or an NTP step backwards — and then the winning write leaves its
+own predicate reusable by the writer it just excluded. Every register-row writer now stamps through
+`modules._next_stamp`, which is strictly monotonic per row. *Rare is not impossible, and a
+concurrency control that is correct except under contention is wrong exactly where it is
+load-bearing.*
+
+**And widening the gate's ORM derivation caught this pull request hiding a site from itself.** The
+`save_property` fix hoisted its read into a local (`prior = p.dev_property or {}`), and the analyser
+only looked for the object named directly on the right-hand side — so the commit that created an RMW
+site removed it from the count in the same edit, and nothing said anything. *Hoisting a read into a
+variable is the cheapest way to make a pattern-matching check stop matching, and it is what a tidy-up
+commit looks like.* With taint propagated one hop the population went **12 → 33**, and the 21 new
+sites are read and classified rather than counted.
+
+**One of them is the biggest thing this round turned up, and no reviewer asked for it.** Twelve routes
+read `Project.source_ifc`, derive a new IFC version from it, and write the pointer back. **Six wrap
+that in `pid_lock.mutating(pid)` and six do not** — and one of the six that does carries the comment
+*"same RMW race as /edit — serialize per project"*, so the control exists, is named in the threat
+model, and covers half its population. Two concurrent `place_family` calls lose one placement with
+both callers answered 200. It is **filed, not fixed** (gap G-11, roadmap RMW-LOCKGAP): wrapping six
+routes that do long IFC I/O is a different blast radius from the register row, in a lane this change
+did not otherwise touch. The set is frozen instead — the gate asserts the split in *both* directions,
+so a new unlocked writer reds the build and closing one of the six forces the ledger to be updated
+rather than leaving a recorded gap that no longer exists.
+
+**A second review round found four more, and three were the gate reporting safety it had not
+established.** Each is the same failure wearing a different mask, and each was introduced by the fix
+for the one before it:
+
+- **The conditional-write exemption protected the wrong column.** The first tightening made a
+  constant predicate count as a swap when the statement *writes* that column — correct for
+  `promote_comment`. But `.where(status == "open").values(status=…, element_guids=<from the read>)`
+  also satisfied it, and a concurrent `element_guids` change does not move `status`, so the stale
+  write still lands. The guard now has to cover **every** column carrying a read-derived value, and
+  a splatted `**vals` — which hides the column-to-expression mapping — makes coverage unprovable
+  rather than assumed. *Fixing an over-broad rule by narrowing one clause can leave the same hole one
+  column to the left.*
+- **The stamp check asked "somewhere", not "every".** It returned on the first valid
+  `modified_at=_next_stamp(...)` anywhere in the function, so a writer with two updates passed while
+  the second omitted the stamp. Now validated per update — and doing so immediately failed
+  `_cas_row_edit`, whose stamp is a *subscript assignment* into a dict built earlier. That is the
+  third shape, and **every draft of this detector has known one fewer than exist**.
+- **The lock check measured the write, not the interval.** `under_pid_lock` asked only whether the
+  `source_ifc` assignment sat inside `pid_lock.mutating`. A route can read the pointer, spend a
+  minute deriving a new IFC from it, and *then* enter the lock to assign — passing a check that
+  looks at the write alone while two callers derive from the same old version. Every mention of the
+  column, read or write, must now be inside. *A lock proves nothing about the statement it contains;
+  it proves something about the interval it spans.* All six certified routes survive the stricter
+  test, which is the answer that makes the certification worth having.
+- **And the open-gap count was computed by grepping its own prose.** `_open` matched the substring
+  `"OPEN"`; one entry had been written `"Open"`; the gate reported **13** open sites where there are
+  **14**, and the threat model inherited the wrong number. Status is now a structured field with a
+  declared value set, asserted, so a typo reds the build instead of deleting a gap from the tally.
+  The six non-IFC sites that tally had been under-reporting are now their own named gap (**G-12**),
+  `bim.promote_markup` among them — which is `promote_comment`'s pre-fix shape, a live instance of a
+  defect already solved one module over.
+
+**And the monotonic-stamp branch was itself untested until it was asked to be.** `_next_stamp`'s
+`prev + 1µs` path runs only when the clock fails to advance, so no ordinary test reaches it — *a
+branch that only runs under contention is a branch only production runs.* It is now exercised against
+the real table with the clock frozen, which also settles a question the fix quietly raised: that path
+returns a **tz-aware** datetime while SQLite hands `modified_at` back **naive**, and if the two
+rendered differently the next `WHERE modified_at = <what we just read>` would match nothing and every
+edit would 409.
+
+**A third review round found two more, and both were the gate accepting a SHAPE where it meant to
+check a FACT.** Neither is a live defect in this tree — the population and every count are unchanged
+— which is precisely what makes them worth recording: each one would have gone quiet on the *next*
+ordinary edit, with every number still printing.
+
+- **Naming the guard counted as calling it.** The stamp check asked whether the name `_next_stamp`
+  occurred anywhere in the `modified_at` expression, so `_next_stamp(None)` satisfied it in all three
+  shapes. That argument is not a near-miss: `None` skips the `now <= prev` comparison inside the
+  helper and it returns a bare `_now()` — the exact unguarded clock the helper exists to replace.
+  Under a frozen clock the writer re-emits the token it just read, the loser's CAS predicate still
+  matches, and the swap protects nothing while the gate reports it protected. The argument is now
+  traced back to the row's prior `modified_at`, through a local if it was hoisted into one, and all
+  three shapes route through one function so a fourth inherits the rule. *Naming the guard is not
+  calling it, and calling it is not feeding it.*
+- **Both taint analyses walked `ast.Assign` and not `ast.AnnAssign`.** An annotated
+  `rec: dict = get_record(...)` breaks the Core chain and the write behind it classifies as PLAIN;
+  an annotated `prior: dict = p.dev_property` drops the ORM site out of the population *entirely*,
+  taking its ledger entry with it — at which point the staleness check would have blamed the ledger
+  entry and pointed the next reader at the wrong file. **The blind spot is one `mypy --strict` pass
+  wide.** Adding annotations changes no behaviour, is the most ordinary edit in the language, and
+  would have silently emptied both derivations. *A gate whose reach depends on the syntax somebody
+  happened to use is measuring the author, not the code.*
+
+The ORM analyser was also split out per-file so a **fixture** can be run through it. It could
+previously only be fed the repository — and the shape review found missing does not occur here, so no
+amount of reading the source would have produced a failing case. *An analyser that can only be fed
+the tree cannot be given the input it gets wrong.*
+
+**A fourth review round found three more, and the first two are the third round's own fixes failing
+one level down.** The pattern is worth naming on its own: *a fix can recreate, at the next level of
+detail, exactly the defect it just closed — and it reads as the same code both times.*
+
+- **Data dependence is not identity.** Tracing the `_next_stamp` argument accepted a `"modified_at"`
+  read off *any* object, and carried names through *any* expression mentioning an accepted one — so
+  `_next_stamp(metadata.get("modified_at"))` and `_next_stamp(stamp + timedelta(days=1))` both
+  passed. Neither is the value the CAS predicate is compared against, so a writer feeding either
+  would swap on a token no row ever held and be certified correct on the way past. Row *aliases* are
+  now tracked separately (`rec = get_record(...)`, `other = rec`), the read must be off one of them,
+  and prior-token names propagate through a bare name only. *An alias is an identity claim;
+  provenance is a different question, and this file has now been wrong in both directions by
+  conflating them.*
+- **"Yes, somewhere" came back for the dicts.** Round two fixed it for updates — each is validated
+  against its own `.values(...)`. That fix then pooled every `modified_at` assignment in the
+  function into one list, so one correctly-stamped dict authorised a second `.values(**other)` whose
+  dict had no stamp at all. Verdicts are now keyed by dict name, and each splat resolves its own.
+- **And the `dev_property` merge was the class this sweep is about, created by this sweep's own
+  fix.** Preserving `appraisal` turned a wholesale write into a read-modify-write, with
+  `realestate.save_appraisal` merging into the same blob from the other side. Both now take
+  `pid_lock.mutating(pid)` — a lock rather than a swap, because that table has no token to swap on —
+  and **both** is the load-bearing word: *a lock one side does not take protects nothing*, so
+  locking only the route review named would have left the pair exactly as racy. `db.refresh` matters
+  as much as the lock, since `db.get` can answer from the session identity map and the waiter would
+  otherwise merge into the pre-image it read before the winner committed. Open gaps 14 → 12.
+
+*The first draft of that check passed under its own mutation.* It asserted that a frozen-clock edit
+LANDS and that the next edit matches — both still true with the branch deleted, because SQLite
+serialises writers and each session sees its own write. It is now the losing interleaving run with
+the clock frozen, and removing the branch reproduces the loss exactly: `['GUID-A', 'GUID-C']`, GUID-B
+gone. **Two checks that pass under the mutation are two checks measuring the round-trip, not the
+guard.**
+
+*Its own self-tests earned their keep within the hour.* Teaching the analyser about mapped model
+classes — so two correctly-guarded writes stopped reporting as UNKNOWN — made it read the `t.c`
+accessor as a column name, so every write looked swapped-on and both pre-fix bodies came back clean.
+The population check would have printed "0 blind" over a tree it had not examined. *A widening and a
+rule change are different edits, and widening one can break the other.* And the sibling gate did the
+same for its neighbour: routing `revise` through the helper removed `update(` from its body, so
+`test_transition_cas`'s exemption for it went stale and redded the build the hour the helper landed.
+*An exemption that outlives its site is a hole nobody opened on purpose.*
+
 ### A second "send RFQ" minted a second solicitation, and a test called that idempotent
 
 `POST /projects/{pid}/procurement/packages/{rid}/send-rfq` called `create_record` — which commits —
