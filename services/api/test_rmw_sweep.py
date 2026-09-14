@@ -1193,14 +1193,32 @@ IFC_PIPELINE = {
     ("src/aec_api/routers/authoring.py", "macros_run", "source_ifc"): ("LOCKED", "same"),
     ("src/aec_api/routers/authoring.py", "option_activate", "source_ifc"): ("LOCKED", "same"),
     ("src/aec_api/mcp_tools.py", "_run_recipe", "source_ifc"): ("LOCKED", "same"),
-    ("src/aec_api/routers/authoring.py", "bake_layers", "source_ifc"): ("OPEN",
-        "derives a new IFC from the current one, unlocked (gap G-11 / RMW-LOCKGAP)"),
-    ("src/aec_api/routers/authoring.py", "import_families", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "import_family_pack", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "place_family", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "content_import", "source_ifc"): ("OPEN", "same"),
-    ("src/aec_api/routers/authoring.py", "_restore_version", "source_ifc"): ("OPEN",
-        "reads the pointer to validate containment, then writes it -- same class"),
+    # RMW-LOCKGAP closed all six of gap G-11 on 2026-09-14. They were structurally `edit` with the
+    # lock deleted -- and `edit` carries a comment describing exactly the race they had.
+    ("src/aec_api/routers/authoring.py", "bake_layers", "source_ifc"): ("LOCKED",
+        "whole RMW inside `pid_lock.mutating` (was gap G-11 / RMW-LOCKGAP)"),
+    ("src/aec_api/routers/authoring.py", "import_family_pack", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "place_family", "source_ifc"): ("LOCKED", "same"),
+    ("src/aec_api/routers/authoring.py", "_restore_version", "source_ifc"): ("LOCKED",
+        "same -- and the lock sits in this HELPER, so `edit_undo` and `edit_redo` inherit it from "
+        "the one place that can carry the fact rather than two call sites having to remember"),
+    # The two `async def` routes hold their lock in a nested sync function run through
+    # `run_in_threadpool`, so the derivation names the CLOSURE rather than the route. That is not
+    # cosmetic and the names say which route each belongs to: `pid_lock.mutating` blocks on a
+    # Postgres advisory lock, and taking it inline on the event loop would park every other request
+    # in the process behind one upload -- *trading a rare lost model version for a routine
+    # server-wide stall*, which is the v0.3.703 SSE failure with a different cause.
+    # Each of these two appears TWICE in the derivation -- once as the closure and once as the route
+    # enclosing it, because the walk descends into nested functions. Both are filed on purpose: the
+    # closure is where the lock is, and the route is the name a human looks up.
+    ("src/aec_api/routers/authoring.py", "_import_families_locked", "source_ifc"): ("LOCKED",
+        "same, off the event loop -- the body of `import_families`"),
+    ("src/aec_api/routers/authoring.py", "import_families", "source_ifc"): ("LOCKED",
+        "the route; its whole RMW lives in `_import_families_locked` above"),
+    ("src/aec_api/routers/authoring.py", "_content_import_locked", "source_ifc"): ("LOCKED",
+        "same, off the event loop -- the body of `content_import`"),
+    ("src/aec_api/routers/authoring.py", "content_import", "source_ifc"): ("LOCKED",
+        "the route; its whole RMW lives in `_content_import_locked` above"),
 }
 
 #: Sites that read one column and write another, or write a value the caller supplied whole -- plus

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import audit, storage
 from ..db import get_db
@@ -344,20 +345,26 @@ def bake_layers(pid: str, publish: bool = Body(default=True, embed=True),
     from aec_data import edit as ed  # type: ignore
 
     from .. import layers as _layers
+    from .. import pid_lock
 
     p = _project(db, pid)
     stack = (p.prop_layers or {}).get("layers", [])
     overrides = _layers.bake_overrides(stack)
     if not overrides:
         return {"baked": 0, "message": "no enabled overrides to bake"}
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    result = ed.apply_recipe(p.source_ifc, "apply_layers", {"overrides": overrides}, out)
-    p.source_ifc = out
-    audit.record(db, action="layers.bake", actor=actor, method="POST",
-                 path=f"/projects/{pid}/layers/bake", detail={"baked": result["changed"]})
-    db.commit()
+    # RMW-LOCKGAP: same read->apply->pointer-swap race /edit documents. Two bakes (or a bake and an
+    # /edit) both read version N, each write their own N+1, and the second commit orphans the first
+    # user's model version -- silently, because each caller's response is true of its own run.
+    with pid_lock.mutating(pid):
+        db.refresh(p)                                  # the pointer may have moved while we waited
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        result = ed.apply_recipe(p.source_ifc, "apply_layers", {"overrides": overrides}, out)
+        p.source_ifc = out
+        audit.record(db, action="layers.bake", actor=actor, method="POST",
+                     path=f"/projects/{pid}/layers/bake", detail={"baked": result["changed"]})
+        db.commit()
     out_body = {"baked": result["changed"]}
     if publish:
         _publish_bg(pid)
@@ -404,19 +411,38 @@ async def import_families(pid: str, file: UploadFile = File(...), publish: bool 
 
     p = _project(db, pid)
     data = await file.read()
-    # for_write: import_types_from_ifc mutates this model and it is written to a NEW version path,
-    # so it must not stay cached under the OLD one. See ifc_loader.open_model_for_write.
-    model = open_model_for_write(p.source_ifc)
-    imported = families.import_types_from_ifc(model, data)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out_path = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    model.write(out_path)
-    p.source_ifc = out_path
-    result = {"imported": imported, "count": len(imported)}
-    audit.record(db, action="ifc.import_families", actor=actor, method="POST",
-                 path=f"/projects/{pid}/families/import", detail=result)
-    db.commit()
+
+    def _import_families_locked() -> dict:
+        """The locked read->mutate->write->pointer-swap, run OFF the event loop.
+
+        RMW-LOCKGAP. This route is `async def`, and `pid_lock.mutating` is a SYNCHRONOUS context
+        manager that blocks on a Postgres session advisory lock. Taking it inline here would park the
+        event loop for as long as somebody else's import holds the lock, so every other request to the
+        process -- including `/health` -- would stall behind one upload. That is the same failure the
+        five SSE endpoints caused before v0.3.703, and it would be a worse bug than the one being
+        fixed: *a rare lost model version traded for a routine server-wide stall.* So the whole locked
+        section goes through `run_in_threadpool`, the shape `routers/drafting.py` already uses.
+        """
+        from .. import pid_lock
+        with pid_lock.mutating(pid):
+            db.refresh(p)                              # the pointer may have moved while we waited
+            # for_write: import_types_from_ifc mutates this model and it is written to a NEW version
+            # path, so it must not stay cached under the OLD one. See ifc_loader.open_model_for_write.
+            model = open_model_for_write(p.source_ifc)
+            imported = families.import_types_from_ifc(model, data)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+            base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+            out_path = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+            model.write(out_path)
+            p.source_ifc = out_path
+            res = {"imported": imported, "count": len(imported)}
+            audit.record(db, action="ifc.import_families", actor=actor, method="POST",
+                         path=f"/projects/{pid}/families/import", detail=res)
+            db.commit()
+        return res
+
+    result = await run_in_threadpool(_import_families_locked)
+    imported = result["imported"]
     if publish and imported:           # only worth a reconvert if something actually came in
         _publish_bg(pid)
         result["publish"] = "running"
@@ -444,22 +470,33 @@ def import_family_pack(pid: str, pack: str = Body(..., embed=True),
     except ValueError as e:
         raise HTTPException(404, str(e)) from None
 
-    model = open_model_for_write(p.source_ifc)   # mutated then written to a new version — see the loader
-    imported = families.import_types_from_ifc(model, data)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out_path = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    model.write(out_path)
-    p.source_ifc = out_path
-    result = {"imported": imported, "count": len(imported), **provenance}
-    # a pack whose manifest promised more types than arrived is worth seeing, not smoothing over
-    declared = provenance.get("declared_types")
-    if declared and int(declared) != len(imported):
-        result["note"] = (f"manifest declares {declared} types, {len(imported)} imported — "
-                          f"the pack and its manifest row disagree")
-    audit.record(db, action="ifc.import_family_pack", actor=actor, method="POST",
-                 path=f"/projects/{pid}/families/import-pack", detail=result)
-    db.commit()
+    from .. import pid_lock
+
+    # RMW-LOCKGAP: `open_model_for_write` READS the current version, so the whole open->mutate->write
+    # ->swap has to be inside the lock. Locking only the assignment would leave two importers mutating
+    # two copies of the same base and the loser's types would simply not be in the published model.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        model = open_model_for_write(p.source_ifc)   # mutated then written to a new version — see the loader
+        imported = families.import_types_from_ifc(model, data)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out_path = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        model.write(out_path)
+        p.source_ifc = out_path
+        result = {"imported": imported, "count": len(imported), **provenance}
+        # a pack whose manifest promised more types than arrived is worth seeing, not smoothing over
+        declared = provenance.get("declared_types")
+        if declared and int(declared) != len(imported):
+            result["note"] = (f"manifest declares {declared} types, {len(imported)} imported — "
+                              f"the pack and its manifest row disagree")
+        audit.record(db, action="ifc.import_family_pack", actor=actor, method="POST",
+                     path=f"/projects/{pid}/families/import-pack", detail=result)
+        # The COMMIT is inside the lock, not just the assignment: an uncommitted pointer swap is
+        # invisible to the next lock-holder, which would then read the old version and derive from
+        # it -- the same race, moved rather than closed. *A lock proves something about the interval
+        # it spans, and the interval has to end after the write is durable.*
+        db.commit()
     if publish and imported:
         _publish_bg(pid)
         result["publish"] = "running"
@@ -521,10 +558,9 @@ def place_family(pid: str, family: str = Body(..., embed=True),
     Thin wrapper over the `add_family` authoring recipe."""
     from aec_data import edit as ed  # type: ignore
 
+    from .. import pid_lock
+
     p = _project(db, pid)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
     params: dict = {"family": family}
     if position:
         params["position"] = position
@@ -532,11 +568,19 @@ def place_family(pid: str, family: str = Body(..., embed=True),
         params["storey"] = storey
     if type_name:
         params["type_name"] = type_name       # FAMILY-DEPTH: a named catalog size
-    result = ed.apply_recipe(p.source_ifc, "add_family", params, out)
-    p.source_ifc = out
-    audit.record(db, action="ifc.place_family", actor=actor, method="POST",
-                 path=f"/projects/{pid}/families/place", detail=result)
-    db.commit()
+    # RMW-LOCKGAP: the version name is derived from the version being read, so the derivation has to
+    # sit inside the lock too -- computing `out` first and locking only the assignment would let two
+    # placements derive from the same source and one of the two families would never be in the model.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        result = ed.apply_recipe(p.source_ifc, "add_family", params, out)
+        p.source_ifc = out
+        audit.record(db, action="ifc.place_family", actor=actor, method="POST",
+                     path=f"/projects/{pid}/families/place", detail=result)
+        db.commit()
     if publish:
         _publish_bg(pid)
         result["publish"] = "running"
@@ -897,22 +941,34 @@ async def content_import(pid: str, file: UploadFile = File(...), category: str =
 
     params = {"category": cat, "point": [float(e), float(n)], "verts": verts, "faces": faces,
               "name": (name or None), "storey": (storey or None)}
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    try:
-        result = ed.apply_recipe(p.source_ifc, "place_content", params, out)
-    except (ValueError, KeyError) as ex:
-        raise HTTPException(400, str(ex)) from ex
-    from .. import edit_history, recipe_log
-    edit_history.push(pid, p.source_ifc)
-    recipe_log.append_safe(pid, [recipe_log.entry(
-        "place_content", params, actor=actor, source_in=p.source_ifc, source_out=out,
-        outputs=result)])
-    p.source_ifc = out
-    audit.record(db, action="content.import", actor=actor, method="POST",
-                 path=f"/projects/{pid}/content/import", detail={"category": cat, "faces": len(faces)})
-    db.commit()
+    def _content_import_locked() -> dict:
+        """The locked read->apply->pointer-swap, run OFF the event loop -- see `import_families`
+        for why an `async def` route must not take this synchronous lock inline."""
+        from .. import edit_history, pid_lock, recipe_log
+        with pid_lock.mutating(pid):
+            db.refresh(p)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+            base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+            out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+            try:
+                res = ed.apply_recipe(p.source_ifc, "place_content", params, out)
+            except (ValueError, KeyError) as ex:
+                raise HTTPException(400, str(ex)) from ex
+            # `edit_history.push` records the version being SUPERSEDED, so it has to read the same
+            # `p.source_ifc` the recipe read -- pushing outside the lock could file the undo stack
+            # against a version another writer had already moved past.
+            edit_history.push(pid, p.source_ifc)
+            recipe_log.append_safe(pid, [recipe_log.entry(
+                "place_content", params, actor=actor, source_in=p.source_ifc, source_out=out,
+                outputs=res)])
+            p.source_ifc = out
+            audit.record(db, action="content.import", actor=actor, method="POST",
+                         path=f"/projects/{pid}/content/import",
+                         detail={"category": cat, "faces": len(faces)})
+            db.commit()
+        return res
+
+    result = await run_in_threadpool(_content_import_locked)
     result["category"] = cat
     result["faces"] = len(faces)
     if publish:
@@ -1037,21 +1093,34 @@ def edit_history_state(pid: str, db: Session = Depends(get_db), _: str = Depends
 def _restore_version(pid: str, db: Session, actor: str, publish: bool, redo: bool) -> dict:
     """Shared undo/redo: swap `source_ifc` to the popped version (verified to exist + stay in the project's
     IFC directory) and republish. The stored paths were written by the server, but we re-validate."""
-    from .. import edit_history
+    from .. import edit_history, pid_lock
 
     p = _project(db, pid)
-    target = edit_history.redo(pid, p.source_ifc) if redo else edit_history.undo(pid, p.source_ifc)
-    if target is None:
-        raise HTTPException(409, "nothing to redo" if redo else "nothing to undo")
-    tp = Path(target)
-    # containment: the restored version must sit beside the current source IFC (defence-in-depth)
-    if not tp.exists() or tp.parent.resolve() != Path(p.source_ifc).parent.resolve():
-        raise HTTPException(409, "that version is no longer available")
-    p.source_ifc = str(tp)
-    audit.record(db, action="ifc.redo" if redo else "ifc.undo", actor=actor, method="POST",
-                 path=f"/projects/{pid}/edit/{'redo' if redo else 'undo'}", detail={"restored": p.source_ifc})
-    db.commit()
-    out: dict = {"restored": p.source_ifc, "state": edit_history.state(pid)}
+    # RMW-LOCKGAP: the lock goes HERE rather than in `edit_undo` and `edit_redo` -- this helper is the
+    # narrowest place that can carry the fact, and both routes then inherit it instead of two call
+    # sites having to remember. `edit_history.undo/redo` POP the stack using the current pointer, so an
+    # unlocked run can pop against a version another writer has already replaced and restore the wrong
+    # one -- worse than losing an edit, because it silently reinstates superseded geometry.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        target = edit_history.redo(pid, p.source_ifc) if redo else edit_history.undo(pid, p.source_ifc)
+        if target is None:
+            raise HTTPException(409, "nothing to redo" if redo else "nothing to undo")
+        tp = Path(target)
+        # containment: the restored version must sit beside the current source IFC (defence-in-depth)
+        if not tp.exists() or tp.parent.resolve() != Path(p.source_ifc).parent.resolve():
+            raise HTTPException(409, "that version is no longer available")
+        p.source_ifc = restored = str(tp)
+        audit.record(db, action="ifc.redo" if redo else "ifc.undo", actor=actor, method="POST",
+                     path=f"/projects/{pid}/edit/{'redo' if redo else 'undo'}",
+                     detail={"restored": restored})
+        db.commit()
+    # `restored` is captured INSIDE the lock rather than re-read from `p` after it. The re-read would
+    # in fact be correct today -- `SessionLocal` is `expire_on_commit=False`, so this session keeps its
+    # own value -- but the sweep refuses to certify a route with any `.source_ifc` mention outside the
+    # lock, and that strictness is the point: it does not have to decide whether each straggler is
+    # harmless. *A certifier that reasons about exceptions is one bad reading away from blessing one.*
+    out: dict = {"restored": restored, "state": edit_history.state(pid)}
     if publish:
         _publish_bg(pid)
         out["publish"] = "running"

@@ -12,6 +12,44 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two people authoring at once: one of them lost the whole model version
+
+Six routes in `services/api/src/aec_api/routers/authoring.py` — `bake_layers`, `import_families`,
+`import_family_pack`, `place_family`, `content_import` and the shared `_restore_version` behind
+undo/redo — read `Project.source_ifc`, produced a NEW IFC version from it, and wrote the pointer
+back, all outside the per-project lock. **Five sibling routes in the same file do the identical
+thing inside `pid_lock.mutating(pid)`**, and `edit` carries a comment describing exactly this race.
+So two concurrent authoring operations each derived from version N, each wrote their own N+1, and
+the second commit orphaned the first user's work — **silently, because each caller's response is
+true of its own run**. What is lost is a baked override set, an imported family pack, a placed
+family, a content import, or a restored version: the model the product exists to author.
+
+All six now hold the lock across the whole read → derive → apply → pointer-swap. Gap G-11 is closed
+and the sweep's open count drops from twelve to six.
+
+**The lock is proved by behaviour, not by its presence.** `services/api/test_authoring_lock.py`
+runs two concurrent bakes against a stubbed recipe and asserts the second reads the FIRST's output;
+neutering `pid_lock.mutating` makes both read the same base. A test that grepped for the lock would
+pass on a lock spanning only the assignment — the defect review caught one level up on PR #552.
+
+**Three things the uniform fix got wrong**, each corrected before it shipped:
+
+- **Two of the six are `async def`.** `pid_lock.mutating` is synchronous and blocks on a Postgres
+  advisory lock, so taking it inline would park the event loop behind somebody else's upload —
+  *a rare lost model version traded for a routine server-wide stall*, which is the v0.3.703 SSE
+  failure arriving by a different door. Both now run the locked section through `run_in_threadpool`.
+- **`import_family_pack` first had `db.commit()` outside the lock.** An uncommitted pointer swap is
+  invisible to the next lock-holder, which reads the old version and derives from it — the same race
+  moved rather than closed. *A lock proves something about the interval it spans, and that interval
+  has to end after the write is durable.*
+- **`_restore_version` re-read the column once more after the lock released.** Harmless today, and
+  the sweep refused to certify it anyway — *a certifier that reasons about which stragglers are
+  harmless is one bad reading away from blessing one.*
+
+The undo/redo lock sits in the shared helper rather than in `edit_undo` and `edit_redo`: the
+narrowest place that can carry the fact, so both routes inherit it instead of two call sites having
+to remember.
+
 ### The re-key voided one of the gate's own regression checks, silently
 
 Found in review, and it is the same defect the pull request exists to fix, committed by the fix.
