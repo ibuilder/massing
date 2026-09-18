@@ -84,7 +84,7 @@ diskcache>=5.6.3            # Apache-2.0, pure-Python, no C extension
 
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=8.1.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
-anthropic>=1.0.0          # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY. 1.x floor: the SDK
+anthropic>=1.5.0          # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY. 1.x floor: the SDK
                           # dropped long-deprecated surface and moved httpx -> httpx2. Every call site
                           # here is plain `client.messages.create(...)`; inventoried against the 1.x
                           # migration list and none of the removed surface is used — no
