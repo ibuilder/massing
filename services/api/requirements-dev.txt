@@ -5,7 +5,7 @@
 #    docstring for why that fails in a way that can still report a pass)
 httpx>=0.28.1          # required by starlette.testclient
 pytest>=9.1.1          # optional: collects the run_tests gate
-pypdf>=4.0           # NOT test-only: 7 shipped modules import it (doc_text, drawingset, pdfops,
+pypdf>=6.18.1           # NOT test-only: 7 shipped modules import it (doc_text, drawingset, pdfops,
                      # review, sheet_extract, sheet_recover, stamps). Production installs it from
                      # requirements.lock; this line only makes it available to the dev venv.
 ruff>=0.16.3         # static-analysis gate (config in ruff.toml): dead code + real defects
