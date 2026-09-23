@@ -97,7 +97,11 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
                 raise HTTPException(500, "Node is required for the RVT converter but isn't installed on the server.")
             if not frag.exists():
                 raise HTTPException(502, "APS translation produced no fragments output.")
-            return Response(frag.read_bytes(), media_type="application/octet-stream",
+            # ...and the result is read off the loop too. The translation above was handed to the
+            # threadpool precisely because it is slow; reading its whole output back on the
+            # coroutine puts a fraction of that stall straight back.
+            return Response(await run_in_threadpool(frag.read_bytes),
+                            media_type="application/octet-stream",
                             headers={"Content-Disposition": content_disposition("model.frag")})
     if ext == "e57":
         from .. import e57

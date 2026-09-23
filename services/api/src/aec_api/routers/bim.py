@@ -753,13 +753,27 @@ async def open_sample(sample_id: str, name: str | None = Form(None),
 @router.patch("/projects/{pid}", response_model=ProjectOut)
 def patch_project(pid: str, body: ProjectPatch, db: Session = Depends(get_db),
                   actor: str = Depends(require_role("admin"))):
-    p = _project(db, pid)
+    # LOCK-BOUNDARY. `ProjectPatch` declares `source_ifc`, so this admin PATCH can swap the pointer
+    # that `bake_layers`, `edit` and every other authoring route read, spend a recipe on, and write
+    # back -- the exact race the rest of this pull request closes, reached through a route nobody
+    # had looked at. It was invisible to `test_lock_boundary` for a structural reason rather than an
+    # oversight: the write is `setattr(p, k, v)`, which carries no `Store` and no `Attribute` node,
+    # so an analyser asking the grammar for attribute writes cannot see it at all. The gate now
+    # models dynamic writes and reports this one; see `dynamic_writes` there.
+    #
+    # The lookup, the refresh and the commit are all inside, not just the loop: a lock taken after
+    # the read protects nothing, and `db.get` can answer from the session identity map, so the
+    # waiter would otherwise write onto a pre-image the winner had already replaced.
+    from .. import pid_lock
     changes = body.model_dump(exclude_unset=True)
-    for k, v in changes.items():
-        setattr(p, k, v)
-    audit.record(db, action="project.update", actor=actor, method="PATCH",
-                 path=f"/projects/{pid}", detail=changes)
-    db.commit()
+    with pid_lock.mutating(pid):
+        p = _project(db, pid)
+        db.refresh(p)
+        for k, v in changes.items():
+            setattr(p, k, v)
+        audit.record(db, action="project.update", actor=actor, method="PATCH",
+                     path=f"/projects/{pid}", detail=changes)
+        db.commit()
     return p
 
 

@@ -42,8 +42,10 @@ WHAT A PASS MEANS
 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_route_reachability.py
 """
+import ast
 import functools
 import os
+import pathlib
 import re
 import sys
 
@@ -52,8 +54,12 @@ sys.path.insert(0, "src")
 os.environ["DATABASE_URL"] = "sqlite:///./_route_reach.db"
 os.environ.setdefault("STORAGE_DIR", "./_route_reach_store")
 
+import web_source as _web_source_mod  # noqa: E402
 from aec_api.main import app  # noqa: E402
-from web_source import _web_source, strip_comments  # noqa: E402
+from web_source import _WEB as _WEB_SRC  # noqa: E402
+from web_source import _web_source, strip_comments, web_files  # noqa: E402
+
+_ws_glob = _web_source_mod.glob
 
 FAILED: list[str] = []
 
@@ -1196,6 +1202,107 @@ for _r in LEAF_COLLISION_DARK:
           "if this fails the matcher changed or the vouching word moved -- re-triage the route "
           "rather than reading the green tick above as coverage")
 
+# --- the blob must be read through `strip_comments`, and the verdict must not depend on FILE ORDER
+# A backtick left unpaired in a COMMENT opens a phantom template literal that closes at the next
+# comment's backtick. Everything between is then emitted by `string_blob` as one body with its inner
+# quotes intact, so a leaf whose vouching occurrence is a quoted word loses the NUL that anchors
+# "opens a string" and reads as uncalled. This fixture is the failure reduced to four lines, and it
+# is deterministic: it does not depend on anything in the tree.
+_BACKTICK_FIXTURE = (
+    '//: prose that quotes an identifier in `backticks`, as this tree does everywhere\n'
+    '//: ...and one that is left open `\n'
+    'export type ClashKind = "hard" | "clearance" | "workflow";\n'
+    '//: another stray `\n'
+)
+check("a stray backtick in a COMMENT hides a quoted leaf from the raw source -- the defect that made "
+      "the vouch check above intermittent, reduced to a fixture that cannot depend on the tree",
+      not leaf_is_called("workflow", _BACKTICK_FIXTURE),
+      "the raw-source hazard is gone, so the `_CODE` argument above no longer earns its comment -- "
+      "re-measure before simplifying it away")
+check("  ...and reading it through `strip_comments` finds the same leaf, which is the fix",
+      leaf_is_called("workflow", strip_comments(_BACKTICK_FIXTURE)),
+      "stripping no longer rescues the fixture -- the two arms of this pair must disagree or the "
+      "fix below is not being tested")
+
+#: THE GENERAL PROPERTY, asserted on the REAL tree rather than on the fixture: the set of uncalled
+#: routes must not depend on the order the files are concatenated in. The fixture proves the
+#: mechanism; this proves no OTHER call site is still exposed to it. Rebuilt from `web_files()` so
+#: the inclusion rule is not restated here -- a second copy of it would drift toward inventing work.
+_REV_BLOB = "\n".join(open(f, encoding="utf-8", errors="replace").read()
+                      for f in reversed(web_files()))
+check("the uncalled-route verdict is INVARIANT under file order -- a gate that answers differently "
+      "on two machines cannot be reproduced from its own failure, which is why the first instance "
+      "of this was written off as a flake",
+      uncalled_routes(PATHS, _REV_BLOB) == FOUND,
+      f"order-dependent: only-in-reversed={sorted(uncalled_routes(PATHS, _REV_BLOB) - FOUND)[:5]} "
+      f"only-in-natural={sorted(FOUND - uncalled_routes(PATHS, _REV_BLOB))[:5]}")
+
+#: ...and the file order is STABLE, so a failure can be reproduced from the commit alone. This one
+#: gates nothing about correctness on purpose -- dropping `sorted` changes no verdict today, which is
+#: precisely why it needs an assertion of its own rather than a comment: *the change nobody can
+#: measure is the change nobody notices reverting.*
+check("`web_files()` returns a deterministic order, so this gate reads the same blob on every machine",
+      web_files() == sorted(web_files()),
+      "the glob is unsorted again -- verdicts computed from a concatenation then depend on "
+      "filesystem order, and an intermittent red cannot be reproduced from the commit that caused it")
+
+#: ...AND THE CHECK ABOVE IS VACUOUS ON THIS TREE, which is why this probe exists. `web_files()`
+#: walks two glob patterns; sorting INSIDE that loop yields `[every .ts sorted] + [every .tsx
+#: sorted]`, which is deterministic but not sorted. The assertion above cannot tell that from a
+#: global sort, because the tree holds **0 `.tsx` files against 658 `.ts`** -- so the first draft of
+#: the fix sorted per pattern, was accidentally right, and was accidentally green. *A check that
+#: passes because its population is empty has the same shape as one that passes because the code is
+#: correct.* Found in review round 16. The contract is therefore probed on an input the tree cannot
+#: supply: one `.tsx` that must sort BEFORE the `.ts`.
+_real_glob = _ws_glob.glob
+
+
+def _mixed_glob(pat, recursive=False):           # noqa: ARG001 -- signature must match
+    return [os.path.join(_WEB_SRC, "z.ts")] if pat.endswith("*.ts") else [os.path.join(_WEB_SRC, "a.tsx")]
+
+
+_ws_glob.glob = _mixed_glob
+try:
+    _MIXED = web_files()
+finally:
+    _ws_glob.glob = _real_glob
+check("  ...and `web_files()` sorts the WHOLE list rather than once per glob pattern -- probed with "
+      "a synthetic `.tsx` that must sort BEFORE a `.ts`, because the real tree has no `.tsx` at all "
+      "and so cannot distinguish the two",
+      [os.path.basename(f) for f in _MIXED] == ["a.tsx", "z.ts"],
+      f"per-pattern order: {[os.path.basename(f) for f in _MIXED]} -- the sort is inside the pattern "
+      "loop, so the list is two sorted runs concatenated")
+
+#: AND THE CALL SITE IS PINNED BY READING THIS FILE, because neither check above reds when somebody
+#: writes `BLOB` there again. The fixture proves the hazard exists; the invariance check proves
+#: `uncalled_routes` is clear of it; only this one proves no CALL passes the raw blob -- and the
+#: reason it has to exist is that the failure it prevents is intermittent, so a reviewer running the
+#: suite once will not see it. *A static check that still passes with the guard removed is not
+#: testing the guard*, and for a 1-in-25 defect "run it again" is not an alternative.
+_SELF_SRC = pathlib.Path(__file__).read_text(encoding="utf-8")
+_RAW_ARG_CALLS = [
+    n.lineno for n in ast.walk(ast.parse(_SELF_SRC))
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    and n.func.id in ("leaf_is_called", "string_blob") and len(n.args) >= 2 - (n.func.id == "string_blob")
+    and isinstance(n.args[-1], ast.Name) and n.args[-1].id == "BLOB"
+]
+check("no call in this file passes the RAW blob to `leaf_is_called` / `string_blob` -- the argument "
+      "must be comment-stripped, or the answer depends on which files happened to be read first",
+      not _RAW_ARG_CALLS,
+      f"raw `BLOB` passed at line(s) {_RAW_ARG_CALLS} -- use `_CODE`. This is the defect that was "
+      "filed as a CI transient on 2026-09-23 and cost two red builds before it was read as a bug")
+#: ...and the detector must be able to SEE such a call, or the clean result above means nothing.
+_PROBE = "leaf_is_called('x', BLOB)\nstring_blob(BLOB)\nleaf_is_called('y', _CODE)\n"
+_PROBE_HITS = [
+    n.lineno for n in ast.walk(ast.parse(_PROBE))
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    and n.func.id in ("leaf_is_called", "string_blob") and len(n.args) >= 2 - (n.func.id == "string_blob")
+    and isinstance(n.args[-1], ast.Name) and n.args[-1].id == "BLOB"
+]
+check("  ...and that scan can actually find one, planted -- including the `string_blob` spelling, "
+      "and NOT the stripped call beside it",
+      _PROBE_HITS == [1, 2], f"planted lines found: {_PROBE_HITS}")
+
 # **And the collision is REAL, not a guess.** Asserting only "not in FOUND" would pass just as well
 # if the route had quietly stopped existing, or if the rule had stopped examining it for some
 # unrelated reason -- the same fail-open that let a green lint step hide 726 unlinted files. So the
@@ -1206,8 +1313,28 @@ for _r in LEAF_COLLISION_DARK:
           _r in _ALL_ROUTES,
           "the route was renamed or deleted -- update LEAF_COLLISION_DARK rather than leaving an "
           "entry that passes because its subject is gone")
+    #: `_CODE`, NOT `BLOB`. This was the ONE call in this file that handed `leaf_is_called` the RAW
+    #: source, and it made the check INTERMITTENT -- green locally, red in CI on 2026-09-23 (run
+    #: 35864776147), green on the re-run of a byte-identical tree, red again on the next push. It
+    #: was filed as a transient of unknown cause. It is not transient, and the cause is the argument.
+    #:
+    #: `string_blob`'s template-literal alternative spans newlines, because a real template does.
+    #: This tree quotes identifiers in backticks throughout its COMMENTS, so an unpaired backtick in
+    #: one comment opens a phantom template that closes at the next comment's backtick -- and
+    #: everything between is emitted as a single string body with its inner quotes INTACT. A leaf
+    #: whose only vouching occurrence is a quoted word then sits in that body preceded by `"` rather
+    #: than by the NUL that anchors "opens a string", and reads as UNCALLED. Which comments pair with
+    #: which depends on the CONCATENATION ORDER of ~400 files, and `glob.glob` returns filesystem
+    #: order. Measured on this tree: 1 of 25 shuffled orders flips `workflow`, and `string_blob(BLOB)`
+    #: ranges from 933k to 2,014k characters across orders; through `_CODE` the derived verdicts are
+    #: identical in every order.
+    #:
+    #: *A gate whose answer depends on directory enumeration order cannot be reproduced from its own
+    #: failure*, which is exactly why the first instance was written off as a flake. Three changes,
+    #: because the one-word fix is the one that drifts back: this call is stripped, `_web_source`
+    #: SORTS so the blob is at least the same blob twice, and both properties are asserted below.
     check(f"  ...and its leaf IS read as called, which is WHY it is invisible: {_leaf(_r)}",
-          leaf_is_called(_leaf(_r), BLOB),
+          leaf_is_called(_leaf(_r), _CODE),
           f"the vouching text for {_leaf(_r)!r} is gone, so this route should now be flaggable -- "
           "move it into KNOWN_UNCALLED with a reason, or wire it")
 
@@ -1219,7 +1346,10 @@ for _r in LEAF_COLLISION_DARK:
 # measured, not assumed -- BSDD-LOOKUP wired `/bsdd/class` and re-ran this file, and all of its
 # checks passed unchanged.* The probe below is the missing direction: it reds when an entry acquires
 # a real caller, which is the moment the entry must be deleted.
-_STRIPPED = strip_comments(BLOB)
+#: The SAME value as `_CODE`, aliased rather than recomputed. Two names for one thing is how the
+#: defect above happened: `BLOB` and `_CODE` were both in scope, one call reached for the wrong one,
+#: and nothing said so. *A second spelling of a value is a second chance to pick the wrong one.*
+_STRIPPED = _CODE
 for _r in LEAF_COLLISION_DARK:
     _p = _wired_probe(_r)
     check(f"  ...and it is still UNWIRED -- no client builds {_p!r}",

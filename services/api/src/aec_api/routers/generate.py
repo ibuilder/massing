@@ -12,13 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import audit, design_phase, soft_costs, storage
+from .. import audit, design_phase, pid_lock, soft_costs, storage
 from ..apppaths import add_data_src_to_path
 from ..db import get_db
 from ..models import Project
 from ..proforma.solve import solve
 from ..rbac import authorize_pid, current_user, require_role
 from .authoring import _IFC_DIR, _ifc_path, _publish_bg
+from .authoring_shared import publish_source_ifc, staged_ifc
 
 add_data_src_to_path()
 
@@ -209,15 +210,38 @@ def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
     return {"seeded": True, "cost_codes": len(divisions), "activities": acts, "gmp": hard}
 
 
-def _finalize_generated(db, p, pid: str, body: MassingIn, metrics: dict, ifc_path, actor: str) -> dict:
+def _finalize_generated(db, p: Project, pid: str, body: MassingIn, metrics: dict, staged,
+                        actor: str) -> dict:
     """The shared tail of every massing generate (box AND dome): durable copy → source-of-truth
     pointer → Finance/GC seeds → audit → off-thread publish → response. One implementation so the
     two shape branches cannot drift apart (they were byte-for-byte clones)."""
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
-    p.source_ifc = str(ifc_path)
-    if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
-        p.dev_budget = _seed_dev_budget(body, metrics)
-    db.commit()
+    # LOCK-BOUNDARY. The pointer swap is a PLAIN WRITE -- it reads nothing -- so `test_rmw_sweep`,
+    # which derives read-modify-writes, never had it in its population. It still destroys the version
+    # a concurrent `bake_layers` is deriving from: that route reads `source_ifc`, spends a recipe
+    # applying to it, and writes the result back. Whichever commits last wins and the other's work is
+    # orphaned.
+    #
+    # The generator wrote a STAGED path, so the rename, the durable copy and the pointer all happen
+    # together inside `publish_source_ifc` -- locking the pointer alone would have left a reader able
+    # to open the published path mid-generate.
+    final = _ifc_path(pid, "source.ifc")
+    # ONE interval covering the publication AND the budget seed. They were two: `publish_source_ifc`
+    # took the lock and RELEASED it, then a second `with` re-took it -- and the comment there claimed
+    # "`mutating` is reentrant, so this nests safely", which described a nesting that did not exist.
+    # `publish_source_ifc` had already returned. **A comment can assert the exact safety property the
+    # code lacks, and it reads as the reasoning rather than as the claim it is.**
+    #
+    # The interleaving that gap allows: generations A and B publish in order A, B — so the model is
+    # B's — and then A, still to seed, finds `dev_budget` empty and seeds it from A's metrics. The
+    # project ends up with model B priced by budget A, and nothing anywhere reports it.
+    # `mutating` IS reentrant (test_pid_lock_xproc asserts three-deep nesting), so the publisher
+    # re-entering this lock is safe; what was missing was an outer interval for it to nest in.
+    with pid_lock.mutating(pid):
+        publish_source_ifc(db, p, pid, staged, final)
+        db.refresh(p)
+        if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
+            p.dev_budget = _seed_dev_budget(body, metrics)
+            db.commit()
     audit.record(db, action="ifc.generate", actor=actor, method="POST",
                  path=f"/projects/{pid}/generate/massing", detail=metrics)
     db.commit()
@@ -225,7 +249,7 @@ def _finalize_generated(db, p, pid: str, body: MassingIn, metrics: dict, ifc_pat
     design_phase.seed_phases(db, pid, actor)                   # lay the 8 RIBA/AIA design phases
     _publish_bg(pid)                                            # convert→.frag + reindex off-thread
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
-            "source_ifc": str(ifc_path), "publish": "running"}
+            "source_ifc": str(final), "publish": "running"}
 
 
 class BlankModelIn(BaseModel):
@@ -249,10 +273,14 @@ def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_d
         raise HTTPException(404, "project not found")
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _ifc_path(pid, "source.ifc")
-    generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys, storey_height=body.storey_height)
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
-    p.source_ifc = str(ifc_path)
-    db.commit()
+    # LOCK-BOUNDARY. Generate into a UNIQUE staged path, then promote under the lock. Generating
+    # straight onto the published `source.ifc` -- even inside the lock -- still exposes a partial
+    # file to any reader that does not take the lock, and the fixed filename means two concurrent
+    # blank creates write the same path rather than merely racing on the column.
+    with staged_ifc(ifc_path) as staged:
+        generate_blank_ifc(str(staged), name=body.name, storeys=body.storeys,
+                           storey_height=body.storey_height)
+        publish_source_ifc(db, p, pid, staged, ifc_path)
     audit.record(db, action="ifc.blank", actor=actor, method="POST",
                  path=f"/projects/{pid}/model/blank", detail={"storeys": body.storeys})
     db.commit()
@@ -273,47 +301,49 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
         raise HTTPException(404, "project not found")
 
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
-    ifc_path = _ifc_path(pid, "source.ifc")
+    # LOCK-BOUNDARY. Generate into a UNIQUE staged path; `_finalize_generated` promotes it to the
+    # published `source.ifc` under the project lock. Generating onto the published path directly
+    # let a reader open the model mid-write, and two concurrent generates share one filename.
+    with staged_ifc(_ifc_path(pid, "source.ifc")) as staged:
+        if body.shape == "dome":
+            # monolithic / earth dome — hemispherical shell (no zoning math; sized by radius)
+            metrics = dome_metrics(body.dome_radius, body.efficiency, body.avg_unit_m2)
+            generate_dome_ifc(str(staged), name=body.name, radius=body.dome_radius)
+            metrics["framed"] = metrics["unitized"] = metrics["enclosed"] = metrics["cored"] = False
+            metrics["structure"] = {"system": "Monolithic dome shell", "rationale":
+                                    "A thin reinforced shell carries load in compression — no separate frame."}
+            return _finalize_generated(db, p, pid, body, metrics, staged, actor)
 
-    if body.shape == "dome":
-        # monolithic / earth dome — hemispherical shell (no zoning math; sized by radius)
-        metrics = dome_metrics(body.dome_radius, body.efficiency, body.avg_unit_m2)
-        generate_dome_ifc(str(ifc_path), name=body.name, radius=body.dome_radius)
-        metrics["framed"] = metrics["unitized"] = metrics["enclosed"] = metrics["cored"] = False
-        metrics["structure"] = {"system": "Monolithic dome shell", "rationale":
-                                "A thin reinforced shell carries load in compression — no separate frame."}
-        return _finalize_generated(db, p, pid, body, metrics, ifc_path, actor)
+        try:
+            metrics = compute_massing(body.model_dump())
+        except ValueError:
+            raise HTTPException(422, _ENVELOPE_422) from None
 
-    try:
-        metrics = compute_massing(body.model_dump())
-    except ValueError:
-        raise HTTPException(422, _ENVELOPE_422) from None
+        # R3: pick a plausible structural system + member sizes for the building's scale
+        from .. import structure as st
+        rec = st.recommend(metrics["building_height_m"], metrics["floors"], body.bay_m, body.use_type)
+        mm = rec["members_mm"]
+        # lateral core sized on the REAL footprint (recommend() used a nominal plate); the generator
+        # extrudes it as thickened shear walls per floor
+        lat_core = st.lateral_core(metrics["building_height_m"], metrics["floors"],
+                                   float(metrics["plate_w"]), float(metrics["plate_d"]), rec["lateral_system"])
+        rec["lateral_core"] = lat_core
+        members = {"slab_m": mm["slab"] / 1000, "column_m": mm["column"] / 1000,
+                   "beam_depth_m": mm["beam_depth"] / 1000, "beam_width_m": max(0.3, mm["beam_depth"] / 1000 * 0.6),
+                   "column_schedule_mm": [s["side_mm"] for s in rec["column_schedule"]],
+                   "lateral_core": lat_core}
 
-    # R3: pick a plausible structural system + member sizes for the building's scale
-    from .. import structure as st
-    rec = st.recommend(metrics["building_height_m"], metrics["floors"], body.bay_m, body.use_type)
-    mm = rec["members_mm"]
-    # lateral core sized on the REAL footprint (recommend() used a nominal plate); the generator
-    # extrudes it as thickened shear walls per floor
-    lat_core = st.lateral_core(metrics["building_height_m"], metrics["floors"],
-                               float(metrics["plate_w"]), float(metrics["plate_d"]), rec["lateral_system"])
-    rec["lateral_core"] = lat_core
-    members = {"slab_m": mm["slab"] / 1000, "column_m": mm["column"] / 1000,
-               "beam_depth_m": mm["beam_depth"] / 1000, "beam_width_m": max(0.3, mm["beam_depth"] / 1000 * 0.6),
-               "column_schedule_mm": [s["side_mm"] for s in rec["column_schedule"]],
-               "lateral_core": lat_core}
-
-    generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
-                 units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,
-                 unit_layout=body.unit_layout, members=members, parking=body.parking,
-                 parcel_polygon=metrics.get("buildable_polygon"))
-    metrics["framed"] = body.frame
-    metrics["unitized"] = body.units
-    metrics["enclosed"] = body.envelope
-    metrics["cored"] = body.core
-    metrics["parking_stalls"] = body.parking
-    metrics["structure"] = rec
-    return _finalize_generated(db, p, pid, body, metrics, ifc_path, actor)
+        generate_ifc(metrics, str(staged), name=body.name, frame=body.frame, bay=body.bay_m,
+                     units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,
+                     unit_layout=body.unit_layout, members=members, parking=body.parking,
+                     parcel_polygon=metrics.get("buildable_polygon"))
+        metrics["framed"] = body.frame
+        metrics["unitized"] = body.units
+        metrics["enclosed"] = body.envelope
+        metrics["cored"] = body.core
+        metrics["parking_stalls"] = body.parking
+        metrics["structure"] = rec
+        return _finalize_generated(db, p, pid, body, metrics, staged, actor)
 
 
 class StructureIn(BaseModel):
@@ -550,35 +580,46 @@ def ensure_model(pid: str, storeys: int = 3, storey_height: float = 3.5,
     if not p:
         raise HTTPException(404, "project not found")
 
-    if p.source_ifc:
-        if os.path.exists(p.source_ifc):
-            return {"status": "found", "created": False, "source_ifc": p.source_ifc,
-                    "note": "the project already has a readable model; nothing was written"}
-        return {"status": "broken_reference", "created": False, "source_ifc": p.source_ifc,
-                "note": "this project points at a model that is not readable. Refusing to replace it "
-                        "with a blank one: that would destroy the only reference to a model which may "
-                        "still be recoverable, and would report success while doing it. Restore the "
-                        "file, or clear source_ifc first if the loss is accepted."}
+    # LOCK-BOUNDARY. This is a CHECK-THEN-ACT, not a read-modify-write: it reads `source_ifc`,
+    # concludes from its emptiness that no model exists, and installs one. Unlocked, two
+    # concurrent calls both read empty, both run `generate_blank_ifc` over the SAME fixed path,
+    # and both report `created: True` — and a call concurrent with a bake or an undo overwrites
+    # that version's pointer with a blank model. The lock has to span the DECISION, not just the
+    # write, which is why the early returns sit inside it: a lock taken after the branch protects
+    # nothing this route does.
+    with pid_lock.mutating(pid):
+        db.refresh(p)
+        if p.source_ifc:
+            if os.path.exists(p.source_ifc):
+                return {"status": "found", "created": False, "source_ifc": p.source_ifc,
+                        "note": "the project already has a readable model; nothing was written"}
+            return {"status": "broken_reference", "created": False, "source_ifc": p.source_ifc,
+                    "note": "this project points at a model that is not readable. Refusing to replace it "
+                            "with a blank one: that would destroy the only reference to a model which may "
+                            "still be recoverable, and would report success while doing it. Restore the "
+                            "file, or clear source_ifc first if the loss is accepted."}
 
-    # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
-    # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
-    # edit builds the path from something safe_seg never saw.
-    base = _IFC_DIR.resolve()
-    target_dir = (base / storage.safe_seg(pid)).resolve()
-    if not str(target_dir).startswith(str(base) + os.sep):
-        raise HTTPException(400, "invalid project id")
-    target_dir.mkdir(parents=True, exist_ok=True)
-    ifc_path = target_dir / "source.ifc"
-    generate_blank_ifc(str(ifc_path), name=p.name or "Model", storeys=storeys,
-                       storey_height=storey_height)
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
-    p.source_ifc = str(ifc_path)
-    db.commit()
+        # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
+        # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
+        # edit builds the path from something safe_seg never saw.
+        base = _IFC_DIR.resolve()
+        target_dir = (base / storage.safe_seg(pid)).resolve()
+        if not str(target_dir).startswith(str(base) + os.sep):
+            raise HTTPException(400, "invalid project id")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        ifc_path = target_dir / "source.ifc"
+        # Staged here too, even though the generate already sits inside the lock: a reader that does
+        # NOT take the lock (a future one, or an operator tool) can still observe the published path
+        # mid-write. `publish_source_ifc` re-enters the lock reentrantly.
+        with staged_ifc(ifc_path) as staged:
+            generate_blank_ifc(str(staged), name=p.name or "Model", storeys=storeys,
+                               storey_height=storey_height)
+            created_path = publish_source_ifc(db, p, pid, staged, ifc_path)
     audit.record(db, action="ifc.ensure", actor=actor, method="POST",
                  path=f"/projects/{pid}/model/ensure", detail={"storeys": storeys})
     db.commit()
     _publish_bg(pid)
-    return {"status": "created", "created": True, "source_ifc": p.source_ifc,
+    return {"status": "created", "created": True, "source_ifc": created_path,
             "storeys": storeys, "storey_height": storey_height,
             "note": "the project had no model; a blank authorable one was created so drawing can "
                     "start immediately"}
