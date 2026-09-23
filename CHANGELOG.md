@@ -226,12 +226,15 @@ clock, and `edit_preview` authors a one-element IFC before it calls). Both paths
 `TimeoutError`: Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so telling "too slow"
 from "broke" meant knowing which converter ran, which is the fact this function exists to hide.
 
-**The entry stays OPEN, deliberately.** This bounds the cost that *scales* — a model that overran
-because it was large — and not the cost that *hangs*: one element whose `create_shape` never returns
-still holds the caller for ever, because the loop never reaches the next checkpoint. *A partial fix
-described as a fix is how the original asymmetry became invisible in the first place*, so the
-roadmap entry is narrowed from "any model large enough" to "one element that hangs" rather than
-ticked.
+**The entry stays OPEN, deliberately — and the first draft of this paragraph overstated what the
+fix does.** It said the change "bounds the cost that scales". It does not: `ifcopenshell.open` is a
+single call whose time scales with file size, and the checkpoint is *after* it, so a large file is
+parsed in full and only then refused. The accurate claim is **enforced at phase boundaries and
+within the two loops** — the geometry loop per element, the entity index every 4,096 — with the
+parse and any one hanging `create_shape` still outside every checkpoint. *Caught by re-reading my
+own claim against the code before review did, which is the only reason it is not in the shipped
+prose.* *A partial fix described as a fix is how the original asymmetry became invisible in the
+first place.*
 
 **Two defects in the gate, both found by its own mutations rather than by review.** Reinstating the
 pre-fix state red it, but deleting the parse and geometry checkpoints while leaving the entity-index

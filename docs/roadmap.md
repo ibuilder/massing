@@ -1343,16 +1343,22 @@ instances:
   (Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so a caller telling "too slow" from
   "broke" had to know which converter ran — a fact that function exists to hide).
 
-  **What that bounds: the cost that SCALES.** A conversion that overran because the model was large
-  is refused at the first checkpoint past the deadline. **What it does not bound: the cost that
-  HANGS.** One element whose single `create_shape` never returns still holds the caller for ever,
-  because the loop never reaches the next checkpoint — no in-process mechanism short of a signal or
-  a child process takes the interpreter back.
+  **What that bounds, phase by phase — and it is not all three.** The geometry loop is checked per
+  element and the entity-index loop every 4,096 entities, so a model that overran because it had a
+  lot in it is refused. **Two costs sit outside every checkpoint:** `ifcopenshell.open` is one call
+  whose time scales with file size, and the check is *after* it, so a large file is parsed in full
+  and then refused; and any single `create_shape` that never returns is never followed by another
+  checkpoint.
 
-  *So the entry stays open with its scope narrowed from "any model large enough" to "one element
-  that hangs", rather than being closed on the strength of the reachable half.* **"The parameter is
-  honoured" is exactly the reading that made the original asymmetry invisible**, and a partial fix
-  described as a fix would re-create it one layer in.
+  *A first draft of this entry said the fix "bounds the cost that SCALES", which is wrong about the
+  parse — a scaling cost sitting outside every checkpoint.* Found by re-reading the claim against
+  the code before review did. The accurate form is "enforced at phase boundaries and within the two
+  loops".
+
+  *So the entry stays open for the parse and the single hanging element, rather than being closed on
+  the strength of the reachable half.* **"The parameter is honoured" is exactly the reading that
+  made the original asymmetry invisible**, and a partial fix described as a fix would re-create it
+  one layer in.
 
   The remainder is still a killable child process, and the reason it is still filed is the target
   platform: the desktop app is a PyInstaller bundle, where `multiprocessing` spawn re-execs the

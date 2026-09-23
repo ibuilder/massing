@@ -51,13 +51,15 @@ def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
     caller's own process, where nothing can interrupt it from outside, so it gets a COOPERATIVE
     deadline instead — `from_ifc.convert` checks the clock between elements and raises.
 
-    *That bounds the cost that scales and not the one that hangs.* A model that overran because it
-    was big is now refused at the first checkpoint past the deadline; a single element whose
-    `create_shape` never returns still holds the caller for ever, because the loop never reaches the
-    next checkpoint. The remaining exposure is one pathological element rather than any model large
-    enough, and closing it needs the killable child process DESKTOP-CONVERT-TIMEOUT is filed for.
-    **This entry is deliberately not marked closed on the strength of the narrower fix**, because
-    "the parameter is honoured" is exactly the reading that made the old asymmetry invisible.
+    *It is enforced at phase boundaries and within the two loops — which is narrower than "the
+    parameter is honoured", and the difference is worth stating.* The per-element and per-entity
+    loops are bounded, so a model that overran because it had a lot in it is refused. **Two costs
+    sit outside every checkpoint**: `ifcopenshell.open`, one call whose time scales with file size
+    and which is therefore paid in full before the first check; and any single `create_shape` that
+    never returns, after which the loop never reaches the next check. Both need the killable child
+    process DESKTOP-CONVERT-TIMEOUT is filed for, and the entry stays open for them.
+    **Deliberately not marked closed on the strength of the narrower fix**, because "the parameter
+    is honoured" is exactly the reading that made the old asymmetry invisible.
 
     **Both paths raise `TimeoutError`.** Node's own is `subprocess.TimeoutExpired`, which is a
     `SubprocessError` and not a `TimeoutError`, so a caller distinguishing "too slow" from "broke"

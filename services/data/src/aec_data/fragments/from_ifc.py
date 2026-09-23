@@ -178,16 +178,25 @@ def convert(ifc_path: str, *, model_guid: str = "", progress=None,
     in a PyInstaller bundle (`multiprocessing` spawn re-execs the frozen app unless `freeze_support`
     is wired), so it was filed as DESKTOP-CONVERT-TIMEOUT rather than rushed.
 
-    What a checkpoint between elements CAN bound is the cost that scales: parse, then N calls to
-    `geom.create_shape`, then N entity-index steps. A big model overran because there was a lot to
-    do, and that is now refused at the first checkpoint past the deadline. What it CANNOT bound is
-    one pathological element whose single `create_shape` never returns — the loop never reaches the
-    next checkpoint, and no in-process mechanism short of a signal or a child process can take the
-    interpreter back.
+    **Where the checkpoints are, phase by phase, because "bounded" is not true of all three.**
 
-    *So this narrows the unbounded case from "any model large enough" to "one element that hangs",
-    and the second is still open.* Saying that plainly is the point: a partial fix described as a
-    fix is how the `timeout` parameter came to read as binding in the first place.
+    1. `ifcopenshell.open` — ONE call, and the checkpoint is after it. Parse time scales with file
+       size and is **not** bounded: a large file is parsed in full, then refused.
+    2. the geometry loop — checked per element, so N calls to `geom.create_shape` are bounded as a
+       series. A SINGLE `create_shape` that never returns is not: the loop never reaches the next
+       checkpoint.
+    3. the entity-index loop — checked every 4,096 entities, so a model with little geometry and a
+       great many entities is bounded too.
+
+    *So the honest claim is "enforced at phase boundaries and within the two loops", not "bounds the
+    cost that scales"* — a first draft of this docstring said the latter and was wrong about the
+    parse, which is a scaling cost sitting outside every checkpoint. Found by re-reading the claim
+    against the code rather than in review. What remains unbounded is the parse and any one
+    `create_shape`; both need the killable child process DESKTOP-CONVERT-TIMEOUT is filed for, and
+    the entry stays open for them.
+
+    *A partial fix described as a fix is how the `timeout` parameter came to read as binding in the
+    first place, so the boundary is stated rather than implied.*
     """
     import ifcopenshell
     from ifcopenshell import geom
