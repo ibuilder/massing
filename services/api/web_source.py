@@ -32,6 +32,29 @@ def _web_source() -> str:
     for **29 routes**, taking the uncalled count from 85 down to 56. The docstring above had the
     principle right and applied it to one file; this is the same file's rule finishing its sentence.
 
+    **THE VENDORED TREE is excluded for the third time in the same argument, since 2026-09-23.**
+    `apps/web/src/vendor/massingifc` and `apps/web/src/vendor/massingpdf` are verbatim copies of two
+    other repositories — `VENDOR.md` in each says so, and says the copies carry **no local edits** —
+    so a word appearing there is evidence about somebody else's product, not about what this client
+    calls. That is the same sentence as the generated types above with a different subject: the blob
+    is meant to answer "does OUR app do this", and both exclusions remove text that answers a
+    different question while looking like an answer to that one.
+
+    **It was not a theory — this file's consumer had already written the defect down without naming
+    the cause.** `test_route_reachability.py` records `/projects/{pid}/cost/calibration` as vouched by
+    "85 hits of PDF-takeoff SCALE calibration under `vendor/massingpdf/`, a different trade entirely",
+    and its own deterministic backtick fixture is a line copied out of
+    `vendor/massingifc/project-schema/coordination.ts`. Two of the five entries in its
+    LEAF-COLLISION list were vendor collisions; the diagnosis stopped at "a leaf that is also a common
+    domain noun".
+
+    **Measured: 83 of 399 files and 708,650 of 4,597,236 characters, and it moves exactly 2 routes**
+    — `/projects/{pid}/workflow/{key}` and `/projects/{pid}/project-package/contents`, uncalled 57 ->
+    59. Both were already frozen as invisible in `LEAF_COLLISION_BLIND`, so this does not find new
+    debt; it converts two routes the gate could not see into two the gate reports, which is the
+    direction the ratchet PUNISHES and therefore the direction nothing was going to drift into on its
+    own.
+
     **SORTED, since 2026-09-23.** `glob.glob` returns filesystem order, so this blob was a different
     string on every machine and the gates reading it could disagree with themselves between runs. A
     stable order does not make any single verdict correct — it makes a failure REPRODUCIBLE, which is
@@ -39,6 +62,27 @@ def _web_source() -> str:
     `LEAF_COLLISION_DARK` vouch check in `services/api/test_route_reachability.py`.
     """
     return "\n".join(open(p, encoding="utf-8", errors="replace").read() for p in web_files())
+
+
+#: The vendored packages: directories under `apps/web/src/vendor/` holding a verbatim copy of another
+#: repository, each with a `VENDOR.md` saying so and recording that the copy carries no local edits.
+#:
+#: **NAMED, not matched by their parent directory, and the difference is a live hole rather than a
+#: style preference.** The first draft excluded any path containing `/src/vendor/`. A first-party
+#: caller added under that directory would then be dropped from the blob -- and the differential
+#: beside this exclusion in `services/api/test_route_reachability.py` CANNOT SEE THAT, because it
+#: asks which routes restoring the vendored text vouches for: if the new caller calls
+#: `/projects/{pid}/workflow/{key}`, the vendored copies already vouch for that route, the difference
+#: is unchanged, and the route stays recorded as uncalled while the client calls it. *An exclusion
+#: whose own differential is blind to what it wrongly excludes is the shape this gate exists to
+#: catch.* Raised in review, having been put to review as the thing least certain in the change.
+#:
+#: The list is literal rather than derived from the `VENDOR.md` files, because a blob that decides
+#: what to read from a marker file changes meaning when somebody deletes one. The marker is used to
+#: CHECK the list instead: `test_route_reachability.py` asserts this tuple names exactly the
+#: directories under `vendor/` that carry a `VENDOR.md`, in both directions, so the list cannot drift
+#: from the tree without reddening. *Hardcode what is load-bearing; derive the proof that it is right.*
+VENDORED = ("vendor/massingifc/", "vendor/massingpdf/")
 
 
 def web_files() -> list[str]:
@@ -57,6 +101,8 @@ def web_files() -> list[str]:
                 continue
             if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
                 continue          # generated FROM the spec: lists every route, calls none
+            if os.path.relpath(p, _WEB).replace("\\", "/").startswith(VENDORED):
+                continue          # somebody else's repo, copied verbatim: names routes, calls none
             out.append(p)
     #: ONE sort over the WHOLE list, not one per glob pattern. Sorting inside the loop yields
     #: `[every .ts sorted] + [every .tsx sorted]`, which is deterministic but is not sorted — and the
