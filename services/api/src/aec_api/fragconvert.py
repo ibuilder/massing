@@ -84,9 +84,17 @@ def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
     add_data_src_to_path()
     from aec_data.fragments.from_ifc import convert as _py_convert  # type: ignore
 
-    #: The deadline is computed HERE, from the caller's `timeout`, rather than passing the duration
-    #: down: the callee would then restart the clock, and the time already spent authoring the source
-    #: IFC before this call would be free. `edit_preview` builds a one-element model first.
+    #: The budget starts when THIS FUNCTION is entered, which is the same instant the Node path's
+    #: `subprocess.run(timeout=...)` starts its own — so the two branches measure the same interval,
+    #: which is the point of computing it here rather than handing the duration down.
+    #:
+    #: **What it does NOT cover: anything the caller did first.** `edit_preview` authors a
+    #: one-element IFC before it calls this, and that time is outside the budget. A first draft of
+    #: this comment claimed the opposite — that computing the deadline here is what stops the
+    #: authoring being "free" — which is wrong: `monotonic()` is read below, after the caller has
+    #: already done that work, so handing the duration down instead would differ only by the import
+    #: on the line above. Raised in review. *This change exists to state timeout scope accurately,
+    #: which makes a wrong scope claim in its own rationale the worst place to leave one.*
     result = _py_convert(src, deadline=time.monotonic() + timeout)
     if result.failed:
         # Named, not swallowed: geometry IfcOpenShell could not build is a fact about the model that

@@ -1330,11 +1330,15 @@ instances:
   2026-09-10 by review of #504; **NARROWED 2026-09-23, still OPEN**. Gated by
   `services/api/test_fragconvert_timeout.py`)*
 
-  `services/api/src/aec_api/fragconvert.py` takes a `timeout` and applied it only to the Node path,
-  where `subprocess.run` can kill an overrunning child. The Python path calls IfcOpenShell
-  in-process, so nothing can interrupt it. `_publish` runs on a background worker and does not care;
-  **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model held a
+  **AS FILED, 2026-09-10 — pre-fix; see the paragraph after this one for what is true now.**
+  `services/api/src/aec_api/fragconvert.py` took a `timeout` and applied it only to the Node path,
+  where `subprocess.run` can kill an overrunning child. The Python path called IfcOpenShell
+  in-process, so nothing could interrupt it. `_publish` runs on a background worker and did not
+  care; **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model held a
   request worker past its own deadline rather than reaching the 503 the caller is written to expect.
+  *Kept in the past tense rather than rewritten, because the entry is still open and a reader needs
+  to know what it was opened for — but it was left in the PRESENT tense until review pointed out
+  that it then reads as the current state, two paragraphs above the one saying otherwise.*
 
   **A COOPERATIVE deadline shipped 2026-09-23, and it is half of this — the half that was reachable
   without the machinery below.** `from_ifc.convert` takes a `deadline` and checks the clock after
