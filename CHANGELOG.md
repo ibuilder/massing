@@ -108,6 +108,16 @@ on a lock wrapped around the assignment alone.
 
 ### LOCK-XPROC — the cross-process lock was proven by two threads in one process
 
+**CodeQL flagged this file HIGH on its first push, and it was right.** The connect-failure message
+printed the DSN verbatim, so a wrong port or an unreachable service container would have written
+`PGPASSWORD` into the CI log in clear text. *A diagnostic is an output like any other* — and the
+string most worth printing when a connection fails is exactly the one carrying the credential. It is
+redacted now, splitting on the **last** `@` rather than the first, because a password may contain one
+and a first-`@` split leaves the tail of the secret in the log. Three assertions cover it, since the
+only place it runs is a failure path a green run never takes: *a guard that runs only when something
+has already gone wrong needs a test that runs always.*
+
+
 `test_pid_lock_xproc.py` is named for cross-process serialisation and asserts a great deal about it.
 Its one exclusion check is **two threads, in one process, on SQLite** — the suite's default database,
 where `_advisory()` takes nothing and yields `False`, so the exclusion it observes is entirely the

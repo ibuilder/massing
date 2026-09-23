@@ -110,6 +110,25 @@ def _url() -> str | None:
     return f"postgresql+psycopg://{auth}{host}:{port}/{dbn}"
 
 
+def _safe(url: str) -> str:
+    """`url` with any password removed, for anything that could reach a log.
+
+    The connect-failure message below printed the DSN verbatim, so a wrong port or an unreachable
+    service container would have written `PGPASSWORD` into the CI log in clear text -- flagged HIGH
+    by CodeQL on the first push of this file. **A diagnostic is an output like any other**, and the
+    string most worth printing when a connection fails is exactly the one carrying the credential.
+
+    Splits on the LAST `@` before the host, not the first: a password may legitimately contain `@`,
+    and `partition` would then keep part of it. Everything after the scheme and before that `@` is
+    replaced wholesale rather than trying to preserve the username -- the username is not what makes
+    the message useful, the host and port are.
+    """
+    scheme, sep, rest = url.partition("://")
+    if not sep or "@" not in rest:
+        return url
+    return f"{scheme}://***@{rest.rsplit('@', 1)[1]}"
+
+
 #: Consulted on EVERY path below, not only inside `if _u:` — the defect `test_pin_pgnull` records is
 #: a flag that guards one branch of two and therefore guards nothing.
 _REQUIRED = bool(os.environ.get("AEC_PG_REQUIRED") or os.environ.get("AEC_TEST_PG_URL"))
@@ -204,6 +223,22 @@ def _backends(lines) -> set[str]:
     return {p[1].split("=", 1)[1] for p in lines if len(p) == 3 and p[1].startswith("BACKEND=")}
 
 
+#: THE REDACTION IS ASSERTED, not assumed. A helper that silently stopped redacting would restore the
+#: exact CodeQL HIGH it was written for, and the only place it runs is a failure path that a green run
+#: never takes -- so without these it would be exercised by nothing until the day it mattered.
+#: *A guard that only runs when something has already gone wrong needs a test that runs always.*
+check("the connect-failure message carries no password -- plain case",
+      _safe("postgresql+psycopg://u:hunter2@db:5432/x") == "postgresql+psycopg://***@db:5432/x",
+      _safe("postgresql+psycopg://u:hunter2@db:5432/x"))
+check("  ...and a password containing `@` is removed WHOLE -- splitting on the first `@` would leave "
+      "the tail of the secret in the log, which is not redaction",
+      _safe("postgresql+psycopg://u:p@ss@db:5432/x") == "postgresql+psycopg://***@db:5432/x",
+      _safe("postgresql+psycopg://u:p@ss@db:5432/x"))
+check("  ...and a URL with no credentials is passed through unchanged, so the message stays useful "
+      "in the ordinary case",
+      _safe("postgresql+psycopg://db:5432/x") == "postgresql+psycopg://db:5432/x",
+      _safe("postgresql+psycopg://db:5432/x"))
+
 _u = _url()
 if _u:
     try:
@@ -216,7 +251,8 @@ if _u:
         # UNCONDITIONAL: `_url()` returns a URL only under an explicit opt-in, so by here somebody has
         # already said "reach a server". Gating this on the flag again would let a run pointed at a
         # dead port exit 0 while printing "no opt-in" — asserting the opposite of what happened.
-        check("the opted-in PostgreSQL server is reachable", False, f"{_u} -- {type(exc).__name__}: {exc}")
+        check("the opted-in PostgreSQL server is reachable", False,
+              f"{_safe(_u)} -- {type(exc).__name__}: {exc}")
         _u = None
 
 if _u:
