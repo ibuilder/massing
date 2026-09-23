@@ -111,7 +111,17 @@ on a lock wrapped around the assignment alone.
 **CodeQL flagged this file HIGH on its first push, and it was right.** The connect-failure message
 printed the DSN verbatim, so a wrong port or an unreachable service container would have written
 `PGPASSWORD` into the CI log in clear text. *A diagnostic is an output like any other* — and the
-string most worth printing when a connection fails is exactly the one carrying the credential. **And fixing the sink it named exposed a second one.** The children are handed the DSN through
+string most worth printing when a connection fails is exactly the one carrying the credential. **Two rounds of redaction were the wrong fix, and the alert said so by not clearing.** `_safe` and
+`_scrub` were both correct and neither closed it: CodeQL traces the *flow* from the environment read
+to the printer, and `str.replace` changes the value without removing the edge. The DSN no longer
+embeds the password at all — libpq reads `PGPASSWORD` from the environment the children already
+inherit, so putting it in the URL bought nothing and put the credential into a string that is handed
+to subprocesses, set as `DATABASE_URL`, and printed on failure. *Sanitising a sink answers "is this
+output safe"; removing the source answers "is this value sensitive at all", and only the second makes
+the question stop existing.* The scrubbers stay as defence in depth for a caller-supplied
+`AEC_TEST_PG_URL`, which this file does not build and cannot vouch for.
+
+**And fixing the sink it named exposed a second one.** The children are handed the DSN through
 `DATABASE_URL` in their environment and their stdout and stderr are reported in a failure detail, so
 CodeQL flagged one HIGH after the other was cleared. *Fixing the sink that was reported closes that
 sink* — the same lesson this branch's lock work keeps arriving at, met again in the security rules.

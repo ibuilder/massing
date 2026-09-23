@@ -103,9 +103,18 @@ def _url() -> str | None:
     host = os.environ["PGHOST"]
     port = os.environ.get("PGPORT", "5432")
     user = os.environ.get("PGUSER", "postgres")
-    pwd = os.environ.get("PGPASSWORD", "")
     dbn = os.environ.get("PGDATABASE", "postgres")
-    auth = f"{user}:{pwd}@" if pwd else f"{user}@"
+    #: NO PASSWORD IN THE URL. libpq reads `PGPASSWORD` from the environment, which the children
+    #: already inherit, so embedding it here bought nothing and put the credential into a string that
+    #: is passed to subprocesses, set as `DATABASE_URL`, and printed on failure.
+    #:
+    #: Two rounds were spent redacting that string at its sinks before this. Both redactions were
+    #: correct and neither cleared the alert, because CodeQL traces the FLOW from the environment read
+    #: to the printer and `str.replace` changes the value without removing the edge. *Sanitising a
+    #: sink answers "is this output safe"; removing the source answers "is this value sensitive at
+    #: all", and only the second makes the question stop existing.* The scrubbers below are kept as
+    #: defence in depth — they now have nothing to find, which is the point.
+    auth = f"{user}@"
     if host.startswith("/"):
         return f"postgresql+psycopg://{auth}/{dbn}?host={host}&port={port}"
     return f"postgresql+psycopg://{auth}{host}:{port}/{dbn}"
@@ -162,6 +171,24 @@ with pid_lock.mutating(pid):
     time.sleep(float(hold))
     log("OUT")
 """
+
+
+def _probe_url() -> str | None:
+    """`_url()` evaluated with `PGPASSWORD` set, so the assertion below cannot pass by the variable
+    simply being absent -- the vacuous shape this file already made once today."""
+    keep = {k: os.environ.get(k) for k in ("AEC_TEST_PG_URL", "AEC_PG_REQUIRED", "PGHOST", "PGPASSWORD")}
+    try:
+        os.environ.pop("AEC_TEST_PG_URL", None)
+        os.environ["AEC_PG_REQUIRED"] = "1"
+        os.environ["PGHOST"] = "probe-host"
+        os.environ["PGPASSWORD"] = "sekret-not-in-url"
+        return _url()
+    finally:
+        for k, v in keep.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def _scrub(text: str, pwd: str | None = None) -> str:
@@ -281,6 +308,15 @@ check("child stdout AND stderr are both scrubbed where they are CAPTURED -- asse
       _OUTS is not None and len(_SCRUBBED) == 2,
       f"found={'no outs[...] tuple assignment' if _OUTS is None else len(_SCRUBBED)} scrubbed of 2 "
       "-- a stream captured raw reaches the failure detail below unredacted")
+
+#: The URL this file BUILDS never carries a credential in the first place, so there is nothing for the
+#: scrubbers below to remove on the path that actually runs. Asserted directly, because the fix is an
+#: absence and an absence is what nobody notices being undone.
+check("the DSN built from PG* env vars embeds NO password -- libpq reads `PGPASSWORD` from the "
+      "environment the children already inherit, so putting it in the URL bought nothing and put the "
+      "credential into a string that is printed on failure",
+      "sekret-not-in-url" not in (_probe_url() or ""),
+      _probe_url())
 
 check("the connect-failure message carries no password -- plain case",
       _safe("postgresql+psycopg://u:hunter2@db:5432/x") == "postgresql+psycopg://***@db:5432/x",
