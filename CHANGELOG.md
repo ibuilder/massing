@@ -118,8 +118,13 @@ embeds the password at all — libpq reads `PGPASSWORD` from the environment the
 inherit, so putting it in the URL bought nothing and put the credential into a string that is handed
 to subprocesses, set as `DATABASE_URL`, and printed on failure. *Sanitising a sink answers "is this
 output safe"; removing the source answers "is this value sensitive at all", and only the second makes
-the question stop existing.* The scrubbers stay as defence in depth for a caller-supplied
-`AEC_TEST_PG_URL`, which this file does not build and cannot vouch for.
+the question stop existing.* The scrubbers stay as defence in depth, and review narrowed what they
+actually claim: `_safe` redacts userinfo **and** a `password=` query parameter — libpq accepts the
+secret there, so the `@` split alone never saw it — while `_scrub` removes only `PGPASSWORD`'s value
+from child output and derives nothing from a caller-supplied `AEC_TEST_PG_URL`. The first wording
+here said they "cover a caller-supplied URL", which was wider than the code. *A claim about a guard's
+coverage is a claim like any other, and it is checkable the same way* — so both the function and the
+sentence were corrected, not just the sentence.
 
 **And fixing the sink it named exposed a second one.** The children are handed the DSN through
 `DATABASE_URL` in their environment and their stdout and stderr are reported in a failure detail, so

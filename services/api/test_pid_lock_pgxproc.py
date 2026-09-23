@@ -43,6 +43,7 @@ from __future__ import annotations
 import ast
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -113,7 +114,11 @@ def _url() -> str | None:
     #: to the printer and `str.replace` changes the value without removing the edge. *Sanitising a
     #: sink answers "is this output safe"; removing the source answers "is this value sensitive at
     #: all", and only the second makes the question stop existing.* The scrubbers below are kept as
-    #: defence in depth — they now have nothing to find, which is the point.
+    #: defence in depth. **Precisely: `_safe` redacts userinfo AND a `password=`/`PGPASSWORD=` query
+    #: parameter; `_scrub` removes the value of `PGPASSWORD` from child output and derives nothing
+    #: from `AEC_TEST_PG_URL`.** The earlier wording here said they "cover a caller-supplied URL",
+    #: which was wider than the code — review caught the query-string gap, and the sentence was as
+    #: wrong as the function. *A claim about a guard's coverage is a claim like any other.*
     auth = f"{user}@"
     if host.startswith("/"):
         return f"postgresql+psycopg://{auth}/{dbn}?host={host}&port={port}"
@@ -133,6 +138,13 @@ def _safe(url: str) -> str:
     replaced wholesale rather than trying to preserve the username -- the username is not what makes
     the message useful, the host and port are.
     """
+    #: The QUERY STRING too, not only the userinfo. libpq accepts the password as a parameter --
+    #: `?password=...`, and psycopg passes `PGPASSWORD=` through the same way -- so a caller-supplied
+    #: `AEC_TEST_PG_URL` can carry the secret somewhere the `@` split never looks. Raised in review
+    #: against a claim in this file's own comment that these helpers "cover a caller-supplied URL";
+    #: they did not, and the claim was wider than the code. *Stating a guard's coverage is a claim
+    #: like any other and is checkable the same way.*
+    url = re.sub(r"(?i)\b(password|pgpassword)=[^&\s]*", r"\1=***", url)
     scheme, sep, rest = url.partition("://")
     if not sep or "@" not in rest:
         return url
@@ -325,6 +337,15 @@ check("  ...and a password containing `@` is removed WHOLE -- splitting on the f
       "the tail of the secret in the log, which is not redaction",
       _safe("postgresql+psycopg://u:p@ss@db:5432/x") == "postgresql+psycopg://***@db:5432/x",
       _safe("postgresql+psycopg://u:p@ss@db:5432/x"))
+check("  ...and a password carried as a QUERY PARAMETER is redacted too -- libpq accepts it there, "
+      "so a caller-supplied `AEC_TEST_PG_URL` can put the secret where the `@` split never looks",
+      _safe("postgresql+psycopg://u@db:5432/x?password=hunter2&sslmode=require")
+      == "postgresql+psycopg://***@db:5432/x?password=***&sslmode=require",
+      _safe("postgresql+psycopg://u@db:5432/x?password=hunter2&sslmode=require"))
+check("  ...and the parameter redaction stops at the `&`, so the rest of the query survives and the "
+      "message stays diagnosable",
+      "sslmode=require" in _safe("postgresql://u@h/d?password=p&sslmode=require"),
+      _safe("postgresql://u@h/d?password=p&sslmode=require"))
 check("  ...and a URL with no credentials is passed through unchanged, so the message stays useful "
       "in the ordinary case",
       _safe("postgresql+psycopg://db:5432/x") == "postgresql+psycopg://db:5432/x",
