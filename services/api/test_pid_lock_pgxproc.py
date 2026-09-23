@@ -51,6 +51,8 @@ import tempfile
 import time
 import uuid
 
+import yaml
+
 sys.path.insert(0, "src")
 
 FAILED: list[str] = []
@@ -64,6 +66,71 @@ def check(label: str, ok: bool, detail: object = "") -> None:
 
 #: The workflow that is supposed to run this file against a service container.
 _WF = pathlib.Path("../../.github/workflows/db-migrations.yml")
+
+
+def _steps_running(wf: dict, script: str) -> list[tuple[dict, dict]]:
+    """Every `(job, step)` in a parsed workflow whose `run:` invokes `script`.
+
+    **The workflow is PARSED, not grepped, and the step is EXTRACTED, not searched for.** The check
+    below used to ask whether the string `AEC_PG_REQUIRED` occurred anywhere in
+    `db-migrations.yml`. It does -- the pin-sweep step at line 170 sets it for its own reasons -- so
+    deleting it from THIS file's step left the check green, and the CI run would then have taken the
+    no-server branch, exited 0, and asserted nothing about the advisory lock anywhere. *A check
+    scoped to the FILE cannot speak about a STEP, and a neighbour's correct configuration is what
+    makes the difference invisible.* Raised in review; it is the same defect this file exists to
+    catch, one level up, in the check that was written to catch it.
+    """
+    out: list[tuple[dict, dict]] = []
+    for job in (wf.get("jobs") or {}).values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if isinstance(step, dict) and script in str(step.get("run") or ""):
+                out.append((job, step))
+    return out
+
+
+def _env_in_force(wf: dict, job: dict, step: dict) -> dict:
+    """The environment a step actually runs with: workflow `env`, then job, then step.
+
+    **Not the step's own `env:` alone.** Hoisting a flag to the job is a legitimate refactor, and a
+    check that red on it would be a false alarm somebody switches off -- which is how a gate stops
+    being a gate. Narrowing the QUESTION to the right step and narrowing the ANSWER to one YAML
+    block are different things, and only the first was the finding.
+    """
+    env: dict = {}
+    for scope in (wf.get("env"), job.get("env"), step.get("env")):
+        if isinstance(scope, dict):
+            env.update(scope)
+    return env
+
+
+# --- the extractor is self-tested on EVERY run, including the one WITH a server ------------------
+#: The real assertion below runs only on the no-server branch, which is precisely the branch a
+#: broken extractor would make vacuous. These three run always, so the db-migrations job -- the one
+#: place a server exists -- still exercises them.
+_SELF_WF = {
+    "jobs": {"j": {"steps": [
+        {"name": "neighbour", "env": {"AEC_PG_REQUIRED": "1"}, "run": "python test_pin_pgnull.py"},
+        {"name": "ours", "run": "python test_pid_lock_pgxproc.py"},
+    ]}},
+}
+_self_steps = _steps_running(_SELF_WF, "test_pid_lock_pgxproc.py")
+check("SELF-TEST: the extractor finds exactly the step that RUNS this file, not every step",
+      len(_self_steps) == 1 and _self_steps[0][1]["name"] == "ours",
+      [st.get("name") for _j, st in _self_steps])
+check("SELF-TEST: ...and a NEIGHBOUR's AEC_PG_REQUIRED does not vouch for ours -- the shipped "
+      "shape, and the one the file-wide search could not tell apart",
+      _self_steps and "AEC_PG_REQUIRED" not in _env_in_force(_SELF_WF, *_self_steps[0]),
+      "a flag set on another step satisfied this step's requirement")
+_SELF_WF_JOBENV = {
+    "jobs": {"j": {"env": {"AEC_PG_REQUIRED": "1"},
+                   "steps": [{"name": "ours", "run": "python test_pid_lock_pgxproc.py"}]}},
+}
+_job_steps = _steps_running(_SELF_WF_JOBENV, "test_pid_lock_pgxproc.py")
+check("SELF-TEST: ...and a flag hoisted to the JOB still counts, so this is not always-no",
+      _job_steps and "AEC_PG_REQUIRED" in _env_in_force(_SELF_WF_JOBENV, *_job_steps[0]),
+      "a job-level env would have red a correct workflow")
 
 # --- the acquisition must be the BLOCKING form, and this is checkable without a server ------------
 #: `_advisory` sets `acquired = True` immediately after the execute and never reads a result, because
@@ -180,6 +247,23 @@ def log(event):
 log("BACKEND=" + pid_lock.cross_process_status()["backend"])
 with pid_lock.mutating(pid):
     log("IN")
+    if name == "A":
+        # HOLD UNTIL B IS RUNNING, not for a fixed wall-clock guess. The parent starts B only once A
+        # is demonstrably inside; B then has to start an interpreter, import `pid_lock`, run
+        # `cross_process_status()` (which opens a session) and reach `mutating`. On a slow shared
+        # runner that can exceed the hold, and then B enters after A logged OUT -- so `_overlap` is
+        # False and the two MUTATION checks, which require an overlap, fail on a lock that is
+        # working perfectly. *A timing check whose window is a constant is measuring the runner.*
+        # Raised in review. The positive check is unaffected either way: B blocks in
+        # `pg_advisory_lock` until A releases, whenever B gets there.
+        _until = time.time() + 45
+        while time.time() < _until:
+            with open(logpath) as fh:
+                if "B BACKEND=" in fh.read():
+                    break
+            time.sleep(0.02)
+        else:
+            log("BWAIT=timeout")
     time.sleep(float(hold))
     log("OUT")
 """
@@ -407,15 +491,24 @@ else:
               False, "set PGHOST (and PGUSER/PGPASSWORD/PGDATABASE) or AEC_TEST_PG_URL")
     # NO SERVER. Do not pass quietly -- prove the step that DOES run this is still in the workflow.
     check("db-migrations.yml exists to be checked", _WF.exists(), str(_WF))
-    _text = _WF.read_text(encoding="utf-8") if _WF.exists() else ""
+    try:
+        _doc = yaml.safe_load(_WF.read_text(encoding="utf-8")) if _WF.exists() else None
+    except yaml.YAMLError as exc:                  # unparseable is a FAILURE, never a skip
+        _doc, _parse_err = None, exc
+    else:
+        _parse_err = None
+    check("  and it parses -- a workflow this cannot read is a workflow this cannot vouch for",
+          isinstance(_doc, dict), f"{_WF}: {_parse_err}")
+    _ours = _steps_running(_doc or {}, "test_pid_lock_pgxproc.py")
     check("db-migrations.yml still runs this file against the service container",
-          "test_pid_lock_pgxproc.py" in _text,
-          f"{_WF} no longer mentions test_pid_lock_pgxproc.py -- with no server here and no step "
-          f"there, the advisory lock is exercised by nothing anywhere")
-    check("  and sets AEC_PG_REQUIRED, without which that step takes THIS branch",
-          "AEC_PG_REQUIRED" in _text,
-          f"{_WF} does not set AEC_PG_REQUIRED -- the CI run would assert only that the workflow "
-          f"mentions the file, which is circular")
+          len(_ours) == 1,
+          f"{_WF} has {len(_ours)} steps running test_pid_lock_pgxproc.py -- with no server here "
+          f"and no step there, the advisory lock is exercised by nothing anywhere")
+    check("  and THAT STEP sets AEC_PG_REQUIRED, without which it takes THIS branch",
+          bool(_ours) and all("AEC_PG_REQUIRED" in _env_in_force(_doc, j, st) for j, st in _ours),
+          f"{_WF} does not set AEC_PG_REQUIRED on the step that runs this file. The flag appearing "
+          f"ANYWHERE in the workflow is not the question -- the pin-sweep step sets it too, which "
+          f"is exactly why this is scoped to the step rather than to the file")
     print("\n  no PostgreSQL server: the cross-process assertions did not run here.")
     print("  They run in db-migrations.yml, which the checks above prove still invokes this file.")
 

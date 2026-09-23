@@ -328,6 +328,33 @@ check("...and it HANDLES the 409 by reloading rather than retrying -- a retry ca
       "409" in _panel_src and "reloadAfterConflict" in _panel_src,
       "apps/web/src/proforma/proforma.ts")
 
+#: ...AND IT DOES NOT RACE ITSELF, which the three checks above do not cover and which review found
+#: after they were written. `clearTimeout` cancels a save that has not left yet; it does nothing to
+#: one already in flight, so a second debounce firing before the first response sends the SAME `rev`
+#: twice. The server commits one and refuses the other with the 409 this whole mechanism exists to
+#: raise -- except the "other editor" is this panel, and `reloadAfterConflict` then replaces the
+#: user's newest keystroke with the server's copy. *A staleness token turns a lost write into a
+#: refused one; it does not decide WHOSE write is stale.*
+#:
+#: **This is a SHAPE check and it cannot prove serialisation** -- `node_modules` is empty in the
+#: authoring environment here and this suite cannot execute TypeScript, so what is asserted is that
+#: the one send is behind an in-flight guard and that the debounce schedules the guarded function
+#: rather than the request. Stated rather than implied, because the checks above are the same kind
+#: and read stronger than they are. The behavioural half is CI's web job.
+_sends = _panel_src.count("this.api.saveDevBudget(")
+check("the budget panel has exactly ONE send site, so an in-flight guard in front of it is the "
+      "whole population rather than one of several doors",
+      _sends == 1, f"{_sends} calls to this.api.saveDevBudget(")
+_guard = _panel_src.find("if (inFlight) { again = true; return; }")
+_send = _panel_src.find("this.api.saveDevBudget(")
+check("  ...and the send is BEHIND an in-flight guard -- two overlapping saves carry one `rev` and "
+      "the panel manufactures its own 409",
+      _guard != -1 and _send != -1 and _guard < _send,
+      f"guard at {_guard}, send at {_send} -- the guard must precede the send")
+check("  ...and the DEBOUNCE schedules the guarded function, not the request: a timer that still "
+      "calls the api directly leaves the guard in the file and out of the path",
+      "window.setTimeout(flush, 500)" in _panel_src, "apps/web/src/proforma/proforma.ts")
+
 print(f"\ntest_budget_rev {'FAILED' if FAILED else 'OK'}")
 for f in FAILED:
     print(f"  - {f}")

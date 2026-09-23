@@ -177,6 +177,43 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### The budget panel manufactured its own 409, and two of this PR's own checks were measuring the runner
+
+Three findings from a full review pass on the head that added the `rev` precondition. All three are
+inside work landed earlier in this same branch, and the first is a product defect the precondition
+itself created.
+
+**A debounced save that races itself supplies its own stale write.** `clearTimeout` cancels a save
+that has not left yet; it does nothing to one already on the wire. On a connection slower than the
+500 ms debounce, two saves go out carrying the same `rev` — the server commits the first, refuses the
+second, and `reloadAfterConflict` replaces the user's newest keystroke with the server's copy while
+telling them "the development budget changed elsewhere (a GMP or model sync, or another editor)".
+*A staleness token turns a lost write into a refused one; it does not decide WHOSE write is stale.*
+One send is now in flight at a time, the body is built when the request starts, and a keystroke
+during a save sets a flag rather than queueing a second request — so one follow-up send carries every
+edit made while the first was in flight, instead of N sends of the same final state.
+
+**The workflow guard searched the whole file for a flag its neighbour also sets.** With no PostgreSQL
+server the cross-process gate cannot run its assertions, so it proves instead that
+`db-migrations.yml` still runs it *with* `AEC_PG_REQUIRED`. It asked whether that string occurred
+anywhere in the workflow — and the pin-sweep step sets it too. Measured: deleting the flag from this
+file's own step leaves three occurrences and the old check green, so the CI step would have taken the
+no-server branch and exited 0 with nothing exercising the advisory lock anywhere. The workflow is now
+parsed, the step that runs this file is extracted, and the flag is looked for in the environment
+actually in force for *that* step — workflow, job and step `env` merged, so hoisting the flag to the
+job stays valid. *A check scoped to the FILE cannot speak about a STEP, and a neighbour's correct
+configuration is what makes the difference invisible.*
+
+**And two timing checks had a window that was a constant.** Child A held the lock for a fixed 1.5 s
+while the parent started child B; if B's interpreter, import, status call and connection took longer
+than that, B entered after A left, and the two MUTATION checks — which *require* an overlap — failed
+on a lock working perfectly. A now waits for B's own log line before starting its hold. Measured on
+a real server: with the hold shrunk to 50 ms, the old shape fails both mutations and the new one
+passes all three. *A timing check whose window is a constant is measuring the runner.*
+
+The extractor's three self-tests run on **every** invocation, including the one with a server —
+otherwise the only branch that exercises it is the branch a broken extractor would make vacuous.
+
 ### Round 16: the RVT translation was still on the event loop, and the sort check could not fail
 
 A full review pass over the current head found two, and both were inside this PR's own earlier fixes.

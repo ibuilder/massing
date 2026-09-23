@@ -1273,16 +1273,38 @@ export class ProformaUI {
         paint(fresh);
         this.setStatus("the development budget changed elsewhere (a GMP or model sync, or another editor) — reloaded; re-apply your edit");
       });
-      const save = () => {
-        clearTimeout(timer);
-        timer = window.setTimeout(() => void this.api.saveDevBudget(pid, { lines, contingency, rev })
+      //: ONE SAVE IN FLIGHT AT A TIME. `clearTimeout` cancels a save that has not LEFT yet; it does
+      //: nothing to one already on the wire. Two overlapping saves both carry the rev the screen
+      //: last heard about, the server commits the first and refuses the second — so on a slow
+      //: connection this panel produced its own 409, told the user somebody else had edited the
+      //: budget, and reloaded over the keystroke that caused it. *A staleness token turns a lost
+      //: write into a refused one; it does not decide WHOSE write is stale, and a client racing
+      //: itself supplies the stale one.* Raised in review against the `rev` work in this same PR —
+      //: the precondition was correct and the caller was the thing violating it.
+      //: A second edit during a save sets `again` rather than queueing a second request: the body
+      //: is built when the request STARTS, from the live `lines`, so one follow-up send carries
+      //: every edit made while the first was in flight. A chain would send the same final state N
+      //: times.
+      let inFlight = false;
+      let again = false;
+      const flush = () => {
+        if (inFlight) { again = true; return; }
+        inFlight = true; again = false;
+        void this.api.saveDevBudget(pid, { lines, contingency, rev })
           .then((r) => { rev = r.rev ?? null; paint(r); })
           .catch((e: unknown) => {
+            //: Neither a conflict nor a failure is worth re-sending immediately. After a 409 the
+            //: reload REPLACES `lines`, so a follow-up would save the server's own copy back over
+            //: the user's; after any other error, re-sending the body that just failed is a loop.
+            //: A later keystroke calls `save()` again, which is the right trigger.
+            again = false;
             const status = (e as { status?: unknown } | null | undefined)?.status;
-            if (status !== 409) throw e;
-            reloadAfterConflict();
-          }), 500);
+            if (status === 409) { reloadAfterConflict(); return; }
+            this.setStatus("Budget save failed: " + (e as Error).message);
+          })
+          .finally(() => { inFlight = false; if (again) flush(); });
       };
+      const save = () => { clearTimeout(timer); timer = window.setTimeout(flush, 500); };
       const num = (v: string) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
       const paint = (r?: import("../api/types").DevBudgetResponse) => {
