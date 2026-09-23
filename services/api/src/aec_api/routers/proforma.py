@@ -1031,6 +1031,21 @@ def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(cu
             "reviewed_at": s.reviewed_at.isoformat() if s.reviewed_at else None}
 
 
+def _scenario_lock_key(sid: str) -> str:
+    """The serialisation key for one scenario's shared-access list.
+
+    Namespaced like `connections._lock_key`: `pid_lock` is named for projects, but `advisory_key`
+    hashes any string into one namespace, so the prefix keeps this out of the project id space.
+
+    Keyed on the SCENARIO, not on `Scenario.project_id`, for two reasons. `project_id` is nullable,
+    so a scenario that belongs to no project would take a lock on `None`; and the contended value is
+    this row's own list, so a project-wide key would serialise grants on unrelated scenarios for
+    nothing. A function rather than an inline f-string so a second writer of this column cannot be
+    added on a different key -- which reads as locked and protects nothing.
+    """
+    return f"scenario:{sid}"
+
+
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
 def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
                    db: Session = Depends(get_db), actor: str = Depends(current_user)):
@@ -1045,9 +1060,29 @@ def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
     different people under one name.
     """
     s = _scenario_for(sid, db, actor, write=True)
-    s.shared_with = sorted(set((s.shared_with or []) + [target]))
-    db.commit()
-    return {"id": s.id, "shared_with": s.shared_with}
+    # RMW-SHARE (gap G-10). `sorted(set(existing + [target]))` is a set union over a value this
+    # request read, so two grants issued at once both build their list from the same pre-image and
+    # the later commit drops the earlier grant. **Neither caller can tell**: the response echoes the
+    # list the winner built, which contains the target THAT caller asked for, so both requests answer
+    # 201 with their own person present. *A lost update you can see in the response is a bug report;
+    # one that answers correctly to each party separately is found months later by the LP who cannot
+    # open the scenario.*
+    #
+    # A lock rather than a compare-and-swap, for the reason `connections.update_connection` states:
+    # `scenarios` carries no version column, and two grants are INDEPENDENT claims rather than rival
+    # ones -- serialising lets the second union onto the first's committed list so both survive,
+    # where a 409 would refuse an edit that does not actually conflict.
+    #
+    # `db.refresh` is half the fix: `_scenario_for` loaded `s` before the wait, and the session's
+    # identity map would hand back that pre-image, so the waiter would union onto the list it read
+    # BEFORE the winner committed and the lock would serialise two writes of the same stale value.
+    from .. import pid_lock
+    with pid_lock.mutating(_scenario_lock_key(sid)):
+        db.refresh(s)
+        s.shared_with = sorted(set((s.shared_with or []) + [target]))
+        db.commit()
+        granted = list(s.shared_with)
+    return {"id": s.id, "shared_with": granted}
 
 
 @router.put("/proforma/scenarios/{sid}")

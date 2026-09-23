@@ -139,6 +139,19 @@ def drawing_set(db, pid: str) -> dict[str, Any]:
 
 # --- revision / delta register (AIA: each sheet carries a revision block of deltas, each often driven
 # by an Addendum / ASI / CCD / Bulletin) -----------------------------------------------------------
+def _lock_key(pid: str, drawing_id: str) -> str:
+    """The serialisation key for one sheet's revision block and its carried-forward markups.
+
+    Namespaced like `connections._lock_key`: `pid_lock` is named for projects, but `advisory_key`
+    hashes any string into one namespace, so the prefix keeps this out of the project id space. Keyed
+    per SHEET rather than per project, because revisions to two different sheets are independent and
+    a project-wide key would serialise them for nothing. A function rather than an inline f-string so
+    a second writer of this block cannot be added on a different key -- which reads as locked and
+    protects nothing.
+    """
+    return f"drawing:{pid}:{drawing_id}"
+
+
 def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
                  rev_date: str | None = None, instrument_type: str = "", instrument_ref: str = "",
                  actor: str = "reviser", party: str | None = "GC") -> dict[str, Any]:
@@ -146,40 +159,64 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
     sheet's current revision. Optionally cite the change instrument that drove it (ASI-003, Add 2, …)."""
     from datetime import date
 
-    from . import modules as me
-    rec = me.get_record(db, "drawing", pid, drawing_id)          # 404 if missing
-    data = rec.get("data") or {}
-    revs = list(data.get("revisions") or [])
-    delta: dict[str, Any] = {"rev": str(rev), "date": rev_date or date.today().isoformat(),
-                             "description": description}
-    if instrument_ref:
-        delta["instrument"] = {"type": instrument_type, "ref": instrument_ref}
-    revs.append(delta)
-    old_rev = data.get("revision")
-    me.update_record(db, "drawing", pid, drawing_id,
-                     {"revision": str(rev), "revisions": revs}, actor, party)
-    # MARKUP-2a (slip-sheet): every existing markup on this sheet now predates the new revision — tag
-    # it `carried_from` so reviewers verify it against the revised sheet. Markups keep rendering (a
-    # located comment is never dropped); the tag is the honest "carried forward — re-check" state.
-    carried = 0
-    try:
-        from .models import DrawingMarkup
-        base = str(data.get("sheet_number") or data.get("number") or rec.get("ref") or "").strip()
-        if base:
-            for m in (db.query(DrawingMarkup)
-                        .filter(DrawingMarkup.project_id == pid,
-                                DrawingMarkup.sheet_id.in_([base, f"{base}#pdf"])).all()):
-                d2 = dict(m.data or {})
-                if d2.get("rev") != str(rev) and "carried_from" not in d2:
-                    d2["carried_from"] = str(d2.get("rev") or old_rev or "prior")
-                    m.data = d2
-                    carried += 1
-            if carried:
-                db.commit()
-    except Exception:                                # noqa: BLE001 — tagging must never block a revision
-        pass
-    return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs),
-            "markups_carried": carried}
+    from . import pid_lock
+
+    # RMW-REVISE. TWO read-modify-writes, and the whole function is ONE logical edit, so a single
+    # lock spans both: `revisions` on the drawing record, and `data` on each markup carried forward.
+    #
+    # **The sweep ledger keyed this site on `m.data`, and that is the LESS severe half.** The markup
+    # tag is guarded by `"carried_from" not in d2`, so a concurrent repeat is a no-op, and nothing
+    # else in the tree read-modify-writes that column. The half that loses real work is `revisions`:
+    # two revisions recorded on one sheet at once each append their own delta to the same pre-image,
+    # and the later write stores the list WITHOUT the earlier delta -- so a revision that was
+    # accepted, with an incremented `delta_count` in its own response, is absent from the sheet and
+    # from the cross-sheet register `revisions()` builds. *A derivation keyed by attribute names the
+    # site it matched, not the worst thing happening inside it.*
+    #
+    # The read is INSIDE the lock: re-reading after the wait is the point, and `get_record` runs a
+    # Core `select` rather than an ORM load, so it really does see the winner's committed row and
+    # not a session identity-map pre-image.
+    #
+    # Inline rather than a `_revise_sheet_locked` helper, and that was not a style choice: the first
+    # draft hoisted the body out, which moved the `with` into the CALLER -- and `test_rmw_sweep`'s
+    # `under_pid_lock` reds on exactly that, because a lock it cannot see in the function it is
+    # asked about is a lock it cannot verify. *A refactor that relocates a guard out of the scope a
+    # checker examines turns a verified claim into an asserted one.*
+    with pid_lock.mutating(_lock_key(pid, drawing_id)):
+        from . import modules as me
+        rec = me.get_record(db, "drawing", pid, drawing_id)          # 404 if missing
+        data = rec.get("data") or {}
+        revs = list(data.get("revisions") or [])
+        delta: dict[str, Any] = {"rev": str(rev), "date": rev_date or date.today().isoformat(),
+                                 "description": description}
+        if instrument_ref:
+            delta["instrument"] = {"type": instrument_type, "ref": instrument_ref}
+        revs.append(delta)
+        old_rev = data.get("revision")
+        me.update_record(db, "drawing", pid, drawing_id,
+                         {"revision": str(rev), "revisions": revs}, actor, party)
+        # MARKUP-2a (slip-sheet): every existing markup on this sheet now predates the new revision — tag
+        # it `carried_from` so reviewers verify it against the revised sheet. Markups keep rendering (a
+        # located comment is never dropped); the tag is the honest "carried forward — re-check" state.
+        carried = 0
+        try:
+            from .models import DrawingMarkup
+            base = str(data.get("sheet_number") or data.get("number") or rec.get("ref") or "").strip()
+            if base:
+                for m in (db.query(DrawingMarkup)
+                            .filter(DrawingMarkup.project_id == pid,
+                                    DrawingMarkup.sheet_id.in_([base, f"{base}#pdf"])).all()):
+                    d2 = dict(m.data or {})
+                    if d2.get("rev") != str(rev) and "carried_from" not in d2:
+                        d2["carried_from"] = str(d2.get("rev") or old_rev or "prior")
+                        m.data = d2
+                        carried += 1
+                if carried:
+                    db.commit()
+        except Exception:                                # noqa: BLE001 — tagging must never block a revision
+            pass
+        return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs),
+                "markups_carried": carried}
 
 
 def revisions(db, pid: str) -> dict[str, Any]:

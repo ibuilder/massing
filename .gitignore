@@ -68,6 +68,7 @@ postgres-data/
 storage/
 test_storage/
 test_storage_*/
+_sharerev_test.db
 _storage_*/
 # Any directory whose name ENDS IN `_storage` — the naming convention every local object store in
 # this repo already follows, not "any storage directory whatever it is called": a scratch dir named

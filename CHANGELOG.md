@@ -12,6 +12,53 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Two LPs granted access to one scenario, and one of the grants was never there
+
+`proforma.share_scenario` unions a grantee into `Scenario.shared_with` over a value it has already
+read, so two LPs granted access at the same moment leave one grant behind. **Both callers get a 201
+naming their own person** — the response echoes the winner's list — so nothing surfaces until the
+loser's LP cannot open the scenario and somebody goes looking for a grant that was acknowledged and
+does not exist. `drawingset.revise_sheet` is the same shape on a sheet's `revisions` list: an
+accepted revision is counted in its own response and is absent from the sheet and from the
+cross-sheet register. The scenario site is gap G-10's last band-2 entry, and with it **the ORM
+read-modify-write sweep closes outright: 43 sites, 43 reasoned exempt or locked, 0 named open.**
+
+*That number was rewritten at the moment it became true, not before.* On the base this work was
+built against it read "four to two, and both survivors are the `dev_budget` pair" — accurate then,
+and false the instant the lock-boundary change landed and locked that pair. A count carried across a
+rebase is a measurement of a tree that no longer exists, so it was re-read from `test_rmw_sweep`
+rather than carried forward. The same failure this file records about narrative copies of a pinned
+number, arriving by the other door: not prose drifting away from a gate, but prose staying still
+while the gate moved under it.
+
+**A lock, not a compare-and-swap**, for the reason `connections.update_connection` already states in
+this file: two grants are *independent* claims, so serialising lets both survive where a 409 would
+refuse an edit that does not conflict.
+
+**`db.refresh` inside the lock is half the fix, and the half a lock alone cannot supply.**
+`_scenario_for` loads the row *before* the wait, so without the refresh SQLAlchemy's identity map
+hands the loser the list it read on the far side of the lock and the lock serialises two writes of
+the same stale value — perfectly ordered, and still losing a grant. *A lock makes writers take
+turns; it does not make the second one re-read.* The key is the scenario, not `Scenario.project_id`,
+which is nullable.
+
+**The ledger keyed the drawing site on `m.data`, and that is the milder half of what is wrong there.**
+The markup tag it names is guarded by `"carried_from" not in d2` and has no other read-modify-writer;
+the `revisions` list beside it loses an accepted revision outright. *A derivation keyed by attribute
+names the site it matched, not the worst thing happening inside it* — so a finding's title is a
+starting point for reading the function, never a summary of it.
+
+**The first fix was wrong in a way that looked like tidying.** Hoisting the body into a
+`_revise_sheet_locked` helper moved the `with` into the *caller*, and `test_rmw_sweep`'s
+`under_pid_lock` went red on exactly that: a lock it cannot see in the function it is asked about is
+a lock it cannot verify. Inlined instead. *A refactor that relocates a guard out of the scope a
+checker examines turns a verified claim into an asserted one.*
+
+`services/api/test_share_revise_lock.py` asserts BEHAVIOUR — both grants survive, both revisions
+survive, and with the lock neutered the same forced interleaving loses one of each (`shared_with`
+comes back holding only `lp-a`, `revisions` only `C`). A test that grepped for `pid_lock` would pass
+on a lock wrapped around the assignment alone.
+
 ### LOCK-XPROC — the cross-process lock was proven by two threads in one process
 
 `test_pid_lock_xproc.py` is named for cross-process serialisation and asserts a great deal about it.
