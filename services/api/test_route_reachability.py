@@ -54,8 +54,12 @@ sys.path.insert(0, "src")
 os.environ["DATABASE_URL"] = "sqlite:///./_route_reach.db"
 os.environ.setdefault("STORAGE_DIR", "./_route_reach_store")
 
+import web_source as _web_source_mod  # noqa: E402
 from aec_api.main import app  # noqa: E402
+from web_source import _WEB as _WEB_SRC  # noqa: E402
 from web_source import _web_source, strip_comments, web_files  # noqa: E402
+
+_ws_glob = _web_source_mod.glob
 
 FAILED: list[str] = []
 
@@ -1241,6 +1245,33 @@ check("`web_files()` returns a deterministic order, so this gate reads the same 
       web_files() == sorted(web_files()),
       "the glob is unsorted again -- verdicts computed from a concatenation then depend on "
       "filesystem order, and an intermittent red cannot be reproduced from the commit that caused it")
+
+#: ...AND THE CHECK ABOVE IS VACUOUS ON THIS TREE, which is why this probe exists. `web_files()`
+#: walks two glob patterns; sorting INSIDE that loop yields `[every .ts sorted] + [every .tsx
+#: sorted]`, which is deterministic but not sorted. The assertion above cannot tell that from a
+#: global sort, because the tree holds **0 `.tsx` files against 658 `.ts`** -- so the first draft of
+#: the fix sorted per pattern, was accidentally right, and was accidentally green. *A check that
+#: passes because its population is empty has the same shape as one that passes because the code is
+#: correct.* Found in review round 16. The contract is therefore probed on an input the tree cannot
+#: supply: one `.tsx` that must sort BEFORE the `.ts`.
+_real_glob = _ws_glob.glob
+
+
+def _mixed_glob(pat, recursive=False):           # noqa: ARG001 -- signature must match
+    return [os.path.join(_WEB_SRC, "z.ts")] if pat.endswith("*.ts") else [os.path.join(_WEB_SRC, "a.tsx")]
+
+
+_ws_glob.glob = _mixed_glob
+try:
+    _MIXED = web_files()
+finally:
+    _ws_glob.glob = _real_glob
+check("  ...and `web_files()` sorts the WHOLE list rather than once per glob pattern -- probed with "
+      "a synthetic `.tsx` that must sort BEFORE a `.ts`, because the real tree has no `.tsx` at all "
+      "and so cannot distinguish the two",
+      [os.path.basename(f) for f in _MIXED] == ["a.tsx", "z.ts"],
+      f"per-pattern order: {[os.path.basename(f) for f in _MIXED]} -- the sort is inside the pattern "
+      "loop, so the list is two sorted runs concatenated")
 
 #: AND THE CALL SITE IS PINNED BY READING THIS FILE, because neither check above reds when somebody
 #: writes `BLOB` there again. The fixture proves the hazard exists; the invariance check proves

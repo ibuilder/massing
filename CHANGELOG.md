@@ -12,6 +12,30 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Round 16: the RVT translation was still on the event loop, and the sort check could not fail
+
+A full review pass over the current head found two, and both were inside this PR's own earlier fixes.
+
+**The APS translation in `import_rvt` still ran on the event loop.** Round 12 moved `staged.write_bytes`
+off it, with a comment explaining that a converted IFC is hundreds of megabytes and blocking the
+coroutine freezes every other request in the process. The call that *produces* those bytes —
+`aps.translate_rvt_to_ifc`, which `convert.py` documents as running "for many minutes" and already
+sends to the threadpool for that reason — sat directly above it, unwrapped. *Fixing the blocking call
+you are looking at is not the same as fixing the blocking call that dominates the route*, and the
+smaller one was the one that already had a comment pointing at it.
+
+**And the new determinism check could not fail.** `web_files()` sorted inside its glob loop, yielding
+`[every .ts sorted] + [every .tsx sorted]` — deterministic, but not sorted. The assertion that it is
+sorted passed anyway, because the tree holds **0 `.tsx` files against 658 `.ts`**: the fix was
+accidentally right and the check was accidentally green. The day somebody added a `.tsx` the check
+would have gone red with a message blaming the glob — *a check whose failure message can misdiagnose
+is worse than one that stays silent, because somebody acts on it.* The sort is now one pass over the
+whole list, and the contract is probed by feeding a synthetic `.tsx` through the real function, since
+the tree cannot supply one.
+
+*A check that passes because its population is empty has the same shape as one that passes because
+the code is correct.* Reverting either fix reds exactly one assertion, naming the right cause.
+
 ### The "CI flake" in the reachability gate was a backtick in a comment, and the answer depended on directory order
 
 `test_route_reachability` went red on 2026-09-23, passed on a re-run of a byte-identical tree, and

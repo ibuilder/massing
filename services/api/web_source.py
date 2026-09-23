@@ -51,14 +51,23 @@ def web_files() -> list[str]:
     """
     out = []
     for pat in ("**/*.ts", "**/*.tsx"):
-        for p in sorted(glob.glob(os.path.join(_WEB, pat), recursive=True)):
+        for p in glob.glob(os.path.join(_WEB, pat), recursive=True):
             q = p.replace("\\", "/")
             if ".test." in q or "/src/demo/" in q:
                 continue
             if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
                 continue          # generated FROM the spec: lists every route, calls none
             out.append(p)
-    return out
+    #: ONE sort over the WHOLE list, not one per glob pattern. Sorting inside the loop yields
+    #: `[every .ts sorted] + [every .tsx sorted]`, which is deterministic but is not sorted — and the
+    #: assertion in `test_route_reachability` that this is sorted CANNOT TELL THE TWO APART TODAY,
+    #: because the tree holds 0 `.tsx` files against 658 `.ts`. So the first draft of the fix was
+    #: accidentally right and its check was accidentally green; the day somebody adds a `.tsx` the
+    #: check would have red with a message blaming the glob. *A check that passes because its
+    #: population is empty is the same shape as one that passes because the code is correct.*
+    #: Found in review. The probe beside that assertion feeds a synthetic `.tsx` through this
+    #: function so the contract is tested on an input the tree cannot supply.
+    return sorted(out)
 
 
 def strip_comments(src: str) -> str:

@@ -1481,7 +1481,15 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
     if not data:
         raise HTTPException(400, "empty .rvt file")
     try:
-        ifc = aps.translate_rvt_to_ifc(data, file.filename or "model.rvt")
+        # ...AND THE TRANSLATION ITSELF, which is the bigger blocker and was left on the loop by the
+        # round-12 fix below. `convert.py` says this call "can run for many minutes" and sends it to
+        # the threadpool for exactly that reason; here it sat directly in the coroutine, so an RVT
+        # import froze every other request in the process -- SSE streams, health checks, everything --
+        # for the whole translation. Round 12 moved the WRITE off the loop and left the thing that
+        # produces what the write writes. *Fixing the blocking call you are looking at is not the
+        # same as fixing the blocking call that dominates the route*, and the smaller one was the
+        # one with a comment already pointing at it. Found in review round 16.
+        ifc = await run_in_threadpool(aps.translate_rvt_to_ifc, data, file.filename or "model.rvt")
     except RuntimeError as e:  # NotImplementedError is a RuntimeError subclass — both mean "bridge unavailable"
         raise HTTPException(502, f"RVT→IFC bridge: {e}") from e    # clear, actionable provisioning error
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
