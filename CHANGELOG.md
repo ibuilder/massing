@@ -217,6 +217,19 @@ test. Comparing basenames answers both questions at once with no lookbehind to g
 check that real invocations are still *accepted*, that would have shipped as a stricter-looking gate
 that had quietly stopped recognising a legitimate way to run the file.
 
+**And then the claim I put to review turned out to be false.** Asking whether the command split
+could ever *invent* an invocation, I asserted that every parsing error loses one instead — and
+measured it before the answer came back. `echo "a; python test_pid_lock_pgxproc.py ; true"` returned
+true: a regex split cannot see quotes, so a `;` inside a string ended the `echo` early and handed the
+rest back as its own command. *A claim about which way a heuristic fails is a claim like any other,
+and this file's entire subject is that an unchecked one reads as settled.* The line is now tokenised
+with `shlex` in POSIX mode with `punctuation_chars`, which respects quoting for the comment marker
+**and** the separators, so one change closes both — including a case the character-level strip got
+wrong in the other direction, where a quoted `#` swallowed a real invocation after it. Per line,
+because a `run: |` block is a sequence of commands and newlines are whitespace to `shlex`. An
+unbalanced quote raises and that line is skipped: unreadable is not "runs it", and the caller
+requires exactly one step, so skipping reds rather than vouches.
+
 **Merging the environment in force was not reading the value.** `AEC_PG_REQUIRED: ""` is exported by
 GitHub as an empty string, which the consumer reads as opted *out* — so the key-presence check passed
 a workflow whose step would take the no-server branch and exit 0. The predicate is now derived from

@@ -44,6 +44,7 @@ import ast
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -104,6 +105,10 @@ _ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
 #: incompleteness where it fails loudly.*
 _RUNNERS = ("python", "python3", "pytest", "coverage", "uv", "poetry", "tox", "nox", "hatch", "pdm")
 
+#: Shell tokens that END one command and begin another. `shlex(punctuation_chars=True)` emits these
+#: as tokens of their own AND respects quoting, which a `re.split` cannot -- see `_invokes`.
+_SEPS = {";", "|", "||", "&&", "&"}
+
 
 def _invokes(run: str, script: str) -> bool:
     """Does this `run:` block INVOKE `script`, as opposed to merely mentioning it?
@@ -131,22 +136,45 @@ def _invokes(run: str, script: str) -> bool:
     the caller, because the caller requires exactly one step. The opposite error, counting a comment
     as an invocation, is the one that passes quietly, and that is the one this closes.
     """
-    #: NO REGEX. The first draft matched the name as a whole token and then asked what the command
-    #: was; the token pattern excludes a preceding `/` on purpose (so a longer path cannot vouch for
-    #: a shorter one), which meant a direct exec `./test_pid_lock_pgxproc.py` never reached the
-    #: command test at all. Comparing BASENAMES answers both questions at once and has no lookbehind
-    #: to get wrong. *The positive control is what found that — the narrowing written to close `echo`
-    #: had also closed a shape that really does run the file.*
+    #: TOKENISED WITH `shlex`, NOT SPLIT WITH A REGEX, and the reason is a fail-OPEN I found in my
+    #: own claim about this function. Asking review to check whether the split could ever INVENT an
+    #: invocation, I asserted every parsing error loses one instead. Measured before the answer came
+    #: back: `echo "a; python test_pid_lock_pgxproc.py ; true"` returned True. A regex split cannot
+    #: see quotes, so a separator INSIDE a string ended the `echo` early and handed the rest back as
+    #: its own command. *A claim about which way a heuristic fails is a claim like any other, and
+    #: this file's whole subject is that an unchecked one reads as settled.*
+    #:
+    #: `shlex` in POSIX mode with `punctuation_chars` respects quoting for BOTH the comment marker
+    #: and the separators, so both corrections come from one change rather than two patches. It also
+    #: fixed a case the regex got wrong in the other direction: `echo "a # b" && python <file>` was
+    #: read as fully commented out.
+    #:
+    #: PER LINE, because a `run: |` block is a sequence of commands and newlines are whitespace to
+    #: `shlex` -- run over the whole block, `cd services/api` and the `python` line on the next row
+    #: would merge into one command whose head is `cd`. Unbalanced quotes raise, and that line is
+    #: then skipped: unreadable is not "runs it", and the caller requires exactly one step, so
+    #: skipping reds rather than vouches.
     for line in run.splitlines():
-        for segment in re.split(r"&&|\|\||[;|]", line.split("#", 1)[0]):
-            words = [w for w in segment.split() if not _ENV_ASSIGN.match(w)]
-            if not words:
-                continue
-            if os.path.basename(words[0]) == script:              # a direct exec
-                return True
-            if os.path.basename(words[0]) in _RUNNERS and any(
-                    os.path.basename(w) == script for w in words[1:]):
-                return True
+        lex = shlex.shlex(line, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        try:
+            toks = list(lex)
+        except ValueError:
+            continue
+        seg: list[str] = []
+        for tok in [*toks, ";"]:
+            if tok in _SEPS:
+                words = [w for w in seg if not _ENV_ASSIGN.match(w)]
+                seg = []
+                if not words:
+                    continue
+                head = os.path.basename(words[0])
+                if head == script:                                    # a direct exec
+                    return True
+                if head in _RUNNERS and any(os.path.basename(w) == script for w in words[1:]):
+                    return True
+            else:
+                seg.append(tok)
     return False
 
 
@@ -247,6 +275,28 @@ check("SELF-TEST: ...and the shapes that DO run it are accepted -- the shipped o
       and _run("./test_pid_lock_pgxproc.py")
       and _run("cd services/api && python test_pid_lock_pgxproc.py"),
       "a real invocation was rejected -- narrowing the command test broke the thing it protects")
+
+#: THE FAIL-OPEN I FOUND IN MY OWN CLAIM. Asking review whether the command split could ever INVENT
+#: an invocation, I asserted every parsing error loses one instead, and then measured it before the
+#: answer came back: a `;` inside a quoted string ended the `echo` early and handed the rest back as
+#: its own command, so `echo "a; python <file> ; true"` read as an invocation. A regex split cannot
+#: see quotes. *A claim about WHICH WAY a heuristic fails is a claim like any other.*
+check("SELF-TEST: a separator inside a QUOTED string does not manufacture an invocation",
+      not _run('echo "a; python test_pid_lock_pgxproc.py ; true"')
+      and not _run('printf "%s" "; python test_pid_lock_pgxproc.py ;"'),
+      "a quoted string containing a command was read as that command")
+check("SELF-TEST: ...and a `#` inside a QUOTED string does not comment out the rest of the line, "
+      "which the character-level strip got wrong in the other direction",
+      _run('echo "a # b" && python test_pid_lock_pgxproc.py'),
+      "a quoted # swallowed a real invocation after it")
+check("SELF-TEST: ...a multi-line `run:` block is read per LINE, so the command on the second row "
+      "is not absorbed into the first",
+      _run("cd services/api\npython test_pid_lock_pgxproc.py"),
+      "a multi-line run block lost the invocation on its second line")
+check("SELF-TEST: ...and an UNBALANCED quote is not read as an invocation -- unreadable is not "
+      "'runs it', and the caller requires exactly one step, so this reds rather than vouches",
+      not _run("echo 'unbalanced && python test_pid_lock_pgxproc.py"),
+      "a line that cannot be tokenised was treated as running the file")
 
 check("SELF-TEST: ...and a real invocation with a trailing comment on the SAME line still counts, "
       "so the comment stripping is not always-no",
