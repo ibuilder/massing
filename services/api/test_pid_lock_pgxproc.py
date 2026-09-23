@@ -40,6 +40,7 @@ Run: `PYTHONPATH=src:../data/src python test_pid_lock_pgxproc.py`
 """
 from __future__ import annotations
 
+import ast
 import os
 import pathlib
 import shutil
@@ -163,6 +164,23 @@ with pid_lock.mutating(pid):
 """
 
 
+def _scrub(text: str, pwd: str | None = None) -> str:
+    """The Postgres password removed from captured CHILD output, at the capture boundary.
+
+    The children are handed the DSN through `DATABASE_URL` in their environment, and their stdout and
+    stderr are reported in a failure detail below. That is a second path from the credential to the
+    log, distinct from the connect-failure message `_safe` covers, and CodeQL flagged it as one HIGH
+    after the other was fixed. *Fixing the sink that was reported closes that sink* — the same shape
+    this branch's own lock work keeps running into, arriving here in the security rules.
+
+    Scrubbed where the text is CAPTURED rather than where it is printed, so a future `print(outs)`
+    anywhere downstream cannot reintroduce it. A sanitiser applied at each sink is a list that has to
+    stay complete; one applied at the boundary is a property of the value.
+    """
+    secret = os.environ.get("PGPASSWORD", "") if pwd is None else pwd
+    return text.replace(secret, "***") if secret else text
+
+
 def _run_pair(url: str, pid_a: str, pid_b: str, mode_b: str, hold: float = 1.5):
     """Start A, wait until it is demonstrably inside the lock, then start B. Returns the log lines.
 
@@ -196,7 +214,8 @@ def _run_pair(url: str, pid_a: str, pid_b: str, mode_b: str, hold: float = 1.5):
             proc.kill()
             o, e = proc.communicate()
             e = (e or "") + " [KILLED after 90s]"
-        outs[name] = (proc.returncode, o, e)
+        #: Scrubbed HERE, not at the print: the value carries the property from the moment it exists.
+        outs[name] = (proc.returncode, _scrub(o or ""), _scrub(e or ""))
     lines = [ln.split() for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
     shutil.rmtree(log.parent, ignore_errors=True)
     return lines, outs
@@ -227,6 +246,42 @@ def _backends(lines) -> set[str]:
 #: exact CodeQL HIGH it was written for, and the only place it runs is a failure path that a green run
 #: never takes -- so without these it would be exercised by nothing until the day it mattered.
 #: *A guard that only runs when something has already gone wrong needs a test that runs always.*
+#: The password is a PARAMETER here, not read from the environment -- the first draft of this check
+#: was `... if os.environ.get("PGPASSWORD") == "sekret" else True`, which passes vacuously on every
+#: ordinary run. That is the same shape as the `web_files()` sortedness assertion this branch's own
+#: CHANGELOG records: *a check that passes because its population is empty has the same shape as one
+#: that passes because the code is correct.* Caught before it was pushed, by the entry about it.
+check("captured child output carries no password either -- the SECOND path from the credential to "
+      "the log, flagged by CodeQL only after the first was fixed; scrubbed at CAPTURE so no later "
+      "print can reintroduce it",
+      _scrub("psycopg.OperationalError: ... password=sekret failed", pwd="sekret")
+      == "psycopg.OperationalError: ... password=*** failed",
+      _scrub("psycopg.OperationalError: ... password=sekret failed", pwd="sekret"))
+check("  ...and an empty password scrubs nothing rather than replacing every empty string in the "
+      "output, which `str.replace('', ...)` would do to every character boundary",
+      _scrub("no credentials here", pwd="") == "no credentials here",
+      _scrub("no credentials here", pwd=""))
+#: AND THE CAPTURE BOUNDARY IS PINNED BY READING THIS FILE. The two checks above exercise `_scrub`
+#: directly; NEITHER reds if somebody removes the call in `_run_pair`, because that function only runs
+#: when a real server is reachable and the no-server run never reaches it. So the guard with the
+#: widest blast radius was the one nothing asserted -- *a check that exercises the helper is not a
+#: check that the helper is CALLED.* This reads the assignment itself and requires both captured
+#: streams to pass through it.
+_OUTS = next(
+    (n for n in ast.walk(ast.parse(pathlib.Path(__file__).read_text(encoding="utf-8")))
+     if isinstance(n, ast.Assign) and isinstance(n.value, ast.Tuple)
+     and any(isinstance(tgt, ast.Subscript) and getattr(tgt.value, "id", "") == "outs"
+             for tgt in n.targets)),
+    None)
+_SCRUBBED = [e for e in (_OUTS.value.elts[1:] if _OUTS else [])
+             if isinstance(e, ast.Call) and getattr(e.func, "id", "") == "_scrub"]
+check("child stdout AND stderr are both scrubbed where they are CAPTURED -- asserted from this "
+      "file's own source, because `_run_pair` never runs on a machine with no PostgreSQL server and "
+      "so no behavioural check here can reach it",
+      _OUTS is not None and len(_SCRUBBED) == 2,
+      f"found={'no outs[...] tuple assignment' if _OUTS is None else len(_SCRUBBED)} scrubbed of 2 "
+      "-- a stream captured raw reaches the failure detail below unredacted")
+
 check("the connect-failure message carries no password -- plain case",
       _safe("postgresql+psycopg://u:hunter2@db:5432/x") == "postgresql+psycopg://***@db:5432/x",
       _safe("postgresql+psycopg://u:hunter2@db:5432/x"))

@@ -111,8 +111,21 @@ on a lock wrapped around the assignment alone.
 **CodeQL flagged this file HIGH on its first push, and it was right.** The connect-failure message
 printed the DSN verbatim, so a wrong port or an unreachable service container would have written
 `PGPASSWORD` into the CI log in clear text. *A diagnostic is an output like any other* — and the
-string most worth printing when a connection fails is exactly the one carrying the credential. It is
-redacted now, splitting on the **last** `@` rather than the first, because a password may contain one
+string most worth printing when a connection fails is exactly the one carrying the credential. **And fixing the sink it named exposed a second one.** The children are handed the DSN through
+`DATABASE_URL` in their environment and their stdout and stderr are reported in a failure detail, so
+CodeQL flagged one HIGH after the other was cleared. *Fixing the sink that was reported closes that
+sink* — the same lesson this branch's lock work keeps arriving at, met again in the security rules.
+Captured output is scrubbed **where it is captured**, not at each print: a sanitiser applied at every
+sink is a list that has to stay complete, one applied at the boundary is a property of the value.
+
+That call is pinned by reading this file's own source, because `_run_pair` never runs on a machine
+with no PostgreSQL server — so the guard with the widest blast radius was the one no behavioural
+check here could reach. *A check that exercises a helper is not a check that the helper is called.*
+
+The first draft of the scrub assertion read `… if os.environ.get("PGPASSWORD") == "sekret" else True`
+— **vacuous on every ordinary run**, the same shape as the `web_files()` sortedness check two entries
+below. Caught before it was pushed, by the entry about it. The password is a parameter now. It is
+redacted, splitting on the **last** `@` rather than the first, because a password may contain one
 and a first-`@` split leaves the tail of the secret in the log. Three assertions cover it, since the
 only place it runs is a failure path a green run never takes: *a guard that runs only when something
 has already gone wrong needs a test that runs always.*
