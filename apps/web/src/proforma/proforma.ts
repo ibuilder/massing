@@ -1269,16 +1269,35 @@ export class ProformaUI {
       //: A failed reload is reported rather than swallowed: the panel is then showing a budget the
       //: server has already refused to accept, which is worse than a save error and reads the same
       //: as nothing happening.
-      const reloadAfterConflict = () => this.api.devBudget(pid).then((fresh) => {
-        lines.splice(0, lines.length, ...fresh.budget.lines);
-        for (const k of Object.keys(contingency)) delete contingency[k];
-        Object.assign(contingency, { hard: 0.1, soft: 0.1, acquisition: 0, ...fresh.budget.contingency });
-        rev = fresh.rev ?? null;
-        paint(fresh);
-        this.setStatus("the development budget changed elsewhere (a GMP or model sync, or another editor) — reloaded; re-apply your edit");
-      }).catch(() => {
-        this.setStatus("the development budget changed elsewhere and could not be reloaded — refresh before editing further");
-      });
+      //:
+      //: EDITING IS CLOSED WHILE IT RUNS. Holding the request slot stops a save from LEAVING during
+      //: the reload; it does nothing about the keystroke itself. `lines.splice` replaces the array
+      //: and `paint` rebuilds the inputs from it, so an edit typed in that window is gone from both
+      //: the model and the screen — and the queued follow-up then saves the server's copy back.
+      //: *Serialising the requests still leaves the EDITOR racing the state.* The honest fix is to
+      //: stop accepting input rather than to invent a merge: reconciling a keystroke against a list
+      //: that has just been replaced wholesale needs a rule nobody has chosen, and guessing one
+      //: silently is how a budget acquires a number no one typed. Raised in review.
+      let reloading = false;
+      const setEditable = () => {
+        body.querySelectorAll("input").forEach((el) => { el.disabled = reloading; });
+        body.querySelectorAll("button").forEach((el) => { el.disabled = reloading; });
+      };
+      const reloadAfterConflict = () => {
+        reloading = true; setEditable();
+        return this.api.devBudget(pid).then((fresh) => {
+          lines.splice(0, lines.length, ...fresh.budget.lines);
+          for (const k of Object.keys(contingency)) delete contingency[k];
+          Object.assign(contingency, { hard: 0.1, soft: 0.1, acquisition: 0, ...fresh.budget.contingency });
+          rev = fresh.rev ?? null;
+          reloading = false;                      // before `paint`, which re-enables through `setEditable`
+          paint(fresh);
+          this.setStatus("the development budget changed elsewhere (a GMP or model sync, or another editor) — reloaded; re-apply your edit");
+        }).catch(() => {
+          reloading = false; setEditable();
+          this.setStatus("the development budget changed elsewhere and could not be reloaded — refresh before editing further");
+        });
+      };
       //: ONE SAVE IN FLIGHT AT A TIME. `clearTimeout` cancels a save that has not LEFT yet; it does
       //: nothing to one already on the wire. Two overlapping saves both carry the rev the screen
       //: last heard about, the server commits the first and refuses the second — so on a slow
@@ -1379,6 +1398,10 @@ export class ProformaUI {
         };
         const fwrap = document.createElement("div"); fwrap.style.marginTop = "6px"; fwrap.append(apply);
         body.append(foot, fwrap);
+        //: LAST, because this rebuilt every control above it. `paint` is also what the reload calls
+        //: when it finishes, so the same line re-enables editing; a disable applied anywhere else
+        //: would be undone by the next repaint.
+        setEditable();
       };
       paint(resp);
     }).catch(() => { body.innerHTML = `<div class="meta">cost budget unavailable (API offline)</div>`; });

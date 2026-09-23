@@ -177,6 +177,41 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### "Does it run" and "can it fail the job" are different questions
+
+I had asked review whether `_invokes` could ever fail **open**. It can, three ways, none of them the
+way I asked about — and all three are the same class the last four rounds were about, one level
+further out than any of them reached.
+
+**The step can be skipped, its failure can be ignored, or its exit status can be thrown away.**
+`if: false` is the ordinary way to park a step; `continue-on-error: true` runs it and shrugs;
+`python <file> || true` discards the status, and `python <file> | tee log` hands it to `tee`, because
+GitHub runs `bash -e {0}` with no `pipefail` unless `shell:` says otherwise. In every one of those
+the file *is* executed — which is exactly what the previous rounds established — and the `run:` text,
+the `AEC_PG_REQUIRED` value and the step selection are identical to a live step, so every check added
+so far stays green while CI asserts nothing. *Each round asked a sharper version of "is it written
+down" and none asked "can it fail".*
+
+The separator that **follows** a command segment now decides whether it counts (`;` and `&&` keep the
+status; `||`, `|` and `&` do not), and a job or step that is parked or cannot fail is excluded.
+Explicit `continue-on-error: false` still counts, however it is spelled — `bool("false")` is `True`,
+so the obvious predicate would have red a correct workflow, and a gate that cries wolf gets deleted.
+Only the *constant* false is treated as parked: a real condition is not evaluated here and is not
+assessed, which is stated rather than implied.
+
+**And the budget panel's reload was still racing the editor.** Holding the request slot across the
+conflict reload stops a save from *leaving*; it does nothing about the keystroke. `lines.splice`
+replaces the array and `paint` rebuilds the inputs from it, so an edit typed in that window is gone
+from both the model and the screen, and the queued follow-up then saves the server's copy back.
+Editing is now closed while the reload runs and restored by `paint` — which is also what the reload
+calls when it finishes, so a disable applied anywhere else would be undone by the next repaint.
+Reconciling a keystroke against a list replaced wholesale needs a rule nobody has chosen, and
+guessing one silently is how a budget acquires a number no one typed.
+
+Seven new self-tests. Four mutations, three of them against the real workflow: the step's failure
+masked with `|| true`, the step parked with `if: false`, and `continue-on-error: true` — each takes
+the found-step count to zero.
+
 ### Three fixes that each narrowed the right thing and stopped one question short
 
 A second review pass over the round above found one more defect behind each of its three fixes. The

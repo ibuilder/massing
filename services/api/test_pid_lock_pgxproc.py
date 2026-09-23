@@ -85,10 +85,47 @@ def _steps_running(wf: dict, script: str) -> list[tuple[dict, dict]]:
     for job in (wf.get("jobs") or {}).values():
         if not isinstance(job, dict):
             continue
+        if _parked(job):
+            continue
         for step in job.get("steps") or []:
-            if isinstance(step, dict) and _invokes(str(step.get("run") or ""), script):
+            if isinstance(step, dict) and not _parked(step) and _invokes(str(step.get("run") or ""), script):
                 out.append((job, step))
     return out
+
+
+def _yaml_false(value: object) -> bool:
+    """Is this YAML scalar the constant false, however it was written?
+
+    `continue-on-error: false` parses to a bool, `continue-on-error: "false"` to a string, and
+    `bool("false")` is True -- so the obvious `bool(scope.get(...))` would park a step that had
+    explicitly said it does NOT continue on error. A false alarm on a correct workflow is how a gate
+    gets switched off, which is the failure mode this file spends most of its length avoiding.
+    """
+    if isinstance(value, str):
+        return value.strip().strip("'\"").lower() in {"", "false", "no", "off", "0"}
+    return not value
+
+
+def _parked(scope: dict) -> bool:
+    """Is this job or step SKIPPED, or unable to fail the run?
+
+    Selecting the step that names the file answers "is it written down". It does not answer "does it
+    execute" (`if: false`, the ordinary way to park a step) or "can its failure stop the run"
+    (`continue-on-error: true`). Both leave the `run:` text, the `AEC_PG_REQUIRED` value and the
+    step selection identical, so every check this file has added so far stays green while CI asserts
+    nothing. Raised in review.
+
+    **Only the CONSTANT false is treated as parked, and that limit is deliberate.** A real condition
+    -- `if: github.event_name == 'push'` -- is not evaluated here and is not assessed; flagging every
+    conditional step would red a correct workflow, and a gate that cries wolf gets deleted. So this
+    catches the shape somebody uses to disable a step, and says plainly that it does not catch a
+    step disabled by a condition that happens to be false at run time.
+    """
+    cond = scope.get("if")
+    if cond is not None and str(cond).replace(" ", "").lower() in {"false", "${{false}}"}:
+        return True
+    coe = scope.get("continue-on-error")
+    return coe is not None and not _yaml_false(coe)
 
 
 #: A word of the form `NAME=value`, which the shell strips off the front of a command as an
@@ -108,6 +145,11 @@ _RUNNERS = ("python", "python3", "pytest", "coverage", "uv", "poetry", "tox", "n
 #: Shell tokens that END one command and begin another. `shlex(punctuation_chars=True)` emits these
 #: as tokens of their own AND respects quoting, which a `re.split` cannot -- see `_invokes`.
 _SEPS = {";", "|", "||", "&&", "&"}
+
+#: The subset of `_SEPS` after which a command's exit status no longer reaches the job: `||` runs
+#: the next thing only ON failure, `|` gives the status to the right-hand side, `&` backgrounds it.
+#: `;` and `&&` both leave the status in force -- under `bash -e` a failure ends the step either way.
+_MASKING = {"||", "|", "&"}
 
 
 def _invokes(run: str, script: str) -> bool:
@@ -166,7 +208,15 @@ def _invokes(run: str, script: str) -> bool:
             if tok in _SEPS:
                 words = [w for w in seg if not _ENV_ASSIGN.match(w)]
                 seg = []
-                if not words:
+                #: THE SEPARATOR THAT FOLLOWS DECIDES WHETHER THE EXIT STATUS GATES ANYTHING.
+                #: `python <file> || true` runs it and throws the result away; `python <file> | tee
+                #: log` hands the step's status to `tee`, because GitHub runs `bash -e {0}` with no
+                #: `pipefail` unless `shell:` says otherwise; `&` backgrounds it and the job never
+                #: waits. In all three the file IS executed, which is what the earlier rounds asked,
+                #: and a failing assertion still does not fail CI. *"Does it run" and "can it fail
+                #: the job" are different questions, and every round so far answered the first.*
+                #: Raised in review, in answer to my own question about whether this could fail OPEN.
+                if not words or tok in _MASKING:
                     continue
                 head = os.path.basename(words[0])
                 if head == script:                                    # a direct exec
@@ -297,6 +347,48 @@ check("SELF-TEST: ...and an UNBALANCED quote is not read as an invocation -- unr
       "'runs it', and the caller requires exactly one step, so this reds rather than vouches",
       not _run("echo 'unbalanced && python test_pid_lock_pgxproc.py"),
       "a line that cannot be tokenised was treated as running the file")
+
+#: "DOES IT RUN" AND "CAN IT FAIL THE JOB" ARE DIFFERENT QUESTIONS, and every round before this one
+#: answered the first. Raised in review, in answer to my own question about whether this could fail
+#: OPEN -- it could, three ways, none of them the way I had asked about.
+check("SELF-TEST: an exit status MASKED by `|| true` is not a gate -- the file runs and a failed "
+      "assertion cannot stop CI",
+      not _run("python test_pid_lock_pgxproc.py || true"),
+      "a masked exit status counted as gating CI")
+check("SELF-TEST: ...nor is one PIPED away -- GitHub runs `bash -e {0}` with no `pipefail` unless "
+      "`shell:` says so, and the status then belongs to the right-hand side",
+      not _run("python test_pid_lock_pgxproc.py | tee gate.log"),
+      "a piped exit status counted as gating CI")
+check("SELF-TEST: ...nor one BACKGROUNDED, which the job never waits for",
+      not _run("python test_pid_lock_pgxproc.py &"),
+      "a backgrounded command counted as gating CI")
+check("SELF-TEST: ...and `;` and `&&` still count, so this is not always-no -- under `bash -e` a "
+      "failure ends the step either way",
+      _run("python test_pid_lock_pgxproc.py && echo done")
+      and _run("python test_pid_lock_pgxproc.py ; echo done"),
+      "a separator that LEAVES the status in force was rejected")
+
+_step = lambda extra: _steps_running(                                       # noqa: E731
+    {"jobs": {"j": {"steps": [{"name": "x", "run": "python test_pid_lock_pgxproc.py", **extra}]}}},
+    "test_pid_lock_pgxproc.py")
+_job = lambda extra: _steps_running(                                        # noqa: E731
+    {"jobs": {"j": {**extra, "steps": [{"name": "x", "run": "python test_pid_lock_pgxproc.py"}]}}},
+    "test_pid_lock_pgxproc.py")
+check("SELF-TEST: a step PARKED with `if: false` does not count -- the run text, the flag and the "
+      "selection are all identical to a live step, which is why every earlier check stayed green",
+      not _step({"if": False}) and not _step({"if": "false"})
+      and not _step({"if": "${{ false }}"}) and not _job({"if": False}),
+      "a parked step or job counted as running the file")
+check("SELF-TEST: ...nor does one whose failure is IGNORED by `continue-on-error`, on the step or "
+      "the job",
+      not _step({"continue-on-error": True}) and not _step({"continue-on-error": "true"})
+      and not _job({"continue-on-error": True}),
+      "a step that cannot fail the run counted as gating it")
+check("SELF-TEST: ...and an EXPLICIT `continue-on-error: false` still counts, however it is spelled "
+      "-- `bool(\"false\")` is True, so the obvious predicate would red a correct workflow",
+      _step({"continue-on-error": False}) and _step({"continue-on-error": "false"})
+      and _step({"if": "github.event_name == 'push'"}),
+      "a step that explicitly does NOT continue on error was rejected")
 
 check("SELF-TEST: ...and a real invocation with a trailing comment on the SAME line still counts, "
       "so the comment stripping is not always-no",

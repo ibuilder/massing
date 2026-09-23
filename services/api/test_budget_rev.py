@@ -378,6 +378,19 @@ check("  ...and the in-flight slot is released by the RELOAD finishing, not by t
       and ".finally(() => { inFlight = false;" not in _panel_src,
       "apps/web/src/proforma/proforma.ts -- the reload must own the slot until it resolves")
 
+#: ...AND EDITING IS CLOSED WHILE THE RELOAD RUNS. Holding the request slot stops a save from
+#: LEAVING during the reload; it does nothing about the keystroke. `lines.splice` replaces the array
+#: and `paint` rebuilds the inputs from it, so an edit typed in that window is gone from both the
+#: model and the screen, and the queued follow-up then saves the server's copy back. *Serialising
+#: the REQUESTS still leaves the EDITOR racing the state.* Raised in review, one round after the
+#: slot fix that was supposed to close this.
+check("the conflict reload DISABLES the budget controls while it runs, and `paint` is what restores "
+      "them -- a disable applied anywhere else is undone by the next repaint",
+      "reloading = true; setEditable();" in _panel_src
+      and "el.disabled = reloading;" in _panel_src
+      and _panel_src.rfind("setEditable();") > _panel_src.rfind("body.append(foot, fwrap);"),
+      "apps/web/src/proforma/proforma.ts")
+
 print(f"\ntest_budget_rev {'FAILED' if FAILED else 'OK'}")
 for f in FAILED:
     print(f"  - {f}")
