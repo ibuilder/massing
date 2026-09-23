@@ -146,14 +146,38 @@ _RUNNERS = ("python", "python3", "pytest", "coverage", "uv", "poetry", "tox", "n
 #: as tokens of their own AND respects quoting, which a `re.split` cannot -- see `_invokes`.
 _SEPS = {";", "|", "||", "&&", "&"}
 
-#: The subset of `_SEPS` after which a command's exit status no longer reaches the job: `||` runs
-#: the next thing only ON failure, `|` gives the status to the right-hand side, `&` backgrounds it.
-#: `;` and `&&` both leave the status in force -- under `bash -e` a failure ends the step either way.
-_MASKING = {"||", "|", "&"}
+#: The separators that end a whole COMMAND LIST. Everything between two of these is one list, and
+#: `bash -e` reasons about lists, not about commands -- which is the distinction `_invokes` got
+#: wrong for three rounds.
+_LIST_END = {";", "\n"}
+
+#: The separators that make a list CONDITIONAL, and therefore suspend `-e` for every command in it
+#: but the last.
+_COND = {"&&", "||"}
+
+#: Separators that, when they FOLLOW a command, throw its exit status away: `||` runs the next thing
+#: only on failure, `|` gives the status to the right-hand side (GitHub runs `bash -e {0}` with no
+#: `pipefail` unless `shell:` says otherwise), `&` backgrounds it and the job never waits.
+_AFTER_BAD = {"||", "|", "&"}
+
+
+def _is_invocation(words: list[str], script: str) -> bool:
+    """Is this one command -- a list of words, separators already removed -- running `script`?
+
+    Split out from `_invokes` so the command test and the CONTROL-FLOW test can be read, and
+    mutated, separately. They are different questions and each has been wrong on its own.
+    """
+    words = [w for w in words if not _ENV_ASSIGN.match(w)]
+    if not words:
+        return False
+    head = os.path.basename(words[0])
+    if head == script:                                                # a direct exec
+        return True
+    return head in _RUNNERS and any(os.path.basename(w) == script for w in words[1:])
 
 
 def _invokes(run: str, script: str) -> bool:
-    """Does this `run:` block INVOKE `script`, as opposed to merely mentioning it?
+    """Does this `run:` block invoke `script` in a way that can FAIL THE STEP?
 
     **`script in run` is not the question, and the difference is this file's own defect class.**
     Commenting the invocation out -- `# python test_pid_lock_pgxproc.py`, the ordinary way somebody
@@ -173,6 +197,28 @@ def _invokes(run: str, script: str) -> bool:
     shape was an example of.* So the head word of the command segment holding the name must be a
     Python runner, or be the script itself (`./test_pid_lock_pgxproc.py`).
 
+    **And the failure has to REACH the job, which is a property of the LIST and not of the command.**
+    Three rounds answered "does it run", then a fourth answered "is the separator after it masking",
+    and both left the question open, because `bash -e` does not reason about commands:
+
+    - `true || python <file>` -- the separator AFTER the invocation is `None`, nothing is masked, and
+      the command is simply never reached. *Looking one way down the list is not reading the list.*
+    - `python <file> && echo passed` on one line, then `echo done` on the next. `-e` is suspended for
+      every command of a `&&`/`||` list except the last, so a failing test does not end the step; the
+      list's own status is then discarded because a LATER list runs, and the step exits with `echo
+      done`'s 0. The single-line form of exactly the same text is fine, because there the failing
+      list is last and its status IS the step's.
+
+    So a block is cut into lists at `;` and at newlines, each list into segments at `&&`/`||`/`|`/`&`,
+    and an invocation counts only when its status can reach the runner: nothing masking after it, no
+    `||` before it in the same list, and -- if the list is conditional at all -- the list must be the
+    LAST one in the block, since only the last list's status becomes the step's.
+
+    A `&&` BEFORE the invocation is deliberately accepted: `cd services/api && python <file>` is the
+    ordinary idiom, and refusing it would red a correct workflow. That does mean `false && python
+    <file>` is accepted, which is the same limit `_parked` already states for `if:` -- a constant
+    that is written to be false is caught, a condition that merely evaluates false is not.
+
     **The `#` split is crude on purpose, and it fails in the SAFE direction.** A `#` inside a quoted
     shell string truncates the line early, which can only LOSE an invocation -- and losing it reds
     the caller, because the caller requires exactly one step. The opposite error, counting a comment
@@ -191,40 +237,61 @@ def _invokes(run: str, script: str) -> bool:
     #: fixed a case the regex got wrong in the other direction: `echo "a # b" && python <file>` was
     #: read as fully commented out.
     #:
-    #: PER LINE, because a `run: |` block is a sequence of commands and newlines are whitespace to
-    #: `shlex` -- run over the whole block, `cd services/api` and the `python` line on the next row
-    #: would merge into one command whose head is `cd`. Unbalanced quotes raise, and that line is
-    #: then skipped: unreadable is not "runs it", and the caller requires exactly one step, so
-    #: skipping reds rather than vouches.
+    #: PER LINE, because newlines are whitespace to `shlex` -- run over the whole block,
+    #: `cd services/api` and the `python` line on the next row would merge into one command whose
+    #: head is `cd`. The newline is re-inserted as an explicit token so the list splitting below can
+    #: see it: a line boundary ends a command list exactly as `;` does. Unbalanced quotes raise, and
+    #: that line is then skipped: unreadable is not "runs it", and the caller requires exactly one
+    #: step, so skipping reds rather than vouches.
+    toks: list[str] = []
     for line in run.splitlines():
         lex = shlex.shlex(line, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
         try:
-            toks = list(lex)
+            line_toks = list(lex)
         except ValueError:
-            continue
+            line_toks = []          #: the WHOLE line is dropped, not the tokens read before the
+                                    #: quote -- a partially read line is not a command anybody ran
+        toks.extend(line_toks)
+        toks.append("\n")
+
+    lists: list[list[str]] = []
+    cur: list[str] = []
+    for tok in toks:
+        if tok in _LIST_END:
+            if cur:
+                lists.append(cur)
+            cur = []
+        else:
+            cur.append(tok)
+    if cur:
+        lists.append(cur)
+
+    for index, one in enumerate(lists):
+        segs: list[list[str]] = []
+        seps: list[str] = []
         seg: list[str] = []
-        for tok in [*toks, ";"]:
+        for tok in one:
             if tok in _SEPS:
-                words = [w for w in seg if not _ENV_ASSIGN.match(w)]
+                segs.append(seg)
+                seps.append(tok)
                 seg = []
-                #: THE SEPARATOR THAT FOLLOWS DECIDES WHETHER THE EXIT STATUS GATES ANYTHING.
-                #: `python <file> || true` runs it and throws the result away; `python <file> | tee
-                #: log` hands the step's status to `tee`, because GitHub runs `bash -e {0}` with no
-                #: `pipefail` unless `shell:` says otherwise; `&` backgrounds it and the job never
-                #: waits. In all three the file IS executed, which is what the earlier rounds asked,
-                #: and a failing assertion still does not fail CI. *"Does it run" and "can it fail
-                #: the job" are different questions, and every round so far answered the first.*
-                #: Raised in review, in answer to my own question about whether this could fail OPEN.
-                if not words or tok in _MASKING:
-                    continue
-                head = os.path.basename(words[0])
-                if head == script:                                    # a direct exec
-                    return True
-                if head in _RUNNERS and any(os.path.basename(w) == script for w in words[1:]):
-                    return True
             else:
                 seg.append(tok)
+        segs.append(seg)
+        for pos, words in enumerate(segs):
+            if not _is_invocation(words, script):
+                continue
+            after = seps[pos] if pos < len(seps) else None
+            if after in _AFTER_BAD:                   # the status is discarded, piped away or lost
+                continue
+            if "||" in seps[:pos]:                    # only reached if something BEFORE it failed
+                continue
+            if any(s in _COND for s in seps) and index != len(lists) - 1:
+                #: `-e` is suspended inside a conditional list, so a failure here does not end the
+                #: step -- and the list's own status is then overwritten by the list that follows.
+                continue
+            return True
     return False
 
 
@@ -367,6 +434,34 @@ check("SELF-TEST: ...and `;` and `&&` still count, so this is not always-no -- u
       _run("python test_pid_lock_pgxproc.py && echo done")
       and _run("python test_pid_lock_pgxproc.py ; echo done"),
       "a separator that LEAVES the status in force was rejected")
+
+#: AND THE LIST, NOT THE COMMAND. The round above asked what separator FOLLOWS the invocation, which
+#: is still a question about one command; `bash -e` reasons about command LISTS. Raised in review,
+#: with both shapes it misses:
+#:
+#:   `true || python <file>`      -- nothing follows the invocation to mask it, and bash never
+#:                                   reaches it. *Looking one way down the list is not reading it.*
+#:   `python <file> && echo passed`  on one line and `echo done` on the next -- `-e` is suspended
+#:                                   for every command of a conditional list but the last, so the
+#:                                   failure does not end the step, and the list's status is then
+#:                                   overwritten by the list that follows. The SINGLE-LINE form of
+#:                                   the same text is correct, and the check above tested only that.
+check("SELF-TEST: a command reached only ON FAILURE of an earlier one is not a gate -- `||` before "
+      "it means bash skips it whenever the step is going well",
+      not _run("true || python test_pid_lock_pgxproc.py")
+      and not _run("pg_isready || python test_pid_lock_pgxproc.py || true"),
+      "an invocation behind `||` counted as gating CI")
+check("SELF-TEST: ...nor is a conditional list whose status is DISCARDED by a later list -- `-e` is "
+      "suspended inside `&&`, so the failure does not end the step and the last line's 0 wins",
+      not _run("python test_pid_lock_pgxproc.py && echo passed\necho done")
+      and not _run("python test_pid_lock_pgxproc.py && echo passed ; echo done"),
+      "a conditional list followed by another list counted as gating CI")
+check("SELF-TEST: ...and the LAST list still counts however it is reached, so this is not always-no "
+      "-- `cd x && python <file>` is the ordinary idiom and its status IS the step's",
+      _run("echo start\ncd services/api && python test_pid_lock_pgxproc.py")
+      and _run("echo start\npython test_pid_lock_pgxproc.py && echo passed")
+      and _run("python test_pid_lock_pgxproc.py ; echo done"),
+      "a list whose failure DOES reach the runner was rejected")
 
 _step = lambda extra: _steps_running(                                       # noqa: E731
     {"jobs": {"j": {"steps": [{"name": "x", "run": "python test_pid_lock_pgxproc.py", **extra}]}}},

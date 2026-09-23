@@ -177,6 +177,36 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### Looking one way down the list is not reading the list
+
+The round below stopped asking "is it written down" and started asking "can it fail the job", and
+then answered it by looking at the separator that **follows** the invocation. A review pass named two
+shapes that pass with the status masked by nothing at all:
+
+- `true || python <file>` — nothing follows the invocation, so nothing is masked, and bash never
+  reaches it. Reading one token forward is not reading the command list.
+- `python <file> && echo passed` on one line, `echo done` on the next. `bash -e` suspends itself for
+  every command of a `&&`/`||` list except the last, so a failing test does not end the step; the
+  list's own status is then discarded, because a later list runs and the step exits with `echo
+  done`'s zero. **The single-line form of that same text is correct** — there the failing list is the
+  last one and its status *is* the step's — and the check added in the round below tested only the
+  single-line form. *A shape and the same shape one line longer are different programs.*
+
+`bash -e` reasons about command **lists**, not about commands, so the guard now does too: a `run:`
+block is cut into lists at `;` and at line ends, each list into segments at `&&`/`||`/`|`/`&`, and an
+invocation counts only when its status can reach the runner — nothing masking after it, no `||`
+before it in the same list, and, if the list is conditional at all, that list must be the last in the
+block. A `&&` *before* the invocation is deliberately still accepted: `cd services/api && python
+<file>` is the ordinary idiom, and the same limit `_parked` already states applies — a constant
+written to be false is caught, a condition that merely evaluates false is not.
+
+Three new self-tests, and the command test is split out from the control-flow test so each can be
+mutated alone. Deleting either guard reds exactly its own self-test and nothing else; widening the
+conditional-list rule to reject *every* conditional list reds four positive checks, including the
+shipped step's own shape. Three further mutations against the real `db-migrations.yml` — the step
+behind `true ||`, the step as a two-line `&&` block, and the status masked with `|| true` — each take
+the found-step count to zero.
+
 ### "Does it run" and "can it fail the job" are different questions
 
 I had asked review whether `_invokes` could ever fail **open**. It can, three ways, none of them the
@@ -186,10 +216,13 @@ further out than any of them reached.
 **The step can be skipped, its failure can be ignored, or its exit status can be thrown away.**
 `if: false` is the ordinary way to park a step; `continue-on-error: true` runs it and shrugs;
 `python <file> || true` discards the status, and `python <file> | tee log` hands it to `tee`, because
-GitHub runs `bash -e {0}` with no `pipefail` unless `shell:` says otherwise. In every one of those
-the file *is* executed — which is exactly what the previous rounds established — and the `run:` text,
-the `AEC_PG_REQUIRED` value and the step selection are identical to a live step, so every check added
-so far stays green while CI asserts nothing. *Each round asked a sharper version of "is it written
+GitHub runs `bash -e {0}` with no `pipefail` unless `shell:` says otherwise. In the last two the
+file *is* executed — which is exactly what the previous rounds established — and in the first it is
+not executed at all; what all three share is that the `run:` text, the `AEC_PG_REQUIRED` value and
+the step selection are identical to a live step, so every check added so far stays green while CI
+asserts nothing. (The first draft of this paragraph claimed execution in all three, which `if: false`
+plainly contradicts — found in review. *A sentence generalising over cases it lists is worth
+re-reading against each of them.*) *Each round asked a sharper version of "is it written
 down" and none asked "can it fail".*
 
 The separator that **follows** a command segment now decides whether it counts (`;` and `&&` keep the
