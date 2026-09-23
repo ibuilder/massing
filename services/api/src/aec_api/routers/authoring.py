@@ -1377,23 +1377,30 @@ async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
         # spooled this upload to disk, so `write_bytes(await file.read())` was a disk-to-memory-to-
         # disk copy of a file that existed the whole time.
         await run_in_threadpool(storage.stream_to_path, dxf_path, storage.upload_chunks(file))
+        # EVERY blocking step in this route now goes through the threadpool, not just the upload.
+        # The DXF parse and the raise are ifcopenshell work measured in seconds-to-minutes, the IFC
+        # is read and written whole, and `storage.put` is a network round trip -- all of it ran on
+        # the event loop, so one plan raise stalled every other request in the process. Fixing only
+        # the line review pointed at would have left the largest blocker in place two lines above
+        # it: *the defect is "blocking work on the loop", and the class is the route.*
         if preview:
             try:
-                return plan_to_bim.parse_plan(str(dxf_path))
+                return await run_in_threadpool(plan_to_bim.parse_plan, str(dxf_path))
             except RuntimeError as e:
                 raise HTTPException(400, str(e)) from e
         mid = uuid.uuid4().hex
         ifc_tmp = Path(td) / f"{mid}.ifc"
         try:
-            stats = plan_to_bim.raise_plan(str(dxf_path), str(ifc_tmp),
-                                           wall_height=wall_height, wall_thickness=wall_thickness)
+            stats = await run_in_threadpool(
+                plan_to_bim.raise_plan, str(dxf_path), str(ifc_tmp),
+                wall_height=wall_height, wall_thickness=wall_thickness)
         except RuntimeError as e:
             raise HTTPException(400, str(e)) from e
-        ifc_bytes = ifc_tmp.read_bytes()
+        ifc_bytes = await run_in_threadpool(ifc_tmp.read_bytes)
         _ifc_path(pid, "models").mkdir(parents=True, exist_ok=True)
         ifc_path = _ifc_path(pid, "models", f"{mid}.ifc")
-        ifc_path.write_bytes(ifc_bytes)
-        storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", ifc_bytes)
+        await run_in_threadpool(ifc_path.write_bytes, ifc_bytes)
+        await run_in_threadpool(storage.put, f"{storage.safe_seg(pid)}/models/{mid}.ifc", ifc_bytes)
         m = ProjectModel(id=mid, project_id=pid, discipline="2D Raise", ifc_path=str(ifc_path))
         db.add(m)
         audit.record(db, action="model.raise", actor=actor, method="POST",
@@ -1482,8 +1489,12 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
     # LOCK-BOUNDARY, same shape as `upload_source_ifc`. This wrote the PUBLISHED `source.ifc` path
     # directly with `write_bytes` -- no staging at all -- so a concurrent `bake_layers`, which takes
     # the lock and then opens `p.source_ifc`, could open a truncated model.
+    # ...and the staged write goes THROUGH the threadpool like the publish beside it. A converted
+    # IFC is the whole model in one `bytes`, routinely hundreds of MB, and `write_bytes` on the
+    # coroutine blocks the event loop for every other request in the process for the duration --
+    # the v0.3.703 SSE failure in miniature, in a route that already knew to hand the next line off.
     with staged_ifc(ifc_path) as staged:
-        staged.write_bytes(ifc)
+        await run_in_threadpool(staged.write_bytes, ifc)
         await run_in_threadpool(publish_source_ifc, db, p, pid, staged, ifc_path)
     audit.record(db, action="ifc.import_rvt", actor=actor, method="POST", path=f"/projects/{pid}/import/rvt",
                  detail={"rvt": file.filename, "ifc_bytes": len(ifc)})

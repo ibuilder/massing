@@ -183,6 +183,77 @@ def _own_nodes(node: ast.AST):
             stack.extend(ast.iter_child_nodes(n))
 
 
+def _lock_import_names(node: ast.AST) -> set[str]:
+    """The names `node` binds to the pid_lock MODULE itself -- empty for every other import.
+
+    Split out of `pid_lock_names` so the SHADOWING scan can ask the same question in the negative:
+    an import statement that binds the name `pid_lock` to something that is *not* the lock module
+    (`from .fakes import stub as pid_lock`) shadows the real import exactly as an assignment does.
+    """
+    out: set[str] = set()
+    if isinstance(node, ast.ImportFrom):
+        for a in node.names:
+            if a.name == "pid_lock":
+                out.add(a.asname or a.name)
+    elif isinstance(node, ast.Import):
+        for a in node.names:
+            if a.name.split(".")[-1] == "pid_lock":
+                out.add(a.asname or a.name.split(".")[-1])
+    return out
+
+
+def _bound_names(scope: ast.AST, *, skip_lock_imports: bool = False) -> set[str]:
+    """Every name `scope` BINDS in its own body, derived from the grammar rather than enumerated.
+
+    This is the third time a rule in this analyser was written as a list of statement types, and the
+    third time the list was short. `_stored_attrs` moved from `Assign`/`AnnAssign`/`AugAssign` to
+    `ctx=Store` because tuple, starred, `for` and `with` targets are not any of those; the shadowing
+    check in `pid_lock_names` then repeated the mistake with the same three types plus two, and
+    still certified an arbitrary object as the project lock for `pid_lock, _x = other, 1`,
+    `from .fakes import stub as pid_lock`, `except Exception as pid_lock:`, a nested
+    `def pid_lock(...)`, and a module-level rebinding after the import. **The fix for an incomplete
+    enumeration is not a longer enumeration** -- ask the grammar:
+
+      * `ctx=Store` on `ast.Name` is the exact, complete marking of a name assignment in EVERY
+        spelling, the same fact `_stored_attrs` leans on one node type over;
+      * the four binding forms that carry their name as a plain `str` field rather than as a `Name`
+        node -- `ExceptHandler.name`, `FunctionDef/AsyncFunctionDef/ClassDef.name`, import aliases,
+        and `global`/`nonlocal` -- are named explicitly, because the grammar gives no other handle
+        on them. That list is closed by the language, not by what this tree happens to contain.
+
+    Scoped with `_own_nodes`, so a nested body binds in ITS scope and not in this one -- the rule
+    every traversal here has had to learn. A comprehension target is counted as bound although
+    Python scopes it to the comprehension: that over-marks, which for both callers means refusing to
+    resolve or refusing to certify, and a certifier's safe direction is to refuse.
+    """
+    out: set[str] = set()
+    if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        a = scope.args
+        for arg in [*a.posonlyargs, *a.args, *a.kwonlyargs,
+                    *([a.vararg] if a.vararg else []), *([a.kwarg] if a.kwarg else [])]:
+            out.add(arg.arg)
+    for n in _own_nodes(scope):
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+            out.add(n.id)
+        elif isinstance(n, ast.ExceptHandler) and n.name:
+            out.add(n.name)
+        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(n.name)
+        elif isinstance(n, (ast.Global, ast.Nonlocal)):
+            out.update(n.names)
+        elif isinstance(n, (ast.Import, ast.ImportFrom)):
+            lockish = _lock_import_names(n)
+            for al in n.names:
+                if al.name == "*":
+                    continue
+                bound = al.asname or (al.name if isinstance(n, ast.ImportFrom)
+                                      else al.name.split(".")[0])
+                if skip_lock_imports and bound in lockish:
+                    continue
+                out.add(bound)
+    return out
+
+
 def _imports_of(nodes) -> dict[str, tuple[str, str]]:
     """local name -> (module, original name) for the import statements among `nodes`."""
     out: dict[str, tuple[str, str]] = {}
@@ -303,6 +374,24 @@ def _rel(p: pathlib.Path) -> str:
 
 CONFLICT = "<conflicting-binds>"
 
+#: A name this scope BINDS but whose model the analyser could not pin down -- a bare parameter, a
+#: `for` target, a value from a helper with no annotated return. Distinct from "absent": absent means
+#: the enclosing scope's binding is still in force, and this means it is NOT, because Python has
+#: rebound the name here. Dropping these at the end of `_bindings` -- which is what CONFLICT used to
+#: do -- let `collect`'s scope merge fall back to the OUTER model for a name the inner scope had
+#: taken over, so an unlocked write reached neither the violations nor the unknowns. *A sentinel that
+#: is filtered before the merge cannot shadow anything; the filter has to run AFTER the last merge.*
+UNRESOLVED = "<unresolved-local>"
+
+
+def _resolved(binds: dict[str, str]) -> dict[str, str]:
+    """Drop every name that means two models or none, AFTER the whole scope chain has been merged.
+
+    The two sentinels are opposites -- one name with too many meanings, one with too few -- and both
+    resolve to the same verdict: the receiver is UNKNOWN, which is fail-CLOSED and reds the build.
+    """
+    return {k: v for k, v in binds.items() if v not in (CONFLICT, UNRESOLVED)}
+
 
 def _bind(out: dict, name: str, model: str) -> None:
     """Bind `name` to `model`, or to CONFLICT when it already means a DIFFERENT model here.
@@ -391,7 +480,14 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
                 mod, real = alias[fnc.id]
                 if (t := foreign_types.get((mod.rsplit(".", 1)[-1], real))) and t in MODELS:
                     _bind(out, names[0], t)
-    return {k: v for k, v in out.items() if v is not CONFLICT}
+    #: Everything else this scope binds and none of the forms above could resolve. Recording it is
+    #: what makes the scope merge in `collect` a SHADOWING merge rather than an inheriting one: the
+    #: five forms resolve a minority of locals, and for the rest the honest answer is "this name
+    #: means something local that I cannot name", not "this name still means whatever the enclosing
+    #: function fetched". The sentinels survive the merge and `_resolved` removes them at the end.
+    for name in _bound_names(fn):
+        out.setdefault(name, UNRESOLVED)
+    return out
 
 
 def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], bool]:
@@ -428,21 +524,15 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     #: a name bound in a DIFFERENT function; *the dangerous case is the same scope, where the name
     #: is right and the binding is wrong.* Removed rather than resolved: this is a certifier, and
     #: refusing a name it cannot prove is the module is the fail-CLOSED direction.
+    #: `_bound_names`, not a list of statement types -- see its docstring. The first version of this
+    #: check named five and still certified an arbitrary object as the project lock for a tuple
+    #: target, a non-lock import under the name, an `except ... as`, a nested `def`, and a
+    #: module-level rebinding. **MODULE SCOPE IS IN THE LIST**: `chain` holds only functions, so
+    #: `pid_lock = _install_double()` beside the import was invisible to a per-function scan while
+    #: being the one rebinding that affects every function in the file.
     shadowed: set[str] = set()
-    for scope in chain:
-        for arg in [*scope.args.posonlyargs, *scope.args.args, *scope.args.kwonlyargs,
-                    *([scope.args.vararg] if scope.args.vararg else []),
-                    *([scope.args.kwarg] if scope.args.kwarg else [])]:
-            shadowed.add(arg.arg)
-        for n in _own_nodes(scope):
-            if isinstance(n, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
-                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
-                    if isinstance(t, ast.Name):
-                        shadowed.add(t.id)
-            elif isinstance(n, (ast.For, ast.AsyncFor)) and isinstance(n.target, ast.Name):
-                shadowed.add(n.target.id)
-            elif isinstance(n, ast.withitem) and isinstance(n.optional_vars, ast.Name):
-                shadowed.add(n.optional_vars.id)
+    for scope in [tree, *chain]:
+        shadowed |= _bound_names(scope, skip_lock_imports=True)
     return names - shadowed, (bare and "mutating" not in shadowed)
 
 
@@ -563,6 +653,11 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
             #: directions -- which is what the module-level predicate only claimed to be.
             if (cls := enclosing.get(fn)):
                 binds["self"] = cls if cls in MODELS else NOT_A_MODEL
+            #: AFTER the last merge, never inside `_bindings`. A name the inner scope rebinds must
+            #: beat the enclosing scope's model even when the inner binding resolves to nothing --
+            #: filtering the sentinels one scope at a time deleted exactly that information and let
+            #: the outer model flow into a scope that had taken the name over.
+            binds = _resolved(binds)
             seen: set[tuple[str, str]] = set()
             #: EVERY spelling of an attribute write, taken from `ctx=Store` rather than from a list
             #: of statement types -- see `_stored_attrs`. Matching `Assign` alone hid the annotated
@@ -591,7 +686,12 @@ def verdicts(sites: list[tuple]) -> tuple[set, list, list]:
     can be aimed at the JUDGEMENT without also disturbing the discovery -- the two are different
     questions, and `test_unique_read_guard` learned the hard way that asserting a site was REPORTED
     is not asserting it was CLASSIFIED."""
-    protected = {(m, a) for _, _, m, a, ok, _ in sites if m and ok}
+    #: `m != NOT_A_MODEL`: the sentinel is a non-empty string, so `if m` accepted it and a locked
+    #: write through `self` in any NON-mapped class seeded a pair keyed on the sentinel. Harmless
+    #: on its own -- nothing resolves TO it, so no violation could match -- but it put the sentinel's
+    #: attribute into `prot_attrs`, which is what decides whether an UNRESOLVED receiver is worth
+    #: reporting. *A sentinel that means "proved not a model" must not be spendable as a model.*
+    protected = {(m, a) for _, _, m, a, ok, _ in sites if m and m != NOT_A_MODEL and ok}
     prot_attrs = {a for _, a in protected}
     violations = [s for s in sites if s[2] and (s[2], s[3]) in protected and not s[4]]
     unknown = [s for s in sites if s[2] is None and s[3] in prot_attrs and not s[4]]
@@ -729,6 +829,48 @@ _SYNTH = ast.parse(
     "    pid_lock = other\n"
     "    with pid_lock.mutating(pid):\n"
     "        p.source_ifc = 'a rebinding is not the module'\n"
+    #: FOUR MORE SPELLINGS OF THE SAME REBINDING, every one of them certified by the five-statement
+    #: shadowing list that `param_shadow`/`local_shadow` were written against. A tuple target is not
+    #: an `Assign` with a `Name` target; an import binds without any `Name` node at all; `except ...
+    #: as` and a nested `def` carry their name as a plain string field. *Third time a rule here was
+    #: a list of statement types and third time the list was short* -- hence `_bound_names`, which
+    #: asks the grammar. Narrowing it back to statement types reds the violation list below by name.
+    "def tuple_shadow(db, pid, other):\n"
+    "    p = db.get(Project, pid)\n"
+    "    pid_lock, _x = other, 1\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'a tuple target is still a rebinding'\n"
+    "def import_shadow(db, pid):\n"
+    "    from .fakes import stub as pid_lock\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'an import of something else, under the right name'\n"
+    "def except_shadow(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    try:\n"
+    "        pass\n"
+    "    except Exception as pid_lock:\n"
+    "        with pid_lock.mutating(pid):\n"
+    "            p.source_ifc = 'an exception object is not the module'\n"
+    "def nested_def_shadow(db, pid):\n"
+    "    def pid_lock(_x):\n"
+    "        return _x\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'a nested def is not the module either'\n"
+)
+
+#: MODULE SCOPE, which needs its own fixture: a rebinding beside the import poisons every function
+#: in the file, so planting one in `_SYNTH` would silently un-certify every probe above it and the
+#: suite would still look green. `_scope_chain` yields functions only, so a per-function shadowing
+#: scan could not see this at all.
+_MOD_SHADOW = ast.parse(
+    "from .. import pid_lock\n"
+    "pid_lock = _install_test_double()\n"
+    "def writer(db, pid):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'certified by a name the module reassigned'\n"
 )
 _syn_types = _return_types(_SYNTH)
 _syn_sites = []
@@ -736,7 +878,10 @@ for _fn in ast.walk(_SYNTH):
     if isinstance(_fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
         _syn_alias = _alias_map(_SYNTH, _fn)            # scoped exactly as `collect` scopes it
         _syn_lock_names, _syn_bare = pid_lock_names(_SYNTH, _fn)
-        _b = _bindings(_fn, _syn_alias, _syn_types, {}, "synth.py")
+        _b: dict[str, str] = {}                     # merged down the chain, filtered AFTER -- as
+        for _sc in _scope_chain(_SYNTH, _fn):       # `collect` does, so the two cannot drift apart
+            _b.update(_bindings(_sc, _syn_alias, _syn_types, {}, "synth.py"))
+        _b = _resolved(_b)
         for _t in _stored_attrs(_fn):
             _recv = _b.get(_t.value.id) if isinstance(_t.value, ast.Name) else None
             _ok, _out = lock_spans(_fn, _t.attr, _syn_lock_names, _syn_bare)
@@ -748,7 +893,8 @@ _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred"
 check("self-test: a planted unlocked writer of a field locked elsewhere IS reported",
       sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {
           "sloppy_writer", "impostor_lock", "impostor_alias", "unlocked_after_seed",
-          "span_victim", "param_shadow", "local_shadow"}),
+          "span_victim", "param_shadow", "local_shadow", "tuple_shadow", "import_shadow",
+          "except_shadow", "nested_def_shadow"}),
       f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: `lock_spans` stops at a nested function -- a helper's unlocked mention must not "
       "un-certify the ENCLOSING locked write and destroy the seed with it",
@@ -759,6 +905,44 @@ check("self-test: a PARAMETER or LOCAL named `pid_lock` shadows the import and i
       "same scope, right name, wrong object, which `impostor_alias` could not reach",
       {"param_shadow", "local_shadow"} <= {s[1] for s in _sv},
       f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: a TUPLE target, a non-lock IMPORT under the name, an `except ... as` and a "
+      "nested `def` all shadow the import too -- the five-statement list certified every one of "
+      "them, which is why `_bound_names` asks the grammar instead of naming forms",
+      {"tuple_shadow", "import_shadow", "except_shadow", "nested_def_shadow"}
+      <= {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+_ms_fn = next(f for f in ast.walk(_MOD_SHADOW)
+              if isinstance(f, ast.FunctionDef) and f.name == "writer")
+check("self-test: a MODULE-LEVEL rebinding after the import shadows it for every function in the "
+      "file -- `chain` holds functions only, so a per-function scan could not see the one rebinding "
+      "whose blast radius is the whole module",
+      pid_lock_names(_MOD_SHADOW, _ms_fn)[0] == set(),
+      f"still certified: {pid_lock_names(_MOD_SHADOW, _ms_fn)[0]}")
+check("  and the module scope is not simply refusing everything -- the same fixture WITHOUT the "
+      "rebinding must still resolve the lock, or the check above passes by certifying nothing",
+      pid_lock_names(ast.parse("from .. import pid_lock\n"
+                               "def writer(db, pid):\n"
+                               "    with pid_lock.mutating(pid):\n"
+                               "        pass\n"),
+                     next(f for f in ast.walk(ast.parse(
+                         "from .. import pid_lock\n"
+                         "def writer(db, pid):\n"
+                         "    with pid_lock.mutating(pid):\n"
+                         "        pass\n"))
+                         if isinstance(f, ast.FunctionDef)))[0] == {"pid_lock"},
+      "a module-scope shadow scan that removes the genuine import certifies nothing at all")
+
+# THE SENTINEL MAY NOT BE SPENT AS A MODEL. `NOT_A_MODEL` is a non-empty string, so `if m` accepted
+# it and a locked write through `self` in a NON-mapped class seeded a protected pair keyed on it.
+# Nothing ever resolves TO the sentinel, so no violation could match -- but its ATTRIBUTE entered
+# `prot_attrs`, which is the set deciding whether an unresolved receiver is worth reporting, so the
+# unlocked write below was raised as UNKNOWN on the strength of a pair that protects nothing.
+_sent_sites = [("s.py", "in_a_plain_class", NOT_A_MODEL, "source_ifc", True, []),
+               ("s.py", "elsewhere", None, "source_ifc", False, [7])]
+_sp2, _sv2, _su2 = verdicts(_sent_sites)
+check("self-test: a receiver PROVED not to be a model does not seed a protected pair, nor put its "
+      "attribute into the set that decides which unresolved writes are worth reporting",
+      not _sp2 and not _su2, f"protected={_sp2} unknown={_su2}")
+
 check("self-test: a rebinding inside a NESTED helper does not poison the enclosing function's "
       "binding map -- the outer locked write must still SEED its pair",
       ("Connection", "config") in _sp, f"protected={sorted(_sp)}")
@@ -855,6 +1039,36 @@ check("MUTATION: reinstating the `touches_orm` module skip makes that site DISAP
       "removal is what closes the hole, not an unrelated change",
       not _mut, f"survived the reinstated predicate: {_mut}")
 shutil.rmtree(_probe_dir, ignore_errors=True)
+
+# THE SCOPE-MERGE FAIL-OPEN, run through `collect` rather than through `_bindings` -- because the
+# defect is in the MERGE and nothing calling `_bindings` alone can see it. `inner` takes the name
+# `p` over: it means a Project for the write and a SavedView two lines later, so `_bind` marks it
+# CONFLICT. `_bindings` then dropped the sentinel at its own return, the merge found no entry for
+# `p` in the inner scope, and `outer`'s SavedView flowed in -- so an unlocked `Project.source_ifc`
+# write was classified as a SavedView one and reached NEITHER the violations NOR the unknowns.
+# *A name the inner scope has taken over must beat the outer binding even when the analyser cannot
+# say what it now means*, which is why the sentinels survive to `_resolved` at the end of the merge.
+_scope_dir = pathlib.Path(tempfile.mkdtemp(prefix="lockb_scope_"))
+(_scope_dir / "shadowed.py").write_text(
+    "def outer(db, vid):\n"
+    "    p = db.get(SavedView, vid)\n"
+    "    def inner(db, pid):\n"
+    "        p = db.get(Project, pid)\n"
+    "        p.source_ifc = 'unlocked, and `p` means a Project HERE'\n"
+    "        p = db.get(SavedView, vid)\n"
+    "        return p\n"
+    "    return inner\n", encoding="utf-8")
+_scope_sites = collect([_scope_dir])
+_, _cv, _cu = verdicts(_scope_sites + [("seed.py", "w", "Project", "source_ifc", True, [])])
+check("self-test: an inner scope that REBINDS a name does not inherit the enclosing scope's model "
+      "for it -- the unlocked write must be reported, not reclassified as the outer model's",
+      any(s[1] == "inner" for s in _cu),
+      f"sites={_scope_sites} unknown={_cu} violations={_cv}")
+check("  and specifically it must not come back as the OUTER model, which is the value that used "
+      "to leak in and make the write somebody else's problem",
+      not any(s[1] == "inner" and s[2] == "SavedView" for s in _scope_sites),
+      f"sites={_scope_sites}")
+shutil.rmtree(_scope_dir, ignore_errors=True)
 
 if FAILED:                      # a broken analyser must not go on to report on the real tree
     print("\nself-tests failed — not reporting on the tree")

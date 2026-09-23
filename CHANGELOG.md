@@ -12,6 +12,63 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 12 — the third statement-type list, and a sentinel spent as a model
+
+Four findings, all in-diff, all real. Three are in `services/api/test_lock_boundary.py`; one is a
+route that blocks the event loop.
+
+**1. The scope merge inherited the enclosing model for a name the inner scope had taken over.**
+`_bindings` marked a name meaning two models `CONFLICT` and then *dropped the entry at its own
+return* — so `collect`'s `dict.update` chain found nothing for that name in the inner scope and the
+**outer** function's model flowed in. An unlocked `Project.source_ifc` write inside a helper that
+rebinds `p` was therefore classified as the outer `SavedView`, and reached neither the violations nor
+the unknowns. Two sentinels now survive the merge — `CONFLICT` for a name meaning two models and a
+new `UNRESOLVED` for one this analyser cannot pin down at all — and `_resolved` removes them **after
+the last merge**. *A sentinel filtered before the merge cannot shadow anything*, which is the whole
+mechanism by which an inner binding is supposed to beat an outer one. The probe runs through
+`collect` in a temp directory, because nothing calling `_bindings` alone can see a defect in the
+merge.
+
+**2. The shadowing check in `pid_lock_names` was a list of statement types, and the list was short.**
+Third time in this analyser, third time short. It named five forms and still certified an arbitrary
+object as the project lock for `pid_lock, _x = other, 1`, `from .fakes import stub as pid_lock`,
+`except Exception as pid_lock:`, a nested `def pid_lock(...)` — and a **module-level** rebinding
+beside the import, which a per-function scan cannot see at all although it is the one rebinding whose
+blast radius is the entire file. **The fix for an incomplete enumeration is not a longer
+enumeration**: the new `_bound_names` asks the grammar — `ctx=Store` on `ast.Name` is the exact,
+complete marking of a name assignment in every spelling, exactly as `_stored_attrs` learned one node
+type over — and names explicitly only the four forms that carry their name as a plain string field
+rather than as a node (`except ... as`, `def`/`class`, import aliases, `global`/`nonlocal`). That
+list is closed by the language, not by what this tree happens to contain. Module scope is now in the
+chain the check scans.
+
+**3. `NOT_A_MODEL` was spendable as a model.** The sentinel meaning *"proved not to be a mapped
+instance"* is a non-empty string, so `if m and ok` accepted it and a locked write through `self` in
+any non-mapped class seeded a protected pair keyed on the sentinel. Nothing ever resolves *to* it, so
+no violation could match — but its **attribute** entered `prot_attrs`, the set that decides whether
+an unresolved receiver is worth reporting, so unrelated unlocked writes were raised as UNKNOWN on the
+strength of a pair protecting nothing.
+
+**4. `import_rvt` wrote a whole converted IFC on the event loop** — `staged.write_bytes(ifc)` on the
+coroutine, one line above a `run_in_threadpool` the same route already used for the publish. A
+converted model is routinely hundreds of MB; the loop stalls for every other request while it
+lands. This is the v0.3.703 SSE failure in miniature.
+
+Deriving that shape over the tree found **three more instances, all in one other route plus the
+converter**, and fixing only the line review pointed at would have left the *largest* blocker two
+lines above it: `raise_plan_to_bim` ran the DXF parse, the ifcopenshell raise, a whole-file read, a
+whole-file write and a `storage.put` network round trip on the loop; `convert` read its fragments
+output back on the loop having just handed the translation *off* it. All are now awaited through the
+threadpool. **No gate is claimed for this** — a check matching `read_bytes`/`write_bytes` would be a
+completeness claim with a filter under it, since the honest population of "blocking work in an
+`async def`" also includes `storage`, `subprocess` and every synchronous `db` call. That axis is
+filed as its own task rather than half-gated here.
+
+Each of the three analyser fixes is mutation-checked: filtering the sentinels inside `_bindings`
+reds the scope-merge probe by name; narrowing `_bound_names` back to statement types loses all four
+shadow probes from the violation list; taking module scope back out reds the module-rebinding probe;
+letting `NOT_A_MODEL` seed again brings back both the phantom pair and the UNKNOWN it manufactured.
+
 ### LOCK-BOUNDARY round 11 — the third traversal, and a correction to what round 10 claimed
 
 Two High findings, both real, both fail-opens, both in `test_lock_boundary.py`.
