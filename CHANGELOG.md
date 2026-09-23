@@ -12,6 +12,53 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The budget form put back the $9,000,000 the GMP sync had just replaced, and both calls said 200
+
+Two findings raised in review on the lock-boundary work and declined there as pre-existing rather
+than regressions of that diff. They are one mistake in two shapes: **a lock orders writers; it does
+not tell the second one that what it read is out of date.**
+
+**`PUT /projects/{pid}/dev-budget` replaces the whole blob.** An editor whose screen loaded before a
+"Sync GMP" or "Sync from model" click saves the hard lines that sync had just rebuilt. Serialising
+the two changes nothing — the stale body lands *after* the sync, in perfect order, and the sync is
+gone with a 200 on both calls. The route now carries a content-derived `rev`
+(`dev_budget.budget_rev`), captured under the same lock that does the write, and answers **409** when
+the budget has moved. `projects` has no `modified_at` to swap on, so the token is the blob's own
+canonical-JSON hash: two callers holding the same bytes hold the same revision, and no migration is
+needed.
+
+**The comment over that lock justified it by an argument belonging to a different route.** It said
+the two edits touch different line categories, so serialising lets both survive — which is
+`connections.update_connection`'s reasoning, and true *there* because that route merges keys into the
+blob. This one assigns over it. *A justification copied from the route that inspired the control
+describes that route, not this one,* and it reads as settled precisely because it is true somewhere.
+
+**`POST …/dev-budget/sync-from-model` committed a hard cost derived from a model the project no
+longer had.** It reads the IFC and runs a full geometry takeoff outside the lock — correctly, since
+holding the project lock across a parse would block every publication for as long as it runs — and a
+publication landing in between leaves the committed number describing the old model under a 200
+saying "synced". *The expensive read belongs outside the lock; what belongs inside is the proof that
+it is still the right read.*
+
+**And the obvious check could not have worked.** `publish_source_ifc` writes to a unique staged path
+and `os.replace`s it onto the **same** final path, so `Project.source_ifc` is re-assigned the string
+it already held — comparing it passes on exactly the interleaving it would exist to catch. *A
+staleness check against a field the writer does not move always passes, and reads as though it were
+guarding something.* `authoring_shared.ifc_identity` compares `(st_ino, st_size, st_mtime_ns)`
+instead, and `os.replace` always changes the inode. It lives beside `publish_source_ifc` on purpose:
+whoever changes how a model is promoted should see what detects the promotion.
+
+`services/api/test_budget_rev.py` asserts behaviour and mutation-checks both guards — neutering the
+`rev` comparison brings back the 200 that loses the synced hard line, and swapping the file identity
+for the path string (what a check written against `p.source_ifc` compares) lets the mid-takeoff
+republish commit. It also pins the one caller that actually races: the budget panel must send `rev`,
+re-read the one the server returns, and handle the 409 by **reloading** rather than retrying — a
+retry carrying the fresh token would re-send exactly the body the server refused.
+
+**`rev` is optional, and that is a bounded decision rather than a fail-open default.** Requiring it
+would refuse `build_demo_data.py`, `e2e_dome.py` and `e2e_vertfarm.py`, which write a whole budget
+onto a project they have just created and race nothing. What bounds the decision is the web-source
+check above, not the sentence in the route saying so.
 ### Two LPs granted access to one scenario, and one of the grants was never there
 
 `proforma.share_scenario` unions a grantee into `Scenario.shared_with` over a value it has already

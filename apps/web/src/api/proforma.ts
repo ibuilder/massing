@@ -145,7 +145,10 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   devBudget(pid: string) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);
   }
-  saveDevBudget(pid: string, budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }) {
+  /** Save the development budget. `rev` is the one this screen was shown; the server answers 409 if
+   *  the stored budget has moved since — a "sync GMP" or "sync from model" click replaces exactly the
+   *  hard lines a stale form would put back, and both calls would otherwise return 200. */
+  saveDevBudget(pid: string, budget: { lines: DevBudgetLine[]; contingency: Record<string, number>; rev?: string | null }) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`, { method: "PUT", body: JSON.stringify(budget) });
   }
   devBudgetCostLines(pid: string) {

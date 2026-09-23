@@ -146,6 +146,34 @@ def publish_source_ifc(db: Session, p: Project, pid: str, staged: Path, final: P
     return str(final)
 
 
+def ifc_identity(path: str | os.PathLike[str] | None) -> tuple | None:
+    """A cheap identity for the published IFC FILE, for a reader that has to prove it still holds.
+
+    Deliberately beside `publish_source_ifc`, because it is that function's counterpart: whoever
+    changes how a model is promoted should see what detects the promotion.
+
+    **`Project.source_ifc` is NOT a version.** Publication writes the new model to a unique staged
+    path and then `os.replace`s it onto the SAME final path, so the column is re-assigned the string
+    it already held. A route that reads the IFC, spends a minute deriving a number from it, and then
+    checks `p.source_ifc` before committing compares a value that cannot have changed — *a staleness
+    check against a field the writer does not move always passes, and reads as though it were
+    guarding something.*
+
+    `os.replace` swaps the INODE, so `st_ino` changes on every publication even when the bytes and
+    the size happen to be identical. Size and mtime are carried too, for the filesystems that recycle
+    inode numbers aggressively and for a rewrite-in-place that some other producer might do one day.
+    Returns `None` when there is no readable file, and a caller comparing `None == None` learns
+    nothing — so the callers below treat an unreadable before-or-after as a mismatch, not a match.
+    """
+    if not path:
+        return None
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_ino, st.st_size, st.st_mtime_ns)
+
+
 def project_with_source(db: Session, pid: str) -> Project:
     """The project row, 404 when missing, 409 when it has no readable source IFC — the precondition
     every model-derived authoring endpoint shares."""

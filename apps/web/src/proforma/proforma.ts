@@ -1259,7 +1259,30 @@ export class ProformaUI {
       const lines = resp.budget.lines.slice();
       const contingency: Record<string, number> = { hard: 0.1, soft: 0.1, acquisition: 0, ...resp.budget.contingency };
       let timer = 0;
-      const save = () => { clearTimeout(timer); timer = window.setTimeout(() => void this.api.saveDevBudget(pid, { lines, contingency }).then(paint), 500); };
+      //: The revision this screen was shown, echoed back on every save. "Sync GMP" and "Sync from
+      //: model" REPLACE the hard lines; a debounced save built from a form loaded before one of
+      //: those puts the old hard lines straight back, and without `rev` both calls return 200 and
+      //: the sync is simply gone. The server answers 409 instead, and this reloads rather than
+      //: retrying -- a retry carrying the fresh `rev` would re-send exactly the body it refused.
+      let rev: string | null = resp.rev ?? null;
+      const reloadAfterConflict = () => void this.api.devBudget(pid).then((fresh) => {
+        lines.splice(0, lines.length, ...fresh.budget.lines);
+        for (const k of Object.keys(contingency)) delete contingency[k];
+        Object.assign(contingency, { hard: 0.1, soft: 0.1, acquisition: 0, ...fresh.budget.contingency });
+        rev = fresh.rev ?? null;
+        paint(fresh);
+        this.setStatus("the development budget changed elsewhere (a GMP or model sync, or another editor) — reloaded; re-apply your edit");
+      });
+      const save = () => {
+        clearTimeout(timer);
+        timer = window.setTimeout(() => void this.api.saveDevBudget(pid, { lines, contingency, rev })
+          .then((r) => { rev = r.rev ?? null; paint(r); })
+          .catch((e: unknown) => {
+            const status = (e as { status?: unknown } | null | undefined)?.status;
+            if (status !== 409) throw e;
+            reloadAfterConflict();
+          }), 500);
+      };
       const num = (v: string) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
       const paint = (r?: import("../api/types").DevBudgetResponse) => {

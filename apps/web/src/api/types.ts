@@ -1207,6 +1207,10 @@ export interface DevBudgetSummary {
 export interface DevBudgetResponse {
   budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
   summary: DevBudgetSummary;
+  /** Content-derived revision of `budget`. Echo it back on the next save so the server can refuse a
+   *  write built from a screen that a GMP/model sync has since overwritten. Optional on the type
+   *  because an older server does not send it; the client then saves as it always did. */
+  rev?: string;
 }
 
 /** Test-fit schemes and the material palette, moved here from `client.ts` by SCALE-SEAM (87)
