@@ -31,17 +31,34 @@ def _web_source() -> str:
     server's own route table, not evidence that anything calls it. Measured: including them vouched
     for **29 routes**, taking the uncalled count from 85 down to 56. The docstring above had the
     principle right and applied it to one file; this is the same file's rule finishing its sentence.
+
+    **SORTED, since 2026-09-23.** `glob.glob` returns filesystem order, so this blob was a different
+    string on every machine and the gates reading it could disagree with themselves between runs. A
+    stable order does not make any single verdict correct — it makes a failure REPRODUCIBLE, which is
+    the property an intermittent takes away. The defect it was hiding is written up at the
+    `LEAF_COLLISION_DARK` vouch check in `services/api/test_route_reachability.py`.
+    """
+    return "\n".join(open(p, encoding="utf-8", errors="replace").read() for p in web_files())
+
+
+def web_files() -> list[str]:
+    """The files `_web_source()` concatenates, in the order it concatenates them.
+
+    Split out so the order-invariance check in `services/api/test_route_reachability.py` can rebuild
+    the blob in a DIFFERENT order without restating which files are in it. A second copy of the
+    inclusion rule is the drift this module's own docstring warns about, and it would drift in the
+    direction that invents work.
     """
     out = []
     for pat in ("**/*.ts", "**/*.tsx"):
-        for p in glob.glob(os.path.join(_WEB, pat), recursive=True):
+        for p in sorted(glob.glob(os.path.join(_WEB, pat), recursive=True)):
             q = p.replace("\\", "/")
             if ".test." in q or "/src/demo/" in q:
                 continue
             if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
                 continue          # generated FROM the spec: lists every route, calls none
-            out.append(open(p, encoding="utf-8", errors="replace").read())
-    return "\n".join(out)
+            out.append(p)
+    return out
 
 
 def strip_comments(src: str) -> str:

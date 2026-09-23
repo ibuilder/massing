@@ -12,6 +12,42 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The "CI flake" in the reachability gate was a backtick in a comment, and the answer depended on directory order
+
+`test_route_reachability` went red on 2026-09-23, passed on a re-run of a byte-identical tree, and
+went red again on the next push. It was filed as a transient of unknown cause. It is neither
+transient nor unknown: **one call in the file handed `leaf_is_called` the RAW web source instead of
+the comment-stripped one**, and that one argument made the gate's answer depend on the order
+`glob.glob` happened to return ~400 files in.
+
+`string_blob`'s template-literal alternative spans newlines, because a real template literal does.
+This tree quotes identifiers in backticks throughout its **comments**, so an unpaired backtick in one
+comment opens a phantom template that closes at the next comment's backtick — and everything between
+is emitted as a single string body **with its inner quotes intact**. A leaf whose only vouching
+occurrence is a quoted word then sits in that body preceded by `"` rather than by the NUL that
+anchors "opens a string", and reads as *uncalled*. Which comments pair with which depends entirely on
+the concatenation order. Measured: **1 of 25 shuffled orders flips `workflow`**, and
+`string_blob(BLOB)` ranges from **933k to 2,014k characters** across orders; read through the stripped
+source, the derived verdicts are identical in every order.
+
+*A gate whose answer depends on directory enumeration order cannot be reproduced from its own
+failure* — which is exactly why the first instance was dismissed. "Flake" was a description of the
+symptom standing in for a cause, and it bought a second red build.
+
+**Fixed four ways, because the one-word fix is the one that drifts back.** The call is stripped;
+`web_source.web_files()` is split out and **sorted**, so the blob is at least the same blob twice;
+and both properties are asserted — a four-line fixture that reproduces the backtick swallow without
+depending on anything in the tree, and an order-invariance check that rebuilds the real blob reversed
+and requires the same uncalled set. The fourth is the one that matters most: **the file now reads its
+own source** and fails if any call passes the raw blob, because neither behavioural check reds when
+somebody writes `BLOB` there again, and *for a 1-in-25 defect "run it again" is not an alternative to
+a check.*
+
+All four are mutation-checked — reverting the call, inverting the fixture, blinding the AST scan, and
+dropping `sorted` each red exactly one assertion, with a message that names the right cause. The
+`sorted` assertion exists precisely because dropping it changes no verdict today: *the change nobody
+can measure is the change nobody notices reverting.*
+
 ### LOCK-BOUNDARY round 15 — the answer collected and then discarded, and a test sharing a directory with its own failures
 
 Two findings. The first is inside round 14's fix; the second is a test-hygiene defect that would have
