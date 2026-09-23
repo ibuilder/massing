@@ -90,6 +90,21 @@ def _steps_running(wf: dict, script: str) -> list[tuple[dict, dict]]:
     return out
 
 
+#: A word of the form `NAME=value`, which the shell strips off the front of a command as an
+#: environment assignment. The shipped step is `PYTHONPATH=src:../data/src python <file>`, so the
+#: head word is only visible past these.
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
+
+#: Commands that RUN a Python file handed to them as an argument.
+#:
+#: **A list, and it can go stale — but it goes stale in the direction that gets noticed.** A runner
+#: missing from here makes the step invisible, and the caller requires exactly one step, so the build
+#: reds and somebody adds the name. The opposite error — accepting `echo` — is the one that passes
+#: quietly, and it is the one this exists to close. *When a list must be incomplete, put the
+#: incompleteness where it fails loudly.*
+_RUNNERS = ("python", "python3", "pytest", "coverage", "uv", "poetry", "tox", "nox", "hatch", "pdm")
+
+
 def _invokes(run: str, script: str) -> bool:
     """Does this `run:` block INVOKE `script`, as opposed to merely mentioning it?
 
@@ -101,16 +116,38 @@ def _invokes(run: str, script: str) -> bool:
     Raised in review against the extractor added one round earlier, which had narrowed the search to
     the right step and left this open.
 
-    Comments are stripped per line and the name must stand as a whole token, so a path that merely
-    CONTAINS it (`old_test_pid_lock_pgxproc.py.bak`) does not count either.
+    Comments are stripped per line and the name is compared as a whole BASENAME, so a path that
+    merely contains it (`old_test_pid_lock_pgxproc.py.bak`) does not count either.
+
+    **And the COMMAND has to run it.** The first draft of this fix rejected a commented-out
+    invocation and a longer filename and still accepted `echo test_pid_lock_pgxproc.py` — raised in
+    review, which declined to close the finding on the grounds that the case it named was still
+    open, and was right to. *Excluding the shape you were shown is not answering the question the
+    shape was an example of.* So the head word of the command segment holding the name must be a
+    Python runner, or be the script itself (`./test_pid_lock_pgxproc.py`).
 
     **The `#` split is crude on purpose, and it fails in the SAFE direction.** A `#` inside a quoted
     shell string truncates the line early, which can only LOSE an invocation -- and losing it reds
     the caller, because the caller requires exactly one step. The opposite error, counting a comment
     as an invocation, is the one that passes quietly, and that is the one this closes.
     """
-    pat = re.compile(rf"(?<![\w./-]){re.escape(script)}(?![\w.-])")
-    return any(pat.search(line.split("#", 1)[0]) for line in run.splitlines())
+    #: NO REGEX. The first draft matched the name as a whole token and then asked what the command
+    #: was; the token pattern excludes a preceding `/` on purpose (so a longer path cannot vouch for
+    #: a shorter one), which meant a direct exec `./test_pid_lock_pgxproc.py` never reached the
+    #: command test at all. Comparing BASENAMES answers both questions at once and has no lookbehind
+    #: to get wrong. *The positive control is what found that — the narrowing written to close `echo`
+    #: had also closed a shape that really does run the file.*
+    for line in run.splitlines():
+        for segment in re.split(r"&&|\|\||[;|]", line.split("#", 1)[0]):
+            words = [w for w in segment.split() if not _ENV_ASSIGN.match(w)]
+            if not words:
+                continue
+            if os.path.basename(words[0]) == script:              # a direct exec
+                return True
+            if os.path.basename(words[0]) in _RUNNERS and any(
+                    os.path.basename(w) == script for w in words[1:]):
+                return True
+    return False
 
 
 def _env_in_force(wf: dict, job: dict, step: dict) -> dict:
@@ -192,6 +229,25 @@ check("SELF-TEST: ...nor does a LONGER filename that merely contains the name",
           {"name": "x", "run": "python old_test_pid_lock_pgxproc.py.bak"}]}}},
           "test_pid_lock_pgxproc.py"),
       "a different file whose name contains this one satisfied the check")
+#: THE COMMAND, NOT ONLY THE TOKEN. `echo test_pid_lock_pgxproc.py` names the file and runs nothing,
+#: and the first draft of `_invokes` accepted it -- it had excluded the two shapes it was shown
+#: rather than the class they were examples of. Raised in review, which declined to close the
+#: finding while the case it had named was still open.
+_run = lambda cmd: bool(_steps_running(                                    # noqa: E731
+    {"jobs": {"j": {"steps": [{"name": "x", "run": cmd}]}}}, "test_pid_lock_pgxproc.py"))
+check("SELF-TEST: a command that only PRINTS the filename does not count as running it",
+      not _run("echo test_pid_lock_pgxproc.py")
+      and not _run("ls -l test_pid_lock_pgxproc.py")
+      and not _run("git add test_pid_lock_pgxproc.py"),
+      "a non-executing command satisfied the runs-this-file check")
+check("SELF-TEST: ...and the shapes that DO run it are accepted -- the shipped one with its env "
+      "prefix, an interpreter flag, a direct exec, and one behind a `&&`",
+      _run("PYTHONPATH=src:../data/src python test_pid_lock_pgxproc.py")
+      and _run("python3 -X faulthandler test_pid_lock_pgxproc.py")
+      and _run("./test_pid_lock_pgxproc.py")
+      and _run("cd services/api && python test_pid_lock_pgxproc.py"),
+      "a real invocation was rejected -- narrowing the command test broke the thing it protects")
+
 check("SELF-TEST: ...and a real invocation with a trailing comment on the SAME line still counts, "
       "so the comment stripping is not always-no",
       len(_steps_running({"jobs": {"j": {"steps": [

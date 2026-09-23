@@ -196,9 +196,26 @@ mutates the state every request is built from.*
 matched a step whose `run:` merely *contained* the filename — so commenting the invocation out, the
 ordinary way somebody parks a slow step, leaves the substring in place, the step is still found, its
 `AEC_PG_REQUIRED` is still set, and the guard reports that CI runs this file while CI runs nothing.
-Comments are stripped per line and the name must stand as a whole token. The `#` split is crude and
-fails in the safe direction: a `#` inside a quoted string can only *lose* an invocation, which reds
-the caller, because the caller requires exactly one step.
+Comments are stripped per line and the name is compared as a whole basename. The `#` split is crude
+and fails in the safe direction: a `#` inside a quoted string can only *lose* an invocation, which
+reds the caller, because the caller requires exactly one step.
+
+**And that first fix was still wrong, for the reason it was written.** It rejected a commented-out
+invocation and a longer filename and went on accepting `echo test_pid_lock_pgxproc.py` — review
+declined to close the finding on exactly that ground. *Excluding the shapes you were shown is not
+answering the question those shapes were examples of.* The head word of the command segment holding
+the name must now be a Python runner, or be the script itself. The runner list can go stale, and it
+does so in the direction that gets noticed: a missing runner makes the step invisible, the caller
+requires exactly one step, the build reds, somebody adds the name — while the opposite error passes
+quietly. Emptying the list is a mutation and it reds three self-tests. *When a list must be
+incomplete, put the incompleteness where it fails loudly.*
+
+**The positive control earned its place the same hour.** The first version of that narrowing matched
+the filename as a whole token before asking what the command was, and the token pattern excludes a
+preceding `/` on purpose — so a direct exec `./test_pid_lock_pgxproc.py` never reached the command
+test. Comparing basenames answers both questions at once with no lookbehind to get wrong. Without a
+check that real invocations are still *accepted*, that would have shipped as a stricter-looking gate
+that had quietly stopped recognising a legitimate way to run the file.
 
 **Merging the environment in force was not reading the value.** `AEC_PG_REQUIRED: ""` is exported by
 GitHub as an empty string, which the consumer reads as opted *out* — so the key-presence check passed
