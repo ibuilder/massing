@@ -252,6 +252,32 @@ between two conversions — `metadata` embeds `"created": datetime.now(...)`. It
 model instead. *An assertion that fails on correct code costs a round exactly like one that passes on
 broken code.*
 
+**And forcing one branch to reach the code under test stopped testing the other.** Every check above
+sets `have_converter()` false to drive the Python path, so the Node half of "both paths raise
+`TimeoutError`" was asserted by nothing — a regression letting `subprocess.TimeoutExpired` escape
+would have passed the gate that exists for exactly that promise. Raised in review. *The act of
+forcing a branch is itself an act of un-testing its alternative, and it leaves no trace in the
+output.*
+
+Two arms, because neither covers the other. **Injected**: `subprocess.run` raises `TimeoutExpired`
+directly, proving the handler converts it; runs everywhere. **Real**: a Node process that does not
+finish, under a real budget, proving the whole chain including the argument being passed. Measured
+rather than argued — with `timeout=timeout` deleted from the call, the injected arm still **passes**,
+because its exception came from the stub and not from the runtime. The real arm needs a `node` the
+API gate's job does not install, so it is conditional, and a conditional arm that skips everywhere is
+a check reporting good news: the arms that ran are named in the output and at least one is required.
+
+**The real arm's first draft turned that mutation into a hang rather than a failure.** Its script only
+blocked, so dropping `timeout=` left `subprocess.run` waiting for ever — caught, in the sense that the
+gate never went green, but reported as nothing at all and paid for with a CI job's whole budget. The
+script now exits on its own timer too, so the same mutation returns normally and the arm fails **by
+name**, and a margin check separates "gave up at the budget" from "waited for the script". *Make a
+check fail; do not settle for it not passing.* The lane table's row for this item was also still
+carrying the pre-fix text two paragraphs of narrowing later — and its stated REASON, "the fix is
+process/packaging shape", is why the item read as unactionable for thirteen days: that is the repair
+the residue needs, recorded as the repair the whole item needed. *A correct decision with a wrong
+reason attached is worse than no reason, because the reason is what the next reader plans against.*
+
 ### An exclusion whose own differential is blind to what it wrongly excludes
 
 The vendored-tree exclusion below shipped as `"/src/vendor/" in q` — a match on the *parent*

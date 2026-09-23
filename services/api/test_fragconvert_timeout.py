@@ -26,6 +26,7 @@ Run: `PYTHONPATH=src:../data/src python test_fragconvert_timeout.py`
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import time
@@ -190,6 +191,94 @@ try:
     check("  ...and a generous budget on the same branch still writes the fragment",
           fc.convert_ifc(_src, _dst, timeout=600) == fc.PYTHON and _dst.stat().st_size > 0,
           "the Python branch stopped producing output")
+
+    # --- 4. THE OTHER BRANCH --------------------------------------------------------------------
+    #: Everything above forces `have_converter()` FALSE, so the Node branch -- the other half of the
+    #: promise this function makes -- was asserted by nothing. `convert_ifc` exists to hide WHICH
+    #: converter ran, and a caller telling "too slow" from "broke" relies on both branches spelling
+    #: it the same way; a regression letting `subprocess.TimeoutExpired` escape would have passed
+    #: every check above. Raised in review of this very change. *A test that forces one branch to
+    #: reach the code it is about has, by that same act, stopped testing the other.*
+    #:
+    #: TWO arms, because each catches what the other cannot:
+    #:
+    #: * **injected** -- `subprocess.run` raises `TimeoutExpired` directly. Proves the `except`
+    #:   clause converts it. Runs everywhere. Blind to the argument being dropped: with
+    #:   `timeout=timeout` deleted from the call, real `subprocess.run` never times out and this arm
+    #:   still passes, because the exception came from the stub rather than from the runtime.
+    #: * **real** -- a Node process that genuinely does not finish, under a real budget. Proves the
+    #:   whole chain, the passed argument included. Needs a `node` on PATH, which the API gate's job
+    #:   does not install, so it is conditional -- and a conditional arm that quietly skips
+    #:   everywhere is a check reporting good news, so the arms that ran are NAMED below and at
+    #:   least one is required.
+    fc.have_converter = lambda: True
+    _arms: list[str] = []
+
+    class _Stub:
+        """Stands in for `subprocess.run`, raising what a real overrun raises."""
+
+        TimeoutExpired = subprocess.TimeoutExpired
+
+        @staticmethod
+        def run(*_a, **_k):
+            raise subprocess.TimeoutExpired(cmd=["node"], timeout=0)
+
+    _real_sub, _real_cli = fc.subprocess, fc.converter_cli
+    fc.subprocess, fc.converter_cli = _Stub, (lambda: Path(__file__))
+    try:
+        _inj: BaseException | None = None
+        try:
+            fc.convert_ifc(_src, _dst, timeout=1)
+        except BaseException as e:                  # noqa: BLE001
+            _inj = e
+    finally:
+        fc.subprocess, fc.converter_cli = _real_sub, _real_cli
+    _arms.append("injected")
+    check("the NODE branch reports an overrun as TimeoutError too, not as the SubprocessError "
+          "subprocess raises -- the two branches must be indistinguishable to the caller",
+          isinstance(_inj, TimeoutError) and "node" in str(_inj),
+          f"raised {type(_inj).__name__ if _inj else 'nothing'}: {_inj!s:.120}")
+
+    #: The script exits on its OWN timer as well as the caller's. A script that only hangs turns the
+    #: `timeout=timeout` mutation into an INFINITE WAIT rather than a failure -- measured, not
+    #: assumed: dropping the argument left this arm blocked with no output until it was killed. A
+    #: check whose failure mode is "never returns" reports nothing, costs a CI job its whole budget,
+    #: and looks identical to a hung runner. With the self-exit, the same mutation makes
+    #: `subprocess.run` return normally after `_HANG_S` and the arm FAILS by name, saying it raised
+    #: nothing. *Make a check fail; do not settle for it not passing.*
+    _HANG_S = 20
+    _hangs = Path(_TMP) / "hangs.mjs"
+    _hangs.write_text(f"setTimeout(() => process.exit(0), {_HANG_S * 1000});\n", encoding="utf-8")
+    try:
+        _has_node = subprocess.run(["node", "-e", ""], capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        _has_node = False
+
+    if _has_node:
+        fc.converter_cli = lambda: _hangs
+        try:
+            _real: BaseException | None = None
+            _t0 = time.monotonic()
+            try:
+                fc.convert_ifc(_src, _dst, timeout=1)
+            except BaseException as e:              # noqa: BLE001
+                _real = e
+            _waited = time.monotonic() - _t0
+        finally:
+            fc.converter_cli = _real_cli
+        _arms.append("real")
+        check("  ...and it does so against a Node process that genuinely does not finish, so the "
+              "budget is PASSED to subprocess.run and not merely accepted by convert_ifc",
+              isinstance(_real, TimeoutError) and "node" in str(_real),
+              f"raised {type(_real).__name__ if _real else 'nothing'}: {_real!s:.120}")
+        check("  ...and it gave up at the BUDGET rather than when the script chose to exit -- the "
+              "margin is what makes the previous check about the budget and not about the script",
+              _waited < _HANG_S / 2, f"waited {_waited:.1f}s on a timeout=1 call against a "
+              f"{_HANG_S}s script")
+
+    check(f"at least one Node-branch arm actually ran -- ran: {', '.join(_arms) or 'NONE'}",
+          bool(_arms),
+          "both arms skipped, so this section asserted nothing while printing checks")
 finally:
     fc.have_converter = _real_have
 
