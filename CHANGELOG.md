@@ -12,6 +12,32 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 14 — the same fail-open, in the two spellings the fix did not look at
+
+One finding, and it is inside round 13's own fix.
+
+Round 13 closed a fail-open where `_lock_import_names` accepted `pid_lock` imported from **any**
+module, so `from .fakes import pid_lock` certified as the project lock. The repair was to recognise
+the lock by its **source module** — and the docstring said exactly that. The code under it went on
+matching a **suffix**:
+
+- `(node.module or "").endswith("pid_lock")` accepts `from .fake_pid_lock import mutating`,
+  `from .fakes.pid_lock import mutating`, and `from tests.pid_lock import mutating`. Each returns
+  `mutating`, `pid_lock_names` returns `bare=True`, and `lock_spans` certifies `with mutating(pid):`.
+- the `ast.Import` branch matched `a.name.split(".")[-1]`, so `import fakes.pid_lock as pid_lock` is
+  certified too — and for `import x.pid_lock` **without** `as`, Python binds `x`, not `pid_lock`, so
+  the analyser was recording a binding the language does not make.
+
+*A fix aimed at the spelling that was reported closes that spelling.* The rule was right and stated
+plainly one paragraph above the code that ignored it, which is the part worth keeping: **the prose
+was true and the test was not**, and prose agreeing with itself is not evidence. Recognition is now
+by exact module path — relative `pid_lock` or absolute `aec_api.pid_lock`, with `level` checked so a
+top-level module of that name cannot stand in — and the `import` form is accepted only when aliased,
+the one shape that binds a usable name.
+
+Two probes added, `fake_bare_import` and `fake_module_import`; restoring either the suffix test or
+the last-segment match reds the violation list by name.
+
 ### LOCK-BOUNDARY round 13 — a live unlocked writer the analyser could not see, by construction
 
 Four findings, all real. One is a **product defect**, not a gate defect, and it is the kind this

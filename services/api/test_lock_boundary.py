@@ -223,13 +223,33 @@ def _lock_import_names(node: ast.AST) -> dict[str, str]:
 
     The source module is what distinguishes them. `pid_lock` lives at `aec_api/pid_lock.py` and
     every importer in this tree spells it `from . import pid_lock` or `from .. import pid_lock`
-    (module `None`, verified by grep), so binding the MODULE requires the lock's own package; the
-    bare `mutating` requires a module path ending in `pid_lock`.
+    (module `None` with a non-zero `level`, verified by grep), so binding the MODULE requires the
+    lock's own package.
+
+    **EXACT MODULE PATHS, NOT A SUFFIX, and the first version of this function used a suffix.** It
+    read `(node.module or "").endswith("pid_lock")`, which accepts `from .fake_pid_lock import
+    mutating`, `from .fakes.pid_lock import mutating` and `from tests.pid_lock import mutating` --
+    and the `ast.Import` branch matched `a.name.split(".")[-1]`, which certifies
+    `import fakes.pid_lock as pid_lock`. **That is the very fail-open this function was written to
+    close, surviving in the two spellings the fix did not look at**: round 13 closed it for
+    `from <somewhere> import pid_lock` and left it open for the bare `mutating` form and the
+    `import` form. *A fix aimed at the spelling that was reported closes that spelling* — the rule
+    the paragraph above states ("the source module is what distinguishes them") was right, and the
+    code underneath it went on matching a suffix, so the docstring was true and the test was not.
+
+    The `ast.Import` branch also recorded a binding Python does not make: without `as`,
+    `import aec_api.pid_lock` binds **`aec_api`**, not `pid_lock`. It is now accepted only when
+    aliased, which is the only form that binds a usable name.
     """
     out: dict[str, str] = {}
     if isinstance(node, ast.ImportFrom):
-        from_lock_pkg = node.module in (None, "aec_api")      # `from . import` / `from .. import`
-        from_lock_mod = (node.module or "").endswith("pid_lock")
+        #: `from . import pid_lock` / `from .. import pid_lock` (relative, no module), or the
+        #: absolute `from aec_api import pid_lock`. Nothing else names the lock's package.
+        from_lock_pkg = (node.module is None and node.level > 0) or (
+            node.module == "aec_api" and node.level == 0)
+        #: `from ..pid_lock import mutating` (relative) or `from aec_api.pid_lock import mutating`.
+        from_lock_mod = (node.module == "pid_lock" and node.level > 0) or (
+            node.module == "aec_api.pid_lock" and node.level == 0)
         for a in node.names:
             if a.name == "pid_lock" and from_lock_pkg:
                 out[a.asname or a.name] = "module"
@@ -237,8 +257,8 @@ def _lock_import_names(node: ast.AST) -> dict[str, str]:
                 out[a.asname or a.name] = "mutating"
     elif isinstance(node, ast.Import):
         for a in node.names:
-            if a.name.split(".")[-1] == "pid_lock":
-                out[a.asname or a.name.split(".")[-1]] = "module"
+            if a.name == "aec_api.pid_lock" and a.asname:
+                out[a.asname] = "module"
     return out
 
 
@@ -1016,6 +1036,22 @@ _SYNTH = ast.parse(
     "    p = db.get(Project, pid)\n"
     "    with mutating(pid):\n"
     "        p.source_ifc = 'the bare form, genuinely locked'\n"
+    #: THE SAME SUBSTITUTION, IN THE TWO SPELLINGS ROUND 13's FIX DID NOT LOOK AT. Recognition was
+    #: `endswith("pid_lock")` for the bare form and `split(".")[-1]` for `import`, so a module whose
+    #: path merely ENDS in the lock's name certified: `from .fakes.pid_lock import mutating` and
+    #: `import fakes.pid_lock as pid_lock`. *A fix aimed at the spelling that was reported closes
+    #: that spelling* -- the docstring already said recognition is by SOURCE MODULE and the code
+    #: under it went on matching a suffix, so the prose was true and the test was not.
+    "def fake_bare_import(db, pid):\n"
+    "    from .fakes.pid_lock import mutating\n"
+    "    p = db.get(Project, pid)\n"
+    "    with mutating(pid):\n"
+    "        p.source_ifc = 'a module whose path merely ends in the lock name'\n"
+    "def fake_module_import(db, pid):\n"
+    "    import fakes.pid_lock as pid_lock\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'aliased from somewhere else entirely'\n"
     #: THE DYNAMIC WRITE, in all three of its verdicts. `setattr` carries no `Store` and no
     #: `Attribute`, so `_stored_attrs` cannot see it however completely it reads the grammar --
     #: `bim.patch_project` swapped the protected `Project.source_ifc` this way and was invisible.
@@ -1074,7 +1110,7 @@ check("self-test: a planted unlocked writer of a field locked elsewhere IS repor
           "sloppy_writer", "impostor_lock", "impostor_alias", "unlocked_after_seed",
           "span_victim", "param_shadow", "local_shadow", "tuple_shadow", "import_shadow",
           "except_shadow", "nested_def_shadow", "match_shadow", "fake_lock_import",
-          "dynamic_writer"}),
+          "dynamic_writer", "fake_bare_import", "fake_module_import"}),
       f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: `lock_spans` stops at a nested function -- a helper's unlocked mention must not "
       "un-certify the ENCLOSING locked write and destroy the seed with it",
@@ -1122,6 +1158,12 @@ check("  ...and one whose receiver cannot be resolved is UNKNOWN, not dropped",
 check("self-test: a MATCH CAPTURE (`case pid_lock:`) shadows the import -- a FIFTH binding family, "
       "missed by a list whose own docstring called itself closed by the language",
       "match_shadow" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: a module whose path merely ENDS in the lock's name is not the lock -- "
+      "`from .fakes.pid_lock import mutating` and `import fakes.pid_lock as pid_lock` both "
+      "certified under a suffix test, in the two spellings round 13's fix did not look at",
+      {"fake_bare_import", "fake_module_import"} <= {s[1] for s in _sv},
+      f"violations={sorted(s[1] for s in _sv)}")
+
 check("self-test: `from .fakes import pid_lock` is NOT the project lock -- recognition is by the "
       "SOURCE MODULE, not by the name, so substituting without renaming no longer certifies",
       "fake_lock_import" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
