@@ -57,7 +57,7 @@ os.environ.setdefault("STORAGE_DIR", "./_route_reach_store")
 import web_source as _web_source_mod  # noqa: E402
 from aec_api.main import app  # noqa: E402
 from web_source import _WEB as _WEB_SRC  # noqa: E402
-from web_source import _web_source, strip_comments, web_files  # noqa: E402
+from web_source import VENDORED, _web_source, strip_comments, web_files  # noqa: E402
 
 _ws_glob = _web_source_mod.glob
 
@@ -799,6 +799,51 @@ check("  ...and it vouches for exactly the two routes REACH-VENDOR named",
       f"vendor vouches for {sorted(FOUND - _with_vendor)}, recorded {sorted(_VENDOR_VOUCHED)} — "
       "a route joining or leaving this pair is a change in what the vendored copies say about our "
       "API, and it needs a person")
+#: AND THE EXCLUSION IS NAMED, NOT A PARENT-DIRECTORY MATCH -- the two checks below are the ones the
+#: differential above cannot perform on itself. It asks what restoring the vendored text vouches for;
+#: a FIRST-PARTY file wrongly excluded is absent from both sides of that subtraction, so it changes
+#: nothing and is invisible. Concretely, with the first draft's `"/src/vendor/" in q`, a real caller
+#: added under `apps/web/src/vendor/` for `/projects/{pid}/workflow/{key}` would be dropped from the
+#: blob, the vendored copies would go on vouching for that same route, the difference would still be
+#: exactly the recorded pair, and the route would stay frozen as uncalled while the client calls it.
+#: Raised in review. *A differential over what an exclusion REMOVES says nothing about what it
+#: removes WRONGLY.*
+_VENDOR_DIR = os.path.join(_WEB_SRC, "vendor")
+_MARKED = tuple(sorted(
+    f"vendor/{d}/" for d in (os.listdir(_VENDOR_DIR) if os.path.isdir(_VENDOR_DIR) else [])
+    if os.path.isfile(os.path.join(_VENDOR_DIR, d, "VENDOR.md"))))
+check("the excluded packages are exactly the directories under `vendor/` carrying a `VENDOR.md` -- "
+      "the list is literal so a deleted marker cannot change what the blob reads, and derived-checked "
+      "so the list cannot drift from the tree",
+      tuple(sorted(VENDORED)) == _MARKED,
+      f"excluded {sorted(VENDORED)}, marked vendored {list(_MARKED)} — a package added to or removed "
+      "from `vendor/` needs the tuple in `services/api/web_source.py` updated with it")
+
+
+def _vendor_glob(pat, recursive=False):          # noqa: ARG001 -- signature must match
+    """Three files under `vendor/`: the two vendored packages, and one that is NOT vendored."""
+    if not pat.endswith("*.ts"):
+        return []
+    return [os.path.join(_WEB_SRC, "vendor", d, "f.ts")
+            for d in ("massingifc", "massingpdf", "firstparty")]
+
+
+#: The real `glob` is saved HERE rather than reused from the `.tsx` probe further down this file:
+#: that binding does not exist yet at this point, and reaching forward to it crashed this block on
+#: its first run. A fixture that restores from a name defined later restores nothing.
+_unpatched_glob = _ws_glob.glob
+_ws_glob.glob = _vendor_glob
+try:
+    _V_PROBE = [os.path.relpath(f, _WEB_SRC).replace("\\", "/") for f in web_files()]
+finally:
+    _ws_glob.glob = _unpatched_glob
+check("  ...and a file under `vendor/` that is NOT one of them is still READ -- probed with a "
+      "synthetic package the tree does not contain, because every real directory there is vendored "
+      "and so the tree cannot tell a named exclusion from a parent-directory one",
+      _V_PROBE == ["vendor/firstparty/f.ts"],
+      f"kept {_V_PROBE} — expected only the non-vendored file; a parent-directory match drops all "
+      "three and takes any future first-party caller under `vendor/` with it")
+
 print(f"  vendored-tree exclusion worth {len(FOUND) - len(_with_vendor)} routes "
       f"({len(_vendor_files)} files, {len(_vendor_text):,} chars)")
 print(f"  routes {len(PATHS)} · web source {len(BLOB):,} chars · uncalled by this rule {len(FOUND)}")

@@ -64,6 +64,27 @@ def _web_source() -> str:
     return "\n".join(open(p, encoding="utf-8", errors="replace").read() for p in web_files())
 
 
+#: The vendored packages: directories under `apps/web/src/vendor/` holding a verbatim copy of another
+#: repository, each with a `VENDOR.md` saying so and recording that the copy carries no local edits.
+#:
+#: **NAMED, not matched by their parent directory, and the difference is a live hole rather than a
+#: style preference.** The first draft excluded any path containing `/src/vendor/`. A first-party
+#: caller added under that directory would then be dropped from the blob -- and the differential
+#: beside this exclusion in `services/api/test_route_reachability.py` CANNOT SEE THAT, because it
+#: asks which routes restoring the vendored text vouches for: if the new caller calls
+#: `/projects/{pid}/workflow/{key}`, the vendored copies already vouch for that route, the difference
+#: is unchanged, and the route stays recorded as uncalled while the client calls it. *An exclusion
+#: whose own differential is blind to what it wrongly excludes is the shape this gate exists to
+#: catch.* Raised in review, having been put to review as the thing least certain in the change.
+#:
+#: The list is literal rather than derived from the `VENDOR.md` files, because a blob that decides
+#: what to read from a marker file changes meaning when somebody deletes one. The marker is used to
+#: CHECK the list instead: `test_route_reachability.py` asserts this tuple names exactly the
+#: directories under `vendor/` that carry a `VENDOR.md`, in both directions, so the list cannot drift
+#: from the tree without reddening. *Hardcode what is load-bearing; derive the proof that it is right.*
+VENDORED = ("vendor/massingifc/", "vendor/massingpdf/")
+
+
 def web_files() -> list[str]:
     """The files `_web_source()` concatenates, in the order it concatenates them.
 
@@ -80,7 +101,7 @@ def web_files() -> list[str]:
                 continue
             if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
                 continue          # generated FROM the spec: lists every route, calls none
-            if "/src/vendor/" in q:
+            if os.path.relpath(p, _WEB).replace("\\", "/").startswith(VENDORED):
                 continue          # somebody else's repo, copied verbatim: names routes, calls none
             out.append(p)
     #: ONE sort over the WHOLE list, not one per glob pattern. Sorting inside the loop yields

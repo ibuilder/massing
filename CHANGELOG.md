@@ -207,6 +207,39 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### An exclusion whose own differential is blind to what it wrongly excludes
+
+The vendored-tree exclusion below shipped as `"/src/vendor/" in q` — a match on the *parent*
+directory rather than on the packages. Review named the hole, and it is the same shape the exclusion
+exists to close, one level out.
+
+A first-party caller added under `apps/web/src/vendor/` would be dropped from the blob. **And the
+differential beside the exclusion cannot see that**, because it asks what restoring the vendored text
+*vouches for*: if the new caller calls `/projects/{pid}/workflow/{key}`, the vendored copies already
+vouch for that route, the difference is unchanged, and the route stays frozen as uncalled while the
+client calls it. *A differential over what an exclusion REMOVES says nothing about what it removes
+WRONGLY* — a file wrongly excluded is absent from **both** sides of that subtraction, so it moves
+nothing and is invisible.
+
+The excluded set is now named — `vendor/massingifc/`, `vendor/massingpdf/`, matched on the path
+relative to the web root. Two checks, because the first alone would rot:
+
+- The tuple must equal the directories under `vendor/` carrying a `VENDOR.md`, **in both
+  directions**, so the list cannot drift from the tree.
+- A synthetic sibling package the tree does not contain must still be READ. Every real directory
+  under `vendor/` is vendored, so the tree *cannot* distinguish a named exclusion from a
+  parent-directory one — the same empty-population trap that made the `.tsx` sort check vacuous.
+
+The list is literal rather than derived from the `VENDOR.md` markers, deliberately: a blob that
+decides what to read from a marker file changes meaning when somebody deletes one. The marker checks
+the list instead. *Hardcode what is load-bearing; derive the proof that it is right.*
+
+Reinstating the parent-directory match reds the sibling probe **and nothing else**, which is the
+finding restated as a measurement: no check that existed could catch it. Dropping a package from the
+list reds five, the derivation check among them. And the fixture itself was wrong on its first run —
+it restored `glob` from a name bound two hundred lines further down the file, so it crashed instead
+of asserting. *A fixture that restores from a name defined later restores nothing.*
+
 ### Looking one way down the list is not reading the list
 
 The round below stopped asking "is it written down" and started asking "can it fail the job", and
