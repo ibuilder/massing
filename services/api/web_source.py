@@ -32,6 +32,29 @@ def _web_source() -> str:
     for **29 routes**, taking the uncalled count from 85 down to 56. The docstring above had the
     principle right and applied it to one file; this is the same file's rule finishing its sentence.
 
+    **THE VENDORED TREE is excluded for the third time in the same argument, since 2026-09-23.**
+    `apps/web/src/vendor/massingifc` and `apps/web/src/vendor/massingpdf` are verbatim copies of two
+    other repositories — `VENDOR.md` in each says so, and says the copies carry **no local edits** —
+    so a word appearing there is evidence about somebody else's product, not about what this client
+    calls. That is the same sentence as the generated types above with a different subject: the blob
+    is meant to answer "does OUR app do this", and both exclusions remove text that answers a
+    different question while looking like an answer to that one.
+
+    **It was not a theory — this file's consumer had already written the defect down without naming
+    the cause.** `test_route_reachability.py` records `/projects/{pid}/cost/calibration` as vouched by
+    "85 hits of PDF-takeoff SCALE calibration under `vendor/massingpdf/`, a different trade entirely",
+    and its own deterministic backtick fixture is a line copied out of
+    `vendor/massingifc/project-schema/coordination.ts`. Two of the five entries in its
+    LEAF-COLLISION list were vendor collisions; the diagnosis stopped at "a leaf that is also a common
+    domain noun".
+
+    **Measured: 83 of 399 files and 708,650 of 4,597,236 characters, and it moves exactly 2 routes**
+    — `/projects/{pid}/workflow/{key}` and `/projects/{pid}/project-package/contents`, uncalled 57 ->
+    59. Both were already frozen as invisible in `LEAF_COLLISION_BLIND`, so this does not find new
+    debt; it converts two routes the gate could not see into two the gate reports, which is the
+    direction the ratchet PUNISHES and therefore the direction nothing was going to drift into on its
+    own.
+
     **SORTED, since 2026-09-23.** `glob.glob` returns filesystem order, so this blob was a different
     string on every machine and the gates reading it could disagree with themselves between runs. A
     stable order does not make any single verdict correct — it makes a failure REPRODUCIBLE, which is
@@ -57,6 +80,8 @@ def web_files() -> list[str]:
                 continue
             if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
                 continue          # generated FROM the spec: lists every route, calls none
+            if "/src/vendor/" in q:
+                continue          # somebody else's repo, copied verbatim: names routes, calls none
             out.append(p)
     #: ONE sort over the WHOLE list, not one per glob pattern. Sorting inside the loop yields
     #: `[every .ts sorted] + [every .tsx sorted]`, which is deterministic but is not sorted — and the

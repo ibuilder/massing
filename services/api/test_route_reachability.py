@@ -380,6 +380,32 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/clash/coordinate",
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
+
+    # --- 2026-09-23: MASKED BY THE VENDORED TREE, not newly broken -------------------------------
+    # REACH-VENDOR. `_web_source()` now skips `apps/web/src/vendor/**`, the verbatim copies of
+    # `MassingCloud/massingifc` and `MassingCloud/massing-pdf`. 83 files, 708,650 characters of
+    # SOMEBODY ELSE'S product, and a route leaf occurring in it says nothing about what this client
+    # calls -- the same sentence the generated-types exclusion above makes about the OpenAPI spec.
+    #
+    # **This file had already written the defect down twice without naming it.** The LEAF-COLLISION
+    # note below blames `/projects/{pid}/cost/calibration` on "85 hits of PDF-takeoff SCALE
+    # calibration under `vendor/massingpdf/`, a different trade entirely", and the deterministic
+    # backtick fixture further down is a line lifted out of
+    # `apps/web/src/vendor/massingifc/project-schema/coordination.ts`. The diagnosis stopped at "a
+    # leaf that is also a common domain noun" -- true, and one layer short of the cause, because a
+    # vendored tree is a bulk supplier of exactly that noun. *Two symptoms written up separately are
+    # how one cause stays unnamed.*
+    #
+    # These two are the WHOLE differential, measured rather than assumed: uncalled 57 -> 59, nothing
+    # lost. Both were already frozen in `LEAF_COLLISION_BLIND` -- so this is not new debt, it is two
+    # routes moving from "the rule cannot see this" to "the rule reports this", and the ratchet
+    # PUNISHES that direction, which is why nothing was ever going to drift into it on its own.
+    #
+    # Neither has a caller in any shape: grepped `apps/web/src` outside `vendor/`, `.test.` and
+    # `demo/` for `project-package` (one hit, and it builds `/project-package.pdf`, a different
+    # route) and for `/workflow/` (zero hits).
+    "/projects/{pid}/project-package/contents",
+    "/projects/{pid}/workflow/{key}",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -715,6 +741,66 @@ check("  and the exclusion is LOAD-BEARING: including them would vouch for route
       f"exclusion protects nothing today; find out why before trusting this gate's number")
 print(f"  generated-types exclusion worth {len(FOUND) - len(_with_generated)} routes "
       f"({len(FOUND)} uncalled, {len(_with_generated)} if the generated types were counted)")
+
+# --- and the VENDOR exclusion, asserted the same two ways and for the same reason ----------------
+#
+# `apps/web/src/vendor/**` holds verbatim copies of two other repositories (`VENDOR.md` in each, "no
+# local edits"). A route leaf occurring there is evidence about somebody else's product. The
+# argument is identical to the generated types above; only the subject differs, and so the assertion
+# is the same pair: the vendored text is genuinely out of the blob, AND putting it back changes the
+# answer.
+#
+# **(2) is the one that matters, and here it is the one that could plausibly go quiet.** The
+# generated types are machine-emitted and will keep naming every route; a vendored tree drifts on its
+# own schedule, and the day a re-sync stops mentioning any of our route leaves, (1) keeps passing
+# while the exclusion protects nothing. Only a differential can tell those apart -- and a
+# differential that has fallen to zero is a fact worth knowing, not a check to delete.
+_VENDOR = os.path.join(_WEB, "vendor")
+_vendor_files = sorted(
+    os.path.join(dp, f)
+    for dp, _dn, fn in os.walk(_VENDOR) for f in fn
+    if f.endswith((".ts", ".tsx")) and ".test." not in f)
+check("the vendored tree is on disk, so this comparison is measuring something",
+      len(_vendor_files) > 50, f"{len(_vendor_files)} vendored source files found under {_VENDOR}")
+
+#: PER FILE, as the generated-types check above had to be taught to be. A prefix test over the
+#: CONCATENATION only ever proves something about the first file, and "the vendored tree is out"
+#: is a claim about 83 of them. Sampled rather than exhaustive -- every file's full text is already
+#: in `_vendor_text` below, and the differential is what carries the load -- but sampled ACROSS the
+#: two packages, because they were vendored on different dates from different repositories and a
+#: single `continue` covering one and not the other is precisely the shape the earlier bug had.
+_vendor_probe = {}
+for _vf in _vendor_files:
+    _pkg = "massingifc" if "/massingifc/" in _vf.replace("\\", "/") else "massingpdf"
+    _vendor_probe.setdefault(_pkg, _vf)
+_vendor_leaked = [os.path.basename(f) for f in _vendor_probe.values()
+                  if open(f, encoding="utf-8", errors="replace").read()[:2000] in BLOB]
+check("  the vendored tree is EXCLUDED from the web source the rule reads — both packages probed",
+      len(_vendor_probe) == 2 and not _vendor_leaked,
+      f"probed {sorted(_vendor_probe)}, inside the blob: {_vendor_leaked} — the exclusion in "
+      "web_source.web_files() is not taking effect for these")
+
+_vendor_text = "\n".join(open(f, encoding="utf-8", errors="replace").read() for f in _vendor_files)
+_with_vendor = uncalled_routes(PATHS, BLOB + "\n" + _vendor_text)
+check("  and the exclusion is LOAD-BEARING: counting the vendored tree would vouch for routes "
+      "nothing here calls",
+      len(_with_vendor) < len(FOUND),
+      f"uncalled {len(FOUND)} excluded vs {len(_with_vendor)} included — no difference means the "
+      f"exclusion protects nothing today; find out why before trusting this gate's number")
+
+#: THE DIFFERENTIAL IS NAMED, NOT JUST COUNTED. The generated-types check above asserts only that the
+#: number moves; that was enough there, because putting 29 routes back is visible in the totals. Here
+#: it is two, and two is small enough that a DIFFERENT pair silently swapping in would leave every
+#: check on this page green. So the pair is written down: if the vendored tree starts vouching for
+#: something else, that is a new fact about the exclusion and it must be read, not absorbed.
+_VENDOR_VOUCHED = {"/projects/{pid}/project-package/contents", "/projects/{pid}/workflow/{key}"}
+check("  ...and it vouches for exactly the two routes REACH-VENDOR named",
+      FOUND - _with_vendor == _VENDOR_VOUCHED,
+      f"vendor vouches for {sorted(FOUND - _with_vendor)}, recorded {sorted(_VENDOR_VOUCHED)} — "
+      "a route joining or leaving this pair is a change in what the vendored copies say about our "
+      "API, and it needs a person")
+print(f"  vendored-tree exclusion worth {len(FOUND) - len(_with_vendor)} routes "
+      f"({len(_vendor_files)} files, {len(_vendor_text):,} chars)")
 print(f"  routes {len(PATHS)} · web source {len(BLOB):,} chars · uncalled by this rule {len(FOUND)}")
 
 # --- the templated-stem leniency is PINNED, because it moves the number the wrong way ------------
@@ -1172,9 +1258,23 @@ check("  the siblings that motivated this gate are STILL reachable — the fix m
 #: the blind spot PERSISTS, and all three stay green after a route is wired -- measured, by wiring
 #: `/bsdd/class` and re-running this file unchanged. A fourth check now probes for a real caller and
 #: reds when one appears, with a positive control so it cannot pass by measuring nothing.
+#: **`/projects/{pid}/workflow/{key}` LEFT THIS SET IN REACH-VENDOR (2026-09-23), and it left by a
+#: route none of the corrections above anticipated: the VOUCHING TEXT was deleted rather than the
+#: route wired.** Excluding `apps/web/src/vendor/**` from the blob takes it straight into
+#: `KNOWN_UNCALLED` -- the rule can see it now, and what it sees is a route with no caller. The
+#: entry's reason line said "`workflow` as an ordinary domain noun, 70 hits"; a large share of those
+#: hits were `vendor/massingifc`'s clash-and-review vocabulary, which is the same accident as
+#: `/projects/{pid}/cost/calibration`'s 85 hits under `vendor/massingpdf/` one paragraph up. *Two
+#: entries in a five-entry list shared a cause the list described as "not an accident" and then
+#: characterised as plain English.*
+#:
+#: **What is left is ONE entry, and it is the entry that was READ.** `/proforma/provenance` is the
+#: triaged duplicate described above -- a second way to ask a question `POST /proforma/solve` already
+#: answers. So this list no longer holds any unexamined route, and a reader should not take its
+#: length as a debt count in either direction: it is a record of what this rule cannot see, and today
+#: that is one route somebody decided not to build.
 LEAF_COLLISION_DARK = (
     "/proforma/provenance",
-    "/projects/{pid}/workflow/{key}",
 )
 
 
@@ -1384,7 +1484,17 @@ for _r in LEAF_COLLISION_DARK:
 #
 # **So why freeze it at all?** Because the alternative is what was here before: a blind spot of
 # unknown size, with two of its members written down and nothing able to report the rest. Frozen,
-# the set can only shrink, and route 71 arrives with a name instead of silently. Triaging the 70 is
+# the set can only shrink, and route 71 arrives with a name instead of silently.
+#
+# *(**68 since 2026-09-23**, and the two that left did NOT leave the way this paragraph anticipates.
+# REACH-VENDOR excluded `apps/web/src/vendor/**` from the blob, so `/projects/{pid}/workflow/{key}`
+# and `/projects/{pid}/project-package/contents` stopped being vouched for and are ordinary
+# `KNOWN_UNCALLED` entries now -- the rule can see them, and what it sees is two routes nothing
+# calls. The checks below offer two exits, "it gained a caller" and "it was renamed"; **deleting the
+# TEXT that vouched for it is a third**, and it is the only one of the three that makes the gate
+# STRICTER. Corrected here rather than in place, for the reason the 26 -> 70 correction two
+# paragraphs up gives -- except that this one moves DOWN, which is the direction a ratchet rewards
+# and therefore the direction nobody audits.)* Triaging the 70 is
 # its own work and is NOT done here -- no purely syntactic probe can classify them (the leaf is
 # vouched, which is the whole problem, and a leaf-based helper search returns 685 hits for
 # `projects` and 44 for `status`). Each one needs a read.
@@ -1446,7 +1556,6 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/notifications/digest/preview",
     "/projects/{pid}/productivity/summary",
     "/projects/{pid}/progress/reconciliation",
-    "/projects/{pid}/project-package/contents",
     "/projects/{pid}/properties/index",
     "/projects/{pid}/recipes/export",
     "/projects/{pid}/reports/catalog",
@@ -1456,7 +1565,6 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/schedule/status",
     "/projects/{pid}/stakeholders/analysis",
     "/projects/{pid}/warranties/expiring",
-    "/projects/{pid}/workflow/{key}",
     "/scim/v2/Users",
     "/scim/v2/Users/{user_id}",
 })

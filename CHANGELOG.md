@@ -12,6 +12,36 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The reachability gate was reading 708,650 characters of somebody else's product as evidence about ours
+
+`_web_source()` — the blob both reachability gates ask "does any client call this route?" — included
+`apps/web/src/vendor/**`: verbatim, unedited copies of `MassingCloud/massingifc` and
+`MassingCloud/massing-pdf`, 83 files. A route leaf occurring there is a fact about another
+repository. The blob already excluded the generated OpenAPI types for exactly that reason, and the
+sentence simply had not been finished.
+
+**It was not a theory; the consumer had written the defect down twice without naming it.** The
+gate's own notes blame `/projects/{pid}/cost/calibration` on "85 hits of PDF-takeoff SCALE
+calibration under `vendor/massingpdf/`, a different trade entirely", and its deterministic
+regression fixture is a line lifted out of `vendor/massingifc/project-schema/coordination.ts`. The
+diagnosis stopped at "a leaf that is also a common domain noun" — true, and one layer short, because
+a vendored tree is a bulk supplier of exactly that noun. *Two symptoms written up separately are how
+one cause stays unnamed.*
+
+Measured: uncalled 57 → 59, nothing lost. Both routes that move —
+`/projects/{pid}/project-package/contents` and `/projects/{pid}/workflow/{key}` — were already
+frozen as **invisible** in `LEAF_COLLISION_BLIND`, so this finds no new debt; it converts two routes
+the rule could not see into two it reports. **That is the direction the ratchet punishes**, which is
+why nothing was going to drift into it unprompted, and it is also a third way out of the blind-spot
+list that the list did not anticipate: not "it gained a caller" and not "it was renamed", but *the
+text that vouched for it was deleted*.
+
+The exclusion is asserted the same two ways the generated-types one is — the vendored text is
+genuinely absent from the blob (probed per package, since the two were vendored on different dates
+from different repositories), and putting it back changes the answer — plus a third the older check
+does not have: the differential is **named**, not just counted. Two is small enough that a different
+pair silently swapping in would leave every other check green.
+
 ### The budget form put back the $9,000,000 the GMP sync had just replaced, and both calls said 200
 
 Two findings raised in review on the lock-boundary work and declined there as pre-existing rather
