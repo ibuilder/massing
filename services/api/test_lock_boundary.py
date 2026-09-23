@@ -613,7 +613,7 @@ def _bindings(fn: ast.AST, alias: dict, local_types: dict, foreign_types: dict,
     return out
 
 
-def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], bool]:
+def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], set[str]]:
     """Which names in this module mean the `pid_lock` MODULE, and is `mutating` imported bare?
 
     Every call site in this tree spells it `from .. import pid_lock` (often function-locally) and
@@ -623,7 +623,6 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     safe, but would also be a lie about what the lock is.
     """
     names: set[str] = set()
-    bare = False
     chain = _scope_chain(tree, fn)
     nodes = list(_own_nodes(tree))
     for scope in chain:
@@ -636,7 +635,7 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
             if kind == "module":
                 names.add(nm)
             else:
-                bare, _ = True, bare_names.add(nm)
+                bare_names.add(nm)
 
     #: SHADOWING. `def writer(p, pid_lock):` binds a PARAMETER of that name, and Python resolves the
     #: `with pid_lock.mutating(...)` inside it to the parameter -- not to the imported module. So did
@@ -654,10 +653,20 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     shadowed: set[str] = set()
     for scope in [tree, *chain]:
         shadowed |= _bound_names(scope, skip_lock_imports=True)
-    return names - shadowed, (bare and not (bare_names & shadowed))
+    #: The bare form returns the NAMES it bound, not a boolean. Collecting them and then answering
+    #: yes/no was this file's own recurring failure one more time: `is_the_lock` fell back to the
+    #: literal spelling `mutating`, so `from ..pid_lock import mutating as held` plus a PARAMETER
+    #: named `mutating` certified the parameter -- `bare_names` was {"held"}, `shadowed` held
+    #: "mutating", the intersection was empty, and the flag said yes about a name nobody had bound
+    #: to the lock. The genuine `held(pid)` was never certified at all, so the rule was wrong in
+    #: both directions at once and the docstring promising the bare form was false.
+    #: *Asking the right question and then throwing the answer away* -- the lesson
+    #: `services/api/test_pin_pgnull.py` records, arriving here by a different door.
+    return names - shadowed, bare_names - shadowed
 
 
-def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool = False,
+def lock_spans(fn: ast.AST, attr: str, lock_names: set[str],
+               bare_mutating: frozenset[str] | set[str] = frozenset(),
                nodes: set[int] | None = None) -> tuple[bool, list[int]]:
     """Is EVERY mention of `attr` in this function inside `with pid_lock.mutating(...)`?
 
@@ -686,7 +695,8 @@ def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool
         f = ctx.func
         if isinstance(f, ast.Attribute) and f.attr == "mutating":
             return isinstance(f.value, ast.Name) and f.value.id in lock_names
-        return bare_mutating and isinstance(f, ast.Name) and f.id == "mutating"
+        #: Membership, not the literal `mutating`: only a name the lock's own import BOUND counts.
+        return isinstance(f, ast.Name) and f.id in bare_mutating
 
     def walk(node: ast.AST, locked: bool) -> None:
         for ch in ast.iter_child_nodes(node):
@@ -1042,6 +1052,20 @@ _SYNTH = ast.parse(
     #: `import fakes.pid_lock as pid_lock`. *A fix aimed at the spelling that was reported closes
     #: that spelling* -- the docstring already said recognition is by SOURCE MODULE and the code
     #: under it went on matching a suffix, so the prose was true and the test was not.
+    #: THE BARE FORM'S OWN NAME. `pid_lock_names` collected the names the lock's import bound and
+    #: then answered yes/no, so `is_the_lock` fell back to the literal spelling: an ALIASED genuine
+    #: import plus a PARAMETER called `mutating` certified the parameter, while the real `held`
+    #: was never certified. Wrong in both directions from one discarded value.
+    "def aliased_bare(db, pid):\n"
+    "    from ..pid_lock import mutating as held\n"
+    "    p = db.get(Project, pid)\n"
+    "    with held(pid):\n"
+    "        p.source_ifc = 'the aliased bare form, genuinely locked'\n"
+    "def bare_alias_shadow(db, pid, mutating):\n"
+    "    from ..pid_lock import mutating as held\n"
+    "    p = db.get(Project, pid)\n"
+    "    with mutating(pid):\n"
+    "        p.source_ifc = 'a parameter named mutating is not the lock'\n"
     "def fake_bare_import(db, pid):\n"
     "    from .fakes.pid_lock import mutating\n"
     "    p = db.get(Project, pid)\n"
@@ -1110,7 +1134,8 @@ check("self-test: a planted unlocked writer of a field locked elsewhere IS repor
           "sloppy_writer", "impostor_lock", "impostor_alias", "unlocked_after_seed",
           "span_victim", "param_shadow", "local_shadow", "tuple_shadow", "import_shadow",
           "except_shadow", "nested_def_shadow", "match_shadow", "fake_lock_import",
-          "dynamic_writer", "fake_bare_import", "fake_module_import"}),
+          "dynamic_writer", "fake_bare_import", "fake_module_import",
+          "bare_alias_shadow"}),
       f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: `lock_spans` stops at a nested function -- a helper's unlocked mention must not "
       "un-certify the ENCLOSING locked write and destroy the seed with it",
@@ -1158,6 +1183,12 @@ check("  ...and one whose receiver cannot be resolved is UNKNOWN, not dropped",
 check("self-test: a MATCH CAPTURE (`case pid_lock:`) shadows the import -- a FIFTH binding family, "
       "missed by a list whose own docstring called itself closed by the language",
       "match_shadow" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: the bare form is certified by the NAME ITS IMPORT BOUND, not by the spelling "
+      "`mutating` -- an aliased genuine import IS the lock, and a same-scope parameter of that "
+      "literal name is NOT, which the discarded-bool version got wrong in both directions",
+      "aliased_bare" not in {s[1] for s in _sv} and "bare_alias_shadow" in {s[1] for s in _sv},
+      f"violations={sorted(s[1] for s in _sv)}")
+
 check("self-test: a module whose path merely ENDS in the lock's name is not the lock -- "
       "`from .fakes.pid_lock import mutating` and `import fakes.pid_lock as pid_lock` both "
       "certified under a suffix test, in the two spellings round 13's fix did not look at",

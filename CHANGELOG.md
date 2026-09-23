@@ -12,6 +12,45 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 15 — the answer collected and then discarded, and a test sharing a directory with its own failures
+
+Two findings. The first is inside round 14's fix; the second is a test-hygiene defect that would have
+broken the suite permanently for anyone whose run died at the wrong moment.
+
+**1. `pid_lock_names` collected the bare-lock names and returned a boolean.** The names were gathered
+into `bare_names`, the shadowing was subtracted correctly — and then the function answered yes/no, so
+`is_the_lock` fell back to the literal spelling `mutating`. Both directions are wrong at once:
+
+```python
+from aec_api.pid_lock import mutating as held
+def writer(db, pid, mutating):
+    with mutating(pid):          # the PARAMETER certifies
+        p.source_ifc = "x"
+```
+
+`bare_names` is `{"held"}`, `shadowed` holds `"mutating"`, the intersection is empty, the flag says
+yes — about a name nobody bound to the lock. And the genuine `held(pid)` is **never** certified, so
+the docstring promising the bare form was false for the one spelling that actually reaches it.
+
+*Asking the right question and then throwing the answer away* — the lesson
+`services/api/test_pin_pgnull.py` already records, arriving here by a different door. `lock_spans`
+now checks membership in the names the import bound. Probes `aliased_bare` (must certify) and
+`bare_alias_shadow` (must not); restoring the boolean reds them by name.
+
+**2. `test_ifc_publish_atomic` ran in a fixed `./_ifc_atomic` and never removed it.** That file
+deliberately *keeps* one `.rollback-*` backup and then asserts there is exactly one and that no other
+rollback scratch is left behind. In a shared directory those two assertions are armed by any run that
+dies between creating the kept backup and the cleanup at the end — a crash, a timeout, a cancelled CI
+job — and then **every later run fails**, for a reason unrelated to the code under test, until
+somebody deletes the file by hand. `run_tests.py` reports `_ifc_*` as residue it does not own, so the
+runner never clears it either.
+
+**Demonstrated, not argued**: with the old fixed directory and a single planted
+`.rollback-stale-from-a-crashed-run`, the run fails on *both* named assertions. The directory is now
+`tempfile.mkdtemp()` per run, removed only on a pass — a failed run's staged files, backups and
+published bytes are the evidence somebody will want. *A test that asserts "nothing was left behind"
+must not share a directory with its own previous failures.*
+
 ### LOCK-BOUNDARY round 14 — the same fail-open, in the two spellings the fix did not look at
 
 One finding, and it is inside round 13's own fix.

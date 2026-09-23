@@ -41,6 +41,8 @@ if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
 import pathlib  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
 
 from aec_api.db import Base, SessionLocal, engine  # noqa: E402
 from aec_api.models import Project  # noqa: E402
@@ -58,8 +60,15 @@ def check(label: str, ok, detail: str = "") -> None:
 
 
 PID = "ifc-atomic-test"
-WORK = pathlib.Path("./_ifc_atomic").resolve()
-WORK.mkdir(parents=True, exist_ok=True)
+#: A FRESH directory per run, not a fixed `./_ifc_atomic`. This file deliberately KEEPS one
+#: `.rollback-*` backup and asserts there is exactly one, and that no other rollback scratch is left
+#: behind. In a fixed directory those two assertions are armed by any run that dies between creating
+#: the kept backup and the cleanup at the end -- a crash, a timeout, a cancelled CI job -- and then
+#: EVERY later run fails, for a reason that has nothing to do with the code under test, until
+#: somebody deletes the file by hand. `run_tests.py` reports `_ifc_*` as residue it does not own, so
+#: the runner never clears it either. *A test that asserts "nothing was left behind" must not share
+#: a directory with its own previous failures.*
+WORK = pathlib.Path(tempfile.mkdtemp(prefix="ifc_atomic_")).resolve()
 FINAL = WORK / "source.ifc"
 
 OLD = b"ISO-10303-21;\n/* OLD COMPLETE MODEL */\nEND-ISO-10303-21;\n"
@@ -384,4 +393,8 @@ print(f"test_ifc_publish_atomic {'FAILED' if FAILED else 'OK'}"
       + ("" if FAILED else f" - {len(seen_fixed)} reader observations, 0 partial"))
 for f in FAILED:
     print(f"  - {f}")
+#: Removed only on a PASS: a failed run's staged files, backups and published bytes are the evidence
+#: somebody will want, and the directory is under the system temp root either way.
+if not FAILED:
+    shutil.rmtree(WORK, ignore_errors=True)
 sys.exit(1 if FAILED else 0)
