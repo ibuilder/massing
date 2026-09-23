@@ -133,6 +133,11 @@ MODELS: set[str] = {m.class_.__name__ for m in Base.registry.mappers}
 #: and fails closed. Only a derivation that cannot be wrong may use this.
 NOT_A_MODEL = "<not-a-model>"
 
+#: A DYNAMIC attribute write -- `setattr(obj, k, v)`, where `k` is a runtime value. The attribute
+#: cannot be named, so such a site never SEEDS a protected pair; it is only ever judged against pairs
+#: something else seeded. See `dynamic_writes`.
+DYNAMIC_ATTR = "<setattr>"
+
 #: DECLARED non-model receivers: (repo-relative path, function, local variable) -> why.
 #:
 #: Everything not named here that the analyser cannot resolve is UNKNOWN, which reds the build. That
@@ -151,6 +156,22 @@ NON_MODEL_RECEIVERS: dict[tuple[str, str, str], str] = {
         "where `model` is an `ifcopenshell.file`; the `.name` it writes is the IFC header's "
         "FILE_NAME field, which collides by name with the protected `Connection.name` and nothing "
         "else. aec_data has no ORM session and this function never touches one.",
+    #: Three more arrived with `dynamic_writes` -- the `setattr` receivers. Each is declared rather
+    #: than inferred, for the reason the paragraph above gives, and each states what the object IS.
+    ("services/api/src/aec_api/bcf_io.py", "import_bcfzip", "existing"):
+        "`existing = next((v for v in topic.viewpoints if v.camera is not None), None)` -- a mapped "
+        "`Viewpoint`, reached through a generator over a relationship, which none of the five "
+        "binding forms expresses. Declaring it is the honest option and costs nothing here: "
+        "`Viewpoint` has no protected attribute, so resolving it would change no verdict. The "
+        "SIBLING receiver in the same function, `topic`, DOES resolve -- through form 3, "
+        "`auth.get_or_create_by_key(db, Topic, ...)` -- which is why only this one is listed.",
+    ("services/data/src/aec_data/cost_ifc.py", "_quantity", "q"):
+        "`q = model.create_entity(...)` on an `ifcopenshell.file`. The attribute written is an IFC "
+        "quantity field named by `QUANTITY_KINDS[basis]['attr']`; there is no ORM session in "
+        "aec_data and no mapped instance anywhere in this call.",
+    ("services/data/src/aec_data/ifcpatch_lib.py", "convert_length_unit", "e"):
+        "`for e in entities` over ifcopenshell entities, rescaling IFC length attributes by a unit "
+        "ratio. Same reason as `_quantity` above: an IFC entity, not a mapped row.",
 }
 
 SRC_ROOTS = [HERE / "src", HERE.parent / "data" / "src"]
@@ -183,22 +204,41 @@ def _own_nodes(node: ast.AST):
             stack.extend(ast.iter_child_nodes(n))
 
 
-def _lock_import_names(node: ast.AST) -> set[str]:
-    """The names `node` binds to the pid_lock MODULE itself -- empty for every other import.
+def _lock_import_names(node: ast.AST) -> dict[str, str]:
+    """{name: "module" | "mutating"} for every name `node` binds to the PROJECT LOCK.
 
-    Split out of `pid_lock_names` so the SHADOWING scan can ask the same question in the negative:
-    an import statement that binds the name `pid_lock` to something that is *not* the lock module
-    (`from .fakes import stub as pid_lock`) shadows the real import exactly as an assignment does.
+    THE ONE PLACE that decides what an import of the lock looks like. `pid_lock_names` reads it and
+    `_bound_names` reads it in the negative, so the two cannot drift into disagreeing -- which they
+    did, in both directions at once, in round 12:
+
+      * **Fail-open.** Matching `a.name == "pid_lock"` from ANY module certified
+        `from .fakes import pid_lock` as the project lock. The `import_shadow` probe missed it
+        because that probe renames (`stub as pid_lock`) and this one does not -- *a probe written
+        against one spelling of a substitution does not cover the substitution.*
+      * **Fail-closed, and contrary to the docstring.** `from ..pid_lock import mutating` bound no
+        lock name here, so `_bound_names(skip_lock_imports=True)` added `"mutating"` to the shadow
+        set and `pid_lock_names` could never return `bare=True`. The form its own docstring promised
+        to accept had become unreachable -- **a regression introduced by the shadowing fix itself**,
+        invisible because nothing in this tree spells it that way.
+
+    The source module is what distinguishes them. `pid_lock` lives at `aec_api/pid_lock.py` and
+    every importer in this tree spells it `from . import pid_lock` or `from .. import pid_lock`
+    (module `None`, verified by grep), so binding the MODULE requires the lock's own package; the
+    bare `mutating` requires a module path ending in `pid_lock`.
     """
-    out: set[str] = set()
+    out: dict[str, str] = {}
     if isinstance(node, ast.ImportFrom):
+        from_lock_pkg = node.module in (None, "aec_api")      # `from . import` / `from .. import`
+        from_lock_mod = (node.module or "").endswith("pid_lock")
         for a in node.names:
-            if a.name == "pid_lock":
-                out.add(a.asname or a.name)
+            if a.name == "pid_lock" and from_lock_pkg:
+                out[a.asname or a.name] = "module"
+            elif a.name == "mutating" and from_lock_mod:
+                out[a.asname or a.name] = "mutating"
     elif isinstance(node, ast.Import):
         for a in node.names:
             if a.name.split(".")[-1] == "pid_lock":
-                out.add(a.asname or a.name.split(".")[-1])
+                out[a.asname or a.name.split(".")[-1]] = "module"
     return out
 
 
@@ -216,10 +256,19 @@ def _bound_names(scope: ast.AST, *, skip_lock_imports: bool = False) -> set[str]
 
       * `ctx=Store` on `ast.Name` is the exact, complete marking of a name assignment in EVERY
         spelling, the same fact `_stored_attrs` leans on one node type over;
-      * the four binding forms that carry their name as a plain `str` field rather than as a `Name`
-        node -- `ExceptHandler.name`, `FunctionDef/AsyncFunctionDef/ClassDef.name`, import aliases,
-        and `global`/`nonlocal` -- are named explicitly, because the grammar gives no other handle
-        on them. That list is closed by the language, not by what this tree happens to contain.
+      * the binding forms that carry their name as a plain `str` field rather than as a `Name` node
+        -- `ExceptHandler.name`, `FunctionDef/AsyncFunctionDef/ClassDef.name`, import aliases,
+        `global`/`nonlocal`, and the MATCH-pattern captures `MatchAs.name`, `MatchStar.name` and
+        `MatchMapping.rest` -- are named explicitly, because the grammar gives no other handle on
+        them.
+
+    **The first draft of this docstring said that list was "closed by the language" and it named
+    four of the seven.** `case pid_lock:` binds the name through `MatchAs`, which carries no `Name`
+    node at all, so a captured object was certified as the project lock. *A completeness claim about
+    a hand-written list is a claim the list cannot check* -- the same failure as the statement-type
+    enumeration this function replaced, one layer up, and it was made in the sentence explaining why
+    enumerations fail. The three match forms are now here; the honest statement is that this list is
+    as complete as the last reading of the grammar, not that it cannot be short again.
 
     Scoped with `_own_nodes`, so a nested body binds in ITS scope and not in this one -- the rule
     every traversal here has had to learn. A comprehension target is counted as bound although
@@ -235,6 +284,10 @@ def _bound_names(scope: ast.AST, *, skip_lock_imports: bool = False) -> set[str]
     for n in _own_nodes(scope):
         if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
             out.add(n.id)
+        elif isinstance(n, (ast.MatchAs, ast.MatchStar)) and n.name:
+            out.add(n.name)
+        elif isinstance(n, ast.MatchMapping) and n.rest:
+            out.add(n.rest)
         elif isinstance(n, ast.ExceptHandler) and n.name:
             out.add(n.name)
         elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -242,7 +295,7 @@ def _bound_names(scope: ast.AST, *, skip_lock_imports: bool = False) -> set[str]
         elif isinstance(n, (ast.Global, ast.Nonlocal)):
             out.update(n.names)
         elif isinstance(n, (ast.Import, ast.ImportFrom)):
-            lockish = _lock_import_names(n)
+            lockish = _lock_import_names(n)          # {name: "module"|"mutating"}
             for al in n.names:
                 if al.name == "*":
                     continue
@@ -325,7 +378,13 @@ def _model_of_call(call: ast.Call, alias: dict) -> str | None:
 
 
 def _stored_attrs(fn: ast.AST):
-    """Every `<name>.<attr>` written anywhere in `fn`, derived from the LANGUAGE, not enumerated.
+    """Every SYNTACTIC `<name>.<attr>` write in `fn`, derived from the LANGUAGE, not enumerated.
+
+    **"Syntactic" is load-bearing and was missing from this sentence.** `ctx=Store` is the exact,
+    complete marking of an attribute write *in the grammar* -- and `setattr(obj, k, v)` is an
+    attribute write the grammar does not spell as one, so it carries no `Store` and no `Attribute`
+    and this function cannot see it however carefully it reads the AST. One live route swapped the
+    protected `Project.source_ifc` that way. `dynamic_writes` covers them; see its docstring.
 
     An attribute write is not a list of statement types -- it is `ast.Attribute` carrying
     `ctx=Store`, which is how Python itself marks one, in every form it has. Round 7 replaced a
@@ -364,12 +423,56 @@ def _stored_attrs(fn: ast.AST):
             yield n
 
 
+def dynamic_writes(fn: ast.AST):
+    """Every `setattr(<name>, ...)` in this function -- an attribute write with no attribute name.
+
+    `_stored_attrs` asks the grammar for `ctx=Store`, which is exact and complete **for writes the
+    grammar expresses as writes**. `setattr()` is an ordinary function call: it has no `Store`
+    context, no `Attribute` node, and nothing about it says "assignment" to an AST walker. So the
+    one route that can swap `Project.source_ifc` through a PATCH body -- `bim.patch_project`, which
+    loops `setattr(p, k, v)` over a validated `ProjectPatch` that declares `source_ifc` -- was
+    invisible to this analyser while being exactly the writer it exists to find.
+
+    *A derivation that asks the grammar is only as complete as the grammar's own account of what it
+    is looking for*, and "attribute write" is a concept the language spells two ways: syntactically,
+    and through the reflection API. The docstring of `_stored_attrs` claimed the first was every
+    spelling; it is every SYNTACTIC spelling, which is a different and smaller claim.
+
+    Bounded, and measured rather than assumed: seven `setattr` sites exist in the whole tree, one on
+    a `Project` and the rest on `Topic` or on ifcopenshell entities. A receiver that does not resolve
+    is reported UNKNOWN like any other, which is what puts the aec_data ones in the declared ledger
+    rather than in silence.
+    """
+    for n in _own_nodes(fn):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "setattr" and n.args):
+            yield n
+
+
 def _rel(p: pathlib.Path) -> str:
     """Repo-relative path, or the bare path when `p` is outside the tree (the self-test probe)."""
+    #: `.as_posix()`, not `str()`: on Windows -- which is where this repository is developed --
+    #: `str()` yields backslashes, and `_bindings` compares that against the `/`-separated keys in
+    #: `NON_MODEL_RECEIVERS`. The declared exemption would never match, `stamp_conformance`'s `fn`
+    #: would fall through to UNRESOLVED, and the REAL-TREE verdict would red -- while the ledger
+    #: self-test kept passing, because that one normalises separators before comparing. *A check
+    #: that normalises in one place and not the other is green where it looks and red where it runs.*
+    return _posix_rel(p, HERE.parent.parent)
+
+
+def _posix_rel(p, root) -> str:
+    """`p` relative to `root`, ALWAYS with `/` separators -- the separable half of `_rel`.
+
+    Split out so the self-test can call it with `PureWindowsPath`s, which are platform-independent.
+    The first draft of that check asserted the property against `PureWindowsPath` directly and never
+    touched this code, so reverting the fix red NOTHING: **a static check that still passes with the
+    guard removed is not testing the guard** -- the rule this file states about `_system_field` and
+    then broke about itself, one round later. The mutation now reaches the code under test.
+    """
     try:
-        return str(p.relative_to(HERE.parent.parent))
+        return p.relative_to(root).as_posix()
     except ValueError:
-        return str(p)
+        return p.as_posix()
 
 
 CONFLICT = "<conflicting-binds>"
@@ -505,17 +608,15 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     nodes = list(_own_nodes(tree))
     for scope in chain:
         nodes += list(_own_nodes(scope))
+    #: ONE recognition rule, read from `_lock_import_names` rather than restated here -- the two
+    #: copies disagreed in both directions at once until round 13. See that function's docstring.
+    bare_names: set[str] = set()
     for n in nodes:
-        if isinstance(n, ast.ImportFrom):
-            for a in n.names:
-                if a.name == "pid_lock":
-                    names.add(a.asname or a.name)
-                elif a.name == "mutating" and (n.module or "").endswith("pid_lock"):
-                    bare = True
-        elif isinstance(n, ast.Import):
-            for a in n.names:
-                if a.name.split(".")[-1] == "pid_lock":
-                    names.add(a.asname or a.name.split(".")[-1])
+        for nm, kind in _lock_import_names(n).items():
+            if kind == "module":
+                names.add(nm)
+            else:
+                bare, _ = True, bare_names.add(nm)
 
     #: SHADOWING. `def writer(p, pid_lock):` binds a PARAMETER of that name, and Python resolves the
     #: `with pid_lock.mutating(...)` inside it to the parameter -- not to the imported module. So did
@@ -533,12 +634,17 @@ def pid_lock_names(tree: ast.AST, fn: ast.AST | None = None) -> tuple[set[str], 
     shadowed: set[str] = set()
     for scope in [tree, *chain]:
         shadowed |= _bound_names(scope, skip_lock_imports=True)
-    return names - shadowed, (bare and "mutating" not in shadowed)
+    return names - shadowed, (bare and not (bare_names & shadowed))
 
 
-def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool = False
-               ) -> tuple[bool, list[int]]:
+def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool = False,
+               nodes: set[int] | None = None) -> tuple[bool, list[int]]:
     """Is EVERY mention of `attr` in this function inside `with pid_lock.mutating(...)`?
+
+    With `nodes` -- a set of `id()`s -- it answers the same question about those NODES instead, for
+    the dynamic `setattr(obj, k, v)` writers that have no attribute name to look for. Deliberately
+    the same traversal rather than a second one beside it: this file has already paid twice for two
+    walks disagreeing about where a function ends, and `lock_spans` was the walk that got missed.
 
     Same rule as `test_rmw_sweep.under_pid_lock`, and stricter than strictly necessary on purpose:
     a read kept outside the lock for logging would count. This function decides whether to CERTIFY,
@@ -576,7 +682,9 @@ def lock_spans(fn: ast.AST, attr: str, lock_names: set[str], bare_mutating: bool
             here = locked
             if isinstance(ch, ast.With):
                 here = here or any(is_the_lock(i.context_expr) for i in ch.items)
-            if isinstance(ch, ast.Attribute) and ch.attr == attr and not here:
+            mention = (id(ch) in nodes) if nodes is not None else (
+                isinstance(ch, ast.Attribute) and ch.attr == attr)
+            if mention and not here:
                 outside.append(getattr(ch, "lineno", 0))
             walk(ch, here)
 
@@ -678,6 +786,16 @@ def collect(roots: list[pathlib.Path]) -> list[tuple]:
                 seen.add((key, t.attr))
                 ok, outside = lock_spans(fn, t.attr, lock_names, bare_mutating)
                 sites.append((_rel(p), fn.name, recv, t.attr, ok, outside[:4]))
+            #: ...and the writes the grammar does not spell as writes. `setattr(obj, k, v)` carries
+            #: no `Store` and no `Attribute`, so `_stored_attrs` cannot see it however complete its
+            #: reading of the grammar is -- see `dynamic_writes`. Judged by the same `lock_spans`,
+            #: keyed on the CALL node rather than on an attribute name.
+            for call in dynamic_writes(fn):
+                tgt = call.args[0]
+                recv = binds.get(tgt.id) if isinstance(tgt, ast.Name) else None
+                ok, outside = lock_spans(fn, DYNAMIC_ATTR, lock_names, bare_mutating,
+                                         nodes={id(call)})
+                sites.append((_rel(p), fn.name, recv, DYNAMIC_ATTR, ok, outside[:4]))
     return sites
 
 
@@ -691,10 +809,22 @@ def verdicts(sites: list[tuple]) -> tuple[set, list, list]:
     #: on its own -- nothing resolves TO it, so no violation could match -- but it put the sentinel's
     #: attribute into `prot_attrs`, which is what decides whether an UNRESOLVED receiver is worth
     #: reporting. *A sentinel that means "proved not a model" must not be spendable as a model.*
-    protected = {(m, a) for _, _, m, a, ok, _ in sites if m and m != NOT_A_MODEL and ok}
+    protected = {(m, a) for _, _, m, a, ok, _ in sites
+                 if m and m != NOT_A_MODEL and a != DYNAMIC_ATTR and ok}
     prot_attrs = {a for _, a in protected}
-    violations = [s for s in sites if s[2] and (s[2], s[3]) in protected and not s[4]]
-    unknown = [s for s in sites if s[2] is None and s[3] in prot_attrs and not s[4]]
+    prot_models = {m for m, _ in protected}
+    #: A DYNAMIC write never SEEDS -- it cannot name the attribute it wrote, so `a != DYNAMIC_ATTR`
+    #: above -- but it is judged against every pair something else seeded on that model. The rule is
+    #: deliberately coarse in the fail-CLOSED direction: an unlocked `setattr` on a model that has
+    #: ANY protected attribute is a violation, because the analyser cannot prove it wrote a
+    #: different one. Measured rather than feared: this makes exactly one site in the tree a
+    #: violation, `bim.patch_project`, whose `ProjectPatch` body really does declare `source_ifc`.
+    violations = ([s for s in sites if s[2] and s[3] != DYNAMIC_ATTR
+                   and (s[2], s[3]) in protected and not s[4]]
+                  + [s for s in sites if s[3] == DYNAMIC_ATTR and s[2] in prot_models and not s[4]])
+    unknown = ([s for s in sites if s[2] is None and s[3] != DYNAMIC_ATTR
+                and s[3] in prot_attrs and not s[4]]
+               + [s for s in sites if s[3] == DYNAMIC_ATTR and s[2] is None and not s[4]])
     return protected, violations, unknown
 
 
@@ -858,6 +988,50 @@ _SYNTH = ast.parse(
     "    p = db.get(Project, pid)\n"
     "    with pid_lock.mutating(pid):\n"
     "        p.source_ifc = 'a nested def is not the module either'\n"
+    #: A MATCH CAPTURE, which is a FIFTH family and was missed by a list whose own docstring called
+    #: itself closed by the language. `case pid_lock:` binds through `MatchAs.name` -- a plain `str`
+    #: field, no `Name` node anywhere -- so the captured subject was certified as the project lock.
+    "def match_shadow(db, pid, evt):\n"
+    "    p = db.get(Project, pid)\n"
+    "    match evt:\n"
+    "        case pid_lock:\n"
+    "            with pid_lock.mutating(pid):\n"
+    "                p.source_ifc = 'a captured pattern name is not the module'\n"
+    #: SUBSTITUTION WITHOUT RENAMING. `import_shadow` above imports something else UNDER the name;
+    #: this imports the name itself from somewhere else. Matching on `a.name == "pid_lock"` from any
+    #: module certified it. *A probe written against one spelling of a substitution does not cover
+    #: the substitution* -- which is why the rule now asks where the import came FROM.
+    "def fake_lock_import(db, pid):\n"
+    "    from .fakes import pid_lock\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        p.source_ifc = 'imported from somewhere else entirely'\n"
+    #: THE BARE FORM, which must be CERTIFIED. Nothing in this tree spells the lock this way, which
+    #: is exactly why it needs a probe: the round-12 shadowing fix made `pid_lock_names` return
+    #: `bare=False` unconditionally -- it added `"mutating"` to the shadow set because
+    #: `_lock_import_names` did not recognise the import that bound it -- and the form this file's
+    #: own docstring promises to accept became unreachable with nothing going red.
+    "def bare_mutating(db, pid):\n"
+    "    from ..pid_lock import mutating\n"
+    "    p = db.get(Project, pid)\n"
+    "    with mutating(pid):\n"
+    "        p.source_ifc = 'the bare form, genuinely locked'\n"
+    #: THE DYNAMIC WRITE, in all three of its verdicts. `setattr` carries no `Store` and no
+    #: `Attribute`, so `_stored_attrs` cannot see it however completely it reads the grammar --
+    #: `bim.patch_project` swapped the protected `Project.source_ifc` this way and was invisible.
+    #: The locked one is here so the rule cannot pass by reporting every `setattr`, and the opaque
+    #: one so an unresolvable receiver still fails CLOSED rather than being dropped.
+    "def dynamic_writer(db, pid, changes):\n"
+    "    p = db.get(Project, pid)\n"
+    "    for k, v in changes.items():\n"
+    "        setattr(p, k, v)\n"
+    "def dynamic_locked(db, pid, changes):\n"
+    "    p = db.get(Project, pid)\n"
+    "    with pid_lock.mutating(pid):\n"
+    "        for k, v in changes.items():\n"
+    "            setattr(p, k, v)\n"
+    "def dynamic_opaque(thing):\n"
+    "    setattr(thing, 'whatever', 1)\n"
 )
 
 #: MODULE SCOPE, which needs its own fixture: a rebinding beside the import poisons every function
@@ -886,6 +1060,11 @@ for _fn in ast.walk(_SYNTH):
             _recv = _b.get(_t.value.id) if isinstance(_t.value, ast.Name) else None
             _ok, _out = lock_spans(_fn, _t.attr, _syn_lock_names, _syn_bare)
             _syn_sites.append(("synth.py", _fn.name, _recv, _t.attr, _ok, _out))
+        for _c in dynamic_writes(_fn):                  # mirrors `collect` -- see its comment
+            _tgt = _c.args[0]
+            _recv = _b.get(_tgt.id) if isinstance(_tgt, ast.Name) else None
+            _ok, _out = lock_spans(_fn, DYNAMIC_ATTR, _syn_lock_names, _syn_bare, nodes={id(_c)})
+            _syn_sites.append(("synth.py", _fn.name, _recv, DYNAMIC_ATTR, _ok, _out))
 
 _sp, _sv, _su = verdicts(_syn_sites)
 _SPELLINGS = {"annotated", "augmented", "unpacked", "nested_unpacked", "starred",
@@ -894,7 +1073,8 @@ check("self-test: a planted unlocked writer of a field locked elsewhere IS repor
       sorted(s[1] for s in _sv) == sorted(_SPELLINGS | {
           "sloppy_writer", "impostor_lock", "impostor_alias", "unlocked_after_seed",
           "span_victim", "param_shadow", "local_shadow", "tuple_shadow", "import_shadow",
-          "except_shadow", "nested_def_shadow"}),
+          "except_shadow", "nested_def_shadow", "match_shadow", "fake_lock_import",
+          "dynamic_writer"}),
       f"violations={sorted(s[1] for s in _sv)}")
 check("self-test: `lock_spans` stops at a nested function -- a helper's unlocked mention must not "
       "un-certify the ENCLOSING locked write and destroy the seed with it",
@@ -912,6 +1092,50 @@ check("self-test: a TUPLE target, a non-lock IMPORT under the name, an `except .
       <= {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
 _ms_fn = next(f for f in ast.walk(_MOD_SHADOW)
               if isinstance(f, ast.FunctionDef) and f.name == "writer")
+# `_rel` MUST EMIT POSIX SEPARATORS. This repository is developed on Windows, where `str(Path)`
+# yields backslashes and the `/`-separated keys in `NON_MODEL_RECEIVERS` therefore never match --
+# `stamp_conformance`'s receiver falls through to UNRESOLVED and the REAL-TREE verdict reds, while
+# the ledger self-test above keeps passing because it normalises separators before comparing.
+# `PureWindowsPath` is platform-independent, so this reproduces the Windows string on Linux rather
+# than asserting something that can only be true here.
+_w_root = pathlib.PureWindowsPath(r"C:\Server\modelmaker")
+_w_src = pathlib.PureWindowsPath(
+    r"C:\Server\modelmaker\services\data\src\aec_data\massing.py")
+_w_rel = _w_src.relative_to(_w_root)
+check("self-test: a repo-relative path is emitted with POSIX separators -- `str()` would emit "
+      "backslashes on the platform this repo is developed on, and the declared exemption keys are "
+      "slash-separated, so the ledger would silently stop matching there and only there",
+      str(_w_rel) != _w_rel.as_posix()               # the platform difference is real here...
+      and _posix_rel(_w_src, _w_root) in {k[0] for k in NON_MODEL_RECEIVERS}   # ...and `_rel` fixes it
+      and all("\\" not in k[0] for k in NON_MODEL_RECEIVERS),
+      f"str={str(_w_rel)!r} via _posix_rel={_posix_rel(_w_src, _w_root)!r}")
+
+check("self-test: a DYNAMIC write (`setattr(p, k, v)`) of a model with a protected attribute is "
+      "reported -- it carries no `Store` and no `Attribute`, so the grammar-derived matcher is "
+      "blind to it by construction, and one live route swapped `Project.source_ifc` that way",
+      "dynamic_writer" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("  ...and a LOCKED one is not, so the rule is not simply reporting every `setattr`",
+      "dynamic_locked" not in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("  ...and one whose receiver cannot be resolved is UNKNOWN, not dropped",
+      "dynamic_opaque" in {s[1] for s in _su}, f"unknown={sorted(s[1] for s in _su)}")
+
+check("self-test: a MATCH CAPTURE (`case pid_lock:`) shadows the import -- a FIFTH binding family, "
+      "missed by a list whose own docstring called itself closed by the language",
+      "match_shadow" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: `from .fakes import pid_lock` is NOT the project lock -- recognition is by the "
+      "SOURCE MODULE, not by the name, so substituting without renaming no longer certifies",
+      "fake_lock_import" in {s[1] for s in _sv}, f"violations={sorted(s[1] for s in _sv)}")
+check("self-test: ...and the BARE form `from ..pid_lock import mutating` IS certified -- the "
+      "round-12 shadowing fix had made it unreachable, failing CLOSED against its own docstring "
+      "with nothing in the tree spelling it that way to notice",
+      "bare_mutating" not in {s[1] for s in _sv} and pid_lock_names(
+          ast.parse("def w(pid):\n    from ..pid_lock import mutating\n"
+                    "    with mutating(pid):\n        pass\n"),
+          next(f for f in ast.walk(ast.parse(
+              "def w(pid):\n    from ..pid_lock import mutating\n"
+              "    with mutating(pid):\n        pass\n")) if isinstance(f, ast.FunctionDef)))[1],
+      f"violations={sorted(s[1] for s in _sv)}")
+
 check("self-test: a MODULE-LEVEL rebinding after the import shadows it for every function in the "
       "file -- `chain` holds functions only, so a per-function scan could not see the one rebinding "
       "whose blast radius is the whole module",

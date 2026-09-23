@@ -12,6 +12,72 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-BOUNDARY round 13 — a live unlocked writer the analyser could not see, by construction
+
+Four findings, all real. One is a **product defect**, not a gate defect, and it is the kind this
+whole pull request exists to close.
+
+**1. `bim.patch_project` swapped `Project.source_ifc` outside the lock.** `ProjectPatch` declares
+`source_ifc`, so an admin PATCH can move the pointer that `bake_layers`, `edit` and every authoring
+route read, spend a recipe on, and write back — the same race the five writers in this PR's title
+had. It survived twelve rounds of a gate built to find exactly this, **for a structural reason
+rather than an oversight**: the write is `setattr(p, k, v)`, which carries no `Store` context and no
+`Attribute` node, so an analyser that asks the grammar for attribute writes is blind to it however
+carefully it reads.
+
+`_stored_attrs`' docstring claimed `ctx=Store` was *"the complete, exact marking of an attribute
+write in EVERY spelling."* It is every **syntactic** spelling — a different and smaller claim. Python
+spells attribute writes two ways, syntactically and through the reflection API, and *a derivation
+that asks the grammar is only as complete as the grammar's own account of what it is looking for.*
+`dynamic_writes` now covers `setattr`, judged by the same `lock_spans` traversal keyed on the call
+node; the route takes `pid_lock.mutating(pid)` around the lookup, the refresh and the commit.
+**The gate found the defect on its own once taught the spelling** — it reported
+`patch_project writes Project.<setattr> with mentions outside the lock at [759]` before the fix.
+
+The dynamic rule is coarse in the fail-closed direction — an unlocked `setattr` on a model with
+*any* protected attribute is a violation, because the analyser cannot prove it wrote a different one
+— and that is affordable because the population is seven sites tree-wide, measured. Three receivers
+do not resolve (two ifcopenshell entities, one `Viewpoint` reached through a generator) and are
+declared in the exemption ledger with stated reasons rather than inferred away.
+
+**2. The shadowing list was short again — a fifth family.** `case pid_lock:` binds through
+`MatchAs.name`, with no `Name` node anywhere, so a captured subject certified as the project lock.
+`MatchAs`, `MatchStar` and `MatchMapping.rest` are now handled. The sting is where the claim was
+made: round 12's docstring said the list of string-field binding forms was **"closed by the
+language"** while naming four of seven. *A completeness claim about a hand-written list is a claim
+the list cannot check* — asserted in the very sentence explaining why enumerations fail. The
+docstring now says what is true: as complete as the last reading of the grammar.
+
+**3. Lock recognition disagreed with itself in both directions at once.** `_lock_import_names` and
+`pid_lock_names` each matched `a.name == "pid_lock"` from *any* module, so
+`from .fakes import pid_lock` certified — the `import_shadow` probe missed it because that probe
+renames and this substitution does not. *A probe written against one spelling of a substitution does
+not cover the substitution.* And in the other direction, round 12's own shadowing fix made
+`from ..pid_lock import mutating` **unreachable**: the import bound no lock name, so `"mutating"`
+entered the shadow set and `bare` could never be true. The form the docstring promised to accept had
+been switched off by a fix, invisibly, because nothing in this tree spells it that way. Recognition
+is now by **source module**, in one place both callers read.
+
+**4. `_rel` emitted backslashes on Windows**, which is where this repository is developed, so the
+`/`-separated keys in the exemption ledger never matched, `stamp_conformance`'s receiver fell through
+to UNRESOLVED and the real-tree verdict red — **there and only there**, because the ledger self-test
+normalises separators before comparing. *A check that normalises in one place and not the other is
+green where it looks and red where it runs.* The self-test uses `PureWindowsPath`, which is
+platform-independent, so it reproduces the Windows string on Linux instead of asserting something
+that can only hold here.
+
+Each fix is mutation-checked: dropping the match forms, matching the lock import by name alone,
+returning `str()` from `_rel`, removing the `setattr` collector, and unlocking `patch_project` each
+red a specific named self-test.
+
+**One of those five did not, at first, and the gap was in the check rather than the fix.** The
+Windows self-test asserted the property against `PureWindowsPath` directly and never called `_rel`,
+so reverting `_rel` to `str()` red nothing — a check written beside the guard instead of through it.
+The separable half is now `_posix_rel(p, root)`, which the self-test calls, and the mutation reaches
+it. *A static check that still passes with the guard removed is not testing the guard* — this file
+states that rule about `_system_field` and then broke it about itself one round later, which is the
+argument for running every mutation rather than the ones expected to bite.
+
 ### LOCK-BOUNDARY round 12 — the third statement-type list, and a sentinel spent as a model
 
 Four findings, all in-diff, all real. Three are in `services/api/test_lock_boundary.py`; one is a
