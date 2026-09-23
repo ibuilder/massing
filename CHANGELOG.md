@@ -207,6 +207,48 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### DESKTOP-CONVERT-TIMEOUT — the parameter reached one of the two branches
+
+`fragconvert.convert_ifc` has always taken a `timeout`. It reached `subprocess.run` on the Node
+path, where an overrunning child can be killed, and reached **nothing at all** on the Python path,
+which calls IfcOpenShell in the caller's own process. `_publish` runs on a background worker and
+does not care. **`edit_preview` is a synchronous route passing `timeout=120`**, so a slow model held
+a request worker past its own deadline instead of returning the 503 that route is written to give —
+and the parameter's *presence* is what made the gap invisible.
+
+It was filed rather than fixed because the obvious repair is a killable child process, which is
+net-new spawning machinery in a PyInstaller bundle. **That was the right call about that repair and
+the wrong conclusion about the problem**: `from_ifc.convert` already had a per-element loop with a
+progress hook, so a *cooperative* deadline fits with no process isolation at all. It now checks the
+clock after the parse, between elements, and every 4,096 entities in the index loop; `convert_ifc`
+computes the deadline from the caller's `timeout` (not the duration — the callee would restart the
+clock, and `edit_preview` authors a one-element IFC before it calls). Both paths raise
+`TimeoutError`: Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so telling "too slow"
+from "broke" meant knowing which converter ran, which is the fact this function exists to hide.
+
+**The entry stays OPEN, deliberately.** This bounds the cost that *scales* — a model that overran
+because it was large — and not the cost that *hangs*: one element whose `create_shape` never returns
+still holds the caller for ever, because the loop never reaches the next checkpoint. *A partial fix
+described as a fix is how the original asymmetry became invisible in the first place*, so the
+roadmap entry is narrowed from "any model large enough" to "one element that hangs" rather than
+ticked.
+
+**Two defects in the gate, both found by its own mutations rather than by review.** Reinstating the
+pre-fix state red it, but deleting the parse and geometry checkpoints while leaving the entity-index
+one **passed** — that tick fires at entity 0, so the deadline was still detected, after all the
+geometry work was done. The timing assertion meant to catch that was vacuous: `elapsed < max(0.25,
+baseline * 0.9)` against a 33 ms fixture is satisfied by doing the whole conversion. *A threshold
+generous enough not to flake on a slow runner is generous enough to measure nothing.* The check now
+asserts the **stage name** in the raised message — a deadline already past must be caught at
+`parse`, before any geometry — and a second case crosses the deadline mid-loop through a deliberately
+slow `progress` hook, so both checkpoints are load-bearing. And the always-raise mutation used to
+kill the run with a traceback instead of naming a contract; the positive control now catches it.
+
+The first draft of that positive control also failed on *correct* code, asserting byte equality
+between two conversions — `metadata` embeds `"created": datetime.now(...)`. It compares the parsed
+model instead. *An assertion that fails on correct code costs a round exactly like one that passes on
+broken code.*
+
 ### An exclusion whose own differential is blind to what it wrongly excludes
 
 The vendored-tree exclusion below shipped as `"/src/vendor/" in q` — a match on the *parent*

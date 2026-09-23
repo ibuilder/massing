@@ -1327,15 +1327,34 @@ instances:
   flatbuffer root — without it, the first mutation could have been failing for an unrelated reason.
 
 - **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
-  2026-09-10 by review of #504)*
+  2026-09-10 by review of #504; **NARROWED 2026-09-23, still OPEN**. Gated by
+  `services/api/test_fragconvert_timeout.py`)*
 
-  `services/api/src/aec_api/fragconvert.py` takes a `timeout` and applies it only to the Node path,
+  `services/api/src/aec_api/fragconvert.py` takes a `timeout` and applied it only to the Node path,
   where `subprocess.run` can kill an overrunning child. The Python path calls IfcOpenShell
   in-process, so nothing can interrupt it. `_publish` runs on a background worker and does not care;
-  **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model holds a
+  **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model held a
   request worker past its own deadline rather than reaching the 503 the caller is written to expect.
 
-  The fix is a killable child process, and the reason it is filed rather than done is the target
+  **A COOPERATIVE deadline shipped 2026-09-23, and it is half of this — the half that was reachable
+  without the machinery below.** `from_ifc.convert` takes a `deadline` and checks the clock after
+  the parse, between elements in the geometry loop, and every 4,096 entities in the index loop;
+  `convert_ifc` computes it from the caller's `timeout` and both paths now raise `TimeoutError`
+  (Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so a caller telling "too slow" from
+  "broke" had to know which converter ran — a fact that function exists to hide).
+
+  **What that bounds: the cost that SCALES.** A conversion that overran because the model was large
+  is refused at the first checkpoint past the deadline. **What it does not bound: the cost that
+  HANGS.** One element whose single `create_shape` never returns still holds the caller for ever,
+  because the loop never reaches the next checkpoint — no in-process mechanism short of a signal or
+  a child process takes the interpreter back.
+
+  *So the entry stays open with its scope narrowed from "any model large enough" to "one element
+  that hangs", rather than being closed on the strength of the reachable half.* **"The parameter is
+  honoured" is exactly the reading that made the original asymmetry invisible**, and a partial fix
+  described as a fix would re-create it one layer in.
+
+  The remainder is still a killable child process, and the reason it is still filed is the target
   platform: the desktop app is a PyInstaller bundle, where `multiprocessing` spawn re-execs the
   frozen executable unless `freeze_support()` is wired at the entry point, and this repository has
   no process-isolation pattern to copy — `multiprocessing` appears once, for `cpu_count()`.

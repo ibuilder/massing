@@ -18,6 +18,7 @@ element as that offset, which keeps a georeferenced model near the origin withou
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -162,16 +163,44 @@ def _shells_for(verts: list[float], faces: list[int]) -> list[Mesh]:
     return out
 
 
-def convert(ifc_path: str, *, model_guid: str = "", progress=None) -> ConversionResult:
+def convert(ifc_path: str, *, model_guid: str = "", progress=None,
+            deadline: float | None = None) -> ConversionResult:
     """Convert an IFC file to `.frag` bytes.
 
     `progress(fraction)` is called as elements are processed, matching the Node CLI's callback so
     the two paths report the same way.
+
+    **`deadline` is a `time.monotonic()` instant after which this raises `TimeoutError`, and it is
+    COOPERATIVE — which bounds most of the exposure and not all of it.** The Node path gets a real
+    timeout for free because `subprocess.run` can kill a child; this path runs IfcOpenShell in the
+    caller's own process, where nothing can interrupt it from outside. Honouring the caller's
+    deadline the way Node does needs a killable child process, which is net-new spawning machinery
+    in a PyInstaller bundle (`multiprocessing` spawn re-execs the frozen app unless `freeze_support`
+    is wired), so it was filed as DESKTOP-CONVERT-TIMEOUT rather than rushed.
+
+    What a checkpoint between elements CAN bound is the cost that scales: parse, then N calls to
+    `geom.create_shape`, then N entity-index steps. A big model overran because there was a lot to
+    do, and that is now refused at the first checkpoint past the deadline. What it CANNOT bound is
+    one pathological element whose single `create_shape` never returns — the loop never reaches the
+    next checkpoint, and no in-process mechanism short of a signal or a child process can take the
+    interpreter back.
+
+    *So this narrows the unbounded case from "any model large enough" to "one element that hangs",
+    and the second is still open.* Saying that plainly is the point: a partial fix described as a
+    fix is how the `timeout` parameter came to read as binding in the first place.
     """
     import ifcopenshell
     from ifcopenshell import geom
 
+    def _tick(stage: str, done: int, of: int) -> None:
+        """Raise if the caller's deadline has passed. Named stage/counts so the log says WHERE."""
+        if deadline is not None and time.monotonic() > deadline:
+            raise TimeoutError(
+                f"IFC->Fragments conversion exceeded its deadline during {stage} "
+                f"({done}/{of}); this path is interruptible only between elements")
+
     f = ifcopenshell.open(ifc_path)
+    _tick("parse", 0, 0)
     settings = _settings()
 
     guids: list[str] = []
@@ -191,6 +220,7 @@ def convert(ifc_path: str, *, model_guid: str = "", progress=None) -> Conversion
     for i, product in enumerate(products):
         if progress:
             progress(i / total)
+        _tick("geometry", i, len(products))
         guid = getattr(product, "GlobalId", "") or ""
         try:
             shape = geom.create_shape(settings, product)
@@ -222,7 +252,12 @@ def convert(ifc_path: str, *, model_guid: str = "", progress=None) -> Conversion
     # unresolvable: a selected wall knows its own GlobalId, and its storey, space and property sets
     # are unreachable. Measured against the reference, which indexes 57 entities and 23 GUIDs for a
     # model with 8 meshed items.
-    for entity in f:
+    for _n, entity in enumerate(f):
+        #: The entity index walks the WHOLE file, not just the meshed products, so on a model with
+        #: little geometry and many entities this loop — not the tessellation above — is where the
+        #: time goes. A checkpoint in only one of the two loops bounds only one of them.
+        if not _n % 4096:
+            _tick("entity index", _n, 0)
         eid = entity.id()
         if not eid:                            # inline value types carry id 0 and are not entities
             continue
