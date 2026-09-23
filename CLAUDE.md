@@ -256,6 +256,30 @@ fact is where it belongs*; and both routes resolve through `workflow_config.effe
 `transition` does, and reading the shipped workflow instead would have reopened the same
 disagreement by a different door.
 
+**A thirteenth joined them on 2026-09-14: `services/api/test_pid_lock_pgxproc.py`** — does the advisory
+lock exclude two PROCESSES? `services/api/test_pid_lock_xproc.py` is *named* for cross-process
+serialisation and asserts a great deal about it; its one exclusion check is **two threads, in one
+process, on SQLite**, where `_advisory()` takes nothing and the exclusion observed is entirely the
+in-process `RLock`. So `pg_advisory_lock` — the whole of R35-PIDLOCK-XPROC — was exercised by no line
+of this tree, and could have shipped acquiring nothing. **A test named for a property can assert every
+neighbouring property and never the one in its name.** What it *did* prove across processes is that two
+workers derive the same KEY: necessary, and silent on whether taking it excludes anybody. The new gate
+runs two real OS processes against a real server and asserts their held intervals do not overlap —
+**with two mutations, because either alone passes a lock that has stopped locking**: two different
+projects MUST overlap (otherwise the positive check is measuring the order the harness starts things
+in, and a lock that excluded *everything* would look identical), and a per-process key MUST overlap
+(note 1's `hash()` defect, reinstated across real processes). Verified by deleting the acquisition
+outright — the behavioural check reds independently of the static one, and one check that *stayed*
+green under that mutation had its label narrowed rather than left: `cross_process_status()` reports the
+DIALECT, so it says the advisory path was *available*, never that a lock was *taken*. It also pins the
+acquisition as the BLOCKING form, because `_advisory` sets `acquired = True` without reading a result —
+so a `pg_try_advisory_lock` "don't block the request" change would report a lock it does not hold. That
+static pin is **redundant wherever a server exists** — measured, not assumed: with the swap applied the
+behavioural check reds too, deterministically, because the harness starts B only once A is demonstrably
+inside. Its value is the run with NO server — every ordinary local invocation, where the exclusion arm
+cannot run at all. *A check earns its place from where it is the ONLY one, not from the worst case it
+can be described as catching* — and the first draft of that sentence claimed the worst case.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

@@ -170,3 +170,24 @@ jobs:
           AEC_PG_REQUIRED: "1"
           PGDATABASE: mig_runtime
         run: PYTHONPATH=src:../data/src python test_pin_pgnull.py
+
+      # LOCK-XPROC. `test_pid_lock_xproc.py` is named for cross-process serialisation, and its one
+      # exclusion assertion is two THREADS on SQLite — where `_advisory()` takes nothing and the
+      # exclusion observed is entirely the in-process RLock. So `pg_advisory_lock` was exercised by
+      # no test in the tree. This step is the only place it is exercised at all: two real OS
+      # processes contend for one project's lock against the service container.
+      #
+      # AEC_PG_REQUIRED for the same reason as the step above: without it the script takes its
+      # no-server branch and asserts only that this step exists, which here would be circular. The
+      # script asserts in turn that this step is still in this file, so deleting it reds the normal
+      # suite rather than quietly removing the only place the check is real.
+      #
+      # Placed after the parity diff, like the pin sweep: this one creates no tables, but it runs
+      # against `mig_runtime` and a step that can fail should not be able to leave anything behind
+      # ahead of a step that diffs that database's schema.
+      - name: Advisory lock excludes two PROCESSES (Postgres, not threads-on-SQLite)
+        working-directory: services/api
+        env:
+          AEC_PG_REQUIRED: "1"
+          PGDATABASE: mig_runtime
+        run: PYTHONPATH=src:../data/src python test_pid_lock_pgxproc.py

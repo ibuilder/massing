@@ -12,6 +12,39 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### LOCK-XPROC — the cross-process lock was proven by two threads in one process
+
+`test_pid_lock_xproc.py` is named for cross-process serialisation and asserts a great deal about it.
+Its one exclusion check is **two threads, in one process, on SQLite** — the suite's default database,
+where `_advisory()` takes nothing and yields `False`, so the exclusion it observes is entirely the
+in-process `RLock`. `pg_advisory_lock`, the whole of R35-PIDLOCK-XPROC, was therefore exercised by no
+line of this tree and could have shipped acquiring nothing. **A test named for a property can assert
+every neighbouring property and never the one in its name.** What it does prove across processes is
+that two workers derive the same KEY: necessary, and silent on whether taking it excludes anybody.
+
+`services/api/test_pid_lock_pgxproc.py` asks the question. Two real OS processes contend for one
+project's lock against a real server; their held intervals must not overlap. Two mutations, because
+either alone passes a lock that has stopped locking: two DIFFERENT projects must overlap — otherwise
+the positive check is measuring the order the harness starts things in, and a lock that excluded
+everything would look identical — and a per-process advisory key must overlap, which is note 1's
+`hash()` defect reinstated across real processes.
+
+Verified by deleting the acquisition outright rather than by reasoning: the behavioural check reds
+independently of the static one. One check *stayed green* under that mutation and had its label
+narrowed rather than left standing — `cross_process_status()` reports the DIALECT, so it says the
+advisory path was available, never that a lock was taken.
+
+It also pins the acquisition as the BLOCKING form. `_advisory` sets `acquired = True` without reading
+a result, because `pg_advisory_lock` returns void; a `pg_try_advisory_lock` "don't block the request"
+change would leave the code reporting a lock it does not hold. That static pin is redundant wherever a
+server exists — with the swap applied the behavioural check reds too, deterministically, since B starts
+only once A is demonstrably inside. It earns its place on the run with NO server, where the exclusion
+arm cannot run at all.
+
+With no server it does not pass quietly: it asserts that `.github/workflows/db-migrations.yml` still
+runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
+removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
+for the same reason.
 ### Round 16: the RVT translation was still on the event loop, and the sort check could not fail
 
 A full review pass over the current head found two, and both were inside this PR's own earlier fixes.
