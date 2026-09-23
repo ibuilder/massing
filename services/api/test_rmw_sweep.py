@@ -1229,8 +1229,19 @@ CROSS_FIELD = {
     # the derived population altogether. **This gate reported the entry stale before the ledger was
     # touched**, which is the direction it exists for: closing a gap must force the record to move,
     # or the tree ends up describing a defect nobody can still find.
-    ("src/aec_api/drawingset.py", "revise_sheet", "data"): ("OPEN",
-        "`m.data = d2`, derived from `m.data`; no token on that table."),
+    # CLOSED 2026-09-23 (RMW-REVISE). One `pid_lock.mutating(_lock_key(pid, drawing_id))` spans the
+    # WHOLE edit, because the two read-modify-writes in this function are one logical revision.
+    # **This entry named the less severe half** -- `m.data` is guarded by `"carried_from" not in d2`
+    # and has no other read-modify-writer, while the `revisions` list beside it loses an accepted
+    # revision outright. *A ledger keyed by attribute records the site the derivation MATCHED, which
+    # is not always the worst thing happening in it.*
+    ("src/aec_api/drawingset.py", "revise_sheet", "data"): ("LOCKED",
+        "`m.data = d2`, derived from `m.data`; no token on that table, so the control is a lock. "
+        "Keyed per SHEET (`drawing:<pid>:<id>`) rather than per project: two sheets' revisions are "
+        "independent. The first draft hoisted the body into a `_revise_sheet_locked` helper, which "
+        "moved the `with` into the CALLER and red `under_pid_lock` below -- *a refactor that "
+        "relocates a guard out of the scope a checker examines turns a verified claim into an "
+        "asserted one*, and the checker said so before a human did."),
     # CLOSED 2026-09-14 (RMW-TOKEN). Both writers of this blob now hold
     # `pid_lock.mutating(_lock_key(cid))`, and the key is a shared helper so the pair cannot drift
     # onto two different keys -- which would read as locked and protect nothing.
@@ -1277,9 +1288,17 @@ CROSS_FIELD = {
 #: them, and JSON equality is not a swap that behaves the same on SQLite and Postgres -- the identical
 #: trap `FOR UPDATE` is. Closing these means a migration (roadmap: RMW-TOKEN, gap G-10).
 BAND_2 = {
-    ("src/aec_api/routers/proforma.py", "share_scenario", "shared_with"): ("OPEN",
+    # CLOSED 2026-09-23 (RMW-SHARE, gap G-10). `pid_lock.mutating(_scenario_lock_key(sid))` with
+    # `db.refresh(s)` inside it -- the refresh is half the fix, because `_scenario_for` loaded the row
+    # BEFORE the wait and the identity map would hand that pre-image back, making the lock serialise
+    # two writes of the same stale list. Keyed on the SCENARIO, not `Scenario.project_id`, which is
+    # nullable: a scenario belonging to no project would have locked on `None`.
+    ("src/aec_api/routers/proforma.py", "share_scenario", "shared_with"): ("LOCKED",
         "`shared_with` -- two concurrent grants, one silently dropped. The response echoes the "
-        "caller's own target either way, so neither caller can tell it did not take."),
+        "caller's own target either way, so neither caller can tell it did not take. A lock rather "
+        "than a compare-and-swap for the reason `update_connection` states: two grants are "
+        "INDEPENDENT claims, so serialising lets both survive where a 409 would refuse an edit that "
+        "does not actually conflict."),
     ("src/aec_api/routers/realestate.py", "save_appraisal", "dev_property"): ("LOCKED",
         "`dev_property` merge -- the OTHER writer of the same blob, locked with `put_property` "
         "because half a lock is none. The non-concurrent half of this blob's problem WAS fixed here: "

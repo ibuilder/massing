@@ -275,12 +275,18 @@ def get_dev_budget(pid: str, db: Session = Depends(get_db), _sec: str = Depends(
     if not p:
         raise HTTPException(404, "project not found")
     budget = p.dev_budget or dvb.starter_budget()
-    return {"budget": budget, "summary": dvb.summarize(budget)}
+    #: `rev` is what a later PUT echoes back to prove it is replacing the budget it was shown. It is
+    #: derived from `budget` -- the value returned here -- and not from the column, because on a
+    #: project that has never saved one those differ (see `dev_budget.budget_rev`).
+    return {"budget": budget, "summary": dvb.summarize(budget), "rev": dvb.budget_rev(budget)}
 
 
 class DevBudgetIn(BaseModel):
     lines: list[dict] = Field(default_factory=list)
     contingency: dict[str, float] = Field(default_factory=dict)
+    #: The `rev` the caller was last shown. Optional, and the reason it is optional is written out at
+    #: the route below -- it is a deliberate, tested boundary rather than an oversight.
+    rev: str | None = None
 
 
 @router.put("/projects/{pid}/dev-budget")
@@ -291,19 +297,41 @@ def put_dev_budget(pid: str, body: DevBudgetIn, db: Session = Depends(get_db), _
     p = db.get(_P, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    budget = body.model_dump()
-    # LOCK-BOUNDARY. A plain whole-blob replace, so the read-modify-write sweep never had it -- and
-    # it is the OTHER side of the two `sync_*_to_hard` routes, which rebuild only the `hard` lines
-    # and preserve soft/acquisition/contingency. An editor saving the budget form while someone
-    # clicks "sync GMP" loses one of the two, silently: each caller's 200 is true of its own write.
-    # A lock and not a compare-and-swap, for the reason `connections` chose one: the two edits are
-    # claims on DIFFERENT line categories of one blob, so serialising lets both survive where a 409
-    # would refuse an edit that conflicts with nothing.
+    sent = body.model_dump()
+    claimed_rev = sent.pop("rev", None)
+    budget = sent
+    # LOCK-BOUNDARY + STALENESS. The lock makes the write ATOMIC; it does not make the REQUEST fresh,
+    # and those are different properties. This route replaces the WHOLE blob, so a form saved from a
+    # screen loaded before a `sync-gmp` or `sync-from-model` commit puts back the hard lines that
+    # sync had just rebuilt -- perfectly serialised, and the sync is gone with a 200 on both calls.
+    #
+    # **The comment that stood here justified the lock by claiming the two edits touch DIFFERENT line
+    # categories, so serialising lets both survive.** That reasoning is `connections.update_connection`'s
+    # and it holds there because that route MERGES keys. This one assigns `p.dev_budget = budget`
+    # outright, so nothing of the other writer survives the turn it waited for. *A justification
+    # copied from the route that inspired the control describes that route, not this one* -- and it
+    # read as settled precisely because it was true somewhere.
+    #
+    # So: a lock for the write AND a precondition for the request. `rev` is content-derived
+    # (`dev_budget.budget_rev`) because `projects` carries no `modified_at` to swap on.
+    #
+    # **`rev` is OPTIONAL, and that is a bounded decision rather than a fail-open default.** Making it
+    # required would 428 every non-interactive caller that legitimately writes a whole budget on a
+    # project it has just created -- `build_demo_data.py`, `e2e_dome.py`, `e2e_vertfarm.py` -- none of
+    # which races anything. The caller that DOES race is the budget form, and
+    # `services/api/test_budget_rev.py` asserts the web client round-trips `rev`, so the one path
+    # where omission would matter cannot start omitting it without a build going red.
     with pid_lock.mutating(pid):
         db.refresh(p)
+        current = p.dev_budget or dvb.starter_budget()
+        stored_rev = dvb.budget_rev(current)
+        if claimed_rev is not None and claimed_rev != stored_rev:
+            raise HTTPException(409, {
+                "error": "the developer budget changed since it was loaded; reload and re-apply",
+                "sent_rev": claimed_rev, "current_rev": stored_rev})
         p.dev_budget = budget
         db.commit()
-    return {"budget": budget, "summary": dvb.summarize(budget)}
+    return {"budget": budget, "summary": dvb.summarize(budget), "rev": dvb.budget_rev(budget)}
 
 
 @router.get("/projects/{pid}/specialty")
@@ -552,6 +580,11 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     if not p:
         raise HTTPException(404, "project not found")
     path = source_ifc_path(db, pid)                # raises 409 if no accessible source IFC
+    #: The identity of the FILE the takeoff below is about to read, captured BEFORE it is read and
+    #: re-checked under the lock further down -- the STALENESS note beside that lock says why it is
+    #: the file's identity and not `p.source_ifc`.
+    from .authoring_shared import ifc_identity
+    read_identity = ifc_identity(path)
     rows = takeoff_file(path, force_geometry=True)
     try:
         from aec_data import spaces as _sp  # type: ignore
@@ -573,8 +606,25 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     # LOCK-BOUNDARY, same span and same reason as `sync_gmp_to_hard`. The takeoff and the estimate
     # above are the expensive part and read no project row, so they stay outside the lock: what has
     # to be serialised is the read-derive-write of the blob, not the pricing that feeds it.
+    #
+    # STALENESS, which the lock does not give. This route is the one place in this file that derives
+    # a committed number from the IFC, and it reads the model OUTSIDE the lock -- correctly, because
+    # holding the project lock across a full geometry takeoff would block every publication and every
+    # other authoring write for as long as the parse takes. The cost of reading outside is that a
+    # publication can land in between, and then the hard cost committed below describes a model the
+    # project no longer has, with a 200 saying it is synced. *The expensive read belongs outside the
+    # lock; what belongs inside is the PROOF that it is still the right read.*
+    #
+    # Checked by file identity and NOT by `p.source_ifc`: publication `os.replace`s the new model onto
+    # the same final path, so the column is re-assigned the string it already held and comparing it
+    # would pass on exactly the interleaving this exists to catch (`authoring_shared.ifc_identity`).
+    # 409 rather than a silent redo: re-running the takeoff here would hold the lock across it.
     with pid_lock.mutating(pid):
         db.refresh(p)
+        now_identity = ifc_identity(p.source_ifc)
+        if read_identity is None or now_identity is None or now_identity != read_identity:
+            raise HTTPException(409, "the source IFC was republished while the takeoff ran; "
+                                     "re-run the sync against the current model")
         budget = dict(p.dev_budget or dvb.starter_budget())
         lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
         priced = round(sum(by_disc.values()), 2)
@@ -1031,6 +1081,21 @@ def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(cu
             "reviewed_at": s.reviewed_at.isoformat() if s.reviewed_at else None}
 
 
+def _scenario_lock_key(sid: str) -> str:
+    """The serialisation key for one scenario's shared-access list.
+
+    Namespaced like `connections._lock_key`: `pid_lock` is named for projects, but `advisory_key`
+    hashes any string into one namespace, so the prefix keeps this out of the project id space.
+
+    Keyed on the SCENARIO, not on `Scenario.project_id`, for two reasons. `project_id` is nullable,
+    so a scenario that belongs to no project would take a lock on `None`; and the contended value is
+    this row's own list, so a project-wide key would serialise grants on unrelated scenarios for
+    nothing. A function rather than an inline f-string so a second writer of this column cannot be
+    added on a different key -- which reads as locked and protects nothing.
+    """
+    return f"scenario:{sid}"
+
+
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
 def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
                    db: Session = Depends(get_db), actor: str = Depends(current_user)):
@@ -1045,9 +1110,29 @@ def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
     different people under one name.
     """
     s = _scenario_for(sid, db, actor, write=True)
-    s.shared_with = sorted(set((s.shared_with or []) + [target]))
-    db.commit()
-    return {"id": s.id, "shared_with": s.shared_with}
+    # RMW-SHARE (gap G-10). `sorted(set(existing + [target]))` is a set union over a value this
+    # request read, so two grants issued at once both build their list from the same pre-image and
+    # the later commit drops the earlier grant. **Neither caller can tell**: the response echoes the
+    # list the winner built, which contains the target THAT caller asked for, so both requests answer
+    # 201 with their own person present. *A lost update you can see in the response is a bug report;
+    # one that answers correctly to each party separately is found months later by the LP who cannot
+    # open the scenario.*
+    #
+    # A lock rather than a compare-and-swap, for the reason `connections.update_connection` states:
+    # `scenarios` carries no version column, and two grants are INDEPENDENT claims rather than rival
+    # ones -- serialising lets the second union onto the first's committed list so both survive,
+    # where a 409 would refuse an edit that does not actually conflict.
+    #
+    # `db.refresh` is half the fix: `_scenario_for` loaded `s` before the wait, and the session's
+    # identity map would hand back that pre-image, so the waiter would union onto the list it read
+    # BEFORE the winner committed and the lock would serialise two writes of the same stale value.
+    from .. import pid_lock
+    with pid_lock.mutating(_scenario_lock_key(sid)):
+        db.refresh(s)
+        s.shared_with = sorted(set((s.shared_with or []) + [target]))
+        db.commit()
+        granted = list(s.shared_with)
+    return {"id": s.id, "shared_with": granted}
 
 
 @router.put("/proforma/scenarios/{sid}")

@@ -9,12 +9,34 @@ Pure functions over plain dicts so the math is testable without a DB. `summarize
 `to_cost_lines()` emits the proforma cost tree (the seed the Finance view applies)."""
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 CATEGORIES = ("acquisition", "hard", "soft")
 # proforma cost_lines use land/hard/soft/contingency/fee — map our categories onto those
 _PROFORMA_CAT = {"acquisition": "land", "hard": "hard", "soft": "soft"}
 _DEFAULT_CONTINGENCY = {"hard": 0.10, "soft": 0.10, "acquisition": 0.0}
+
+
+def budget_rev(budget: dict[str, Any] | None) -> str:
+    """A content-derived revision token for a budget blob — the thing a stale PUT is detected with.
+
+    `Project.dev_budget` is a JSON column on a table with **no `modified_at`**, so there is no stored
+    token to compare against and adding one is a migration. The blob's own content is a token that
+    needs neither: two callers holding the same bytes hold the same revision, and any committed write
+    changes it. Canonical JSON (sorted keys, no whitespace) so a re-serialisation that reorders keys
+    is not read as an edit.
+
+    **Compute it over the value the caller was SHOWN, not over the column.** `get_dev_budget` returns
+    `p.dev_budget or starter_budget()`, so on a project that has never saved one the caller holds the
+    starter budget while the column holds `None`. A token taken from the column would then never match
+    the one the client echoes back, and every first save would 409 — *the mismatch is not in the
+    comparison, it is in disagreeing about what was read.* Both sides call this with the same
+    `or starter_budget()` fallback for that reason.
+    """
+    payload = json.dumps(budget or {}, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def line_total(line: dict) -> float:

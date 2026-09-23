@@ -12,6 +12,340 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The budget form put back the $9,000,000 the GMP sync had just replaced, and both calls said 200
+
+Two findings raised in review on the lock-boundary work and declined there as pre-existing rather
+than regressions of that diff. They are one mistake in two shapes: **a lock orders writers; it does
+not tell the second one that what it read is out of date.**
+
+**`PUT /projects/{pid}/dev-budget` replaces the whole blob.** An editor whose screen loaded before a
+"Sync GMP" or "Sync from model" click saves the hard lines that sync had just rebuilt. Serialising
+the two changes nothing — the stale body lands *after* the sync, in perfect order, and the sync is
+gone with a 200 on both calls. The route now carries a content-derived `rev`
+(`dev_budget.budget_rev`), captured under the same lock that does the write, and answers **409** when
+the budget has moved. `projects` has no `modified_at` to swap on, so the token is the blob's own
+canonical-JSON hash: two callers holding the same bytes hold the same revision, and no migration is
+needed.
+
+**The comment over that lock justified it by an argument belonging to a different route.** It said
+the two edits touch different line categories, so serialising lets both survive — which is
+`connections.update_connection`'s reasoning, and true *there* because that route merges keys into the
+blob. This one assigns over it. *A justification copied from the route that inspired the control
+describes that route, not this one,* and it reads as settled precisely because it is true somewhere.
+
+**`POST …/dev-budget/sync-from-model` committed a hard cost derived from a model the project no
+longer had.** It reads the IFC and runs a full geometry takeoff outside the lock — correctly, since
+holding the project lock across a parse would block every publication for as long as it runs — and a
+publication landing in between leaves the committed number describing the old model under a 200
+saying "synced". *The expensive read belongs outside the lock; what belongs inside is the proof that
+it is still the right read.*
+
+**And the obvious check could not have worked.** `publish_source_ifc` writes to a unique staged path
+and `os.replace`s it onto the **same** final path, so `Project.source_ifc` is re-assigned the string
+it already held — comparing it passes on exactly the interleaving it would exist to catch. *A
+staleness check against a field the writer does not move always passes, and reads as though it were
+guarding something.* `authoring_shared.ifc_identity` compares `(st_ino, st_size, st_mtime_ns)`
+instead, and `os.replace` always changes the inode. It lives beside `publish_source_ifc` on purpose:
+whoever changes how a model is promoted should see what detects the promotion.
+
+`services/api/test_budget_rev.py` asserts behaviour and mutation-checks both guards — neutering the
+`rev` comparison brings back the 200 that loses the synced hard line, and swapping the file identity
+for the path string (what a check written against `p.source_ifc` compares) lets the mid-takeoff
+republish commit. It also pins the one caller that actually races: the budget panel must send `rev`,
+re-read the one the server returns, and handle the 409 by **reloading** rather than retrying — a
+retry carrying the fresh token would re-send exactly the body the server refused.
+
+**`rev` is optional, and that is a bounded decision rather than a fail-open default.** Requiring it
+would refuse `build_demo_data.py`, `e2e_dome.py` and `e2e_vertfarm.py`, which write a whole budget
+onto a project they have just created and race nothing. What bounds the decision is the web-source
+check above, not the sentence in the route saying so.
+### Two LPs granted access to one scenario, and one of the grants was never there
+
+`proforma.share_scenario` unions a grantee into `Scenario.shared_with` over a value it has already
+read, so two LPs granted access at the same moment leave one grant behind. **Both callers get a 201
+naming their own person** — the response echoes the winner's list — so nothing surfaces until the
+loser's LP cannot open the scenario and somebody goes looking for a grant that was acknowledged and
+does not exist. `drawingset.revise_sheet` is the same shape on a sheet's `revisions` list: an
+accepted revision is counted in its own response and is absent from the sheet and from the
+cross-sheet register. The scenario site is gap G-10's last band-2 entry, and with it **the ORM
+read-modify-write sweep closes outright: 43 sites, 43 reasoned exempt or locked, 0 named open.**
+
+*That number was rewritten at the moment it became true, not before.* On the base this work was
+built against it read "four to two, and both survivors are the `dev_budget` pair" — accurate then,
+and false the instant the lock-boundary change landed and locked that pair. A count carried across a
+rebase is a measurement of a tree that no longer exists, so it was re-read from `test_rmw_sweep`
+rather than carried forward. The same failure this file records about narrative copies of a pinned
+number, arriving by the other door: not prose drifting away from a gate, but prose staying still
+while the gate moved under it.
+
+**A lock, not a compare-and-swap**, for the reason `connections.update_connection` already states in
+this file: two grants are *independent* claims, so serialising lets both survive where a 409 would
+refuse an edit that does not conflict.
+
+**`db.refresh` inside the lock is half the fix, and the half a lock alone cannot supply.**
+`_scenario_for` loads the row *before* the wait, so without the refresh SQLAlchemy's identity map
+hands the loser the list it read on the far side of the lock and the lock serialises two writes of
+the same stale value — perfectly ordered, and still losing a grant. *A lock makes writers take
+turns; it does not make the second one re-read.* The key is the scenario, not `Scenario.project_id`,
+which is nullable.
+
+**The ledger keyed the drawing site on `m.data`, and that is the milder half of what is wrong there.**
+The markup tag it names is guarded by `"carried_from" not in d2` and has no other read-modify-writer;
+the `revisions` list beside it loses an accepted revision outright. *A derivation keyed by attribute
+names the site it matched, not the worst thing happening inside it* — so a finding's title is a
+starting point for reading the function, never a summary of it.
+
+**The first fix was wrong in a way that looked like tidying.** Hoisting the body into a
+`_revise_sheet_locked` helper moved the `with` into the *caller*, and `test_rmw_sweep`'s
+`under_pid_lock` went red on exactly that: a lock it cannot see in the function it is asked about is
+a lock it cannot verify. Inlined instead. *A refactor that relocates a guard out of the scope a
+checker examines turns a verified claim into an asserted one.*
+
+`services/api/test_share_revise_lock.py` asserts BEHAVIOUR — both grants survive, both revisions
+survive, and with the lock neutered the same forced interleaving loses one of each (`shared_with`
+comes back holding only `lp-a`, `revisions` only `C`). A test that grepped for `pid_lock` would pass
+on a lock wrapped around the assignment alone.
+
+### LOCK-XPROC — the cross-process lock was proven by two threads in one process
+
+**CodeQL flagged this file HIGH on its first push, and it was right.** The connect-failure message
+printed the DSN verbatim, so a wrong port or an unreachable service container would have written
+`PGPASSWORD` into the CI log in clear text. *A diagnostic is an output like any other* — and the
+string most worth printing when a connection fails is exactly the one carrying the credential. **Two rounds of redaction were the wrong fix, and the alert said so by not clearing.** `_safe` and
+`_scrub` were both correct and neither closed it: CodeQL traces the *flow* from the environment read
+to the printer, and `str.replace` changes the value without removing the edge. The DSN no longer
+embeds the password at all — libpq reads `PGPASSWORD` from the environment the children already
+inherit, so putting it in the URL bought nothing and put the credential into a string that is handed
+to subprocesses, set as `DATABASE_URL`, and printed on failure. *Sanitising a sink answers "is this
+output safe"; removing the source answers "is this value sensitive at all", and only the second makes
+the question stop existing.* The scrubbers stay as defence in depth, and review narrowed what they
+actually claim: `_safe` redacts userinfo **and** a `password=` query parameter — libpq accepts the
+secret there, so the `@` split alone never saw it — while `_scrub` removes only `PGPASSWORD`'s value
+from child output and derives nothing from a caller-supplied `AEC_TEST_PG_URL`. The first wording
+here said they "cover a caller-supplied URL", which was wider than the code. *A claim about a guard's
+coverage is a claim like any other, and it is checkable the same way* — so both the function and the
+sentence were corrected, not just the sentence.
+
+**And fixing the sink it named exposed a second one.** The children are handed the DSN through
+`DATABASE_URL` in their environment and their stdout and stderr are reported in a failure detail, so
+CodeQL flagged one HIGH after the other was cleared. *Fixing the sink that was reported closes that
+sink* — the same lesson this branch's lock work keeps arriving at, met again in the security rules.
+Captured output is scrubbed **where it is captured**, not at each print: a sanitiser applied at every
+sink is a list that has to stay complete, one applied at the boundary is a property of the value.
+
+That call is pinned by reading this file's own source, because `_run_pair` never runs on a machine
+with no PostgreSQL server — so the guard with the widest blast radius was the one no behavioural
+check here could reach. *A check that exercises a helper is not a check that the helper is called.*
+
+The first draft of the scrub assertion read `… if os.environ.get("PGPASSWORD") == "sekret" else True`
+— **vacuous on every ordinary run**, the same shape as the `web_files()` sortedness check two entries
+below. Caught before it was pushed, by the entry about it. The password is a parameter now. It is
+redacted, splitting on the **last** `@` rather than the first, because a password may contain one
+and a first-`@` split leaves the tail of the secret in the log. Three assertions cover it, since the
+only place it runs is a failure path a green run never takes: *a guard that runs only when something
+has already gone wrong needs a test that runs always.*
+
+
+`test_pid_lock_xproc.py` is named for cross-process serialisation and asserts a great deal about it.
+Its one exclusion check is **two threads, in one process, on SQLite** — the suite's default database,
+where `_advisory()` takes nothing and yields `False`, so the exclusion it observes is entirely the
+in-process `RLock`. `pg_advisory_lock`, the whole of R35-PIDLOCK-XPROC, was therefore exercised by no
+line of this tree and could have shipped acquiring nothing. **A test named for a property can assert
+every neighbouring property and never the one in its name.** What it does prove across processes is
+that two workers derive the same KEY: necessary, and silent on whether taking it excludes anybody.
+
+`services/api/test_pid_lock_pgxproc.py` asks the question. Two real OS processes contend for one
+project's lock against a real server; their held intervals must not overlap. Two mutations, because
+either alone passes a lock that has stopped locking: two DIFFERENT projects must overlap — otherwise
+the positive check is measuring the order the harness starts things in, and a lock that excluded
+everything would look identical — and a per-process advisory key must overlap, which is note 1's
+`hash()` defect reinstated across real processes.
+
+Verified by deleting the acquisition outright rather than by reasoning: the behavioural check reds
+independently of the static one. One check *stayed green* under that mutation and had its label
+narrowed rather than left standing — `cross_process_status()` reports the DIALECT, so it says the
+advisory path was available, never that a lock was taken.
+
+It also pins the acquisition as the BLOCKING form. `_advisory` sets `acquired = True` without reading
+a result, because `pg_advisory_lock` returns void; a `pg_try_advisory_lock` "don't block the request"
+change would leave the code reporting a lock it does not hold. That static pin is redundant wherever a
+server exists — with the swap applied the behavioural check reds too, deterministically, since B starts
+only once A is demonstrably inside. It earns its place on the run with NO server, where the exclusion
+arm cannot run at all.
+
+With no server it does not pass quietly: it asserts that `.github/workflows/db-migrations.yml` still
+runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
+removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
+for the same reason.
+### Looking one way down the list is not reading the list
+
+The round below stopped asking "is it written down" and started asking "can it fail the job", and
+then answered it by looking at the separator that **follows** the invocation. A review pass named two
+shapes that pass with the status masked by nothing at all:
+
+- `true || python <file>` — nothing follows the invocation, so nothing is masked, and bash never
+  reaches it. Reading one token forward is not reading the command list.
+- `python <file> && echo passed` on one line, `echo done` on the next. `bash -e` suspends itself for
+  every command of a `&&`/`||` list except the last, so a failing test does not end the step; the
+  list's own status is then discarded, because a later list runs and the step exits with `echo
+  done`'s zero. **The single-line form of that same text is correct** — there the failing list is the
+  last one and its status *is* the step's — and the check added in the round below tested only the
+  single-line form. *A shape and the same shape one line longer are different programs.*
+
+`bash -e` reasons about command **lists**, not about commands, so the guard now does too: a `run:`
+block is cut into lists at `;` and at line ends, each list into segments at `&&`/`||`/`|`/`&`, and an
+invocation counts only when its status can reach the runner — nothing masking after it, no `||`
+before it in the same list, and, if the list is conditional at all, that list must be the last in the
+block. A `&&` *before* the invocation is deliberately still accepted: `cd services/api && python
+<file>` is the ordinary idiom, and the same limit `_parked` already states applies — a constant
+written to be false is caught, a condition that merely evaluates false is not.
+
+Three new self-tests, and the command test is split out from the control-flow test so each can be
+mutated alone. Deleting either guard reds exactly its own self-test and nothing else; widening the
+conditional-list rule to reject *every* conditional list reds four positive checks, including the
+shipped step's own shape. Three further mutations against the real `db-migrations.yml` — the step
+behind `true ||`, the step as a two-line `&&` block, and the status masked with `|| true` — each take
+the found-step count to zero.
+
+### "Does it run" and "can it fail the job" are different questions
+
+I had asked review whether `_invokes` could ever fail **open**. It can, three ways, none of them the
+way I asked about — and all three are the same class the last four rounds were about, one level
+further out than any of them reached.
+
+**The step can be skipped, its failure can be ignored, or its exit status can be thrown away.**
+`if: false` is the ordinary way to park a step; `continue-on-error: true` runs it and shrugs;
+`python <file> || true` discards the status, and `python <file> | tee log` hands it to `tee`, because
+GitHub runs `bash -e {0}` with no `pipefail` unless `shell:` says otherwise. In the last two the
+file *is* executed — which is exactly what the previous rounds established — and in the first it is
+not executed at all; what all three share is that the `run:` text, the `AEC_PG_REQUIRED` value and
+the step selection are identical to a live step, so every check added so far stays green while CI
+asserts nothing. (The first draft of this paragraph claimed execution in all three, which `if: false`
+plainly contradicts — found in review. *A sentence generalising over cases it lists is worth
+re-reading against each of them.*) *Each round asked a sharper version of "is it written
+down" and none asked "can it fail".*
+
+The separator that **follows** a command segment now decides whether it counts (`;` and `&&` keep the
+status; `||`, `|` and `&` do not), and a job or step that is parked or cannot fail is excluded.
+Explicit `continue-on-error: false` still counts, however it is spelled — `bool("false")` is `True`,
+so the obvious predicate would have red a correct workflow, and a gate that cries wolf gets deleted.
+Only the *constant* false is treated as parked: a real condition is not evaluated here and is not
+assessed, which is stated rather than implied.
+
+**And the budget panel's reload was still racing the editor.** Holding the request slot across the
+conflict reload stops a save from *leaving*; it does nothing about the keystroke. `lines.splice`
+replaces the array and `paint` rebuilds the inputs from it, so an edit typed in that window is gone
+from both the model and the screen, and the queued follow-up then saves the server's copy back.
+Editing is now closed while the reload runs and restored by `paint` — which is also what the reload
+calls when it finishes, so a disable applied anywhere else would be undone by the next repaint.
+Reconciling a keystroke against a list replaced wholesale needs a rule nobody has chosen, and
+guessing one silently is how a budget acquires a number no one typed.
+
+Seven new self-tests. Four mutations, three of them against the real workflow: the step's failure
+masked with `|| true`, the step parked with `if: false`, and `continue-on-error: true` — each takes
+the found-step count to zero.
+
+### Three fixes that each narrowed the right thing and stopped one question short
+
+A second review pass over the round above found one more defect behind each of its three fixes. The
+shape repeats, which is the interesting part: every one of them narrowed the correct subject and
+then asked the old question about it.
+
+**Serialising the requests was not serialising the state.** One save in flight stops two sends
+carrying one `rev` — but `again` only covers a send *that flow* queued, and says nothing about a
+`setTimeout` the debounce armed while the save was on the wire. That timer fires during the reload
+carrying the pre-conflict lines and the stale rev (another self-inflicted 409) or after it, carrying
+the server's own copy straight back. And the reload is asynchronous: releasing the in-flight slot
+when the *save* settles lets a keystroke start a request against a `lines` that is mid-replacement.
+The 409 path now cancels the pending timer and holds the slot until the reload resolves. *The reload
+mutates the state every request is built from.*
+
+**Extracting the right workflow step was not asking whether that step runs anything.** The guard
+matched a step whose `run:` merely *contained* the filename — so commenting the invocation out, the
+ordinary way somebody parks a slow step, leaves the substring in place, the step is still found, its
+`AEC_PG_REQUIRED` is still set, and the guard reports that CI runs this file while CI runs nothing.
+Comments are stripped per line and the name is compared as a whole basename. The `#` split is crude
+and fails in the safe direction: a `#` inside a quoted string can only *lose* an invocation, which
+reds the caller, because the caller requires exactly one step.
+
+**And that first fix was still wrong, for the reason it was written.** It rejected a commented-out
+invocation and a longer filename and went on accepting `echo test_pid_lock_pgxproc.py` — review
+declined to close the finding on exactly that ground. *Excluding the shapes you were shown is not
+answering the question those shapes were examples of.* The head word of the command segment holding
+the name must now be a Python runner, or be the script itself. The runner list can go stale, and it
+does so in the direction that gets noticed: a missing runner makes the step invisible, the caller
+requires exactly one step, the build reds, somebody adds the name — while the opposite error passes
+quietly. Emptying the list is a mutation and it reds three self-tests. *When a list must be
+incomplete, put the incompleteness where it fails loudly.*
+
+**The positive control earned its place the same hour.** The first version of that narrowing matched
+the filename as a whole token before asking what the command was, and the token pattern excludes a
+preceding `/` on purpose — so a direct exec `./test_pid_lock_pgxproc.py` never reached the command
+test. Comparing basenames answers both questions at once with no lookbehind to get wrong. Without a
+check that real invocations are still *accepted*, that would have shipped as a stricter-looking gate
+that had quietly stopped recognising a legitimate way to run the file.
+
+**And then the claim I put to review turned out to be false.** Asking whether the command split
+could ever *invent* an invocation, I asserted that every parsing error loses one instead — and
+measured it before the answer came back. `echo "a; python test_pid_lock_pgxproc.py ; true"` returned
+true: a regex split cannot see quotes, so a `;` inside a string ended the `echo` early and handed the
+rest back as its own command. *A claim about which way a heuristic fails is a claim like any other,
+and this file's entire subject is that an unchecked one reads as settled.* The line is now tokenised
+with `shlex` in POSIX mode with `punctuation_chars`, which respects quoting for the comment marker
+**and** the separators, so one change closes both — including a case the character-level strip got
+wrong in the other direction, where a quoted `#` swallowed a real invocation after it. Per line,
+because a `run: |` block is a sequence of commands and newlines are whitespace to `shlex`. An
+unbalanced quote raises and that line is skipped: unreadable is not "runs it", and the caller
+requires exactly one step, so skipping reds rather than vouches.
+
+**Merging the environment in force was not reading the value.** `AEC_PG_REQUIRED: ""` is exported by
+GitHub as an empty string, which the consumer reads as opted *out* — so the key-presence check passed
+a workflow whose step would take the no-server branch and exit 0. The predicate is now derived from
+the consumer rather than restated, which is also why `"false"` and `"0"` count: a workflow `env:`
+value is exported as a string, and any non-empty string is truthy there. That is a fact about GitHub
+Actions, not a choice.
+
+Four mutations, two of them against the real workflow — commenting out the invocation, and setting
+the flag to `""` — plus two on the panel. The cross-process gate was re-run against a live
+PostgreSQL 16 after the change: 24 checks, all green.
+
+### The budget panel manufactured its own 409, and two of this PR's own checks were measuring the runner
+
+Three findings from a full review pass on the head that added the `rev` precondition. All three are
+inside work landed earlier in this same branch, and the first is a product defect the precondition
+itself created.
+
+**A debounced save that races itself supplies its own stale write.** `clearTimeout` cancels a save
+that has not left yet; it does nothing to one already on the wire. On a connection slower than the
+500 ms debounce, two saves go out carrying the same `rev` — the server commits the first, refuses the
+second, and `reloadAfterConflict` replaces the user's newest keystroke with the server's copy while
+telling them "the development budget changed elsewhere (a GMP or model sync, or another editor)".
+*A staleness token turns a lost write into a refused one; it does not decide WHOSE write is stale.*
+One send is now in flight at a time, the body is built when the request starts, and a keystroke
+during a save sets a flag rather than queueing a second request — so one follow-up send carries every
+edit made while the first was in flight, instead of N sends of the same final state.
+
+**The workflow guard searched the whole file for a flag its neighbour also sets.** With no PostgreSQL
+server the cross-process gate cannot run its assertions, so it proves instead that
+`db-migrations.yml` still runs it *with* `AEC_PG_REQUIRED`. It asked whether that string occurred
+anywhere in the workflow — and the pin-sweep step sets it too. Measured: deleting the flag from this
+file's own step leaves three occurrences and the old check green, so the CI step would have taken the
+no-server branch and exited 0 with nothing exercising the advisory lock anywhere. The workflow is now
+parsed, the step that runs this file is extracted, and the flag is looked for in the environment
+actually in force for *that* step — workflow, job and step `env` merged, so hoisting the flag to the
+job stays valid. *A check scoped to the FILE cannot speak about a STEP, and a neighbour's correct
+configuration is what makes the difference invisible.*
+
+**And two timing checks had a window that was a constant.** Child A held the lock for a fixed 1.5 s
+while the parent started child B; if B's interpreter, import, status call and connection took longer
+than that, B entered after A left, and the two MUTATION checks — which *require* an overlap — failed
+on a lock working perfectly. A now waits for B's own log line before starting its hold. Measured on
+a real server: with the hold shrunk to 50 ms, the old shape fails both mutations and the new one
+passes all three. *A timing check whose window is a constant is measuring the runner.*
+
+The extractor's three self-tests run on **every** invocation, including the one with a server —
+otherwise the only branch that exercises it is the branch a broken extractor would make vacuous.
+
 ### Round 16: the RVT translation was still on the event loop, and the sort check could not fail
 
 A full review pass over the current head found two, and both were inside this PR's own earlier fixes.

@@ -12,6 +12,16 @@ shipped looking correct and doing nothing:
    nested acquisition wait, in a second session, on a lock its own caller holds;
 3. **a silent no-op on SQLite**, reported as though it were serialisation.
 
+**What this file does NOT assert, despite its name.** Every check here runs on the suite's default
+database, which is SQLite -- where `_advisory()` takes nothing and yields `False`. So check 5 below,
+the only exclusion assertion in the file, observes the in-process `threading.RLock` and nothing else:
+it is two THREADS in one process, and `pg_advisory_lock` is exercised by no line of it. What this
+file proves across processes is that two workers derive the same KEY, which is necessary and not
+sufficient -- agreeing on a lock id says nothing about whether taking it excludes anybody.
+`services/api/test_pid_lock_pgxproc.py` is where that question is asked, against a real server, with
+two real processes. Added 2026-09-14, because a test named for a property had asserted every
+neighbouring property and never the one in its name.
+
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_pid_lock_xproc.py
 """
 import subprocess
