@@ -177,6 +177,40 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### Three fixes that each narrowed the right thing and stopped one question short
+
+A second review pass over the round above found one more defect behind each of its three fixes. The
+shape repeats, which is the interesting part: every one of them narrowed the correct subject and
+then asked the old question about it.
+
+**Serialising the requests was not serialising the state.** One save in flight stops two sends
+carrying one `rev` — but `again` only covers a send *that flow* queued, and says nothing about a
+`setTimeout` the debounce armed while the save was on the wire. That timer fires during the reload
+carrying the pre-conflict lines and the stale rev (another self-inflicted 409) or after it, carrying
+the server's own copy straight back. And the reload is asynchronous: releasing the in-flight slot
+when the *save* settles lets a keystroke start a request against a `lines` that is mid-replacement.
+The 409 path now cancels the pending timer and holds the slot until the reload resolves. *The reload
+mutates the state every request is built from.*
+
+**Extracting the right workflow step was not asking whether that step runs anything.** The guard
+matched a step whose `run:` merely *contained* the filename — so commenting the invocation out, the
+ordinary way somebody parks a slow step, leaves the substring in place, the step is still found, its
+`AEC_PG_REQUIRED` is still set, and the guard reports that CI runs this file while CI runs nothing.
+Comments are stripped per line and the name must stand as a whole token. The `#` split is crude and
+fails in the safe direction: a `#` inside a quoted string can only *lose* an invocation, which reds
+the caller, because the caller requires exactly one step.
+
+**Merging the environment in force was not reading the value.** `AEC_PG_REQUIRED: ""` is exported by
+GitHub as an empty string, which the consumer reads as opted *out* — so the key-presence check passed
+a workflow whose step would take the no-server branch and exit 0. The predicate is now derived from
+the consumer rather than restated, which is also why `"false"` and `"0"` count: a workflow `env:`
+value is exported as a string, and any non-empty string is truthy there. That is a fact about GitHub
+Actions, not a choice.
+
+Four mutations, two of them against the real workflow — commenting out the invocation, and setting
+the flag to `""` — plus two on the panel. The cross-process gate was re-run against a live
+PostgreSQL 16 after the change: 24 checks, all green.
+
 ### The budget panel manufactured its own 409, and two of this PR's own checks were measuring the runner
 
 Three findings from a full review pass on the head that added the `rev` precondition. All three are

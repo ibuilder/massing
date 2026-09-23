@@ -355,6 +355,29 @@ check("  ...and the DEBOUNCE schedules the guarded function, not the request: a 
       "calls the api directly leaves the guard in the file and out of the path",
       "window.setTimeout(flush, 500)" in _panel_src, "apps/web/src/proforma/proforma.ts")
 
+#: ...AND THE 409 PATH CLEARS THE PENDING TIMER AND HOLDS THE SLOT ACROSS THE RELOAD. Two further
+#: leaks, both found in review against the in-flight guard added one round earlier, and neither
+#: visible from it: `again` covers a send THIS flow queued and says nothing about a `setTimeout` the
+#: debounce armed while the save was on the wire, and the reload is asynchronous, so releasing the
+#: slot when the SAVE settles lets a keystroke start a request against a `lines` that is
+#: mid-replacement. *Serialising the REQUESTS is not serialising the STATE, and the reload mutates
+#: the state every request is built from.* The same shape twice: each round narrowed the right thing
+#: and stopped one question short, which is why these are pinned separately rather than folded into
+#: the guard check above.
+_409 = _panel_src.find("if (status === 409) {")
+_clear = _panel_src.find("clearTimeout(timer);", _409) if _409 >= 0 else -1
+_reload = _panel_src.find("reloadAfterConflict()", _409) if _409 >= 0 else -1
+check("the 409 path CANCELS the pending debounce before reloading -- a timer armed while the save "
+      "was in flight fires into the reload carrying the stale rev, or after it carrying the "
+      "server's own copy back",
+      _409 >= 0 and _clear >= 0 and _reload >= 0 and _409 < _clear < _reload,
+      f"409 at {_409}, clearTimeout at {_clear}, reload at {_reload}")
+check("  ...and the in-flight slot is released by the RELOAD finishing, not by the save settling -- "
+      "otherwise a keystroke during the reload builds a request from a `lines` being replaced",
+      "void reloadAfterConflict().then(settle, settle);" in _panel_src
+      and ".finally(() => { inFlight = false;" not in _panel_src,
+      "apps/web/src/proforma/proforma.ts -- the reload must own the slot until it resolves")
+
 print(f"\ntest_budget_rev {'FAILED' if FAILED else 'OK'}")
 for f in FAILED:
     print(f"  - {f}")

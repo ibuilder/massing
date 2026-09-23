@@ -1265,13 +1265,19 @@ export class ProformaUI {
       //: the sync is simply gone. The server answers 409 instead, and this reloads rather than
       //: retrying -- a retry carrying the fresh `rev` would re-send exactly the body it refused.
       let rev: string | null = resp.rev ?? null;
-      const reloadAfterConflict = () => void this.api.devBudget(pid).then((fresh) => {
+      //: Returns its promise, so the save flow can hold the in-flight slot across it — see `flush`.
+      //: A failed reload is reported rather than swallowed: the panel is then showing a budget the
+      //: server has already refused to accept, which is worse than a save error and reads the same
+      //: as nothing happening.
+      const reloadAfterConflict = () => this.api.devBudget(pid).then((fresh) => {
         lines.splice(0, lines.length, ...fresh.budget.lines);
         for (const k of Object.keys(contingency)) delete contingency[k];
         Object.assign(contingency, { hard: 0.1, soft: 0.1, acquisition: 0, ...fresh.budget.contingency });
         rev = fresh.rev ?? null;
         paint(fresh);
         this.setStatus("the development budget changed elsewhere (a GMP or model sync, or another editor) — reloaded; re-apply your edit");
+      }).catch(() => {
+        this.setStatus("the development budget changed elsewhere and could not be reloaded — refresh before editing further");
       });
       //: ONE SAVE IN FLIGHT AT A TIME. `clearTimeout` cancels a save that has not LEFT yet; it does
       //: nothing to one already on the wire. Two overlapping saves both carry the rev the screen
@@ -1287,11 +1293,12 @@ export class ProformaUI {
       //: times.
       let inFlight = false;
       let again = false;
+      const settle = () => { inFlight = false; if (again) flush(); };
       const flush = () => {
         if (inFlight) { again = true; return; }
         inFlight = true; again = false;
         void this.api.saveDevBudget(pid, { lines, contingency, rev })
-          .then((r) => { rev = r.rev ?? null; paint(r); })
+          .then((r) => { rev = r.rev ?? null; paint(r); settle(); })
           .catch((e: unknown) => {
             //: Neither a conflict nor a failure is worth re-sending immediately. After a 409 the
             //: reload REPLACES `lines`, so a follow-up would save the server's own copy back over
@@ -1299,10 +1306,23 @@ export class ProformaUI {
             //: A later keystroke calls `save()` again, which is the right trigger.
             again = false;
             const status = (e as { status?: unknown } | null | undefined)?.status;
-            if (status === 409) { reloadAfterConflict(); return; }
+            if (status === 409) {
+              //: THE PENDING TIMER, AND THE SLOT HELD ACROSS THE RELOAD — two separate leaks, both
+              //: raised in review against the coalescing fix one round earlier. `again` covers a
+              //: send this flow queued; it says nothing about a `setTimeout` the debounce armed
+              //: while the save was on the wire. That timer fires during the reload carrying the
+              //: pre-conflict `lines` and the stale `rev` — another self-inflicted 409 — or after
+              //: it, carrying the server's own copy straight back. And the reload is ASYNCHRONOUS,
+              //: so releasing the slot when the save settles lets a keystroke start a save against
+              //: a `lines` that is mid-replacement. *Serialising the REQUESTS is not serialising the
+              //: STATE, and the reload mutates the state every request is built from.*
+              clearTimeout(timer);
+              void reloadAfterConflict().then(settle, settle);
+              return;
+            }
             this.setStatus("Budget save failed: " + (e as Error).message);
-          })
-          .finally(() => { inFlight = false; if (again) flush(); });
+            settle();
+          });
       };
       const save = () => { clearTimeout(timer); timer = window.setTimeout(flush, 500); };
       const num = (v: string) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };

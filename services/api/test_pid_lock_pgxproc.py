@@ -85,9 +85,32 @@ def _steps_running(wf: dict, script: str) -> list[tuple[dict, dict]]:
         if not isinstance(job, dict):
             continue
         for step in job.get("steps") or []:
-            if isinstance(step, dict) and script in str(step.get("run") or ""):
+            if isinstance(step, dict) and _invokes(str(step.get("run") or ""), script):
                 out.append((job, step))
     return out
+
+
+def _invokes(run: str, script: str) -> bool:
+    """Does this `run:` block INVOKE `script`, as opposed to merely mentioning it?
+
+    **`script in run` is not the question, and the difference is this file's own defect class.**
+    Commenting the invocation out -- `# python test_pid_lock_pgxproc.py`, the ordinary way somebody
+    parks a slow step -- leaves the substring in place, so the step is still found, its
+    `AEC_PG_REQUIRED` is still set, and the guard reports that CI runs this file while CI runs
+    nothing. *A mention is evidence that somebody wrote the name down, not that anything executes.*
+    Raised in review against the extractor added one round earlier, which had narrowed the search to
+    the right step and left this open.
+
+    Comments are stripped per line and the name must stand as a whole token, so a path that merely
+    CONTAINS it (`old_test_pid_lock_pgxproc.py.bak`) does not count either.
+
+    **The `#` split is crude on purpose, and it fails in the SAFE direction.** A `#` inside a quoted
+    shell string truncates the line early, which can only LOSE an invocation -- and losing it reds
+    the caller, because the caller requires exactly one step. The opposite error, counting a comment
+    as an invocation, is the one that passes quietly, and that is the one this closes.
+    """
+    pat = re.compile(rf"(?<![\w./-]){re.escape(script)}(?![\w.-])")
+    return any(pat.search(line.split("#", 1)[0]) for line in run.splitlines())
 
 
 def _env_in_force(wf: dict, job: dict, step: dict) -> dict:
@@ -103,6 +126,25 @@ def _env_in_force(wf: dict, job: dict, step: dict) -> dict:
         if isinstance(scope, dict):
             env.update(scope)
     return env
+
+
+def _opted_in(env: dict, name: str = "AEC_PG_REQUIRED") -> bool:
+    """Is `name` set to something the RUNTIME would treat as opt-in?
+
+    **The KEY being present is not the question.** `_REQUIRED` at the top of this file is
+    `bool(os.environ.get("AEC_PG_REQUIRED") or ...)`, so `AEC_PG_REQUIRED: ""` in the workflow --
+    which GitHub exports as an empty string -- disables the opt-in while leaving the key exactly
+    where the guard was looking for it. The step would take the no-server branch and exit 0 with the
+    guard green, which is the silent pass this file exists to prevent, reinstated by its own guard.
+    Raised in review.
+
+    So the predicate is DERIVED from the consumer rather than restated: a workflow `env:` value is
+    exported as a string, and any non-empty string is truthy to `_REQUIRED` -- including `"false"`
+    and `"0"`, which is a fact about GitHub Actions rather than a choice made here. `None` (a key
+    written with no value) exports as empty.
+    """
+    value = env.get(name)
+    return value is not None and str(value) != ""
 
 
 # --- the extractor is self-tested on EVERY run, including the one WITH a server ------------------
@@ -121,7 +163,7 @@ check("SELF-TEST: the extractor finds exactly the step that RUNS this file, not 
       [st.get("name") for _j, st in _self_steps])
 check("SELF-TEST: ...and a NEIGHBOUR's AEC_PG_REQUIRED does not vouch for ours -- the shipped "
       "shape, and the one the file-wide search could not tell apart",
-      _self_steps and "AEC_PG_REQUIRED" not in _env_in_force(_SELF_WF, *_self_steps[0]),
+      _self_steps and not _opted_in(_env_in_force(_SELF_WF, *_self_steps[0])),
       "a flag set on another step satisfied this step's requirement")
 _SELF_WF_JOBENV = {
     "jobs": {"j": {"env": {"AEC_PG_REQUIRED": "1"},
@@ -129,8 +171,46 @@ _SELF_WF_JOBENV = {
 }
 _job_steps = _steps_running(_SELF_WF_JOBENV, "test_pid_lock_pgxproc.py")
 check("SELF-TEST: ...and a flag hoisted to the JOB still counts, so this is not always-no",
-      _job_steps and "AEC_PG_REQUIRED" in _env_in_force(_SELF_WF_JOBENV, *_job_steps[0]),
+      _job_steps and _opted_in(_env_in_force(_SELF_WF_JOBENV, *_job_steps[0])),
       "a job-level env would have red a correct workflow")
+
+#: ...AND THE STEP MUST ACTUALLY RUN IT. Both of these are shapes a reader would not think to try,
+#: and both were found in review against the round that added the extractor -- the narrowing was
+#: right and stopped one question short each time. *Scoping a check to the right subject and asking
+#: the right thing about that subject are two edits, and landing the first reads like finishing.*
+_SELF_WF_COMMENTED = {
+    "jobs": {"j": {"steps": [
+        {"name": "parked", "env": {"AEC_PG_REQUIRED": "1"},
+         "run": "echo skipping for now\n# python test_pid_lock_pgxproc.py\n"},
+    ]}},
+}
+check("SELF-TEST: a step that only MENTIONS this file in a comment does not count as running it",
+      not _steps_running(_SELF_WF_COMMENTED, "test_pid_lock_pgxproc.py"),
+      "a commented-out invocation satisfied the runs-this-file check")
+check("SELF-TEST: ...nor does a LONGER filename that merely contains the name",
+      not _steps_running({"jobs": {"j": {"steps": [
+          {"name": "x", "run": "python old_test_pid_lock_pgxproc.py.bak"}]}}},
+          "test_pid_lock_pgxproc.py"),
+      "a different file whose name contains this one satisfied the check")
+check("SELF-TEST: ...and a real invocation with a trailing comment on the SAME line still counts, "
+      "so the comment stripping is not always-no",
+      len(_steps_running({"jobs": {"j": {"steps": [
+          {"name": "x", "run": "python test_pid_lock_pgxproc.py   # the cross-process gate"}]}}},
+          "test_pid_lock_pgxproc.py")) == 1,
+      "stripping the comment lost the invocation in front of it")
+
+#: THE VALUE, NOT THE KEY. `AEC_PG_REQUIRED: ""` exports an empty string, which `_REQUIRED` reads as
+#: opted OUT -- so the key-presence check passed a workflow whose step would take the no-server
+#: branch and exit 0.
+check("SELF-TEST: an EMPTY AEC_PG_REQUIRED is not opt-in -- the key exists and the runtime reads it "
+      "as off",
+      not _opted_in({"AEC_PG_REQUIRED": ""}) and not _opted_in({"AEC_PG_REQUIRED": None})
+      and not _opted_in({}),
+      "an empty or absent value counted as opted in")
+check("SELF-TEST: ...and the values GitHub actually exports DO count, including the non-obvious "
+      "ones -- a workflow `env:` is exported as a string, so `false` and `0` are opt-in too",
+      all(_opted_in({"AEC_PG_REQUIRED": v}) for v in ("1", 1, "true", "false", 0, "0")),
+      "a value the runtime would treat as opt-in was rejected here")
 
 # --- the acquisition must be the BLOCKING form, and this is checkable without a server ------------
 #: `_advisory` sets `acquired = True` immediately after the execute and never reads a result, because
@@ -504,11 +584,13 @@ else:
           len(_ours) == 1,
           f"{_WF} has {len(_ours)} steps running test_pid_lock_pgxproc.py -- with no server here "
           f"and no step there, the advisory lock is exercised by nothing anywhere")
-    check("  and THAT STEP sets AEC_PG_REQUIRED, without which it takes THIS branch",
-          bool(_ours) and all("AEC_PG_REQUIRED" in _env_in_force(_doc, j, st) for j, st in _ours),
-          f"{_WF} does not set AEC_PG_REQUIRED on the step that runs this file. The flag appearing "
-          f"ANYWHERE in the workflow is not the question -- the pin-sweep step sets it too, which "
-          f"is exactly why this is scoped to the step rather than to the file")
+    check("  and THAT STEP sets AEC_PG_REQUIRED to a NON-EMPTY value, without which it takes THIS "
+          "branch",
+          bool(_ours) and all(_opted_in(_env_in_force(_doc, j, st)) for j, st in _ours),
+          f"{_WF} does not set a non-empty AEC_PG_REQUIRED on the step that runs this file. Two "
+          f"things are NOT the question: the flag appearing anywhere in the workflow (the pin-sweep "
+          f"step sets it too) and the KEY merely existing (an empty value is exported as an empty "
+          f"string, which `_REQUIRED` reads as opted OUT)")
     print("\n  no PostgreSQL server: the cross-process assertions did not run here.")
     print("  They run in db-migrations.yml, which the checks above prove still invokes this file.")
 
