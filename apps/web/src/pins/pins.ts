@@ -104,15 +104,23 @@ export class PinOverlay {
       el.className = `pin pin-${pin.kind}`;
       el.title = `${pin.guid} · ${pin.source_name}${pin.status ? ` · ${pin.status}` : ""}`;
       el.textContent = pin.icon || "•";
+      // **A marker click must not also reach the canvas.** The overlay sits over the viewport, and
+      // `app.ts` has a container `click` listener that raycasts the scene and calls `selectMap(null)`
+      // when nothing is hit — asynchronously, after a race with a 1.5 s timeout. A pin is a DOM
+      // element, not scene geometry, so a click on one can easily raycast to nothing: the handler
+      // below selects the element and the container handler then clears it, a few frames later.
+      // *Two handlers that both answer a click are not two features, they are a race*, and the loser
+      // here is the one the user aimed at. Raised in review on PR #577.
       if (pin.source === "topic") {
         topics++;
-        el.onclick = async () => {
+        el.onclick = async (ev) => {
+          ev.stopPropagation();
           const vps = await this.api.viewpoints(projectId, pin.id);
           this.onRestore(pin, vps[0] ?? null);
         };
       } else {
         records++;
-        el.onclick = () => onRecordClick(pin);
+        el.onclick = (ev) => { ev.stopPropagation(); onRecordClick(pin); };
       }
       this.addMarker(el, new THREE.Vector3(pin.x, pin.y, pin.z));
     }

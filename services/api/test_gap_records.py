@@ -194,11 +194,30 @@ def verdict(body: str, status_by_fn: dict[str, str]) -> tuple[str, list[str]]:
 
 # ------------------------------------------------------------------------------ record delimitation
 
-#: A roadmap item: a column-0 bullet whose heading bolds an ITEM CODE in caps. Status emoji optional
-#: -- `test_roadmap_status.marked_open` treats a bullet with no emoji as open and so does this.
-_ROADMAP_HEAD = re.compile(r"^[-*] ((?:(?:✅|◧|🟡|⭐)️? )*)\*\*([A-Z][A-Z0-9-]{2,})\b")
+#: The status markers a roadmap heading may carry. `⛔` (closed unbuilt), `❌` (considered and
+#: rejected) and a `~~struck~~` code are as closed as `✅`; `◧`, `🟡`, `⭐` and a bare heading are
+#: open.
+#:
+#: **`⛔`, `❌` and `~~` were all missing until the parity check below was written, and they were not
+#: a cosmetic omission: the population was 78 items and is 90.** Twelve were invisible -- None of them
+#: needed flagging -- every one is closed or withdrawn -- so nothing was wrong today, and nothing
+#: would have said so tomorrow either. *A population smaller than it looks reports a clean tree in
+#: exactly the same words as a clean tree.* Raised in review on PR #577, which asked what happens
+#: when a heading leaves the parsed set; the answer was that twelve already had. **The parity
+#: check found `❌` on its own first run**, after `⛔` and `~~` had been added by hand from the
+#: same measurement -- *a hand-widened list is a list somebody stopped widening.*
+_MARKERS = "✅◧🟡⭐⛔❌"
+_CLOSED = "✅⛔❌"
+_ROADMAP_HEAD = re.compile(rf"^[-*] ((?:(?:[{_MARKERS}])️? )*(?:~~)?)\*\*([A-Z][A-Z0-9-]{{2,}})\b")
 #: A threat-model gap: a numbered entry bolding a G-number.
 _TM_HEAD = re.compile(r"^(\d+)\. \*\*(G-\d+)\b")
+
+#: The same two shapes read LOOSELY -- any non-letter prefix, any numbering punctuation. Nothing is
+#: parsed with these; they exist so that a heading the strict regexes stop recognising is REPORTED
+#: rather than quietly dropped. *A checker that narrows its own population answers a smaller
+#: question and prints the same verdict.*
+_LOOSE_ROADMAP = re.compile(r"^[-*] ([^A-Za-z]{0,20})\*\*~{0,2}([A-Z][A-Z0-9-]{2,})\b")
+_LOOSE_TM = re.compile(r"^\s*\d+[.)]\s*\*{0,2}~{0,2}(G-\d+)\b")
 
 
 def records(text: str, kind: str) -> list[tuple[str, bool, str]]:
@@ -224,9 +243,18 @@ def records(text: str, kind: str) -> list[tuple[str, bool, str]]:
                 end = j
                 break
         m = head.match(lines[i])
-        is_open = ("✅" not in m.group(1)) if kind == "roadmap" else ("CLOSED" not in lines[i])
+        pre = m.group(1)
+        is_open = (not any(c in pre for c in _CLOSED) and "~~" not in pre) \
+            if kind == "roadmap" else ("CLOSED" not in lines[i])
         out.append((m.group(2), is_open, "\n".join(lines[i:end])))
     return out
+
+
+def unparsed_headings(text: str, kind: str) -> list[str]:
+    """Lines a LOOSE reading calls a heading and the strict one does not — drift, reported."""
+    loose = _LOOSE_ROADMAP if kind == "roadmap" else _LOOSE_TM
+    strict = _ROADMAP_HEAD if kind == "roadmap" else _TM_HEAD
+    return [ln for ln in text.split("\n") if loose.match(ln) and not strict.match(ln)]
 
 
 def stale(text: str, kind: str, status_by_fn: dict[str, str]) -> list[tuple[str, list[str]]]:
@@ -291,8 +319,21 @@ check("SELF-TEST: a PREFIX of a backticked span does not count — `edit-mep` is
       verdict(_CITE + "the `edit-mep` group", {"edit": "LOCKED"})[1] == [])
 
 # --- the replay: the shipped stale records must come back ----------------------------------------
-_pre_roadmap = stale(fixture("roadmap.md"), "roadmap", STATUS_BY_FN)
-_pre_tm = stale(fixture("threat-model.md"), "threat-model", STATUS_BY_FN)
+#: **The replay reads FROZEN statuses, not today's.** The fixtures are historical; the ledger is
+#: not. Evaluating one against the other means that the day `place_family` legitimately reopens --
+#: and the live RMW-LOCKGAP record correctly reopens with it -- the FROZEN record would name an open
+#: site, the replay would stop finding its four, and the build would red with a message blaming the
+#: analyser for something the analyser got right. *A replay is a claim about a moment; feeding it a
+#: moving input makes it a claim about nothing.* Raised in review on PR #577.
+#:
+#: Derived rather than listed: at the moment these records were stale the sweep reported `0 named
+#: open`, so "every site this sweep knows about is closed" IS the world they were stale against.
+#: Taking the names from the live ledger and the statuses from that fact cannot drift into naming a
+#: function nobody has, and cannot drift in status at all.
+REPLAY_STATUS = dict.fromkeys(STATUS_BY_FN, "LOCKED")
+
+_pre_roadmap = stale(fixture("roadmap.md"), "roadmap", REPLAY_STATUS)
+_pre_tm = stale(fixture("threat-model.md"), "threat-model", REPLAY_STATUS)
 _pre = {c for c, _ in _pre_roadmap} | {c for c, _ in _pre_tm}
 
 check(f"REPLAY of the {PRE_FIX} records: the analyser re-finds RMW-LOCKGAP and RMW-TOKEN in the roadmap as "
@@ -306,11 +347,28 @@ check(f"REPLAY of the {PRE_FIX} records: ...and nothing else. A replay that also
       "would prove the analyser fires, not that it fires on the right thing",
       _pre == {"RMW-LOCKGAP", "RMW-TOKEN", "G-10", "G-12"}, f"found: {sorted(_pre)}")
 
+#: Without this, `REPLAY_STATUS` could be `{}` and the replay would still find all four -- by
+#: classifying every record as naming no open site, which is the same verdict for the opposite
+#: reason. *A frozen input that is never read is indistinguishable from a correct one.*
+_reopened = {**REPLAY_STATUS, "place_family": "OPEN"}
+check("MUTATION: with one of RMW-LOCKGAP's own sites reopened in the frozen ledger, that record is "
+      "NOT reported — so the replay above is reading the statuses and not merely the prose",
+      "RMW-LOCKGAP" not in {c for c, _ in stale(fixture("roadmap.md"), "roadmap", _reopened)},
+      "reinstating one OPEN site must remove the record from the stale set")
+
 # --- the live tree ------------------------------------------------------------------------------
 _road = stale(ROADMAP.read_text(encoding="utf-8"), "roadmap", STATUS_BY_FN)
 _tm = stale(THREAT.read_text(encoding="utf-8"), "threat-model", STATUS_BY_FN)
 _n_road = len(records(ROADMAP.read_text(encoding="utf-8"), "roadmap"))
 _n_tm = len(records(THREAT.read_text(encoding="utf-8"), "threat-model"))
+
+_drift_road = unparsed_headings(ROADMAP.read_text(encoding="utf-8"), "roadmap")
+_drift_tm = unparsed_headings(THREAT.read_text(encoding="utf-8"), "threat-model")
+check("every roadmap heading a loose reading finds, the strict one finds too — a marker this gate "
+      "does not know shrinks its population without changing a word of its verdict",
+      not _drift_road, f"unparsed: {_drift_road[:5]}" if _drift_road else f"{_n_road} parsed, 0 missed")
+check("...and the same for the threat model's numbered gaps",
+      not _drift_tm, f"unparsed: {_drift_tm[:5]}" if _drift_tm else f"{_n_tm} parsed, 0 missed")
 
 check("no roadmap item cites the sweep, reads as open, and has no open site left to be about",
       not _road, f"stale: {_road}" if _road else f"{_n_road} items examined")

@@ -57,8 +57,25 @@ export function describePin(p: ResolvedPin): string {
  * GlobalId throughout — never a viewer id, which does not survive a reload or a re-tessellation.
  */
 export async function handleRecordPinClick(p: ResolvedPin, deps: PinOpenDeps): Promise<void> {
-  if (p.element_guid) await deps.selectByGuid(p.element_guid, true);
-  deps.setStatus(describePin(p));
+  // **Selection is best effort; the jump is not.** `selectByGuid` reaches the Fragments worker and
+  // can reject — a stalled worker, a model that has been unloaded, a GlobalId in a federated model
+  // that is no longer shown. The caller is a DOM `onclick` that does not hold this promise, so a
+  // rejection would be an unhandled rejection AND would lose a record jump that was never in doubt:
+  // the record id came from the pin, not from the scene. *A failure in the optional half must not
+  // take the half the user asked for with it.* Raised in review on PR #577.
+  //
+  // It is reported rather than swallowed. An empty catch would leave a user looking at an
+  // unhighlighted model with no account of why, and *a judgement a person cannot see is worse than
+  // one that is occasionally wrong* — the lesson R24-FIELD-MODE ⑤ paid for.
+  let selected = true;
+  if (p.element_guid) {
+    try {
+      await deps.selectByGuid(p.element_guid, true);
+    } catch {
+      selected = false;
+    }
+  }
+  deps.setStatus(describePin(p) + (selected ? "" : " · could not highlight the element"));
   // `pins.ts` routes topics to the viewpoint-restore arm, so this should not see one. If a future
   // change sends one here, selecting and reporting is right and opening is not: `source` would be
   // the literal "topic", which is not a module key, and `openRecordByKey` would look up a module

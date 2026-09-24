@@ -3598,7 +3598,21 @@ it is closed by default once the PR merges.
   reds the suite.
 
   Selection stays in the viewer rather than following the user across, which answers the entry's
-  last question: coming back to the Model workspace finds the element still highlighted.
+  last question: coming back to the Model workspace finds the element still highlighted. **That sentence
+  was false when it was written, and review caught it**: a marker click also bubbled to the
+  viewport, whose raycast misses a DOM overlay and then calls `selectMap(null)` a few frames later —
+  so the highlight this handler had just set was being cleared by the handler next to it. *Two
+  handlers that both answer a click are not two features, they are a race*, and the loser was the one
+  the user aimed at. Both marker kinds now stop the event.
+
+  Two more from the same review. A rejected `selectByGuid` took the record jump with it, although
+  the record id comes from the pin and not from the scene — selection is best effort now, and the
+  status line says when it failed rather than leaving an unhighlighted model unexplained. And the
+  jump waited a fixed 500 ms instead of the portal's own `init()`; **there were three copies of that
+  guess in `apps/web/src/main.ts`**, so the wait was consolidated rather than patched at the site
+  under review — *fixing the trafficked instance is not closing the class*, which this tree has paid
+  for three times. `openPortalTab` also latched on "we called it once" rather than on a successful
+  init, the defect the developer tab beside it carries a comment about; it now returns its promise.
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
 eighth time running.** The record is below; the previous five are in
 [`roadmap-completed.md`](roadmap-completed.md).

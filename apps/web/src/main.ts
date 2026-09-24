@@ -833,7 +833,7 @@ function setWorkspace(key: string, arrival: "jump" | "nav" = "nav") {
   else document.getElementById(`ws-${key}`)?.querySelector(".ws-return")?.remove();
   if (key === "studio") void openStudioTab();
   if (key === "design") openDesignTab();
-  if (key === "construction") openPortalTab();
+  if (key === "construction") void openPortalTab();
   if (key === "developer") openDeveloperTab();
   if (key === "finance") void openFinanceHomeTab();
   if (key === "model") void ensureViewer().then((v) => {
@@ -1190,7 +1190,25 @@ const portalHost = {
 const portal = new PortalUI($("panel-portal"), portalHost);
 portal.setWorkspace("construction");
 let portalReady = false;
-function openPortalTab() { if (portalReady) return; portalReady = true; void portal.init(); }
+/**
+ * Open the construction portal, handing back the SAME init promise on every call.
+ *
+ * It used to latch on "we called it once" and discard the promise — the defect `openDeveloperTab`
+ * below carries a comment about, in the tab beside it: a visit before the project had loaded set
+ * the latch anyway and froze "No project open" in place for the rest of the session. It now latches
+ * on a SUCCESSFUL init, and returns the in-flight promise so a caller that needs the portal *ready*
+ * can wait for it rather than guess how long it takes.
+ */
+let portalInit: Promise<boolean> | null = null;
+function openPortalTab(): Promise<boolean> {
+  if (portalReady) return Promise.resolve(true);
+  if (!portalInit) {
+    portalInit = portal.init().then(
+      (ok) => { portalReady = ok; portalInit = null; return ok; },
+      (e) => { portalInit = null; throw e; });
+  }
+  return portalInit;
+}
 
 /**
  * Jump to a register record from anywhere in the app.
@@ -1201,14 +1219,36 @@ function openPortalTab() { if (portalReady) return; portalReady = true; void por
  * a question about that directory.* So this is the palette's own behaviour, lifted to one place
  * and given to both callers rather than a second answer invented for the pin.
  *
- * The delay is the palette's and is kept: `portal.init()` is asynchronous, and a jump issued
- * before the module list exists finds nothing to open.
+ * **It waits for the portal rather than guessing.** The palette's version did
+ * `if (portal.moduleList().length) go(); else setTimeout(go, 500)` — a fixed delay against an
+ * asynchronous `init()`, so a first visit whose `api.modules()` took longer than half a second
+ * dropped the jump silently, and a non-empty module list is not proof that init has finished
+ * either. `openPortalTab` now returns the init promise, so this awaits the real event. *A timeout
+ * standing in for a signal is a guess that reports success either way.* Raised in review on PR #577.
+ *
+ * A portal that cannot open — no project loaded — says so rather than leaving a click unanswered.
  */
-function jumpToRecord(moduleKey: string, id: string) {
+function jumpToRecord(moduleKey: string, id: string): void {
+  void withPortal(() => portal.openRecordByKey(moduleKey, id));
+}
+
+/**
+ * Show the construction portal, then do `then` — once the portal is genuinely ready.
+ *
+ * **There were three copies of the guess and this closes all of them.** The palette's record jump,
+ * its module jump, and (as of this change) the viewer's pin all needed "the portal, ready"; two of
+ * them had their own `if (moduleList().length) go(); else setTimeout(go, 500)`. *Fixing the
+ * trafficked instance is not closing the class* — a lesson this tree has paid for three times — so
+ * the wait lives here and every caller gets the same one.
+ *
+ * The callers are click handlers and none holds the promise, hence the `void` at each site.
+ */
+async function withPortal(then: () => void): Promise<void> {
   setWorkspace("construction");
-  openPortalTab();
-  const go = () => portal.openRecordByKey(moduleKey, id);
-  if (portal.moduleList().length) go(); else setTimeout(go, 500);
+  let ready: boolean;
+  try { ready = await openPortalTab(); } catch { ready = false; }
+  if (!ready) { toast("could not open the project portal — is a project loaded?", "error"); return; }
+  then();
 }
 
 const developerPortal = new PortalUI($("panel-portal-dev"), portalHost);
@@ -2078,9 +2118,7 @@ if (_embed) document.body.classList.add("embed");
 
 // ---- command palette (Cmd/Ctrl-K) — jump to any workspace, module, action, or record -----------
 function openModuleFromPalette(key: string) {
-  setWorkspace("construction"); openPortalTab();
-  const go = () => portal.openModuleByKey(key);
-  if (portal.moduleList().length) go(); else setTimeout(go, 500);
+  void withPortal(() => portal.openModuleByKey(key));
 }
 // R24-CMDK-VERBS — Elements and Reports were headings the palette could never fill, and authoring
 // verbs were not in it at all. The providers are pure and live in `ui/paletteProviders.ts`; this is

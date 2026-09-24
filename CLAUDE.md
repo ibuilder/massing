@@ -322,6 +322,16 @@ is a dependency on an environment nobody here controls** — and every neighbour
 embeds its pre-fix subject instead of fetching it. The records are now frozen under
 `services/api/tests/fixtures/gap_records/`, and a missing or truncated fixture reds the build rather
 than letting the replay pass by having nothing to find.
+**Review then found two more, and one of them found a third by itself.** The replay was reading the
+frozen records against TODAY's ledger — *a replay is a claim about a moment, and feeding it a moving
+input makes it a claim about nothing*; the statuses are frozen too now, with a mutation proving they
+are read. And asked what happens when a heading leaves the parsed set, the honest answer was that
+**twelve already had**: the marker list knew `✅ ◧ 🟡 ⭐` and not `⛔`, `❌` or a `~~struck~~` code, so
+the population was 78 items where it should have been 90, and *a population smaller than it looks
+reports a clean tree in exactly the same words as a clean tree.* The repair is not the wider list —
+it is the LOOSE-versus-STRICT parity check beside it, which found `❌` on its first run, after `⛔`
+and `~~` had been added by hand from the same measurement. **A hand-widened list is a list somebody
+stopped widening.**
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in

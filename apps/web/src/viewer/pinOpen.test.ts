@@ -64,6 +64,36 @@ describe("PIN-OPEN-ROW — clicking a register pin reaches the record", () => {
     expect(status).toHaveLength(1);        // it still says what was clicked
   });
 
+  it("still opens the record when selection REJECTS — the record id came from the pin, not from "
+     + "the scene, so a stalled worker must not take the jump with it", async () => {
+    const opened: Array<[string, string]> = [];
+    const status: string[] = [];
+    await handleRecordPinClick(pin(), {
+      selectByGuid: () => Promise.reject(new Error("fragments worker stalled")),
+      setStatus: (m) => { status.push(m); },
+      openRecord: (k, id) => { opened.push([k, id]); },
+    });
+    expect(opened).toEqual([["rfi", "rec-7"]]);
+    expect(status[0]).toContain("could not highlight");   // reported, not swallowed
+  });
+
+  it("a marker click does not also reach the canvas — `app.ts` raycasts container clicks and "
+     + "clears the selection on a miss, which would undo the highlight a few frames later", () => {
+    const src = readFileSync(join(process.cwd(), "src", "pins", "pins.ts"), "utf8");
+    // Both arms: a topic marker is as deliberate a click target as a record one.
+    expect(src.match(/el\.onclick = [^;]*stopPropagation/gs)?.length).toBe(2);
+  });
+
+  it("`main.ts` waits for the portal's own init rather than a fixed delay, at EVERY site — a "
+     + "timeout standing in for a signal reports success either way, and there were three copies", () => {
+    const src = readFileSync(join(process.cwd(), "src", "main.ts"), "utf8");
+    expect(src).toMatch(/await openPortalTab\(\)/);
+    // The guess, as CODE — the docstring quotes the old line on purpose and must not count.
+    expect(src).not.toMatch(/^\s*if \(portal\.moduleList\(\)\.length\) go\(\);/m);
+    // …and every caller goes through the one wait, so a fourth copy cannot appear quietly.
+    expect(src.match(/void withPortal\(/g)?.length).toBe(2);
+  });
+
   it("keeps the status line it always showed, including a pin with no status", () => {
     expect(describePin(pin())).toBe("RFI-004 · RFIs · open");
     expect(describePin(pin({ status: null }))).toBe("RFI-004 · RFIs");

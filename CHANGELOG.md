@@ -35,6 +35,14 @@ The handler lives in `apps/web/src/viewer/pinOpen.ts` so the viewer's `app.ts` d
 opener reaches the viewer as a required callback rather than an import — required so a dropped wire
 is a compile error instead of a dead pin, injected so the viewer never reaches into the portal.
 
+Three things review found, all real. A pin marker's click also reached the viewport, whose raycast
+misses a DOM overlay and then clears the selection a few frames later — so the highlight the click
+had just set was being undone; both marker kinds now stop the event. A rejected `selectByGuid` took
+the record jump with it, although the record id came from the pin and not from the scene; selection
+is best effort now, and says so rather than failing silently. And the jump waited on a fixed 500 ms
+instead of the portal's own init — **there were three copies of that guess**, and all three now share
+one wait that resolves when the portal is actually ready and reports when it cannot open at all.
+
 ### Four records called concurrency gaps open that the sweep had already closed
 
 `services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
@@ -59,6 +67,13 @@ and must re-find all four, and nothing else, before it may report a clean tree.
 The first draft read those records out of git history instead of copying them. That works on a
 full clone and not in CI, whose checkout is shallow, so the gate failed closed on every build. A
 proof that an analyser finds anything cannot depend on the depth of somebody's clone.
+
+Review found two more. The replay was evaluating those frozen records against today's ledger, so a
+site that legitimately reopened would have red the build blaming the analyser for being right; the
+statuses are frozen alongside the records now. And the gate's roadmap-marker list knew `✅ ◧ 🟡 ⭐`
+but not `⛔`, `❌` or a struck-through code — 12 of 90 roadmap items were outside its population
+entirely, reported as a clean tree in exactly the same words as a clean tree. A loose-versus-strict
+parity check now reds the build on a marker it does not know, and found one of the three itself.
 
 `services/api/test_roadmap_status.py` gained the self-tests it was missing. Its loop reads
 `if not marked_open(code): PASS; continue`, so a `marked_open` that can never say yes sent every
