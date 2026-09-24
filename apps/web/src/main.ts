@@ -74,6 +74,7 @@ async function ensureViewer(): Promise<ViewerApp> {
       viewerApp = initViewerApp({
         container, api, projectId, connected, projectName,
         setStatus, notify, getSettings: () => settings,
+        openRecord: jumpToRecord,
       });
       return viewerApp;
     });
@@ -1191,6 +1192,25 @@ portal.setWorkspace("construction");
 let portalReady = false;
 function openPortalTab() { if (portalReady) return; portalReady = true; void portal.init(); }
 
+/**
+ * Jump to a register record from anywhere in the app.
+ *
+ * The command palette has done this since it shipped; the 3D viewer's register pins did not, and
+ * PIN-OPEN-ROW was filed as needing a UX decision on the strength of a grep over the viewer
+ * directory finding no opener. There is no opener THERE. *A grep bounded by one directory answers
+ * a question about that directory.* So this is the palette's own behaviour, lifted to one place
+ * and given to both callers rather than a second answer invented for the pin.
+ *
+ * The delay is the palette's and is kept: `portal.init()` is asynchronous, and a jump issued
+ * before the module list exists finds nothing to open.
+ */
+function jumpToRecord(moduleKey: string, id: string) {
+  setWorkspace("construction");
+  openPortalTab();
+  const go = () => portal.openRecordByKey(moduleKey, id);
+  if (portal.moduleList().length) go(); else setTimeout(go, 500);
+}
+
 const developerPortal = new PortalUI($("panel-portal-dev"), portalHost);
 developerPortal.setWorkspace("developer");
 let developerReady = false;
@@ -2164,9 +2184,7 @@ const _palette = _embed ? null : initCommandPalette({
       const hits = await api.searchAll(projectId, q);
       return els.concat(hits.slice(0, 8).map((h) => ({
         id: "rec:" + h.id, label: `${h.ref} ${h.title ?? ""}`.trim(), hint: h.module_name || "Record",
-        run: () => { setWorkspace("construction"); openPortalTab();
-          const go = () => portal.openRecordByKey(h.module, h.id);
-          if (portal.moduleList().length) go(); else setTimeout(go, 500); },
+        run: () => jumpToRecord(h.module, h.id),
       })));
     } catch { return els; }
   },

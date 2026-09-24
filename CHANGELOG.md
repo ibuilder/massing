@@ -12,6 +12,29 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Clicking a register pin on the model now opens its record
+
+A pin on the 3D model is a register record's marker — an RFI, a punch item, an observation. Clicking
+one selected the element it sits on and wrote a line to the status bar, and that was all: the record
+the pin stood for had no way in. It now selects, reports, and opens the record.
+
+The behaviour was already written down as shipped. `apps/web/src/pins/pins.ts` branches
+topic-versus-record on click and explains why — *"a topic restores a saved viewpoint, a record opens
+its register row"*. Only the first half was true.
+
+Nothing new was designed for it. `apps/web/src/main.ts` has jumped to a record since the command
+palette shipped, whenever a search hit is chosen; the pin now goes through that same
+`jumpToRecord`, so there is one answer to "where does a record open" rather than two that drift.
+The item had been filed as needing a UX decision on the strength of a grep over the viewer directory
+finding no opener — there is none *there*, and the opener was one directory over.
+
+Selection stays in the viewer rather than following the user across: coming back to the Model
+workspace finds the element still highlighted.
+
+The handler lives in `apps/web/src/viewer/pinOpen.ts` so the viewer's `app.ts` did not grow, and the
+opener reaches the viewer as a required callback rather than an import — required so a dropped wire
+is a compile error instead of a dead pin, injected so the viewer never reaches into the portal.
+
 ### Four records called concurrency gaps open that the sweep had already closed
 
 `services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
