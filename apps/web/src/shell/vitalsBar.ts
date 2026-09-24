@@ -21,18 +21,20 @@
  * claims to prove the model is one thing, so a fabricated number in it discredits everything else.
  */
 
-/** One vital as the API returns it. `value === null` means "not yet", and `note` says why. */
-export interface Vital {
-  value: number | string | null;
-  unit: string;
-  note?: string | null;
-  band?: string | null;
-}
-
-export interface VitalsPayload {
-  order: string[];
-  [key: string]: Vital | string[] | undefined;
-}
+/** One vital as the API returns it. `value === null` means "not yet", and `note` says why.
+ *
+ *  RESPELLED-SHAPE — these two were DECLARED here, character for character identical to
+ *  `apps/web/src/api/types.ts`, under a comment saying "as the API returns it". A second declaration
+ *  of a wire shape is not a copy that drifts later; it is a copy that is already invisible to every
+ *  audit over the declarations. That is how CLASH-TRUNC's `truncated` flag was returned by the server
+ *  and read by nobody for months: no property access resolved to the DECLARED member, so no type
+ *  error, no lint and no unread-field derivation could see the omission. *A re-spelled shape is a
+ *  field no derivation over declarations can see.* Re-exported rather than deleted so this module's
+ *  importers keep their existing spelling; `import type` is erased at compile time, so no runtime
+ *  edge is added to the module graph. Held by `apps/web/src/api/noRespelledShapes.test.ts`.
+ */
+export type { Vital, VitalsPayload } from "../api/types";
+import type { Vital, VitalsPayload } from "../api/types";
 
 /** Short labels — the strip is scanned, not read. */
 const LABEL: Record<string, string> = {

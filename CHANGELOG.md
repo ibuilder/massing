@@ -12,6 +12,20 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### A wire type declared twice is a field no audit can see
+
+`ClashResult.truncated` was returned by the server and read by nobody for months, and the reason was
+never that anyone decided to ignore it: the clash panel had re-spelled the response shape, so no
+property access resolved to the declared field and no type error, lint or unread-field audit could
+reach it. Two more shapes were written out twice the same way — `Vital` and `LogisticsResource`, both
+character-for-character copies of `api/types.ts`, one of them under a comment reading "as the API
+returns it". Both now import the type they were copying.
+
+A new check refuses the next **exact** copy: same type name and same member set. That is narrower
+than the case above — a local shape that drops a field, as the clash panel's inline cast did, has a
+different member set and is not caught. The narrowness is deliberate: a subset rule flags twenty
+shapes here, eighteen of them deliberate narrowings, and gating it would need an exemption list.
+
 ### The Discipline Spine says how many spec sections it is NOT counting
 
 The chain-coverage bars are computed over the *enforced* spec population — sections a withdrawal has

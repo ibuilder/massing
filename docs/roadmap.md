@@ -995,6 +995,42 @@ instances:
   the field's importance is not a judgement call, `report_builders/` already made it. Six of those
   shipped as fixes to the valuation panel; see below.
 
+- ✅ **RESPELLED-SHAPE — a wire type declared twice is invisible to every audit over the
+  declarations** *(XS — Lane I; **CLOSED 2026-09-24**; gated by
+  `apps/web/src/api/noRespelledShapes.test.ts`)*
+
+  Opened by CLASH-TRUNC's own post-mortem rather than by a symptom. That item's `truncated` flag was
+  unread for months because `clashPanel.ts` re-spelled the response shape inline, so no property
+  access resolved to the declared member — and **every** unread-field derivation in this repo starts
+  from `apps/web/src/api/`'s interfaces and asks who reads them. *A re-spelled shape is a field no
+  derivation over declarations can see.* So the question is whether the tree holds more of them.
+
+  **It held two, and no live defect.** `Vital` in `apps/web/src/shell/vitalsBar.ts` and
+  `LogisticsResource` in `apps/web/src/viewer/draft/logisticsOverlay.ts` are character-for-character
+  second declarations of interfaces in `apps/web/src/api/types.ts` — the first under a comment
+  reading *"One vital as the API returns it"*, which is the copy admitting what it is. Both read
+  their own fields correctly today, so **this is a clean negative on live defects and a real one on
+  exposure**: the cost is prospective and already paid once elsewhere.
+
+  **The rule's narrowness is the finding.** A structural-subset rule — *this local shape is a subset
+  of an api interface* — reports **20** matches, and 18 are noise or deliberate: `Vec3Like ⊆ Vec3`
+  because both are three numbers; `PairField ⊆ ModuleField` because a pure function takes the three
+  fields it needs; three `jurisdictionPacks` shapes are testable parameter types whose "dropped"
+  fields are read elsewhere in the same file; `readinessStrip`'s narrower brief already renders its
+  own grounding caveat. Gating *that* rule needs five judgement-call exemptions, and **an exemption
+  list is where the next instance hides** — the lesson COURT-SPLIT paid for when it bounded its
+  population to the 17 states where the choice could change the answer.
+
+  Identical NAME **and** identical member set is a different claim: not *these look alike* but
+  *somebody wrote this type out twice*. It needs no exemptions, and it correctly ignores the four
+  same-name collisions under `apps/web/src/vendor/` — independent packages whose members differ.
+
+  *A check whose expected answer is zero is the easiest kind to break silently*, so the gate asserts
+  its walk still finds declarations on both sides before it may report nothing, replays both shipped
+  duplicates through the predicate, and keeps the predicate as a separate exported function so a
+  mutation can be aimed at it. Two mutations: restoring either duplicate reds the verdict; widening
+  the predicate to name-only reds the vendor-collision check.
+
 - ✅ ⭐ **CLASH-TRUNC — the coordination matrix was computed from the first page of the clash run**
   *(S — Lane E; **CLOSED 2026-09-24**; gated by `services/api/test_clash_trunc.py` and
   `apps/web/src/viewer/tools/clashTruncation.test.ts`)*
