@@ -320,14 +320,22 @@ if _URL:
 
     import aec_api.pid_lock as _pl  # noqa: E402
 
-    #: Set on the DATABASE, not on a connection of ours. The GUC is per-session, and `pid_lock`
-    #: opens its OWN connection -- so a `SET` here would land on the wrong session entirely and the
-    #: check would pass whatever the code did. *It did: the first draft set it on a local connection
-    #: and the Session-shape mutation sailed through.* `ALTER DATABASE` is also how a managed
-    #: PostgreSQL actually imposes this, so the test now reproduces the real configuration.
+    #: Set on the ROLE, not on a connection of ours and not on a named database.
+    #:
+    #: * not a plain `SET`: the GUC is per-session and `pid_lock` opens its OWN connection, so a
+    #:   `SET` here lands on the wrong session entirely. *The first draft did exactly that and the
+    #:   Session-shape mutation sailed through it -- the check passed whatever the code did.*
+    #: * not `ALTER DATABASE <name>`: the second draft hardcoded `postgres`, which is neither the
+    #:   database CI uses (`mig_runtime`) nor one its role owns -- CI failed with "must be owner of
+    #:   database postgres". *A fixture that names an environment it was not written in is a fixture
+    #:   that only works where it was written.*
+    #:
+    #: `ALTER ROLE CURRENT_USER` needs no ownership, interpolates no identifier, and applies to the
+    #: role's NEW connections -- which is what `dispose()` below forces. It is also a fair model of
+    #: the real hazard: a managed PostgreSQL imposing this per role or per database.
     _pl_eng = __import__("aec_api.db", fromlist=["engine"]).engine
     with _pl_eng.connect() as _cfg:
-        _cfg.execute(_text("ALTER DATABASE postgres SET idle_in_transaction_session_timeout = 1000"))
+        _cfg.execute(_text("ALTER ROLE CURRENT_USER SET idle_in_transaction_session_timeout = 1000"))
         _cfg.commit()
     _pl_eng.dispose()                          # force fresh connections that inherit the new setting
     _survived = None
@@ -346,7 +354,7 @@ if _URL:
     except BaseException as _e:                # noqa: BLE001
         _survived = f"raised {type(_e).__name__}: {_e!s:.80}"
     with _pl_eng.connect() as _cfg:
-        _cfg.execute(_text("ALTER DATABASE postgres RESET idle_in_transaction_session_timeout"))
+        _cfg.execute(_text("ALTER ROLE CURRENT_USER RESET idle_in_transaction_session_timeout"))
         _cfg.commit()
     _pl_eng.dispose()
     check("the lock survives a critical section longer than idle_in_transaction_session_timeout",
