@@ -152,11 +152,19 @@ finally:
 #: THE ARM THIS ITEM EXISTS FOR. A child that never reaches a checkpoint -- the parse, or one
 #: `create_shape` -- is killed by the parent. `_HANG_S` is far longer than the budget, and the stub
 #: EXITS BY ITSELF so that removing `timeout=` makes this FAIL rather than hang.
+#: The stub takes its sleep from argv so the two arms can ask for different ones. `_HANG_S` has to
+#: be far clear of the 2 s budget plus the 5 s grace, or "killed at ~7 s" stops being
+#: distinguishable from "the stub finished on its own" on a loaded runner -- and the arm would then
+#: pass for the wrong reason. The self-exit probe below needs no such margin: it is asking whether
+#: `sleep(x); sys.exit(0)` returns at all, which is true of every x. Review asked for `_HANG_S`
+#: itself to be shortened; that would have bought the same ~25 s back by NARROWING the margin the
+#: kill arm depends on, so the sleep is parameterised instead. *Make the cheap check cheap without
+#: making the expensive one weaker.*
 _HANG_S = 25
 _hang = Path(_TMP) / "hangs.py"
-_hang.write_text(f"import sys, time\ntime.sleep({_HANG_S})\nsys.exit(0)\n", encoding="utf-8")
+_hang.write_text("import sys, time\ntime.sleep(float(sys.argv[1]))\nsys.exit(0)\n", encoding="utf-8")
 _real_argv = fc._child_argv
-fc._child_argv = lambda: [sys.executable, str(_hang)]
+fc._child_argv = lambda: [sys.executable, str(_hang), str(_HANG_S)]
 try:
     _t0 = time.monotonic()
     _killed: BaseException | None = None
@@ -177,7 +185,7 @@ finally:
 
 #: The stub's self-exit is load-bearing, so prove it rather than trusting the comment: a stub that
 #: outlived the assertion would make the arm above pass for the wrong reason on a slow runner.
-_p = subprocess.run([sys.executable, str(_hang)], timeout=_HANG_S + 20)
+_p = subprocess.run([sys.executable, str(_hang), "0.2"], timeout=60)
 check("  ...and the hang stub does exit on its own, so the mutation FAILS rather than hanging",
       _p.returncode == 0,
       "the stub did not self-exit; dropping `timeout=` from the spawn would stop this file dead "

@@ -1423,9 +1423,13 @@ instances:
   deadlock. The child still gets the caller's full cooperative budget, so an ordinary overrun comes
   back from its own checkpoint naming the phase; the parent's `subprocess.run(timeout=...)` fires
   five seconds later and is the backstop for the two costs no checkpoint can see. **The outer bound
-  is therefore `timeout + 5s`, not `timeout`** — stated rather than hidden, because shortening the
-  child's deadline to keep the bound exact would make the two branches disagree about what the
-  parameter means, and a backstop that pre-empts the thing it backs up is not a backstop.
+  is therefore `timeout + 5s` measured from when the child STARTS, not `timeout`** — stated rather
+  than hidden, because shortening the child's deadline to keep the bound exact would make the two
+  branches disagree about what the parameter means, and a backstop that pre-empts the thing it backs
+  up is not a backstop. *"After the child starts" is not a hedge:* `subprocess.run` constructs
+  `Popen(...)` and only then hands `timeout=` to `communicate()`, so process creation itself is
+  outside the window — bounded by the OS, not by us. Raised in review, against a first draft that
+  claimed a total, which is the same overclaim this item exists to remove one layer down.
 
   **There is deliberately no in-process fallback.** Spawning failures are not something anyone
   reports, so a fallback would mean the conversion silently returned to being uninterruptible with

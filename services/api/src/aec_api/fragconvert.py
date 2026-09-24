@@ -106,6 +106,14 @@ def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
 #: alternative, shortening the child's deadline to keep the bound at exactly `timeout`, would change
 #: when the cooperative error fires and make the two branches disagree about what the parameter
 #: means. *A backstop that pre-empts the thing it backs up is not a backstop.*
+#:
+#: **That bound is POST-SPAWN, and the distinction is in CPython's source rather than inferred:**
+#: `subprocess.run` constructs `Popen(...)` and only then passes `timeout=` to `communicate()`, so
+#: the clock starts once the process exists. Creating it -- fork/exec, or `CreateProcess` on Windows
+#: -- is not covered, and on a loaded host that is not free. It is bounded by the OS rather than by
+#: us, and nothing here can bound it, so the honest form is "`timeout + 5s` after the child
+#: starts". Raised in review. *The previous sentence claimed a total, which is the same overclaim
+#: this change exists to remove one layer down.*
 _KILL_GRACE_S = 5
 
 
