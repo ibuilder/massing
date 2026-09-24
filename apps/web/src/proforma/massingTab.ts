@@ -23,8 +23,19 @@ const saveChains = new Map<string, Promise<void>>();
  *  as it stood BEFORE a selection that has already succeeded on screen, and then report "No parcel
  *  boundary saved" for a parcel the user is looking at. *A write that is ordered against other
  *  writes is still unordered against reads.* Resolves immediately when nothing is in flight. */
-export function pendingParcelSave(pid: string): Promise<void> {
-  return saveChains.get(pid) ?? Promise.resolve();
+export async function pendingParcelSave(pid: string): Promise<void> {
+  // DRAIN, don't snapshot. Awaiting the tail as it stood at entry is only correct if nothing is
+  // enqueued during the await — and the whole point of this function is that its caller is about to
+  // do something slow. A selection made while we wait appends a NEW tail, so the reader would fetch
+  // the parcel before it and show one lot line while the tab shows another. *Waiting for the queue
+  // as it was is not waiting for the queue.* Raised in review. Loop until the tail stops moving;
+  // each pass awaits a promise that is already settled or in flight, so it cannot spin.
+  for (let seen = saveChains.get(pid); seen; ) {
+    await seen;
+    const now = saveChains.get(pid);
+    if (now === seen) return;
+    seen = now;
+  }
 }
 
 export interface MassingTabCtx {

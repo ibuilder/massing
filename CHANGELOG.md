@@ -19,9 +19,13 @@ taken out of the chain are excluded, and correctly so: a withdrawn section is no
 The card printed the enforced number and nothing else, so on a job with a void section its "18
 specs" silently disagreed with the 21 in the spec register, with nothing on the page accounting for
 the difference. It now reads "21 spec sections on the job · **3 withdrawn (excluded)**, so every bar
-above is taken over 18", with the withdrawn sections on the hover. The server has always returned
-both numbers for exactly this reason, and the submittal-log card has always rendered the same
-caveat.
+above is taken over 18", with the sections themselves in a disclosure below it. The server has always
+returned both numbers for exactly this reason, and the submittal-log card has always rendered the
+same caveat.
+
+Two of the four bars, not all four: `sheets_specced_pct` divides by the drawing count and
+`packages_costed_pct` by the package count, neither of which a withdrawn spec changes. The caveat
+names the two it applies to.
 
 ### Sources & Uses shows the loan fees
 

@@ -85,16 +85,36 @@ describe("SCREEN-VS-REPORT: the Discipline Spine's excluded sections", () => {
     expect(root.textContent).toContain("3 withdrawn (excluded)");
     expect(root.textContent, "the caveat must say which population the bars are taken over, or it "
       + "is two numbers on a page rather than a reconciliation").toContain("taken over 18");
+    // TWO of the four bars, not all four. `sheets_specced_pct` divides by `len(drawings)` and
+    // `packages_costed_pct` by `len(packages)`; only `specs_packaged_pct` and `spec_to_budget_pct`
+    // use `len(specs)`. The first draft of the caveat said "every bar above", which review caught —
+    // *a caveat that overstates its own reach is this item's own defect, in the sentence written to
+    // fix it.* This assertion is what stops it being rewritten back.
+    expect(root.textContent, "the caveat may not claim a reach it does not have")
+      .toContain("the two spec bars");
+    expect(root.textContent).not.toContain("every bar above");
   });
 
-  it("names the withdrawn sections where a reader can reach them", async () => {
+  it("names the withdrawn sections where a KEYBOARD reader can reach them", async () => {
     const root = await run(SPINE());
     const b = [...root.querySelectorAll("b")].find((e) => e.textContent?.includes("withdrawn"));
     expect(b, "the withdrawn count is not rendered as its own element").toBeTruthy();
-    // The sections are a hover, not a list: the card's job is the reconciliation, and three lines of
-    // section numbers between the bars and the discipline table would bury it.
-    expect(b!.getAttribute("title")).toContain("03 30 00 Cast-in-place concrete");
-    expect(b!.getAttribute("title")).toContain("09 91 00 Painting");
+
+    // The first draft put the section names in a `title` on this non-focusable `<b>` — reachable by
+    // pointer and by nothing else, so the actionable half of the caveat was invisible to anyone
+    // navigating by keyboard. Review caught it. *A disclosure only some readers can open is not a
+    // disclosure.* The names live in a `<details>` now, which is focusable and toggles on Enter.
+    expect(b!.getAttribute("title"),
+      "the names are back in a pointer-only tooltip").toBeNull();
+
+    const det = root.querySelector("details");
+    expect(det, "no disclosure — the section names are unreachable again").toBeTruthy();
+    expect(det!.querySelector("summary"),
+      "a `details` with no `summary` has nothing to focus").toBeTruthy();
+    const items = [...det!.querySelectorAll("li")].map((li) => li.textContent ?? "");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toBe("03 30 00 — Cast-in-place concrete");
+    expect(items[2]).toBe("09 91 00 — Painting");
   });
 
   it("falls back to the ref when a withdrawn section carries no section number", async () => {
@@ -102,8 +122,8 @@ describe("SCREEN-VS-REPORT: the Discipline Spine's excluded sections", () => {
     // need not have. Without this the hover would read " Painting" with a leading space and no
     // identity at all — the row exists to be findable.
     const root = await run(SPINE({ withdrawn_excluded: [{ ref: "SPEC-044", section: "", title: "" }] }));
-    const b = [...root.querySelectorAll("b")].find((e) => e.textContent?.includes("withdrawn"));
-    expect(b!.getAttribute("title")).toBe("SPEC-044");
+    const items = [...root.querySelectorAll("details li")].map((li) => li.textContent ?? "");
+    expect(items).toEqual(["SPEC-044"]);
   });
 
   it("says nothing extra when nothing was withdrawn — a caveat that is always on is decoration",
@@ -112,6 +132,8 @@ describe("SCREEN-VS-REPORT: the Discipline Spine's excluded sections", () => {
       expect(root.textContent).toContain("18 spec sections on the job");
       expect(root.textContent).not.toContain("withdrawn");
       expect(root.textContent).not.toContain("taken over");
+      expect(root.querySelector("details"),
+        "an empty disclosure is worse than none — it promises a list and opens on nothing").toBeNull();
     });
 
   it("reads ONE spec section as singular", async () => {

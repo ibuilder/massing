@@ -219,8 +219,8 @@ export async function renderSpine(ctx: PanelContext) {
       body.innerHTML = "";
       const cov = t.coverage;
       // coverage bars — the four chain joins
-      // SCREEN-VS-REPORT — `cov.specs` is the ENFORCED population every percentage above is taken
-      // over; `spec_count` is every section on the job. The engine returns BOTH on purpose and says
+      // SCREEN-VS-REPORT — `cov.specs` is the ENFORCED population the two SPEC percentages are
+      // taken over; `spec_count` is every section on the job. The engine returns BOTH on purpose and says
       // why in its own comment: `spec_count === coverage.specs + withdrawn_excluded.length`. This
       // card printed neither, so a job with a void section showed coverage over a population that
       // silently disagreed with the spec register’s count, with nothing on the page accounting for
@@ -228,13 +228,22 @@ export async function renderSpine(ctx: PanelContext) {
       // caveat since it shipped; its sibling here never did. *A withdrawn section is not an
       // unpackaged one — it is not in the chain at all*, which is why hiding it understates nothing
       // and explains nothing either.
+      //
+      // TWO of the four bars, not every bar — the first draft of this caveat said "every bar above",
+      // which review caught. `specs_packaged_pct` and `spec_to_budget_pct` divide by `len(specs)`;
+      // `sheets_specced_pct` divides by `len(drawings)` and `packages_costed_pct` by `len(packages)`,
+      // neither of which a withdrawn SPEC changes. *A caveat that overstates its own reach is the
+      // defect this item is about, committed in the sentence written to fix it.*
+      //
+      // The sections are a `<details>` list rather than a `title` tooltip, also from review: a
+      // `title` on a non-focusable element is reachable by pointer only, so the names — the
+      // actionable half — were invisible to anyone navigating by keyboard. Each entry is escaped at
+      // its own interpolation rather than inside a nested template literal, which is what
+      // `ui/innerHtmlGuard.test.ts` refuses: escaping two levels from the sink reads as if it
+      // covered the whole expression.
       const withdrawn = t.withdrawn_excluded ?? [];
-      // Built as a plain string first and escaped once at the interpolation: the section numbers and
-      // titles are record data, and a nested template literal inside the `innerHTML` expression is
-      // what `ui/innerHtmlGuard.test.ts` refuses — rightly, since the escaping would then sit two
-      // levels away from the sink and read as if it covered the whole thing.
-      const withdrawnTitle = withdrawn
-        .map((w) => [w.section || w.ref, w.title].filter(Boolean).join(" ")).join(" · ");
+      const withdrawnList = withdrawn
+        .map((w) => [w.section || w.ref, w.title].filter(Boolean).join(" — "));
       const bars = el("div", "dash-card"); bars.style.marginBottom = "10px";
       bars.innerHTML = `<div class="section-title">Chain coverage</div>`
         + progressBar(cov.sheets_specced_pct ?? 0, 100, { label: `Sheets → spec (${cov.sheets} sheets)` })
@@ -242,9 +251,13 @@ export async function renderSpine(ctx: PanelContext) {
         + progressBar(cov.packages_costed_pct ?? 0, 100, { label: `Bid packages → cost code (${cov.bid_packages} pkgs)` })
         + progressBar(cov.spec_to_budget_pct ?? 0, 100, { label: "Spec → budget (fully traceable)" })
         + `<div class="meta" style="margin-top:6px">${t.spec_count} spec section${t.spec_count === 1 ? "" : "s"} on the job`
-        + (withdrawn.length
-            ? ` · <b title="${esc(withdrawnTitle)}">`
-              + `${withdrawn.length} withdrawn (excluded)</b>, so every bar above is taken over ${cov.specs}`
+        + (withdrawnList.length
+            ? ` · <b>${withdrawnList.length} withdrawn (excluded)</b>, so the two spec bars`
+              + ` — Specs → bid package and Spec → budget — are taken over ${cov.specs}`
+              + `<details style="margin-top:4px"><summary style="cursor:pointer">Withdrawn sections</summary>`
+              + `<ul style="margin:4px 0 0 16px;padding:0">`
+              + withdrawnList.map((w) => `<li>${esc(w)}</li>`).join("")
+              + `</ul></details>`
             : "")
         + `</div>`;
       body.appendChild(bars);

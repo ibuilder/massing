@@ -134,4 +134,31 @@ describe("buildParcelOutline", () => {
     expect(src).toMatch(/buildParcelOutline\(ring\)/);
     expect(src).toMatch(/onClick: \(\) => void addParcelBoundaryFlow\(\)/);
   });
+
+  it("`main.ts` re-checks the open project before adding the ring to the scene", () => {
+    // Every step of that flow awaits — the drain, the GET, the dynamic import, `ensureViewer()` —
+    // and `pid` is captured before the first of them. If the user opens a different project in
+    // between, adding the ring anyway puts one project's lot line into another project's scene,
+    // where nothing on screen says which project drew it. *A captured id is a fact about when the
+    // flow started, not about what the viewer is showing now.* Raised in review.
+    //
+    // ORDER, not spelling: this asserts the guard sits between the capture and the add rather than
+    // matching a particular phrasing, because a rewrite that keeps the guard should not red here and
+    // one that drops it must. `main.ts` has no unit harness — it runs module-level side effects on
+    // import — so this is a source read, which is what the check above already is. Said plainly
+    // rather than left to look like behavioural coverage.
+    const src = readFileSync(join(process.cwd(), "src", "main.ts"), "utf8");
+    const flow = src.slice(src.indexOf("async function addParcelBoundaryFlow"));
+    const body = flow.slice(0, flow.indexOf("\n}"));
+    const capture = body.indexOf("const pid = projectId");
+    const guard = body.search(/projectId\s*!==\s*pid/);
+    const add = body.indexOf("addReferenceObject");
+    expect(capture, "the flow no longer captures the project id — re-read before trusting this")
+      .toBeGreaterThan(-1);
+    expect(add, "the flow no longer adds a reference object").toBeGreaterThan(-1);
+    expect(guard, "nothing re-checks the open project after the awaits").toBeGreaterThan(-1);
+    expect(guard, "the guard runs before the id is captured, so it compares nothing")
+      .toBeGreaterThan(capture);
+    expect(guard, "the guard runs AFTER the ring is already in the scene").toBeLessThan(add);
+  });
 });

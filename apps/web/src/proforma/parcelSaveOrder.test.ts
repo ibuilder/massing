@@ -148,6 +148,36 @@ describe("SITE-1: parcel-boundary saves", () => {
     expect(h.landed).toEqual(["set"]);
   });
 
+  it("DRAINS the queue — a selection made while the reader waits is included", async () => {
+    // The first version snapshotted the tail at entry. Awaiting *that* is only correct if nothing is
+    // enqueued during the await — and the point of the function is that its caller is about to do
+    // something slow. Select A, the reader starts waiting, the user selects B: the snapshot resolves
+    // when A lands, the GET returns A, and the viewer draws A while the tab shows B. *Waiting for
+    // the queue as it WAS is not waiting for the queue.* Raised in review.
+    const { pendingParcelSave } = await import("./massingTab");
+    const h = harness();
+    const pid = h.ctx.projectId()!;
+
+    captured.onChange!(parcel("A"));
+    await flush();
+    let settled = false;
+    void pendingParcelSave(pid).then(() => { settled = true; });
+    await flush();
+
+    // B is chosen while the reader is waiting — this is the case the snapshot could not see.
+    captured.onChange!(parcel("B"));
+    await flush();
+    h.settle[0]?.(); await flush(); await flush();
+    expect(settled, "the wait resolved on A's save while B's was still queued — a reader that "
+      + "fetches here gets the parcel BEFORE the one on screen").toBe(false);
+    expect(h.landed, "the fixture no longer exercises the drain — B must still be in flight here")
+      .toEqual(["set"]);
+
+    h.settle[1]?.(); await flush(); await flush();
+    expect(settled, "the wait never resolved after the whole queue drained").toBe(true);
+    expect(h.landed).toEqual(["set", "set"]);
+  });
+
   it("says so when there is no project to save to, rather than skipping silently", () => {
     const h = harness("");
     captured.onChange!(parcel("A"));
