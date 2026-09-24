@@ -262,6 +262,22 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       }
     });
 
+  it("the three SCREEN-VS-REPORT fields fixed in this change resolve to a reader", () => {
+    // The asymmetric sub-population — declared here, rendered by `report_builders/`, read by
+    // nothing — is 52 candidates today. Two of them are the only ones whose OWN declaring doc
+    // comment states the invariant they belong to (`spec_count === coverage.specs +
+    // withdrawn_excluded.length`), and that is what separated a defect from the forty-odd fields
+    // that are merely not displayed: the author had already written down that the number on screen
+    // is a subset, and the screen did not say so. The third is the PDF's Loan fees row.
+    //
+    // *A candidate set of fifty-two is triage; the filter that ranks it is the finding.*
+    for (const k of ["SpineTraceability.spec_count", "SpineTraceability.withdrawn_excluded",
+                     "ProformaResult.sources_uses.loan_fees"]) {
+      expect(keyToFile.has(k), `${k} is no longer declared — re-derive before trusting this`).toBe(true);
+      expect(readersOutsideDecl(k).length, `${k} lost its reader`).toBeGreaterThan(0);
+    }
+  });
+
   it("the six fields the valuation panel was fixed to render now resolve to a reader", () => {
     // The defects this derivation found, pinned as READ so a future edit that drops one of them from
     // the panel fails HERE as well as in proforma.render.test.ts. Two independent derivations must

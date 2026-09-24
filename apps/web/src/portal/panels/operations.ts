@@ -219,12 +219,34 @@ export async function renderSpine(ctx: PanelContext) {
       body.innerHTML = "";
       const cov = t.coverage;
       // coverage bars — the four chain joins
+      // SCREEN-VS-REPORT — `cov.specs` is the ENFORCED population every percentage above is taken
+      // over; `spec_count` is every section on the job. The engine returns BOTH on purpose and says
+      // why in its own comment: `spec_count === coverage.specs + withdrawn_excluded.length`. This
+      // card printed neither, so a job with a void section showed coverage over a population that
+      // silently disagreed with the spec register’s count, with nothing on the page accounting for
+      // the difference. The submittal-log panel in `reportCenter.ts` has rendered exactly this
+      // caveat since it shipped; its sibling here never did. *A withdrawn section is not an
+      // unpackaged one — it is not in the chain at all*, which is why hiding it understates nothing
+      // and explains nothing either.
+      const withdrawn = t.withdrawn_excluded ?? [];
+      // Built as a plain string first and escaped once at the interpolation: the section numbers and
+      // titles are record data, and a nested template literal inside the `innerHTML` expression is
+      // what `ui/innerHtmlGuard.test.ts` refuses — rightly, since the escaping would then sit two
+      // levels away from the sink and read as if it covered the whole thing.
+      const withdrawnTitle = withdrawn
+        .map((w) => [w.section || w.ref, w.title].filter(Boolean).join(" ")).join(" · ");
       const bars = el("div", "dash-card"); bars.style.marginBottom = "10px";
       bars.innerHTML = `<div class="section-title">Chain coverage</div>`
         + progressBar(cov.sheets_specced_pct ?? 0, 100, { label: `Sheets → spec (${cov.sheets} sheets)` })
         + progressBar(cov.specs_packaged_pct ?? 0, 100, { label: `Specs → bid package (${cov.specs} specs)` })
         + progressBar(cov.packages_costed_pct ?? 0, 100, { label: `Bid packages → cost code (${cov.bid_packages} pkgs)` })
-        + progressBar(cov.spec_to_budget_pct ?? 0, 100, { label: "Spec → budget (fully traceable)" });
+        + progressBar(cov.spec_to_budget_pct ?? 0, 100, { label: "Spec → budget (fully traceable)" })
+        + `<div class="meta" style="margin-top:6px">${t.spec_count} spec section${t.spec_count === 1 ? "" : "s"} on the job`
+        + (withdrawn.length
+            ? ` · <b title="${esc(withdrawnTitle)}">`
+              + `${withdrawn.length} withdrawn (excluded)</b>, so every bar above is taken over ${cov.specs}`
+            : "")
+        + `</div>`;
       body.appendChild(bars);
 
       // per-discipline rollup + budget-by-discipline chart

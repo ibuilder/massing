@@ -1040,7 +1040,8 @@ instances:
   so "N clashes · M issue(s) created" understated without saying why.
 
 - ◧ **SCREEN-VS-REPORT — the printed valuation was more honest than the on-screen one** *(the six
-  found in the first pass are FIXED; the other ~41 asymmetric fields are unread)*
+  found in the first pass are FIXED; a second pass on 2026-09-24 re-derived the asymmetric set,
+  triaged it and fixed three more — see the table at the end of this entry)*
 
   All six were in `renderAppraisal` in `apps/web/src/proforma/proforma.ts`, and the worst was not a
   missing caveat but a false statement. `reconcile()` in `services/api/src/aec_api/appraisal.py` drops
@@ -1064,6 +1065,55 @@ instances:
   `schema.d.ts`. Every unread-field audit starts from the client's interfaces, so a field the client
   never declares cannot be seen by any of them, and no type error or lint can either. See
   RESPONSE-UNDECLARED below.
+
+  **SECOND PASS, 2026-09-24 — the population is 52, not 41, and reading all of it found THREE.**
+  Re-derived with the same intersection `apps/web/src/api/deadFieldTyped.test.ts` uses (no typed
+  reader AND no string-literal reader), then filtered to leaves the Python report builders render:
+  **1,907 declared members · 767 typed-unread · 387 sound · 52 asymmetric.** The "~41" above was a
+  subtraction from a number measured before six fixes and a quarter's worth of new interfaces; it
+  was never re-measured, and the set had GROWN. *A backlog quoted as "the rest" is a number nobody
+  owns.*
+
+  **The load-bearing move was the filter, not the reading.** Fifty-two fields is triage, and the
+  first forty read the same way: not displayed, and no worse for it. What separates a defect is that
+  **the interface's OWN doc comment states the invariant the field belongs to** — the author had
+  already written down that the number on screen is a subset. Applying that filter mechanically over
+  the 52 returns exactly three hits, two of them real:
+
+  | field | verdict |
+  |---|---|
+  | `SpineTraceability.{spec_count, withdrawn_excluded}` | **REAL — fixed.** `spine.py` returns both with the comment *"so the two numbers cannot look like a contradiction: spec_count == coverage.specs + len(withdrawn_excluded)"*, and the Discipline Spine card rendered `coverage.specs` alone. A job with a void section showed coverage over a population that silently disagreed with the spec register's count. `reportCenter.ts` has always rendered exactly this caveat for the submittal log, from an engine stating the same invariant in the same words — **the two screens were written to the same contract and only one of them kept it.** |
+  | `OpendataPermit.city` | **Not a defect — and it is why the filter needs saying out loud.** It matched because the phrase *"a city's open data feed"* appears in the comment. The filter finds a WORD, not a claim; two of three hits were real and the third had to be read. |
+
+  The third fix came from the money side rather than the filter:
+  `ProformaResult.sources_uses.loan_fees` is one of six rows `report_builders/finance.py` prints in
+  Sources & Uses and the screen printed five. **The reason it survived is that its absence
+  balances**: `proforma/solve.py` folds the fee into `total_uses` and funds it from `equity`, so
+  uses still equal debt plus equity and every visible number reconciles. *A total that balances is
+  not the same as a total that is explained* — on two points against a $13m loan that is $260k of
+  equity with no line of its own.
+
+  **What the other 49 are, stated so nobody re-reads them.** Six are redundant rollups the panel
+  already renders by another path (`RfiRegister.withdrawn_excluded` behind the rendered
+  `voided_count`; `FinancialStatements.after_tax_returns.total_sale_tax` behind the rendered
+  `tax_at_sale.total_sale_tax`; `SpecSubmittalLog.withdrawn_excluded[].section_number` behind the
+  rendered count). Several are **leaf-name collisions in the asymmetry match itself** —
+  `PreflightSummary.warnings` is a COUNT and the report builder's `warnings` is a LIST on a
+  different response; `SpineTraceability.spec_count` matched a submittal-log KPI, which is how a
+  real finding arrived for a wrong reason. Two are read through a **re-spelled local interface**
+  (`ProformaForecast.*_returns.equity_multiple`, read in `apps/web/src/proforma/drawPackage.ts`
+  through its own declaration) — the same shape CLASH-TRUNC closed, and a type-hygiene finding
+  rather than a wrong answer. The rest are ordinary detail: curve arrays, per-item weights, raw
+  appraisal inputs behind the approach values the panel shows.
+
+  **So the asymmetry match is a CANDIDATE filter, not an oracle**, for the same reason the
+  identifier derivation was: it matches a leaf NAME against every report builder rather than the one
+  that renders that response. Tightening it to per-response would be a third derivation with a third
+  blind spot; the cheaper repair is the doc-invariant rank above, which cost one grep and found both
+  real fields. *Gated by `apps/web/src/portal/panels/spineExcluded.test.ts`,
+  `apps/web/src/proforma/sourcesUsesFees.test.ts` and the three pins in
+  `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
+  and watching all ten checks red.*
 
 - ✅ ⭐ **PIN-POPULATION — the pin engine read 5 registers of 37, and six of its names were not
   modules** *(M — Lane C; **CLOSED**, fix in this change; gated by

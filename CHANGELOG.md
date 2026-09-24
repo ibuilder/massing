@@ -12,6 +12,25 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The Discipline Spine says how many spec sections it is NOT counting
+
+The chain-coverage bars are computed over the *enforced* spec population — sections a withdrawal has
+taken out of the chain are excluded, and correctly so: a withdrawn section is not an unpackaged one.
+The card printed the enforced number and nothing else, so on a job with a void section its "18
+specs" silently disagreed with the 21 in the spec register, with nothing on the page accounting for
+the difference. It now reads "21 spec sections on the job · **3 withdrawn (excluded)**, so every bar
+above is taken over 18", with the withdrawn sections on the hover. The server has always returned
+both numbers for exactly this reason, and the submittal-log card has always rendered the same
+caveat.
+
+### Sources & Uses shows the loan fees
+
+The PDF's Sources & Uses itemises six rows; the on-screen table showed five. The missing one is the
+origination points — real money, and invisible because its absence balances: the fee is folded into
+Total uses and funded out of equity, so uses still equalled debt plus equity and every visible number
+reconciled. On two points against a $13m loan that is $260k of the equity cheque with no line of its
+own.
+
 ### The coordination matrix now counts the whole clash run, not the first page of it
 
 A federated clash run returns two numbers: `count`, every interference it found, and `clashes`, the
