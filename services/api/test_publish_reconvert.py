@@ -118,16 +118,27 @@ def publish_python(reconvert: bool):
     """Run `_publish` with NO Node runtime, counting Python conversions instead."""
     py_calls = []
 
-    class _Result:
-        data, failed = b"FRAG", []
-
-    def fake_py_convert(path, *a, **kw):
-        py_calls.append(path)
-        return _Result()
+    #: PATCHED AT THE PROCESS BOUNDARY, not at `aec_data.fragments.from_ifc.convert`.
+    #:
+    #: DESKTOP-CONVERT-KILL moved the Python conversion into a CHILD PROCESS so the parent can kill
+    #: a parse or a `create_shape` that never returns. **A child does not inherit the parent's
+    #: monkeypatches**, so patching the converter here stopped intercepting anything: the child ran
+    #: the real one against this file's stub `m.ifc` and died on `Unable to parse IFC SPF header`.
+    #: *The seam a test holds has to be on the same side of the process boundary as the code it is
+    #: standing in for* — and when that boundary moves, every patch across it silently stops
+    #: working, which is why this failed loudly here rather than quietly passing.
+    #:
+    #: `_py_convert_in_child` is the right level for THIS file, whose subject is the reconvert FLAG.
+    #: The child's own mechanics — that it is spawned, and killed when it overruns — are
+    #: `services/api/test_fragconvert_kill.py`'s subject, and asserting them again here would make
+    #: this file slow for no added coverage.
+    def fake_py_convert(src, dst, *, timeout=600):
+        py_calls.append(src)
+        Path(dst).write_bytes(b"FRAG")          # the real child writes it; so must the stand-in
 
     fake_idx = {"counts": {"elements": 0}, "elements": [], "facets": {}, "project": {}}
     with mock.patch.object(authoring.fragconvert, "have_converter", lambda: False), \
-         mock.patch("aec_data.fragments.from_ifc.convert", fake_py_convert), \
+         mock.patch.object(authoring.fragconvert, "_py_convert_in_child", fake_py_convert), \
          mock.patch("aec_data.properties_index.index_file", return_value=dict(fake_idx)), \
          mock.patch.object(authoring.storage, "put", lambda *a, **k: None), \
          mock.patch.object(authoring.props_router, "_load", lambda *a, **k: None):

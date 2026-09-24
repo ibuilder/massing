@@ -1364,9 +1364,10 @@ instances:
   holder may HOLD the lock. Neither is reachable from here — the first needs a timeout the RLock API
   does not offer through `with`, and the second is a property of the work inside the block.*
 
-- **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
-  2026-09-10 by review of #504; **NARROWED 2026-09-23, still OPEN**. Gated by
-  `services/api/test_fragconvert_timeout.py`)*
+- ✅ **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
+  2026-09-10 by review of #504; narrowed 2026-09-23; **CLOSED 2026-09-24**, fix in this change.
+  Gated by `services/api/test_fragconvert_timeout.py` for the cooperative half and
+  `services/api/test_fragconvert_kill.py` for the kill)*
 
   **AS FILED, 2026-09-10 — pre-fix; see the paragraph after this one for what is true now.**
   `services/api/src/aec_api/fragconvert.py` took a `timeout` and applied it only to the Node path,
@@ -1402,11 +1403,40 @@ instances:
   made the original asymmetry invisible**, and a partial fix described as a fix would re-create it
   one layer in.
 
-  The remainder is still a killable child process, and the reason it is still filed is the target
-  platform: the desktop app is a PyInstaller bundle, where `multiprocessing` spawn re-execs the
-  frozen executable unless `freeze_support()` is wired at the entry point, and this repository has
-  no process-isolation pattern to copy — `multiprocessing` appears once, for `cpu_count()`.
-  Net-new spawning machinery for a frozen app is not something to land on a PR that CI never ran.
+  **CLOSED 2026-09-24: the remainder shipped, and the blocker it was filed on did not hold.** This
+  paragraph said the killable child needed `multiprocessing`, which under PyInstaller re-execs the
+  frozen executable unless `freeze_support()` is wired — net-new machinery for a frozen app with no
+  pattern here to copy. That is true of `multiprocessing` and **not** of process isolation.
+  `services/api/desktop_entry.py` is a three-line launcher and is the `Analysis` script for *both*
+  `services/api/sidecar.spec` and `services/api/desktop.spec`, so it can branch on an argv sentinel
+  before it imports the server, and `sys.executable` then means "this bundle" when frozen and "this
+  interpreter" when not. One mechanism, both environments, no `multiprocessing` at all.
+
+  *A blocker recorded as a property of the platform turned out to be a property of one approach to
+  it* — and because it was written as the former, the item sat unactionable for a fortnight. This is
+  the SECOND reason-shaped error on this one entry: the lane-table row's "process/packaging shape"
+  was the first, and cost thirteen days. **Both were accurate about the work and wrong about why it
+  could not be done**, which is the form that stops a reader before they look.
+
+  `aec_api.fragconvert_child` runs the conversion and writes the `.frag` itself — a model is tens of
+  megabytes, and piping it back through a pipe the parent is not draining while it waits would
+  deadlock. The child still gets the caller's full cooperative budget, so an ordinary overrun comes
+  back from its own checkpoint naming the phase; the parent's `subprocess.run(timeout=...)` fires
+  five seconds later and is the backstop for the two costs no checkpoint can see. **The outer bound
+  is therefore `timeout + 5s` measured from when the child STARTS, not `timeout`** — stated rather
+  than hidden, because shortening the child's deadline to keep the bound exact would make the two
+  branches disagree about what the parameter means, and a backstop that pre-empts the thing it backs
+  up is not a backstop. *"After the child starts" is not a hedge:* `subprocess.run` constructs
+  `Popen(...)` and only then hands `timeout=` to `communicate()`, so process creation itself is
+  outside the window — bounded by the OS, not by us. Raised in review, against a first draft that
+  claimed a total, which is the same overclaim this item exists to remove one layer down.
+
+  **There is deliberately no in-process fallback.** Spawning failures are not something anyone
+  reports, so a fallback would mean the conversion silently returned to being uninterruptible with
+  the reader still believing it was bounded — the same shape as the advisory-lock degrade that
+  nearly shipped in #575. Measured: a stub child that ignores every checkpoint and sleeps 25 s is
+  killed at 7.0 s against a 2 s budget. The stub *self-exits*, so deleting `timeout=` from the spawn
+  makes the gate FAIL in 25 s rather than hang for ever — a hang is reported as nothing.
 
 - ✅ **PIN-SWEEP-PGNULL — the JSON-null sweep skips the rows it exists to convert, on Postgres**
   *(S — Lane C; opened 2026-09-10 by review of #504; **CLOSED 2026-09-13**, fix in this change.
@@ -3647,7 +3677,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RMW-LOCKGAP *(six routes in `routers/authoring.py`; the lock they need is `pid_lock`, which is Lane C's, but every edit is in this lane's file)* · RMW-TOKEN *(both writers — `routers/proforma.py` and `routers/realestate.py` — are in this lane; the column it needs is `models.py`, which is Lane C's, so the migration half crosses over and the entry says so)* *(previously empty — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**NARROWED 2026-09-23** — a COOPERATIVE deadline now bounds the Python path at its phase boundaries and inside both loops, so `edit_preview`'s 120 s is enforced, not unenforceable. What is left is the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row said the fix was "process/packaging shape — killable child under PyInstaller", and that reason is why the item sat unactionable for 13 days**: it is the repair the RESIDUE needs, and it was recorded as the repair the WHOLE item needed. The reachable half was a `deadline` argument in Lane C's `services/data/src/aec_data/fragments/from_ifc.py`. *A correct decision with a wrong reason attached is worse than no reason, because the reason is what the next reader plans against.* Gated by `services/api/test_fragconvert_timeout.py`)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
