@@ -254,6 +254,31 @@ Four mutations: removing the `SET LOCAL` reds five checks (B waits out the full 
 timeout into the degrade branch reds two (B enters the critical section having timed out and written
 anyway); deleting the CI step reds two; dropping `AEC_PG_REQUIRED` from it reds one.
 
+**Review round 2 found the lock's lifetime was wrong in BOTH directions, and the fix is the shape
+that satisfies neither constraint alone.** A session-level advisory lock lives on a connection, so
+its lifetime IS that connection's lifetime — and two requirements pull opposite ways:
+
+* **End the transaction and the connection goes back to the pool.** Measured under contention: the
+  backend changed between acquisition and unlock, `pg_advisory_unlock` returned `False`, and the real
+  lock stayed stranded until recycling while another caller held that connection.
+* **Leave it open across the critical section and `idle_in_transaction_session_timeout` kills it.**
+  Measured with that timeout at 1 s and a 3 s section: the acquiring session was terminated, the lock
+  died with it, and a rival writer walked in. **A lost update** — precisely what the lock exists to
+  prevent, arriving through the fix for the other half.
+
+A `Session` can satisfy neither cleanly. A checked-out `Connection` whose acquisition transaction is
+*committed* satisfies both: the connection is held to `close()`, nothing is left idle in a
+transaction, and `SET LOCAL` still reverts before the connection is released.
+
+*Three of this change's verifications were themselves wrong before they were right, each in the same
+shape.* The connection probe cleared the pooling bug because an idle pool hands the same connection
+straight back — five rival Sessions were needed to tell "retained" from "released and re-issued". The
+static check for it matched a substring that tokenising makes unmatchable. And the idle-timeout check
+set the GUC on **its own** connection while `pid_lock` opens another, so the Session-shape mutation
+sailed through it; it now sets it on the DATABASE, which is also how a managed PostgreSQL imposes it.
+**Each one reported success while measuring nothing, and only a mutation distinguished them from a
+real check.**
+
 ### DESKTOP-CONVERT-TIMEOUT — the parameter reached one of the two branches
 
 `fragconvert.convert_ifc` has always taken a `timeout`. It reached `subprocess.run` on the Node

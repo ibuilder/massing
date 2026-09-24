@@ -209,7 +209,7 @@ def _advisory(pid: str):
     try:
         from sqlalchemy import text
 
-        from .db import SessionLocal
+        from .db import engine
     except Exception:                                  # noqa: BLE001
         yield False
         return
@@ -221,40 +221,39 @@ def _advisory(pid: str):
     # whose `except` also yields is a generator that can yield TWICE when an exception is thrown in at
     # the first one, and contextlib then replaces the caller's real exception with a generator error.
     try:
-        db = SessionLocal()
-        if db.get_bind().dialect.name == "postgresql":
-            # `SET LOCAL`, not `SET`: plain `SET` is CONNECTION-scoped, and this connection goes
-            # back to the pool. Measured on PostgreSQL with a one-connection pool: a plain
-            # `SET lock_timeout = '1500ms'` was still in force on the NEXT checkout, so every
-            # unrelated query that later drew this connection would inherit a lock timeout nobody
-            # asked for. `SET LOCAL` reverts when the transaction ends -- which here is the
-            # `db.commit()` after the unlock below, so it is gone before the connection is returned.
+        #: A checked-out `Connection`, NOT a `Session`, and the difference is the whole point. A
+        #: session-level advisory lock lives on a connection, so the lock's lifetime is that
+        #: connection's lifetime. A `Session` hands its connection back to the pool the moment its
+        #: transaction ends; a `Connection` stays checked out until `close()`. See the two comments
+        #: below -- this shape is the only one that satisfies BOTH constraints at once.
+        db = engine.connect()
+        if engine.dialect.name == "postgresql":
+            # Two constraints that pull in OPPOSITE directions, and both were found the hard way.
             #
-            # **NO `with db.begin():` HERE, and that is the load-bearing part.** A session-level
-            # advisory lock lives on a CONNECTION. Committing a nested block returns this Session's
-            # connection to the pool, and the unlock at the end then runs on whatever connection the
-            # Session next checks out. Measured: under pool contention the backend changed between
-            # acquisition and unlock and `pg_advisory_unlock` returned FALSE -- the critical section
-            # ran while another caller held that connection, and the real lock stayed stranded until
-            # it was recycled. The Session's own implicit transaction, begun by this first execute
-            # and ended by the commit after the unlock, spans the whole critical section and keeps
-            # one connection throughout. Raised in review; the first draft had the nested block.
+            # (1) THE CONNECTION MUST NOT GO BACK TO THE POOL. The lock is session-level, so it dies
+            #     with, or travels with, its connection. A `Session` releases its connection when its
+            #     transaction ends -- measured under contention: the backend changed between
+            #     acquisition and unlock and `pg_advisory_unlock` returned FALSE, stranding the real
+            #     lock until recycling. A checked-out `Connection` does not; it is held to `close()`.
             #
-            # *And the probe that cleared it the first time was wrong in this file's usual way: with
-            # an idle pool the released connection is handed straight back, so "retained" and
-            # "released and re-issued" look identical. It took five rival Sessions to tell them
-            # apart.*
+            # (2) NO TRANSACTION MAY BE LEFT OPEN ACROSS THE YIELD. Deployments that set
+            #     `idle_in_transaction_session_timeout` terminate a session sitting idle in a
+            #     transaction -- and the advisory lock dies with it, MID critical section, letting a
+            #     second writer in. Measured: with that timeout at 1 s and a 3 s critical section, a
+            #     rival took the lock. That is a lost update, which is the failure this lock exists
+            #     to prevent. Raised in review.
             #
-            # INTERPOLATED, not bound. `SET` is not a DML statement and PostgreSQL rejects a
-            # placeholder there outright -- `SET LOCAL lock_timeout = $1` is a syntax error, so the
-            # parameterised form does not merely fail to apply the timeout, it raises, lands in the
-            # handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is validated to
-            # a positive int above, so the f-string carries an integer and nothing a caller supplies.
-            # *The first draft of this line was parameterised and the two-process check caught it --
-            # as an UNSERIALISED WRITE, the failure this whole change exists to prevent, arriving by
-            # a door it did not anticipate.*
-            db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
-            db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
+            # A Session satisfies neither cleanly: ending its transaction breaks (1), leaving it open
+            # breaks (2). A Connection with a COMMITTED acquisition transaction satisfies both -- and
+            # `SET LOCAL` reverting at that commit is what stops the timeout riding the pool back out.
+            #
+            # INTERPOLATED, not bound: `SET` is not DML and PostgreSQL rejects a placeholder outright,
+            # so the parameterised form does not merely fail to apply the timeout -- it raises, lands
+            # in the handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is
+            # validated to a positive int above, so the f-string carries an integer, never caller input.
+            with db.begin():
+                db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
+                db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
             acquired = True
     except Exception as e:                             # noqa: BLE001 — degrade to in-process, loudly
         if getattr(getattr(e, "orig", None), "sqlstate", None) == _SQLSTATE_LOCK_TIMEOUT:
@@ -286,8 +285,11 @@ def _advisory(pid: str):
     finally:
         depth[pid] -= 1
         try:
-            db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
-            db.commit()
+            #: Its own transaction, on the SAME checked-out connection the lock was taken on. `db` is
+            #: a `Connection`, so nothing has been able to hand it to another caller in between --
+            #: which is what makes this unlock reach the backend that actually holds the lock.
+            with db.begin():
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
         except Exception as e:                         # noqa: BLE001
             # Postgres releases session-level advisory locks when the connection drops, so a failed
             # unlock cannot strand the lock forever — the close below is the backstop.

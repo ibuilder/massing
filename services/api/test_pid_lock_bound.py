@@ -133,41 +133,55 @@ check("refusal is a TimeoutError subclass, this tree's spelling for a budget ove
 #: the backend changed and `pg_advisory_unlock` returned FALSE, stranding the real lock. A static pin
 #: because the behavioural arm cannot see it -- the lock still EXCLUDES; it is the release that
 #: breaks, one caller later.
-def _opens_nested_txn(src: str) -> bool:
-    """Is there a `with <anything>.begin():` inside `_advisory`? Asked by AST, not by substring.
+def _acquires_on(src: str) -> str:
+    """What does `_advisory` take the advisory lock on -- a `Connection` or a `Session`?
 
-    **The substring form of this check was VACUOUS and a mutation proved it.** `_code_only` joins
-    tokens with spaces, so real code `with db.begin():` becomes `with db . begin ( ) :` -- and
-    `"with db.begin()" not in src` could never match however broken the code was. String LITERALS
-    survive tokenising intact, which is why the other checks above work; CODE STRUCTURE does not.
-    *A check written in the wrong language for the text it reads passes for a reason that has
-    nothing to do with the code.* Caught only because the mutation was run.
+    **This is the whole invariant, and it took two review rounds to state correctly.** A session-level
+    advisory lock lives on a CONNECTION, so the lock's lifetime is that connection's lifetime. Two
+    constraints pull in opposite directions and a `Session` cannot satisfy both:
+
+      * end its transaction and the connection goes back to the pool -- measured: the backend changed
+        between acquisition and unlock and `pg_advisory_unlock` returned FALSE, stranding the lock;
+      * leave the transaction open across the yield and a deployment with
+        `idle_in_transaction_session_timeout` kills the session mid-critical-section -- measured: with
+        that timeout at 1 s and a 3 s section, a rival writer took the lock. A lost update.
+
+    A checked-out `Connection` with a COMMITTED acquisition transaction satisfies both. So the thing
+    to pin is the TYPE the lock is taken on, not the presence of a `begin()` block -- the first draft
+    of this check forbade `with db.begin():` outright, which is now the correct code.
+
+    Asked by AST. *The draft before that compared substrings against the comment-stripped source,
+    where `_code_only` joins tokens with spaces -- so `"with db.begin()"` could never match however
+    broken the code was. String LITERALS survive tokenising; CODE STRUCTURE does not.*
     """
     for node in ast.walk(ast.parse(src)):
         if not isinstance(node, ast.FunctionDef) or node.name != "_advisory":
             continue
         for inner in ast.walk(node):
-            if not isinstance(inner, ast.With):
+            if not isinstance(inner, ast.Call):
                 continue
-            for item in inner.items:
-                call = item.context_expr
-                if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) \
-                        and call.func.attr == "begin":
-                    return True
-    return False
+            func = inner.func
+            if isinstance(func, ast.Attribute) and func.attr == "connect" \
+                    and isinstance(func.value, ast.Name) and func.value.id == "engine":
+                return "connection"
+            if isinstance(func, ast.Name) and func.id == "SessionLocal":
+                return "session"
+    return "unknown"
 
 
-check("the advisory lock is taken in the Session's OWN transaction, not a nested `.begin()` block",
-      not _opens_nested_txn(_RAW),
-      "a nested commit returns the connection to the pool mid-critical-section; the later unlock "
-      "then runs on a different connection, returns False, and strands the lock until recycling")
-#: SELF-TEST: the detector must SEE the shape it forbids, or it is the substring check again.
-check("  ...and that detector actually finds a nested block when one is there",
-      _opens_nested_txn("def _advisory(pid):\n    with db.begin():\n        pass\n"),
-      "the nested-transaction detector cannot see a nested transaction")
-check("  ...and does not fire on an unrelated `with`",
-      not _opens_nested_txn("def _advisory(pid):\n    with open('x') as f:\n        pass\n"),
-      "the detector fires on any `with`, so it would red a correct tree")
+check("the advisory lock is taken on a checked-out Connection, not a Session",
+      _acquires_on(_RAW) == "connection",
+      f"_advisory acquires on a {_acquires_on(_RAW)}: a Session releases its connection when its "
+      f"transaction ends (unlock then hits a different backend and returns False) and strands the "
+      f"lock; keeping that transaction open instead exposes it to "
+      f"idle_in_transaction_session_timeout, which kills the lock mid-critical-section")
+#: SELF-TESTS, both directions: the detector must tell the two apart, or it is the substring check.
+check("  ...and that detector reports `session` for the Session shape",
+      _acquires_on("def _advisory(pid):\n    db = SessionLocal()\n") == "session",
+      "the detector cannot see a Session acquisition")
+check("  ...and `connection` for the Connection shape",
+      _acquires_on("def _advisory(pid):\n    db = engine.connect()\n") == "connection",
+      "the detector cannot see a Connection acquisition")
 
 check("the budget is REFUSED when non-positive rather than defaulted",
       "must be positive" in _RAW,
@@ -294,6 +308,51 @@ if _URL:
     check("an UNCONTENDED writer still takes the lock normally",
           "C IN" in _ev2 and "C OUT" in _ev2 and "REFUSED" not in _ev2,
           f"uncontended writer did not complete: {_ev2.strip()!r}")
+
+    #: THE LOCK MUST SURVIVE AN IDLE-IN-TRANSACTION TIMEOUT. A deployment (or a managed PostgreSQL
+    #: role) that sets `idle_in_transaction_session_timeout` terminates a session sitting idle in a
+    #: transaction -- and a session-level advisory lock dies with its session, MID critical section.
+    #: A rival then enters: a lost update, which is the failure this lock exists to prevent.
+    #: Reproduced against the pre-fix shape at 1 s / 3 s before this check was written; it is here so
+    #: the shape cannot drift back. Static checks cannot see this -- the code looks identical either
+    #: way, and only the transaction's STATE across the yield differs.
+    from sqlalchemy import text as _text  # noqa: E402
+
+    import aec_api.pid_lock as _pl  # noqa: E402
+
+    #: Set on the DATABASE, not on a connection of ours. The GUC is per-session, and `pid_lock`
+    #: opens its OWN connection -- so a `SET` here would land on the wrong session entirely and the
+    #: check would pass whatever the code did. *It did: the first draft set it on a local connection
+    #: and the Session-shape mutation sailed through.* `ALTER DATABASE` is also how a managed
+    #: PostgreSQL actually imposes this, so the test now reproduces the real configuration.
+    _pl_eng = __import__("aec_api.db", fromlist=["engine"]).engine
+    with _pl_eng.connect() as _cfg:
+        _cfg.execute(_text("ALTER DATABASE postgres SET idle_in_transaction_session_timeout = 1000"))
+        _cfg.commit()
+    _pl_eng.dispose()                          # force fresh connections that inherit the new setting
+    _survived = None
+    try:
+        with _pl.mutating(f"{_PROJ}-idle"):
+            time.sleep(3)                      # longer than the 1 s idle timeout above
+            _rival = _pl_eng.connect()
+            _survived = not _rival.execute(
+                _text("SELECT pg_try_advisory_lock(:k)"),
+                {"k": _pl.advisory_key(f"{_PROJ}-idle")}).scalar()
+            if not _survived:
+                _rival.execute(_text("SELECT pg_advisory_unlock(:k)"),
+                               {"k": _pl.advisory_key(f"{_PROJ}-idle")})
+                _rival.commit()
+            _rival.close()
+    except BaseException as _e:                # noqa: BLE001
+        _survived = f"raised {type(_e).__name__}: {_e!s:.80}"
+    with _pl_eng.connect() as _cfg:
+        _cfg.execute(_text("ALTER DATABASE postgres RESET idle_in_transaction_session_timeout"))
+        _cfg.commit()
+    _pl_eng.dispose()
+    check("the lock survives a critical section longer than idle_in_transaction_session_timeout",
+          _survived is True,
+          f"a rival took the lock mid-section ({_survived}) -- the acquiring session was killed for "
+          f"sitting idle in a transaction, and the advisory lock died with it: a LOST UPDATE")
 
 check(f"at least one behavioural arm ran -- ran: {', '.join(_arms) or 'NONE (static only)'}",
       bool(_arms) or not os.environ.get("AEC_PG_REQUIRED"),
