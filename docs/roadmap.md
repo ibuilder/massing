@@ -1326,6 +1326,38 @@ instances:
   `converter: python` and a 694-byte fragment that decompresses to 1,424 bytes with a valid
   flatbuffer root — without it, the first mutation could have been failing for an unrelated reason.
 
+- **RMW-LOCKBOUND — a writer that waits for a project lock never gave up** *(M — Lane G; opened
+  2026-09-14, **CLOSED 2026-09-24**. Gated by `services/api/test_pid_lock_bound.py`)*
+
+  `pid_lock.mutating` takes `pg_advisory_lock`, which blocks until the holder releases and has no
+  ceiling. **The mechanism was recorded wrongly and that mattered more than the count.** All 30 call
+  sites (derived by AST; the entry said 11, and a plain `grep` says 35 because it counts the
+  definition, the import and comment mentions) are plain `def`, so FastAPI runs them in the
+  threadpool — a stuck holder pins threadpool workers rather than wedging the event loop. Starlette's
+  default pool is 40, so 40 requests queued on one project starve every route in the app. That is a
+  real availability failure and a different one from the entry's description, which would have sent
+  the next reader to `run_in_threadpool` and the LOOP-BLOCKING item instead.
+
+  `SET LOCAL lock_timeout` bounds the wait and a timeout raises `LockTimeout(TimeoutError)`.
+
+  **The half worth reading is why this nearly shipped as a correctness bug.** A lock timeout and an
+  unreachable server raise the same SQLAlchemy class; only the SQLSTATE (`55P03`) separates them.
+  `_advisory` already catches broadly and degrades to in-process — right for "there is no Postgres
+  here", and catastrophic for "somebody else holds this", because the contended write then proceeds
+  unserialised. *A bound is only safe if it cannot be mistaken for the absence of the thing it
+  bounds.* The first draft demonstrated it: `SET LOCAL lock_timeout = :ms` is a syntax error, so the
+  acquisition raised, degraded, and wrote anyway — the very failure the change exists to prevent,
+  found by the gate's two-process arm rather than by review.
+
+  **The gate's own limit is measured and stated**: the degrade-branch mutation survives a static-only
+  run, because the constant stays in the source unreachable. Only the two-process arm catches it, and
+  that needs a server the API gate's job does not have — so it runs in `db-migrations.yml`, and the
+  gate asserts that step still exists.
+
+  *Still unbounded, deliberately: the in-process `threading.RLock` in `_lock_for`, and the time a
+  holder may HOLD the lock. Neither is reachable from here — the first needs a timeout the RLock API
+  does not offer through `with`, and the second is a property of the work inside the block.*
+
 - **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
   2026-09-10 by review of #504; **NARROWED 2026-09-23, still OPEN**. Gated by
   `services/api/test_fragconvert_timeout.py`)*
