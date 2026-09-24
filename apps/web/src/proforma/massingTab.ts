@@ -18,6 +18,15 @@ import { type LoadedParcel, parcelBoundaryControl } from "./parcelBoundary";
  *  queue behind each other. */
 const saveChains = new Map<string, Promise<void>>();
 
+/** SITE-1 review — the pending parcel-boundary save for a project, for a reader that must not race
+ *  it. The viewer's "Add parcel boundary" flow GETs the property; without this it can read the row
+ *  as it stood BEFORE a selection that has already succeeded on screen, and then report "No parcel
+ *  boundary saved" for a parcel the user is looking at. *A write that is ordered against other
+ *  writes is still unordered against reads.* Resolves immediately when nothing is in flight. */
+export function pendingParcelSave(pid: string): Promise<void> {
+  return saveChains.get(pid) ?? Promise.resolve();
+}
+
 export interface MassingTabCtx {
   api: ApiClient;
   projectId: () => string | null;

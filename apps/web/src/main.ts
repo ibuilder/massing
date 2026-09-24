@@ -288,8 +288,12 @@ async function addSiteContextFlow() {
 async function addParcelBoundaryFlow() {
   const { toast } = await import("./ui/feedback");
   if (!projectId) { toast("Open a project first", "info"); return; }
+  const pid = projectId;
   try {
-    const res = await api.property(projectId);
+    // Let any in-flight save from the feasibility tab land first — reading past it reports "No
+    // parcel boundary saved" for a parcel the user has already selected. Raised in review.
+    await (await import("./proforma/massingTab")).pendingParcelSave(pid);
+    const res = await api.property(pid);
     const b = (res.property as { parcel_boundary?: { ring_m?: number[][]; area_m2?: number } })
       .parcel_boundary;
     const ring = b?.ring_m;

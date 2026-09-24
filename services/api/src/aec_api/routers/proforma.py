@@ -450,8 +450,14 @@ def put_property(pid: str, body: dict, db: Session = Depends(get_db), _sec: str 
     with pid_lock.mutating(pid):
         db.refresh(p)
         prior = p.dev_property or {}
-        saved = ({**body, "appraisal": prior["appraisal"]}
-                 if "appraisal" in prior and "appraisal" not in body else body)
+        # SITE-1 review: the carve-out above preserved `appraisal` and nothing else, so a caller
+        # sending ONE key replaced the whole blob and deleted the parcel, areas, purchase and tax
+        # facts. It read as safe for as long as every caller round-tripped the full property — which
+        # the property form does, and which is why the narrow carve-out was enough until a second
+        # writer appeared. *A merge written for one key is a replace for every other, and the bill
+        # arrives with the next caller.* Now a full merge: `body` still wins where the two overlap,
+        # and an explicit `parcel_boundary: None` still clears, because the key is PRESENT.
+        saved = {**prior, **body}
         p.dev_property = saved
         db.commit()
     return {"property": saved, "summary": dp.summarize(saved)}

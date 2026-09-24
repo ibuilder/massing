@@ -125,6 +125,29 @@ describe("SITE-1: parcel-boundary saves", () => {
       .toEqual(["set", "clear"]);
   });
 
+  it("exposes the pending save, so a READER can order itself against it", async () => {
+    // The viewer's "Add parcel boundary" flow GETs the property. The chain orders writes against
+    // other writes and says nothing about reads, so without this the flow can read the row as it
+    // stood before a selection that has already succeeded on screen — and report "No parcel
+    // boundary saved" for a parcel the user is looking at. Raised in review.
+    const { pendingParcelSave } = await import("./massingTab");
+    const h = harness();
+    const pid = h.ctx.projectId()!;
+    expect(await Promise.race([pendingParcelSave(pid).then(() => "idle"), Promise.resolve("idle")]),
+      "with nothing in flight it must resolve rather than hang").toBe("idle");
+
+    captured.onChange!(parcel("A"));
+    await flush();
+    let settled = false;
+    void pendingParcelSave(pid).then(() => { settled = true; });
+    await flush();
+    expect(settled, "the wait resolved while the save was still in flight — it orders nothing")
+      .toBe(false);
+    h.settle[0]?.(); await flush(); await flush();
+    expect(settled, "the wait never resolved after the save landed").toBe(true);
+    expect(h.landed).toEqual(["set"]);
+  });
+
   it("says so when there is no project to save to, rather than skipping silently", () => {
     const h = harness("");
     captured.onChange!(parcel("A"));

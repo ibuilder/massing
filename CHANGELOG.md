@@ -123,6 +123,18 @@ The queue outlives one render of the tab, which is what makes it a queue: the fe
 re-renders whenever the proforma does, including immediately after "Generate IFC model", and a queue
 rebuilt at that moment cannot order the save that was already in flight across it.
 
+**Saving the property no longer deletes the rest of it.** `PUT /projects/{pid}/property` preserved
+one key across a write — the saved appraisal — and let the request body replace everything else. That
+read as a merge for as long as the only caller was the property form, which reads the whole record,
+edits it and sends it back. This change added a caller that sends the parcel boundary alone, and that
+write took the address, the block and lot, the purchase price, the areas and every tax line with it.
+The route now merges the body over the stored record: the body still wins where they overlap, so the
+form can still edit, and an explicit null still clears, because what matters is a key omitted versus
+a key sent as null.
+
+The viewer also waits for a pending boundary save before reading the property back, so opening the
+overlay straight after selecting a parcel no longer reports that none is saved.
+
 ### Four records called concurrency gaps open that the sweep had already closed
 
 `services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named

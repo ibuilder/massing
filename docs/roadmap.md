@@ -6514,6 +6514,26 @@ removed. Remaining, in priority order:
   request in flight at a time, the clear landing last, and a failed save not stalling the chain.
   Selecting a parcel with no project open now says so instead of skipping silently.
 
+  **And the new writer exposed a data-loss defect in the route it writes to.**
+  `routers/proforma.put_property` preserved exactly ONE key across a write (`appraisal`, carried for
+  `realestate.save_appraisal`, the blob's other owner) and let `body` replace the rest. That was
+  indistinguishable from a merge while the only caller was the property form, which GETs the record,
+  mutates it and PUTs the whole thing back — *the narrow carve-out was a replace with one exception,
+  and it read as a merge because there was only one kind of caller.* This item added the second kind:
+  a writer sending `parcel_boundary` and nothing else, which deleted the address, block/lot, purchase
+  price, areas and every tax line. *A merge written for one key is a replace for every other, and the
+  bill arrives with the next caller.* Now `{**prior, **body}`; gated by
+  `services/api/test_property_merge.py`, which pins that the body still wins on overlap (a merge
+  preferring the stored value makes the form unable to edit anything — the opposite failure and just
+  as total), that an explicit null still clears, and that the response describes the row written
+  rather than the body sent. Raised in review; the mutation restoring the carve-out reds it.
+
+  Review also closed the read side: the save chain orders writes against writes and says nothing
+  about reads, so the viewer's overlay could GET the property past an in-flight save and report "No
+  parcel boundary saved" for a parcel the user had just selected. `pendingParcelSave(pid)` exposes
+  the in-flight promise and the flow awaits it. *A write ordered against other writes is still
+  unordered against readers.*
+
   The test file also pins the closed loop, the draw heights, and the two wires (the save, and the
   flow that reads it back), because every geometry assertion passes on a function nobody calls and a
   ring nobody saves.
