@@ -117,6 +117,46 @@ OPEN_WHEN = {
 check("the roadmap parsed and the codes are findable — else every check below is vacuous",
       len(ROADMAP) > 50_000 and "SCALE-SEAM" in ROADMAP, f"{len(ROADMAP)} chars")
 
+#: **The check above guards the wrong thing, and this file shipped for weeks without noticing.**
+#: It asserts the roadmap is READABLE. What every `DONE_WHEN` check depends on is that `marked_open`
+#: can still say YES — because the loop below reads
+#:
+#:     if not marked_open(code): PASS("closed, and its gate agrees"); continue
+#:
+#: so a `marked_open` that can never return True sends every registered item down the PASS branch
+#: and this file prints *"every item with a measurement agrees with its marker"*, which is then a
+#: sentence about nothing. Measured, not reasoned: breaking the bullet regex with one literal leaves
+#: every line green and the exit status 0. *A predicate that decides what to LOOK at is more
+#: dangerous than one that decides what to report* — the same shape as `test_seeding_sweep`'s two
+#: blind spots, one layer up, and the precondition that was supposed to catch it was aimed at the
+#: file rather than at the function.
+_SYNTH_OPEN = "- 🟡 **SYNTH-CODE — a thing** *(S — Lane G; **OPEN**)*\n"
+_SYNTH_DONE = "- ✅ **SYNTH-CODE — a thing** *(S — Lane G; **CLOSED**)*\n"
+_SYNTH_PROSE = "some prose mentioning SYNTH-CODE in passing, not as a bullet\n"
+
+
+def _marked_open_on(text: str, code: str = "SYNTH-CODE") -> bool:
+    """`marked_open` against arbitrary text — the same body, so a fix to one is a fix to both."""
+    global ROADMAP
+    real, ROADMAP = ROADMAP, text
+    try:
+        return marked_open(code)
+    finally:
+        ROADMAP = real
+
+
+check("SELF-TEST: `marked_open` says YES to an open bullet — without this, every check below "
+      "reports PASS by taking the `continue` branch",
+      _marked_open_on(_SYNTH_OPEN), "a 🟡 bullet must read as open")
+check("SELF-TEST: ...and NO to a ✅ bullet, so a shipped item is not re-reported as work",
+      not _marked_open_on(_SYNTH_DONE), "a ✅ bullet must not read as open")
+check("SELF-TEST: ...and NO to a bare prose mention — the codes appear all over this file and in "
+      "the lane table, and matching those would make every item permanently open",
+      not _marked_open_on(_SYNTH_PROSE), "only a heading line counts")
+check("SELF-TEST: ...and YES against the REAL roadmap for a code known to be open, so the three "
+      "synthetic arms above cannot be passing on a shape the live file has drifted away from",
+      marked_open("SCALE-SEAM"), "SCALE-SEAM heads an open bullet")
+
 for code, (done, what) in DONE_WHEN.items():
     if not marked_open(code):
         check(f"{code} is closed in the roadmap and its gate agrees", True, what)

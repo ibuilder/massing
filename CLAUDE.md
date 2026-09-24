@@ -280,6 +280,41 @@ inside. Its value is the run with NO server — every ordinary local invocation,
 cannot run at all. *A check earns its place from where it is the ONLY one, not from the worst case it
 can be described as catching* — and the first draft of that sentence claimed the worst case.
 
+**A fourteenth joined them on 2026-09-24: `services/api/test_gap_records.py`** — does a record that
+calls a gap OPEN still have a gap to be about? `services/api/test_rmw_sweep.py` printed *"43 ORM
+sites: 43 reasoned exempt or locked, 0 named open"* while **four records in two documents** —
+RMW-LOCKGAP and RMW-TOKEN in `docs/roadmap.md`, G-10 and G-12 in `docs/security/threat-model.md`,
+plus a summary line reading "**Four** sites remain open" — described that finished work as
+outstanding. *A stale OPEN costs more than a stale CLOSED*: the roadmap's ranking sends the next
+reader at it, the threat model shows a reviewer a live exposure, and RMW-TOKEN's entry had
+additionally priced the fix as "a migration (add the column, backfill, route both writers through a
+CAS)" — work nobody ever did, because both sites closed with a lock already in the tree. **One of
+those entries was half wrong on the day it was FILED**: `realestate.save_appraisal` took its lock on
+2026-09-13 and the entry naming it as open was written on 2026-09-14, because the gap was inherited
+from an earlier sweep and the split copied that sweep's reading rather than re-measuring.
+`services/api/test_roadmap_status.py` already asked the right question — *does the item's own gate
+report the work done?* — but only for items somebody REGISTERED in its map, and nothing forces a
+closing pull request to add itself. **A registry reports on what it contains, and its silence is
+indistinguishable from a clean bill.** *(That file also had a fail-open hole, found by mutation and
+fixed in the same change: `marked_open` was itself unasserted, and the loop reads
+`if not marked_open(code): PASS; continue` — so breaking its bullet regex with one literal made
+every registered item report PASS and the file print "every item with a measurement agrees with its
+marker". Its one precondition check guarded that the ROADMAP was readable, not that the PREDICATE
+could still say yes.)* The new gate derives both sides — subjects from the sweep ledgers by AST,
+records from the two documents by indentation — and **the scoping clause is the load-bearing half,
+learned rather than designed**: ruling on every open record reported SCALE-SEAM, an item about
+`apps/web/src/api/client.ts`, as a stale concurrency gap because 894 lines into its body it mentions
+`_restore_version`. *A rule applied outside the population it was reasoned about does not degrade
+gracefully — it produces confident findings about records it has no view of.* Scope is now
+"records that cite the gate", and the rule is "must name at least one OPEN site" rather than "must
+name no closed one", because a genuinely open record cites its closed siblings for contrast and
+RMW-LOCKGAP's did. Two spellings broke its first draft in opposite directions: without `/` in the
+identifier chain, `routers/proforma.share_scenario` read as `routers` and RMW-TOKEN came back clean;
+matching a PREFIX of a backticked span made `edit-mep` match the route `edit`. *A defect the
+analyser cannot spell is invisible to it and reads exactly like an absent one; a prefix match
+answers a question nobody asked, confidently.* It replays both documents as shipped at `53cfa71a`
+and must re-find **all four** records and **nothing else** before it may report.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

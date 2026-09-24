@@ -12,6 +12,33 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Four records called concurrency gaps open that the sweep had already closed
+
+`services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
+open"*. `docs/roadmap.md` still carried RMW-LOCKGAP and RMW-TOKEN as 🟡 **OPEN**, and
+`docs/security/threat-model.md` still carried G-10 and G-12 as open gaps with a summary line reading
+"**Four** sites remain open". All four are corrected against the code, each naming the pull request
+that closed it and the date.
+
+A stale OPEN is a work item, not a typo: the roadmap's ranking sends the next reader at it, the
+threat model presents a reviewer with a live exposure, and RMW-TOKEN's entry had priced its fix as
+"a migration (add the column, backfill, route both writers through a CAS)" — work nobody ever did,
+because both of its sites closed with an advisory lock already in the tree and already serving the
+gap next door. Half of that entry was wrong on the day it was written: `realestate.save_appraisal`
+took its lock the day before.
+
+`services/api/test_gap_records.py` now fails the build on the class. It derives the sites from the
+sweep's own ledgers by AST and the records from both documents by indentation, and holds any record
+that cites the sweep and reads as open to naming at least one still-open site. It replays both
+documents as they shipped at `53cfa71a` and must re-find all four records, and nothing else, before
+it may report a clean tree.
+
+`services/api/test_roadmap_status.py` gained the self-tests it was missing. Its loop reads
+`if not marked_open(code): PASS; continue`, so a `marked_open` that can never say yes sent every
+registered item down the passing branch — measured by mutation: breaking its bullet regex with one
+literal left every line green, the exit status 0, and the verdict *"every item with a measurement
+agrees with its marker"* printed over nothing.
+
 ### The desktop IFC converter can now be interrupted — it runs in a child process the server kills
 
 `from_ifc.convert`'s deadline is cooperative: checked between elements and every 4,096 entities.

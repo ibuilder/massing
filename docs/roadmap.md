@@ -3500,53 +3500,62 @@ it is closed by default once the PR merges.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-- 🟡 **RMW-LOCKGAP — the per-project edit lock is applied to six IFC-authoring routes and not to the
-  other six** *(M — Lane G; **OPEN**, found 2026-09-14 by widening RMW-SWEEP's gate · gap G-11)*
+- ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
+  per-project lock** *(M — Lane G; **CLOSED 2026-09-14**, PR #555 `8503b0be` · gap G-11)*
 
   `bake_layers`, `import_families`, `import_family_pack`, `place_family`, `content_import` and
   `_restore_version` in `services/api/src/aec_api/routers/authoring.py` each read
   `Project.source_ifc`, derive a NEW IFC version from it, and write the pointer back — the textbook
-  read-modify-write. `edit`, `edit_graph`, `edit_batch`, `macros_run`, `option_activate` and
-  `mcp_tools._run_recipe` do exactly the same thing **inside `pid_lock.mutating(pid)`**, one of them
-  carrying the comment *"same RMW race as /edit — serialize per project"*.
+  read-modify-write — while their six siblings (`edit`, `edit_graph`, `edit_batch`, `macros_run`,
+  `option_activate`, `mcp_tools._run_recipe`) did the identical thing **inside
+  `pid_lock.mutating(pid)`**, one carrying the comment *"same RMW race as /edit — serialize per
+  project"*. So the control existed, was named in the threat model, and covered half its population:
+  two concurrent `place_family` calls lost one placement with both callers answered 200.
 
-  **So the control exists, is named in the threat model, and covers half its population.** Two
-  concurrent `place_family` calls lose one placement, both callers answered 200 — the same severity
-  as the element-tag loss RMW-SWEEP fixed, on the model rather than the register.
+  All six are wrapped. The lock is proved by **behaviour** in `services/api/test_authoring_lock.py`
+  — two concurrent bakes, the second must read the first's output — rather than by its presence,
+  because *a test that greps for the lock would pass on a lock that spans only the assignment*.
+  Three things the uniform fix got wrong and had to be corrected are recorded against G-11 in
+  [`docs/security/threat-model.md`](security/threat-model.md); the shortest is that two of the six
+  are `async def`, so taking a blocking advisory lock inline would have traded a rare lost model
+  version for a routine server-wide stall — the v0.3.703 SSE failure by another door.
 
-  **Why it was not fixed in the PR that found it.** The fix is mechanical — the same three lines,
-  six times, with a reentrant lock — but it wraps routes that do long IFC I/O and file writes, in a
-  lane that pull request did not otherwise touch, and those paths are not exercised by the backend
-  suite the way the register rows are. *One validated push beats three speculative ones*, and a
-  sweep that half-rewrites a router is the shape CLAUDE.md warns gets abandoned. The set is frozen
-  instead: `services/api/test_rmw_sweep.py` asserts the split in **both** directions, so a new
-  unlocked writer reds the build and closing one of these six forces the ledger to be updated
-  rather than leaving a gap recorded that no longer exists.
+- ✅ **RMW-TOKEN — the two remaining JSON collections stopped losing a concurrent write, and not by
+  the mechanism this entry prescribed** *(S — Lane G; **CLOSED**, `dev_property` 2026-09-13 in PR
+  #552 `c7fdc658`, `shared_with` 2026-09-23 in PR #572 `cd5d9e24` · gap G-10)*
 
-  Doing it: wrap from the `_project(db, pid)` read through `db.commit()`, re-reading under the lock
-  (`db.refresh(p)`) exactly as `edit_graph` does; then move each entry in that gate's
-  `IFC_PIPELINE` from OPEN to `"under pid_lock"` and watch the second assertion catch any you
-  claimed but did not wrap.
+  `routers/proforma.share_scenario` appended to `Scenario.shared_with` and
+  `routers/realestate.save_appraisal` merged into `Project.dev_property`. Both read a JSON collection
+  and wrote back a value derived from it, so a concurrent second grant or second appraisal save was
+  silently dropped — and each caller's response echoed its own target either way, so neither could
+  tell. Both now hold `pid_lock.mutating(...)` across refresh, merge and commit.
 
-- 🟡 **RMW-TOKEN — two JSON collections still lose a concurrent write, because their tables have no
-  concurrency token** *(S — Lane G; **OPEN**, split out of RMW-SWEEP 2026-09-14 · gap G-10)*
+  **Three things about how this closed are worth more than the fix.**
 
-  `routers/proforma.share_scenario` appends to `Scenario.shared_with` and
-  `routers/realestate.save_appraisal` merges into `Project.dev_property`. Both read a JSON collection
-  and write back a value derived from it, so a concurrent second grant or second appraisal save is
-  silently dropped — and each caller's response echoes its own target either way, so neither can tell.
+  *The prescription was wrong.* This entry said closing it "is a migration (add the column,
+  backfill, route both writers through a CAS), not a copy of the existing fix". No column was added,
+  nothing was backfilled and neither writer got a compare-and-swap. The reasoning that ruled out the
+  CAS was sound — `scenarios` and `projects` carry no `modified_at`, and JSON equality is not a swap
+  that behaves the same on SQLite and Postgres, *the identical trap `with_for_update()` is*. It then
+  jumped to the most expensive remaining option without enumerating the middle one, which was
+  already in the tree and already serving the sibling gap next door. *Ruling out one mechanism is
+  not the same as having enumerated the alternatives, and an entry that names only the expensive
+  survivor sets a price nobody re-checks.*
 
-  **They were not fixed with the register row's fix, and the reason is the point of the item.**
-  `modules._cas_row_edit` swaps on `modified_at`; `scenarios` and `projects` have no such column, and
-  swapping on the JSON value itself is not a mechanism that behaves the same on SQLite and Postgres —
-  *the identical trap `with_for_update()` is*, which Postgres honours and SQLite silently ignores. So
-  closing this is a migration (add the column, backfill, route both writers through a CAS), not a
-  copy of the existing fix.
+  *Half of it was already closed the day before it was filed.* `save_appraisal` took
+  `pid_lock.mutating(pid)` in PR #552 on 2026-09-13 — that pull request's own message says "both
+  writers of that blob now hold `pid_lock.mutating(pid)`" — and this entry was written on
+  2026-09-14 naming it as open. The gap it was split out of was measured before that fix landed and
+  the split copied the reading rather than re-measuring it. *A gap inherited from an earlier sweep
+  carries that sweep's timestamp, not today's.*
 
-  They are listed, with their reading, in `services/api/test_rmw_sweep.py`'s `BAND_2` ledger, and the
-  gate reds the build on a **new** instance — so the gap is frozen rather than growing. Recorded here
-  as well as there because *a sweep is bounded by the fix available to it*, and the seeding sweep lost
-  four sites by leaving exactly this kind of remainder unmentioned.
+  *PR #556 is titled "RMW-TOKEN" and closed a different gap.* It fixed the `connections` pair
+  (G-12); citing it here would look right and be wrong. *A pull request named after a roadmap entry
+  is evidence about intent, not about which entry moved.*
+
+  The lock rather than a swap is also the better control for both, for the reason
+  `connections.update_connection` states: two share grants are **independent** claims, so serialising
+  lets both survive where a 409 would refuse an edit that conflicts with nothing.
 
 - 🟡 **PIN-OPEN-ROW — clicking a register pin in the 3D viewer selects the element but opens nothing**
   *(S/M — Lanes E/B; **OPEN**, raised in review on PR #551 2026-09-13; needs a UX decision)*
@@ -3579,6 +3588,17 @@ pulse's deal card. Neither entry was updated when the work landed, so the band r
 open gaps that no longer existed. **The band's own thesis is why this matters** — these entries exist
 to say "a value is computed and nobody can see it", and an entry that keeps saying so after the
 screen ships is the same defect pointed the other way.
+
+**It happened again on 2026-09-24, at four times the scale and in two documents.** RMW-LOCKGAP and
+RMW-TOKEN above both read 🟡 **OPEN** while `services/api/test_rmw_sweep.py` printed *"0 named
+open"*, and the threat model carried G-10 and G-12 the same way. Both are now ✅ with the closing
+pull request named. **The difference from 2026-08-13 is that this one is gated**: the band's thesis
+is no longer held as a reminder to re-check. `services/api/test_gap_records.py` derives the open
+sites from the sweep's own ledgers and reds the build on a record that cites that gate, reads as
+open, and has no open site left to be about. *The right response to "we said we would re-check and
+did not" is a check, not a firmer intention.*
+
+**Band 3 now carries one open item, PIN-OPEN-ROW**, which is a UX decision rather than a gap-check.
 
 ## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785; bands re-seated 2026-08-01 at v0.3.818)*
 
@@ -3674,7 +3694,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | PIN-OPEN-ROW *(the click handler is here; the screen it needs to reach is Lane B's, which is why the entry names both and this cell owns it — the pin is where the user is)* · R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RMW-LOCKGAP *(six routes in `routers/authoring.py`; the lock they need is `pid_lock`, which is Lane C's, but every edit is in this lane's file)* · RMW-TOKEN *(both writers — `routers/proforma.py` and `routers/realestate.py` — are in this lane; the column it needs is `models.py`, which is Lane C's, so the migration half crosses over and the entry says so)* *(previously empty — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
