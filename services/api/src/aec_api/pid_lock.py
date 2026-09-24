@@ -70,9 +70,33 @@ from typing import Any
 
 _log = logging.getLogger("aec.pid_lock")
 
-#: How long a writer may WAIT for another writer on the same project before giving up. Not how long
-#: it may HOLD the lock -- there is no bound on that, and there cannot be one from here.
-LOCK_TIMEOUT_S = int(os.environ.get("AEC_PID_LOCK_TIMEOUT_S", "30") or 30)
+def _lock_timeout_s() -> int:
+    """Seconds a writer may WAIT for another writer on the same project. NOT how long it may HOLD.
+
+    **Refuses a non-positive or unparseable value rather than falling back.** `lock_timeout = 0` is
+    PostgreSQL's spelling for *no timeout* -- measured, not assumed: with it set, a contender waited
+    out a 6 s holder and acquired. So `AEC_PID_LOCK_TIMEOUT_S=0` would silently restore the very
+    unbounded wait this exists to remove, and a typo like `30s` or an empty string would have taken
+    the default while the operator believed their value was in force. *A safety bound that can be
+    switched off by a value that looks like a setting is worse than one that cannot be configured at
+    all.* Raised in review.
+    """
+    raw = os.environ.get("AEC_PID_LOCK_TIMEOUT_S")
+    if raw is None or raw == "":
+        return 30
+    try:
+        seconds = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"AEC_PID_LOCK_TIMEOUT_S must be a whole number of seconds, got {raw!r}") from None
+    if seconds <= 0:
+        raise ValueError(
+            f"AEC_PID_LOCK_TIMEOUT_S must be positive, got {seconds}; 0 means NO TIMEOUT to "
+            f"PostgreSQL, which would restore the unbounded wait this setting exists to bound")
+    return seconds
+
+
+LOCK_TIMEOUT_S = _lock_timeout_s()
 
 #: PostgreSQL's SQLSTATE for `lock_timeout` expiring. Load-bearing, and the reason this is a
 #: constant rather than an `except OperationalError`: a lock timeout and an unreachable server raise
@@ -199,24 +223,38 @@ def _advisory(pid: str):
     try:
         db = SessionLocal()
         if db.get_bind().dialect.name == "postgresql":
-            # `SET LOCAL`, not `SET`: plain `SET` is CONNECTION-scoped, and this connection goes back
-            # to the pool. Measured on PostgreSQL 16 with a one-connection pool: a plain
+            # `SET LOCAL`, not `SET`: plain `SET` is CONNECTION-scoped, and this connection goes
+            # back to the pool. Measured on PostgreSQL with a one-connection pool: a plain
             # `SET lock_timeout = '1500ms'` was still in force on the NEXT checkout, so every
             # unrelated query that later drew this connection would inherit a lock timeout nobody
-            # asked for. `SET LOCAL` reverts at COMMIT -- and the advisory lock SURVIVES that commit,
-            # because `pg_advisory_lock` is session-scoped rather than transaction-scoped. Both
-            # halves were measured; either being false would sink this shape.
-            with db.begin():
-                # INTERPOLATED, not bound. `SET` is not a DML statement and PostgreSQL rejects a
-                # placeholder there outright -- `SET LOCAL lock_timeout = $1` is a syntax error, so
-                # the parameterised form does not merely fail to apply the timeout, it raises, lands
-                # in the handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is
-                # `int(...)` at module scope, so the f-string carries an integer and nothing a
-                # caller supplies. *The first draft of this line was parameterised and the two-
-                # process check caught it -- as an UNSERIALISED WRITE, which is the failure this
-                # whole change exists to prevent, arriving by a door it did not anticipate.*
-                db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
-                db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
+            # asked for. `SET LOCAL` reverts when the transaction ends -- which here is the
+            # `db.commit()` after the unlock below, so it is gone before the connection is returned.
+            #
+            # **NO `with db.begin():` HERE, and that is the load-bearing part.** A session-level
+            # advisory lock lives on a CONNECTION. Committing a nested block returns this Session's
+            # connection to the pool, and the unlock at the end then runs on whatever connection the
+            # Session next checks out. Measured: under pool contention the backend changed between
+            # acquisition and unlock and `pg_advisory_unlock` returned FALSE -- the critical section
+            # ran while another caller held that connection, and the real lock stayed stranded until
+            # it was recycled. The Session's own implicit transaction, begun by this first execute
+            # and ended by the commit after the unlock, spans the whole critical section and keeps
+            # one connection throughout. Raised in review; the first draft had the nested block.
+            #
+            # *And the probe that cleared it the first time was wrong in this file's usual way: with
+            # an idle pool the released connection is handed straight back, so "retained" and
+            # "released and re-issued" look identical. It took five rival Sessions to tell them
+            # apart.*
+            #
+            # INTERPOLATED, not bound. `SET` is not a DML statement and PostgreSQL rejects a
+            # placeholder there outright -- `SET LOCAL lock_timeout = $1` is a syntax error, so the
+            # parameterised form does not merely fail to apply the timeout, it raises, lands in the
+            # handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is validated to
+            # a positive int above, so the f-string carries an integer and nothing a caller supplies.
+            # *The first draft of this line was parameterised and the two-process check caught it --
+            # as an UNSERIALISED WRITE, the failure this whole change exists to prevent, arriving by
+            # a door it did not anticipate.*
+            db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
+            db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
             acquired = True
     except Exception as e:                             # noqa: BLE001 — degrade to in-process, loudly
         if getattr(getattr(e, "orig", None), "sqlstate", None) == _SQLSTATE_LOCK_TIMEOUT:

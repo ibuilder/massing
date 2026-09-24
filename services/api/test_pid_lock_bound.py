@@ -36,6 +36,7 @@ positive control, and a lock that excluded everybody for ever passes that file's
 """
 from __future__ import annotations
 
+import ast
 import io
 import os
 import subprocess
@@ -124,6 +125,87 @@ check("the budget is configurable, following the AEC_*_TIMEOUT_S convention",
 check("refusal is a TimeoutError subclass, this tree's spelling for a budget overrun",
       issubclass(pid_lock.LockTimeout, TimeoutError),
       "callers that catch TimeoutError for sandbox/convert overruns would miss this one")
+
+#: --- the four review findings, each pinned so it cannot come back ------------------------------
+#: **The nested transaction is the one that mattered.** A session-level advisory lock lives on a
+#: CONNECTION; committing a `with db.begin():` block returns this Session's connection to the pool,
+#: so the unlock afterwards runs on whatever connection it next draws. Measured under contention:
+#: the backend changed and `pg_advisory_unlock` returned FALSE, stranding the real lock. A static pin
+#: because the behavioural arm cannot see it -- the lock still EXCLUDES; it is the release that
+#: breaks, one caller later.
+def _opens_nested_txn(src: str) -> bool:
+    """Is there a `with <anything>.begin():` inside `_advisory`? Asked by AST, not by substring.
+
+    **The substring form of this check was VACUOUS and a mutation proved it.** `_code_only` joins
+    tokens with spaces, so real code `with db.begin():` becomes `with db . begin ( ) :` -- and
+    `"with db.begin()" not in src` could never match however broken the code was. String LITERALS
+    survive tokenising intact, which is why the other checks above work; CODE STRUCTURE does not.
+    *A check written in the wrong language for the text it reads passes for a reason that has
+    nothing to do with the code.* Caught only because the mutation was run.
+    """
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.FunctionDef) or node.name != "_advisory":
+            continue
+        for inner in ast.walk(node):
+            if not isinstance(inner, ast.With):
+                continue
+            for item in inner.items:
+                call = item.context_expr
+                if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) \
+                        and call.func.attr == "begin":
+                    return True
+    return False
+
+
+check("the advisory lock is taken in the Session's OWN transaction, not a nested `.begin()` block",
+      not _opens_nested_txn(_RAW),
+      "a nested commit returns the connection to the pool mid-critical-section; the later unlock "
+      "then runs on a different connection, returns False, and strands the lock until recycling")
+#: SELF-TEST: the detector must SEE the shape it forbids, or it is the substring check again.
+check("  ...and that detector actually finds a nested block when one is there",
+      _opens_nested_txn("def _advisory(pid):\n    with db.begin():\n        pass\n"),
+      "the nested-transaction detector cannot see a nested transaction")
+check("  ...and does not fire on an unrelated `with`",
+      not _opens_nested_txn("def _advisory(pid):\n    with open('x') as f:\n        pass\n"),
+      "the detector fires on any `with`, so it would red a correct tree")
+
+check("the budget is REFUSED when non-positive rather than defaulted",
+      "must be positive" in _RAW,
+      "lock_timeout = 0 is PostgreSQL's 'no timeout' (measured), so AEC_PID_LOCK_TIMEOUT_S=0 would "
+      "silently restore the unbounded wait this setting exists to remove")
+for _bad in ("0", "-5", "30s", "abc"):
+    _raised = None
+    os.environ["AEC_PID_LOCK_TIMEOUT_S"] = _bad
+    try:
+        pid_lock._lock_timeout_s()
+    except BaseException as _e:                      # noqa: BLE001
+        _raised = _e
+    check(f"  ...and {_bad!r} is refused by name", isinstance(_raised, ValueError),
+          f"raised {type(_raised).__name__ if _raised else 'nothing'}")
+os.environ.pop("AEC_PID_LOCK_TIMEOUT_S", None)
+check("  ...while ABSENT still means the default, so existing deployments are untouched",
+      pid_lock._lock_timeout_s() == 30, "the unset default changed")
+
+#: A 503 the caller can retry, not the generic 500 -- which would also file every contention event
+#: in the error-log feed and Sentry as a server fault.
+import aec_api.main as _main  # noqa: E402
+
+check("LockTimeout is mapped to a response, not left to the generic 500 handler",
+      pid_lock.LockTimeout in _main.app.exception_handlers,
+      "`.env.example` promises a 503; without a handler this is a 500 and an error-log entry")
+
+_MAIN = Path("src/aec_api/main.py").read_text(encoding="utf-8")
+check("  ...and that response is 503 with Retry-After",
+      "status_code=503" in _MAIN and "Retry-After" in _MAIN,
+      "a retryable condition needs a status clients retry")
+
+#: The documented scope must NOT claim more than the code bounds -- the in-process RLock is still
+#: unbounded, and an operator reading only `.env.example` would not know.
+_ENV = Path("../../.env.example").read_text(encoding="utf-8")
+check("`.env.example` names the waits this budget does NOT bound",
+      "in-process" in _ENV.lower() and "AEC_PID_LOCK_TIMEOUT_S" in _ENV,
+      "the entry reads as bounding all waiting; two threads in ONE worker queue on the RLock "
+      "first and never reach PostgreSQL")
 
 # --- 2. BEHAVIOURAL: two real processes, one server -----------------------------------------------
 _URL = os.environ.get("AEC_TEST_PG_URL") or (
