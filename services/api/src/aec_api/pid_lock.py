@@ -63,11 +63,72 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 from contextlib import contextmanager
 from typing import Any
 
 _log = logging.getLogger("aec.pid_lock")
+
+def _lock_timeout_s() -> int:
+    """Seconds a writer may WAIT for another writer on the same project. NOT how long it may HOLD.
+
+    **Refuses a non-positive or unparseable value rather than falling back.** `lock_timeout = 0` is
+    PostgreSQL's spelling for *no timeout* -- measured, not assumed: with it set, a contender waited
+    out a 6 s holder and acquired. So `AEC_PID_LOCK_TIMEOUT_S=0` would silently restore the very
+    unbounded wait this exists to remove, and a typo like `30s` would have taken the default while
+    the operator believed their value was in force. *A safety bound that can be switched off by a
+    value that looks like a setting is worse than one that cannot be configured at all.* Raised in
+    review.
+
+    **An EMPTY value is treated as absent, and that is deliberate** -- this sentence previously
+    listed it beside `30s` as refused, which the code below has never done. Two reasons it stays
+    that way, and the second is the load-bearing one:
+
+    * it is this tree's convention -- `plugin_registry.PLUGIN_TIMEOUT_S` reads
+      `int(os.environ.get("AEC_PLUGIN_TIMEOUT_S", "30") or 30)`, where the `or` exists for exactly
+      this case, because compose files and k8s manifests routinely template an unset value as `""`;
+    * **empty does not disable the bound.** The refusals above exist because `0`, `-5` and `abc`
+      each end in *no enforced wait limit*; empty ends in 30 seconds, which is the safe value. *A
+      refusal earns its place from the outcome it prevents, not from the input looking malformed* --
+      and a boot that dies on an empty string is an outage for a value that was never dangerous.
+
+    Pinned by `services/api/test_pid_lock_bound.py`, so the choice cannot flip back unnoticed in
+    either direction.
+    """
+    raw = os.environ.get("AEC_PID_LOCK_TIMEOUT_S")
+    if raw is None or raw == "":
+        return 30
+    try:
+        seconds = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"AEC_PID_LOCK_TIMEOUT_S must be a whole number of seconds, got {raw!r}") from None
+    if seconds <= 0:
+        raise ValueError(
+            f"AEC_PID_LOCK_TIMEOUT_S must be positive, got {seconds}; 0 means NO TIMEOUT to "
+            f"PostgreSQL, which would restore the unbounded wait this setting exists to bound")
+    return seconds
+
+
+LOCK_TIMEOUT_S = _lock_timeout_s()
+
+#: PostgreSQL's SQLSTATE for `lock_timeout` expiring. Load-bearing, and the reason this is a
+#: constant rather than an `except OperationalError`: a lock timeout and an unreachable server raise
+#: the SAME SQLAlchemy class, and only the sqlstate separates them (measured: a dead server carries
+#: `sqlstate = None`). Catching the class would route "somebody else holds this" into the
+#: degrade-to-in-process branch below, and a contended write would then proceed having taken no
+#: cross-process lock at all -- a CORRECTNESS bug, strictly worse than the unbounded wait it
+#: replaced. *Bounding a wait is only safe if the bound cannot be mistaken for the absence of a lock.*
+_SQLSTATE_LOCK_TIMEOUT = "55P03"
+
+
+class LockTimeout(TimeoutError):
+    """Another writer holds this project's lock and did not release inside `LOCK_TIMEOUT_S`.
+
+    A `TimeoutError` because that is this tree's spelling for a budget overrun (`aec_data.sandbox`,
+    `fragconvert.convert_ifc`), and because the caller's correct response is to tell the client to
+    retry -- not to write anyway."""
 
 _LOCKS: dict[str, threading.RLock] = {}
 _REGISTRY = threading.Lock()
@@ -163,7 +224,7 @@ def _advisory(pid: str):
     try:
         from sqlalchemy import text
 
-        from .db import SessionLocal
+        from .db import engine
     except Exception:                                  # noqa: BLE001
         yield False
         return
@@ -175,11 +236,52 @@ def _advisory(pid: str):
     # whose `except` also yields is a generator that can yield TWICE when an exception is thrown in at
     # the first one, and contextlib then replaces the caller's real exception with a generator error.
     try:
-        db = SessionLocal()
-        if db.get_bind().dialect.name == "postgresql":
-            db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
+        #: A checked-out `Connection`, NOT a `Session`, and the difference is the whole point. A
+        #: session-level advisory lock lives on a connection, so the lock's lifetime is that
+        #: connection's lifetime. A `Session` hands its connection back to the pool the moment its
+        #: transaction ends; a `Connection` stays checked out until `close()`. See the two comments
+        #: below -- this shape is the only one that satisfies BOTH constraints at once.
+        db = engine.connect()
+        if engine.dialect.name == "postgresql":
+            # Two constraints that pull in OPPOSITE directions, and both were found the hard way.
+            #
+            # (1) THE CONNECTION MUST NOT GO BACK TO THE POOL. The lock is session-level, so it dies
+            #     with, or travels with, its connection. A `Session` releases its connection when its
+            #     transaction ends -- measured under contention: the backend changed between
+            #     acquisition and unlock and `pg_advisory_unlock` returned FALSE, stranding the real
+            #     lock until recycling. A checked-out `Connection` does not; it is held to `close()`.
+            #
+            # (2) NO TRANSACTION MAY BE LEFT OPEN ACROSS THE YIELD. Deployments that set
+            #     `idle_in_transaction_session_timeout` terminate a session sitting idle in a
+            #     transaction -- and the advisory lock dies with it, MID critical section, letting a
+            #     second writer in. Measured: with that timeout at 1 s and a 3 s critical section, a
+            #     rival took the lock. That is a lost update, which is the failure this lock exists
+            #     to prevent. Raised in review.
+            #
+            # A Session satisfies neither cleanly: ending its transaction breaks (1), leaving it open
+            # breaks (2). A Connection with a COMMITTED acquisition transaction satisfies both -- and
+            # `SET LOCAL` reverting at that commit is what stops the timeout riding the pool back out.
+            #
+            # INTERPOLATED, not bound: `SET` is not DML and PostgreSQL rejects a placeholder outright,
+            # so the parameterised form does not merely fail to apply the timeout -- it raises, lands
+            # in the handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is
+            # validated to a positive int above, so the f-string carries an integer, never caller input.
+            with db.begin():
+                db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
+                db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
             acquired = True
     except Exception as e:                             # noqa: BLE001 — degrade to in-process, loudly
+        if getattr(getattr(e, "orig", None), "sqlstate", None) == _SQLSTATE_LOCK_TIMEOUT:
+            # NOT a degrade. See `_SQLSTATE_LOCK_TIMEOUT`: the lock exists and somebody else has it.
+            # Falling through to `acquired = False` here would let this writer proceed unserialised.
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:                      # noqa: BLE001,S110
+                    pass
+            raise LockTimeout(
+                f"another writer has held project {pid}'s lock for more than {LOCK_TIMEOUT_S}s"
+            ) from e
         _log.warning("pid_lock: cross-process lock unavailable for %s (%s); this write is serialised "
                      "within this process only", pid, e)
         acquired = False
@@ -198,13 +300,30 @@ def _advisory(pid: str):
     finally:
         depth[pid] -= 1
         try:
-            db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
-            db.commit()
+            #: Its own transaction, on the SAME checked-out connection the lock was taken on. `db` is
+            #: a `Connection`, so nothing has been able to hand it to another caller in between --
+            #: which is what makes this unlock reach the backend that actually holds the lock.
+            with db.begin():
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
         except Exception as e:                         # noqa: BLE001
-            # Postgres releases session-level advisory locks when the connection drops, so a failed
-            # unlock cannot strand the lock forever — the close below is the backstop.
-            _log.warning("pid_lock: advisory unlock failed for %s (%s); the lock releases when this "
-                         "connection closes", pid, e)
+            # Postgres releases a session-level advisory lock when the SESSION ends -- and `close()`
+            # on a pooled `Connection` does not end the session, it returns the backend to the pool.
+            # The pool's reset is a ROLLBACK, which does not touch advisory locks. MEASURED against
+            # PostgreSQL 16: after `close()` the lock was still held, and the very next checkout got
+            # *the same backend* (pid 404 both times). So a failed unlock would strand that project's
+            # lock on a live pooled connection, and every later writer for it would take the full
+            # `LOCK_TIMEOUT_S` and get a 503, until the pool happened to recycle that connection.
+            #
+            # `invalidate()` discards the DBAPI connection, which ends the backend session and takes
+            # the lock with it -- measured on the same run: released. *An earlier comment here said
+            # the close was "the backstop"; it was the thing that made the lock survive.* Raised in
+            # review.
+            _log.warning("pid_lock: advisory unlock failed for %s (%s); dropping the connection so "
+                         "the backend session ends and releases the lock", pid, e)
+            try:
+                db.invalidate()
+            except Exception:                          # noqa: BLE001,S110 — never mask the unlock error
+                pass
         finally:
             try:
                 db.close()

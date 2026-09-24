@@ -15,7 +15,7 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import errorlog, metrics, otel, ratecount, sentry
+from . import errorlog, metrics, otel, pid_lock, ratecount, sentry
 from .bodycap import MaxBodySizeMiddleware
 from .db import SessionLocal, init_db
 from .rbac import require_identified
@@ -427,6 +427,26 @@ async def _request_id(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = rid
     return response
+
+
+@app.exception_handler(pid_lock.LockTimeout)
+async def _lock_timeout(request: Request, exc: pid_lock.LockTimeout):
+    """Another writer holds this project's lock: 503 + `Retry-After`, not a 500.
+
+    `pid_lock.mutating` bounds how long a writer waits (`AEC_PID_LOCK_TIMEOUT_S`) and raises rather
+    than proceeding unserialised. Without this handler that lands in `_unhandled_error` below, which
+    is wrong three ways: the caller is told the server broke when it is simply busy, a retryable
+    condition gets a status clients do not retry, and every contention event is written to the
+    error-log feed and sent to Sentry as a server fault — burying real 500s in expected load.
+
+    *Added in review of RMW-LOCKBOUND. `.env.example` already SAID the request is "refused with 503";
+    nothing made that true. A scope claim in a change about stating scope accurately.*
+    """
+    rid = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": str(exc), "request_id": rid},
+        headers={"Retry-After": "5", "X-Request-ID": rid or ""})
 
 
 @app.exception_handler(Exception)

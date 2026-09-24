@@ -207,6 +207,78 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### RMW-LOCKBOUND — a bounded wait, and the correctness bug that bounding it nearly introduced
+
+`pid_lock.mutating` serialises sidecar read-modify-write per project with `pg_advisory_lock`, which
+blocks until the holder releases — **with no ceiling**. All 30 call sites are plain `def`, so FastAPI
+runs them in the threadpool: a stuck holder does not wedge the event loop, it pins threadpool
+workers, and Starlette's default pool is 40. *The entry on record described it as blocking the
+server, and named 11 call sites. Both were wrong, and the mechanism mattered more than the count —
+"it blocks the event loop" and "it exhausts the threadpool" send a reader to different fixes.*
+
+`SET LOCAL lock_timeout` now bounds the wait; a timeout raises `LockTimeout(TimeoutError)`.
+
+**Three premises, each probed against PostgreSQL 16 rather than recalled.** That `lock_timeout`
+bounds an ADVISORY lock is not stated in so many words anywhere, so it was measured: SQLSTATE
+`55P03`. That a plain `SET` is connection-scoped and rides the pool back out was measured too —
+1500 ms still in force on the next checkout of the same backend — which is why the statement is
+`SET LOCAL`, and why the advisory lock surviving that `SET LOCAL`'s commit had to be measured as
+well. Any one of the three being false sinks the shape.
+
+**The third premise is the dangerous one.** A lock timeout and an unreachable server raise the *same*
+SQLAlchemy class; only the sqlstate separates them. `_advisory` already catches broadly and degrades
+to in-process, loudly — correct for "there is no Postgres here". Caught as `except OperationalError`,
+a timeout lands in that same branch and the contended write **proceeds having taken no cross-process
+lock at all**. Bounding the wait would have converted an availability problem into a silent
+correctness one, strictly worse than what it replaced. *A bound is only safe if it cannot be mistaken
+for the absence of the thing it bounds.*
+
+**Two bugs in the first draft, both found by the gate rather than by reading.**
+`SET LOCAL lock_timeout = :ms` is a **syntax error** — `SET` takes no bind parameter — so it did not
+merely fail to apply the timeout: it raised, fell into the degrade branch, and let the write proceed
+unserialised. The exact failure above, reached by a door it did not anticipate, in the change written
+to prevent it. And the static check read its own **prose**: `"SET lock_timeout" not in src` failed on
+*correct* code, because the comment explaining why a plain `SET` is wrong contains that string.
+*A check that greps a source file is reading whatever a future author writes ABOUT the code alongside
+the code — and prose is exactly where the forbidden form gets named.* Comments and docstrings are now
+stripped, with a self-test in both directions.
+
+**A measured limit, stated rather than hidden.** The degrade-branch mutation **survives** a
+static-only run: the sqlstate constant stays in the source, unreachable. Only the two-process arm
+sees it, and that needs a server the API gate's job does not have — so it runs in
+`.github/workflows/db-migrations.yml`, and `services/api/test_pid_lock_bound.py` asserts that step is
+still there. *A gate whose real arm runs in exactly one place is one deletion away from decoration,
+and the deletion is in a different file from the gate.*
+
+Four mutations: removing the `SET LOCAL` reds five checks (B waits out the full hold); folding the
+timeout into the degrade branch reds two (B enters the critical section having timed out and written
+anyway); deleting the CI step reds two; dropping `AEC_PG_REQUIRED` from it reds one.
+
+**Review round 2 found the lock's lifetime was wrong in BOTH directions, and the fix is the shape
+that satisfies neither constraint alone.** A session-level advisory lock lives on a connection, so
+its lifetime IS that connection's lifetime — and two requirements pull opposite ways:
+
+* **End the transaction and the connection goes back to the pool.** Measured under contention: the
+  backend changed between acquisition and unlock, `pg_advisory_unlock` returned `False`, and the real
+  lock stayed stranded until recycling while another caller held that connection.
+* **Leave it open across the critical section and `idle_in_transaction_session_timeout` kills it.**
+  Measured with that timeout at 1 s and a 3 s section: the acquiring session was terminated, the lock
+  died with it, and a rival writer walked in. **A lost update** — precisely what the lock exists to
+  prevent, arriving through the fix for the other half.
+
+A `Session` can satisfy neither cleanly. A checked-out `Connection` whose acquisition transaction is
+*committed* satisfies both: the connection is held to `close()`, nothing is left idle in a
+transaction, and `SET LOCAL` still reverts before the connection is released.
+
+*Three of this change's verifications were themselves wrong before they were right, each in the same
+shape.* The connection probe cleared the pooling bug because an idle pool hands the same connection
+straight back — five rival Sessions were needed to tell "retained" from "released and re-issued". The
+static check for it matched a substring that tokenising makes unmatchable. And the idle-timeout check
+set the GUC on **its own** connection while `pid_lock` opens another, so the Session-shape mutation
+sailed through it; it now sets it on the DATABASE, which is also how a managed PostgreSQL imposes it.
+**Each one reported success while measuring nothing, and only a mutation distinguished them from a
+real check.**
+
 ### DESKTOP-CONVERT-TIMEOUT — the parameter reached one of the two branches
 
 `fragconvert.convert_ifc` has always taken a `timeout`. It reached `subprocess.run` on the Node
