@@ -1069,6 +1069,23 @@ instances:
   floors are demonstrably load-bearing. Mutation-verified in the live tree: re-registering one
   colliding route reds the verdict and names both handlers, and the process exits 1.
 
+  **The gate asks Starlette rather than comparing strings, and that was a MEASURED widening.** All
+  four shipped instances were identical path spellings, so an equality test finds all four and would
+  have looked complete — but equality is a precondition, not the rule. Starlette matches by regex, so
+  `/projects/{pid}/drawings/{name}` registered first swallows a later literal `sheet.svg` exactly as
+  completely, and a gate built from the four known spellings reports that tree clean. *A predicate
+  that decides what to LOOK at is more dangerous than one that decides what to report.* The live tree
+  was measured for the non-identical form **before** the rule changed — **0 instances** — so the
+  widening costs no exemptions and no noise, and is a removed precondition rather than a chased
+  finding. Its value is visible only under mutation: one misplaced `/projects/{pid}/mep/{probe}`
+  takes out **eleven** MEP endpoints at once, all of them named by the widened rule and none by the
+  narrow one. It is sound because `_concrete()` fills each `{param}` with one segment, which stands
+  in for a real value only while no route declares a `:path` converter — **asserted, not assumed**,
+  because that is the kind of premise this file's neighbours keep paying to learn. Both directions
+  are proved: a parameterised route before a literal one must be FOUND, and the same pair in the
+  correct order must stay clean, because a rule that forbids literal-before-parameterised would
+  forbid ordinary code.
+
   **A gate that already knew, and answered the wrong question.** `apps/web/src/api/clientCallers.test.ts`
   held `mep` in `UNCALLED` — it had measured the method as callerless and frozen that, which is most
   of the finding, and the freezing is what stopped anyone asking why. Deleting the method made it fail

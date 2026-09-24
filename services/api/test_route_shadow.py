@@ -63,7 +63,7 @@ os.environ.setdefault("STORAGE_DIR", "./_route_shadow_store")
 
 from fastapi import APIRouter, FastAPI  # noqa: E402
 from fastapi.routing import APIRoute  # noqa: E402
-from starlette.routing import BaseRoute, Route  # noqa: E402
+from starlette.routing import BaseRoute, Match, Route  # noqa: E402
 
 from aec_api.main import app  # noqa: E402
 
@@ -129,17 +129,51 @@ def expand(routes, prefix="", _depth=0):
             raise Unclassified(f"unclassified route object {name!r} at prefix {prefix!r}")
 
 
+def _concrete(path):
+    """A URL the declaring route certainly matches: each `{param}` filled with a placeholder.
+
+    Sound because no route in this tree uses a `:path` converter (asserted below) — with one, a
+    single segment would not stand in for the rest of the URL and this would under-report.
+    """
+    out, n = [], 0
+    for seg in path.strip("/").split("/"):
+        if seg.startswith("{") and seg.endswith("}"):
+            n += 1
+            out.append(f"v{n}")
+        else:
+            out.append(seg)
+    return "/" + "/".join(out)
+
+
 def shadowed(routes):
-    """The (path, method) pairs carrying more than one registration, newest-shadowed last.
+    """Every registration an EARLIER one already answers, keyed by the shadowed (path, method).
+
+    **Asks Starlette, rather than comparing strings.** The four shipped instances were identical
+    paths, and an equality test would find all four — but equality is a precondition, not the rule:
+    Starlette matches by regex, so `/projects/{pid}/drawings/{name}` registered first swallows a
+    later `/projects/{pid}/drawings/sheet.svg` just as completely, and a gate written to the four
+    known spellings would report that tree clean. *A predicate that decides what to LOOK at is more
+    dangerous than one that decides what to report.* Measured before widening: the live tree holds
+    **0** of the non-identical form, so this costs no exemptions and no noise today — it removes a
+    precondition rather than chasing a finding.
 
     Separate from the walk on purpose. `test_unique_read_guard`'s first draft asserted that its
     analyser still *reported* a site, so a mutation routing every site to "safe" passed — reporting
     and ruling are two different questions, and a mutation has to be able to aim at the ruling.
     """
-    seen: dict[tuple[str, str], list] = collections.defaultdict(list)
-    for path, method, route in routes:
-        seen[(path, method)].append(route)
-    return {k: v for k, v in seen.items() if len(v) > 1}
+    ordered = list(routes)
+    hits: dict[tuple[str, str], list] = collections.defaultdict(list)
+    for j, (path, method, route) in enumerate(ordered):
+        scope = {"type": "http", "method": method, "path": _concrete(path),
+                 "path_params": {}, "headers": [], "root_path": ""}
+        for _path_i, method_i, route_i in ordered[:j]:
+            if method_i != method:
+                continue
+            if route_i.matches(scope)[0] is Match.FULL:
+                # The first match wins at runtime, so `route_i` serves and `route` never runs.
+                hits[(path, method)] = [route_i, route]
+                break
+    return dict(hits)
 
 
 def _fn(route):
@@ -175,6 +209,15 @@ _MISSING = [m for m in _MUST_REACH if m not in _MODULES]
 check("the walk reaches every router that carried a shipped collision",
       not _MISSING,
       f"absent from the expansion: {_MISSING} — a recurrence in one of these would be invisible")
+
+#: `_concrete()` fills each `{param}` with ONE segment, which stands in for the real value only
+#: while no route declares a `:path` converter — that one swallows the rest of the URL, so a
+#: single placeholder would under-match and the verdict would silently narrow.
+_PATH_CONV = sorted({p for p, _, _ in LIVE if ":path}" in p})
+check("no route uses a `:path` converter, so a one-segment placeholder is a sound probe",
+      not _PATH_CONV,
+      f"{len(_PATH_CONV)} do: {_PATH_CONV[:4]} — `_concrete()` under-matches for these and the "
+      "verdict below is narrower than it reads; give them a multi-segment placeholder first")
 
 # ---------------------------------------------------------------------------------------------
 # PROOF OF REACH — the four as they shipped, rebuilt rather than fetched.
@@ -237,14 +280,71 @@ check("  and a walk that stops at the top level MISSES all four (mutation)",
       f"the narrowed walk still found {sorted(_NARROWED)} — the replay is not exercising the "
       "included-router path, so it proves nothing about the live derivation")
 
+
+def _param_before_literal_app():
+    """A parameterised route registered BEFORE the literal one it swallows — no equal paths.
+
+    The four shipped instances were identical spellings, so a gate built from them alone would pass
+    a tree holding this. The live tree holds **0** of these (measured), and *a check whose expected
+    answer is zero is the easiest kind to break silently*, so the predicate has to be shown finding
+    one before that zero means anything.
+    """
+    first, second = APIRouter(), APIRouter()
+
+    def general(pid: str, name: str):
+        return None
+
+    def specific(pid: str):
+        return None
+
+    general.__name__, specific.__name__ = "any_drawing", "sheet_svg"
+    first.get("/projects/{pid}/drawings/{name}")(general)
+    second.get("/projects/{pid}/drawings/sheet.svg")(specific)
+    app_ = FastAPI()
+    app_.include_router(first)
+    app_.include_router(second)
+    return app_
+
+
+_PARAM_HITS = shadowed(list(expand(_param_before_literal_app().routes)))
+check("the predicate finds a NON-identical shadow (param route registered before a literal one)",
+      set(_PARAM_HITS) == {("/projects/{pid}/drawings/sheet.svg", "GET")},
+      f"found {sorted(_PARAM_HITS)} — it is still comparing path strings, so a collision spelled "
+      "two different ways reads as a clean tree")
+
+
+def _literal_first_app():
+    """The same two routes in the CORRECT order. Must be clean, or the rule forbids ordinary code."""
+    first, second = APIRouter(), APIRouter()
+
+    def specific(pid: str):
+        return None
+
+    def general(pid: str, name: str):
+        return None
+
+    specific.__name__, general.__name__ = "sheet_svg", "any_drawing"
+    first.get("/projects/{pid}/drawings/sheet.svg")(specific)
+    second.get("/projects/{pid}/drawings/{name}")(general)
+    app_ = FastAPI()
+    app_.include_router(first)
+    app_.include_router(second)
+    return app_
+
+
+check("  and the same pair in the RIGHT order is clean (the rule is about order, not shape)",
+      not shadowed(list(expand(_literal_first_app().routes))),
+      "literal-before-parameterised was flagged — that is the correct way to write these two, and "
+      "a rule that forbids it would be unusable")
+
 # ---------------------------------------------------------------------------------------------
 # THE VERDICT
 
 _HITS = shadowed(LIVE)
 _DETAIL = "; ".join(
-    f"{m} {p}: {_fn(v[0])} serves, {', '.join(_fn(x) for x in v[1:])} dead"
+    f"{m} {p}: {_fn(v[1])} never runs — {_fn(v[0])} is registered earlier and answers this URL"
     for (p, m), v in sorted(_HITS.items()))
-check(f"no route is registered on a (path, method) another route already owns ({len(LIVE)} routes)",
+check(f"no route is shadowed by an earlier one that already answers its URL ({len(LIVE)} routes)",
       not _HITS,
       f"{len(_HITS)} shadowed: {_DETAIL} — the first registration serves and the LAST one is what "
       "OpenAPI (and so schema.d.ts) describes, so the published contract is the handler that never "

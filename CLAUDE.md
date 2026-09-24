@@ -390,6 +390,14 @@ describing the wrong handler.* And `apps/web/src/api/clientCallers.test.ts` **al
 callerless and froze it**, then reported the deletion as *"now HAVE a caller"* — an entry leaves that
 set for two reasons and the message asserted one. *A check whose failure message can misdiagnose is
 worse than one that stays silent, because somebody acts on it.*
+**The rule asks Starlette rather than `==`, and the widening was MEASURED first.** All four shipped
+instances were identical path strings, so equality finds all four and looks complete — but Starlette
+matches by regex, so a parameterised route registered before a literal one swallows it just as
+completely and an equality gate calls that tree clean. The non-identical form was measured at **0**
+before the rule changed, so this costs no exemptions; its value shows only under mutation, where one
+misplaced `/projects/{pid}/mep/{probe}` kills **eleven** endpoints that the narrow rule would not
+name. *Equality was a precondition, not the rule* — and the one-segment placeholder that makes the
+wider probe sound is asserted (no `:path` converter), not assumed.
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in

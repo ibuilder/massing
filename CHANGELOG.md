@@ -50,6 +50,16 @@ broken walk cannot report a clean tree in the words of a clean tree. It replays 
 registrations (built here, not fetched from git, which CI's shallow checkout cannot do) and must find
 **all four and nothing else**, and a walk narrowed to top-level routes must **miss** all four.
 
+**The gate asks Starlette, not `==`.** The four shipped instances were identical path strings, so an
+equality test would have found all four — but equality is a *precondition*, not the rule. Starlette
+matches by regex, so `/projects/{pid}/drawings/{name}` registered before `/projects/{pid}/drawings/sheet.svg`
+swallows it just as completely. Measured before widening: the live tree holds **0** of that
+non-identical form, so using Starlette's own matcher costs no exemptions and no noise — it removes a
+precondition rather than chasing a finding. What it buys is visible under mutation: a single misplaced
+`/projects/{pid}/mep/{probe}` silently kills **eleven** MEP endpoints, and the widened rule names every
+one while the equality version reports that tree clean. Its soundness rests on no route declaring a
+`:path` converter, which is now asserted rather than assumed.
+
 **FastAPI's own warning saw two of the four.** It keys on a duplicate *operationId*, built from the
 function name plus the path, so it fired for `sheet_svg` and `sheet_pdf` — two handlers spelled the
 same — and stayed silent for `plan`/`plan_svg` and `mep`/`mep_summary`. *A warning keyed on the name
