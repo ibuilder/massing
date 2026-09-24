@@ -204,8 +204,12 @@ def run_clash_federated(
     # thing as on the same path. Raised in review; the gate is now path-aware rather than
     # line-ordered, and an unconditional commit with nothing pending is a no-op.
     db.commit()
+    from .. import soft_clash
+    # CLASH-TRUNC — see `jobs._clash_federated`, which is the path the coordination screen takes.
+    # Both truncate `clashes` and both hold the full list here, so both tally here.
     return {"disciplines": list(valid), "count": len(results), "created_topics": created,
-            "coordination": coordination, "clashes": results[:limit], "truncated": len(results) > limit}
+            "coordination": coordination, "clashes": results[:limit],
+            "truncated": len(results) > limit, "pair_counts": soft_clash.pair_tally(results)}
 
 
 @router.post("/projects/{pid}/clash/coordinate")

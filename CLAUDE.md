@@ -333,6 +333,27 @@ it is the LOOSE-versus-STRICT parity check beside it, which found `❌` on its f
 and `~~` had been added by hand from the same measurement. **A hand-widened list is a list somebody
 stopped widening.**
 
+**A fifteenth joined them on 2026-09-24: `services/api/test_clash_trunc.py`** — is the guard being
+handed evidence it can actually rule on? `services/api/src/aec_api/soft_clash.py` exists to refuse
+one sentence, *"clash-free" over a partial matrix*, and keeps a third state (`untested`, never
+folded into `clean`) to do it. It was defeated from OUTSIDE and stayed green throughout: the clash
+screen built the matrix's findings from the PAGE the federated run returns — `clashes[:limit]`,
+default 200, beside a `count` of every clash — while declaring **every** discipline pair tested. A
+pair whose interferences all sat past the limit therefore arrived with no evidence and came back
+`clean`. Measured: 1,438 clashes, 918 of them ARC×MEP and none on the first page → 100% coverage,
+nothing untested, that pair reported clean. **The engine was right and its caller supplied a premise
+that made the refusal moot** — *a guard is only as sound as the evidence it is handed, and nothing
+was checking the evidence, because every test of the guard supplied its own inputs.*
+**The entry's first draft overstated the severity in the flattering direction** and measuring it is
+what caught that: it claimed `coordinated: true` was reachable, and it is not — that flag demands
+zero clashing cells and a truncated page always carries a finding. *A bound checked is worth more
+than a severity asserted; a gate that cannot reproduce the claim beside it is evidence for nothing.*
+It also names why the flag went unread for months: the panel re-spelled the response shape as an
+inline cast instead of using the declared interface, so no property access anywhere resolved to
+`truncated` and no type error, lint or audit over declarations could reach it. **A re-spelled shape
+is a field no derivation over declarations can see** — the shapes are declared once now, and
+`apps/web/src/api/deadFieldTyped.test.ts` pins them READ so an inline cast reds there too.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

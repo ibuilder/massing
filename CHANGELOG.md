@@ -12,6 +12,37 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The coordination matrix now counts the whole clash run, not the first page of it
+
+A federated clash run returns two numbers: `count`, every interference it found, and `clashes`, the
+first 200 of them. The Clash panel printed the first beside the list and used the second to build
+the discipline-pair matrix — the screen a coordination meeting reads to decide which trades still
+have to talk to each other.
+
+That matrix is the one place this product makes a claim about what was *checked*, and it has a
+third state for exactly this: a pair nobody ran is `untested`, never `clean`. Building it from the
+page defeated that from outside. Every returned clash on a large model tends to belong to one or two
+busy pairs, so a pair whose interferences all sat past the 200th arrived with no evidence at all —
+and with every pair declared tested, it was reported **clean**. Measured on a 1,438-clash fixture
+with 918 of them between architecture and MEP, none on the first page: the matrix said 100% pair
+coverage, nothing untested, and called that pair clean.
+
+Both federated paths now tally clashes per discipline pair over the *whole* run, where the full list
+still exists, and the tally travels beside the page: the list is what a person clicks, the tally is
+what a report may claim. Against an older server that truncates and sends no tally, the panel
+declares nothing tested rather than guessing — those pairs read `untested`, which is what the third
+state is for.
+
+Two smaller things on the same screen. The list header counted the page while the summary above it
+counted the run, so two different numbers sat under the word "clashes" with nothing saying a cap was
+in play; it now reads "200 of 1438 clashes — click to inspect (list capped)". And a single-model run
+that creates issues says when the cap is why fewer issues exist than clashes.
+
+`truncated` was a field the server had always returned and nothing had ever read, which is how this
+survived: the panel re-spelled the response shape inline rather than using the declared one, so no
+type, lint or audit could see the omission. The shapes are now declared once in
+`apps/web/src/api/clash.ts` and the audit pins them as read.
+
 ### Clicking a register pin on the model now opens its record
 
 A pin on the 3D model is a register record's marker — an RFI, a punch item, an observation. Clicking

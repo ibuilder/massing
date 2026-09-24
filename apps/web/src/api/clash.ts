@@ -14,9 +14,31 @@ type Ctor<T> = new (...args: any[]) => T;
 export interface ClashResult {
   count: number;
   created_topics: number;
+  /** `clashes` is a PAGE — `count` is the whole run. True when they differ. */
   truncated: boolean;
   clashes: { a_guid: string; a_class: string; b_guid: string; b_class: string; volume: number;
     method: "mesh" | "aabb"; point: Vec3 }[];
+}
+
+/** One discipline pair's clash count over the WHOLE run, in the shape `/clash/matrix` takes as a
+ *  finding. CLASH-TRUNC: the matrix must be built from this and never from `clashes`, which stops
+ *  at `limit` — a pair whose clashes all sit past it arrives with no evidence and reads as clean. */
+export interface ClashPairCount { discipline_a: string; discipline_b: string; count: number }
+
+/** The federated (cross-discipline) run. Declared rather than re-spelled at each call site: the
+ *  panel's inline cast is how `truncated` came to be returned by the server and read by nobody. */
+export interface FederatedClashResult {
+  disciplines: string[];
+  count: number;
+  created_topics?: number;
+  truncated: boolean;
+  pair_counts?: ClashPairCount[];
+  coordination: { run: string; new: number; active: number; resolved: number; reappeared: number;
+    clash_count: number; group_count: number; reduction: number;
+    by_discipline: Record<string, number>; by_severity: Record<string, number>;
+    note: string } | null;
+  clashes: { a_model: string; a_class: string; a_guid: string; b_model: string; b_class: string;
+    b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[];
 }
 
 export type ClearanceRule = {
@@ -43,13 +65,7 @@ export function withClash<TBase extends Ctor<HttpCore>>(Base: TBase) {
       ...(opts.coordinate != null ? { coordinate: String(opts.coordinate) } : {}),
       ...(opts.min_volume != null ? { min_volume: String(opts.min_volume) } : {}),
       ...(opts.limit != null ? { limit: String(opts.limit) } : {}) }).toString();
-    return this.json<{ disciplines: string[]; count: number; created_topics: number; truncated: boolean;
-      coordination: { run: string; new: number; active: number; resolved: number; reappeared: number;
-        clash_count: number; group_count: number; reduction: number;
-        by_discipline: Record<string, number>; by_severity: Record<string, number>; note: string } | null;
-      clashes: { a_model: string; a_class: string; a_guid: string; b_model: string; b_class: string;
-        b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[] }>(
-      `/projects/${pid}/clash/federated?${q}`, { method: "POST" });
+    return this.json<FederatedClashResult>(`/projects/${pid}/clash/federated?${q}`, { method: "POST" });
   }
   /** Clash coordination KPIs — status mix, worst discipline pairs, severity, aging, run burn-down. */
   clashMetrics(pid: string) {
@@ -69,7 +85,10 @@ export function withClash<TBase extends Ctor<HttpCore>>(Base: TBase) {
   clashMatrix(pid: string, body: {
     disciplines?: string[];
     tested_pairs?: [string, string][];
-    findings?: { discipline_a: string; discipline_b: string }[];
+    /** One entry per clash, or — when the caller only holds a PAGE of them — one entry per pair
+     *  carrying the run's real `count`. CLASH-TRUNC: without the count, a pair whose clashes all
+     *  fall past the page reads as clean. An entry with no count weighs one clash. */
+    findings?: { discipline_a: string; discipline_b: string; count?: number }[];
   } = {}) {
     return this.json<ClashMatrix>(
       `/projects/${pid}/clash/matrix`, { method: "POST", body: JSON.stringify(body) });

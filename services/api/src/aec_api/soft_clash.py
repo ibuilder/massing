@@ -139,6 +139,42 @@ def pair_key(a: str, b: str) -> tuple[str, str]:
     return (x, y) if x <= y else (y, x)
 
 
+def finding_weight(f: dict) -> int:
+    """How many clashes one finding entry stands for.
+
+    CLASH-TRUNC. A caller holding every clash sends one entry per clash and each weighs 1. A caller
+    holding only a PAGE of them — `/clash/federated` returns `clashes[:limit]` beside the true
+    `count` — must send one entry per pair carrying the real ``count`` instead, because a pair whose
+    clashes all fall past the limit would otherwise arrive with no evidence at all and be reported
+    ``clean``: the single claim this module exists to refuse.
+
+    A malformed count weighs **1, never 0**. The entry's existence is itself evidence that the pair
+    clashes, so a count that cannot be read must not be able to delete the finding — that would make
+    a corrupt number quieter than a missing one.
+    """
+    n = f.get("count")
+    if isinstance(n, bool) or not isinstance(n, int):
+        return 1
+    return n if n > 0 else 1
+
+
+def pair_tally(results: list[dict] | None) -> list[dict]:
+    """Per-discipline-pair clash counts over the WHOLE result list, in `matrix`'s findings shape.
+
+    Both federated clash paths (the route and the job kind) truncate the `clashes` they return and
+    keep the untruncated list in hand — so this is computed there, where the full population still
+    exists, and travels beside the page. `a_model` is the discipline; `a_class` is the fallback for a
+    result that carries no model name, matching what the panel used to do per-clash.
+    """
+    hits: dict[tuple[str, str], int] = {}
+    for c in (results or []):
+        k = pair_key(c.get("a_model") or c.get("a_class") or "?",
+                     c.get("b_model") or c.get("b_class") or "?")
+        hits[k] = hits.get(k, 0) + 1
+    return [{"discipline_a": a, "discipline_b": b, "count": n}
+            for (a, b), n in sorted(hits.items())]
+
+
 def matrix(disciplines: list[str], tested_pairs: list[tuple[str, str]] | None = None,
            findings: list[dict] | None = None) -> dict[str, Any]:
     """Build the coordination matrix over `disciplines`.
@@ -155,7 +191,7 @@ def matrix(disciplines: list[str], tested_pairs: list[tuple[str, str]] | None = 
     hits: dict[tuple[str, str], int] = {}
     for f in (findings or []):
         k = pair_key(f.get("discipline_a") or "?", f.get("discipline_b") or "?")
-        hits[k] = hits.get(k, 0) + 1
+        hits[k] = hits.get(k, 0) + finding_weight(f)
 
     cells = []
     for i, a in enumerate(discs):
