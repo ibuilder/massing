@@ -1,6 +1,11 @@
-"""Documentation & provenance endpoints (REL-3 leaf split of `authoring.py`): the drawing set
-(plan/sheet/schedule SVG · CSV · PDF), the spec manual, detailing/keynote QA, and the document graph.
-URLs are unchanged — `authoring.py` includes this router, so callers and tests see the same paths."""
+"""Documentation & provenance endpoints (REL-3 leaf split of `authoring.py`): the schedule set
+(SVG · CSV · PDF), the spec manual, detailing/keynote QA, and the document graph.
+
+URLs are unchanged **for the routes that are here** — `authoring.py` includes this router, so callers
+and tests see the same paths. That sentence used to cover a `plan.svg`/`sheet.svg`/`sheet.pdf` trio as
+well, and for those three it was false from the day they were written: `routers/drawings.py` already
+owned those URLs and is included first, so they were shadowed and never ran (ROUTE-SHADOW,
+`services/api/test_route_shadow.py`)."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -15,37 +20,12 @@ from .authoring_shared import safe_filename as _safe_filename
 router = APIRouter()
 
 
-@router.get("/projects/{pid}/drawings/plan.svg")
-def plan_svg(pid: str, storey: str | None = None, scale: int = 100, by_discipline: bool = False,
-             db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 C1: a schematic **plan drawing** (SVG) generated from element footprints — the first slice of
-    the construction-document set. `storey` limits to one level; `scale` is the drawing scale (1:scale).
-    Class-styled poché so a stylesheet controls linework. `by_discipline=true` (DISC-poché) tints the
-    fills with the canonical discipline colors + a DISCIPLINES legend — the plan reads by trade."""
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    result = drawing.plan_svg(open_model(p.source_ifc), storey=storey, scale=int(scale),
-                              by_discipline=bool(by_discipline))
-    return Response(content=result["svg"], media_type="image/svg+xml",
-                    headers={"X-Plan-Elements": str(result["elements"])})
-
-
-@router.get("/projects/{pid}/drawings/sheet.svg")
-def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
-              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
-              _: str = Depends(require_role("viewer"))):
-    """W11 C3: an issuable **sheet** — ARCH-D border + titleblock (project name, sheet number, scale,
-    north arrow) with the plan placed in a scaled viewport. The construction-document deliverable."""
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    result = drawing.sheet_svg(open_model(p.source_ifc), storey=storey, scale=int(scale),
-                               project=p.name or "Project", number=number, title=title)
-    return Response(content=result["svg"], media_type="image/svg+xml",
-                    headers={"X-Sheet-Number": result["number"]})
+# ROUTE-SHADOW — `plan.svg` and `sheet.svg` were declared here AND in `routers/drawings.py`, which is
+# included first, so Starlette matched `drawings.py` and these two handlers never ran. The file header
+# above says "URLs are unchanged"; for these it was the URLs that were never this file's. Removed rather
+# than re-homed: `aec_data.drawing.plan_svg` / `.sheet_svg` are still there and still tested, so
+# publishing the ARCH-D titleblock variant under its own URL stays available as a product decision.
+# See `services/api/test_route_shadow.py`.
 
 
 def _shared_extras(pid: str) -> dict:
@@ -229,20 +209,8 @@ def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-
                     headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
 
 
-@router.get("/projects/{pid}/drawings/sheet.pdf")
-def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
-              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
-              _: str = Depends(require_role("viewer"))):
-    """W11 C3b: the issuable sheet rendered to **PDF** (reportlab) — the submittable construction-document
-    deliverable. ARCH-D border + titleblock + plan poché + dimensions + keynote legend."""
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    data = drawing.sheet_pdf(open_model(p.source_ifc), storey=storey, scale=int(scale),
-                             project=p.name or "Project", number=number, title=title)
-    return Response(content=data, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
+# ROUTE-SHADOW — `sheet.pdf` was the third of this file's three shadowed drawing routes; see the
+# note above `_shared_extras`.
 
 
 @router.get("/projects/{pid}/spec/manual")

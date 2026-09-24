@@ -995,6 +995,141 @@ instances:
   the field's importance is not a judgement call, `report_builders/` already made it. Six of those
   shipped as fixes to the valuation panel; see below.
 
+- ✅ **ROUTE-SHADOW — four routes were registered on a URL another route already owned, and the
+  published contract described the one that never ran** *(S — Lane G; **CLOSED 2026-09-24**; gated by
+  `services/api/test_route_shadow.py`)*
+
+  Starlette matches the FIRST route whose path and method fit, so a second registration on the same
+  pair is neither an override nor an error — it is **dead code that looks live**. FastAPI then builds
+  the OpenAPI document into a dict keyed by path and method, so the **LAST** registration is the one
+  described. The server ran one handler and `/docs`, the OpenAPI JSON and `apps/web/src/api/schema.d.ts`
+  described the other. *Two different tie-breaks over one collision, pointing opposite ways.*
+
+  | URL | served | never ran |
+  |---|---|---|
+  | `GET …/drawings/plan.svg` | `routers/drawings.py::plan` | `routers/authoring_docs.py::plan_svg` |
+  | `GET …/drawings/sheet.svg` | `routers/drawings.py::sheet_svg` | `routers/authoring_docs.py::sheet_svg` |
+  | `GET …/drawings/sheet.pdf` | `routers/drawings.py::sheet_pdf` | `routers/authoring_docs.py::sheet_pdf` |
+  | `GET …/mep` | `routers/analysis.py::mep` | `routers/authoring_analysis.py::mep_summary` |
+
+  **How it was found, which is the part worth copying.** Nobody was looking for it. Running
+  `test_route_reachability.py` printed two FastAPI `UserWarning`s about duplicate operation IDs —
+  noise beside a passing gate, and the kind of line a run scrolls past. *The signal was in the
+  warnings of a check about something else.*
+
+  **The live defect: the MEP systems browser has never worked.** `apps/web/src/api/mep.ts` declared
+  TWO shapes for `/projects/{pid}/mep` — `mepSummary()` with `systems` as a LIST of per-system counts,
+  and `mep()` with `systems` as a Record. `mep_inventory` served, so
+  `apps/web/src/viewer/tools/mepSection.ts` read `s.systems.length` off a Record, got `undefined`, and
+  its `if (!s.systems.length)` guard printed *"No distribution systems yet"* on every model that has
+  ever had one, then returned — hiding the by-discipline rollup, the fire-protection check and the
+  sizing checks below it. **Two client methods declaring incompatible shapes for one URL is the
+  symptom the collision always produces**, and it was sitting in the file whose types an audit reads.
+
+  **The workaround was already in the tree, with the cause diagnosed one layer too high.**
+  `apps/web/src/viewer/sheetSpecs.ts` records, from a measurement on 2026-08-09, that the rail sent
+  `number`, `title` and `scale` to `sheet.svg` and the route dropped all three; it fixed the caller
+  and called it *"a caller speaking a dialect the callee does not"*. The dialect was real and
+  **published**: those three are exactly the shadowed handler's parameters, which is what `/docs`
+  describes for that URL. *A caller written from the documented contract is not speaking a dialect —
+  it is the documentation that is describing the wrong handler.* Fixing the caller was right and left
+  the next caller to make the same mistake from the same source.
+
+  **FastAPI's own warning saw two of the four, and they were the least interesting two.** It keys on a
+  duplicate *operationId*, built from the function NAME plus the path, so it fired where two handlers
+  are spelled the same (`sheet_svg`, `sheet_pdf`) and stayed silent where they are not (`plan` vs
+  `plan_svg`, `mep` vs `mep_summary`) — including the pair carrying the live defect. *A warning keyed
+  on the name cannot see a collision that is about the path, and half a population reported
+  confidently reads exactly like all of it.*
+
+  **Why no test went red.** Every MEP assertion in `services/api/test_mep_systems.py` calls the engine
+  `mep.mep_summary(m)` directly; not one goes through the route. The engine is thoroughly right and
+  was unreachable. *A test of the engine is not a test of the door* — the same shape as the routines
+  sweep, where every test asserted the enqueue and none asserted the run.
+
+  **The per-site decisions ran in OPPOSITE directions, and that is the rule rather than an
+  inconsistency: who the consumers are decides, not which registration won.** The three drawing
+  handlers in `authoring_docs.py` went — `drawings.py` serves a strict superset (view depth, rooms,
+  callouts, pins, storey resolution; composed multi-view sheets) and the entire client is built on it.
+  The **serving** `/mep` handler went — `energy.mep_inventory` had exactly one caller in the tree, that
+  route, and its client method `api.mep()` had none at all, while `mep_summary` has the panel, the
+  client method and the published contract. Both engines stay in `aec_data` and stay tested, so
+  publishing the ARCH-D titleblock sheet under its own URL remains a product decision rather than a
+  gap. `W11 C1`/`C3` shipped at v0.3.262 onto URLs the sheet composer had already taken, so those two
+  features have never executed once.
+
+  **The gate is shaped by the two ways this derivation can lie, both of which print "0 duplicates".**
+  A walk that stops finding things (FastAPI renames its deferred `_IncludedRouter` placeholder) and a
+  walk that silently drops what it cannot classify. So it fails CLOSED on any unclassifiable route
+  object, floors the expanded count, and requires the four routers that carried the collisions to be
+  present in the result — a total alone would not notice one router going dark. It replays the four
+  shipped registrations, built in the file rather than fetched from git because CI checks out shallow
+  and `services/api/test_gap_records.py` failed closed on every build learning that, and must find
+  **all four and nothing else**; a walk narrowed to top-level routes must **miss** all four, so the
+  floors are demonstrably load-bearing. Mutation-verified in the live tree: re-registering one
+  colliding route reds the verdict and names both handlers, and the process exits 1.
+
+  **The gate asks Starlette rather than comparing strings, and that was a MEASURED widening.** All
+  four shipped instances were identical path spellings, so an equality test finds all four and would
+  have looked complete — but equality is a precondition, not the rule. Starlette matches by regex, so
+  `/projects/{pid}/drawings/{name}` registered first swallows a later literal `sheet.svg` exactly as
+  completely, and a gate built from the four known spellings reports that tree clean. *A predicate
+  that decides what to LOOK at is more dangerous than one that decides what to report.* The live tree
+  was measured for the non-identical form **before** the rule changed — **0 instances** — so the
+  widening costs no exemptions and no noise, and is a removed precondition rather than a chased
+  finding. Its value is visible only under mutation: one misplaced `/projects/{pid}/mep/{probe}`
+  takes out **eleven** MEP endpoints at once, all of them named by the widened rule and none by the
+  narrow one. It is sound because `_concrete()` fills each `{param}` with one segment, which stands
+  in for a real value only while no route declares a `:path` converter — **asserted, not assumed**,
+  because that is the kind of premise this file's neighbours keep paying to learn. Both directions
+  are proved: a parameterised route before a literal one must be FOUND, and the same pair in the
+  correct order must stay clean, because a rule that forbids literal-before-parameterised would
+  forbid ordinary code.
+
+  **Review found two more preconditions, and neither was written down.** Both were the same defect
+  one layer up from the item itself — *the gate reports clean while a collision exists*. (1) The probe
+  filled `{param}` with a plain segment, so a route declaring `:int`, `:float` or `:uuid` **rejects its
+  own probe** and a duplicate on it was invisible; the first draft asserted only that no `:path`
+  converter existed, which is *asserting the one case you thought of rather than the property*. (2) The
+  walk read a `prefix` attribute off FastAPI's deferred-inclusion placeholder — **this FastAPI exposes
+  none**, so `getattr(..., "prefix", "")` returned empty, the un-prefixed router was walked, and two
+  handlers colliding at a prefixed URL passed clean. *Guessing at another library's internals is a
+  precondition you did not write down.* **The second was invisible to its own tests**: every replay
+  fixture used an empty prefix, so no test in the file could have failed on it.
+  Both are repaired at the source rather than patched. The walk now takes FastAPI's own
+  `effective_route_contexts()`, whose `path_regex` carries the inclusion prefix by construction, so
+  there is nothing left to guess. And probe validity is **self-checking**: every probe must match the
+  route it was built from, which makes an unhandled converter red the build rather than quietly shrink
+  the population — *a list of known cases is a list somebody stopped widening; a self-check is not.*
+  Both were reproduced against the shipped code before the fix, both have a fixture, and both
+  fixtures were mutation-verified to red the right check with an accurate message.
+
+  **A gate that already knew, and answered the wrong question.** `apps/web/src/api/clientCallers.test.ts`
+  held `mep` in `UNCALLED` — it had measured the method as callerless and frozen that, which is most
+  of the finding, and the freezing is what stopped anyone asking why. Deleting the method made it fail
+  with *"1 method(s) in UNCALLED now HAVE a caller: mep"*. An entry leaves that set either because it
+  gained a caller or because it stopped existing, and the message asserted the first for both. The
+  named repair happened to be right; the stated reason would have sent a reader looking for a screen
+  that does not exist. *A check whose failure message can misdiagnose is worse than one that stays
+  silent, because somebody acts on it.* The two are now separate assertions, each mutation-checked in
+  its own direction.
+
+- ◧ **SCHEMA-STALE — the generated client types are half the API, and nothing regenerates them**
+  *(S — Lane I; found while measuring ROUTE-SHADOW's blast radius, NOT fixed here)*
+
+  `apps/web/src/api/schema.d.ts` is produced by `npm run gen:api-types`, which reads
+  `src/api/openapi.json` — **a file that is not in the repository**. So the checked-in types are a
+  hand-run dump from an unrecorded moment, and no CI step notices them ageing. Measured 2026-09-24:
+  **500 paths declared against 947 the server serves**, and the two operations ROUTE-SHADOW's `/mep`
+  and `plan.svg` resolve to today are absent from it entirely.
+
+  Recorded rather than fixed, and the reason is worth stating: the repair is not running the
+  generator. It is deciding whether `openapi.json` is checked in (a large generated artifact in every
+  diff) or dumped in CI (a step that needs the API importable in the web job), and then whether a
+  stale `schema.d.ts` should FAIL a build or be regenerated for you. That is a decision about the
+  build, not a gap to close on the way past. *A generated file with no producer in CI is prose with a
+  file extension.*
+
 - ✅ **RESPELLED-SHAPE — a wire type declared twice is invisible to every audit over the
   declarations** *(XS — Lane I; **CLOSED 2026-09-24**; gated by
   `apps/web/src/api/noRespelledShapes.test.ts`)*
@@ -3866,7 +4001,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCHEMA-STALE *(open — `schema.d.ts` declares 500 of the 947 paths the server serves, and its generator reads an `openapi.json` that is not in the repository. Filed here because the artifact lives in this directory; **the repair is a build decision, not a file edit** — whether `openapi.json` is committed or dumped in CI, and whether a stale `schema.d.ts` fails a build or is regenerated for you)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

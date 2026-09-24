@@ -139,9 +139,12 @@ export function withMep<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       note: string;
     }>(`/projects/${pid}/mep/fittings`);
   }
-  mep(pid: string) {
-    return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
-  }
+  // ROUTE-SHADOW — `mep()` stood here, declaring `{by_class, systems, total_distribution_elements}`
+  // for `/projects/${pid}/mep`, the same URL `mepSummary` above claims with a different shape. It had
+  // no caller anywhere outside this file; `mepSummary` has the MEP systems panel. Both shapes were
+  // real — two routes were registered on that one URL and the server ran the one the panel did not
+  // want, so `mepSummary`'s `s.systems.length` read `undefined` off a Record and the browser said
+  // "No distribution systems yet" on every model. The route is gone; so is this method.
   mepModelExtract(pid: string) {
     return this.json<{ model_scored: boolean; mep_elements: number;
       by_class: { ifc_class: string; label: string; count: number }[] }>(
