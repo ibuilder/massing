@@ -306,10 +306,24 @@ def _advisory(pid: str):
             with db.begin():
                 db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
         except Exception as e:                         # noqa: BLE001
-            # Postgres releases session-level advisory locks when the connection drops, so a failed
-            # unlock cannot strand the lock forever — the close below is the backstop.
-            _log.warning("pid_lock: advisory unlock failed for %s (%s); the lock releases when this "
-                         "connection closes", pid, e)
+            # Postgres releases a session-level advisory lock when the SESSION ends -- and `close()`
+            # on a pooled `Connection` does not end the session, it returns the backend to the pool.
+            # The pool's reset is a ROLLBACK, which does not touch advisory locks. MEASURED against
+            # PostgreSQL 16: after `close()` the lock was still held, and the very next checkout got
+            # *the same backend* (pid 404 both times). So a failed unlock would strand that project's
+            # lock on a live pooled connection, and every later writer for it would take the full
+            # `LOCK_TIMEOUT_S` and get a 503, until the pool happened to recycle that connection.
+            #
+            # `invalidate()` discards the DBAPI connection, which ends the backend session and takes
+            # the lock with it -- measured on the same run: released. *An earlier comment here said
+            # the close was "the backstop"; it was the thing that made the lock survive.* Raised in
+            # review.
+            _log.warning("pid_lock: advisory unlock failed for %s (%s); dropping the connection so "
+                         "the backend session ends and releases the lock", pid, e)
+            try:
+                db.invalidate()
+            except Exception:                          # noqa: BLE001,S110 — never mask the unlock error
+                pass
         finally:
             try:
                 db.close()

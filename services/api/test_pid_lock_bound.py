@@ -39,6 +39,7 @@ from __future__ import annotations
 import ast
 import io
 import os
+import re as _re
 import subprocess
 import sys
 import tempfile
@@ -379,12 +380,36 @@ if _URL:
     _pl_saved = (_pl_db.engine, _pl_db.SessionLocal)
     _pl_db.engine = _pl_eng
     _pl_db.SessionLocal = _sessionmaker(bind=_pl_eng)
+
+    #: THE ROLE'S PRIOR VALUE IS SAVED, NOT RESET AWAY. `ALTER ROLE CURRENT_USER SET` is
+    #: cluster-wide and survives this process, so the teardown has to put back what it found rather
+    #: than assume there was nothing. On a developer's server reached through `AEC_TEST_PG_URL` --
+    #: or a managed PostgreSQL that sets this per role -- a bare `RESET` would DELETE a real
+    #: operational setting, and the test would look like it had passed cleanly. *A fixture that
+    #: cannot see the state it is overwriting cannot restore it either.* Raised in review.
     with _pl_eng.connect() as _cfg:
+        _prior = _cfg.execute(_text(
+            "SELECT split_part(cfg, '=', 2) FROM pg_db_role_setting s "
+            "JOIN pg_roles r ON r.oid = s.setrole, unnest(s.setconfig) cfg "
+            "WHERE r.rolname = current_user AND s.setdatabase = 0 "
+            "AND cfg LIKE 'idle_in_transaction_session_timeout=%'")).scalar()
         _cfg.execute(_text("ALTER ROLE CURRENT_USER SET idle_in_transaction_session_timeout = 1000"))
         _cfg.commit()
-    _pl_eng.dispose()                          # force fresh connections that inherit the new setting
+
+    #: `ALTER ROLE` takes no bind parameter, so the restore has to interpolate. The value came from
+    #: this cluster's own catalog rather than from a caller, but it is still checked against a strict
+    #: shape and REFUSED rather than interpolated blind -- the gate two files over exists because a
+    #: `SET` interpolation was got wrong once already.
+    if _prior is not None and not _re.fullmatch(r"[0-9]+(?:ms|s|min|h|d)?", _prior):
+        raise SystemExit(f"refusing to restore an unrecognised "
+                         f"idle_in_transaction_session_timeout: {_prior!r}")
     _survived = None
     try:
+        #: INSIDE the `try`, and it must happen AFTER the `ALTER ROLE` above: `mutating` opens its
+        #: own connection, and a pooled one predating the ALTER would not carry the 1 s timeout --
+        #: the arm would then pass for the reason that nothing was being tested. Dropping this line
+        #: while moving the teardown into a `finally` is exactly how that happens, and it did.
+        _pl_eng.dispose()
         with _pl.mutating(f"{_PROJ}-idle"):
             time.sleep(3)                      # longer than the 1 s idle timeout above
             _rival = _pl_eng.connect()
@@ -398,15 +423,69 @@ if _URL:
             _rival.close()
     except BaseException as _e:                # noqa: BLE001
         _survived = f"raised {type(_e).__name__}: {_e!s:.80}"
-    with _pl_eng.connect() as _cfg:
-        _cfg.execute(_text("ALTER ROLE CURRENT_USER RESET idle_in_transaction_session_timeout"))
-        _cfg.commit()
-    _pl_eng.dispose()
-    _pl_db.engine, _pl_db.SessionLocal = _pl_saved      # leave the module as this file found it
+    finally:
+        #: In a `finally`, because the restore previously sat in the straight line after the arm: a
+        #: raise anywhere above it left the role carrying a 1 s idle timeout for every LATER
+        #: connection by that role -- including the rest of this CI job.
+        with _pl_eng.connect() as _cfg:
+            _cfg.execute(_text(
+                "ALTER ROLE CURRENT_USER RESET idle_in_transaction_session_timeout" if _prior is None
+                else f"ALTER ROLE CURRENT_USER SET idle_in_transaction_session_timeout = '{_prior}'"))
+            _cfg.commit()
+        _pl_eng.dispose()
+        _pl_db.engine, _pl_db.SessionLocal = _pl_saved  # leave the module as this file found it
     check("the lock survives a critical section longer than idle_in_transaction_session_timeout",
           _survived is True,
           f"a rival took the lock mid-section ({_survived}) -- the acquiring session was killed for "
           f"sitting idle in a transaction, and the advisory lock died with it: a LOST UPDATE")
+
+    #: A FAILED UNLOCK MUST NOT STRAND THE LOCK ON A POOLED CONNECTION. `db` is a pooled
+    #: `Connection`; `close()` hands the backend back to the pool, and the pool's reset is a
+    #: ROLLBACK -- which does not release a session-level advisory lock. MEASURED against
+    #: PostgreSQL 16 before the fix: after `close()` the lock was still held, and the next checkout
+    #: got *the same backend*. So one failed unlock would make every later writer for that project
+    #: wait the full budget and take a 503, until the pool happened to recycle it. The comment there
+    #: said `close()` was "the backstop"; it was the thing keeping the lock alive.
+    #:
+    #: Exercised by making the real unlock raise, rather than by reading the source for
+    #: `invalidate()` -- a static check here would pass on a call that had been moved somewhere it
+    #: could never run. Raised in review.
+    #: THE PATCH GOES ON `sqlalchemy`, NOT ON `pid_lock`. `_advisory` does `from sqlalchemy import
+    #: text` INSIDE the function, so `text` is a local there and `pid_lock.text` does not exist --
+    #: the first draft patched that name and died with `AttributeError` rather than measuring
+    #: anything. The in-function import re-reads the sqlalchemy module attribute on every call,
+    #: which is what makes this reach the real unlock. Acquisition is untouched: neither
+    #: `SET LOCAL lock_timeout` nor `pg_advisory_lock` matches the guard below.
+    import sqlalchemy as _sa  # noqa: E402
+
+    _pl_db.engine, _pl_db.SessionLocal = _pl_eng, _sessionmaker(bind=_pl_eng)
+    _real_text, _strand = _sa.text, f"{_PROJ}-strand"
+    def _text_but_unlock_explodes(sql, *a, **k):       # noqa: ANN001,ANN202
+        if "pg_advisory_unlock" in str(sql):
+            raise RuntimeError("simulated unlock failure")
+        return _real_text(sql, *a, **k)
+    try:
+        _sa.text = _text_but_unlock_explodes
+        try:
+            with _pl.mutating(_strand):
+                pass
+        except BaseException:                          # noqa: BLE001 — the raise is the point
+            pass
+    finally:
+        _sa.text = _real_text
+        _pl_db.engine, _pl_db.SessionLocal = _pl_saved
+    with _create_engine(_URL).connect() as _after:
+        _free = _after.execute(_text("SELECT pg_try_advisory_lock(:k)"),
+                               {"k": _pl.advisory_key(_strand)}).scalar()
+        if _free:
+            _after.execute(_text("SELECT pg_advisory_unlock(:k)"),
+                           {"k": _pl.advisory_key(_strand)})
+            _after.commit()
+    check("a FAILED unlock does not strand the lock on a connection returned to the pool",
+          bool(_free),
+          f"project {_strand!r} is still locked after `mutating` exited -- `close()` returned the "
+          f"backend to the pool with the advisory lock still on it, so every later writer for this "
+          f"project gets the full wait and a 503 until the pool recycles that connection")
 
 check(f"at least one behavioural arm ran -- ran: {', '.join(_arms) or 'NONE (static only)'}",
       bool(_arms) or not os.environ.get("AEC_PG_REQUIRED"),
