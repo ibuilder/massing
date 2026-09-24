@@ -3500,76 +3500,125 @@ it is closed by default once the PR merges.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-- 🟡 **RMW-LOCKGAP — the per-project edit lock is applied to six IFC-authoring routes and not to the
-  other six** *(M — Lane G; **OPEN**, found 2026-09-14 by widening RMW-SWEEP's gate · gap G-11)*
+- ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
+  per-project lock** *(M — Lane G; **CLOSED 2026-09-14**, PR #555 `8503b0be` · gap G-11)*
 
   `bake_layers`, `import_families`, `import_family_pack`, `place_family`, `content_import` and
   `_restore_version` in `services/api/src/aec_api/routers/authoring.py` each read
   `Project.source_ifc`, derive a NEW IFC version from it, and write the pointer back — the textbook
-  read-modify-write. `edit`, `edit_graph`, `edit_batch`, `macros_run`, `option_activate` and
-  `mcp_tools._run_recipe` do exactly the same thing **inside `pid_lock.mutating(pid)`**, one of them
-  carrying the comment *"same RMW race as /edit — serialize per project"*.
+  read-modify-write — while their six siblings (`edit`, `edit_graph`, `edit_batch`, `macros_run`,
+  `option_activate`, `mcp_tools._run_recipe`) did the identical thing **inside
+  `pid_lock.mutating(pid)`**, one carrying the comment *"same RMW race as /edit — serialize per
+  project"*. So the control existed, was named in the threat model, and covered half its population:
+  two concurrent `place_family` calls lost one placement with both callers answered 200.
 
-  **So the control exists, is named in the threat model, and covers half its population.** Two
-  concurrent `place_family` calls lose one placement, both callers answered 200 — the same severity
-  as the element-tag loss RMW-SWEEP fixed, on the model rather than the register.
+  All six are wrapped. The lock is proved by **behaviour** in `services/api/test_authoring_lock.py`
+  — two concurrent bakes, the second must read the first's output — rather than by its presence,
+  because *a test that greps for the lock would pass on a lock that spans only the assignment*.
+  Three things the uniform fix got wrong and had to be corrected are recorded against G-11 in
+  [`docs/security/threat-model.md`](security/threat-model.md); the shortest is that two of the six
+  are `async def`, so taking a blocking advisory lock inline would have traded a rare lost model
+  version for a routine server-wide stall — the v0.3.703 SSE failure by another door.
 
-  **Why it was not fixed in the PR that found it.** The fix is mechanical — the same three lines,
-  six times, with a reentrant lock — but it wraps routes that do long IFC I/O and file writes, in a
-  lane that pull request did not otherwise touch, and those paths are not exercised by the backend
-  suite the way the register rows are. *One validated push beats three speculative ones*, and a
-  sweep that half-rewrites a router is the shape CLAUDE.md warns gets abandoned. The set is frozen
-  instead: `services/api/test_rmw_sweep.py` asserts the split in **both** directions, so a new
-  unlocked writer reds the build and closing one of these six forces the ledger to be updated
-  rather than leaving a gap recorded that no longer exists.
+- ✅ **RMW-TOKEN — the two remaining JSON collections stopped losing a concurrent write, and not by
+  the mechanism this entry prescribed** *(S — Lane G; **CLOSED**, `dev_property` 2026-09-13 in PR
+  #552 `c7fdc658`, `shared_with` 2026-09-23 in PR #572 `cd5d9e24` · gap G-10)*
 
-  Doing it: wrap from the `_project(db, pid)` read through `db.commit()`, re-reading under the lock
-  (`db.refresh(p)`) exactly as `edit_graph` does; then move each entry in that gate's
-  `IFC_PIPELINE` from OPEN to `"under pid_lock"` and watch the second assertion catch any you
-  claimed but did not wrap.
+  `routers/proforma.share_scenario` appended to `Scenario.shared_with` and
+  `routers/realestate.save_appraisal` merged into `Project.dev_property`. Both read a JSON collection
+  and wrote back a value derived from it, so a concurrent second grant or second appraisal save was
+  silently dropped — and each caller's response echoed its own target either way, so neither could
+  tell. Both now hold `pid_lock.mutating(...)` across refresh, merge and commit.
 
-- 🟡 **RMW-TOKEN — two JSON collections still lose a concurrent write, because their tables have no
-  concurrency token** *(S — Lane G; **OPEN**, split out of RMW-SWEEP 2026-09-14 · gap G-10)*
+  **Three things about how this closed are worth more than the fix.**
 
-  `routers/proforma.share_scenario` appends to `Scenario.shared_with` and
-  `routers/realestate.save_appraisal` merges into `Project.dev_property`. Both read a JSON collection
-  and write back a value derived from it, so a concurrent second grant or second appraisal save is
-  silently dropped — and each caller's response echoes its own target either way, so neither can tell.
+  *The prescription was wrong.* This entry said closing it "is a migration (add the column,
+  backfill, route both writers through a CAS), not a copy of the existing fix". No column was added,
+  nothing was backfilled and neither writer got a compare-and-swap. The reasoning that ruled out the
+  CAS was sound — `scenarios` and `projects` carry no `modified_at`, and JSON equality is not a swap
+  that behaves the same on SQLite and Postgres, *the identical trap `with_for_update()` is*. It then
+  jumped to the most expensive remaining option without enumerating the middle one, which was
+  already in the tree and already serving the sibling gap next door. *Ruling out one mechanism is
+  not the same as having enumerated the alternatives, and an entry that names only the expensive
+  survivor sets a price nobody re-checks.*
 
-  **They were not fixed with the register row's fix, and the reason is the point of the item.**
-  `modules._cas_row_edit` swaps on `modified_at`; `scenarios` and `projects` have no such column, and
-  swapping on the JSON value itself is not a mechanism that behaves the same on SQLite and Postgres —
-  *the identical trap `with_for_update()` is*, which Postgres honours and SQLite silently ignores. So
-  closing this is a migration (add the column, backfill, route both writers through a CAS), not a
-  copy of the existing fix.
+  *Half of it was already closed the day before it was filed.* `save_appraisal` took
+  `pid_lock.mutating(pid)` in PR #552 on 2026-09-13 — that pull request's own message says "both
+  writers of that blob now hold `pid_lock.mutating(pid)`" — and this entry was written on
+  2026-09-14 naming it as open. The gap it was split out of was measured before that fix landed and
+  the split copied the reading rather than re-measuring it. *A gap inherited from an earlier sweep
+  carries that sweep's timestamp, not today's.*
 
-  They are listed, with their reading, in `services/api/test_rmw_sweep.py`'s `BAND_2` ledger, and the
-  gate reds the build on a **new** instance — so the gap is frozen rather than growing. Recorded here
-  as well as there because *a sweep is bounded by the fix available to it*, and the seeding sweep lost
-  four sites by leaving exactly this kind of remainder unmentioned.
+  *PR #556 is titled "RMW-TOKEN" and closed a different gap.* It fixed the `connections` pair
+  (G-12); citing it here would look right and be wrong. *A pull request named after a roadmap entry
+  is evidence about intent, not about which entry moved.*
 
-- 🟡 **PIN-OPEN-ROW — clicking a register pin in the 3D viewer selects the element but opens nothing**
-  *(S/M — Lanes E/B; **OPEN**, raised in review on PR #551 2026-09-13; needs a UX decision)*
+  The lock rather than a swap is also the better control for both, for the reason
+  `connections.update_connection` states: two share grants are **independent** claims, so serialising
+  lets both survive where a 409 would refuse an edit that conflicts with nothing.
 
-  `apps/web/src/viewer/app.ts`'s `onPinClick` calls `selectByGuid` and `setStatus` and stops. A user
-  who clicks an RFI pin on the model gets the element highlighted and a one-line status, and no way to
-  reach the record the pin stands for.
+- ✅ **PIN-OPEN-ROW — clicking a register pin in the 3D viewer now opens its record**
+  *(S/M — Lanes E/B; **CLOSED 2026-09-24**, raised in review on PR #551 2026-09-13)*
+
+  `apps/web/src/viewer/app.ts`'s `onPinClick` called `selectByGuid` and `setStatus` and stopped. A
+  user who clicked an RFI pin on the model got the element highlighted and a one-line status, and no
+  way to reach the record the pin stood for. It now selects, reports, and jumps to the register row.
 
   **Pre-existing, and explicitly NOT caused by PIN-ONE-CALL** — measured against
   `git show 312c5aec^:apps/web/src/viewer/app.ts`, the old `ModulePin` handler did the same two acts
   and no more. The review that raised it read the change as a regression ("register pins **no longer**
-  open their register rows"); it never worked. *Recorded here with that correction attached, because a
-  gap first described as a regression gets fixed against the wrong baseline and its real age is lost.*
+  open their register rows"); it never worked. *A gap first described as a regression gets fixed
+  against the wrong baseline and its real age is lost.*
 
-  **Why it is not a one-line wire-up:** `grep "openRecord\|openRegister\|registerRow\|navigate"` over
-  `apps/web/src/viewer/app.ts` returns **zero** — there is no opener in the viewer to call. This is
-  cross-surface navigation from the 3D viewer into the portal register, and the decision is the UX one:
-  a new tab, a side panel, or a route change, and whether 3D selection follows the user there.
+  **This was filed as needing a UX decision, and it did not need one.** The entry said a grep for an
+  opener over `apps/web/src/viewer/app.ts` returned **zero**, and concluded the choice between a new
+  tab, a side panel and a route change was open. There is no opener in that DIRECTORY.
+  `apps/web/src/main.ts` has had one since the command palette shipped and jumps to a record through
+  it whenever a search hit is chosen — `setWorkspace("construction")`, `openPortalTab()`,
+  `portal.openRecordByKey(...)`. *A grep bounded by one directory answers a question about that
+  directory, and the conclusion drawn was about the application.* The decision had already been made,
+  consistently, one directory over; this reuses it rather than inventing a second answer. That jump
+  is now the shared `main.ts::jumpToRecord`, used by the palette and the pin alike, because *two
+  openers are two answers and the next edit drifts one of them*.
 
-  **Nothing is blocking it.** `ResolvedPin` already carries `source` (module key) and `id` (record id),
-  which is everything the opener needs; the unified envelope kept both deliberately. So this is a screen
-  to design, not a contract to renegotiate.
+  **The behaviour was also already written down as done.** `apps/web/src/pins/pins.ts`'s `load`
+  branches topic-versus-record, and its docstring gives the reason: *"a topic restores a saved
+  viewpoint, a record opens its register row."* *A comment describing a branch's purpose is a claim
+  about behaviour, and that one had been false since the branch was written.*
 
+  The handler moved to `apps/web/src/viewer/pinOpen.ts` with
+  `apps/web/src/viewer/pinOpen.test.ts` beside it, so the viewer's copy of `app.ts` did not grow —
+  the size ratchet in `services/api/test_file_sizes.py` holds at 2,442. The opener arrives on
+  `ViewerCtx` as a **required** callback rather than an import: required, so a dropped wire is a
+  compile error instead of a dead pin, and injected, because the viewer reaching into the portal is
+  exactly the coupling the MassingViewer extraction has to unpick. Two of the tests read `app.ts`
+  and `main.ts` as source and assert the wire, since every behavioural test above passes on a
+  handler nobody calls — which is the state this item shipped in. Verified by mutation: replacing
+  `openRecord: jumpToRecord` with `openRecord: () => {}` compiles, restores the old dead pin, and
+  reds the suite.
+
+  Selection stays in the viewer rather than following the user across, which answers the entry's
+  last question: coming back to the Model workspace finds the element still highlighted. **That sentence
+  was false when it was written, and review caught it**: a marker click also bubbled to the
+  viewport, whose raycast misses a DOM overlay and then calls `selectMap(null)` a few frames later —
+  so the highlight this handler had just set was being cleared by the handler next to it. *Two
+  handlers that both answer a click are not two features, they are a race*, and the loser was the one
+  the user aimed at. Both marker kinds now stop the event.
+
+  Two more from the same review. A rejected `selectByGuid` took the record jump with it, although
+  the record id comes from the pin and not from the scene — selection is best effort now, and the
+  status line says when it failed rather than leaving an unhighlighted model unexplained. And the
+  jump waited a fixed 500 ms instead of the portal's own `init()`; **there were three copies of that
+  guess in `apps/web/src/main.ts`**, so the wait was consolidated rather than patched at the site
+  under review — *fixing the trafficked instance is not closing the class*, which this tree has paid
+  for three times. `openPortalTab` also latched on "we called it once" rather than on a successful
+  init, the defect the developer tab beside it carries a comment about; it now returns its promise. **And that
+  fix created the round's only new defect**, found by the next review pass: making `init()`
+  retryable turned every partial mutation on the way to a rejection into reachable state — it
+  reassigns `this.root` to the content pane and registers a `window` listener before it awaits
+  `renderHome()`, so a retry would have nested a second shell inside the first. *Making a failure
+  recoverable makes every partial mutation on the way to it reachable.* Guarded, and held by
+  `apps/web/src/portal/portalRetry.test.ts`, whose two arms both red when the guard is removed.
 **All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
 eighth time running.** The record is below; the previous five are in
 [`roadmap-completed.md`](roadmap-completed.md).
@@ -3579,6 +3628,17 @@ pulse's deal card. Neither entry was updated when the work landed, so the band r
 open gaps that no longer existed. **The band's own thesis is why this matters** — these entries exist
 to say "a value is computed and nobody can see it", and an entry that keeps saying so after the
 screen ships is the same defect pointed the other way.
+
+**It happened again on 2026-09-24, at four times the scale and in two documents.** RMW-LOCKGAP and
+RMW-TOKEN above both read 🟡 **OPEN** while `services/api/test_rmw_sweep.py` printed *"0 named
+open"*, and the threat model carried G-10 and G-12 the same way. Both are now ✅ with the closing
+pull request named. **The difference from 2026-08-13 is that this one is gated**: the band's thesis
+is no longer held as a reminder to re-check. `services/api/test_gap_records.py` derives the open
+sites from the sweep's own ledgers and reds the build on a record that cites that gate, reads as
+open, and has no open site left to be about. *The right response to "we said we would re-check and
+did not" is a check, not a firmer intention.*
+
+**Band 3 is now EMPTY.** That sentence read *"Band 3 now carries one open item, PIN-OPEN-ROW, which is a UX decision rather than a gap-check"* — written earlier the same day, and already wrong before the pull request holding it was pushed, because PIN-OPEN-ROW turned out not to need the decision it was filed for and closed in the same branch. *A count and the change that moves it must land in the same edit, not the same session* — the lesson this file records about `app.ts`'s line count, reproduced by the paragraph that was recording it.
 
 ## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785; bands re-seated 2026-08-01 at v0.3.818)*
 
@@ -3668,13 +3728,13 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | PIN-OPEN-ROW *(the click handler is here; the screen it needs to reach is Lane B's, which is why the entry names both and this cell owns it — the pin is where the user is)* · R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RMW-LOCKGAP *(six routes in `routers/authoring.py`; the lock they need is `pid_lock`, which is Lane C's, but every edit is in this lane's file)* · RMW-TOKEN *(both writers — `routers/proforma.py` and `routers/realestate.py` — are in this lane; the column it needs is `models.py`, which is Lane C's, so the migration half crosses over and the entry says so)* *(previously empty — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |

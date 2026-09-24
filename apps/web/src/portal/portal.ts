@@ -185,24 +185,24 @@ export class PortalUI {
   async init(): Promise<boolean> {
     if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return false; }
     this.mods = await this.host.api.modules();
-    // build the persistent shell once: [nav rail | content]. `this.root` is redirected to the
-    // content pane, so every existing render path writes into it while the nav rail stays put.
-    const outer = this.root;
-    outer.innerHTML = ""; outer.classList.add("portal-shell");
-    this.nav = document.createElement("nav"); this.nav.className = "portal-nav";
-    const content = document.createElement("div"); content.className = "portal-content";
-    outer.append(this.nav, content);
-    this.root = content;
+    // Build the shell ONCE — `this.root` becomes the content pane; `portalRetry.test.ts` owns why.
+    if (!this.nav) {
+      const outer = this.root;
+      outer.innerHTML = ""; outer.classList.add("portal-shell");
+      this.nav = document.createElement("nav"); this.nav.className = "portal-nav";
+      const content = document.createElement("div"); content.className = "portal-content";
+      outer.append(this.nav, content);
+      this.root = content;
+      // re-order the nav on a persona change (`buildNav`; `refreshCatalog()` sat here until
+      // v0.3.1084 and had been a no-op since 2026-06-24)
+      window.addEventListener("aec:persona", () => { this.buildNav(); });
+    }
     // The spine costs one request. A failure leaves `spine` null and the rail falls back to
     // FALLBACK_ROOMS — the six rooms are structural, so losing the *allocation* must not lose the
     // *shell*. With the classic rail gone (v0.3.779) there is nothing else to fall back to, which
     // makes that fallback load-bearing rather than belt-and-braces.
     try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
     this.buildNav();
-    // re-order the module catalog's default-open sections when the persona changes
-    // `refreshCatalog()` was called here too until v0.3.1084, and had been a no-op since
-    // 2026-06-24. `buildNav` is the one that actually re-orders on a persona change.
-    window.addEventListener("aec:persona", () => { this.buildNav(); });
     // drain any uploads queued offline in a previous session, and keep watching for reconnect
     this.reg.hookOnline(); void this.reg.flushUploads();
     // Land on the active room's home when a room was picked before init finished (the common path:

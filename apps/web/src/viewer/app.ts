@@ -75,7 +75,7 @@ import { createTestHarness } from "@massingifc/plugin-sdk";
 
 import { modelIdMapFromRefs } from "../kernel/elementRef";
 import { markupPlugin, reloadMarkup } from "../kernel/markupPlugin";
-import type { ResolvedPin } from "../api/types";
+import { handleRecordPinClick } from "./pinOpen";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type Topic } from "../api/client";
 import { escapeHtml, withLoading } from "../ui/feedback";
@@ -99,6 +99,9 @@ export interface ViewerCtx {
   setStatus: (m: string) => void;
   notify: (m: string, kind?: "info" | "success" | "error") => void;
   getSettings: () => Settings;
+  /** Jump to a register record. Injected, never imported — the viewer must not reach into the
+   *  portal; see `pinOpen.ts`. Required, so a dropped wire is a compile error, not a dead pin. */
+  openRecord: (moduleKey: string, id: string) => void;
 }
 
 /** What main calls back into. */
@@ -1318,10 +1321,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       markupKernel = createTestHarness();
       await markupKernel.load(markupPlugin({
         pins,
-        onPinClick: async (p: ResolvedPin) => {
-          if (p.element_guid) await selectByGuid(p.element_guid, true);
-          setStatus(`${p.guid} · ${p.source_name}${p.status ? ` · ${p.status}` : ""}`);
-        },
+        onPinClick: (p) => handleRecordPinClick(p, { selectByGuid, setStatus, openRecord: ctx.openRecord }),
       }));
     }
     return markupKernel.kernel.commands;

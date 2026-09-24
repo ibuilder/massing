@@ -12,6 +12,82 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### Clicking a register pin on the model now opens its record
+
+A pin on the 3D model is a register record's marker — an RFI, a punch item, an observation. Clicking
+one selected the element it sits on and wrote a line to the status bar, and that was all: the record
+the pin stood for had no way in. It now selects, reports, and opens the record.
+
+The behaviour was already written down as shipped. `apps/web/src/pins/pins.ts` branches
+topic-versus-record on click and explains why — *"a topic restores a saved viewpoint, a record opens
+its register row"*. Only the first half was true.
+
+Nothing new was designed for it. `apps/web/src/main.ts` has jumped to a record since the command
+palette shipped, whenever a search hit is chosen; the pin now goes through that same
+`jumpToRecord`, so there is one answer to "where does a record open" rather than two that drift.
+The item had been filed as needing a UX decision on the strength of a grep over the viewer directory
+finding no opener — there is none *there*, and the opener was one directory over.
+
+Selection stays in the viewer rather than following the user across: coming back to the Model
+workspace finds the element still highlighted.
+
+The handler lives in `apps/web/src/viewer/pinOpen.ts` so the viewer's `app.ts` did not grow, and the
+opener reaches the viewer as a required callback rather than an import — required so a dropped wire
+is a compile error instead of a dead pin, injected so the viewer never reaches into the portal.
+
+Three things review found, all real. A pin marker's click also reached the viewport, whose raycast
+misses a DOM overlay and then clears the selection a few frames later — so the highlight the click
+had just set was being undone; both marker kinds now stop the event. A rejected `selectByGuid` took
+the record jump with it, although the record id came from the pin and not from the scene; selection
+is best effort now, and says so rather than failing silently. And the jump waited on a fixed 500 ms
+instead of the portal's own init — **there were three copies of that guess**, and all three now share
+one wait that resolves when the portal is actually ready and reports when it cannot open at all.
+
+That last fix created a fourth defect, which the next review round found. Making the portal's init
+retryable turned every partial mutation on the way to a failure into reachable state: `init()`
+reassigns its own root to the content pane and registers a window listener before it awaits the
+first render, which can reject — so a retry would have nested a second shell inside the first and
+added a duplicate listener. Making a failure recoverable makes every partial mutation on the way to
+it reachable.
+
+### Four records called concurrency gaps open that the sweep had already closed
+
+`services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
+open"*. `docs/roadmap.md` still carried RMW-LOCKGAP and RMW-TOKEN as 🟡 **OPEN**, and
+`docs/security/threat-model.md` still carried G-10 and G-12 as open gaps with a summary line reading
+"**Four** sites remain open". All four are corrected against the code, each naming the pull request
+that closed it and the date.
+
+A stale OPEN is a work item, not a typo: the roadmap's ranking sends the next reader at it, the
+threat model presents a reviewer with a live exposure, and RMW-TOKEN's entry had priced its fix as
+"a migration (add the column, backfill, route both writers through a CAS)" — work nobody ever did,
+because both of its sites closed with an advisory lock already in the tree and already serving the
+gap next door. Half of that entry was wrong on the day it was written: `realestate.save_appraisal`
+took its lock the day before.
+
+`services/api/test_gap_records.py` now fails the build on the class. It derives the sites from the
+sweep's own ledgers by AST and the records from both documents by indentation, and holds any record
+that cites the sweep and reads as open to naming at least one still-open site. It replays the four
+records as they shipped at `53cfa71a` — frozen under `services/api/tests/fixtures/gap_records/` —
+and must re-find all four, and nothing else, before it may report a clean tree.
+
+The first draft read those records out of git history instead of copying them. That works on a
+full clone and not in CI, whose checkout is shallow, so the gate failed closed on every build. A
+proof that an analyser finds anything cannot depend on the depth of somebody's clone.
+
+Review found two more. The replay was evaluating those frozen records against today's ledger, so a
+site that legitimately reopened would have red the build blaming the analyser for being right; the
+statuses are frozen alongside the records now. And the gate's roadmap-marker list knew `✅ ◧ 🟡 ⭐`
+but not `⛔`, `❌` or a struck-through code — 12 of 90 roadmap items were outside its population
+entirely, reported as a clean tree in exactly the same words as a clean tree. A loose-versus-strict
+parity check now reds the build on a marker it does not know, and found one of the three itself.
+
+`services/api/test_roadmap_status.py` gained the self-tests it was missing. Its loop reads
+`if not marked_open(code): PASS; continue`, so a `marked_open` that can never say yes sent every
+registered item down the passing branch — measured by mutation: breaking its bullet regex with one
+literal left every line green, the exit status 0, and the verdict *"every item with a measurement
+agrees with its marker"* printed over nothing.
+
 ### The desktop IFC converter can now be interrupted — it runs in a child process the server kills
 
 `from_ifc.convert`'s deadline is cooperative: checked between elements and every 4,096 entities.

@@ -67,7 +67,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Request untraceability | `X-Request-ID` middleware stamps every request (inbound honored, ≤64 chars), propagated to OTel spans and the error log. |
 | Unattributable or misattributed professional seal | A seal is a personal legal attestation of responsible charge, not an authorisation, so it requires an authenticated caller **plus** a fresh step-up assertion a stored token cannot satisfy, and the identity is derived from the caller's own admin-verified licence rather than from the request. The audit row records the actor, the licence **row id**, `via` (verified licence vs legacy free text) and that a step-up was required — so a human act and an automated one are distinguishable after the fact. Previously the seal endpoints had no authorisation and no audit row at all (v0.3.800). |
 | Untrusted writes into the audit trail | The e-signature provider webhook is the one anonymous surface that writes audit rows (a provider holds no user credential). It verifies an HMAC over the raw request body when `AEC_ESIGN_WEBHOOK_SECRET` is set, is rate-limited and size-capped, bounds every stored string, and stamps each row with whether the signature was verified — so an unverified entry cannot be read as a verified one. |
-| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`. On record updates there are **two** controls, and the entry previously named only the opt-in one. `expected_modified_at` returns 409 when the record moved since the caller loaded it — but it is opt-in, and one of five web call sites passes it, so the register's inline cell editors had nothing. Every read-modify-write on a record row now also carries an in-SQL compare-and-swap on `modified_at` (`modules._cas_row_edit`): a write derived from a stale read matches no row. What happens next depends on who owns the transaction — a caller that owns it RE-READS and re-applies (up to four rounds), so a concurrent edit to a different field is no longer erased; a caller that does not (`update_record(commit=False)`, used for multi-row edits) gets ONE attempt and a 409, because retrying would roll back the rows it had already staged and then report a partial edit as whole. The stamp is advanced through `modules._next_stamp`, which is strictly monotonic per row: a bare `datetime.now()` can repeat inside one microsecond, and a token that repeats leaves the predicate reusable by the very writer it is meant to exclude. Gated by `services/api/test_rmw_sweep.py`, which fails the build on a register-row write that derives its value from a read it does not swap on. **Four** sites remain open and are named in that gate's ledgers rather than left unstated: one JSON collection on a table with no `modified_at` (gap G-10), and three more read-modify-writes on tables that likewise carry no concurrency token — `drawingset.revise_sheet`, `proforma.sync_gmp_to_hard` and `proforma.sync_model_to_hard` (gap G-12). The `connections` pair was closed on 2026-09-14 (RMW-TOKEN) — see G-12 below. **The count went UP on 2026-09-14 before it came down, and the rise was the sweep working rather than failing**: the gate's ledgers were keyed by `(path, function)`, so one status and one sentence covered every read-modify-write in a function — and six functions write more than one. Re-keying by `(path, function, attribute)` took the derived population from 32 to 41 and found `update_connection`'s `config` merge sitting EXEMPT on the strength of a sentence about `body.name or c.name`, a different line of the same function. That pushed the open count to twelve; closing all six of G-11 the same day (RMW-LOCKGAP) brought it to **six**, against a derived population that is now 43. The count is **derived from a structured status field** in those ledgers, not by searching their prose — a correction entirely separate from the re-keying above, and the two are easy to read as one number moving twice. They are not: a case-sensitive search of the ledger prose for "OPEN" reported **thirteen** open sites when **fourteen** existed, because one entry spelled its status "Open". *An undercount and a widening read the same way in prose and are opposite in kind: one is the same population counted wrongly, the other is a larger population counted correctly* — and a real closure, which is what took twelve to six, is a third thing again and the only one that means the product got safer. The pair that writes `Project.dev_property` — `proforma.put_property` and `realestate.save_appraisal` — was closed the same day with `pid_lock.mutating(pid)` rather than a swap, because that table has no token to swap on; **both** writers take it, since a lock one side does not take protects nothing, and the gate verifies the pair lexically rather than accepting the claim. |
+| Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`. On record updates there are **two** controls, and the entry previously named only the opt-in one. `expected_modified_at` returns 409 when the record moved since the caller loaded it — but it is opt-in, and one of five web call sites passes it, so the register's inline cell editors had nothing. Every read-modify-write on a record row now also carries an in-SQL compare-and-swap on `modified_at` (`modules._cas_row_edit`): a write derived from a stale read matches no row. What happens next depends on who owns the transaction — a caller that owns it RE-READS and re-applies (up to four rounds), so a concurrent edit to a different field is no longer erased; a caller that does not (`update_record(commit=False)`, used for multi-row edits) gets ONE attempt and a 409, because retrying would roll back the rows it had already staged and then report a partial edit as whole. The stamp is advanced through `modules._next_stamp`, which is strictly monotonic per row: a bare `datetime.now()` can repeat inside one microsecond, and a token that repeats leaves the predicate reusable by the very writer it is meant to exclude. Gated by `services/api/test_rmw_sweep.py`, which fails the build on a register-row write that derives its value from a read it does not swap on. **Zero sites remain open as of 2026-09-23**, and that is a measurement rather than a claim: the gate's ledgers carry a structured status per site and it prints the derived count on every run (`43 ORM sites: 43 reasoned exempt or locked, 0 named open`). The last four closed across gaps G-10 and G-12 below — `Scenario.shared_with` and `drawingset.revise_sheet` in PR #572, `proforma.sync_gmp_to_hard` and `proforma.sync_model_to_hard` in PR #557. **Every one of them closed with an advisory lock and not with the concurrency token both gap entries predicted**, which is recorded there because a prescription nobody re-checks sets a price on work that was cheaper than advertised. **The count went UP on 2026-09-14 before it came down, and the rise was the sweep working rather than failing**: the gate's ledgers were keyed by `(path, function)`, so one status and one sentence covered every read-modify-write in a function — and six functions write more than one. Re-keying by `(path, function, attribute)` took the derived population from 32 to 41 and found `update_connection`'s `config` merge sitting EXEMPT on the strength of a sentence about `body.name or c.name`, a different line of the same function. That pushed the open count to twelve; closing all six of G-11 the same day (RMW-LOCKGAP) brought it to **six**, against a derived population that is now 43. The count is **derived from a structured status field** in those ledgers, not by searching their prose — a correction entirely separate from the re-keying above, and the two are easy to read as one number moving twice. They are not: a case-sensitive search of the ledger prose for "OPEN" reported **thirteen** open sites when **fourteen** existed, because one entry spelled its status "Open". *An undercount and a widening read the same way in prose and are opposite in kind: one is the same population counted wrongly, the other is a larger population counted correctly* — and a real closure, which is what took twelve to six, is a third thing again and the only one that means the product got safer. The pair that writes `Project.dev_property` — `proforma.put_property` and `realestate.save_appraisal` — was closed the same day with `pid_lock.mutating(pid)` rather than a swap, because that table has no token to swap on; **both** writers take it, since a lock one side does not take protects nothing, and the gate verifies the pair lexically rather than accepting the claim. |
 
 ### 7. Supply chain & CI/CD
 | Threat | Control |
@@ -206,49 +206,66 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    `edit_redo`: *the narrowest place that can carry a fact is where it belongs*, and both routes then
    inherit it instead of two call sites having to remember.
 
-11. **G-12 (S) Three more read-modify-writes on tables with no concurrency token** —
-   `drawingset.revise_sheet`, `proforma.sync_gmp_to_hard` and `proforma.sync_model_to_hard`.
-   **The two `connections` entries were CLOSED on 2026-09-14 (RMW-TOKEN)**; they are described
-   below because the reasoning is the interesting part. They were
-   a **pair on one blob**: `put_mappings` merged `mappings` into `Connection.config` while
-   `update_connection` merged the body's keys into the same column, keeping a stored secret where
-   the form sent it blank. One admin saving connection settings while another saved field mappings
-   lost a write. Both routes now take the **same** per-connection advisory lock —
-   `pid_lock.mutating(_lock_key(cid))`, spanning each route's refresh, merge and commit — and the key
-   is built by a shared helper rather than an f-string at each call site, because *a lock one side
-   does not take protects nothing*, which is what the `dev_property` pair cost to learn. The lock
-   rather than a compare-and-swap because the two edits are claims on **different keys** of one blob:
-   serialising lets both survive, where a 409 would refuse an edit that conflicts with nothing.
-   `test_connection_lock.py` asserts both survive, and that locking on two *different* keys reds it
-   while leaving the static sweep green — *static analysis can see that a lock is present; only
-   behaviour can see that it is the SAME lock.* (`proforma.put_property` was one of the original six and is now
-   **closed** under the per-project lock — see the `dev_property` note in the concurrent-edit row
-   above. `bim.promote_markup` was another and is **closed** too: it claimed the back-link with a
-   plain assignment after a `topic_id` check, so two concurrent promotes minted two RFI Topics for
-   one markup and orphaned the first, and it now uses the conditional UPDATE
-   `modules.promote_comment` had been given one module over. *An already-solved defect living on
-   elsewhere is the cheapest kind to close and the easiest to never look for.*) Each reads a column and writes back a value derived from it on a
-   table that carries no `modified_at`, so the register row's compare-and-swap is unavailable
-   exactly as in G-10. Surfaced by widening `services/api/test_rmw_sweep.py`'s ORM derivation to
-   propagate taint through one local — before that, hoisting a read into a variable removed a site
-   from the inventory. Frozen in that gate's ledger with a structured status, so a new instance reds
-   the build. The three that remain are deliberately **not** ranked here. The first draft of this
-   sentence ranked them and was wrong on the facts within a minute of being written — it called
-   `drawingset.revise_sheet` a lost *sheet revision* with a single writer, when the read-modify-write
-   is actually `m.data = d2` on each **markup** it tags `carried_from`, a blob the markup save and
-   bulk-replace routes also write. *A priority claim is a factual claim about blast radius, and this
-   file has now carried two wrong ones about this same list.* Rank them by reading the sites.
+11. **G-12 — CLOSED. Five read-modify-writes on tables with no concurrency token** — the
+   `connections` pair on 2026-09-14 (RMW-TOKEN, PR #556 `e736c4d9`), `proforma.sync_gmp_to_hard` and
+   `proforma.sync_model_to_hard` on 2026-09-23 (LOCK-BOUNDARY, PR #557 `49f4cc0f`), and
+   `drawingset.revise_sheet` the same day (RMW-REVISE, in PR #572 `cd5d9e24`). Each read a column and
+   wrote back a value derived from it on a table carrying no `modified_at`, so the register row's
+   compare-and-swap was unavailable exactly as in G-10, and each now takes an advisory lock spanning
+   its refresh, merge and commit.
 
-12. **G-10 (S) One JSON collection still loses a concurrent write** — `Scenario.shared_with` (a
-   share grant). It reads a JSON collection and writes back what it derived, and that table carries
-   no `modified_at`, so the compare-and-swap the record row uses does not exist for it; JSON
-   equality is not a swap that behaves the same on SQLite and Postgres, which is why the same fix
-   was not simply copied. `Project.dev_property` (the appraisal-override merge) was the second and
-   is now **closed** under the per-project lock. It is
-   listed in `services/api/test_rmw_sweep.py`'s `BAND_2` ledger, so the set is frozen and cannot
-   grow silently — a new instance reds the build. Closing it means giving those tables a concurrency
-   token, which is a migration (roadmap: RMW-TOKEN). Severity is small: the loss needs two grants or
-   two appraisal saves inside one request window, and neither is a privilege boundary.
+   **The `connections` pair is the one worth reading.** `put_mappings` merged `mappings` into
+   `Connection.config` while `update_connection` merged the body's keys into the same column, keeping
+   a stored secret where the form sent it blank. One admin saving connection settings while another
+   saved field mappings lost a write. Both routes now take the **same** per-connection lock,
+   `pid_lock.mutating(_lock_key(cid))`, and the key is built by a shared helper rather than an
+   f-string at each call site, because *a lock one side does not take protects nothing* — which is
+   what the `dev_property` pair cost to learn. A lock rather than a compare-and-swap because the two
+   edits are claims on **different keys** of one blob: serialising lets both survive, where a 409
+   would refuse an edit that conflicts with nothing. `test_connection_lock.py` asserts both survive,
+   and that locking on two *different* keys reds it while leaving the static sweep green — *static
+   analysis can see that a lock is present; only behaviour can see that it is the SAME lock.*
+
+   `proforma.put_property` was one of the original six and closed under the per-project lock — see
+   the `dev_property` note in the concurrent-edit row above. `bim.promote_markup` was another: it
+   claimed the back-link with a plain assignment after a `topic_id` check, so two concurrent promotes
+   minted two RFI Topics for one markup and orphaned the first, and it now uses the conditional
+   UPDATE `modules.promote_comment` had been given one module over. *An already-solved defect living
+   on elsewhere is the cheapest kind to close and the easiest to never look for.*
+
+   Surfaced by widening `services/api/test_rmw_sweep.py`'s ORM derivation to propagate taint through
+   one local — before that, hoisting a read into a variable removed a site from the inventory. The
+   ledger is still the freezer: a new instance reds the build.
+
+   **Two things this entry got wrong while it was open, both now settled.** It ranked the three
+   remaining sites and was wrong on the facts within a minute of writing — it called
+   `drawingset.revise_sheet` a lost *sheet revision* with a single writer, when the read-modify-write
+   it had matched was `m.data = d2` on each **markup** tagged `carried_from`. The closing fix found
+   the entry had named the *less severe half*: `m.data` is guarded by a `"carried_from" not in d2`
+   check, while the `revisions` list beside it loses an accepted revision outright. *A ledger keyed
+   by attribute records the site the derivation MATCHED, which is not always the worst thing
+   happening in it* — and *a priority claim is a factual claim about blast radius*, which this file
+   carried two wrong ones about for this one list.
+12. **G-10 — CLOSED. Both JSON collections that lost a concurrent write** —
+   `Project.dev_property` (the appraisal-override merge) on 2026-09-13 under the per-project lock
+   (RMW-SWEEP, PR #552 `c7fdc658`), and `Scenario.shared_with` (a share grant) on 2026-09-23
+   (RMW-SHARE, in PR #572 `cd5d9e24`). Each read a JSON collection and wrote back what it derived on
+   a table with no `modified_at`, so the record row's compare-and-swap did not exist for them; JSON
+   equality is not a swap that behaves the same on SQLite and Postgres, which is why that fix was not
+   simply copied.
+
+   **The closing control is not the one this entry predicted**, and the roadmap entry beside it said
+   the same thing: "closing it means giving those tables a concurrency token, which is a migration".
+   No token was added. Both closed with `pid_lock.mutating(...)` on a derived key — a mechanism
+   already in the tree and already serving G-12 next door. *Ruling out one mechanism is not the same
+   as having enumerated the alternatives.* `shared_with` is keyed on the SCENARIO rather than
+   `Scenario.project_id`, which is nullable: a scenario belonging to no project would have locked on
+   `None`. Half the fix is the `db.refresh(s)` inside the lock — `_scenario_for` loaded the row
+   BEFORE the wait, and the identity map would otherwise hand that pre-image back, making the lock
+   serialise two writes of the same stale list.
+
+   Severity was small throughout: the loss needed two grants or two appraisal saves inside one
+   request window, and neither is a privilege boundary.
 
 *Exclusions per the review doctrine: DoS/resource-exhaustion beyond the shipped caps, rate-limit
 tuning, log-spoofing, path-only SSRF, client-side authz, and outdated-dep advisories (handled by the
