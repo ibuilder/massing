@@ -1,0 +1,188 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { LoadedParcel } from "./parcelBoundary";
+
+/**
+ * SITE-1, review round — the parcel-boundary save must land in SELECTION order.
+ *
+ * The first version fired one `saveProperty` per selection and forgot it (`void …`). Select parcel
+ * A, then B, and both PUTs are in flight at once: `put_property` merges under the project lock, so
+ * the lock decides which write wins and it decides by ARRIVAL. If A's request settles second, the
+ * stored boundary is A while the tab shows B — and the viewer then draws a lot line for a parcel
+ * nobody has selected. **A lock orders the writes; it cannot order the intentions.**
+ *
+ * The worst case is a CLEAR, because it is the one whose loss is silent in the other direction: a
+ * late select-then-clear pair resurrects a parcel the user removed, and nothing on screen disagrees.
+ *
+ * Driven through the real `renderMassingTab` with the boundary control mocked down to the callback
+ * it hands back, because the ordering lives in the tab and not in the control.
+ */
+const captured: { onChange?: (p: LoadedParcel | null) => void } = {};
+vi.mock("./parcelBoundary", () => ({
+  parcelBoundaryControl: (_host: unknown, onChange: (p: LoadedParcel | null) => void) => {
+    captured.onChange = onChange;
+    return { el: document.createElement("div"), get: () => null };
+  },
+}));
+
+const { renderMassingTab } = await import("./massingTab");
+
+const parcel = (tag: string): LoadedParcel => ({
+  ring: [[0, 0], [1, 0], [1, 1]], areaM2: 1, areaAcres: 1, rectM2: 1,
+  widthM: 1, depthM: 1, vertices: 3, source: tag,
+} as unknown as LoadedParcel);
+
+/** Re-runs the real `renderMassingTab` against the same deps — what `ProformaUI.render()` does. */
+function renderTab(h: ReturnType<typeof harness>) {
+  const root = document.createElement("div");
+  renderMassingTab(root, h.ctx);
+  return root;
+}
+
+let project = 0;
+function harness(pid: string | null = null) {
+  const landed: string[] = [];
+  const settle: (() => void)[] = [];
+  const status: string[] = [];
+  const api = {
+    saveProperty: vi.fn((_pid: string, body: { parcel_boundary: { vertices?: number } | null }) =>
+      new Promise<void>((resolve) => {
+        settle.push(() => { landed.push(body.parcel_boundary ? "set" : "clear"); resolve(); });
+      })),
+  };
+  // A DISTINCT project per harness: the chain is module-scoped on purpose (that is the fix), so a
+  // shared id would queue one test's saves behind another's and the order under test would not be
+  // the order this test set up.
+  const id = pid === null ? `p${++project}` : pid;
+  const ctx = {
+    api: api as never, projectId: () => (pid === null ? id : pid),
+    setStatus: (m: string) => status.push(m), adoptAssumptions: () => undefined,
+  };
+  const h = { landed, settle, status, api, ctx };
+  renderTab(h);
+  return h;
+}
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+describe("SITE-1: parcel-boundary saves", () => {
+  it("reach the server in selection order even when the FIRST is slower to settle", async () => {
+    const h = harness();
+    captured.onChange!(parcel("A"));
+    captured.onChange!(parcel("B"));
+    captured.onChange!(null);                 // …and a clear, the one that must not be resurrected
+    await flush();
+
+    // Only ONE request may be in flight: that is what makes arrival order equal selection order.
+    // Without the chain all three are issued at once and the network decides the winner.
+    expect(h.api.saveProperty, "more than one save in flight — the order is the network's to pick")
+      .toHaveBeenCalledTimes(1);
+
+    // Settle them in the WORST order the old code allowed: release each as it is issued, but prove
+    // the next is not issued until the previous resolves.
+    for (let i = 0; i < 3; i++) { h.settle[i]?.(); await flush(); }
+    expect(h.landed).toEqual(["set", "set", "clear"]);
+    expect(h.api.saveProperty).toHaveBeenCalledTimes(3);
+
+    // The LAST thing the server was told is the clear, which is what the tab is showing.
+    const last = h.api.saveProperty.mock.calls.at(-1)?.[1] as { parcel_boundary: unknown };
+    expect(last.parcel_boundary, "the clear did not land last — a removed parcel can come back")
+      .toBeNull();
+  });
+
+  it("does not break the chain when one save fails — the next selection still saves", async () => {
+    const h = harness();
+    h.api.saveProperty.mockImplementationOnce(() => Promise.reject(new Error("boom")));
+    captured.onChange!(parcel("A"));
+    captured.onChange!(parcel("B"));
+    await flush(); await flush();
+    expect(h.status.some((m) => m.includes("parcel boundary not saved: boom")),
+      "a failed save must be reported").toBe(true);
+    h.settle[0]?.(); await flush();
+    expect(h.api.saveProperty, "a rejection stalled the chain — every later selection is lost")
+      .toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps its order across a RE-RENDER of the tab, which replaces the closure", async () => {
+    // `ProformaUI.render()` re-runs `renderMassingTab`, and `adoptAssumptions` calls it right after
+    // "Generate IFC model" — precisely when a boundary save may still be in flight. A chain living
+    // in the render closure is replaced there, so the new tab's selection races the old tab's
+    // pending write and the late one wins. *A queue that is re-created cannot serialise across the
+    // thing that re-created it.* Raised in review.
+    const h = harness();
+    captured.onChange!(parcel("A"));          // …in flight, not yet settled
+    await flush();
+    expect(h.api.saveProperty).toHaveBeenCalledTimes(1);
+
+    renderTab(h);                              // the re-render, mid-save
+    captured.onChange!(null);                  // a clear from the NEW instance
+    await flush();
+    expect(h.api.saveProperty, "the new instance started its own chain — the clear is racing A")
+      .toHaveBeenCalledTimes(1);
+
+    for (let i = 0; i < 2; i++) { h.settle[i]?.(); await flush(); }
+    expect(h.landed, "the clear did not wait for the in-flight save from before the re-render")
+      .toEqual(["set", "clear"]);
+  });
+
+  it("exposes the pending save, so a READER can order itself against it", async () => {
+    // The viewer's "Add parcel boundary" flow GETs the property. The chain orders writes against
+    // other writes and says nothing about reads, so without this the flow can read the row as it
+    // stood before a selection that has already succeeded on screen — and report "No parcel
+    // boundary saved" for a parcel the user is looking at. Raised in review.
+    const { pendingParcelSave } = await import("./massingTab");
+    const h = harness();
+    const pid = h.ctx.projectId()!;
+    expect(await Promise.race([pendingParcelSave(pid).then(() => "idle"), Promise.resolve("idle")]),
+      "with nothing in flight it must resolve rather than hang").toBe("idle");
+
+    captured.onChange!(parcel("A"));
+    await flush();
+    let settled = false;
+    void pendingParcelSave(pid).then(() => { settled = true; });
+    await flush();
+    expect(settled, "the wait resolved while the save was still in flight — it orders nothing")
+      .toBe(false);
+    h.settle[0]?.(); await flush(); await flush();
+    expect(settled, "the wait never resolved after the save landed").toBe(true);
+    expect(h.landed).toEqual(["set"]);
+  });
+
+  it("DRAINS the queue — a selection made while the reader waits is included", async () => {
+    // The first version snapshotted the tail at entry. Awaiting *that* is only correct if nothing is
+    // enqueued during the await — and the point of the function is that its caller is about to do
+    // something slow. Select A, the reader starts waiting, the user selects B: the snapshot resolves
+    // when A lands, the GET returns A, and the viewer draws A while the tab shows B. *Waiting for
+    // the queue as it WAS is not waiting for the queue.* Raised in review.
+    const { pendingParcelSave } = await import("./massingTab");
+    const h = harness();
+    const pid = h.ctx.projectId()!;
+
+    captured.onChange!(parcel("A"));
+    await flush();
+    let settled = false;
+    void pendingParcelSave(pid).then(() => { settled = true; });
+    await flush();
+
+    // B is chosen while the reader is waiting — this is the case the snapshot could not see.
+    captured.onChange!(parcel("B"));
+    await flush();
+    h.settle[0]?.(); await flush(); await flush();
+    expect(settled, "the wait resolved on A's save while B's was still queued — a reader that "
+      + "fetches here gets the parcel BEFORE the one on screen").toBe(false);
+    expect(h.landed, "the fixture no longer exercises the drain — B must still be in flight here")
+      .toEqual(["set"]);
+
+    h.settle[1]?.(); await flush(); await flush();
+    expect(settled, "the wait never resolved after the whole queue drained").toBe(true);
+    expect(h.landed).toEqual(["set", "set"]);
+  });
+
+  it("says so when there is no project to save to, rather than skipping silently", () => {
+    const h = harness("");
+    captured.onChange!(parcel("A"));
+    expect(h.api.saveProperty).not.toHaveBeenCalled();
+    expect(h.status.join(" "), "a skipped save with no message reads as a saved one")
+      .toMatch(/open a project first/);
+  });
+});

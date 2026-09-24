@@ -1,4 +1,5 @@
 import type { ApiClient } from "../../api/client";
+import type { ClashResult, FederatedClashResult } from "../../api/clash";
 import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { toast, withLoading } from "../../ui/feedback";
@@ -52,16 +53,23 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
   const list = document.createElement("div");
   list.style.cssText = "display:flex;flex-direction:column;gap:2px;max-height:44vh;overflow:auto;margin-top:4px";
   let lastMatrix: { disciplines: string[]; tested_pairs: [string, string][];
-    findings: { discipline_a: string; discipline_b: string }[] } | null = null;
-  const renderClashes = (clashes: ClashHit[]) => {
+    findings: { discipline_a: string; discipline_b: string; count?: number }[] } | null = null;
+  /** The list is also capped client-side. Before CLASH-TRUNC the header counted the PAGE while the
+   *  summary line above it counted the RUN, so two different numbers sat on one screen under the
+   *  same word, and neither said a cap was in play. */
+  const LIST_CAP = 300;
+  const renderClashes = (clashes: ClashHit[], total = clashes.length) => {
     list.innerHTML = "";
-    if (!clashes.length) {
+    if (!total) {
       list.innerHTML = `<div class="meta" style="color:var(--status-good)">No hard clashes 🎉</div>`;
       return;
     }
+    const shown = Math.min(clashes.length, LIST_CAP);
+    const cap = shown < total;
     list.insertAdjacentHTML("beforeend",
-      `<div class="section-title" style="margin:4px 0 2px">${clashes.length} clash${clashes.length === 1 ? "" : "es"} — click to inspect</div>`);
-    clashes.slice(0, 300).forEach((c, i) => {
+      `<div class="section-title" style="margin:4px 0 2px">${cap ? `${shown} of ${total}` : total}`
+      + ` clash${total === 1 ? "" : "es"} — click to inspect${cap ? " (list capped)" : ""}</div>`);
+    clashes.slice(0, LIST_CAP).forEach((c, i) => {
       const row = document.createElement("button"); row.className = "tool-btn";
       row.style.cssText = "display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;font-size:11px;padding:4px 7px";
       row.innerHTML = `<span>${i + 1}. ${c.a_class.replace("Ifc", "")} <span style="color:var(--status-crit)">✕</span> ${c.b_class.replace("Ifc", "")}</span>`
@@ -74,27 +82,51 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
   };
   panel.appendChild(cbtn("💥 Run clash — all disciplines", () => void withLoading(panel, "Queueing federated clash", async () => {
     try {
-      const r = await enqueueAndWait(d.api, pid, "clash_federated", { coordinate: true, create_topics: true }) as {
-        count: number; disciplines: string[]; created_topics?: number; clashes: ClashHit[];
-        coordination: { new: number; active: number; resolved: number; reduction?: number } | null;
-      };
+      const r = await enqueueAndWait(d.api, pid, "clash_federated",
+        { coordinate: true, create_topics: true }) as unknown as FederatedClashResult;
       const co = r.coordination;
       const bits = [`${r.count} clashes`, `${(r.disciplines ?? []).length} disciplines`];
       if (r.created_topics != null) bits.push(`${r.created_topics} issue(s)`);
       out.textContent = bits.join(" · ")
         + (co ? ` — ${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
-      renderClashes(r.clashes ?? []);
+      renderClashes(r.clashes ?? [], r.count);
+      // CLASH-TRUNC, review round 2 — the DIAGONAL is not tested by a federated run and must not be
+      // declared so. `clash.detect_federated` skips any pair whose two elements carry the same model
+      // tag (`if tags[i] == tags[j]: continue`), because an intra-model overlap is a beam-column
+      // joint, not a coordination finding. Declaring STR×STR tested therefore hands the matrix the
+      // same false premise this whole item is about, one level down: a pair the run CANNOT have
+      // examined, with no findings, reported `clean`.
+      // The filter is on the model-map KEY, not on the discipline label: two models sharing a
+      // discipline get a `(id)` suffix from the route, so they are distinct keys and genuinely are
+      // cross-tested. Raised in review.
       const discs = r.disciplines ?? [];
       const tested: [string, string][] = [];
       for (let i = 0; i < discs.length; i++) {
-        for (let j = i; j < discs.length; j++) {
+        for (let j = i + 1; j < discs.length; j++) {
           const a = discs[i], b = discs[j];
-          if (a && b) tested.push([a, b]);
+          if (a && b && a !== b) tested.push([a, b]);
         }
       }
-      lastMatrix = { disciplines: discs, tested_pairs: tested,
-        findings: (r.clashes ?? []).map((c) => ({
-          discipline_a: c.a_model || c.a_class, discipline_b: c.b_model || c.b_class })) };
+      // CLASH-TRUNC — the matrix is built from the server's per-pair tally over the WHOLE run, not
+      // from `clashes`, which stops at the run's limit. Built from the page, a discipline pair whose
+      // clashes all fall past that limit arrives with no evidence and `soft_clash.matrix` reports it
+      // `clean`; with every pair declared tested the matrix then reads 100% coverage, nothing
+      // untested — it states that it examined pairs it never saw. The engine keeps `untested` apart
+      // from `clean` precisely to refuse that, and its caller made the refusal moot.
+      const tally = r.pair_counts ?? [];
+      lastMatrix = {
+        disciplines: discs,
+        // Declaring every pair tested is only honest when the evidence covers every clash. An older
+        // server that truncated and sent no tally leaves a pair with no finding UNKNOWN, not clean,
+        // so nothing is declared tested and those pairs report `untested` — the degradation the
+        // engine already has a third state for.
+        tested_pairs: (tally.length || !r.truncated) ? tested : [],
+        findings: tally.length
+          ? tally.map((t) => ({ discipline_a: t.discipline_a, discipline_b: t.discipline_b,
+              count: t.count }))
+          : (r.clashes ?? []).map((c) => ({
+              discipline_a: c.a_model || c.a_class, discipline_b: c.b_model || c.b_class })),
+      };
       await d.refreshIssues(); await d.reloadModelPins();
     } catch (e) {
       if (isJobStillRunning(e)) throw e;
@@ -107,8 +139,14 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       const r = await enqueueAndWait(d.api, pid, "clash_detect", {
         a: "IfcBeam,IfcSlab,IfcColumn,IfcStair", b: "IfcDuctSegment,IfcPipeSegment,IfcWall",
         min_volume: 0.02, create_topics: true,
-      }) as { count: number; created_topics?: number };
-      out.textContent = `${r.count} clashes · ${r.created_topics ?? 0} issue(s) created. Open Issues to coordinate.`;
+      }) as unknown as ClashResult;
+      // CLASH-TRUNC: topics are minted for the first `limit` results only, so on a truncated run
+      // "N clashes · M issue(s) created" understates without saying why. The cap is named.
+      out.textContent = `${r.count} clashes · ${r.created_topics ?? 0} issue(s) created`
+        + (r.truncated
+          ? ` — issue creation was capped at the first ${(r.clashes ?? []).length} clashes`
+          : "")
+        + `. Open Issues to coordinate.`;
       list.replaceChildren();
       await d.refreshIssues(); await d.reloadModelPins();
     } catch (e) {

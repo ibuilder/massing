@@ -995,8 +995,53 @@ instances:
   the field's importance is not a judgement call, `report_builders/` already made it. Six of those
   shipped as fixes to the valuation panel; see below.
 
+- ✅ ⭐ **CLASH-TRUNC — the coordination matrix was computed from the first page of the clash run**
+  *(S — Lane E; **CLOSED 2026-09-24**; gated by `services/api/test_clash_trunc.py` and
+  `apps/web/src/viewer/tools/clashTruncation.test.ts`)*
+
+  Found by reading the DEAD-FIELD candidate set for a field whose NAME is a caveat.
+  `ClashResult.truncated` had no reader anywhere in the web tree — the server flags that the clash
+  list it just returned is a page, and nothing asked.
+
+  **What it cost is not the missing flag, it is what the page was then used FOR.**
+  `/clash/federated` returns `count` (every clash) beside `clashes` (the first `limit`, default
+  200). `apps/web/src/viewer/tools/clashPanel.ts` built the discipline-pair matrix's `findings` out
+  of that page while declaring **every** pair tested. `services/api/src/aec_api/soft_clash.py`
+  exists to refuse one sentence — *"clash-free" over a partial matrix* — and keeps `untested`
+  separate from `clean` to do it. Handed a complete-looking declaration and an incomplete body of
+  evidence, it reported a pair whose interferences all sat past the 200th as **clean**.
+
+  Measured on the gate's fixture: 1,438 clashes, 918 of them ARC×MEP and none on the first page →
+  `coverage_pct: 100.0`, `untested: 0`, and ARC×MEP `clean`. **The severity is bounded and the
+  first draft of this entry overstated it**: `coordinated` cannot come back true this way, because
+  it demands zero clashing cells and a truncated page always carries a finding. That bound is now
+  asserted in the gate rather than asserted here. *A wrong cell a coordination meeting acts on is
+  bad enough; claiming the headline flag too would have made the gate evidence for something it
+  cannot reproduce.*
+
+  **The engine was right and its caller supplied a premise that made the refusal moot.** *A guard is
+  only as sound as the evidence it is handed, and nothing was checking the evidence.* The repair is
+  a per-pair tally computed where the whole list still exists — in **both** federated paths, the
+  route and `jobs._clash_federated`, which is the one the screen actually runs — travelling beside
+  the page rather than replacing it: the list is what a person clicks, the tally is what a report
+  may claim. Against a server that truncates and sends no tally the panel declares **nothing**
+  tested, so those pairs read `untested`; the third state is what the honest degradation is for.
+
+  **Why the field could stay unread for so long is the transferable part.** The panel re-spelled the
+  response shape as an inline cast instead of using the declared interface, so no property access
+  anywhere resolved to `truncated` and no type error, lint or audit could see the omission — *a
+  re-spelled shape is a field that no derivation over declarations can reach.* The shapes are now
+  declared once in `apps/web/src/api/clash.ts`, and `apps/web/src/api/deadFieldTyped.test.ts` pins
+  all three as READ, so a future inline cast reds there as well as here.
+
+  Two smaller defects on the same screen, both disclosure: the list header counted the PAGE while
+  the summary above it counted the RUN, so two different numbers sat under the word "clashes" with
+  nothing saying a cap was in play; and a single-model run mints issues only for the first `limit`,
+  so "N clashes · M issue(s) created" understated without saying why.
+
 - ◧ **SCREEN-VS-REPORT — the printed valuation was more honest than the on-screen one** *(the six
-  found in the first pass are FIXED; the other ~41 asymmetric fields are unread)*
+  found in the first pass are FIXED; a second pass on 2026-09-24 re-derived the asymmetric set,
+  triaged it and fixed three more — see the table at the end of this entry)*
 
   All six were in `renderAppraisal` in `apps/web/src/proforma/proforma.ts`, and the worst was not a
   missing caveat but a false statement. `reconcile()` in `services/api/src/aec_api/appraisal.py` drops
@@ -1020,6 +1065,55 @@ instances:
   `schema.d.ts`. Every unread-field audit starts from the client's interfaces, so a field the client
   never declares cannot be seen by any of them, and no type error or lint can either. See
   RESPONSE-UNDECLARED below.
+
+  **SECOND PASS, 2026-09-24 — the population is 52, not 41, and reading all of it found THREE.**
+  Re-derived with the same intersection `apps/web/src/api/deadFieldTyped.test.ts` uses (no typed
+  reader AND no string-literal reader), then filtered to leaves the Python report builders render:
+  **1,907 declared members · 767 typed-unread · 387 sound · 52 asymmetric.** The "~41" above was a
+  subtraction from a number measured before six fixes and a quarter's worth of new interfaces; it
+  was never re-measured, and the set had GROWN. *A backlog quoted as "the rest" is a number nobody
+  owns.*
+
+  **The load-bearing move was the filter, not the reading.** Fifty-two fields is triage, and the
+  first forty read the same way: not displayed, and no worse for it. What separates a defect is that
+  **the interface's OWN doc comment states the invariant the field belongs to** — the author had
+  already written down that the number on screen is a subset. Applying that filter mechanically over
+  the 52 returns exactly three hits, two of them real:
+
+  | field | verdict |
+  |---|---|
+  | `SpineTraceability.{spec_count, withdrawn_excluded}` | **REAL — fixed.** `spine.py` returns both with the comment *"so the two numbers cannot look like a contradiction: spec_count == coverage.specs + len(withdrawn_excluded)"*, and the Discipline Spine card rendered `coverage.specs` alone. A job with a void section showed coverage over a population that silently disagreed with the spec register's count. `reportCenter.ts` has always rendered exactly this caveat for the submittal log, from an engine stating the same invariant in the same words — **the two screens were written to the same contract and only one of them kept it.** |
+  | `OpendataPermit.city` | **Not a defect — and it is why the filter needs saying out loud.** It matched because the phrase *"a city's open data feed"* appears in the comment. The filter finds a WORD, not a claim; two of three hits were real and the third had to be read. |
+
+  The third fix came from the money side rather than the filter:
+  `ProformaResult.sources_uses.loan_fees` is one of six rows `report_builders/finance.py` prints in
+  Sources & Uses and the screen printed five. **The reason it survived is that its absence
+  balances**: `proforma/solve.py` folds the fee into `total_uses` and funds it from `equity`, so
+  uses still equal debt plus equity and every visible number reconciles. *A total that balances is
+  not the same as a total that is explained* — on two points against a $13m loan that is $260k of
+  equity with no line of its own.
+
+  **What the other 49 are, stated so nobody re-reads them.** Six are redundant rollups the panel
+  already renders by another path (`RfiRegister.withdrawn_excluded` behind the rendered
+  `voided_count`; `FinancialStatements.after_tax_returns.total_sale_tax` behind the rendered
+  `tax_at_sale.total_sale_tax`; `SpecSubmittalLog.withdrawn_excluded[].section_number` behind the
+  rendered count). Several are **leaf-name collisions in the asymmetry match itself** —
+  `PreflightSummary.warnings` is a COUNT and the report builder's `warnings` is a LIST on a
+  different response; `SpineTraceability.spec_count` matched a submittal-log KPI, which is how a
+  real finding arrived for a wrong reason. Two are read through a **re-spelled local interface**
+  (`ProformaForecast.*_returns.equity_multiple`, read in `apps/web/src/proforma/drawPackage.ts`
+  through its own declaration) — the same shape CLASH-TRUNC closed, and a type-hygiene finding
+  rather than a wrong answer. The rest are ordinary detail: curve arrays, per-item weights, raw
+  appraisal inputs behind the approach values the panel shows.
+
+  **So the asymmetry match is a CANDIDATE filter, not an oracle**, for the same reason the
+  identifier derivation was: it matches a leaf NAME against every report builder rather than the one
+  that renders that response. Tightening it to per-response would be a third derivation with a third
+  blind spot; the cheaper repair is the doc-invariant rank above, which cost one grep and found both
+  real fields. *Gated by `apps/web/src/portal/panels/spineExcluded.test.ts`,
+  `apps/web/src/proforma/sourcesUsesFees.test.ts` and the three pins in
+  `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
+  and watching all ten checks red.*
 
 - ✅ ⭐ **PIN-POPULATION — the pin engine read 5 registers of 37, and six of its names were not
   modules** *(M — Lane C; **CLOSED**, fix in this change; gated by
@@ -3732,7 +3826,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -6420,8 +6514,81 @@ removed. Remaining, in priority order:
   shipped the first slice).
 - **A2 RAG index** *(M)* — an offline index over the ifcopenshell / IFC docs for the authoring
   assistant.
-- **SITE-1 remaining** *(S–M)* — parcel overlays *(terrain DEM auto-fetch is network-dependent →
-  flagged, offline-degrading)*.
+- ✅ **SITE-1 — the project's parcel boundary now draws on the model** *(S–M — Lane E; **CLOSED
+  2026-09-24**)*. This read "parcel overlays", which sounds like a drawing task, and the premise was
+  wrong in the way this file keeps recording.
+
+  **Both halves already shipped.** `apps/web/src/viewer/gis.ts`'s `buildSiteContext` draws OSM
+  land-use parcels; `services/api/src/aec_api/parcel_geometry.py` parses a real cadastral boundary,
+  and PARCEL-SHAPE wired it to the feasibility tab, where it sizes the building on the lot's true
+  outline rather than its bounding rectangle. The viewer still had no lot line.
+
+  **Nothing PERSISTED the ring.** `apps/web/src/proforma/massingTab.ts` held the analysed parcel in
+  a local variable and sent it to `compute_massing` as `lot_polygon`; a tab re-render dropped it,
+  and no other screen could ask for it. *A blocker named one layer too high* — there was nothing for
+  a drawing task to draw, and a reader taking the entry at its word would have gone looking in the
+  viewer. The ring now lands on `Project.dev_property`, beside the parcel and tax keys it belongs
+  with, through the PUT that merges under the project lock — so the feasibility tab and the property
+  form write one blob without clobbering or racing each other (RMW-SWEEP's fix, used as intended).
+
+  **The frame is the part that can silently be wrong**, and it was — twice, in opposite sizes.
+  `ring_m` must not go through `project()` like the OSM context does, which needs a lon/lat anchor:
+  a metre ring read as degrees puts the lot a continent away, an error that is enormous, silent and
+  looks like a drawing bug. That half was right from the start.
+
+  **The other half was wrong and this entry asserted it.** It said the ring arrives *"metres about
+  its own centroid"*. `parcel_geometry.analyze` shifts it to its bounding-box **minimum** — its own
+  comment says so — so a saved ring lies wholly in the +x/+y quadrant while a generated massing
+  model is built around the origin, and the lot line sat off the corner of its own building. Raised
+  by review. The repair recentres on the bounding-box **centre** rather than the polygon's area
+  centroid the review proposed, because that is the anchor
+  `services/data/src/aec_data/massing.py` already uses *"so it shares the building's origin frame"*
+  before packing parking into the lot — *the two agree only on a symmetric parcel, and an asymmetric
+  one is exactly the case worth aligning, so the prettier anchor would have left a smaller copy of
+  the same offset against the half of the system that has already placed geometry.*
+
+  **`apps/web/src/viewer/parcelOutline.test.ts` passed before and after that fix**, and why is the
+  transferable part: its only fixture was a square centred on the origin, whose bbox centre is
+  (0, 0), so the translation was a no-op on the one shape tested. *A fixture that already satisfies
+  the property cannot witness it* — and this one had been chosen to match the prose above, so it
+  inherited the prose's error. The fixture is now asymmetric and bbox-min-shifted, which is the
+  shape `parcel_geometry` actually emits, and a second check reads the generator's anchor out of its
+  source so the two frames cannot drift apart silently.
+
+  **The save is serialised per project, which the project lock cannot do for it.** The first version
+  fired one `saveProperty` per selection and forgot it, so selecting parcel A then B put two writes
+  in flight; `put_property` merges under the lock, so the lock picks the winner by ARRIVAL and A
+  could land last — the viewer then draws a lot line the tab is not showing, and a select-then-clear
+  pair resurrects a parcel the user removed. *A lock orders the writes; it cannot order the
+  intentions.* `apps/web/src/proforma/parcelSaveOrder.test.ts` drives the real tab and asserts one
+  request in flight at a time, the clear landing last, and a failed save not stalling the chain.
+  Selecting a parcel with no project open now says so instead of skipping silently.
+
+  **And the new writer exposed a data-loss defect in the route it writes to.**
+  `routers/proforma.put_property` preserved exactly ONE key across a write (`appraisal`, carried for
+  `realestate.save_appraisal`, the blob's other owner) and let `body` replace the rest. That was
+  indistinguishable from a merge while the only caller was the property form, which GETs the record,
+  mutates it and PUTs the whole thing back — *the narrow carve-out was a replace with one exception,
+  and it read as a merge because there was only one kind of caller.* This item added the second kind:
+  a writer sending `parcel_boundary` and nothing else, which deleted the address, block/lot, purchase
+  price, areas and every tax line. *A merge written for one key is a replace for every other, and the
+  bill arrives with the next caller.* Now `{**prior, **body}`; gated by
+  `services/api/test_property_merge.py`, which pins that the body still wins on overlap (a merge
+  preferring the stored value makes the form unable to edit anything — the opposite failure and just
+  as total), that an explicit null still clears, and that the response describes the row written
+  rather than the body sent. Raised in review; the mutation restoring the carve-out reds it.
+
+  Review also closed the read side: the save chain orders writes against writes and says nothing
+  about reads, so the viewer's overlay could GET the property past an in-flight save and report "No
+  parcel boundary saved" for a parcel the user had just selected. `pendingParcelSave(pid)` exposes
+  the in-flight promise and the flow awaits it. *A write ordered against other writes is still
+  unordered against readers.*
+
+  The test file also pins the closed loop, the draw heights, and the two wires (the save, and the
+  flow that reads it back), because every geometry assertion passes on a function nobody calls and a
+  ring nobody saves.
+
+  *(Terrain DEM auto-fetch stays out: it is network-dependent → flagged, offline-degrading.)*
 
 ### Corroboration — "machine-interpretable AEC" *(read 2026-07-30, no new items)*
 

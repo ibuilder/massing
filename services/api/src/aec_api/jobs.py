@@ -718,7 +718,7 @@ def _clash_federated(db: Session, params: dict) -> dict:
 
     from aec_data import clash  # type: ignore
 
-    from . import clash_intel, rbac
+    from . import clash_intel, rbac, soft_clash
     from .models import Project, ProjectModel
     pid = params.get("project_id") or ""
     p = db.get(Project, pid)
@@ -744,8 +744,14 @@ def _clash_federated(db: Session, params: dict) -> dict:
         db, pid, results, actor, rbac.party_role_for(db, pid, actor),
         label=f"Federated {', '.join(sorted(models))}")
     limit = int(params.get("limit") or 200)
+    # CLASH-TRUNC: `pair_counts` is tallied over EVERY result, `clashes` is a page of them. The
+    # coordination matrix is built from the tally, because deriving it from the page reports a
+    # discipline pair whose clashes all fall past `limit` as CLEAN — the one claim
+    # `soft_clash.matrix` exists to refuse. It travels beside the page rather than replacing it:
+    # the list is what a person clicks, the tally is what a report may claim.
     return {"disciplines": list(models), "count": len(results), "coordination": coordination,
-            "clashes": results[:limit], "truncated": len(results) > limit}
+            "clashes": results[:limit], "truncated": len(results) > limit,
+            "pair_counts": soft_clash.pair_tally(results)}
 
 
 def _escalation_scan(db: Session, params: dict) -> dict:

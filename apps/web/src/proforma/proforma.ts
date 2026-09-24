@@ -1892,6 +1892,13 @@ export class ProformaUI {
       `<div class="k">Total uses</div><div class="v">${money(su.total_uses)}</div>` +
       `<div class="k">Senior loan (${pct(su.effective_ltc ?? su.ltc)} LTC)</div><div class="v">${money(su.loan_amount)}</div>` +
       this.sizingRow(r) +
+      // SCREEN-VS-REPORT — the PDF's Sources & Uses itemises Loan fees and this table did not, so
+      // the points the deal pays were invisible on screen while sitting INSIDE two numbers it does
+      // show: `solve.py` adds them to `total_uses` and funds them from `equity`. The rows therefore
+      // reconciled and told you nothing about how much of the equity is a financing fee. *A total
+      // that balances is not the same as a total that is explained.*
+      `<div class="k" title="Origination points — inside Total uses above, and funded by equity">Loan fees</div>`
+      + `<div class="v">${money(su.loan_fees)}</div>` +
       `<div class="k">Interest reserve</div><div class="v">${money(su.interest_reserve)}</div>` +
       `<div class="k">Equity</div><div class="v">${money(su.equity)}</div>` +
       `<div class="k">LP / GP</div><div class="v">${money(su.lp_contribution)} / ${money(su.gp_contribution)}</div>` +

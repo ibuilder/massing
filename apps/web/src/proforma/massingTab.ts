@@ -7,6 +7,37 @@ import { escapeHtml } from "../ui/feedback";
 import { money, pct } from "./format";
 import { type LoadedParcel, parcelBoundaryControl } from "./parcelBoundary";
 
+/** SITE-1 — the tail of each project's parcel-boundary save chain; see the write in the tab below.
+ *
+ *  MODULE scope, not per-render, and the difference is the whole point. `renderMassingTab` runs
+ *  again on every `ProformaUI.render()` — including the one `adoptAssumptions` triggers straight
+ *  after "Generate IFC model", which is exactly when a save may be in flight. A chain living in the
+ *  render closure would be replaced there, so a selection in the new tab would race the one still
+ *  settling in the old, and the late write would win. *A queue that is re-created cannot serialise
+ *  across the thing that re-created it.* Raised in review. Keyed by project so two projects do not
+ *  queue behind each other. */
+const saveChains = new Map<string, Promise<void>>();
+
+/** SITE-1 review — the pending parcel-boundary save for a project, for a reader that must not race
+ *  it. The viewer's "Add parcel boundary" flow GETs the property; without this it can read the row
+ *  as it stood BEFORE a selection that has already succeeded on screen, and then report "No parcel
+ *  boundary saved" for a parcel the user is looking at. *A write that is ordered against other
+ *  writes is still unordered against reads.* Resolves immediately when nothing is in flight. */
+export async function pendingParcelSave(pid: string): Promise<void> {
+  // DRAIN, don't snapshot. Awaiting the tail as it stood at entry is only correct if nothing is
+  // enqueued during the await — and the whole point of this function is that its caller is about to
+  // do something slow. A selection made while we wait appends a NEW tail, so the reader would fetch
+  // the parcel before it and show one lot line while the tab shows another. *Waiting for the queue
+  // as it was is not waiting for the queue.* Raised in review. Loop until the tail stops moving;
+  // each pass awaits a promise that is already settled or in flight, so it cannot spin.
+  for (let seen = saveChains.get(pid); seen; ) {
+    await seen;
+    const now = saveChains.get(pid);
+    if (now === seen) return;
+    seen = now;
+  }
+}
+
 export interface MassingTabCtx {
   api: ApiClient;
   projectId: () => string | null;
@@ -54,6 +85,37 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
   let parcel: LoadedParcel | null = null;
   const boundary = parcelBoundaryControl({ api: ctx.api }, (p) => {
     parcel = p;
+    // SITE-1 — **persist the ring, because until now nothing did.** It lived in this local variable
+    // and reached `compute_massing` as `lot_polygon`; a tab re-render dropped it and no other screen
+    // could ask for it, which is why the 3D viewer had no lot line to draw. `dev_property` is where
+    // the parcel/tax keys already live, and its PUT merges onto the stored blob under the project
+    // lock, so writing one key here neither clobbers the property form's nor races it.
+    //
+    // Fire-and-forget with a REPORTED failure: the massing preview must not wait on a save it does
+    // not read back, and a silent one would leave the viewer showing a lot line for a parcel the
+    // user thinks they replaced.
+    //
+    // SERIALISED, because a fire-and-forget PUT per selection is a race the project lock cannot
+    // settle. Select parcel A then parcel B and both requests are in flight; the lock decides who
+    // writes first, not who was chosen first, so A can land last and the viewer then draws a lot
+    // line the tab is not showing. *A lock orders the writes; it cannot order the intentions.*
+    // Chaining on the previous save makes arrival order equal selection order — including a CLEAR,
+    // which is the one that would otherwise resurrect a parcel the user removed. A failed save must
+    // not break the chain, so the rejection is absorbed here after being reported.
+    const pid = ctx.projectId();
+    if (!pid) {
+      ctx.setStatus("parcel boundary not saved — open a project first; this selection is used for "
+        + "the massing preview only and will be lost on a re-render");
+    } else {
+      const chain = (saveChains.get(pid) ?? Promise.resolve()).then(() =>
+        ctx.api.saveProperty(pid, { parcel_boundary: p && { ring_m: p.ring, area_m2: p.areaM2,
+          vertices: p.vertices, saved_at: new Date().toISOString() } })
+          .then(() => undefined)
+          .catch((e: unknown) => {
+            ctx.setStatus(`parcel boundary not saved: ${(e as Error).message}`);
+          }));
+      saveChains.set(pid, chain);
+    }
     for (const key of ["lot_width", "lot_depth"] as const) {
       const inp = inputs[key];
       if (!inp) continue;

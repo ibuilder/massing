@@ -247,6 +247,37 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + "re-derive before quoting it").toBeLessThan(alsoNoLiteral.length);
   });
 
+  it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",
+    () => {
+      // `ClashResult.truncated` was returned by the server and read by NOBODY, and the reason is
+      // visible in this derivation's own method: the clash panel re-spelled the response shape as
+      // an inline cast instead of using the declared interface, so no property access anywhere
+      // resolved to this member. Declaring the shape once and using it is what makes the field
+      // reachable AND what makes this check meaningful — pin both so a future inline cast reds here.
+      for (const k of ["ClashResult.truncated", "FederatedClashResult.pair_counts",
+                       "FederatedClashResult.truncated"]) {
+        expect(keyToFile.has(k), `${k} is no longer declared — re-derive before trusting this`)
+          .toBe(true);
+        expect(readersOutsideDecl(k).length, `${k} lost its reader`).toBeGreaterThan(0);
+      }
+    });
+
+  it("the three SCREEN-VS-REPORT fields fixed in this change resolve to a reader", () => {
+    // The asymmetric sub-population — declared here, rendered by `report_builders/`, read by
+    // nothing — is 52 candidates today. Two of them are the only ones whose OWN declaring doc
+    // comment states the invariant they belong to (`spec_count === coverage.specs +
+    // withdrawn_excluded.length`), and that is what separated a defect from the forty-odd fields
+    // that are merely not displayed: the author had already written down that the number on screen
+    // is a subset, and the screen did not say so. The third is the PDF's Loan fees row.
+    //
+    // *A candidate set of fifty-two is triage; the filter that ranks it is the finding.*
+    for (const k of ["SpineTraceability.spec_count", "SpineTraceability.withdrawn_excluded",
+                     "ProformaResult.sources_uses.loan_fees"]) {
+      expect(keyToFile.has(k), `${k} is no longer declared — re-derive before trusting this`).toBe(true);
+      expect(readersOutsideDecl(k).length, `${k} lost its reader`).toBeGreaterThan(0);
+    }
+  });
+
   it("the six fields the valuation panel was fixed to render now resolve to a reader", () => {
     // The defects this derivation found, pinned as READ so a future edit that drops one of them from
     // the panel fails HERE as well as in proforma.render.test.ts. Two independent derivations must

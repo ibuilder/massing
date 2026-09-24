@@ -12,6 +12,67 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The Discipline Spine says how many spec sections it is NOT counting
+
+The chain-coverage bars are computed over the *enforced* spec population — sections a withdrawal has
+taken out of the chain are excluded, and correctly so: a withdrawn section is not an unpackaged one.
+The card printed the enforced number and nothing else, so on a job with a void section its "18
+specs" silently disagreed with the 21 in the spec register, with nothing on the page accounting for
+the difference. It now reads "21 spec sections on the job · **3 withdrawn (excluded)**, so every bar
+above is taken over 18", with the sections themselves in a disclosure below it. The server has always
+returned both numbers for exactly this reason, and the submittal-log card has always rendered the
+same caveat.
+
+Two of the four bars, not all four: `sheets_specced_pct` divides by the drawing count and
+`packages_costed_pct` by the package count, neither of which a withdrawn spec changes. The caveat
+names the two it applies to.
+
+### Sources & Uses shows the loan fees
+
+The PDF's Sources & Uses itemises six rows; the on-screen table showed five. The missing one is the
+origination points — real money, and invisible because its absence balances: the fee is folded into
+Total uses and funded out of equity, so uses still equalled debt plus equity and every visible number
+reconciled. On two points against a $13m loan that is $260k of the equity cheque with no line of its
+own.
+
+### The coordination matrix now counts the whole clash run, not the first page of it
+
+A federated clash run returns two numbers: `count`, every interference it found, and `clashes`, the
+first 200 of them. The Clash panel printed the first beside the list and used the second to build
+the discipline-pair matrix — the screen a coordination meeting reads to decide which trades still
+have to talk to each other.
+
+That matrix is the one place this product makes a claim about what was *checked*, and it has a
+third state for exactly this: a pair nobody ran is `untested`, never `clean`. Building it from the
+page defeated that from outside. Every returned clash on a large model tends to belong to one or two
+busy pairs, so a pair whose interferences all sat past the 200th arrived with no evidence at all —
+and with every pair declared tested, it was reported **clean**. Measured on a 1,438-clash fixture
+with 918 of them between architecture and MEP, none on the first page: the matrix said 100% pair
+coverage, nothing untested, and called that pair clean.
+
+Both federated paths now tally clashes per discipline pair over the *whole* run, where the full list
+still exists, and the tally travels beside the page: the list is what a person clicks, the tally is
+what a report may claim. Against an older server that truncates and sends no tally, the panel
+declares nothing tested rather than guessing — those pairs read `untested`, which is what the third
+state is for.
+
+Two smaller things on the same screen. The list header counted the page while the summary above it
+counted the run, so two different numbers sat under the word "clashes" with nothing saying a cap was
+in play; it now reads "200 of 1438 clashes — click to inspect (list capped)". And a single-model run
+that creates issues says when the cap is why fewer issues exist than clashes.
+
+`truncated` was a field the server had always returned and nothing had ever read, which is how this
+survived: the panel re-spelled the response shape inline rather than using the declared one, so no
+type, lint or audit could see the omission. The shapes are now declared once in
+`apps/web/src/api/clash.ts` and the audit pins them as read.
+
+Review then found the same premise one level further down. The panel declared *every* pair of
+discipline models tested, including each model against itself — and a federated run excludes
+same-model overlaps by construction, because a beam meeting its own column is a joint, not a
+coordination finding. So the diagonal was reported clean by a run that could not have looked at it.
+It is now filtered on the model key, which keeps two distinct models that happen to share a
+discipline label correctly counted as tested.
+
 ### Clicking a register pin on the model now opens its record
 
 A pin on the 3D model is a register record's marker — an RFI, a punch item, an observation. Clicking
@@ -49,6 +110,53 @@ reassigns its own root to the content pane and registers a window listener befor
 first render, which can reject — so a retry would have nested a second shell inside the first and
 added a duplicate listener. Making a failure recoverable makes every partial mutation on the way to
 it reachable.
+
+### The project's parcel boundary now draws on the model
+
+Load a cadastral boundary on Feasibility → Massing and the lot line is available in the 3D viewer,
+under Open ▾ → Site context. It is the same ring the building was sized against, not a second copy
+loaded separately — the two cannot drift.
+
+The roadmap carried this as "parcel overlays", which sounds like a drawing task, and both halves of
+the drawing already shipped: the viewer draws OSM land-use parcels, and the server parses a real
+cadastral boundary that sizes the building on the lot's true outline. What was missing sat one layer
+down — nothing persisted the ring. The feasibility tab held it in a local variable and sent it
+straight to the massing engine; a tab re-render dropped it, and no other screen could ask for it.
+
+The ring is stored beside the parcel and tax keys it belongs with, through the merging write that
+already serialises the property form against the feasibility tab. It is drawn in metres rather than
+being re-projected through a lon/lat anchor, which is how a lot line ends up a continent from its
+building.
+
+Review then found the frame was wrong in a smaller, quieter way. A saved ring is shifted to its own
+bounding-box *minimum*, so it lies wholly in the positive quadrant, while a generated massing model
+is built around the origin — the lot line sat off the corner of its own building. It is now
+recentred on the bounding-box **centre**, which is the anchor the massing generator already uses to
+put the parcel in the building's frame. The test that claimed to pin the frame passed before and
+after that fix, because its only fixture was a square centred on the origin and the translation was
+a no-op on it.
+
+And the save is now serialised per project. Selecting one parcel and then another fired two
+independent writes; the project lock decides which lands last by arrival, not by which was chosen,
+so the viewer could end up drawing a parcel the tab was not showing — and a select-then-clear pair
+could resurrect a parcel the user had removed. Selecting a parcel with no project open now says so
+instead of skipping the save silently.
+
+The queue outlives one render of the tab, which is what makes it a queue: the feasibility tab
+re-renders whenever the proforma does, including immediately after "Generate IFC model", and a queue
+rebuilt at that moment cannot order the save that was already in flight across it.
+
+**Saving the property no longer deletes the rest of it.** `PUT /projects/{pid}/property` preserved
+one key across a write — the saved appraisal — and let the request body replace everything else. That
+read as a merge for as long as the only caller was the property form, which reads the whole record,
+edits it and sends it back. This change added a caller that sends the parcel boundary alone, and that
+write took the address, the block and lot, the purchase price, the areas and every tax line with it.
+The route now merges the body over the stored record: the body still wins where they overlap, so the
+form can still edit, and an explicit null still clears, because what matters is a key omitted versus
+a key sent as null.
+
+The viewer also waits for a pending boundary save before reading the property back, so opening the
+overlay straight after selecting a parcel no longer reports that none is saved.
 
 ### Four records called concurrency gaps open that the sweep had already closed
 
