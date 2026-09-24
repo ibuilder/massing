@@ -316,7 +316,9 @@ if _URL:
     #: Reproduced against the pre-fix shape at 1 s / 3 s before this check was written; it is here so
     #: the shape cannot drift back. Static checks cannot see this -- the code looks identical either
     #: way, and only the transaction's STATE across the yield differs.
+    from sqlalchemy import create_engine as _create_engine  # noqa: E402
     from sqlalchemy import text as _text  # noqa: E402
+    from sqlalchemy.orm import sessionmaker as _sessionmaker  # noqa: E402
 
     import aec_api.pid_lock as _pl  # noqa: E402
 
@@ -333,7 +335,24 @@ if _URL:
     #: `ALTER ROLE CURRENT_USER` needs no ownership, interpolates no identifier, and applies to the
     #: role's NEW connections -- which is what `dispose()` below forces. It is also a fair model of
     #: the real hazard: a managed PostgreSQL imposing this per role or per database.
-    _pl_eng = __import__("aec_api.db", fromlist=["engine"]).engine
+    #:
+    #: THE ENGINE IS BUILT FROM `_URL`, NOT TAKEN FROM `aec_api.db`. The third draft read
+    #: `aec_api.db.engine` -- the engine THIS process imported at startup -- and only the CHILD
+    #: processes above are given `DATABASE_URL=_URL`. Locally the parent happened to carry a
+    #: Postgres DSN too, so it passed; in CI the parent is SQLite and `ALTER ROLE` died with
+    #: `near "ROLE": syntax error`. *Every arm above ran against the server and this one ran
+    #: against a different database entirely -- inside the same `if _URL:` block that had just
+    #: proved a server exists.* So the engine is constructed here and `aec_api.db` is re-pointed at
+    #: it for the duration, because `_advisory` re-reads that attribute on every call.
+    _pl_db = __import__("aec_api.db", fromlist=["engine"])
+    _pl_eng = _create_engine(_URL, pool_pre_ping=True)
+    check("the idle-timeout arm is wired to the SERVER, not to this process's default engine",
+          _pl_eng.dialect.name == "postgresql",
+          f"built {_pl_eng.dialect.name!r} from _URL -- this arm would measure a database that has "
+          f"no advisory locks and no idle_in_transaction_session_timeout")
+    _pl_saved = (_pl_db.engine, _pl_db.SessionLocal)
+    _pl_db.engine = _pl_eng
+    _pl_db.SessionLocal = _sessionmaker(bind=_pl_eng)
     with _pl_eng.connect() as _cfg:
         _cfg.execute(_text("ALTER ROLE CURRENT_USER SET idle_in_transaction_session_timeout = 1000"))
         _cfg.commit()
@@ -357,6 +376,7 @@ if _URL:
         _cfg.execute(_text("ALTER ROLE CURRENT_USER RESET idle_in_transaction_session_timeout"))
         _cfg.commit()
     _pl_eng.dispose()
+    _pl_db.engine, _pl_db.SessionLocal = _pl_saved      # leave the module as this file found it
     check("the lock survives a critical section longer than idle_in_transaction_session_timeout",
           _survived is True,
           f"a rival took the lock mid-section ({_survived}) -- the acquiring session was killed for "
