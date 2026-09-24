@@ -7,11 +7,12 @@
  */
 import * as THREE from "three";
 
-export interface LogisticsResource {
-  id: string; kind: string; label?: string;
-  position?: [number, number, number]; polygon?: [number, number][]; radius?: number;
-  start?: string; end?: string;
-}
+/** RESPELLED-SHAPE — this was a character-for-character second declaration of the interface in
+ *  `apps/web/src/api/types.ts`. See the note in `apps/web/src/shell/vitalsBar.ts`: a duplicated wire
+ *  shape is invisible to every audit over the declarations, which is how a returned field can go
+ *  unread indefinitely. Re-exported so existing importers keep their spelling. */
+export type { LogisticsResource } from "../../api/types";
+import type { LogisticsResource } from "../../api/types";
 
 const COLORS: Record<string, number> = {
   crane: 0xffb000, hoist: 0xff8c00, laydown: 0x33d17a, gate: 0x4a8cff,

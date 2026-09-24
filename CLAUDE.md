@@ -353,6 +353,18 @@ inline cast instead of using the declared interface, so no property access anywh
 `truncated` and no type error, lint or audit over declarations could reach it. **A re-spelled shape
 is a field no derivation over declarations can see** — the shapes are declared once now, and
 `apps/web/src/api/deadFieldTyped.test.ts` pins them READ so an inline cast reds there too.
+**That last sentence was a fix for one panel, and the class was swept tree-wide on 2026-09-24:
+`apps/web/src/api/noRespelledShapes.test.ts`.** Two more wire types were declared twice — `Vital` and
+`LogisticsResource`, character-for-character copies of `api/types.ts`, the first under a comment
+reading *"as the API returns it"*. Neither was a live defect, so the sweep is a clean negative on
+symptoms and a real one on exposure. **The finding is the rule's NARROWNESS.** A structural-subset
+rule reports 20 matches of which 18 are noise or deliberate, and gating it needs five judgement-call
+exemptions — *an exemption list is where the next instance hides*, which is what COURT-SPLIT paid to
+learn when it bounded its population. Identical NAME **and** identical member set claims something
+else: not *these look alike* but *somebody wrote this out twice*. No exemptions, and the four
+same-name collisions under `apps/web/src/vendor/` stay clean because their members differ. *A check
+whose expected answer is zero is the easiest kind to break silently*, so it asserts its walk still
+finds declarations on both sides before it may report nothing.
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
