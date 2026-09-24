@@ -110,6 +110,28 @@ describe("CLASH-TRUNC: a truncated clash run", () => {
     void panel;
   });
 
+  it("never declares the intra-model DIAGONAL tested — a federated run cannot examine it", async () => {
+    // `clash.detect_federated` skips any pair whose two elements carry the same model tag
+    // (`if tags[i] == tags[j]: continue`), because an intra-model overlap is a beam-column joint,
+    // not a coordination finding. So STR×STR is never tested by this run — and declaring it tested,
+    // with no findings for it, makes `soft_clash.matrix` report it `clean`. That is this item's own
+    // defect one level down: a premise the caller supplies that the run cannot support.
+    const { matrixCalls } = await run(TRUNCATED);
+    btn("Discipline-pair matrix").click();
+    await flush();
+    const body = matrixCalls[0] as { tested_pairs: [string, string][] };
+    expect(body.tested_pairs.length, "no pair is declared tested at all — the check below would "
+      + "then pass by vacuity").toBeGreaterThan(0);
+    expect(body.tested_pairs.filter(([a, b]) => a === b),
+      "a same-model pair is declared tested; the federated run excluded it by construction")
+      .toEqual([]);
+    // …and the cross pairs ARE still declared, so the filter has not thrown the coverage away.
+    // Order-independent: the panel sends the pair in the disciplines' own order and the server's
+    // `pair_key` is what normalises it, so asserting a direction here would pin the wrong thing.
+    expect(body.tested_pairs.map((pr) => [...pr].sort().join("|")).sort())
+      .toEqual(["ARC|MEP", "ARC|STR", "MEP|STR"]);
+  });
+
   it("declares NOTHING tested when the run is truncated and no tally came back", async () => {
     // An older server truncates and sends no `pair_counts`. Falling back to the page would resume
     // the defect silently, so the honest degradation is the engine's third state: a pair with no

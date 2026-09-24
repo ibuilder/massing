@@ -43,6 +43,13 @@ survived: the panel re-spelled the response shape inline rather than using the d
 type, lint or audit could see the omission. The shapes are now declared once in
 `apps/web/src/api/clash.ts` and the audit pins them as read.
 
+Review then found the same premise one level further down. The panel declared *every* pair of
+discipline models tested, including each model against itself — and a federated run excludes
+same-model overlaps by construction, because a beam meeting its own column is a joint, not a
+coordination finding. So the diagonal was reported clean by a run that could not have looked at it.
+It is now filtered on the model key, which keeps two distinct models that happen to share a
+discipline label correctly counted as tested.
+
 ### Clicking a register pin on the model now opens its record
 
 A pin on the 3D model is a register record's marker — an RFI, a punch item, an observation. Clicking
@@ -111,6 +118,10 @@ independent writes; the project lock decides which lands last by arrival, not by
 so the viewer could end up drawing a parcel the tab was not showing — and a select-then-clear pair
 could resurrect a parcel the user had removed. Selecting a parcel with no project open now says so
 instead of skipping the save silently.
+
+The queue outlives one render of the tab, which is what makes it a queue: the feasibility tab
+re-renders whenever the proforma does, including immediately after "Generate IFC model", and a queue
+rebuilt at that moment cannot order the save that was already in flight across it.
 
 ### Four records called concurrency gaps open that the sweep had already closed
 

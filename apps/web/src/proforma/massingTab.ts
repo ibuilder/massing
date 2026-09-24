@@ -7,6 +7,17 @@ import { escapeHtml } from "../ui/feedback";
 import { money, pct } from "./format";
 import { type LoadedParcel, parcelBoundaryControl } from "./parcelBoundary";
 
+/** SITE-1 — the tail of each project's parcel-boundary save chain; see the write in the tab below.
+ *
+ *  MODULE scope, not per-render, and the difference is the whole point. `renderMassingTab` runs
+ *  again on every `ProformaUI.render()` — including the one `adoptAssumptions` triggers straight
+ *  after "Generate IFC model", which is exactly when a save may be in flight. A chain living in the
+ *  render closure would be replaced there, so a selection in the new tab would race the one still
+ *  settling in the old, and the late write would win. *A queue that is re-created cannot serialise
+ *  across the thing that re-created it.* Raised in review. Keyed by project so two projects do not
+ *  queue behind each other. */
+const saveChains = new Map<string, Promise<void>>();
+
 export interface MassingTabCtx {
   api: ApiClient;
   projectId: () => string | null;
@@ -52,8 +63,6 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
   // inward; nothing could reach it. While a parcel is loaded, width/depth are shown as the parcel's
   // own bounding box and disabled, so it is clear which figure the building is being sized on.
   let parcel: LoadedParcel | null = null;
-  /** SITE-1 — the tail of the parcel-boundary save chain; see the comment at the write below. */
-  let saveChain: Promise<void> = Promise.resolve();
   const boundary = parcelBoundaryControl({ api: ctx.api }, (p) => {
     parcel = p;
     // SITE-1 — **persist the ring, because until now nothing did.** It lived in this local variable
@@ -78,13 +87,14 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
       ctx.setStatus("parcel boundary not saved — open a project first; this selection is used for "
         + "the massing preview only and will be lost on a re-render");
     } else {
-      saveChain = saveChain.then(() =>
+      const chain = (saveChains.get(pid) ?? Promise.resolve()).then(() =>
         ctx.api.saveProperty(pid, { parcel_boundary: p && { ring_m: p.ring, area_m2: p.areaM2,
           vertices: p.vertices, saved_at: new Date().toISOString() } })
           .then(() => undefined)
           .catch((e: unknown) => {
             ctx.setStatus(`parcel boundary not saved: ${(e as Error).message}`);
           }));
+      saveChains.set(pid, chain);
     }
     for (const key of ["lot_width", "lot_depth"] as const) {
       const inp = inputs[key];

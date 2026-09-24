@@ -90,12 +90,21 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       out.textContent = bits.join(" · ")
         + (co ? ` — ${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
       renderClashes(r.clashes ?? [], r.count);
+      // CLASH-TRUNC, review round 2 — the DIAGONAL is not tested by a federated run and must not be
+      // declared so. `clash.detect_federated` skips any pair whose two elements carry the same model
+      // tag (`if tags[i] == tags[j]: continue`), because an intra-model overlap is a beam-column
+      // joint, not a coordination finding. Declaring STR×STR tested therefore hands the matrix the
+      // same false premise this whole item is about, one level down: a pair the run CANNOT have
+      // examined, with no findings, reported `clean`.
+      // The filter is on the model-map KEY, not on the discipline label: two models sharing a
+      // discipline get a `(id)` suffix from the route, so they are distinct keys and genuinely are
+      // cross-tested. Raised in review.
       const discs = r.disciplines ?? [];
       const tested: [string, string][] = [];
       for (let i = 0; i < discs.length; i++) {
-        for (let j = i; j < discs.length; j++) {
+        for (let j = i + 1; j < discs.length; j++) {
           const a = discs[i], b = discs[j];
-          if (a && b) tested.push([a, b]);
+          if (a && b && a !== b) tested.push([a, b]);
         }
       }
       // CLASH-TRUNC — the matrix is built from the server's per-pair tally over the WHOLE run, not
@@ -134,7 +143,9 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
       // CLASH-TRUNC: topics are minted for the first `limit` results only, so on a truncated run
       // "N clashes · M issue(s) created" understates without saying why. The cap is named.
       out.textContent = `${r.count} clashes · ${r.created_topics ?? 0} issue(s) created`
-        + (r.truncated ? ` — capped: only the first ${(r.clashes ?? []).length} became issues` : "")
+        + (r.truncated
+          ? ` — issue creation was capped at the first ${(r.clashes ?? []).length} clashes`
+          : "")
         + `. Open Issues to coordinate.`;
       list.replaceChildren();
       await d.refreshIssues(); await d.reloadModelPins();

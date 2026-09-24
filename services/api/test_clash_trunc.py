@@ -151,8 +151,16 @@ def _returns_full_tally(path: pathlib.Path, func: str) -> tuple[bool, str]:
                     and v.func.attr == "pair_tally"):
                 return False, f"{func}: pair_counts is not a pair_tally() call"
             arg = v.args[0] if v.args else None
-            if isinstance(arg, ast.Name):
+            # The binding must be `results`, not merely SOME name. Raised in review: a bare-Name
+            # check passes `pair_tally(page)` where `page = results[:limit]` — the defect restored
+            # through a variable instead of inline, which is the shape a later refactor produces.
+            # *An analyser that accepts any name has stopped reading the argument and started
+            # reading its syntax class.*
+            if isinstance(arg, ast.Name) and arg.id == "results":
                 return True, f"{func}: pair_tally({arg.id})"
+            if isinstance(arg, ast.Name):
+                return False, (f"{func}: pair_tally({arg.id}) — the tally must be taken over the "
+                               f"full `results` binding, and any other name may already be a page")
             return False, (f"{func}: pair_tally() is given "
                            f"{type(arg).__name__} — a slice here IS the defect")
         return False, f"{func}: the returned dict carries no pair_counts"
@@ -172,6 +180,8 @@ _mutants.mkdir(parents=True, exist_ok=True)
 _src = (SRC / "jobs.py").read_text(encoding="utf-8")
 for name, wrong, expect in (
         ("page", "soft_clash.pair_tally(results[:limit])", "a slice here IS the defect"),
+        # The review's shape: the slice moved behind a name. A bare-Name check calls this correct.
+        ("alias", "soft_clash.pair_tally(page)", "must be taken over the full `results` binding"),
         ("gone", "None", "not a pair_tally() call")):
     f = _mutants / f"jobs_{name}.py"
     f.write_text(_src.replace("soft_clash.pair_tally(results)", wrong, 1), encoding="utf-8")

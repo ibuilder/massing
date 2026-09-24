@@ -32,7 +32,15 @@ const parcel = (tag: string): LoadedParcel => ({
   widthM: 1, depthM: 1, vertices: 3, source: tag,
 } as unknown as LoadedParcel);
 
-function harness(pid: string | null = "p1") {
+/** Re-runs the real `renderMassingTab` against the same deps — what `ProformaUI.render()` does. */
+function renderTab(h: ReturnType<typeof harness>) {
+  const root = document.createElement("div");
+  renderMassingTab(root, h.ctx);
+  return root;
+}
+
+let project = 0;
+function harness(pid: string | null = null) {
   const landed: string[] = [];
   const settle: (() => void)[] = [];
   const status: string[] = [];
@@ -42,12 +50,17 @@ function harness(pid: string | null = "p1") {
         settle.push(() => { landed.push(body.parcel_boundary ? "set" : "clear"); resolve(); });
       })),
   };
-  const root = document.createElement("div");
-  renderMassingTab(root, {
-    api: api as never, projectId: () => pid,
+  // A DISTINCT project per harness: the chain is module-scoped on purpose (that is the fix), so a
+  // shared id would queue one test's saves behind another's and the order under test would not be
+  // the order this test set up.
+  const id = pid === null ? `p${++project}` : pid;
+  const ctx = {
+    api: api as never, projectId: () => (pid === null ? id : pid),
     setStatus: (m: string) => status.push(m), adoptAssumptions: () => undefined,
-  });
-  return { landed, settle, status, api };
+  };
+  const h = { landed, settle, status, api, ctx };
+  renderTab(h);
+  return h;
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -90,8 +103,30 @@ describe("SITE-1: parcel-boundary saves", () => {
       .toHaveBeenCalledTimes(2);
   });
 
+  it("keeps its order across a RE-RENDER of the tab, which replaces the closure", async () => {
+    // `ProformaUI.render()` re-runs `renderMassingTab`, and `adoptAssumptions` calls it right after
+    // "Generate IFC model" — precisely when a boundary save may still be in flight. A chain living
+    // in the render closure is replaced there, so the new tab's selection races the old tab's
+    // pending write and the late one wins. *A queue that is re-created cannot serialise across the
+    // thing that re-created it.* Raised in review.
+    const h = harness();
+    captured.onChange!(parcel("A"));          // …in flight, not yet settled
+    await flush();
+    expect(h.api.saveProperty).toHaveBeenCalledTimes(1);
+
+    renderTab(h);                              // the re-render, mid-save
+    captured.onChange!(null);                  // a clear from the NEW instance
+    await flush();
+    expect(h.api.saveProperty, "the new instance started its own chain — the clear is racing A")
+      .toHaveBeenCalledTimes(1);
+
+    for (let i = 0; i < 2; i++) { h.settle[i]?.(); await flush(); }
+    expect(h.landed, "the clear did not wait for the in-flight save from before the re-render")
+      .toEqual(["set", "clear"]);
+  });
+
   it("says so when there is no project to save to, rather than skipping silently", () => {
-    const h = harness(null);
+    const h = harness("");
     captured.onChange!(parcel("A"));
     expect(h.api.saveProperty).not.toHaveBeenCalled();
     expect(h.status.join(" "), "a skipped save with no message reads as a saved one")

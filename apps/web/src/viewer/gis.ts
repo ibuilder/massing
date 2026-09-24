@@ -326,9 +326,20 @@ export function buildParcelOutline(ringM: number[][]): GisResult {
   // it. The two anchors coincide only on a symmetric lot, and an asymmetric one is exactly the case
   // worth aligning — so picking the prettier anchor would leave a smaller version of the same
   // offset, against the half of the system that already placed geometry.
-  const xs = pts.map((p) => p[0] ?? 0), ys = pts.map((p) => p[1] ?? 0);
-  const ax = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const ay = (Math.min(...ys) + Math.max(...ys)) / 2;
+  // One pass, not `Math.min(...xs)`: a spread pushes every vertex onto the argument stack, and a
+  // cadastral ring large enough to reach the engine's limit would throw RangeError here — the lot
+  // line simply failing to draw, with the parcel analysis, the save and the fetch all having
+  // succeeded. Raised in review.
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    const x = p[0] ?? 0, y = p[1] ?? 0;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const ax = (minX + maxX) / 2;
+  const ay = (minY + maxY) / 2;
   const group = new THREE.Group(); group.name = "parcel-boundary";
 
   // The lot LINE: a closed loop just above the roads (0.05) so it reads over the context layer.

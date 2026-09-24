@@ -76,14 +76,30 @@ describe("buildParcelOutline", () => {
     // `massing.py` recentres the parcel on `(min+max)/2` per axis so it shares the building's
     // origin frame. The two anchors agree only on a symmetric lot, so choosing the other one here
     // would leave a smaller version of the misalignment this fix exists to remove — against the
-    // half of the system that has already placed geometry. Read the generator rather than restate
-    // it: a drift there is silent, and the symptom is an overlay that is *nearly* right.
+    // half of the system that has already placed geometry.
+    //
+    // **The viewer half is asserted NUMERICALLY, because the first version of this test matched the
+    // source text `Math.min(...xs)` and broke the moment that spread was legitimately replaced by a
+    // one-pass loop — a rewrite that did not move a single vertex.** Its message would then have
+    // blamed the anchor. *A check that pins a SPELLING fails on a rewrite and passes on a rewrite
+    // that changes the answer; only the second is worth a build.* The generator is still read as
+    // source, because a drift there is silent and cross-language.
+    const { object } = buildParcelOutline(LOT);
+    const line = object.children.find((c) => c.type === "LineLoop") as unknown as
+      { geometry: { getAttribute(n: string): { array: ArrayLike<number> } } };
+    const firstX = Array.from(line.geometry.getAttribute("position").array)[0]!;
+    // LOT's bbox centre is x = 15; its polygon AREA centroid is x = 52000/3000 ≈ 17.33. The first
+    // vertex sits at x = 0, so the two anchors place it at -15 and ≈ -17.33 — far enough apart that
+    // this cannot pass under the wrong one.
+    expect(firstX, "the outline is not anchored on the bounding-box centre").toBeCloseTo(-15, 6);
+    expect(firstX, "the outline is anchored on the polygon AREA centroid — the generator does not "
+      + "use that anchor, so the lot line would sit ~2.3 m off the building it belongs to")
+      .not.toBeCloseTo(-52000 / 3000, 2);
+
     const gen = readFileSync(join(process.cwd(), "..", "..", "services", "data", "src", "aec_data",
       "massing.py"), "utf8");
     expect(gen, "the generator no longer recentres on its bbox centre — re-derive the viewer's "
       + "anchor before trusting this overlay").toMatch(/\(min\(pxs\) \+ max\(pxs\)\) \/ 2/);
-    const viewer = readFileSync(join(process.cwd(), "src", "viewer", "gis.ts"), "utf8");
-    expect(viewer).toMatch(/Math\.min\(\.\.\.xs\) \+ Math\.max\(\.\.\.xs\)\) \/ 2/);
   });
 
   it("sits above the ground plane but below the roads the site-context layer draws at 0.05", () => {
