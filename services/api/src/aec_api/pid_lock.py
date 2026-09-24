@@ -76,10 +76,25 @@ def _lock_timeout_s() -> int:
     **Refuses a non-positive or unparseable value rather than falling back.** `lock_timeout = 0` is
     PostgreSQL's spelling for *no timeout* -- measured, not assumed: with it set, a contender waited
     out a 6 s holder and acquired. So `AEC_PID_LOCK_TIMEOUT_S=0` would silently restore the very
-    unbounded wait this exists to remove, and a typo like `30s` or an empty string would have taken
-    the default while the operator believed their value was in force. *A safety bound that can be
-    switched off by a value that looks like a setting is worse than one that cannot be configured at
-    all.* Raised in review.
+    unbounded wait this exists to remove, and a typo like `30s` would have taken the default while
+    the operator believed their value was in force. *A safety bound that can be switched off by a
+    value that looks like a setting is worse than one that cannot be configured at all.* Raised in
+    review.
+
+    **An EMPTY value is treated as absent, and that is deliberate** -- this sentence previously
+    listed it beside `30s` as refused, which the code below has never done. Two reasons it stays
+    that way, and the second is the load-bearing one:
+
+    * it is this tree's convention -- `plugin_registry.PLUGIN_TIMEOUT_S` reads
+      `int(os.environ.get("AEC_PLUGIN_TIMEOUT_S", "30") or 30)`, where the `or` exists for exactly
+      this case, because compose files and k8s manifests routinely template an unset value as `""`;
+    * **empty does not disable the bound.** The refusals above exist because `0`, `-5` and `abc`
+      each end in *no enforced wait limit*; empty ends in 30 seconds, which is the safe value. *A
+      refusal earns its place from the outcome it prevents, not from the input looking malformed* --
+      and a boot that dies on an empty string is an outage for a value that was never dangerous.
+
+    Pinned by `services/api/test_pid_lock_bound.py`, so the choice cannot flip back unnoticed in
+    either direction.
     """
     raw = os.environ.get("AEC_PID_LOCK_TIMEOUT_S")
     if raw is None or raw == "":

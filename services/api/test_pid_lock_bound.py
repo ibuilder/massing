@@ -200,6 +200,32 @@ os.environ.pop("AEC_PID_LOCK_TIMEOUT_S", None)
 check("  ...while ABSENT still means the default, so existing deployments are untouched",
       pid_lock._lock_timeout_s() == 30, "the unset default changed")
 
+#: EMPTY is absent, not malformed -- pinned because it is a judgement call, not an accident, and the
+#: docstring above once claimed the opposite of what the code did. Refusing `0`/`-5`/`abc` is about
+#: the OUTCOME (no enforced wait limit); an empty value yields 30 s, the safe one, so refusing it
+#: would only turn a templated `""` in a compose file into a boot failure. Same shape as
+#: `plugin_registry.PLUGIN_TIMEOUT_S`, whose `or 30` exists for this case.
+#: CALLED INSIDE A `try`, and that is not defensive habit. The obvious form --
+#: `check(..., pid_lock._lock_timeout_s() == 30, ...)` -- was written first and MEASURED against the
+#: mutation that drops `raw == ""`: `int("")` raises, the exception escapes mid-argument, and the
+#: run dies with a bare traceback. Two things are lost, and the second is worse. The diagnostic
+#: below never prints, so the one reader who needs it sees a `ValueError` instead; and the script
+#: stops at this line, so **both behavioural arms further down never run** -- a red build whose
+#: coverage silently shrank to nothing. *Make a check FAIL; do not settle for it not passing.*
+os.environ["AEC_PID_LOCK_TIMEOUT_S"] = ""
+try:
+    _empty = pid_lock._lock_timeout_s()
+except BaseException as _e:                          # noqa: BLE001
+    _empty = f"raised {type(_e).__name__}"
+os.environ.pop("AEC_PID_LOCK_TIMEOUT_S", None)
+check("  ...and an EMPTY value is absent, not malformed -- it yields the safe default, not a "
+      "disabled bound",
+      _empty == 30,
+      f"an empty value gave {_empty!r}, not the default; refusing `0`/`-5`/`abc` is about the "
+      f"OUTCOME (no enforced wait limit) and empty yields the safe 30 s, so this would only turn a "
+      f"templated `\"\"` in a compose file into a boot failure. If the change IS intended, the "
+      f"docstring and `.env.example` have to move with it")
+
 #: A 503 the caller can retry, not the generic 500 -- which would also file every contention event
 #: in the error-log feed and Sentry as a server fault.
 import aec_api.main as _main  # noqa: E402
