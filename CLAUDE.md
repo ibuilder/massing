@@ -312,8 +312,16 @@ RMW-LOCKGAP's did. Two spellings broke its first draft in opposite directions: w
 identifier chain, `routers/proforma.share_scenario` read as `routers` and RMW-TOKEN came back clean;
 matching a PREFIX of a backticked span made `edit-mep` match the route `edit`. *A defect the
 analyser cannot spell is invisible to it and reads exactly like an absent one; a prefix match
-answers a question nobody asked, confidently.* It replays both documents as shipped at `53cfa71a`
-and must re-find **all four** records and **nothing else** before it may report.
+answers a question nobody asked, confidently.* It replays the four records as shipped at `53cfa71a` and
+must re-find **all four** and **nothing else** before it may report.
+**And CI caught a fourth mistake no local run could.** That replay first read the commit with
+`git show`, which works locally and does not in CI, whose checkout is shallow — so the gate failed
+closed on every build with *"fatal: invalid object name"*. Failing closed was right; depending on
+history was not. **A proof-of-reach that depends on the depth of somebody's clone is not a proof, it
+is a dependency on an environment nobody here controls** — and every neighbouring gate already
+embeds its pre-fix subject instead of fetching it. The records are now frozen under
+`services/api/tests/fixtures/gap_records/`, and a missing or truncated fixture reds the build rather
+than letting the replay pass by having nothing to find.
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in

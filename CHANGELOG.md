@@ -52,9 +52,13 @@ took its lock the day before.
 
 `services/api/test_gap_records.py` now fails the build on the class. It derives the sites from the
 sweep's own ledgers by AST and the records from both documents by indentation, and holds any record
-that cites the sweep and reads as open to naming at least one still-open site. It replays both
-documents as they shipped at `53cfa71a` and must re-find all four records, and nothing else, before
-it may report a clean tree.
+that cites the sweep and reads as open to naming at least one still-open site. It replays the four
+records as they shipped at `53cfa71a` — frozen under `services/api/tests/fixtures/gap_records/` —
+and must re-find all four, and nothing else, before it may report a clean tree.
+
+The first draft read those records out of git history instead of copying them. That works on a
+full clone and not in CI, whose checkout is shallow, so the gate failed closed on every build. A
+proof that an analyser finds anything cannot depend on the depth of somebody's clone.
 
 `services/api/test_roadmap_status.py` gained the self-tests it was missing. Its loop reads
 `if not marked_open(code): PASS; continue`, so a `marked_open` that can never say yes sent every

@@ -57,21 +57,33 @@ report a clean tree.
 **And it proves its reach before it reports.** The verdict function is separate from the walk so it
 can be mutated on its own (`test_unique_read_guard`'s lesson: *reporting a site and classifying it
 are two different questions, and asserting one is not asserting the other*), and the whole analyser
-is replayed against both documents AS SHIPPED at `53cfa71a` — the commit before this fix — where it
-must re-find all four stale records. A pinned commit, not `HEAD`: replaying against HEAD would stop
-proving anything the moment this fix merged.
+is replayed against the four records AS SHIPPED at `53cfa71a`, frozen under
+`services/api/tests/fixtures/gap_records/`, where it must re-find all four and nothing else.
+
+**That fixture is a COPY, and the first draft got it wrong in a way CI caught and no local run
+could.** The replay read the commit with `git show 53cfa71a:docs/roadmap.md`. Locally that works;
+in CI the checkout is shallow, the object is not in the clone, and the gate failed closed on every
+build with *"fatal: invalid object name"*. Failing closed was correct — an analyser that cannot read
+its inputs must not report a clean tree — but *a proof-of-reach that depends on the depth of
+somebody's clone is not a proof, it is a dependency on an environment nobody here controls*, and the
+same break would hit any contributor's shallow clone. Every neighbouring gate in this tree embeds
+its pre-fix subject rather than fetching it (`test_seeding_sweep` runs against the shipped pre-fix
+SAML door; `test_system_columns` reinstates the pre-fix `_system_field`); reaching into history was
+the novel choice and the worse one.
 """
 import ast
 import pathlib
 import re
-import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 
-#: The commit immediately before the four records were corrected. Pinned on purpose -- see above.
+#: The commit the frozen fixtures were taken from -- named so a reader can diff them against
+#: history where history is available, never read by this file.
 PRE_FIX = "53cfa71a"
+#: The four stale records as they shipped, copied rather than fetched -- see the docstring.
+FIXTURES = pathlib.Path(__file__).resolve().parent / "tests" / "fixtures" / "gap_records"
 
 #: A record is in this gate's scope only if it cites the gate that owns the ledger.
 OWNER_GATE = "test_rmw_sweep.py"
@@ -224,12 +236,17 @@ def stale(text: str, kind: str, status_by_fn: dict[str, str]) -> list[tuple[str,
             for how, named in [verdict(body, status_by_fn)] if how == NO_OPEN]
 
 
-def at(rev: str, path: str) -> str:
-    r = subprocess.run(["git", "show", f"{rev}:{path}"], cwd=ROOT,
-                       capture_output=True, text=True, encoding="utf-8")
-    if r.returncode != 0:
-        die(f"cannot read {path} at {rev}: {r.stderr.strip()}")
-    return r.stdout
+def fixture(name: str) -> str:
+    """One frozen pre-fix document. Fails closed if it is missing or has been emptied."""
+    p = FIXTURES / name
+    if not p.is_file():
+        die(f"the frozen fixture {p} is missing — the replay below is what proves this analyser "
+            f"finds anything, so its absence is not a reason to report a clean tree")
+    text = p.read_text(encoding="utf-8")
+    if len(text) < 500:
+        die(f"the frozen fixture {p} is {len(text)} bytes — too small to hold the four records it "
+            f"must, so the replay would pass by having nothing to find")
+    return text
 
 
 ROADMAP = ROOT / "docs" / "roadmap.md"
@@ -274,18 +291,18 @@ check("SELF-TEST: a PREFIX of a backticked span does not count — `edit-mep` is
       verdict(_CITE + "the `edit-mep` group", {"edit": "LOCKED"})[1] == [])
 
 # --- the replay: the shipped stale records must come back ----------------------------------------
-_pre_roadmap = stale(at(PRE_FIX, "docs/roadmap.md"), "roadmap", STATUS_BY_FN)
-_pre_tm = stale(at(PRE_FIX, "docs/security/threat-model.md"), "threat-model", STATUS_BY_FN)
+_pre_roadmap = stale(fixture("roadmap.md"), "roadmap", STATUS_BY_FN)
+_pre_tm = stale(fixture("threat-model.md"), "threat-model", STATUS_BY_FN)
 _pre = {c for c, _ in _pre_roadmap} | {c for c, _ in _pre_tm}
 
-check(f"REPLAY at {PRE_FIX}: the analyser re-finds RMW-LOCKGAP and RMW-TOKEN in the roadmap as "
+check(f"REPLAY of the {PRE_FIX} records: the analyser re-finds RMW-LOCKGAP and RMW-TOKEN in the roadmap as "
       "shipped — without this, every clean report below is a claim about an analyser that has "
       "never been shown to find anything",
       {"RMW-LOCKGAP", "RMW-TOKEN"} <= _pre, f"roadmap: {_pre_roadmap}")
-check(f"REPLAY at {PRE_FIX}: ...and BOTH threat-model gaps, found through a second document and a "
+check(f"REPLAY of the {PRE_FIX} records: ...and BOTH threat-model gaps, found through a second document and a "
       "different record shape, so the delimiter is not tuned to one file",
       {"G-10", "G-12"} <= _pre, f"threat-model: {_pre_tm}")
-check(f"REPLAY at {PRE_FIX}: ...and nothing else. A replay that also swept in unrelated records "
+check(f"REPLAY of the {PRE_FIX} records: ...and nothing else. A replay that also swept in unrelated records "
       "would prove the analyser fires, not that it fires on the right thing",
       _pre == {"RMW-LOCKGAP", "RMW-TOKEN", "G-10", "G-12"}, f"found: {sorted(_pre)}")
 
@@ -302,6 +319,6 @@ check("no threat-model gap cites the sweep, reads as open, and has no open site 
 
 print(f"GAP-RECORDS OK — {len(STATUS_BY_FN)} ledger subjects across {_n_road} roadmap items and "
       f"{_n_tm} threat-model gaps; no open record has run out of subject. Proved by replaying "
-      f"{PRE_FIX}, where all four shipped stale records come back and nothing else does."
+      f"the frozen {PRE_FIX} records, where all four come back and nothing else does."
       if not FAILED else f"test_gap_records: {len(FAILED)} FAILED — {FAILED}")
 sys.exit(1 if FAILED else 0)
