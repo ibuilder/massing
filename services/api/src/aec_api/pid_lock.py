@@ -63,11 +63,33 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 from contextlib import contextmanager
 from typing import Any
 
 _log = logging.getLogger("aec.pid_lock")
+
+#: How long a writer may WAIT for another writer on the same project before giving up. Not how long
+#: it may HOLD the lock -- there is no bound on that, and there cannot be one from here.
+LOCK_TIMEOUT_S = int(os.environ.get("AEC_PID_LOCK_TIMEOUT_S", "30") or 30)
+
+#: PostgreSQL's SQLSTATE for `lock_timeout` expiring. Load-bearing, and the reason this is a
+#: constant rather than an `except OperationalError`: a lock timeout and an unreachable server raise
+#: the SAME SQLAlchemy class, and only the sqlstate separates them (measured: a dead server carries
+#: `sqlstate = None`). Catching the class would route "somebody else holds this" into the
+#: degrade-to-in-process branch below, and a contended write would then proceed having taken no
+#: cross-process lock at all -- a CORRECTNESS bug, strictly worse than the unbounded wait it
+#: replaced. *Bounding a wait is only safe if the bound cannot be mistaken for the absence of a lock.*
+_SQLSTATE_LOCK_TIMEOUT = "55P03"
+
+
+class LockTimeout(TimeoutError):
+    """Another writer holds this project's lock and did not release inside `LOCK_TIMEOUT_S`.
+
+    A `TimeoutError` because that is this tree's spelling for a budget overrun (`aec_data.sandbox`,
+    `fragconvert.convert_ifc`), and because the caller's correct response is to tell the client to
+    retry -- not to write anyway."""
 
 _LOCKS: dict[str, threading.RLock] = {}
 _REGISTRY = threading.Lock()
@@ -177,9 +199,37 @@ def _advisory(pid: str):
     try:
         db = SessionLocal()
         if db.get_bind().dialect.name == "postgresql":
-            db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
+            # `SET LOCAL`, not `SET`: plain `SET` is CONNECTION-scoped, and this connection goes back
+            # to the pool. Measured on PostgreSQL 16 with a one-connection pool: a plain
+            # `SET lock_timeout = '1500ms'` was still in force on the NEXT checkout, so every
+            # unrelated query that later drew this connection would inherit a lock timeout nobody
+            # asked for. `SET LOCAL` reverts at COMMIT -- and the advisory lock SURVIVES that commit,
+            # because `pg_advisory_lock` is session-scoped rather than transaction-scoped. Both
+            # halves were measured; either being false would sink this shape.
+            with db.begin():
+                # INTERPOLATED, not bound. `SET` is not a DML statement and PostgreSQL rejects a
+                # placeholder there outright -- `SET LOCAL lock_timeout = $1` is a syntax error, so
+                # the parameterised form does not merely fail to apply the timeout, it raises, lands
+                # in the handler below, and degrades the write to in-process. `LOCK_TIMEOUT_S` is
+                # `int(...)` at module scope, so the f-string carries an integer and nothing a
+                # caller supplies. *The first draft of this line was parameterised and the two-
+                # process check caught it -- as an UNSERIALISED WRITE, which is the failure this
+                # whole change exists to prevent, arriving by a door it did not anticipate.*
+                db.execute(text(f"SET LOCAL lock_timeout = {int(LOCK_TIMEOUT_S) * 1000}"))
+                db.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
             acquired = True
     except Exception as e:                             # noqa: BLE001 — degrade to in-process, loudly
+        if getattr(getattr(e, "orig", None), "sqlstate", None) == _SQLSTATE_LOCK_TIMEOUT:
+            # NOT a degrade. See `_SQLSTATE_LOCK_TIMEOUT`: the lock exists and somebody else has it.
+            # Falling through to `acquired = False` here would let this writer proceed unserialised.
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:                      # noqa: BLE001,S110
+                    pass
+            raise LockTimeout(
+                f"another writer has held project {pid}'s lock for more than {LOCK_TIMEOUT_S}s"
+            ) from e
         _log.warning("pid_lock: cross-process lock unavailable for %s (%s); this write is serialised "
                      "within this process only", pid, e)
         acquired = False
