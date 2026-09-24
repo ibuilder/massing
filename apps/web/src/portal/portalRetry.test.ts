@@ -19,6 +19,16 @@ import { type PortalHost, PortalUI } from "./portal";
  *
  * *Making a failure recoverable makes every partial mutation on the way to it reachable.* The retry
  * was the fix; the fix is what exposed this. Raised in review on PR #577.
+ *
+ * The guard is `if (!this.nav)` — `nav` is already the "shell exists" sentinel `buildNav` reads, so
+ * the check costs nothing new. Everything AFTER it still re-runs on a retry: the module fetch, the
+ * spine, the nav rebuild, the render. *A retry that cannot render is not a retry*, which is why the
+ * guard wraps only the two mutations that must happen once rather than the whole method.
+ * `reg.hookOnline()` needs no guard either way: `UploadQueue` latches its own `hooked`.
+ *
+ * The reasoning lives here rather than beside the code because `portal.ts` is under an extraction
+ * ratchet, and the ratchet caught the eleven lines this paragraph used to be — *the lesson belongs
+ * next to the check that holds it, which is this file.*
  */
 const MODS = [
   { key: "rfi", name: "RFIs", section: "Coordination", room: "schedule", icon: "?", fields: [] },

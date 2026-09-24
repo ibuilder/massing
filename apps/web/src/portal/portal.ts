@@ -185,17 +185,7 @@ export class PortalUI {
   async init(): Promise<boolean> {
     if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return false; }
     this.mods = await this.host.api.modules();
-    // Build the persistent shell ONCE: [nav rail | content]. `this.root` is redirected to the
-    // content pane, so every existing render path writes into it while the nav rail stays put.
-    //
-    // **`if (!this.nav)` is the retry guard, and it became load-bearing on 2026-09-24.** This
-    // method reassigns `this.root` and registers a `window` listener before it awaits
-    // `renderHome()`, which can reject. Until `openPortalTab` learned to retry, a rejection was
-    // terminal and the second entry never happened; now it can, and without this guard a retry
-    // would nest a second shell INSIDE the first's content pane and add a duplicate persona
-    // listener. *Making a failure recoverable makes every partial mutation on the way to it
-    // reachable* — the retry was the fix, and the fix is what exposed this. Raised in review on
-    // PR #577. (`reg.hookOnline()` below needs no guard: `UploadQueue` latches its own `hooked`.)
+    // Build the shell ONCE — `this.root` becomes the content pane; `portalRetry.test.ts` owns why.
     if (!this.nav) {
       const outer = this.root;
       outer.innerHTML = ""; outer.classList.add("portal-shell");
@@ -203,9 +193,8 @@ export class PortalUI {
       const content = document.createElement("div"); content.className = "portal-content";
       outer.append(this.nav, content);
       this.root = content;
-      // re-order the module catalog's default-open sections when the persona changes
-      // `refreshCatalog()` was called here too until v0.3.1084, and had been a no-op since
-      // 2026-06-24. `buildNav` is the one that actually re-orders on a persona change.
+      // re-order the nav on a persona change (`buildNav`; `refreshCatalog()` sat here until
+      // v0.3.1084 and had been a no-op since 2026-06-24)
       window.addEventListener("aec:persona", () => { this.buildNav(); });
     }
     // The spine costs one request. A failure leaves `spine` null and the rail falls back to
