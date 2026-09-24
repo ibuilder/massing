@@ -305,7 +305,7 @@ const UNCALLED: readonly string[] = [
   "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
   "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
-  "mep", "modelAdjacency", "moduleCalc", "myWork",
+  "modelAdjacency", "moduleCalc", "myWork",
   "netEffectiveRent", "normalizeT12", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot",
   "proformaRenovation", "proformaRollover", "progressActuals",
@@ -386,10 +386,27 @@ describe("client methods the application actually calls", () => {
     // Down is NOT automatically fine here, unlike the innerHTML baseline. This list is the RECORD
     // of what cannot be reached; leaving a wired method in it makes the record lie, and the next
     // reader budgets against slack that is not there. The fix is one deletion and the gate names it.
-    expect(wired,
-      `${wired.length} method(s) in UNCALLED now HAVE a caller: ${wired.join(", ")}\n` +
+    //
+    // TWO REASONS, NOT ONE. An entry leaves `measured` either because the method gained a caller or
+    // because it stopped being a client method at all, and this said "now HAVE a caller" for both.
+    // ROUTE-SHADOW deleted `mep` — a method whose URL belonged to another route — and was told it
+    // had been wired. *A check whose failure message can misdiagnose is worse than one that stays
+    // silent, because somebody acts on it*: the named repair (delete the UNCALLED line) happened to
+    // be right, and the stated reason would have sent a reader looking for a screen that does not
+    // exist. `surface` is the live method list, so the two are distinguishable with no new input.
+    const gone = wired.filter((m) => !surface.includes(m));
+    const nowCalled = wired.filter((m) => surface.includes(m));
+
+    expect(nowCalled,
+      `${nowCalled.length} method(s) in UNCALLED now HAVE a caller: ${nowCalled.join(", ")}\n` +
       `Good - delete those line(s) from UNCALLED. The list must stay exact, because a stale entry ` +
       `is slack the next person spends without knowing.`)
+      .toEqual([]);
+
+    expect(gone,
+      `${gone.length} method(s) in UNCALLED no longer exist on the client: ${gone.join(", ")}\n` +
+      `Delete those line(s) too - but note the reason is REMOVAL, not wiring. A frozen name that ` +
+      `refers to nothing pre-authorises whatever later reuses it.`)
       .toEqual([]);
   });
 

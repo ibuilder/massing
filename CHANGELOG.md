@@ -6,6 +6,68 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### ROUTE-SHADOW — four routes were registered on a URL another route already owned
+
+Starlette matches the **first** route whose path and method fit, so a second registration on the same
+pair is not an override — it is dead code that looks live. FastAPI then builds the OpenAPI document
+into a dict keyed by path and method, so the **last** registration is the one that gets described.
+The server ran one handler and `/docs`, the OpenAPI JSON and `apps/web/src/api/schema.d.ts` all
+described the other.
+
+| URL | served | never ran |
+|---|---|---|
+| `GET …/drawings/plan.svg` | `routers/drawings.py::plan` | `routers/authoring_docs.py::plan_svg` |
+| `GET …/drawings/sheet.svg` | `routers/drawings.py::sheet_svg` | `routers/authoring_docs.py::sheet_svg` |
+| `GET …/drawings/sheet.pdf` | `routers/drawings.py::sheet_pdf` | `routers/authoring_docs.py::sheet_pdf` |
+| `GET …/mep` | `routers/analysis.py::mep` | `routers/authoring_analysis.py::mep_summary` |
+
+**Fixed — the MEP systems browser has never worked.** `apps/web/src/api/mep.ts` declared two shapes
+for `/projects/{pid}/mep`: `mepSummary()` with `systems` as a **list** of per-system counts, and
+`mep()` with `systems` as a **Record**. The inventory handler served, so
+`apps/web/src/viewer/tools/mepSection.ts` read `s.systems.length` off a Record, got `undefined`, and
+printed *"No distribution systems yet — add duct/pipe runs + fittings."* on every model that has ever
+had one — then returned, hiding the by-discipline rollup, the fire-protection check and the sizing
+checks below it. `/projects/{pid}/mep` now resolves to `mep_summary`, which is what the panel, the
+client method and the published contract all already expected.
+
+**Also fixed: the sheet parameters `apps/web/src/viewer/sheetSpecs.ts` was written to work around.**
+That module records, from a measurement on 2026-08-09, that the rail sent `number`, `title` and
+`scale` and the route dropped all three. It fixed the caller and diagnosed the cause as a caller
+speaking a dialect the callee does not. The dialect was real and published: `number`, `title` and
+`scale` are exactly the shadowed handler's parameters, which is what `/docs` describes for that URL.
+
+**The decisions ran in opposite directions, and consumers is what decides.** The three drawing
+handlers in `authoring_docs.py` went, because `drawings.py` serves a strict superset and the whole
+client is built on it. The **serving** `/mep` handler went, because `energy.mep_inventory` had one
+caller in the tree — that route — and its client method `api.mep()` had none at all. The engines stay
+in `aec_data`, still tested, so publishing the ARCH-D titleblock sheet under its own URL remains
+available as a product decision rather than a gap.
+
+**Gated: `services/api/test_route_shadow.py`.** Derives every `(path, method)` the app holds by
+walking FastAPI's deferred router placeholders; fails closed on any route object it cannot classify;
+floors the walk's size and requires the four routers that carried the collisions to be present, so a
+broken walk cannot report a clean tree in the words of a clean tree. It replays the four shipped
+registrations (built here, not fetched from git, which CI's shallow checkout cannot do) and must find
+**all four and nothing else**, and a walk narrowed to top-level routes must **miss** all four.
+
+**FastAPI's own warning saw two of the four.** It keys on a duplicate *operationId*, built from the
+function name plus the path, so it fired for `sheet_svg` and `sheet_pdf` — two handlers spelled the
+same — and stayed silent for `plan`/`plan_svg` and `mep`/`mep_summary`. *A warning keyed on the name
+cannot see a collision that is about the path*, and half a population reported confidently reads
+exactly like all of it.
+
+**Why nothing went red.** Every MEP assertion in `services/api/test_mep_systems.py` calls the engine
+`mep.mep_summary(m)` directly; not one goes through the route. *A test of the engine is not a test of
+the door.*
+
+**And the gate that would have named it misdiagnosed instead.** `apps/web/src/api/clientCallers.test.ts`
+already held `mep` in `UNCALLED` — it had measured the method as callerless and frozen that. Removing
+the method made its check fail with *"1 method(s) in UNCALLED now HAVE a caller: mep"*. An entry
+leaves that set either because it gained a caller or because it stopped existing, and the message
+asserted the first for both. The named repair happened to be right and the stated reason would have
+sent a reader looking for a screen that does not exist; the two are now separate assertions, each
+mutation-checked.
+
 Everything below ships in the next release. **These were 34 separate `## Unreleased` headings**
 until 2026-09-07 — one per change, each a peer of a real version — so the word had stopped
 meaning anything as a heading and the file read as 34 pending releases rather than one. The

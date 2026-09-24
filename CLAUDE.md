@@ -366,6 +366,31 @@ same-name collisions under `apps/web/src/vendor/` stay clean because their membe
 whose expected answer is zero is the easiest kind to break silently*, so it asserts its walk still
 finds declarations on both sides before it may report nothing.
 
+**A sixteenth joined them on 2026-09-24: `services/api/test_route_shadow.py`** — is any route
+registered on a `(path, method)` another route already owns? Starlette matches the FIRST such route,
+so a second registration is dead code that looks live; FastAPI then builds the OpenAPI document into
+a dict keyed by path and method, so the **LAST** one is what gets described. *Two tie-breaks over one
+collision, pointing opposite ways* — the server ran one handler and `/docs`, the OpenAPI JSON and
+`apps/web/src/api/schema.d.ts` described the other. Four had shipped, and the newest was born dead:
+`W11 C1`/`C3` landed at v0.3.262 onto URLs the sheet composer already held, so two features have
+never executed once. **FastAPI's own warning saw two of the four, and not the live one** — it keys on
+a duplicate *operationId*, built from the function NAME plus the path, so it fires only where two
+handlers are spelled the same. *A warning keyed on the name cannot see a collision that is about the
+path, and half a population reported confidently reads exactly like all of it.* The live defect was
+the pair it could not see: `api/mep.ts` declared two incompatible shapes for one URL, so the MEP
+systems browser read `.length` off a Record and printed "No distribution systems yet" on every model
+that has ever had one. Nothing went red because every MEP assertion calls the engine directly — *a
+test of the engine is not a test of the door*. **The per-site decisions ran in OPPOSITE directions on
+purpose**: the three drawing handlers went and the *serving* `/mep` handler went, because who the
+consumers are decides, not which registration won. The workaround was already in the tree with the
+cause named one layer too high — `viewer/sheetSpecs.ts` calls the rail "a caller speaking a dialect
+the callee does not", and that dialect is exactly the shadowed handler's published parameters: *a
+caller written from the documented contract is not speaking a dialect, it is the documentation
+describing the wrong handler.* And `apps/web/src/api/clientCallers.test.ts` **already held `mep` as
+callerless and froze it**, then reported the deletion as *"now HAVE a caller"* — an entry leaves that
+set for two reasons and the message asserted one. *A check whose failure message can misdiagnose is
+worse than one that stays silent, because somebody acts on it.*
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

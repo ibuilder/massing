@@ -1425,13 +1425,14 @@ def energy_idf(pid: str, db: Session = Depends(get_db),
                     headers={"Content-Disposition": 'attachment; filename="envelope.idf"'})
 
 
-@router.get("/projects/{pid}/mep")
-def mep(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
-    """MEP systems inventory from the model."""
-    from aec_data import energy as en  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    return en.mep_inventory(open_model(_source_ifc(db, pid)))
+# ROUTE-SHADOW — `/projects/{pid}/mep` was declared here AND in `routers/authoring_analysis.py`.
+# This one won the match, so `mep_summary` — the W11 B6 system browser the whole UI is built on —
+# never ran, while the OpenAPI document published ITS parameters and docstring. The removal goes
+# the other way round from this item's three drawing routes, and for the reason that decides every
+# such pair: who the consumers are. `energy.mep_inventory` had exactly one caller in the tree — this
+# route — and the client method for it, `api.mep()`, had none at all; `mep_summary` has the panel,
+# the client method and the published contract. The engine stays in `aec_data.energy`, tested by
+# `services/data/test_analysis.py`. See `services/api/test_route_shadow.py`.
 
 
 def _ids_key(pid: str) -> str:
