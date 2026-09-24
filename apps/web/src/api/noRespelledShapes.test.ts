@@ -40,8 +40,17 @@ const posix = (p: string) => p.replace(/\\/g, "/");
 const WEB = posix(resolve(process.cwd(), "src"));
 const API = `${WEB}/api`;
 
-const isApiDecl = (f: string) =>
-  f.startsWith(API) && !f.endsWith("schema.d.ts") && !f.endsWith(".test.ts");
+/** Is this file one of `api/`'s own declarations? The trailing slash is load-bearing: `resolve()`
+ *  does not keep one, so a bare `startsWith(API)` also matches a SIBLING whose name merely begins
+ *  with "api" — `src/apiClient.ts`, say. A duplicate declared there would be filed as an api/ source
+ *  rather than a local one, never enter the candidate list, and the gate would report a clean tree
+ *  while missing it. Every neighbouring assertion would still pass, because they count declarations
+ *  rather than ask where any particular one landed. *A predicate that decides what to LOOK at is
+ *  more dangerous than one that decides what to report* — this file's own subject, in this file.
+ *  Raised in review; no such sibling exists today, so nothing was being missed yet. Exported so the
+ *  boundary check below can probe it rather than infer it from a verdict. */
+export const isApiDecl = (f: string) =>
+  f.startsWith(`${API}/`) && !f.endsWith("schema.d.ts") && !f.endsWith(".test.ts");
 const isTest = (f: string) => f.endsWith(".test.ts") || f.endsWith(".test.tsx");
 
 const nameOf = (n: ts.PropertyName): string =>
@@ -133,6 +142,19 @@ describe("RESPELLED-SHAPE: no module re-declares an api/ wire type", () => {
       expect(isRespelled(d, api),
         `the predicate no longer recognises the ${d.name} duplicate this gate was built from`).toBe(true);
     }
+  });
+
+  it("treats an `api`-PREFIXED sibling as local, not as an api/ declaration", () => {
+    // `src/apiClient.ts` is not `src/api/`. Without the trailing slash the two are indistinguishable
+    // by prefix, and a duplicate declared in such a file would be filed on the wrong side and never
+    // examined. Asserted on the predicate directly: a verdict-level check cannot tell "correctly
+    // classified" from "classified wrongly and happened to find nothing".
+    expect(isApiDecl(`${WEB}/api/types.ts`), "a real api/ source is no longer recognised").toBe(true);
+    expect(isApiDecl(`${WEB}/apiClient.ts`),
+      "an api-PREFIXED sibling is being filed as an api/ declaration, so a duplicate declared there "
+      + "would never reach the candidate list").toBe(false);
+    expect(isApiDecl(`${WEB}/api/schema.d.ts`), "the generated schema is not a hand-written source")
+      .toBe(false);
   });
 
   it("does NOT flag a same-name shape whose members differ — the vendor collisions stay clean", () => {

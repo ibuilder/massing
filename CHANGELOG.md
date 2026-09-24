@@ -19,7 +19,12 @@ never that anyone decided to ignore it: the clash panel had re-spelled the respo
 property access resolved to the declared field and no type error, lint or unread-field audit could
 reach it. Two more shapes were written out twice the same way — `Vital` and `LogisticsResource`, both
 character-for-character copies of `api/types.ts`, one of them under a comment reading "as the API
-returns it". Both now import the type they were copying, and a new check refuses the next copy.
+returns it". Both now import the type they were copying.
+
+A new check refuses the next **exact** copy: same type name and same member set. That is narrower
+than the case above — a local shape that drops a field, as the clash panel's inline cast did, has a
+different member set and is not caught. The narrowness is deliberate: a subset rule flags twenty
+shapes here, eighteen of them deliberate narrowings, and gating it would need an exemption list.
 
 ### The Discipline Spine says how many spec sections it is NOT counting
 
