@@ -185,24 +185,35 @@ export class PortalUI {
   async init(): Promise<boolean> {
     if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return false; }
     this.mods = await this.host.api.modules();
-    // build the persistent shell once: [nav rail | content]. `this.root` is redirected to the
+    // Build the persistent shell ONCE: [nav rail | content]. `this.root` is redirected to the
     // content pane, so every existing render path writes into it while the nav rail stays put.
-    const outer = this.root;
-    outer.innerHTML = ""; outer.classList.add("portal-shell");
-    this.nav = document.createElement("nav"); this.nav.className = "portal-nav";
-    const content = document.createElement("div"); content.className = "portal-content";
-    outer.append(this.nav, content);
-    this.root = content;
+    //
+    // **`if (!this.nav)` is the retry guard, and it became load-bearing on 2026-09-24.** This
+    // method reassigns `this.root` and registers a `window` listener before it awaits
+    // `renderHome()`, which can reject. Until `openPortalTab` learned to retry, a rejection was
+    // terminal and the second entry never happened; now it can, and without this guard a retry
+    // would nest a second shell INSIDE the first's content pane and add a duplicate persona
+    // listener. *Making a failure recoverable makes every partial mutation on the way to it
+    // reachable* — the retry was the fix, and the fix is what exposed this. Raised in review on
+    // PR #577. (`reg.hookOnline()` below needs no guard: `UploadQueue` latches its own `hooked`.)
+    if (!this.nav) {
+      const outer = this.root;
+      outer.innerHTML = ""; outer.classList.add("portal-shell");
+      this.nav = document.createElement("nav"); this.nav.className = "portal-nav";
+      const content = document.createElement("div"); content.className = "portal-content";
+      outer.append(this.nav, content);
+      this.root = content;
+      // re-order the module catalog's default-open sections when the persona changes
+      // `refreshCatalog()` was called here too until v0.3.1084, and had been a no-op since
+      // 2026-06-24. `buildNav` is the one that actually re-orders on a persona change.
+      window.addEventListener("aec:persona", () => { this.buildNav(); });
+    }
     // The spine costs one request. A failure leaves `spine` null and the rail falls back to
     // FALLBACK_ROOMS — the six rooms are structural, so losing the *allocation* must not lose the
     // *shell*. With the classic rail gone (v0.3.779) there is nothing else to fall back to, which
     // makes that fallback load-bearing rather than belt-and-braces.
     try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
     this.buildNav();
-    // re-order the module catalog's default-open sections when the persona changes
-    // `refreshCatalog()` was called here too until v0.3.1084, and had been a no-op since
-    // 2026-06-24. `buildNav` is the one that actually re-orders on a persona change.
-    window.addEventListener("aec:persona", () => { this.buildNav(); });
     // drain any uploads queued offline in a previous session, and keep watching for reconnect
     this.reg.hookOnline(); void this.reg.flushUploads();
     // Land on the active room's home when a room was picked before init finished (the common path:

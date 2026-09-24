@@ -43,6 +43,13 @@ is best effort now, and says so rather than failing silently. And the jump waite
 instead of the portal's own init — **there were three copies of that guess**, and all three now share
 one wait that resolves when the portal is actually ready and reports when it cannot open at all.
 
+That last fix created a fourth defect, which the next review round found. Making the portal's init
+retryable turned every partial mutation on the way to a failure into reachable state: `init()`
+reassigns its own root to the content pane and registers a window listener before it awaits the
+first render, which can reject — so a retry would have nested a second shell inside the first and
+added a duplicate listener. Making a failure recoverable makes every partial mutation on the way to
+it reachable.
+
 ### Four records called concurrency gaps open that the sweep had already closed
 
 `services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
