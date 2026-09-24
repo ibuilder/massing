@@ -61,6 +61,10 @@ function memberKey(members: ts.NodeArray<ts.TypeElement>): string | null {
 
 interface Decl { name: string; file: string; key: string }
 
+/** Both populations in one pass over the TypeScript program: every exported-or-not interface in
+ *  `api/` keyed by name, and every interface declared outside it. Built from the program rather than
+ *  a filesystem walk so it sees exactly the files the compiler does — a walk and a `tsconfig` can
+ *  disagree, and the half this check reads must be the half that ships. */
 function derive() {
   const cfgPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists, "tsconfig.json");
   if (!cfgPath) throw new Error("no tsconfig.json — the derivation cannot run, which is not 'clean'");
