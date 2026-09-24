@@ -207,6 +207,77 @@ With no server it does not pass quietly: it asserts that `.github/workflows/db-m
 runs it with `AEC_PG_REQUIRED`, so deleting that step reds the ordinary suite instead of silently
 removing the only place the check is real — the construction `services/api/test_pin_pgnull.py` uses,
 for the same reason.
+### DESKTOP-CONVERT-TIMEOUT — the parameter reached one of the two branches
+
+`fragconvert.convert_ifc` has always taken a `timeout`. It reached `subprocess.run` on the Node
+path, where an overrunning child can be killed, and reached **nothing at all** on the Python path,
+which calls IfcOpenShell in the caller's own process. `_publish` runs on a background worker and
+does not care. **`edit_preview` is a synchronous route passing `timeout=120`**, so a slow model held
+a request worker past its own deadline instead of returning the 503 that route is written to give —
+and the parameter's *presence* is what made the gap invisible.
+
+It was filed rather than fixed because the obvious repair is a killable child process, which is
+net-new spawning machinery in a PyInstaller bundle. **That was the right call about that repair and
+the wrong conclusion about the problem**: `from_ifc.convert` already had a per-element loop with a
+progress hook, so a *cooperative* deadline fits with no process isolation at all. It now checks the
+clock after the parse, between elements, and every 4,096 entities in the index loop; `convert_ifc`
+computes the deadline from the caller's `timeout` (not the duration — the callee would restart the
+clock, and `edit_preview` authors a one-element IFC before it calls). Both paths raise
+`TimeoutError`: Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so telling "too slow"
+from "broke" meant knowing which converter ran, which is the fact this function exists to hide.
+
+**The entry stays OPEN, deliberately — and the first draft of this paragraph overstated what the
+fix does.** It said the change "bounds the cost that scales". It does not: `ifcopenshell.open` is a
+single call whose time scales with file size, and the checkpoint is *after* it, so a large file is
+parsed in full and only then refused. The accurate claim is **enforced at phase boundaries and
+within the two loops** — the geometry loop per element, the entity index every 4,096 — with the
+parse and any one hanging `create_shape` still outside every checkpoint. *Caught by re-reading my
+own claim against the code before review did, which is the only reason it is not in the shipped
+prose.* *A partial fix described as a fix is how the original asymmetry became invisible in the
+first place.*
+
+**Two defects in the gate, both found by its own mutations rather than by review.** Reinstating the
+pre-fix state red it, but deleting the parse and geometry checkpoints while leaving the entity-index
+one **passed** — that tick fires at entity 0, so the deadline was still detected, after all the
+geometry work was done. The timing assertion meant to catch that was vacuous: `elapsed < max(0.25,
+baseline * 0.9)` against a 33 ms fixture is satisfied by doing the whole conversion. *A threshold
+generous enough not to flake on a slow runner is generous enough to measure nothing.* The check now
+asserts the **stage name** in the raised message — a deadline already past must be caught at
+`parse`, before any geometry — and a second case crosses the deadline mid-loop through a deliberately
+slow `progress` hook, so both checkpoints are load-bearing. And the always-raise mutation used to
+kill the run with a traceback instead of naming a contract; the positive control now catches it.
+
+The first draft of that positive control also failed on *correct* code, asserting byte equality
+between two conversions — `metadata` embeds `"created": datetime.now(...)`. It compares the parsed
+model instead. *An assertion that fails on correct code costs a round exactly like one that passes on
+broken code.*
+
+**And forcing one branch to reach the code under test stopped testing the other.** Every check above
+sets `have_converter()` false to drive the Python path, so the Node half of "both paths raise
+`TimeoutError`" was asserted by nothing — a regression letting `subprocess.TimeoutExpired` escape
+would have passed the gate that exists for exactly that promise. Raised in review. *The act of
+forcing a branch is itself an act of un-testing its alternative, and it leaves no trace in the
+output.*
+
+Two arms, because neither covers the other. **Injected**: `subprocess.run` raises `TimeoutExpired`
+directly, proving the handler converts it; runs everywhere. **Real**: a Node process that does not
+finish, under a real budget, proving the whole chain including the argument being passed. Measured
+rather than argued — with `timeout=timeout` deleted from the call, the injected arm still **passes**,
+because its exception came from the stub and not from the runtime. The real arm needs a `node` the
+API gate's job does not install, so it is conditional, and a conditional arm that skips everywhere is
+a check reporting good news: the arms that ran are named in the output and at least one is required.
+
+**The real arm's first draft turned that mutation into a hang rather than a failure.** Its script only
+blocked, so dropping `timeout=` left `subprocess.run` waiting for ever — caught, in the sense that the
+gate never went green, but reported as nothing at all and paid for with a CI job's whole budget. The
+script now exits on its own timer too, so the same mutation returns normally and the arm fails **by
+name**, and a margin check separates "gave up at the budget" from "waited for the script". *Make a
+check fail; do not settle for it not passing.* The lane table's row for this item was also still
+carrying the pre-fix text two paragraphs of narrowing later — and its stated REASON, "the fix is
+process/packaging shape", is why the item read as unactionable for thirteen days: that is the repair
+the residue needs, recorded as the repair the whole item needed. *A correct decision with a wrong
+reason attached is worse than no reason, because the reason is what the next reader plans against.*
+
 ### An exclusion whose own differential is blind to what it wrongly excludes
 
 The vendored-tree exclusion below shipped as `"/src/vendor/" in q` — a match on the *parent*

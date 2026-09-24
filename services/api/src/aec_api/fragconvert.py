@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import time
 from pathlib import Path
 
 from .apppaths import add_data_src_to_path, converter_cli, have_converter
@@ -45,15 +46,26 @@ def available() -> bool:
 def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
     """Convert `src` (.ifc) to `dst` (.frag). Returns which converter ran: `NODE` or `PYTHON`.
 
-    **`timeout` binds the NODE path only, and that asymmetry is a known gap rather than a choice.**
-    `subprocess.run` kills a child that overruns; the Python path calls IfcOpenShell in-process, where
-    nothing can interrupt it, so a slow model occupies the caller until it finishes. For `_publish`
-    that is a background worker and harmless. For `edit_preview` — a synchronous route passing
-    `timeout=120` — it is a request worker held past its own deadline instead of reaching the 503.
-    Honouring it needs the conversion in a killable child process, which is net-new machinery in a
-    PyInstaller bundle (`multiprocessing` spawn re-execs the frozen app unless `freeze_support` is
-    wired), so it is filed as DESKTOP-CONVERT-TIMEOUT rather than rushed in here. Until then the
-    parameter is documented as partial rather than quietly ignored.
+    **`timeout` binds BOTH paths now, by different mechanisms and to different depths.** Node gets a
+    real one: `subprocess.run` kills a child that overruns. The Python path calls IfcOpenShell in the
+    caller's own process, where nothing can interrupt it from outside, so it gets a COOPERATIVE
+    deadline instead — `from_ifc.convert` checks the clock between elements and raises.
+
+    *It is enforced at phase boundaries and within the two loops — which is narrower than "the
+    parameter is honoured", and the difference is worth stating.* The per-element and per-entity
+    loops are bounded, so a model that overran because it had a lot in it is refused. **Two costs
+    sit outside every checkpoint**: `ifcopenshell.open`, one call whose time scales with file size
+    and which is therefore paid in full before the first check; and any single `create_shape` that
+    never returns, after which the loop never reaches the next check. Both need the killable child
+    process DESKTOP-CONVERT-TIMEOUT is filed for, and the entry stays open for them.
+    **Deliberately not marked closed on the strength of the narrower fix**, because "the parameter
+    is honoured" is exactly the reading that made the old asymmetry invisible.
+
+    **Both paths raise `TimeoutError`.** Node's own is `subprocess.TimeoutExpired`, which is a
+    `SubprocessError` and not a `TimeoutError`, so a caller distinguishing "too slow" from "broke"
+    would have had to know which converter ran — a fact this function exists to hide. Nothing caught
+    the old type (checked across the tree); `aec_data.sandbox` already raises `TimeoutError` for a
+    budget overrun, so this is the house spelling rather than a new one.
 
     Raises on failure. It does NOT promise `dst` is untouched afterwards: the Node path streams and
     can leave a truncated file behind, and only the Python path writes in one go. So a raise means
@@ -63,13 +75,27 @@ def convert_ifc(src: str | Path, dst: str | Path, *, timeout: int = 600) -> str:
     """
     src, dst = str(src), str(dst)
     if have_converter():
-        subprocess.run(["node", str(converter_cli()), src, dst],
-                       check=True, capture_output=True, timeout=timeout)
+        try:
+            subprocess.run(["node", str(converter_cli()), src, dst],
+                           check=True, capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            raise TimeoutError(f"IFC->Fragments conversion exceeded {timeout}s (node)") from e
         return NODE
     add_data_src_to_path()
     from aec_data.fragments.from_ifc import convert as _py_convert  # type: ignore
 
-    result = _py_convert(src)
+    #: The budget starts when THIS FUNCTION is entered, which is the same instant the Node path's
+    #: `subprocess.run(timeout=...)` starts its own — so the two branches measure the same interval,
+    #: which is the point of computing it here rather than handing the duration down.
+    #:
+    #: **What it does NOT cover: anything the caller did first.** `edit_preview` authors a
+    #: one-element IFC before it calls this, and that time is outside the budget. A first draft of
+    #: this comment claimed the opposite — that computing the deadline here is what stops the
+    #: authoring being "free" — which is wrong: `monotonic()` is read below, after the caller has
+    #: already done that work, so handing the duration down instead would differ only by the import
+    #: on the line above. Raised in review. *This change exists to state timeout scope accurately,
+    #: which makes a wrong scope claim in its own rationale the worst place to leave one.*
+    result = _py_convert(src, deadline=time.monotonic() + timeout)
     if result.failed:
         # Named, not swallowed: geometry IfcOpenShell could not build is a fact about the model that
         # a user can act on, and a converter that quietly returns fewer elements is the failure mode

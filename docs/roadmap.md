@@ -1327,15 +1327,44 @@ instances:
   flatbuffer root — without it, the first mutation could have been failing for an unrelated reason.
 
 - **DESKTOP-CONVERT-TIMEOUT — the Python converter cannot be interrupted** *(M — Lane J; opened
-  2026-09-10 by review of #504)*
+  2026-09-10 by review of #504; **NARROWED 2026-09-23, still OPEN**. Gated by
+  `services/api/test_fragconvert_timeout.py`)*
 
-  `services/api/src/aec_api/fragconvert.py` takes a `timeout` and applies it only to the Node path,
-  where `subprocess.run` can kill an overrunning child. The Python path calls IfcOpenShell
-  in-process, so nothing can interrupt it. `_publish` runs on a background worker and does not care;
-  **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model holds a
+  **AS FILED, 2026-09-10 — pre-fix; see the paragraph after this one for what is true now.**
+  `services/api/src/aec_api/fragconvert.py` took a `timeout` and applied it only to the Node path,
+  where `subprocess.run` can kill an overrunning child. The Python path called IfcOpenShell
+  in-process, so nothing could interrupt it. `_publish` runs on a background worker and did not
+  care; **`edit_preview` is a synchronous route that passes `timeout=120`**, so a slow model held a
   request worker past its own deadline rather than reaching the 503 the caller is written to expect.
+  *Kept in the past tense rather than rewritten, because the entry is still open and a reader needs
+  to know what it was opened for — but it was left in the PRESENT tense until review pointed out
+  that it then reads as the current state, two paragraphs above the one saying otherwise.*
 
-  The fix is a killable child process, and the reason it is filed rather than done is the target
+  **A COOPERATIVE deadline shipped 2026-09-23, and it is half of this — the half that was reachable
+  without the machinery below.** `from_ifc.convert` takes a `deadline` and checks the clock after
+  the parse, between elements in the geometry loop, and every 4,096 entities in the index loop;
+  `convert_ifc` computes it from the caller's `timeout` and both paths now raise `TimeoutError`
+  (Node's `subprocess.TimeoutExpired` is a `SubprocessError`, so a caller telling "too slow" from
+  "broke" had to know which converter ran — a fact that function exists to hide).
+
+  **What that bounds, phase by phase — and it is not all three.** The geometry loop is checked per
+  element and the entity-index loop every 4,096 entities, so a model that overran because it had a
+  lot in it is refused. **Two costs sit outside every checkpoint:** `ifcopenshell.open` is one call
+  whose time scales with file size, and the check is *after* it, so a large file is parsed in full
+  and then refused; and any single `create_shape` that never returns is never followed by another
+  checkpoint.
+
+  *A first draft of this entry said the fix "bounds the cost that SCALES", which is wrong about the
+  parse — a scaling cost sitting outside every checkpoint.* Found by re-reading the claim against
+  the code before review did. The accurate form is "enforced at phase boundaries and within the two
+  loops".
+
+  *So the entry stays open for the parse and the single hanging element, rather than being closed on
+  the strength of the reachable half.* **"The parameter is honoured" is exactly the reading that
+  made the original asymmetry invisible**, and a partial fix described as a fix would re-create it
+  one layer in.
+
+  The remainder is still a killable child process, and the reason it is still filed is the target
   platform: the desktop app is a PyInstaller bundle, where `multiprocessing` spawn re-execs the
   frozen executable unless `freeze_support()` is wired at the entry point, and this repository has
   no process-isolation pattern to copy — `multiprocessing` appears once, for `cpu_count()`.
@@ -3580,7 +3609,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | RMW-LOCKGAP *(six routes in `routers/authoring.py`; the lock they need is `pid_lock`, which is Lane C's, but every edit is in this lane's file)* · RMW-TOKEN *(both writers — `routers/proforma.py` and `routers/realestate.py` — are in this lane; the column it needs is `models.py`, which is Lane C's, so the migration half crosses over and the entry says so)* *(previously empty — RFQ-IDEMPOTENT shipped 2026-09-13.)* It carried that one item because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(the Python converter runs in-process and cannot be interrupted, so `edit_preview`'s 120 s deadline is unenforceable on the desktop path. Filed here rather than Lane C because the fix is process/packaging shape — killable child under PyInstaller, where spawn re-execs the frozen app — the same derived-here-fixed-there split as DESKTOP-SMOKE above)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**NARROWED 2026-09-23** — a COOPERATIVE deadline now bounds the Python path at its phase boundaries and inside both loops, so `edit_preview`'s 120 s is enforced, not unenforceable. What is left is the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row said the fix was "process/packaging shape — killable child under PyInstaller", and that reason is why the item sat unactionable for 13 days**: it is the repair the RESIDUE needs, and it was recorded as the repair the WHOLE item needed. The reachable half was a `deadline` argument in Lane C's `services/data/src/aec_data/fragments/from_ifc.py`. *A correct decision with a wrong reason attached is worse than no reason, because the reason is what the next reader plans against.* Gated by `services/api/test_fragconvert_timeout.py`)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
