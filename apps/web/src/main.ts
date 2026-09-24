@@ -277,6 +277,37 @@ async function addSiteContextFlow() {
   }
 }
 
+/**
+ * SITE-1 — draw the project's OWN parcel boundary on the model.
+ *
+ * Reads the ring the feasibility tab saved (`dev_property.parcel_boundary`) rather than asking for
+ * a file again: the lot line a user wants to see is the one the building was sized against, and
+ * loading a second copy is how the two drift. If no parcel has been loaded there, this says so
+ * instead of drawing nothing — *an empty result and a missing input look identical on a canvas.*
+ */
+async function addParcelBoundaryFlow() {
+  const { toast } = await import("./ui/feedback");
+  if (!projectId) { toast("Open a project first", "info"); return; }
+  try {
+    const res = await api.property(projectId);
+    const b = (res.property as { parcel_boundary?: { ring_m?: number[][]; area_m2?: number } })
+      .parcel_boundary;
+    const ring = b?.ring_m;
+    if (!ring?.length) {
+      toast("No parcel boundary saved — load one on Feasibility → Massing first", "info", 6000);
+      return;
+    }
+    const gis = await import("./viewer/gis");
+    const built = gis.buildParcelOutline(ring);
+    const v = await ensureViewer();
+    const area = b?.area_m2 ? ` · ${Math.round(b.area_m2).toLocaleString()} m²` : "";
+    v.addReferenceObject(built.object, `parcel boundary — ${built.info}${area}`);
+    toast(`Parcel boundary added — ${built.info}${area}`, "success");
+  } catch (e) {
+    toast(`parcel boundary failed: ${(e as Error).message}`, "error");
+  }
+}
+
 // ---- Open / Save dropdown menus (extracted to ./ui/menus) -------------------
 const dismissMenusIfOutside = (e: Event) => { if (!(e.target as HTMLElement).closest(".menu")) closeMenus(); };
 document.addEventListener("pointerdown", dismissMenusIfOutside, true);
@@ -300,6 +331,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Site context", sep: true },
   { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
   { label: "Add site context (OSM buildings)…", onClick: () => void addSiteContextFlow() },
+  { label: "Add parcel boundary (this project's lot line)…", onClick: () => void addParcelBoundaryFlow() },
   { label: "Import from Revit / CAD", sep: true },
   { label: "Free: export IFC from Revit (no bridge)…", onClick: () => showFreeImportHelp() },
   { label: "Revit (.rvt) — paid Autodesk bridge…", onClick: () => void importRvtFlow() },

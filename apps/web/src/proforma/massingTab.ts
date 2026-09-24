@@ -54,6 +54,21 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
   let parcel: LoadedParcel | null = null;
   const boundary = parcelBoundaryControl({ api: ctx.api }, (p) => {
     parcel = p;
+    // SITE-1 — **persist the ring, because until now nothing did.** It lived in this local variable
+    // and reached `compute_massing` as `lot_polygon`; a tab re-render dropped it and no other screen
+    // could ask for it, which is why the 3D viewer had no lot line to draw. `dev_property` is where
+    // the parcel/tax keys already live, and its PUT merges onto the stored blob under the project
+    // lock, so writing one key here neither clobbers the property form's nor races it.
+    //
+    // Fire-and-forget with a REPORTED failure: the massing preview must not wait on a save it does
+    // not read back, and a silent one would leave the viewer showing a lot line for a parcel the
+    // user thinks they replaced.
+    const pid = ctx.projectId();
+    if (pid) {
+      void ctx.api.saveProperty(pid, { parcel_boundary: p && { ring_m: p.ring, area_m2: p.areaM2,
+        vertices: p.vertices, saved_at: new Date().toISOString() } })
+        .catch((e: unknown) => ctx.setStatus(`parcel boundary not saved: ${(e as Error).message}`));
+    }
     for (const key of ["lot_width", "lot_depth"] as const) {
       const inp = inputs[key];
       if (!inp) continue;

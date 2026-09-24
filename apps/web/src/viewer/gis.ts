@@ -283,6 +283,67 @@ export function buildSiteContext(gj: { features: SiteFeature[] }, centerLat: num
   return { object: group, info: `${nB} buildings · ${nR} roads · ${nU} parcels` };
 }
 
+/**
+ * SITE-1 — the project's OWN parcel boundary, as a lot line on the model.
+ *
+ * ## The premise this was filed under, and what was actually missing
+ *
+ * The roadmap carried this as "parcel overlays", which reads like a drawing task. `buildSiteContext`
+ * above already draws land-use parcels, and `parcel_geometry.analyze` already parses a real cadastral
+ * boundary — PARCEL-SHAPE wired it to the feasibility tab, where it sizes the building on the lot's
+ * true outline instead of its bounding rectangle. So both halves existed and the viewer still showed
+ * no lot line.
+ *
+ * **The gap was one layer down: nothing PERSISTED the ring.** `massingTab.ts` held the analysed
+ * parcel in a local variable and sent it to `compute_massing` as `lot_polygon`; when the tab
+ * re-rendered it was gone, and no other screen could ask for it. *A blocker named one layer too high
+ * is the shape this roadmap keeps recording* — there was nothing for a drawing task to draw.
+ *
+ * ## Why this takes metres and no anchor
+ *
+ * `parcelAnalyze` returns `ring_m`: the boundary already projected to metres about **its own
+ * centroid**. That is the frame `compute_massing` offsets inward for the buildable footprint, so
+ * drawing it about the scene origin puts the lot line in the same frame the building was sized in —
+ * the two agree by construction rather than by a second projection agreeing with the first.
+ *
+ * It is deliberately NOT georeferenced through `project()` like the OSM context. That path needs a
+ * lon/lat anchor, and mixing one with a ring that is already metres is how a lot line lands a
+ * continent away. Rendering near the scene origin is this repository's standing rule; real
+ * coordinates are preserved for export, not used to place the view.
+ *
+ * The ring is OPEN (no repeated closing vertex), as `parcel_geometry` emits it — the loop closes it.
+ */
+export function buildParcelOutline(ringM: number[][]): GisResult {
+  const pts = ringM.filter((p) => p.length >= 2 && isFinite(p[0] ?? NaN) && isFinite(p[1] ?? NaN));
+  if (pts.length < 3) throw new Error("a parcel boundary needs at least 3 points");
+  const group = new THREE.Group(); group.name = "parcel-boundary";
+
+  // The lot LINE: a closed loop just above the roads (0.05) so it reads over the context layer.
+  const loop: number[] = [];
+  for (const p of pts) loop.push(p[0] ?? 0, 0.08, -(p[1] ?? 0));
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(loop, 3));
+  group.add(new THREE.LineLoop(lineGeo, new THREE.LineBasicMaterial({ color: 0xffb200 })));
+
+  // …and a translucent fill, so the lot reads as an area at a glance rather than four lines.
+  const flat: number[] = [];
+  for (const p of pts) flat.push(p[0] ?? 0, p[1] ?? 0);
+  const fill: number[] = [];
+  for (const idx of earcut(flat, [], 2)) {
+    const fx = flat[idx * 2], fy = flat[idx * 2 + 1];
+    if (fx === undefined || fy === undefined) continue;
+    fill.push(fx, 0.02, -fy);
+  }
+  if (fill.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(fill, 3));
+    geo.computeVertexNormals();
+    group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: 0xffb200, transparent: true, opacity: 0.12, side: THREE.DoubleSide, roughness: 1 })));
+  }
+  return { object: group, info: `${pts.length} vertices` };
+}
+
 // --- slippy-map basemap (opt-in, self-hosted tiles) -------------------------
 export interface BasemapOpts { template: string; lat: number; lon: number; zoom?: number; radius?: number; }
 

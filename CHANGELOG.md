@@ -50,6 +50,23 @@ first render, which can reject — so a retry would have nested a second shell i
 added a duplicate listener. Making a failure recoverable makes every partial mutation on the way to
 it reachable.
 
+### The project's parcel boundary now draws on the model
+
+Load a cadastral boundary on Feasibility → Massing and the lot line is available in the 3D viewer,
+under Open ▾ → Site context. It is the same ring the building was sized against, not a second copy
+loaded separately — the two cannot drift.
+
+The roadmap carried this as "parcel overlays", which sounds like a drawing task, and both halves of
+the drawing already shipped: the viewer draws OSM land-use parcels, and the server parses a real
+cadastral boundary that sizes the building on the lot's true outline. What was missing sat one layer
+down — nothing persisted the ring. The feasibility tab held it in a local variable and sent it
+straight to the massing engine; a tab re-render dropped it, and no other screen could ask for it.
+
+The ring is stored beside the parcel and tax keys it belongs with, through the merging write that
+already serialises the property form against the feasibility tab. It is drawn in metres about the
+scene origin — the same frame the massing engine offsets it in — rather than being re-projected
+through a lon/lat anchor, which is how a lot line ends up a continent from its building.
+
 ### Four records called concurrency gaps open that the sweep had already closed
 
 `services/api/test_rmw_sweep.py` reports *"43 ORM sites: 43 reasoned exempt or locked, 0 named
