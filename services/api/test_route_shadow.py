@@ -52,7 +52,6 @@ PROOF OF REACH
 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_route_shadow.py
 """
-import collections
 import os
 import sys
 
@@ -63,7 +62,7 @@ os.environ.setdefault("STORAGE_DIR", "./_route_shadow_store")
 
 from fastapi import APIRouter, FastAPI  # noqa: E402
 from fastapi.routing import APIRoute  # noqa: E402
-from starlette.routing import BaseRoute, Match, Route  # noqa: E402
+from starlette.routing import Route  # noqa: E402
 
 from aec_api.main import app  # noqa: E402
 
@@ -85,99 +84,116 @@ class Unclassified(Exception):
     """Raised when the walk meets something it cannot rule on. Never caught into a skip."""
 
 
-def _sub_router(placeholder):
-    """The router behind a FastAPI `_IncludedRouter` placeholder.
+class Reg:
+    """One route registration, resolved: the URL it really answers and the regex that decides it.
 
-    FastAPI defers `include_router` work, leaving a placeholder in `app.routes` that holds the real
-    router and the prefix it was mounted under. The attribute name is not public API, so this looks
-    for `router` first and then for any attribute exposing `.routes` — and raises rather than
-    returning None if neither exists, because a silent None here is failure mode 1.
+    Built from FastAPI's own `_EffectiveRouteContext` where one exists, because the inclusion prefix
+    lives only there. The first draft reached into the placeholder's `original_router` and read a
+    `prefix` attribute — which **does not exist** on this FastAPI version, so it silently used the
+    UN-prefixed router: `include_router(r, prefix="/p")` was reported as `/x/thing`, not
+    `/p/x/thing`, and two handlers colliding at the prefixed URL passed the gate clean. *Guessing at
+    another library's internals is a precondition you did not write down* — asking it instead
+    removes the guess.
     """
-    sub = getattr(placeholder, "router", None)
-    if sub is not None and hasattr(sub, "routes"):
-        return sub
-    for name in dir(placeholder):
-        if name.startswith("__"):
-            continue
-        value = getattr(placeholder, name, None)
-        if hasattr(value, "routes") and not isinstance(value, BaseRoute):
-            return value
-    raise Unclassified(
-        f"{type(placeholder).__name__} exposes no sub-router; the walk would silently stop here")
+
+    __slots__ = ("path", "method", "regex", "convertors", "endpoint")
+
+    def __init__(self, path, method, regex, convertors, endpoint):
+        self.path, self.method = path, method
+        self.regex, self.convertors, self.endpoint = regex, convertors, endpoint
 
 
-def expand(routes, prefix="", _depth=0):
-    """Every APIRoute reachable from `routes`, paired with the prefix it is mounted under.
-
-    Yields `(full_path, method, route)` triples. Fails closed: an object it cannot classify raises.
-    """
+def expand(routes, _depth=0):
+    """Every route registration the app holds, in match order. Fails closed on anything unclassified."""
     if _depth > 20:
         raise Unclassified("router nesting deeper than 20 — refusing to guess")
     for r in routes:
         name = type(r).__name__
         if isinstance(r, APIRoute):
             for m in sorted(r.methods or ()):
-                if m in ("HEAD", "OPTIONS"):
-                    continue
-                yield prefix + r.path, m, r
+                if m not in ("HEAD", "OPTIONS"):
+                    yield Reg(r.path, m, r.path_regex, r.param_convertors, r.endpoint)
         elif name.endswith("IncludedRouter"):
-            sub = _sub_router(r)
-            yield from expand(sub.routes, prefix + (getattr(r, "prefix", "") or ""), _depth + 1)
+            contexts = getattr(r, "effective_route_contexts", None)
+            if contexts is None:
+                raise Unclassified(
+                    f"{name} exposes no effective_route_contexts; the prefix cannot be resolved and "
+                    "the walk would report un-prefixed paths")
+            for ctx in contexts():
+                for m in sorted(getattr(ctx, "methods", None) or ()):
+                    if m not in ("HEAD", "OPTIONS"):
+                        yield Reg(ctx.path, m, ctx.path_regex, ctx.param_convertors,
+                                  ctx.original_route.endpoint)
         elif isinstance(r, Route) or name in _IGNORABLE:
             continue
         else:
-            raise Unclassified(f"unclassified route object {name!r} at prefix {prefix!r}")
+            raise Unclassified(f"unclassified route object {name!r}")
 
 
-def _concrete(path):
-    """A URL the declaring route certainly matches: each `{param}` filled with a placeholder.
+#: One probe value per Starlette convertor. `str` is the default; the others exist because a probe
+#: that does not satisfy the convertor cannot match its own route, and a collision on such a route
+#: would be reported clean — CodeRabbit's finding on the first draft, which handled only `str` and
+#: asserted merely that no `:path` existed.
+_PROBE = {"str": "v", "int": "1", "float": "1.5", "uuid": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
 
-    Sound because no route in this tree uses a `:path` converter (asserted below) — with one, a
-    single segment would not stand in for the rest of the URL and this would under-report.
+
+def probe_url(reg):
+    """A URL `reg` certainly answers, with each parameter filled to satisfy its own convertor.
+
+    **The soundness check is not this table, it is `probe_matches_own_route` below.** A convertor
+    absent from `_PROBE` yields a probe its own route rejects, and that is asserted rather than
+    assumed — so a Starlette release adding a convertor, or a route declaring a custom one, reds the
+    build instead of quietly shrinking the population. *A list of known cases is a list somebody
+    stopped widening; a self-check is not.*
     """
-    out, n = [], 0
-    for seg in path.strip("/").split("/"):
+    out = []
+    for seg in reg.path.strip("/").split("/"):
         if seg.startswith("{") and seg.endswith("}"):
-            n += 1
-            out.append(f"v{n}")
+            inner = seg[1:-1]
+            name, _, conv = inner.partition(":")
+            out.append(_PROBE.get(conv or "str", "\x00unprobeable"))
         else:
             out.append(seg)
     return "/" + "/".join(out)
 
 
+def probe_matches_own_route(reg):
+    """Does the probe actually match the route it was built from? If not, the probe proves nothing."""
+    return reg.regex.match(probe_url(reg)) is not None
+
+
 def shadowed(routes):
     """Every registration an EARLIER one already answers, keyed by the shadowed (path, method).
 
-    **Asks Starlette, rather than comparing strings.** The four shipped instances were identical
-    paths, and an equality test would find all four — but equality is a precondition, not the rule:
-    Starlette matches by regex, so `/projects/{pid}/drawings/{name}` registered first swallows a
-    later `/projects/{pid}/drawings/sheet.svg` just as completely, and a gate written to the four
-    known spellings would report that tree clean. *A predicate that decides what to LOOK at is more
-    dangerous than one that decides what to report.* Measured before widening: the live tree holds
-    **0** of the non-identical form, so this costs no exemptions and no noise today — it removes a
-    precondition rather than chasing a finding.
+    **Asks the resolved regex, rather than comparing strings.** The four shipped instances were
+    identical paths, and an equality test would find all four — but equality is a precondition, not
+    the rule: Starlette matches by regex, so `/projects/{pid}/drawings/{name}` registered first
+    swallows a later `/projects/{pid}/drawings/sheet.svg` just as completely, and a gate written to
+    the four known spellings would report that tree clean. *A predicate that decides what to LOOK at
+    is more dangerous than one that decides what to report.* Measured before widening: the live tree
+    holds **0** of the non-identical form, so this costs no exemptions and no noise today — it
+    removes a precondition rather than chasing a finding.
 
     Separate from the walk on purpose. `test_unique_read_guard`'s first draft asserted that its
     analyser still *reported* a site, so a mutation routing every site to "safe" passed — reporting
     and ruling are two different questions, and a mutation has to be able to aim at the ruling.
     """
     ordered = list(routes)
-    hits: dict[tuple[str, str], list] = collections.defaultdict(list)
-    for j, (path, method, route) in enumerate(ordered):
-        scope = {"type": "http", "method": method, "path": _concrete(path),
-                 "path_params": {}, "headers": [], "root_path": ""}
-        for _path_i, method_i, route_i in ordered[:j]:
-            if method_i != method:
+    hits: dict[tuple[str, str], list] = {}
+    for j, reg in enumerate(ordered):
+        url = probe_url(reg)
+        for earlier in ordered[:j]:
+            if earlier.method != reg.method:
                 continue
-            if route_i.matches(scope)[0] is Match.FULL:
-                # The first match wins at runtime, so `route_i` serves and `route` never runs.
-                hits[(path, method)] = [route_i, route]
+            if earlier.regex.match(url) is not None:
+                # The first match wins at runtime, so `earlier` serves and `reg` never runs.
+                hits[(reg.path, reg.method)] = [earlier, reg]
                 break
-    return dict(hits)
+    return hits
 
 
-def _fn(route):
-    return getattr(route.endpoint, "__name__", "?")
+def _fn(reg):
+    return getattr(reg.endpoint, "__name__", "?")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -189,7 +205,7 @@ except Unclassified as exc:                                    # pragma: no cove
     print(f"FAIL  the walk could not classify the live app — {exc}")
     sys.exit(1)
 
-_MODULES = {getattr(r.endpoint, "__module__", "") for _, _, r in LIVE}
+_MODULES = {getattr(r.endpoint, "__module__", "") for r in LIVE}
 
 #: Floor, not a pin. The tree held 1,023 routes when this was written; a walk that returns a
 #: handful has broken, and a check whose expected answer is zero is the easiest kind to break
@@ -210,50 +226,53 @@ check("the walk reaches every router that carried a shipped collision",
       not _MISSING,
       f"absent from the expansion: {_MISSING} — a recurrence in one of these would be invisible")
 
-#: `_concrete()` fills each `{param}` with ONE segment, which stands in for the real value only
-#: while no route declares a `:path` converter — that one swallows the rest of the URL, so a
-#: single placeholder would under-match and the verdict would silently narrow.
-_PATH_CONV = sorted({p for p, _, _ in LIVE if ":path}" in p})
-check("no route uses a `:path` converter, so a one-segment placeholder is a sound probe",
-      not _PATH_CONV,
-      f"{len(_PATH_CONV)} do: {_PATH_CONV[:4]} — `_concrete()` under-matches for these and the "
-      "verdict below is narrower than it reads; give them a multi-segment placeholder first")
+#: EVERY probe must match the route it was built from. This replaces the first draft's narrower
+#: assertion that no route declares a `:path` converter — which was true, and left `:int`, `:float`,
+#: `:uuid` and any custom convertor unhandled: a probe those routes reject cannot collide with
+#: anything, so a duplicate on one would have been reported clean. *Asserting the one case you
+#: thought of is not asserting the property.* Raised by review on the first draft.
+_UNPROBEABLE = [r for r in LIVE if not probe_matches_own_route(r)]
+check(f"every probe matches its own route, so a probe can detect a collision ({len(LIVE)} routes)",
+      not _UNPROBEABLE,
+      f"{len(_UNPROBEABLE)} probe(s) their own route rejects, e.g. "
+      f"{[r.path for r in _UNPROBEABLE[:4]]} — add the convertor to `_PROBE`. Until then a "
+      "collision on these paths is invisible and the verdict below is narrower than it reads")
 
 # ---------------------------------------------------------------------------------------------
-# PROOF OF REACH — the four as they shipped, rebuilt rather than fetched.
+# PROOF OF REACH — the shipped four, plus the two forms review showed the first draft could not see.
+
+
+def _stub(router, path, name):
+    """Register `path` on `router` under `name`; the handler body is irrelevant to the walk."""
+    def handler(pid: str):
+        return None
+    handler.__name__ = name
+    router.get(path)(handler)
 
 
 def _shipped_collision_app():
     """The four registrations as they stood at `dc222fff~1`, in their shipped inclusion order.
 
     Frozen here rather than read out of git: CI checks out shallow, so `git show` of a parent commit
-    is a build failure, and every neighbouring gate embeds its pre-fix subject for that reason. Only
-    the paths, methods and inclusion order matter to the analyser, so the handlers are stubs.
+    is a build failure, and every neighbouring gate embeds its pre-fix subject for that reason.
     """
     drawings, authoring_docs = APIRouter(), APIRouter()
     analysis, authoring_analysis = APIRouter(), APIRouter()
 
-    def stub(router, path, name):
-        """Register `path` on `router` under `name` — the handler body is irrelevant to the walk."""
-        def handler(pid: str):
-            return None
-        handler.__name__ = name
-        router.get(path)(handler)
-
     # `drawings.py` and `analysis.py` are included first, so THEY served.
-    stub(drawings, "/projects/{pid}/drawings/plan.svg", "plan")
-    stub(drawings, "/projects/{pid}/drawings/sheet.svg", "sheet_svg")
-    stub(drawings, "/projects/{pid}/drawings/sheet.pdf", "sheet_pdf")
-    stub(analysis, "/projects/{pid}/mep", "mep")
+    _stub(drawings, "/projects/{pid}/drawings/plan.svg", "plan")
+    _stub(drawings, "/projects/{pid}/drawings/sheet.svg", "sheet_svg")
+    _stub(drawings, "/projects/{pid}/drawings/sheet.pdf", "sheet_pdf")
+    _stub(analysis, "/projects/{pid}/mep", "mep")
 
     # `authoring_docs.py` and `authoring_analysis.py` are included after, so they were shadowed.
-    stub(authoring_docs, "/projects/{pid}/drawings/plan.svg", "plan_svg")
-    stub(authoring_docs, "/projects/{pid}/drawings/sheet.svg", "sheet_svg")
-    stub(authoring_docs, "/projects/{pid}/drawings/sheet.pdf", "sheet_pdf")
-    stub(authoring_analysis, "/projects/{pid}/mep", "mep_summary")
+    _stub(authoring_docs, "/projects/{pid}/drawings/plan.svg", "plan_svg")
+    _stub(authoring_docs, "/projects/{pid}/drawings/sheet.svg", "sheet_svg")
+    _stub(authoring_docs, "/projects/{pid}/drawings/sheet.pdf", "sheet_pdf")
+    _stub(authoring_analysis, "/projects/{pid}/mep", "mep_summary")
 
     # A route unique to one router, so "found four" is not "found everything".
-    stub(authoring_docs, "/projects/{pid}/spec/manual", "spec_manual")
+    _stub(authoring_docs, "/projects/{pid}/spec/manual", "spec_manual")
 
     replay = FastAPI()
     for r in (drawings, analysis, authoring_docs, authoring_analysis):
@@ -262,7 +281,7 @@ def _shipped_collision_app():
 
 
 _REPLAY = _shipped_collision_app()
-_REPLAY_HITS = shadowed(list(expand(_REPLAY.routes)))
+_REPLAY_HITS = shadowed(expand(_REPLAY.routes))
 _EXPECTED = {("/projects/{pid}/drawings/plan.svg", "GET"),
              ("/projects/{pid}/drawings/sheet.svg", "GET"),
              ("/projects/{pid}/drawings/sheet.pdf", "GET"),
@@ -273,7 +292,8 @@ check("the analyser re-finds all four shipped collisions, and only those four",
       f"found {sorted(_REPLAY_HITS)} — expected exactly {sorted(_EXPECTED)}")
 
 # The mutation for failure mode 1: narrow the walk to top-level routes, as a broken expansion would.
-_NARROWED = shadowed([(r.path, m, r) for r in _REPLAY.routes if isinstance(r, APIRoute)
+_NARROWED = shadowed([Reg(r.path, m, r.path_regex, r.param_convertors, r.endpoint)
+                      for r in _REPLAY.routes if isinstance(r, APIRoute)
                       for m in sorted(r.methods or ()) if m not in ("HEAD", "OPTIONS")])
 check("  and a walk that stops at the top level MISSES all four (mutation)",
       not _NARROWED,
@@ -306,7 +326,7 @@ def _param_before_literal_app():
     return app_
 
 
-_PARAM_HITS = shadowed(list(expand(_param_before_literal_app().routes)))
+_PARAM_HITS = shadowed(expand(_param_before_literal_app().routes))
 check("the predicate finds a NON-identical shadow (param route registered before a literal one)",
       set(_PARAM_HITS) == {("/projects/{pid}/drawings/sheet.svg", "GET")},
       f"found {sorted(_PARAM_HITS)} — it is still comparing path strings, so a collision spelled "
@@ -332,8 +352,50 @@ def _literal_first_app():
     return app_
 
 
+def _typed_converter_app():
+    """An identical collision on an `:int` path. The first draft probed `/items/v1`, which an `:int`
+    route rejects, so this duplicate came back CLEAN — measured, not supposed."""
+    first, second = APIRouter(), APIRouter()
+    _stub(first, "/items/{item_id:int}", "first")
+    _stub(second, "/items/{item_id:int}", "second")
+    app_ = FastAPI()
+    app_.include_router(first)
+    app_.include_router(second)
+    return app_
+
+
+check("a collision on a TYPED path is found (`:int`; the first draft probed a value it rejects)",
+      set(shadowed(expand(_typed_converter_app().routes))) == {("/items/{item_id:int}", "GET")},
+      f"found {sorted(shadowed(expand(_typed_converter_app().routes)))} — the probe does not "
+      "satisfy the convertor, so nothing can collide on any typed path in the tree")
+
+
+def _prefixed_app():
+    """A collision that exists only at the PREFIXED URL.
+
+    The first draft read a `prefix` attribute off the router placeholder. This FastAPI has none, so
+    `getattr(..., "prefix", "")` returned empty and the walk reported `/x/thing` for a router
+    included at `/p` — two handlers on `/p/x/thing` passed clean. Every replay above uses an empty
+    prefix, so **no fixture here could have caught it**: the gap was invisible to its own tests.
+    """
+    under_prefix, at_root = APIRouter(), APIRouter()
+    _stub(under_prefix, "/x/thing", "under_prefix")
+    _stub(at_root, "/p/x/thing", "at_root")
+    app_ = FastAPI()
+    app_.include_router(under_prefix, prefix="/p")
+    app_.include_router(at_root)
+    return app_
+
+
+_PREFIXED = list(expand(_prefixed_app().routes))
+check("an inclusion PREFIX is resolved, so a collision at the prefixed URL is found",
+      [r.path for r in _PREFIXED] == ["/p/x/thing", "/p/x/thing"]
+      and set(shadowed(_PREFIXED)) == {("/p/x/thing", "GET")},
+      f"paths seen {[r.path for r in _PREFIXED]}, hits {sorted(shadowed(_PREFIXED))} — the walk is "
+      "reporting un-prefixed paths, so every collision behind a prefix is invisible")
+
 check("  and the same pair in the RIGHT order is clean (the rule is about order, not shape)",
-      not shadowed(list(expand(_literal_first_app().routes))),
+      not shadowed(expand(_literal_first_app().routes)),
       "literal-before-parameterised was flagged — that is the correct way to write these two, and "
       "a rule that forbids it would be unusable")
 

@@ -1086,6 +1086,24 @@ instances:
   correct order must stay clean, because a rule that forbids literal-before-parameterised would
   forbid ordinary code.
 
+  **Review found two more preconditions, and neither was written down.** Both were the same defect
+  one layer up from the item itself — *the gate reports clean while a collision exists*. (1) The probe
+  filled `{param}` with a plain segment, so a route declaring `:int`, `:float` or `:uuid` **rejects its
+  own probe** and a duplicate on it was invisible; the first draft asserted only that no `:path`
+  converter existed, which is *asserting the one case you thought of rather than the property*. (2) The
+  walk read a `prefix` attribute off FastAPI's deferred-inclusion placeholder — **this FastAPI exposes
+  none**, so `getattr(..., "prefix", "")` returned empty, the un-prefixed router was walked, and two
+  handlers colliding at a prefixed URL passed clean. *Guessing at another library's internals is a
+  precondition you did not write down.* **The second was invisible to its own tests**: every replay
+  fixture used an empty prefix, so no test in the file could have failed on it.
+  Both are repaired at the source rather than patched. The walk now takes FastAPI's own
+  `effective_route_contexts()`, whose `path_regex` carries the inclusion prefix by construction, so
+  there is nothing left to guess. And probe validity is **self-checking**: every probe must match the
+  route it was built from, which makes an unhandled converter red the build rather than quietly shrink
+  the population — *a list of known cases is a list somebody stopped widening; a self-check is not.*
+  Both were reproduced against the shipped code before the fix, both have a fixture, and both
+  fixtures were mutation-verified to red the right check with an accurate message.
+
   **A gate that already knew, and answered the wrong question.** `apps/web/src/api/clientCallers.test.ts`
   held `mep` in `UNCALLED` — it had measured the method as callerless and frozen that, which is most
   of the finding, and the freezing is what stopped anyone asking why. Deleting the method made it fail

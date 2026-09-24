@@ -398,6 +398,17 @@ before the rule changed, so this costs no exemptions; its value shows only under
 misplaced `/projects/{pid}/mep/{probe}` kills **eleven** endpoints that the narrow rule would not
 name. *Equality was a precondition, not the rule* — and the one-segment placeholder that makes the
 wider probe sound is asserted (no `:path` converter), not assumed.
+**And review found two MORE preconditions in that same gate, both the defect one layer up.** The probe
+filled `{param}` with a plain segment, so an `:int`/`:float`/`:uuid` route **rejects its own probe** and
+a duplicate on it was invisible — *asserting the one case you thought of is not asserting the property*,
+and the `:path` assertion was exactly that. And the walk read a `prefix` attribute off FastAPI's
+deferred-inclusion placeholder, which **this FastAPI does not have**, so it walked the un-prefixed
+router and a collision at a prefixed URL passed clean — *guessing at another library's internals is a
+precondition you did not write down*. **The second was invisible to its own tests**: every fixture used
+an empty prefix. Repaired at the source — the walk takes FastAPI's own `effective_route_contexts()`,
+whose regex carries the prefix by construction, and probe validity is **self-checking** (every probe
+must match its own route), so an unhandled converter reds the build. *A list of known cases is a list
+somebody stopped widening; a self-check is not.*
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in

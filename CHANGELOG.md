@@ -66,6 +66,19 @@ same — and stayed silent for `plan`/`plan_svg` and `mep`/`mep_summary`. *A war
 cannot see a collision that is about the path*, and half a population reported confidently reads
 exactly like all of it.
 
+**Review found two ways the gate could still report clean, and both were preconditions I had not
+written down.** It probed `{param}` with a plain segment, so an `:int`, `:float` or `:uuid` route
+rejected its own probe and a duplicate on one came back clean — the first draft asserted only that no
+`:path` converter existed, which is *asserting the one case you thought of, not the property*. And it
+read a `prefix` attribute off FastAPI's deferred-inclusion placeholder; **this FastAPI has no such
+attribute**, so it silently walked the un-prefixed router and two handlers colliding at a prefixed URL
+passed. Every replay fixture used an empty prefix, so **no test in the file could have caught it**.
+Both are now fixed at the source rather than patched: the walk takes FastAPI's own effective route
+contexts, whose `path_regex` already carries the prefix, and probe validity is *self-checking* — every
+probe must match the route it was built from, so an unhandled converter reds the build instead of
+quietly shrinking the population. Two fixtures added (`:int` collision, prefixed collision), each
+mutation-verified to red the right check.
+
 **Why nothing went red.** Every MEP assertion in `services/api/test_mep_systems.py` calls the engine
 `mep.mep_summary(m)` directly; not one goes through the route. *A test of the engine is not a test of
 the door.*
