@@ -63,9 +63,23 @@ down — nothing persisted the ring. The feasibility tab held it in a local vari
 straight to the massing engine; a tab re-render dropped it, and no other screen could ask for it.
 
 The ring is stored beside the parcel and tax keys it belongs with, through the merging write that
-already serialises the property form against the feasibility tab. It is drawn in metres about the
-scene origin — the same frame the massing engine offsets it in — rather than being re-projected
-through a lon/lat anchor, which is how a lot line ends up a continent from its building.
+already serialises the property form against the feasibility tab. It is drawn in metres rather than
+being re-projected through a lon/lat anchor, which is how a lot line ends up a continent from its
+building.
+
+Review then found the frame was wrong in a smaller, quieter way. A saved ring is shifted to its own
+bounding-box *minimum*, so it lies wholly in the positive quadrant, while a generated massing model
+is built around the origin — the lot line sat off the corner of its own building. It is now
+recentred on the bounding-box **centre**, which is the anchor the massing generator already uses to
+put the parcel in the building's frame. The test that claimed to pin the frame passed before and
+after that fix, because its only fixture was a square centred on the origin and the translation was
+a no-op on it.
+
+And the save is now serialised per project. Selecting one parcel and then another fired two
+independent writes; the project lock decides which lands last by arrival, not by which was chosen,
+so the viewer could end up drawing a parcel the tab was not showing — and a select-then-clear pair
+could resurrect a parcel the user had removed. Selecting a parcel with no project open now says so
+instead of skipping the save silently.
 
 ### Four records called concurrency gaps open that the sweep had already closed
 

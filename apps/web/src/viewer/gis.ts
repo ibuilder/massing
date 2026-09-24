@@ -316,18 +316,31 @@ export function buildSiteContext(gj: { features: SiteFeature[] }, centerLat: num
 export function buildParcelOutline(ringM: number[][]): GisResult {
   const pts = ringM.filter((p) => p.length >= 2 && isFinite(p[0] ?? NaN) && isFinite(p[1] ?? NaN));
   if (pts.length < 3) throw new Error("a parcel boundary needs at least 3 points");
+
+  // PARCEL-FRAME. `parcel_geometry.analyze` shifts `ring_m` to its own bounding-box MINIMUM, so a
+  // saved ring lies wholly in the +x/+y quadrant; a generated massing model is built around the
+  // origin. Drawn raw the lot line sits off the corner of its own building. Recentre on the
+  // BOUNDING-BOX CENTRE — not the polygon's area centroid — because that is the frame the model
+  // itself was generated in: `services/data/src/aec_data/massing.py` recentres the parcel on
+  // `(min+max)/2` per axis *"so it shares the building's origin frame"* before packing parking into
+  // it. The two anchors coincide only on a symmetric lot, and an asymmetric one is exactly the case
+  // worth aligning — so picking the prettier anchor would leave a smaller version of the same
+  // offset, against the half of the system that already placed geometry.
+  const xs = pts.map((p) => p[0] ?? 0), ys = pts.map((p) => p[1] ?? 0);
+  const ax = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const ay = (Math.min(...ys) + Math.max(...ys)) / 2;
   const group = new THREE.Group(); group.name = "parcel-boundary";
 
   // The lot LINE: a closed loop just above the roads (0.05) so it reads over the context layer.
   const loop: number[] = [];
-  for (const p of pts) loop.push(p[0] ?? 0, 0.08, -(p[1] ?? 0));
+  for (const p of pts) loop.push((p[0] ?? 0) - ax, 0.08, -((p[1] ?? 0) - ay));
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(loop, 3));
   group.add(new THREE.LineLoop(lineGeo, new THREE.LineBasicMaterial({ color: 0xffb200 })));
 
   // …and a translucent fill, so the lot reads as an area at a glance rather than four lines.
   const flat: number[] = [];
-  for (const p of pts) flat.push(p[0] ?? 0, p[1] ?? 0);
+  for (const p of pts) flat.push((p[0] ?? 0) - ax, (p[1] ?? 0) - ay);
   const fill: number[] = [];
   for (const idx of earcut(flat, [], 2)) {
     const fx = flat[idx * 2], fy = flat[idx * 2 + 1];

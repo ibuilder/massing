@@ -6437,14 +6437,42 @@ removed. Remaining, in priority order:
   with, through the PUT that merges under the project lock — so the feasibility tab and the property
   form write one blob without clobbering or racing each other (RMW-SWEEP's fix, used as intended).
 
-  **The frame is the part that can silently be wrong.** `ring_m` is already metres about its own
-  centroid, which is the frame `compute_massing` offsets inward for the buildable footprint, so
-  drawing it about the scene origin makes the lot line and the building agree by construction.
-  Sending it through `project()` like the OSM context needs a lon/lat anchor, and a metre ring read
-  as degrees puts the lot a continent away — an error that is enormous, silent, and looks like a
-  drawing bug. `apps/web/src/viewer/parcelOutline.test.ts` pins the frame, the closed loop, the
-  draw heights, and the two wires (the save, and the flow that reads it back), because every
-  geometry assertion passes on a function nobody calls and a ring nobody saves.
+  **The frame is the part that can silently be wrong**, and it was — twice, in opposite sizes.
+  `ring_m` must not go through `project()` like the OSM context does, which needs a lon/lat anchor:
+  a metre ring read as degrees puts the lot a continent away, an error that is enormous, silent and
+  looks like a drawing bug. That half was right from the start.
+
+  **The other half was wrong and this entry asserted it.** It said the ring arrives *"metres about
+  its own centroid"*. `parcel_geometry.analyze` shifts it to its bounding-box **minimum** — its own
+  comment says so — so a saved ring lies wholly in the +x/+y quadrant while a generated massing
+  model is built around the origin, and the lot line sat off the corner of its own building. Raised
+  by review. The repair recentres on the bounding-box **centre** rather than the polygon's area
+  centroid the review proposed, because that is the anchor
+  `services/data/src/aec_data/massing.py` already uses *"so it shares the building's origin frame"*
+  before packing parking into the lot — *the two agree only on a symmetric parcel, and an asymmetric
+  one is exactly the case worth aligning, so the prettier anchor would have left a smaller copy of
+  the same offset against the half of the system that has already placed geometry.*
+
+  **`apps/web/src/viewer/parcelOutline.test.ts` passed before and after that fix**, and why is the
+  transferable part: its only fixture was a square centred on the origin, whose bbox centre is
+  (0, 0), so the translation was a no-op on the one shape tested. *A fixture that already satisfies
+  the property cannot witness it* — and this one had been chosen to match the prose above, so it
+  inherited the prose's error. The fixture is now asymmetric and bbox-min-shifted, which is the
+  shape `parcel_geometry` actually emits, and a second check reads the generator's anchor out of its
+  source so the two frames cannot drift apart silently.
+
+  **The save is serialised per project, which the project lock cannot do for it.** The first version
+  fired one `saveProperty` per selection and forgot it, so selecting parcel A then B put two writes
+  in flight; `put_property` merges under the lock, so the lock picks the winner by ARRIVAL and A
+  could land last — the viewer then draws a lot line the tab is not showing, and a select-then-clear
+  pair resurrects a parcel the user removed. *A lock orders the writes; it cannot order the
+  intentions.* `apps/web/src/proforma/parcelSaveOrder.test.ts` drives the real tab and asserts one
+  request in flight at a time, the clear landing last, and a failed save not stalling the chain.
+  Selecting a parcel with no project open now says so instead of skipping silently.
+
+  The test file also pins the closed loop, the draw heights, and the two wires (the save, and the
+  flow that reads it back), because every geometry assertion passes on a function nobody calls and a
+  ring nobody saves.
 
   *(Terrain DEM auto-fetch stays out: it is network-dependent → flagged, offline-degrading.)*
 

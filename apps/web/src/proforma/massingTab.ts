@@ -52,6 +52,8 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
   // inward; nothing could reach it. While a parcel is loaded, width/depth are shown as the parcel's
   // own bounding box and disabled, so it is clear which figure the building is being sized on.
   let parcel: LoadedParcel | null = null;
+  /** SITE-1 — the tail of the parcel-boundary save chain; see the comment at the write below. */
+  let saveChain: Promise<void> = Promise.resolve();
   const boundary = parcelBoundaryControl({ api: ctx.api }, (p) => {
     parcel = p;
     // SITE-1 — **persist the ring, because until now nothing did.** It lived in this local variable
@@ -63,11 +65,26 @@ export function renderMassingTab(root: HTMLElement, ctx: MassingTabCtx): void {
     // Fire-and-forget with a REPORTED failure: the massing preview must not wait on a save it does
     // not read back, and a silent one would leave the viewer showing a lot line for a parcel the
     // user thinks they replaced.
+    //
+    // SERIALISED, because a fire-and-forget PUT per selection is a race the project lock cannot
+    // settle. Select parcel A then parcel B and both requests are in flight; the lock decides who
+    // writes first, not who was chosen first, so A can land last and the viewer then draws a lot
+    // line the tab is not showing. *A lock orders the writes; it cannot order the intentions.*
+    // Chaining on the previous save makes arrival order equal selection order — including a CLEAR,
+    // which is the one that would otherwise resurrect a parcel the user removed. A failed save must
+    // not break the chain, so the rejection is absorbed here after being reported.
     const pid = ctx.projectId();
-    if (pid) {
-      void ctx.api.saveProperty(pid, { parcel_boundary: p && { ring_m: p.ring, area_m2: p.areaM2,
-        vertices: p.vertices, saved_at: new Date().toISOString() } })
-        .catch((e: unknown) => ctx.setStatus(`parcel boundary not saved: ${(e as Error).message}`));
+    if (!pid) {
+      ctx.setStatus("parcel boundary not saved — open a project first; this selection is used for "
+        + "the massing preview only and will be lost on a re-render");
+    } else {
+      saveChain = saveChain.then(() =>
+        ctx.api.saveProperty(pid, { parcel_boundary: p && { ring_m: p.ring, area_m2: p.areaM2,
+          vertices: p.vertices, saved_at: new Date().toISOString() } })
+          .then(() => undefined)
+          .catch((e: unknown) => {
+            ctx.setStatus(`parcel boundary not saved: ${(e as Error).message}`);
+          }));
     }
     for (const key of ["lot_width", "lot_depth"] as const) {
       const inp = inputs[key];
