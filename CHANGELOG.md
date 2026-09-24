@@ -12,6 +12,31 @@ meaning anything as a heading and the file read as 34 pending releases rather th
 titles are unchanged and now sit at `###` beneath this, in the same order; no text was edited,
 added or dropped in the fold.
 
+### The desktop IFC converter can now be interrupted — it runs in a child process the server kills
+
+`from_ifc.convert`'s deadline is cooperative: checked between elements and every 4,096 entities.
+That bounds a model that overran because it had a lot in it, and cannot reach the two costs outside
+every checkpoint — `ifcopenshell.open`, one call whose time scales with file size and is paid in
+full before the first check, and any single `create_shape` that never returns. On the desktop app,
+where there is no Node runtime and the Python path is the only one, `edit_preview` passes
+`timeout=120` on a synchronous route: a model that hit either cost held a request worker
+indefinitely instead of returning the 503 the caller is written to expect.
+
+The conversion now runs in a child process, and the parent kills it. The entry point re-enters
+itself through an argv sentinel, so `sys.executable` is the bundle when frozen and the interpreter
+when not — no `multiprocessing`, and therefore no `freeze_support()` to wire, which is what the
+roadmap entry had recorded as the blocker for a fortnight.
+
+Behaviour where nothing is wrong is unchanged: the child gets the caller's full budget and an
+ordinary overrun still comes back from its own checkpoint, naming the phase it was in. The kill
+fires five seconds later, so the outer bound is `timeout + 5s` rather than `timeout` — stated
+plainly, because shortening the child's deadline to keep the bound exact would make the two
+branches disagree about what the parameter means.
+
+There is no in-process fallback. Spawning failures are not something anyone reports, so a fallback
+would mean the conversion quietly went back to being uninterruptible while the reader still believed
+it was bounded.
+
 ### The reachability gate was reading 708,650 characters of somebody else's product as evidence about ours
 
 `_web_source()` — the blob both reachability gates ask "does any client call this route?" — included
