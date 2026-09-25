@@ -7,6 +7,7 @@ import { provenanceLine } from "./provenanceLine";
 import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
+import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
@@ -148,7 +149,7 @@ export class ProformaUI {
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
-    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
+    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty(); });
     if (sections.cap) into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
     const uwSec = sections.uw;
     if (uwSec) into(uwSec, () => {
@@ -880,6 +881,26 @@ export class ProformaUI {
   private renderTestFit() {
     // extracted to testfitTab.ts along the LCOM4 seam; delegation keeps the into() root-swap
     renderTestFitTab(this.root, { api: this.api, setStatus: this.setStatus });
+  }
+
+  /** Residual land value — the inverse of this whole tab: the most you can pay for the site and
+   *  still clear a target return. `ApiClient.residualLand()` and the engine behind it shipped with
+   *  FIN-CALC and had no caller until this card. */
+  private renderResidualLand() {
+    renderResidualLandCard(this.root, {
+      api: this.api,
+      assumptions: () => this.a,
+      // Both halves go through the land-basis helpers, which address the basis the way
+      // `proforma/residual.py` defines it rather than the way the driver form's "Land $" field is
+      // bound — see their docstrings in residualLandCard.ts.
+      currentLand: () => landBasis((this.a as { cost_lines?: LandLine[] }).cost_lines ?? []),
+      applyLandValue: (v) => {
+        if (!applyLandBasis((this.a as { cost_lines: LandLine[] }).cost_lines ?? [], v)) return;
+        this.render();
+        void this.solve();
+      },
+      setStatus: this.setStatus,
+    });
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */

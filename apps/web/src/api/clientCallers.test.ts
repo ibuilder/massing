@@ -310,7 +310,9 @@ const UNCALLED: readonly string[] = [
   "pdfInfo", "permitsTimeline", "preconSnapshot",
   "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
-  "rentRollScrub", "residualLand", "reviewPost",
+  // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
+  // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
+  "rentRollScrub", "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
   "saveDealAuthority", "saveMacros", "saveViewTemplates",
   "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",

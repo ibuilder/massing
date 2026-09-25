@@ -164,24 +164,81 @@ describe("renderMassing (characterization)", () => {
     expect(host.textContent).toContain("<b>422</b>");
   });
 
-  it("SOURCE PIN: every error-message innerHTML sink in proforma/ stays on the escaped path", async () => {
-    // The four sinks fixed on 2026-08-02 took `(e as Error).message` into innerHTML unescaped.
-    // Two are exercised above; the other two live in panels that need a deep api mock to drive,
-    // so pin ALL of them at the source level, DERIVED not enumerated: an interpolation of an
-    // error message into innerHTML must go through escapeHtml (textContent/setStatus are exempt —
-    // they don't parse markup). Down-to-zero is the required state; any new unescaped sink fails.
-    const { readFileSync, readdirSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const offenders: string[] = [];
-    for (const f of readdirSync(__dirname).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))) {
-      const src = readFileSync(join(__dirname, f), "utf-8");
-      for (const [i, line] of src.split("\n").entries()) {
-        if (/innerHTML\s*[+]?=/.test(line) && /\((e|err) as Error\)\.message/.test(line)
-            && !/escapeHtml\(\((e|err) as Error\)\.message\)/.test(line)) {
-          offenders.push(`${f}:${i + 1}`);
-        }
+  // The four sinks fixed on 2026-08-02 took `(e as Error).message` into innerHTML unescaped.
+  // Two are exercised above; the other two live in panels that need a deep api mock to drive,
+  // so pin ALL of them at the source level, DERIVED not enumerated: an interpolation of an
+  // error message into innerHTML must go through `escapeHtml` (textContent/setStatus are exempt —
+  // they don't parse markup). Down-to-zero is the required state; any new unescaped sink fails.
+  //
+  // THE ESCAPE FUNCTION IS RESOLVED THROUGH THE FILE'S OWN IMPORT, NOT MATCHED BY NAME. The first
+  // version required the literal spelling `escapeHtml(...)`, and this directory imports it under two
+  // names: `escapeHtml` in `massingTab.ts` and `proforma.ts`, `escapeHtml as esc` in `testfitTab.ts`
+  // and `residualLandCard.ts`. So a line that escapes CORRECTLY under the conventional alias was
+  // reported as an unescaped XSS sink — and `residualLandCard.ts` is what met it.
+  //
+  // *A check keyed on the local NAME cannot see a call that is about the BINDING*, and this one failed
+  // in the direction that costs the most trust: not a miss, a confident accusation about a safe line.
+  // Renaming the import to suit the regex was the tempting repair and it is the wrong one — the
+  // convention it would bend to is the regex's, not the directory's, and the next person to write
+  // `esc` meets the same false alarm with a message telling them they have an XSS.
+  /** Local names bound to `ui/feedback`'s `escapeHtml` in this source — `esc` counts, an alias to
+   *  something else does not. Empty when the file imports no escaper, which makes every sink in it an
+   *  offender, as it should. */
+  const escapeNames = (src: string): string[] => {
+    const out: string[] = [];
+    for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'][^"']*ui\/feedback["']/g)) {
+      for (const spec of m[1]!.split(",")) {
+        const parts = spec.trim().split(/\s+as\s+/);
+        if (parts[0]?.trim() === "escapeHtml") out.push((parts[1] ?? parts[0]).trim());
       }
     }
+    return out;
+  };
+
+  /** Lines in `src` taking an error message into innerHTML without passing it through an escaper. */
+  const unescapedSinks = (src: string): number[] => {
+    const names = escapeNames(src);
+    const hits: number[] = [];
+    for (const [i, line] of src.split("\n").entries()) {
+      if (!/innerHTML\s*[+]?=/.test(line) || !/\((e|err) as Error\)\.message/.test(line)) continue;
+      const escaped = names.some((n) =>
+        new RegExp(`\\b${n}\\(\\((e|err) as Error\\)\\.message\\)`).test(line));
+      if (!escaped) hits.push(i + 1);
+    }
+    return hits;
+  };
+
+  it("SELF-TEST: the source pin resolves the escaper through the import, under either spelling", () => {
+    const sink = (call: string) => `import { escapeHtml as esc } from "../ui/feedback";\n`
+      + `x.innerHTML = \`<div>\${${call}}</div>\`;\n`;
+    // An aliased escaper IS escaping. This is the case that misfired on residualLandCard.ts.
+    expect(unescapedSinks(sink("esc((e as Error).message)")), "an aliased escape read as a sink").toEqual([]);
+    // The un-aliased spelling, in a file that aliases it, is bound to nothing — flag it.
+    expect(unescapedSinks(sink("escapeHtml((e as Error).message)")), "an unbound name read as safe").toEqual([2]);
+    // And the defect itself is still found, which is the only reason the check exists.
+    expect(unescapedSinks(sink("(e as Error).message")), "the raw sink was missed").toEqual([2]);
+    // A file importing no escaper at all cannot be escaping.
+    expect(unescapedSinks("x.innerHTML = `${esc((e as Error).message)}`;\n"),
+           "a sink in a file with no escaper import read as safe").toEqual([1]);
+  });
+
+  it("SOURCE PIN: every error-message innerHTML sink in proforma/ stays on the escaped path", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = readdirSync(__dirname).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"));
+    // The scan must reach the directory, or "no offenders" is a fact about an empty list.
+    expect(files.length, "the proforma/ source scan found no files").toBeGreaterThan(4);
+    const offenders: string[] = [];
+    let sinks = 0;
+    for (const f of files) {
+      const src = readFileSync(join(__dirname, f), "utf-8");
+      sinks += src.split("\n").filter((l) => /innerHTML\s*[+]?=/.test(l)
+                                             && /\((e|err) as Error\)\.message/.test(l)).length;
+      offenders.push(...unescapedSinks(src).map((n) => `${f}:${n}`));
+    }
+    // …and it must still be looking at sinks. Zero offenders out of zero sinks proves nothing, and
+    // that is how this pin would quietly stop meaning anything if the panels were refactored.
+    expect(sinks, "no error-message innerHTML sinks found at all").toBeGreaterThan(4);
     expect(offenders).toEqual([]);
   });
 });
