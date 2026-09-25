@@ -6,6 +6,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### TRUNC-COUNTED — three screens printed the size of a page as the total, and one acted on it
+
+`roundtrip_diff` carries three bounds and disclosed one. `apps/web/src/api/model.ts` never declared
+even that one, so the QA panel could not read it — while the same file reads the identical flag
+correctly on another response whose type does declare it.
+
+The Apply button posts the truncated `changes` page, so a sheet past the cap was **applied in part
+and reported as whole**: the model ends up differing from the spreadsheet the operator believes they
+applied, with no error. Reachable by construction — one change per changed *cell* against a 5,000-row
+bound overflows a 1,000 cap with a single property column.
+
+All three bounds now report themselves, `spine.traceability` returns `gaps.counts`, the dashboard
+returns `action_item_count`, and the three screens read the totals instead of the page lengths. The
+Apply button names what it will actually write.
+
+No sweep gate, and that is deliberate: 43 list truncations, **26 already carrying a sibling count**,
+and joining the rest to `.length` reads by NAME reports 35 sites of which the ones read in full were
+correct code. A leaf name is not a response.
+
 ### SCAN-TRUNC — a model cut short turned a correct building into 500 as-built findings
 
 `scan_deviation.model_surface_points` caps the reference at 200,000 surface vertices and reaches the

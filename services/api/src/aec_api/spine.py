@@ -133,8 +133,15 @@ def traceability(db, pid: str) -> dict[str, Any]:
             "specs_without_bid_package": specs_no_pkg[:100],
             "bid_packages_without_cost_code": pkgs_no_code[:100],
             "sheets_without_spec": dwgs_no_spec[:100],
+            # The same rule the `spec_count` comment above states, applied to its neighbours: the
+            # lists are pages and these are the totals. The percentages beside them were always
+            # taken over the full population, so a screen summing the LENGTHS contradicted them.
+            "counts": {"specs_without_bid_package": len(specs_no_pkg),
+                       "bid_packages_without_cost_code": len(pkgs_no_code),
+                       "sheets_without_spec": len(dwgs_no_spec),
+                       "total": len(specs_no_pkg) + len(pkgs_no_code) + len(dwgs_no_spec)},
         },
-        "chain": chain[:300],
+        "chain": chain[:300], "chain_count": len(chain),
         "note": "Traces discipline → sheets → specs → bid packages → cost codes → budget. A spec is "
                 "fully traceable when it reaches a bid package and a cost code; the gaps list the broken "
                 "links so scope can't fall between the model, the documents and the money. VOID spec "

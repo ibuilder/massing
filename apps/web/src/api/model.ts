@@ -538,8 +538,16 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/model/roundtrip/diff`), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new HttpError(e.detail || `diff -> ${res.status}`, res.status); }
+    // THREE BOUNDS, all now declared. `changes` and `unknown_guids` are PAGES; `change_count` and
+    // `unknown_count` are the totals a screen should print. `truncated` shipped on the wire and was
+    // declared nowhere here, so `qaSection.ts` could not read it even though the same file reads the
+    // identical flag on another response — a field absent from the declaration is invisible to every
+    // audit over declarations, which is what CLASH-TRUNC paid to learn.
     return res.json() as Promise<{ checked: number; changes: { guid: string; pset: string; prop: string; old: string | null; new: string }[];
-      unknown_guids: string[]; unchanged: number }>;
+      truncated: boolean; change_count: number;
+      unknown_guids: string[]; unknown_count: number;
+      rows_read: number; rows_cap: number; rows_truncated: boolean;
+      unchanged: number }>;
   }
   /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
    *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */

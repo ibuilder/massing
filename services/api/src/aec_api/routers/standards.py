@@ -773,7 +773,15 @@ async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = D
         changes += row_changes
         unchanged += row_unchanged
     return {"checked": checked, "changes": changes[:1000], "truncated": len(changes) > 1000,
-            "unknown_guids": unknown[:100], "unchanged": unchanged}
+            # EVERY bound in this function is now reported, because a caller applies `changes`
+            # verbatim through `set_props_by_guid`: a sheet with more changes than the cap was
+            # applied in part and reported as whole. `change_count` is the number a screen should
+            # print; `len(changes)` is the size of the page it was handed.
+            "change_count": len(changes),
+            "unknown_guids": unknown[:100], "unknown_count": len(unknown),
+            "rows_read": max(0, len(rows) - 1), "rows_cap": 5000,
+            "rows_truncated": len(rows) - 1 > 5000,
+            "unchanged": unchanged}
 
 
 @router.post("/projects/{pid}/ci/run")

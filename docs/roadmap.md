@@ -672,6 +672,58 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ ⭐ **TRUNC-COUNTED — three screens printed the length of a page as if it were the total, and
+  one of them ACTED on it** *(S — Lane C/G; **CLOSED 2026-09-25**; gated by
+  `services/api/test_trunc_counted.py`)*
+
+  **The one that acts is `roundtrip_diff`.** It carries three bounds — `rows[1:5001]` on the sheet,
+  `changes[:1000]`, `unknown_guids[:100]` — of which only the middle one was disclosed, via
+  `truncated`. And `apps/web/src/api/model.ts` **did not declare `truncated`**, so
+  `apps/web/src/viewer/tools/qaSection.ts` could not read it — while the same file reads the
+  identical flag correctly forty lines earlier, on a response whose type does declare it. *A field
+  absent from the declaration is invisible to every audit over declarations* — the CLASH-TRUNC hole
+  in a second place, and the reason this was carelessness by nobody.
+
+  The Apply button posts `d.changes`, the PAGE. **A sheet with more changes than the cap was applied
+  in part and reported as whole**, so the model ends up differing from the spreadsheet the operator
+  believes they applied, with no error anywhere. The cap is reachable by construction rather than in
+  principle: `_diff_row` emits one change per changed CELL against a 5,000-row bound, so a single
+  property column overflows a 1,000 cap fivefold.
+
+  The other two only print: `portal/panels/operations.ts` summed three 100-row pages into
+  *"Broken links (N)"* beside percentages computed over the full population — so the card
+  contradicted the numbers next to it — and `portal/portal.ts` showed 20 of a 100-row page with no
+  total at all. *The `✓ Every sheet, spec and package is linked` verdict was never wrong*, because
+  truncation cannot make a non-empty list empty; only the counts were.
+
+  **WHY THERE IS NO SWEEP GATE, which is the part worth reading.** The class was derived: **43 list
+  truncations inside returned dicts, and 26 already carry a sibling `len()`** — the good pattern is
+  this codebase's own convention, which is what makes the rest anomalous rather than normal. Of the
+  17 without, **11 carry the count under a different NAME** (`total - compliant` in `naming.py`,
+  `unapproved` in `design_standards.py`, `count` in `rfi_prevention.py`) or are top-N by design,
+  leaving 6 fields in 3 files.
+
+  Joining those names to `.length` reads in the web tree reports **35 sites, and it is not a
+  finding**: `guids` alone accounts for 12, matched against engines their callers never call. Two
+  were read in full — `viewer/tools/qaSection.ts:205` reads an assembly-thermal result's `guids`
+  (and slices to 200 itself), and `viewer/tools/repairPanel.ts:184` reads `sample.length` only to
+  decide whether to print an ellipsis, with the authoritative `removable` count rendered beside it.
+  *A leaf name is not a response, and a number with a list attached reads as evidence.* Even a
+  checker-resolved join would still have to separate "`.length` shown to a user as a count" from
+  "`.length` used for an ellipsis" — a judgement call, and **a rule that needs judgement calls needs
+  an exemption list, which is where the next instance hides.** So the three fixed sites are gated
+  behaviourally and the sweep stops there, deliberately.
+
+  **The gate's own check was wrong twice, both times by matching a name too widely.**
+  `"truncated:" in model_ts` passed with the field deleted, because `rows_truncated:` contains it —
+  a suffix match, the mirror of the prefix match `test_gap_records` paid for. Word-boundary matching
+  over the whole file **also** passed, because `truncated: boolean` is declared on four other
+  unrelated endpoints in that 66 KB file. *The sentence in this entry's own paragraph above —* a
+  leaf name is not a response *— was committed as a defect one screen later.* The subject is now
+  `roundtripDiff`'s own declaration, extracted by locator, and renaming the method reds eight checks
+  rather than silently narrowing the search to nothing.
+
+
 - ✅ ⭐ **SCAN-TRUNC — a model cut short turns a correct building into 500 as-built findings**
   *(S — Lane C; **CLOSED 2026-09-25**; gated by `services/api/test_scan_trunc.py`)*
 

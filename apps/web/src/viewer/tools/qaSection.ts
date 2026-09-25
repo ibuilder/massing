@@ -695,9 +695,15 @@ export function buildQaSection(d: QaDeps): void {
               status.textContent = "computing dry-run diff…"; diffBox.replaceChildren();
               try {
                 const d = await api.roundtripDiff(pid, f);
-                status.innerHTML = `<b>${d.changes.length}</b> change(s) across ${d.checked} rows`
-                  + (d.unknown_guids.length ? ` · <b>${d.unknown_guids.length}</b> unknown GUID(s) skipped` : "")
-                  + ` · ${d.unchanged} unchanged`;
+                // COUNTS, NOT PAGE LENGTHS. `changes` caps at 1000 and `unknown_guids` at 100, so
+                // every figure here used to stop climbing at the cap while the sheet grew.
+                status.innerHTML = `<b>${d.change_count}</b> change(s) across ${d.checked} rows`
+                  + (d.unknown_count ? ` · <b>${d.unknown_count}</b> unknown GUID(s) skipped` : "")
+                  + ` · ${d.unchanged} unchanged`
+                  + (d.rows_truncated
+                      ? ` · <b style="color:var(--status-warn)">only the first ${d.rows_cap} rows of `
+                        + `${d.rows_read} were read</b>`
+                      : "");
                 if (!d.changes.length) return;
                 const tbl = document.createElement("table"); tbl.className = "result-table";
                 for (const c of d.changes.slice(0, 300)) {
@@ -708,7 +714,20 @@ export function buildQaSection(d: QaDeps): void {
                 }
                 diffBox.appendChild(tbl);
                 const apply = document.createElement("button"); apply.className = "mini-btn on"; apply.style.marginTop = "6px";
-                apply.textContent = `✓ Apply ${d.changes.length} change(s) + republish`;
+                // THE BUTTON NAMES WHAT IT WILL ACTUALLY DO. It posts `d.changes`, which is the
+                // PAGE — so on a sheet past the cap it applies 1000 of N and the model then differs
+                // from the spreadsheet the user believes they applied, with no error anywhere. It
+                // said "Apply ${d.change_count}" by accident of reading the wrong length.
+                apply.textContent = d.truncated
+                  ? `✓ Apply the first ${d.changes.length} of ${d.change_count} change(s) + republish`
+                  : `✓ Apply ${d.changes.length} change(s) + republish`;
+                if (d.truncated) {
+                  diffBox.insertAdjacentHTML("beforeend",
+                    `<div class="meta" style="color:var(--status-warn);margin-top:4px">`
+                    + `This sheet has ${d.change_count} changes and the diff returns at most `
+                    + `${d.changes.length}. Applying now writes those and leaves the rest — split the `
+                    + `sheet and re-upload to apply all of them.</div>`);
+                }
                 apply.onclick = async () => {
                   apply.disabled = true; status.textContent = "applying via set_props_by_guid…";
                   try {
