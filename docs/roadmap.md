@@ -672,6 +672,45 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ **PROGRESS-UNMATCHED — an engine whose note promised "never silently dropped" and silently
+  dropped** *(XS — Lane C; **CLOSED 2026-09-25**; gated by
+  `services/api/test_progress_unmatched.py`)*
+
+  `progress_rollup.capture_diff` builds both of its sets by filtering through the model's element
+  list — `added = [g for g in (s2 - s1) if g in known]`, and the same for `removed` — while its note
+  said:
+
+  > Elements present at t1 but absent at t2 are surfaced as `disappeared` — a re-scan or rework
+  > flag, **never silently dropped**.
+
+  **The promise held only among elements the CURRENT model still contains**, which excludes exactly
+  the case a rework flag exists for: something taken out of the model *and* off the site between two
+  captures. Measured — 500 capture GUIDs at t2 against a 300-element model: `installed_t2` 300,
+  `newly_installed` 300, `pct_complete_t2` **1.0**, 200 dropped, and no key anywhere naming them.
+  *A note that claims more than the code does is worse than no note, because it is read as a
+  guarantee and stops the next person looking.*
+
+  **The filter is kept and only the silence is fixed.** A diff is scoped to the model it is about,
+  and an unmatched GUID carries no class or storey, so `added_by_class` and `added_by_level` have
+  nowhere to put it — removing the filter crashes the engine, which the gate proves by doing it.
+  What changed is that `unmatched_t1`/`unmatched_t2` are reported, so a capture aimed at a different
+  model version shows as an unmatched count instead of arriving as a quietly smaller diff that reads
+  like slower progress. The note now states the scope it has.
+
+  **THE WIRING HALF IS NOT SMALL, and assuming it was is the correction worth recording.** This was
+  opened as another callerless-method item. It is not one: `progressCaptureDiff` *and*
+  `progressRollup` are both callerless, and **nothing in the product produces an "installed GUIDs at
+  time T" set** — so giving either a screen means building capture capture, not adding a card. Same
+  shape as CITE-RECORD, where "give the record builder a producer" turned out to mean building
+  record-aware QA. *An item's size is a claim about its dependencies, and this one's was wrong until
+  somebody looked for the producer.* Both methods stay in the callerless freeze list, deliberately.
+
+  Two clean negatives from the same sweep, recorded so nobody re-runs them: `adjacency.summary`
+  returns `total`, `satisfiable` and the complete `unmet` list with no cap and no vacuous verdict;
+  `scan_deviation.verify_from_scan` fails closed on a scan that covered nothing. **Half the engines
+  measured in this sweep needed no repair**, and saying so is what makes the other half credible.
+
+
 - ✅ ⭐ **SCAN-DARK — the refusal SCAN-TRUNC added pointed at a route frozen as unreachable**
   *(S — Lane E/G; **CLOSED 2026-09-25**; gated by `apps/web/src/viewer/tools/scanVerifyView.test.ts`)*
 

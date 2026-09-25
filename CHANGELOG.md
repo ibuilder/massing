@@ -6,6 +6,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### PROGRESS-UNMATCHED — a capture diff now says how much of the capture it could not use
+
+`progress_rollup.capture_diff` filtered both its added and disappeared sets through the model's
+element list while its note promised disappearances were "never silently dropped". The promise held
+only among elements the current model still contains — which excludes the case the flag is for.
+
+Measured: 500 capture GUIDs at t2 against a 300-element model reported 300 installed, 100% complete,
+and 200 dropped with no key naming them. `unmatched_t1`/`unmatched_t2` are now reported and the note
+states the scope it actually has, so a capture aimed at a different model version is visible instead
+of arriving as a quietly smaller diff.
+
 ### SCAN-DARK — scan-to-BIM deviation and LOD 500 verification reach a screen
 
 SCAN-TRUNC's refusal tells the reader to use `/scan/verify-lod500` instead. That route had no client
