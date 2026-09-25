@@ -297,7 +297,7 @@ const UNCALLED: readonly string[] = [
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
   "ciLatest", "citedQuery", "clashFederated", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
-  "competitiveSupply", "connectElements", "costSummary", "createAssembly", "createGroup",
+  "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",

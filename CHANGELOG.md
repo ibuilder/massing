@@ -6,6 +6,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SUPPLY-DARK — an empty competitive set reported the most favourable market verdict there is
+
+`services/api/src/aec_api/supply_pipeline.py` weighs a competitive pipeline by what is **recorded**
+about each project rather than by the label on the deck:
+
+> "Under construction" on a broker deck and "under construction" with a recorded construction deed of
+> trust are not the same fact, and a rendering with no permit is neither certain supply nor zero.
+
+`ApiClient.competitiveSupply()` was written for it and no screen called it. Its response was also
+typed `Record<string, unknown>`, so every field was invisible to `deadFieldTyped.test.ts` and to any
+other audit that starts from the client's declarations — five interfaces are now declared in
+`apps/web/src/api/creDeal.ts`.
+
+**Measured through the engine first.** A pipeline of four projects, none matching the subject's
+product type, returns `counts.competing: 0` and `excluded.counts.wrong_product: 4` beside an index
+whose band is **`"undersupplied"`** and whose `lsi` is `0` — the most favourable verdict the engine
+can produce, byte-identical to a market with genuinely no competition. *"Undersupplied" is an
+argument to build.*
+
+The engine is sound: the coverage is in the response, and its own note says the excluded projects are
+listed "so a thin competitive set is visible, not implied". So the new **Competitive supply** card on
+the Feasibility tab withholds rather than annotates — on a vacuous set there is no band, no totals and
+no discount, and the exclusions with their reasons are the only thing on the card. Certain and rumored
+units are never added; `from_status_label` is rendered, because it marks the row whose tier was
+inferred from a status string rather than read from a recorded flag.
+
 ### The pre-committee gate card dropped the coverage its own gate demands
 
 `services/api/test_verdict_coverage.py` — added one commit earlier, to derive exactly this class —

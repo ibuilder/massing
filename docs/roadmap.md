@@ -1322,6 +1322,58 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **SUPPLY-DARK — an empty competitive set reported the most favourable market verdict the
+  engine can produce** *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/supplyCard.test.ts`, whose tripwire reads
+  `services/api/src/aec_api/supply_pipeline.py` off disk)*
+
+  `supply_pipeline.py` weighs a competitive pipeline by what is **recorded** about each project
+  rather than by the label on the deck, and states the distinction it exists for: *"Under
+  construction" on a broker deck and "under construction" with a recorded construction deed of trust
+  are not the same fact, and a rendering with no permit is neither certain supply nor zero.*
+  `ApiClient.competitiveSupply()` was written for it and **no screen called it**.
+
+  **The response was additionally typed `Record<string, unknown>`, which is a second finding.** Every
+  field was therefore invisible to `apps/web/src/api/deadFieldTyped.test.ts` and to every other audit
+  that starts from the client's declarations — the same hole `excluded_comparables` fell through in
+  SCREEN-VS-REPORT. Five interfaces are now declared in `apps/web/src/api/creDeal.ts`.
+
+  **MEASURED THROUGH THE ENGINE BEFORE A LINE OF THE CARD WAS WRITTEN, and this is the sharpest
+  instance of the shape this session kept finding.** A pipeline of four projects, none matching the
+  subject's product type:
+
+  | | |
+  |---|---|
+  | `counts.competing` | **0** |
+  | `excluded.counts.wrong_product` | **4** |
+  | `weighted_index.band` | **`"undersupplied"`** |
+  | `lsi` | **0** |
+  | `discount_pct` | **0.0** |
+
+  A market in which every supplied project was filtered out reports **the most favourable verdict the
+  engine can produce**, byte-identical to a market with genuinely no competition. *"Undersupplied" is
+  an argument to build* — which is worse than the four `clean: true` cases this session fixed, because
+  those at least read as neutral. **The engine is not wrong and nothing in it claims coverage**:
+  `counts.competing` and `excluded.counts` are in the response, and its own note says the excluded
+  projects are listed *"so a thin competitive set is visible, not implied"*. The defect would have
+  been entirely the consumer's, which is why the card withholds rather than annotates — the band, the
+  totals and the discount are all absent on a vacuous set, and the exclusions with their reasons are
+  the only thing left on the card.
+
+  **`test_verdict_coverage.py` does not flag this, and the limit is worth recording rather than
+  papering over.** That gate derives *boolean subset verdicts* — `bool(A) and (all(…) | not B)`. A
+  `band` string and an `lsi` integer match no part of that shape, so the sweep it automates would not
+  have found this one. *A derived population is bounded by the form it derives, and the form here was
+  chosen from five hand-found instances that happened to all be booleans.*
+
+  **And the mutation that survived was the one that mattered.** Eleven of twelve mutations redded
+  immediately; the twelfth — folding the rumored units into the certain total, which is the single
+  thing the engine is most careful to keep apart — passed, because the test asserted the engine's
+  *wording* on the stated grounds that "300 + 450 = 750 is the raw total and is legitimately shown, so
+  the number is not checkable". It is checkable; it just has to be read out of the row it belongs to.
+  *A number asserted against the whole card is not asserted at all* — the AUTHORITY-DARK lesson, one
+  item later, in the opposite direction.
+
 - ✅ ⭐ **DECISION-GATE-DARK — the keystone over everything else on the tab, and nothing called it**
   *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/decisionGateCard.test.ts`)*

@@ -12,6 +12,7 @@ import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderDecisionGateCard } from "./decisionGateCard";
 import { renderRentRollQuality } from "./rentRollQuality";
+import { renderSupplyCard } from "./supplyCard";
 import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
@@ -154,7 +155,14 @@ export class ProformaUI {
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
-    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty(); });
+    if (sections.feas) into(sections.feas, () => {
+      this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty();
+      // Beside the residual: what you can pay for the dirt is an argument about absorption, and
+      // absorption is an argument about who else is delivering into the same window.
+      renderSupplyCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
     if (sections.cap) into(sections.cap, () => {
       this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty();
       // Beside the facility it is about: renderSourcesUses prints the loan amount and its fees.

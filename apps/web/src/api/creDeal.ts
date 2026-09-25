@@ -153,6 +153,60 @@ export interface DecisionGateResult {
   counts: Record<string, number>; note: string;
 }
 
+/** One project in the competitive pipeline, as `supply_pipeline.assess()` reports it back.
+ *  `weight` and `weighted_units` are the discount applied; `from_status_label` says the evidence was
+ *  INFERRED from a status string rather than read from a recorded flag, which is the difference
+ *  between "a loan is recorded" and "the deck says under construction". */
+export interface SupplyProjectRow {
+  name: string | null; units: number; delivery_date: string | null;
+  product_type: string | null; distance_mi: number | null;
+  evidence: string; evidence_label: string; weight: number;
+  from_status_label: boolean; weighted_units: number; rumored: boolean;
+  /** Present only on an EXCLUDED row, and it is the reason. */
+  excluded?: string;
+}
+
+/** The evidence-weighted competitive set. `certain_supply_units` and `rumored_supply_units` are
+ *  deliberately separate totals and must not be added together on screen — the engine's note says
+ *  rumored supply "is never blended into the certain count". */
+export interface SupplyAssessment {
+  window: { start: string | null; end: string | null };
+  product_type: string | null;
+  competing: SupplyProjectRow[];
+  certain_supply_units: number;
+  rumored_supply_units: number;
+  raw_units: number;
+  weighted_units: number;
+  discount_pct: number;
+  by_evidence: { evidence: string; label: string; projects: number;
+                 units: number; weighted: number }[];
+  /** THE COVERAGE. Every total above is computed over `competing` alone, so these counts are what
+   *  say whether the totals are an answer or an absence — see `supplyCard.ts`. */
+  excluded: { out_of_window: SupplyProjectRow[]; wrong_product: SupplyProjectRow[];
+              counts: { out_of_window: number; wrong_product: number } };
+  counts: { competing: number; certain: number; rumored: number };
+  note: string;
+}
+
+/** `absorption.lot_supply_index()`. `months_of_supply` and `lsi` are `null` and `band` is
+ *  `"unknown"` when absorption is not positive; `equilibrium_months` is absent on that branch. */
+export interface LotSupplyIndex {
+  vdl: number; monthly_absorption: number; equilibrium_months?: number;
+  months_of_supply: number | null; lsi: number | null;
+  band: "oversupplied" | "balanced" | "undersupplied" | "unknown";
+  note: string;
+}
+
+/** What the route returns when `monthly_absorption` is supplied. Both readings are returned because
+ *  "the gap between them IS the argument". */
+export interface SupplyIndexResult {
+  supply: SupplyAssessment;
+  weighted_index: LotSupplyIndex;
+  raw_index: LotSupplyIndex;
+  delta_months: number | null;
+  note: string;
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -242,11 +296,17 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/deal-room/authority`,
       { method: "PUT", body: JSON.stringify({ entries }) });
   }
-  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label. */
+  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label.
+   *
+   *  DECLARED 2026-09-25. This returned `Record<string, unknown>`, so every field below was
+   *  invisible to `deadFieldTyped.test.ts` and to any other audit that starts from the client's
+   *  declarations — the same hole `excluded_comparables` fell through in SCREEN-VS-REPORT. The
+   *  overload is real and is kept: `monthly_absorption` switches the response from a bare
+   *  assessment to the index wrapper, which is why the return type is a union. */
   competitiveSupply(pid: string, body: { projects: unknown[]; window_start?: string;
                                          window_end?: string; product_type?: string;
                                          monthly_absorption?: number }) {
-    return this.json<Record<string, unknown>>(
+    return this.json<SupplyAssessment | SupplyIndexResult>(
       `/projects/${pid}/supply/competitive`, { method: "POST", body: JSON.stringify(body) });
   }
   /** CRE-DECISION-GATE — the pre-committee gate; a gate without evidence is unknown, and blocks. */
