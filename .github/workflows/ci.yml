@@ -208,7 +208,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
       - name: Log in to ghcr
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
@@ -358,7 +358,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       # No `cache-to`: an Actions cache written from a PR branch is scoped to that branch and can
       # never be read by main, so writing one is pure churn. Reading main's is the useful half.
