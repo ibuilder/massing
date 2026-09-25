@@ -1322,6 +1322,34 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **RENTROLL-DARK — two engines that say whether you can believe the rent roll, and no screen
+  called either** *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/rentRollQuality.test.ts` and two `UNCALLED` deletions in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  The Operations tab shows FACE numbers — base rent, in-place income, occupancy, WALT. CRE-NER and
+  CRE-RRSCRUB shipped to qualify them; `ApiClient.netEffectiveRent()` and `ApiClient.rentRollScrub()`
+  were both callerless. **Both engines are built around a refusal, and the refusal is what a panel
+  destroys** — which is why the fourteen tests pin the caveats rather than the numbers:
+
+  * `rent_scrub.py` computes `clean` as `bool(ran) and not failed`, so **one** check running and
+    passing with six unable to run is `clean: true`. Its own docstring names the defect a green tick
+    would be: *"a scrub that reports 'no findings' because half its inputs were missing … launders
+    absent data into apparent confidence."* Coverage is the headline here and the flag qualifies it.
+  * `net_effective.roll_up` sums over the COMPUTABLE leases only, so with any `skipped_count > 0` the
+    Face GPR is a different population from the "Base rent / yr" three lines above it on the same
+    screen. Stated, with the skipped leases and reasons.
+  * `skipped` is capped at 50 while `skipped_count` is not — *the CLASH-TRUNC shape*, a page presented
+    as the whole set — so the card says when it is showing a page.
+  * `lc_included` false means the landlord's costs are understated and both NERs are the optimistic
+    case; an absent input must not read as a complete answer.
+  * Zero computable leases renders as a refusal rather than `$0`, because a total of zero and an
+    absence of a total are different claims.
+
+  Six mutations, each redding exactly one test: rendering `clean` as clean, dropping the population
+  warning, presenting the skipped page as whole, dropping the commission caveat, rendering zeros as a
+  valuation, and dropping what a blocked check needs.
+
 - ✅ ⭐ **RESIDUAL-DARK — the developer's actual question was built, routed, tested and unreachable**
   *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/residualLandCard.test.ts` and the `UNCALLED` deletion in

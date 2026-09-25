@@ -8,6 +8,7 @@ import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderRentRollQuality } from "./rentRollQuality";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
@@ -533,6 +534,10 @@ export class ProformaUI {
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
       rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
+      // The card above is FACE rent. These two qualify it: what the roll is worth after concessions,
+      // and which diligence checks could actually run against it. Both engines shipped with R20 and
+      // had no caller — see rentRollQuality.ts.
+      await renderRentRollQuality(host, pid, { api: this.api, setStatus: this.setStatus });
       await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }

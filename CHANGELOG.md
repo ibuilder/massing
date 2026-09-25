@@ -6,6 +6,54 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### RENTROLL-DARK — two engines that say whether you can believe the rent roll, and no screen called either
+
+The pro forma's Operations tab shows **face** numbers: base rent, in-place income, occupancy, WALT.
+Face rent is what a broker quotes. Two R20 engines shipped to qualify it and neither was ever called —
+`ApiClient.netEffectiveRent()` and `ApiClient.rentRollScrub()` both sat in
+`apps/web/src/api/clientCallers.test.ts`'s `UNCALLED` list, reachable only from a script. Both are now
+rendered under the rent roll by `apps/web/src/proforma/rentRollQuality.ts`.
+
+**Both engines are built around a REFUSAL, and the refusal is what a panel destroys.** That, rather
+than the numbers, is what this change is about and what its fourteen tests pin.
+
+### Added
+
+- **Net effective rent** — face GPR against the discounted and straight-line NER, the concession load,
+  and the leases with the widest face→NER gap (the ones an underwriter re-cuts first). The card names
+  which form agency underwriting uses, so two numbers are a choice rather than a puzzle.
+- **Rent-roll scrub** — the seven diligence checks, with **coverage as the headline**, the findings by
+  severity, and every check that could not run beside **what it would need**. That last table is the
+  actionable half: it tells you which document to go and get, rather than leaving the gap as an absence
+  of green ticks.
+
+### The caveats, each of which a naive panel would delete
+
+- **`clean` is never rendered as a clean rent roll.** `rent_scrub.py` computes it as
+  `bool(ran) and not failed`, so **one** check running and passing with six unable to run is
+  `clean: true`. A green tick off that flag is precisely what the engine's own docstring exists to
+  refuse — *"a scrub that reports 'no findings' because half its inputs were missing is worse than no
+  scrub — it launders absent data into apparent confidence."* The card leads with `N of M checks could
+  run` and qualifies the flag with it.
+- **The NER totals cover a smaller population than the card above them.** `roll_up` filters to the
+  computable leases *before* summing, and `lease_count` is that subset's size — so with any
+  `skipped_count > 0` the Face GPR here is a different set from the rent roll's "Base rent / yr" three
+  lines above, and the two sit on one screen inviting a subtraction. Said out loud, with the skipped
+  leases and their reasons listed.
+- **The skipped list can be a page.** `skipped` is capped at 50 server-side while `skipped_count` is
+  not. A page presented as the whole set is the CLASH-TRUNC shape — a screen reporting over a partial
+  view and calling it complete — so the card says `Showing 50 of 120` when it is showing a page.
+- **No leasing commission means the optimistic case.** `lc_included` is false unless a rate is
+  supplied, and the engine never invents one; without it the landlord's costs are understated, so both
+  NERs are high. The absence would otherwise read as a complete answer.
+- **Zero computable leases renders as a refusal, not as `$0`.** Every total would be zero, and "$0 of
+  net effective rent" is a different claim from "this cannot be stated for this rent roll".
+
+`apps/web/src/proforma/rentRollQuality.test.ts` — fourteen tests, and **six mutations each red exactly
+one of them**: rendering `clean` as clean, dropping the population warning, presenting the skipped page
+as the whole set, dropping the leasing-commission caveat, rendering zeros as a valuation, and dropping
+what a blocked check needs.
+
 ### RESIDUAL-DARK — the developer's actual question was built, routed, tested and unreachable
 
 Every other figure on the pro forma runs **forward** from a land price somebody typed. Site

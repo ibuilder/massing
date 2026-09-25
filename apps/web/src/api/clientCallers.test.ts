@@ -306,13 +306,15 @@ const UNCALLED: readonly string[] = [
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
   "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
   "modelAdjacency", "moduleCalc", "myWork",
-  "netEffectiveRent", "normalizeT12", "parcelsDataStatus",
+  // `netEffectiveRent` and `rentRollScrub` left this list 2026-09-25 — `proforma/rentRollQuality.ts`
+  // renders both under the Operations rent roll. Shipped with R20, called by nothing.
+  "normalizeT12", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot",
   "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
-  "rentRollScrub", "reviewPost",
+  "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
   "saveDealAuthority", "saveMacros", "saveViewTemplates",
   "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
