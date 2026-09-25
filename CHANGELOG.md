@@ -6,6 +6,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### CI-LATEST-DARK — the Model CI tool opens on the stored badge instead of re-running the pack
+
+`ciRun` was wired and `ciLatest` was not, so the persisted model-CI report — stored precisely so the
+badge survives without recomputation — could only be seen by running the whole pack again (rule
+library, completeness, clash, IDS, quantity drift).
+
+The tool now opens on the stored report with **⟳ Run again** beside it. Wiring it exposed a state
+`ciRun` can never return: a project that has never run CI, which the old renderer would have shown as
+**"0/0 passed"** — a score, for something never scored. It now shows the engine's own "No CI run yet."
+with no score and a warn colour, and a run that had nothing applicable to check is kept distinct from
+a project that never ran.
+
 ### SCOPE-EMPTY — an empty scope register no longer reads as one where nothing was done
 
 `scope_register.register` returned `0.0` for all three coverage percentages on an empty register —

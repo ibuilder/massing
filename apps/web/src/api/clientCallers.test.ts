@@ -295,7 +295,7 @@ const UNCALLED: readonly string[] = [
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
-  "ciLatest", "citedQuery", "clashFederated", "clausePlaybook",
+  "citedQuery", "clashFederated", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
   "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType",

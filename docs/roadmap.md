@@ -672,7 +672,39 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
-- ◧ **DEGENERATE-SWEEP — the ledger of what was measured, so the negative half is not re-run**
+- ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
+  only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/viewer/tools/modelCiView.test.ts`)*
+
+  `ciRun` had a caller; `ciLatest` did not. The MODEL-CI pack — rule library, data completeness,
+  clash, pinned IDS, quantity drift — **persists its report**, and the tool's own footnote says why:
+  *"the badge is stored so every model version carries a quality gate."* Opening the tool ran the
+  whole pack again. *A result persisted specifically so it need not be recomputed, reachable only by
+  recomputing it.* The tool now opens on the stored report and offers **⟳ Run again**; an unrun
+  project gets **▶ Run the check pack**.
+
+  **Wiring it handed the renderer a state `ciRun` can never produce, and it could not describe it.**
+  `model_ci.latest` returns `{overall: "none", badge: "NONE", checks: [], note: "No CI run yet."}`,
+  and the inline line `${r.passed ?? 0}/${r.total_checks ?? r.checks.length} passed` renders that as
+  **"0/0 passed"** — a score, for something never scored. *A renderer is only as sound as the states
+  it has been handed*, and for as long as `ciRun` was its only source it had never been handed this
+  one. `isUnrun` is a branch rather than a caveat: no score, the engine's own sentence, and a warn
+  colour rather than a pass.
+
+  **The engine was clean before any of this** and is in the DEGENERATE-SWEEP ledger as such: it
+  already refuses to let a no-run read as a pass. The defect was entirely in what could reach it.
+
+  **The surviving mutation named a third state.** Reducing `isUnrun` to `!r.checks.length` passed
+  every test, because no fixture had an empty `checks` on a report that had actually RUN — a run with
+  nothing applicable to check. *Run it* and *it ran and found nothing to check* are different
+  findings, and conflating them is this session's own theme one level down. Both are fixtures now,
+  and `isUnrun` keyed on either field alone reds.
+
+  Extracted to a module rather than grown in place: `apps/web/src/viewer/tools/qaSection.ts` is under
+  a down-only size ratchet and had eight lines of headroom.
+
+
+- ✅ **DEGENERATE-SWEEP — the ledger of what was measured, so the negative half is not re-run**
   *(the sweep behind nine of this session's items; a SNAPSHOT, not a gate — see the last paragraph)*
 
   Every item from RENTROLL-DARK onward began the same way: **call the engine with nothing to

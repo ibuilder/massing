@@ -17,6 +17,7 @@ import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
 import { renderRoundtripDiff } from "./roundtripDiffView";
+import { isUnrun, renderCiReport } from "./modelCiView";
 import { renderScanCard } from "./scanVerifyView";
 
 /**
@@ -771,22 +772,25 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven table-driven clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
           });
         })));
-        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
+        // Opens on the STORED report — the badge is persisted precisely so it need not be
+        // recomputed, and re-running the pack is the expensive path, not the default one.
+        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Reading the stored model CI report", async () => {
           let r;
-          try { r = await api.ciRun(pid); }
+          try { r = await api.ciLatest(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          const mark: Record<string, string> = { pass: "✅", warn: "🟡", fail: "🔴", skip: "➖", none: "➖" };
           out.textContent = `CI: ${r.badge}`;
           showResult("Model CI — quality gate", (body) => {
-            body.appendChild(resultNote(`Overall <b>${mark[r!.overall] || ""} ${escapeHtml(r!.badge)}</b>`
-              + (r!.ran_at ? ` · ${escapeHtml(r!.ran_at)}` : "")
-              + ` · ${r!.passed ?? 0}/${r!.total_checks ?? r!.checks.length} passed`,
-            r!.overall === "fail" ? "bad" : r!.overall === "pass" ? "ok" : ""));
-            for (const chk of r!.checks) {
-              body.appendChild(resultNote(`${mark[chk.status] || "•"} <b>${escapeHtml(chk.label)}</b> — ${escapeHtml(chk.summary)}`,
-                chk.status === "fail" ? "" : "ok"));
-            }
-            body.appendChild(resultNote("Checks compose the rule library + data-completeness gates; the badge is stored so every model version carries a quality gate. Add rules via the ✔ Rule check tool.", ""));
+            const paint = (rep: typeof r) => { body.replaceChildren(); renderCiReport(body, rep!);
+              const run = document.createElement("button");
+              run.className = "mini-btn on"; run.style.marginTop = "6px";
+              run.textContent = isUnrun(rep!) ? "▶ Run the check pack" : "⟳ Run again";
+              run.onclick = async () => {
+                run.disabled = true; run.textContent = "running the check pack…";
+                try { const fresh = await api.ciRun(pid); out.textContent = `CI: ${fresh.badge}`; paint(fresh); }
+                catch (e) { toast((e as Error).message, "error"); run.disabled = false; }
+              };
+              body.appendChild(run); };
+            paint(r);
           });
         })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Queueing federated clash + coordination", async () => {
