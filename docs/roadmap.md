@@ -672,6 +672,49 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ◧ **DEGENERATE-SWEEP — the ledger of what was measured, so the negative half is not re-run**
+  *(the sweep behind nine of this session's items; a SNAPSHOT, not a gate — see the last paragraph)*
+
+  Every item from RENTROLL-DARK onward began the same way: **call the engine with nothing to
+  evaluate, before writing a line of UI.** Not reading the code — calling it. Seventeen engines were
+  measured that way. **Nine carried a defect, eight were clean**, and the clean ones are listed here
+  because an unrecorded negative gets re-derived by the next person.
+
+  | engine | what it returned when nothing could be evaluated |
+  |---|---|
+  | `rent_scrub` | `clean: true` with 1 of 7 checks run — **defect** |
+  | `covenants` | `at_risk: false`, every count zero for want of inputs — **defect** |
+  | `t12.tie_out` | `reconciles: true` against a reference derived from the answer — **defect** |
+  | `sequence_clash` | `clean` over whatever fraction had dates and a location — **defect** |
+  | `soft_clash` (federated caller) | `clean` over a truncated page — **defect**, CLASH-TRUNC |
+  | `supply_pipeline` | `band: "undersupplied"`, the most favourable verdict there is — **defect** |
+  | `scan_deviation.analyze` | a correct building at 50% out of tolerance, max 50 m — **defect** |
+  | `progress_rollup.capture_diff` | 200 capture GUIDs dropped, note promising otherwise — **defect** |
+  | `scope_register.register` | `0.0` percentages, indistinguishable from nothing-done — **defect** |
+  | `decision_gate.evaluate` | `unknown` blocks; coverage attached to the row — **clean** |
+  | `deal_authority.assess` | blocks on all three required fact types — **clean** |
+  | `scan_deviation.verify_from_scan` | `verified: 0`, stamps nothing, *absence is not a pass* — **clean** |
+  | `adjacency.summary` | `total`, `satisfiable` and the full `unmet` list, uncapped — **clean** |
+  | `ci/latest` | `overall: "none"`, `badge: "NONE"`, *"No CI run yet."* — **clean** |
+  | `doc-graph` | 409 with the reason — **clean** |
+  | `drawings/sync-status` | `model_loaded: false`, `elements: 0`, with a note — **clean** |
+  | `client-decisions` | `{decisions: []}` — no verdict to go vacuous — **clean** |
+
+  **The clean ones are not a rounding error, they are the argument.** *A sweep that only ever finds
+  things is one nobody should trust* — and the four self-supplying endpoints probed last were clean
+  on an actually-empty project, which is how this axis ended rather than being abandoned.
+
+  **This is a SNAPSHOT and deliberately not a gate**, which the roadmap's own rule makes a claim
+  needing justification: *a sweep held as prose is a check that can only report good news.* The
+  mechanically derivable part of this population **already is** a gate —
+  `services/api/test_verdict_coverage.py` derives boolean subset verdicts structurally, with no
+  exemption list. What is left over is not derivable: `band: "undersupplied"` is a string, `0.0` is a
+  float, and "would a reader mistake this for a measurement" is a judgement. **A rule that needs
+  judgement calls needs an exemption list, which is where the next instance hides** — the lesson
+  TRUNC-COUNTED paid for twice. So the ledger says what was measured and when, and the next sweep
+  starts by re-measuring rather than by trusting this table.
+
+
 - ✅ **SCOPE-EMPTY — an empty scope register and one with nothing done were the same three numbers**
   *(XS — Lane C; **CLOSED 2026-09-25**; held by `services/api/test_scope_register.py`)*
 
