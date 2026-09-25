@@ -672,6 +672,39 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- 🟡 **PORTAL-TXN-DARK — the client-decision loop is unreachable at BOTH ends**
+  *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/`; **OPEN — the write half
+  needs the user's call**; measured 2026-09-25)*
+
+  `POST /shared/{token}/decision` is complete and careful: public by design, inputs whitelisted and
+  length-capped, a hard per-token decision cap, unknown or revoked token → 404. It records a
+  timestamped **approve / acknowledge / decline** and is explicit that it is *"NOT a payment and NOT
+  an e-signature of record"*. **Nothing can reach it, and nothing can read what it stores.**
+
+  | | |
+  |---|---|
+  | the page a client actually sees (`GET /shared/{token}`) | **read-only HTML** — grepped: no `<form`, no `<button`, no `fetch(`, no mention of `/decision` |
+  | `sharedDecision` (the SPA's recipient method) | callerless |
+  | `clientDecisions` (the owner's feed) | callerless |
+
+  So this is not a callerless method, it is **a whole transaction with neither end built** — the
+  reason both methods sit in the freeze list, which reading either one alone would not have
+  explained. *Two callerless methods on the same seam are one missing feature, not two missing
+  buttons.*
+
+  **Deliberately not built in this pass, and the reason is the write half.** Giving the client a way
+  to decide means putting interactive elements on a **public, unauthenticated HTML surface** whose
+  docstring currently promises every value is escaped and the page is read-only. That is a security
+  posture, not a layout choice, and changing it is the user's call. **Building only the owner's feed
+  would be decoration** — a panel empty by construction on every project, because nothing can write
+  a decision. *Half a loop is worse than none, because the empty screen reads as "no client has
+  decided anything" rather than as "no client can".*
+
+  What a decision would need if it is built: the form on the public page (or an SPA route behind the
+  token), the owner's feed panel, and a statement of what the record is for — the endpoint already
+  says what it is *not*.
+
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*
@@ -4607,7 +4640,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · AUTHORITY-DOWNSTREAM (all six need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · AUTHORITY-DOWNSTREAM · PORTAL-TXN-DARK (all seven need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**
