@@ -8,6 +8,7 @@ import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderRentRollQuality } from "./rentRollQuality";
 import { renderT12Card } from "./t12Card";
@@ -166,6 +167,11 @@ export class ProformaUI {
       const out = document.createElement("div"); out.id = "pf-out"; uwSec.appendChild(out);
       const sens = document.createElement("div"); sens.id = "pf-sens"; uwSec.appendChild(sens);
       const mc = document.createElement("div"); mc.id = "pf-mc"; uwSec.appendChild(mc);
+      // The authority table is the gate on whether any figure on this tab should be trusted, so it
+      // sits with the underwriting rather than beside one of the things it governs.
+      renderAuthorityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
       this.renderDraws();
     });
     if (sections.deliver) into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });

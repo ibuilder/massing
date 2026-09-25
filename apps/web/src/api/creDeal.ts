@@ -98,6 +98,38 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One declared authority row. `table` and `stale` return the SAME record — `stale` adds
+ *  `days_over` — so they share a type rather than being spelled twice. */
+export interface AuthorityRow {
+  fact_type: string; label: string; document: string; as_of: string;
+  age_days: number | null; freshness_days: number; fresh: boolean;
+  reviewer: string | null; required: boolean; supersedes: string[];
+}
+
+/** The assessment `deal_authority.assess()` returns. **Both routes return it** — the GET directly and
+ *  the PUT under `assessment` — and until 2026-09-25 the PUT declared it as
+ *  `{ gate: { passes: boolean } }`, a narrowed re-spelling of the same record. That is the shape
+ *  `apps/web/src/api/noRespelledShapes.test.ts` exists to catch, and it forced a consumer that wanted
+ *  to render the saved verdict to cast. One name, used twice. */
+export interface AuthorityAssessment {
+  table: AuthorityRow[];
+  missing: { fact_type: string; label: string; required: boolean }[];
+  stale: (AuthorityRow & { days_over: number })[];
+  superseded_still_active: { fact_type: string; document: string; issue: string }[];
+  gate: { passes: boolean; blocking: { fact_type: string; why: string }[];
+          advisory: { fact_type: string; why: string }[] };
+  as_of: string;
+  counts: Record<string, number>;
+  note: string;
+}
+
+/** An entry as the PUT stores it, after `validate()` has normalised it. */
+export interface AuthorityEntryWire {
+  fact_type: string; document: string; as_of: string;
+  freshness_days: number | null; authoritative: boolean; supersedes: string[];
+  reviewer?: string | null;
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -171,18 +203,19 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/loan/covenants`,
       { method: "POST", body: JSON.stringify({ loan, actuals }) });
   }
-  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis. */
+  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis.
+   *
+   *  FIELDS CORRECTED 2026-09-25. `stale` carries the FULL row — label, document, `as_of`,
+   *  `age_days`, `freshness_days`, `supersedes` and `days_over` — and was declared as
+   *  `{fact_type, days_over}`, so a screen could say a document was stale and not which one. And
+   *  `advisory` was typed `unknown[]` when it is `{fact_type, why}[]`: rendering it would have
+   *  needed an inline cast, which is the re-spelled shape `apps/web/src/api/noRespelledShapes.test.ts`
+   *  exists to stop. `reviewer` and `supersedes` on a table row were undeclared too. */
   dealAuthority(pid: string) {
-    return this.json<{ table: { fact_type: string; label: string; document: string; as_of: string;
-      age_days: number | null; freshness_days: number; fresh: boolean; required: boolean }[];
-      missing: { fact_type: string; label: string }[];
-      stale: { fact_type: string; days_over: number }[];
-      superseded_still_active: { fact_type: string; document: string; issue: string }[];
-      gate: { passes: boolean; blocking: { fact_type: string; why: string }[]; advisory: unknown[] };
-      counts: Record<string, number>; note: string }>(`/projects/${pid}/deal-room/authority`);
+    return this.json<AuthorityAssessment>(`/projects/${pid}/deal-room/authority`);
   }
   saveDealAuthority(pid: string, entries: unknown[]) {
-    return this.json<{ entries: unknown[]; assessment: { gate: { passes: boolean } } }>(
+    return this.json<{ entries: AuthorityEntryWire[]; assessment: AuthorityAssessment }>(
       `/projects/${pid}/deal-room/authority`,
       { method: "PUT", body: JSON.stringify({ entries }) });
   }

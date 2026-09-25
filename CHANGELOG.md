@@ -6,6 +6,77 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### AUTHORITY-DARK — a gate you could read and could not satisfy
+
+`services/api/src/aec_api/deal_authority.py` opens with the case for itself:
+
+> A data room accumulates three offering memoranda, two rent rolls and a tax bill from the year before
+> the reassessment. Every one of them is a real file; only one of each is *authoritative*. Analysis
+> that reads whichever copy it happened to open is how a superseded number reaches a committee.
+
+**The finding is sharper than "nobody called it", and the first draft of this entry got it wrong.**
+`dealAuthority()` — the READ — has had a caller all along: `portal/panels/design.ts` renders the gate
+on its go/no-go card, and renders it well. What was callerless is **`saveDealAuthority()` — the
+WRITE.** So the table could be *seen* and never *declared*: the design panel could tell you *"Source
+facts NOT current"* and no screen in the product could make them current. **A gate you can read and
+cannot satisfy is worse to ship than one nobody can see**, because it is visibly unfinished and reads
+as a bug in the analysis rather than as a missing surface.
+
+### Added
+
+- **`apps/web/src/proforma/authorityCard.ts`** on the Underwriting tab — the gate on whether any
+  figure on that tab should be trusted, so it sits with the underwriting rather than beside one of the
+  things it governs. A row per fact type: document, date, optional freshness override. Saving returns
+  the **reassessment**, which is what the card renders — re-fetching would race the write and could
+  show the previous verdict.
+- **The gate leads**, because its purpose is *"to stop the work, not to annotate it after the fact"*,
+  with the engine's own `why` per blocked fact type. Advisory is rendered **apart** from blocking: a
+  stale offering package is not a stale tax bill, and one list would make the required ones look
+  negotiable and the optional ones alarming. `superseded_still_active` gets its own table — it is the
+  one row type a reader cannot derive from the others, because nothing about it looks wrong in
+  isolation.
+- **Age against the fact type's own limit**, not a bare "stale": a tax bill and an offering package go
+  stale on different clocks, and `147 / 60d` is checkable where "stale" is asserted.
+- An undated row is refused **here**, before the PUT, because the server's 422 names an entry by index
+  and the person is looking at a table of labels.
+
+### The tripwire is the load-bearing test
+
+`FACT_TYPES` is mirrored from Python because the GET returns declared rows plus the *required* missing
+ones — so an optional fact type nobody has declared yet (a title commitment, a survey) appears in
+neither, and a card built from the response alone could never offer to add one.
+`authorityCard.test.ts` reads `deal_authority.py` off disk and asserts every key, label, default
+freshness and required flag agrees, in order — the `ui/reportMoments.test.ts` technique against
+`reports.py`, for the same reason. **The `required` flag is the one that matters**: if it drifts, the
+card shows a fact type as optional while the gate blocks on it.
+
+### What I checked and did not find
+
+Four engines this session carried a verdict that went vacuous once nothing had been evaluated, so the
+empty table was measured first. **It fails closed**: `gate.passes` is `not blocking`, and with no
+entries the three required fact types are each missing, so it blocks; one fresh rent roll still blocks
+on the other two. `test_verdict_coverage.py` leaves it alone correctly — `not blocking` is not a
+verdict quantified over a subset. *A clean negative is worth as much as a finding, and saying so is
+part of the report.*
+
+### Fixed
+
+- **`saveDealAuthority` declared `assessment: { gate: { passes: boolean } }`** — a narrowed
+  re-spelling of the record the GET returns in full, which forced a consumer that wanted to render the
+  saved verdict to cast. That is the shape `apps/web/src/api/noRespelledShapes.test.ts` exists to
+  catch. `AuthorityAssessment` is declared once and used by both routes.
+- **`stale` carried the full row and was declared `{fact_type, days_over}`**, so a screen could say a
+  document was stale and not which one; `advisory` was `unknown[]` when it is `{fact_type, why}[]`;
+  `reviewer` and `supersedes` on a table row were undeclared.
+
+### And a test that was satisfied by the wrong code path
+
+The blocking-table test asserted the fact type's **label** against the whole card's text — and the
+same label also appears in the "Not declared" line, which is built straight from `FACT_TYPES` rather
+than through `label()`. So a mutation rendering the raw `fact_type` key in the blocking table
+**passed**. *An assertion satisfied by a different code path than the one it is about is not an
+assertion about that path.* Scoped to the blocking table's own cells, and re-mutated.
+
 ### VERDICT-COVERAGE — the class found five times by hand, now derived
 
 Five engines in this session returned a boolean verdict beside a count of what they could not

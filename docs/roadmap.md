@@ -1322,6 +1322,53 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **AUTHORITY-DARK — a gate you could read and could not satisfy** *(S —
+  `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/authorityCard.test.ts`, whose tripwire reads
+  `services/api/src/aec_api/deal_authority.py` off disk)*
+
+  **The finding is sharper than "nobody called it", and my first reading of it was wrong.**
+  `dealAuthority()` — the READ — has had a caller all along: `apps/web/src/portal/panels/design.ts`
+  renders the gate on its go/no-go card, and renders it well. What was callerless is
+  `saveDealAuthority()` — the WRITE. So the table could be **seen and never declared**: the design
+  panel could say *"Source facts NOT current"* and nothing in the product could make them current.
+  *A gate you can read and cannot satisfy is worse to ship than one nobody can see*, because it is
+  visibly unfinished and reads as a bug in the analysis rather than as a missing surface.
+
+  The card is on Underwriting — it governs every figure on that tab rather than one of them — and
+  renders the gate first, advisory apart from blocking, `superseded_still_active` in its own table
+  (the one row type a reader cannot derive from the others), and age against each fact type's own
+  freshness limit rather than a bare "stale".
+
+  **The tripwire is the load-bearing test, not the rendering.** `FACT_TYPES` has to be mirrored
+  because the GET returns declared rows plus the *required* missing ones, so an optional type nobody
+  has declared appears in neither and a card built from the response could never offer to add one.
+  The test reads the Python off disk and asserts key, label, default freshness and required flag in
+  order — the `reportMoments.test.ts` technique. **The `required` flag is the one that matters**: a
+  drift there shows a fact type as optional while `assess()` blocks on it.
+
+  **A clean negative, recorded as such:** the empty table was measured first, since four engines this
+  session carried a verdict that went vacuous when nothing had been evaluated. This one fails closed —
+  `gate.passes` is `not blocking`, and an empty table blocks on all three required fact types.
+  `services/api/test_verdict_coverage.py` leaves it alone correctly.
+
+  **And a test satisfied by the wrong code path.** The blocking-table test asserted the fact type's
+  label against the whole card's text, and the same label also appears in the "Not declared" line,
+  which is built straight from `FACT_TYPES` rather than through `label()` — so a mutation rendering the
+  raw key in the blocking table passed. *An assertion satisfied by a different code path than the one
+  it is about is not an assertion about that path.*
+
+- 🟡 **AUTHORITY-DOWNSTREAM — the CRE cards do not consult the gate that exists to block them**
+  *(S — `apps/web/src/proforma/`; **OPEN — needs the user's call on how hard to block**)*
+
+  `deal_authority.py`: *"Required fact types that are missing, stale, or superseded-but-still-active
+  BLOCK downstream analysis — the point is to stop the work, not to annotate it after the fact."* The
+  residual-land, net-effective-rent, rent-roll-scrub, T-12 and covenant cards all compute regardless.
+  If the authority table says the rent roll is 87 days past its freshness limit, the NER card values
+  it and says nothing. Wiring the gate through is coherent and small; **how hard to block — refuse,
+  warn, or annotate — is a product decision**, and the wrong choice in either direction is expensive:
+  refusing makes the tab unusable during diligence, annotating makes the gate decorative.
+
 - ✅ ⭐ **VERDICT-COVERAGE — the class found five times by hand, now derived** *(S — Lane J;
   **CLOSED 2026-09-25**; gated by `services/api/test_verdict_coverage.py`)*
 

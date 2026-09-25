@@ -319,7 +319,7 @@ const UNCALLED: readonly string[] = [
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
   "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
-  "saveDealAuthority", "saveMacros", "saveViewTemplates",
+  "saveMacros", "saveViewTemplates",
   "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",
   "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
