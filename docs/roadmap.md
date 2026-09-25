@@ -1114,21 +1114,57 @@ instances:
   silent, because somebody acts on it.* The two are now separate assertions, each mutation-checked in
   its own direction.
 
-- ◧ **SCHEMA-STALE — the generated client types are half the API, and nothing regenerates them**
-  *(S — Lane I; found while measuring ROUTE-SHADOW's blast radius, NOT fixed here)*
+- ✅ **SCHEMA-UNGENERATED — the generated client types were never complete, because the generator's
+  input was a file nobody tracked** *(S — Lane I; opened while measuring ROUTE-SHADOW's blast radius,
+  **CLOSED 2026-09-25**; gated by `services/api/test_schema_types_agree.py`)*
 
-  `apps/web/src/api/schema.d.ts` is produced by `npm run gen:api-types`, which reads
-  `src/api/openapi.json` — **a file that is not in the repository**. So the checked-in types are a
-  hand-run dump from an unrecorded moment, and no CI step notices them ageing. Measured 2026-09-24:
-  **500 paths declared against 947 the server serves**, and the two operations ROUTE-SHADOW's `/mep`
-  and `plan.svg` resolve to today are absent from it entirely.
+  **Filed as "SCHEMA-STALE", and that name was the first thing wrong with it.** Stale implies the
+  file was once right. `apps/web/src/api/schema.d.ts` and the `apps/web/.gitignore` line hiding its
+  input were last written in the **same commit** (`8432a88`, 2026-09-11), and the app has *fewer*
+  route decorators today — 1016 against 1022 at that commit — so drift cannot account for a gap that
+  runs in the other direction. **The types were already half the API on the day they were generated.**
+  A stale-sounding name sends the next reader to re-run the generator, which is the one action that
+  could not fix it. *(The name also collided with `services/api/test_schema_stale.py`, an unrelated
+  gate about module-record schema versioning — two items one word apart in a 139-module tree.)*
 
-  Recorded rather than fixed, and the reason is worth stating: the repair is not running the
-  generator. It is deciding whether `openapi.json` is checked in (a large generated artifact in every
-  diff) or dumped in CI (a step that needs the API importable in the web job), and then whether a
-  stale `schema.d.ts` should FAIL a build or be regenerated for you. That is a decision about the
-  build, not a gap to close on the way past. *A generated file with no producer in CI is prose with a
-  file extension.*
+  **Why re-running it could not fix it.** `package.json` ran
+  `openapi-typescript src/api/openapi.json -o src/api/schema.d.ts`, and `apps/web/.gitignore` ignores
+  `src/api/openapi.json`. On a fresh clone the command fails for want of an input; on a machine that
+  has one it regenerates from whatever dump is sitting there, **prints a green tick, and writes the
+  same file**. *"Regenerate the types" did not mean "read the server", and nothing said so.*
+
+  | | |
+  |---|---|
+  | paths the app serves | **947** (1,021 operations) |
+  | paths `schema.d.ts` declared | **500** (541 operations) |
+  | operations served but undeclared | **482**, across 165 of 203 path groups |
+  | operations declared but no longer served | **2** |
+
+  Fixed in three parts, because any one of them alone leaves the defect reachable.
+  `apps/web/scripts/gen-api-types.mjs` dumps the spec from `aec_api.main:app` into a temp file it then
+  deletes, so **there is no persistent input left to be stale** — and it sorts `paths` first, because
+  FastAPI emits them in route-registration order and including a router earlier shuffles thousands of
+  lines, which is much of why "regenerating churned 38,231 lines" had become a reason not to.
+  `schema.d.ts` is regenerated, by that script rather than by hand, and asserted byte-identical across
+  two runs. And `services/api/test_schema_types_agree.py` asserts every live `(path, method)` is
+  declared — because a generator can only be *run*, and nothing makes anyone run it.
+
+  **The reason it went unseen for a fortnight is worth more than the fix.** Seven audits in this tree
+  exempt `schema.d.ts` by name — `deadFieldScope`, `docComments`, `unfiledMap`, `deadFieldTyped`,
+  `noRespelledShapes`, `test_route_reachability`, `test_file_sizes` — each for a good reason of its
+  own. *Seven exemptions and no owner is how an artifact stops being checked by anybody.* And
+  `test_route_reachability`'s is the sharpest: it once counted this file as client code, so **29
+  routes were "called" by a generated file restating the server's own route table.** That is the
+  opposite error — treating the artifact as evidence about the *client*. It is only ever a claim about
+  the *server*, and nothing was checking the claim.
+
+  *(The entry this replaces said the repair was "a decision about the build, not a gap to close on the
+  way past" — whether `openapi.json` is committed or dumped in CI. That framing was wrong in a way
+  that mattered: it presented a real question as a **blocking** one, and the fix needed neither
+  answer. The input does not have to be committed **or** produced in CI if it does not persist, and
+  the agreement check needs no node and no artifact passing between jobs — it reads the committed
+  `schema.d.ts` and the live app in the one job that already imports it. *An item parked on a decision is
+  parked until somebody re-derives whether the decision was load-bearing.*)*
 
 - ✅ **RESPELLED-SHAPE — a wire type declared twice is invisible to every audit over the
   declarations** *(XS — Lane I; **CLOSED 2026-09-24**; gated by
@@ -1285,6 +1321,49 @@ instances:
   `apps/web/src/proforma/sourcesUsesFees.test.ts` and the three pins in
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
+
+- ✅ ⭐ **RESIDUAL-DARK — the developer's actual question was built, routed, tested and unreachable**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/residualLandCard.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  Every other figure on the pro forma runs **forward** from a land price somebody typed. Site
+  acquisition is the one number a developer negotiates, and the question at the table is *"what is the
+  most I can pay for the dirt and still clear my hurdle"* — a different solve, not a re-reading of the
+  same one. FIN-CALC shipped that solve: `services/api/src/aec_api/proforma/residual.py` bisects the
+  land line over the same forward `solve()` every other number comes from, the route serves it,
+  `services/api/test_fin_calc.py` covers it, and `ApiClient.residualLand()` was written for it.
+  **No screen called it.** Same shape as DISC-poché and the MEP systems browser.
+
+  **The substance of the fix is the three caveats, not the number.** `residual_land_value` is careful
+  in exactly the way a panel throws away, which is this document's SCREEN-VS-REPORT axis:
+  `land_value: null` means the target is unreachable **even at $0 land** (printing a figure would be
+  inventing one; the engine's own note says *"the deal, not the dirt"*); `converged: false` **with** a
+  figure means the bisection hit its cap, so that figure is a bracket endpoint rather than a price; and
+  `bounds` — the honest answer in that second case — **was declared nowhere in this client**, so no
+  unread-field audit here could see it, every one of them starting from the declared interfaces. All
+  three are rendered, one `it` each, because one test over three caveats passes when two of them work.
+
+  **A second finding came out of the write-back.** `residual.py::_with_land` scales the **first**
+  `category: "land"` line and zeroes any others, so the residual is the *total* land basis; the driver
+  form's "Land $" field is bound to `cost_lines.0.amount`, which is true of the default assumption set
+  and not of one adopted from the massing tab. Writing the answer under the looser definition would
+  leave a second land line standing, and the forward re-solve would then carry more land than the
+  answer allowed for — *an inverse answer applied under a different definition than the one it was
+  solved under stops reconciling with the deal it came from*, silently, because every visible number
+  still balances.
+
+  **It also found a live defect in an existing gate, in the direction that costs the most.** The XSS
+  source pin in `apps/web/src/proforma/proforma.render.test.ts` required the literal spelling
+  `escapeHtml((e as Error).message)`, and this directory imports the escaper under two names —
+  so a line escaping **correctly** under the conventional alias was reported as an unescaped sink.
+  *A check keyed on the local NAME cannot see a call that is about the BINDING*, and this was not a
+  miss but a confident accusation about a safe line, telling its author they had an XSS. Renaming the
+  import to suit the regex was the tempting repair and the wrong one: the convention it would bend to
+  is the regex's, not the directory's. The escaper resolves through the file's own import now — and the
+  pin additionally could not tell *"no offenders"* from *"nothing to offend"*, asserting an empty list
+  with no floor on either side, so it now proves it found files and is still looking at sinks before it
+  may report none unescaped.
 
 - ✅ ⭐ **PIN-POPULATION — the pin engine read 5 registers of 37, and six of its names were not
   modules** *(M — Lane C; **CLOSED**, fix in this change; gated by
@@ -4001,7 +4080,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCHEMA-STALE *(open — `schema.d.ts` declares 500 of the 947 paths the server serves, and its generator reads an `openapi.json` that is not in the repository. Filed here because the artifact lives in this directory; **the repair is a build decision, not a file edit** — whether `openapi.json` is committed or dumped in CI, and whether a stale `schema.d.ts` fails a build or is regenerated for you)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

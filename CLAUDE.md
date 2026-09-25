@@ -410,6 +410,51 @@ whose regex carries the prefix by construction, and probe validity is **self-che
 must match its own route), so an unhandled converter reds the build. *A list of known cases is a list
 somebody stopped widening; a self-check is not.*
 
+**A seventeenth joined them on 2026-09-25: `services/api/test_schema_types_agree.py`** — does the
+committed `apps/web/src/api/schema.d.ts` describe the API this server serves? It is generated from the
+FastAPI spec and checked in, so it is a claim about the server sitting beside the client, and nothing
+was checking the claim: **500 of 947 paths, 541 of 1,021 operations**, 482 undeclared across 165 of 203
+path groups. **Filed as "SCHEMA-STALE", and the name was the first thing wrong with it** — stale
+implies it was once right, and that file and the `.gitignore` line hiding its input were written in the
+SAME commit, with the app carrying *fewer* route decorators today (1016 vs 1022) than when it was
+generated. *A stale-sounding name sends the next reader at the one action that cannot fix it*, which
+here was re-running the generator: `gen:api-types` read `src/api/openapi.json`, **a gitignored file**,
+so it regenerated from whatever dump sat on that machine, printed a green tick and wrote the same file.
+*"Regenerate the types" did not mean "read the server", and nothing said so* — the generator now dumps
+from `aec_api.main:app` into a temp file it deletes, so there is no persistent input left to be stale.
+**The rule is method-level and that is load-bearing:** `openapi-typescript` emits all eight verbs per
+path and marks the unserved ones `?: never`, so a path-level check passes a file declaring all 947 URLs
+and none of their verbs — which is the shape a half-regenerated file actually has. Both arms are
+mutation-proved, and the parser REFUSES a group it cannot classify rather than narrowing, because a
+silent narrowing reports that path as missing everything, reading as "regeneration due" instead of "the
+parser no longer understands this file".
+**The reason it went unseen is worth more than the fix: SEVEN audits here exempt this file by name**
+(`deadFieldScope`, `docComments`, `unfiledMap`, `deadFieldTyped`, `noRespelledShapes`,
+`test_route_reachability`, `test_file_sizes`), each for a good reason of its own. *Seven exemptions and
+no owner is how an artifact stops being checked by anybody.* And `test_route_reachability`'s is the
+opposite error, still instructive: it once counted this file as CLIENT code, so **29 routes were
+"called" by a generated file restating the server's own route table.** It is only ever a claim about
+the SERVER. **The item had also been parked on a decision that was not load-bearing** — commit
+`openapi.json`, or produce it in CI? — and needed neither answer, because an input that does not
+persist needs no home, and the agreement check needs no node and no artifact crossing jobs. *An item
+parked on a decision stays parked until somebody re-derives whether the decision was load-bearing.*
+**And the gate's own first draft asked its newest precondition from the wrong place.** The
+env-independence scan globbed `Path("src")`, relative to the working directory — which `run_tests.py`
+sets to `services/api`, while `ci.yml` invokes `python services/api/run_tests.py` from the repo ROOT.
+`rglob` over a missing directory yields nothing and raises nothing, so it would have reported a clean
+tree under CI and nowhere else. *A wrong question returns a confident number* — the same failure
+`test_scratch_ignored` paid for twice, in a file written days after reading its lesson. **A relative
+path is a question about where somebody stood**; it is anchored on `__file__` now, the population
+count is returned rather than discarded and floored beside the verdict, and the gate is run from both
+directories.
+**And its parity check was not a check.** A path group whose shape the group regex cannot match is
+absent from the parse *silently*, and is then reported as "served but undeclared" — a parser failure
+wearing the costume of a stale file — so the path keys are counted independently. The first draft
+counted them with a regex that **fails in exactly the same way the group regex does**, so a
+trailing-whitespace mutation broke both derivations and the counts stayed equal. *A parity check
+between two derivations that share a failure mode is not a check* — the crude count catches what the
+strict one cannot, and both mutations are now folded in and must be refused before the gate reports.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

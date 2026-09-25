@@ -6,6 +6,189 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### RESIDUAL-DARK — the developer's actual question was built, routed, tested and unreachable
+
+Every other figure on the pro forma runs **forward** from a land price somebody typed. Site
+acquisition is the one number a developer negotiates, and the question at the table is not "what is
+this deal's IRR" but *"what is the most I can pay for the dirt and still clear my hurdle"*. That is a
+different solve.
+
+FIN-CALC shipped it: `services/api/src/aec_api/proforma/residual.py` bisects the land line over the
+same forward `solve()` every other number here comes from, `POST /proforma/residual-land` serves it,
+`services/api/test_fin_calc.py` covers it, and `ApiClient.residualLand()` was written for it. **No
+screen ever called it** — the method sat in `apps/web/src/api/clientCallers.test.ts`'s `UNCALLED`
+list, reachable only from a script. Same shape as DISC-poché and the MEP systems browser: complete,
+correct, and behind no door.
+
+### Added
+
+- **Residual land value on the Feasibility tab** (`apps/web/src/proforma/residualLandCard.ts`). Pick a
+  target — equity IRR · project IRR · equity multiple · yield on cost · profit margin — give it a
+  number, and get the land price that hits it, shown against the land line you already typed as
+  headroom or overpayment. **Apply to the deal** writes it back into the land cost line and re-solves
+  the forward model, so the inverse answer becomes the deal.
+- **The target box changes units with the target**, because 1.8x is not 180%. A multiple is sent
+  unscaled and a percentage is divided by 100; both directions are asserted, and sending the percent
+  unscaled reds the test.
+- **All three of the engine's caveats are rendered, and that is the substance of the change rather
+  than the number.** `residual_land_value` is careful in exactly the way a panel throws away — this
+  repo's SCREEN-VS-REPORT axis:
+  - `land_value: null` — the target is unreachable **even at $0 land**. Printing a figure here would
+    be inventing one; printing nothing would read as a failure. It renders as the finding, quantified
+    with `at_zero_land`, under the engine's own words: *"the deal, not the dirt"*.
+  - `converged: false` **with** a figure — the bisection hit its cap, so that figure is a bracket
+    endpoint, not a price. A panel that prints the money and drops the flag asserts a precision it
+    does not have.
+  - `bounds` — **declared nowhere in this client.** The route returns it and `residual.py`'s own
+    docstring lists it, and `ApiClient.residualLand()`'s return type omitted it, so no unread-field
+    audit in this tree could see it: every one of them starts from the declared interfaces. It is the
+    honest answer in the un-converged case, which is precisely when it matters. Declared and read now.
+- **The applied value goes back as the basis the engine SOLVED for, not the one the form is bound to.**
+  `proforma/residual.py::_with_land` scales the **first** `category: "land"` line and zeroes any
+  others, so "the land basis" is that line and the residual is the *total*. The driver form's "Land $"
+  field is bound to `cost_lines.0.amount`, which is true of the default assumption set and not
+  guaranteed of one adopted from the massing tab — and a second land line left standing would make the
+  forward re-solve carry more land than the answer allowed for, so the deal would quietly disagree with
+  the number that produced it. `landBasis()` / `applyLandBasis()` address it the engine's way, and both
+  are mutation-checked: reading line 0 instead of the first land line, and dropping the zeroing, each
+  red their own test. *Applying a number under a looser definition than the one it was solved under is
+  how an inverse answer stops reconciling.*
+- `apps/web/src/proforma/residualLandCard.test.ts` — thirteen tests, one caveat per `it`, because one
+  test over all three passes when two of them work. **Mutation-checked**: printing a figure when
+  `land_value` is null, always claiming convergence, ignoring `bounds`, and sending the percentage
+  unscaled each red exactly the test written for them.
+
+### Fixed
+
+- **The XSS source pin in `proforma.render.test.ts` accused a safe line.** It required the literal
+  spelling `escapeHtml((e as Error).message)`, and this directory imports the escaper under two names
+  — `escapeHtml` in `massingTab.ts`/`proforma.ts`, `escapeHtml as esc` in `testfitTab.ts` and now
+  `residualLandCard.ts`. So a line escaping **correctly** under the conventional alias was reported as
+  an unescaped XSS sink. *A check keyed on the local NAME cannot see a call that is about the
+  BINDING* — and it failed in the direction that costs the most trust: not a miss, a confident
+  accusation about a safe line, with a message telling the author they had an XSS. The escaper is now
+  resolved from the file's own `ui/feedback` import, so either spelling counts and a name bound to
+  nothing does not. Renaming the import to suit the regex was the tempting repair and the wrong one:
+  the convention it would bend to is the regex's, not the directory's.
+- **And the pin could not tell "no offenders" from "nothing to offend".** It asserted an empty list
+  with no floor on either side, so a refactor that moved every sink out of `proforma/` would have left
+  it green and meaningless. It now asserts the directory scan found files and that it is still looking
+  at sinks, before it may report none unescaped. Mutation-verified both ways: a real unescaped sink in
+  the new card reds it, and reverting the resolver to name-matching reds it and its self-test.
+
+### SCHEMA-UNGENERATED — the generated client types were never complete, and "regenerate" did not mean "read the server"
+
+`apps/web/src/api/schema.d.ts` is generated from the FastAPI spec and **committed**, so it is a claim
+about the server checked in beside the client. Nothing was checking the claim.
+
+| | |
+|---|---|
+| paths the app serves | **947** (1,021 operations) |
+| paths `schema.d.ts` declared | **500** (541 operations) |
+| operations served but undeclared | **482**, across 165 of 203 path groups |
+| operations declared but no longer served | **2** |
+
+**It was not staleness, and the name it was filed under pointed at the one action that could not fix
+it.** Stale implies the file was once right. `schema.d.ts` and the `apps/web/.gitignore` line hiding
+its input were last written in the **same commit** (`8432a88`, 2026-09-11), and the app has *fewer*
+route decorators today — 1016 against 1022 at that commit — so drift cannot account for a gap running
+in the other direction. The types were already half the API when they were generated.
+
+**Why re-running the generator reproduced it.** `package.json` ran
+`openapi-typescript src/api/openapi.json -o src/api/schema.d.ts`, and `apps/web/.gitignore` ignores
+`src/api/openapi.json`. On a fresh clone the command fails for want of an input; on a machine that has
+one it regenerates from whatever dump is sitting there, prints a green tick and writes the same file.
+
+### Fixed
+
+- **`apps/web/scripts/gen-api-types.mjs` — the generator reads the app, not a file.** It dumps the
+  spec from `aec_api.main:app` into a temp file under the OS temp directory, generates, and deletes
+  it, so **there is no persistent input left to be stale**: if the app cannot be imported it exits
+  non-zero with Python's own traceback instead of falling back to a dump on disk. It finds the venv
+  interpreter on either OS rather than resolving a bare `python` off PATH — the mistake
+  `check-vite-version.mjs` documents for vite — and refuses to overwrite a committed file from a spec
+  reporting an implausible number of paths.
+- **`paths` is sorted before generating.** FastAPI emits them in route-registration order, so
+  including a router earlier shuffles thousands of lines and the diff of a one-route change is
+  unreviewable. Key order carries no meaning in an OpenAPI document, and this is much of why
+  *"regenerating churned 38,231 lines"* had become a recorded reason not to regenerate. Two
+  consecutive runs are now byte-identical.
+- **`schema.d.ts` regenerated** — by that script, not by hand: 947 paths, 1,021 operations, all
+  declared.
+- **`apps/web/src/api/openapiTypes.ts`'s header** described the two-step recipe whose second step was
+  the defect. Corrected to the one command, with the measurement and the gate named.
+
+### Added
+
+- **`services/api/test_schema_types_agree.py`** — the seventeenth gate. Every live `(path, method)`
+  must be declared in the committed `schema.d.ts`, and every declared one must still be served. **A
+  generator can only be run; a gate fails.** It lives in Python, in `services/api`, because it needs
+  the live app and does *not* need node — the declared set is parsed out of the committed `schema.d.ts`, so
+  nothing is generated, no artifact passes between CI jobs, and `api-tests` (which already imports the
+  app) is the only job involved.
+- **Method-level, not path-level, and that is load-bearing.** `openapi-typescript` emits all eight
+  verbs for every path and marks the unserved ones `?: never`, so "the URL is in the file" and "the
+  file says this URL answers POST" are different questions and only one is the right one. A
+  path-level check passes a file that declares all 947 URLs and not one of their verbs — which is the
+  shape a partially-regenerated file actually has. Mutation-proved in both arms: a deleted path group
+  must be found, and one verb flipped to `never` must be found.
+- **It fails closed.** A path group whose body the parser cannot classify *raises* rather than being
+  skipped — proved by deleting a verb line and requiring the refusal, because a parser that silently
+  narrowed would report that path as missing everything, which reads like "regeneration due" rather
+  than "the parser no longer understands this file". Floors on both sides (≥900 paths, ≥950
+  operations) so a parser that matched nothing cannot report a clean tree.
+- **Verified against the file as shipped**: 482 served-but-undeclared and 2 declared-but-gone, with
+  the floor check red as well — detection in both directions, on the real defect, before the fix.
+- **Its own parity check was not a check, and mutation is what said so.** `finditer` yields nothing for
+  a path group whose shape it cannot match — silently — and a path absent from the parse is reported
+  as *served but undeclared*, which reads as **regenerate** rather than **the parser broke**. So the
+  path keys are counted independently of the group bodies. The first draft counted them with
+  `^    "…": \{$`, which **fails in exactly the same way the group regex does** (both anchor the brace
+  at end of line), so a trailing-whitespace mutation broke both derivations and the counts stayed
+  equal. *A parity check between two derivations that share a failure mode is not a check.* The key
+  count uses a deliberately cruder shape now, and both mutations — whitespace after an opening brace,
+  a closing brace indented one space too far — are folded into the gate and must be refused before it
+  may report anything.
+- **No carve-out for `head`/`options`/`trace`.** An earlier draft excluded them from both sides as
+  "verbs nobody writes". Measured: the live spec emits **0 of all three**, so the exclusion bought
+  nothing and silently shrank the population — *a list of known cases is a list somebody stopped
+  widening*, and an explicit `@router.head` would have been skipped on both sides with a missing
+  declaration reading as a clean tree. All eight are compared.
+- **The comparison's own assumption is asserted, not believed.** It only makes sense if the app serves
+  the same routes here, in CI and on the machine that last ran the generator — so the gate scans
+  `src/aec_api` for any route registered under an `if` (measured: 0 sites across 466 modules) and reds
+  if one appears. Without it, one `if settings.FEATURE:` would make this gate red with *"N served but
+  undeclared — regenerate"*, a reader would regenerate, and the file would disagree in the other
+  direction on the next machine. *A check whose failure message can misdiagnose is worse than one that
+  stays silent, because somebody acts on it.* The scanner is shown finding a synthetic gated
+  registration before it may report zero.
+- **And that scan's first draft asked the question from the wrong place.** It globbed `Path("src")`,
+  relative to the working directory. `run_tests.py` sets `cwd=services/api`, so it would have worked
+  under the runner — and `ci.yml` invokes `python services/api/run_tests.py` from the repo **root**,
+  where the same literal names nothing, `rglob` yields nothing, raises nothing, and the precondition
+  reports a clean tree. *A wrong question returns a confident number* — the failure
+  `test_scratch_ignored` paid for twice. The path is anchored on `__file__` now, the module count is
+  returned rather than discarded and floored beside the verdict, and the gate is verified from both
+  working directories.
+
+### Why it went unseen for a fortnight — the part worth more than the fix
+
+**Seven audits in this tree exempt `schema.d.ts` by name** — `deadFieldScope`, `docComments`,
+`unfiledMap`, `deadFieldTyped`, `noRespelledShapes`, `test_route_reachability`, `test_file_sizes` —
+each for a good reason of its own. *Seven exemptions and no owner is how an artifact stops being
+checked by anybody.*
+
+`test_route_reachability`'s exemption is the sharpest and belongs beside this one. It used to count
+`schema.d.ts` as client code, so **29 routes were "called" by a generated file restating the server's
+own route table** (v0.3.1049). That is the opposite error — treating the artifact as evidence about
+the *client*. It is only ever a claim about the *server*, which is the one thing this gate reads it as.
+
+**And the item was parked on a decision that turned out not to be load-bearing.** The entry said the
+repair was a build decision — whether `openapi.json` is committed (a large artifact in every diff) or
+dumped in CI (a step needing the API importable in the web job) — and it needed neither answer. The
+input does not have to be committed *or* produced in CI if it does not persist. *An item parked on a
+decision stays parked until somebody re-derives whether the decision was load-bearing.*
+
 ### ROUTE-SHADOW — four routes were registered on a URL another route already owned
 
 Starlette matches the **first** route whose path and method fit, so a second registration on the same
