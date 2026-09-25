@@ -5,8 +5,9 @@ model's triangulated vertices), classify it against a tolerance band, and summar
 tolerance, mean/max/p95 deviation, a deviation histogram, and the out-of-tolerance count — the data
 behind a red/green heatmap.
 
-Pure over numpy arrays; scipy cKDTree for the nearest-neighbour query. `model_surface_points` pulls the
-reference vertices from an opened IFC via ifcopenshell.geom (guarded)."""
+Pure over numpy arrays; scipy cKDTree for the nearest-neighbour query. `model_surface_points_capped`
+pulls the reference vertices from an opened IFC via ifcopenshell.geom (guarded), and reports whether
+its cap was reached — see `analyze`."""
 from __future__ import annotations
 
 import contextlib
@@ -20,7 +21,7 @@ def analyze(points: Any, reference: Any, tolerance: float = 0.05, *,
 
     **The two truncation arguments are not decoration, and they are not symmetric.**
 
-    `model_surface_points` caps the reference at 200,000 vertices and BREAKS out of the element
+    `model_surface_points_capped` caps the reference at 200,000 vertices and BREAKS out of the element
     iterator to do it, so whole elements are simply absent from the reference — and which ones is
     whatever order ifcopenshell yielded. Every scan point near an omitted element is then measured
     against the nearest surface that IS present, which can be metres away. Measured on a two-wing
@@ -248,14 +249,6 @@ def verify_from_scan(model, deviation: dict[str, Any], verified_by: str = "",
                 "and deliberately NOT stamped — verified-as-wrong is a punch item. Uncovered "
                 "elements need another scan position; absence of points never becomes evidence.",
     }
-
-
-def model_surface_points(model, max_points: int = 200000):
-    """Triangulated-surface vertices of the IFC model. Kept for callers that only want the array;
-    `model_surface_points_capped` is what the route uses, because whether this CAP was hit changes
-    the meaning of every number computed from the result."""
-    verts, _ = model_surface_points_capped(model, max_points)
-    return verts
 
 
 def model_surface_points_capped(model, max_points: int = 200000):

@@ -1,6 +1,6 @@
 """SCAN-TRUNC — is a deviation figure ever computed against a MODEL THAT WAS CUT SHORT?
 
-`scan_deviation.model_surface_points` caps the reference at 200,000 surface vertices, and it reaches
+`scan_deviation.model_surface_points_capped` caps the reference at 200,000 surface vertices, and it reaches
 that cap by BREAKING out of the element iterator. So hitting it does not thin the reference evenly —
 it drops whole elements, in whatever order ifcopenshell happened to yield them. Every scan point over
 a dropped element is then measured against the nearest surface that remains, which can be metres away.
