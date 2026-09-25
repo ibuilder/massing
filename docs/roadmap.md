@@ -1322,6 +1322,28 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **DECISION-GATE-DARK — the keystone over everything else on the tab, and nothing called it**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/decisionGateCard.test.ts`)*
+
+  `decision_gate.py` composes citation coverage, comp tiering, the T-12 tie-out, the rent-roll scrub,
+  the authority gate, exhibits and a named human sign-off, and its contract is **the principle this
+  session spent itself enforcing in consumers, implemented in the engine**: *"A gate whose evidence
+  was not supplied is `unknown`, and unknown BLOCKS — absent evidence must never read as a pass. The
+  actions list says what to do, not just what failed."* `ApiClient.decisionGate()` was callerless.
+
+  So the card's job is not to add judgement but to avoid subtracting it: the actions lead, `unknown`
+  renders as blocking in **word and colour** rather than as a shrug, and a vacuous pass keeps its
+  reason — with nothing supplied, `exhibits` passes *"no exhibits were required for this package"*,
+  which is a gate that tested nothing and must not read as a tick.
+
+  **The evidence it gathers is named, and what it cannot gather it leaves absent.** The card sends the
+  authority assessment and the rent-roll scrub; the other five stay `unknown`, and therefore blocking.
+  *That is the correct answer rather than a gap in the card* — and naming what was supplied makes an
+  `unknown` legible as "not gathered here" rather than "gathered and found wanting". A source that
+  fails is omitted rather than filled in, because an invented payload would make a gate pass or fail
+  on something the card made up. Measured with no evidence: 6 of 7 unknown, blocked, six actions.
+
 - ✅ ⭐ **AUTHORITY-DARK — a gate you could read and could not satisfy** *(S —
   `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/authorityCard.test.ts`, whose tripwire reads
@@ -4258,7 +4280,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · AUTHORITY-DOWNSTREAM (all six need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**

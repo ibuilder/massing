@@ -6,6 +6,58 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### DECISION-GATE-DARK — the keystone over everything else on the tab, and nothing called it
+
+`services/api/src/aec_api/decision_gate.py` names the failure it exists to prevent:
+
+> a package that *looks* finished reaching a committee, because nothing between the analyst and the
+> room ever asked whether the numbers were sourced.
+
+Seven gates — citation coverage, comp tiering, the T-12 tie-out, the rent-roll scrub, the deal-room
+authority gate, exhibits, and a named human sign-off — and two rules that make it honest rather than
+decorative:
+
+> A gate whose evidence was not supplied is `unknown`, and unknown BLOCKS — absent evidence must never
+> read as a pass. The actions list says what to do, not just what failed.
+
+**That is the principle this session spent itself enforcing in consumers, implemented here at the
+composition level** — so the card's job is not to add judgement but to avoid subtracting it.
+`ApiClient.decisionGate()` was callerless, so none of it was reachable.
+
+### Added
+
+- **`apps/web/src/proforma/decisionGateCard.ts`**, last on the Underwriting tab because it is the gate
+  over everything above it: it reads the evidence the other cards produce rather than the conclusions
+  they draw.
+- **The actions lead.** A list of failures is a status report; a list of actions is what somebody can
+  act on at the moment they are stopped, which is the engine's stated contract.
+- **`unknown` is rendered as blocking, in word and in colour** — *"no evidence — blocks"*, on the warn
+  token, distinct from both pass and fail. A card that renders it as a shrug states something the
+  engine did not.
+- **A vacuous pass keeps its reason.** With nothing supplied, `exhibits` passes *"no exhibits were
+  required for this package"* — a gate that tested nothing, which is exactly what the other six exist
+  to refuse, so it must not render as a bare tick.
+- **The evidence it gathers is named.** The card sends the two things this app can produce on demand —
+  the authority assessment and the rent-roll scrub — and leaves the other five absent, which makes them
+  `unknown`, which blocks. **That is the correct answer rather than a gap in the card**, and naming
+  what was supplied makes an `unknown` legible as *"not gathered here"* rather than *"gathered and
+  found wanting"* — two different things to do about it. A source that fails is omitted rather than
+  filled in: an invented payload would make a gate pass or fail on something the card made up.
+- Measured with no evidence at all: **6 of 7 `unknown`, verdict blocked, six actions emitted.**
+- `decisionGateCard.test.ts` — ten tests, **seven mutations**, each redding its own: a neutral word for
+  `unknown`, the pass colour for `unknown`, dropping the actions table, labelling actions by key,
+  dropping the per-gate detail, folding `unknown` into the failed count, and inventing a payload for a
+  source that failed.
+
+### And the lane table caught the item I opened
+
+`apps/web/src/shell/roadmapLanes.test.ts` refused the build: **AUTHORITY-DOWNSTREAM** was opened as a
+roadmap item and assigned to neither a lane nor Parked. Parked is the right home — that list exists
+for items needing a decision, *"so nobody starts one thinking it is a sprint item"* — and this one is
+exactly a decision: whether a stale authority table should **refuse**, **warn** or **annotate** the
+analysis downstream of it. Wrong in either direction is expensive: refusing makes the tab unusable
+during diligence, annotating makes the gate decorative.
+
 ### AUTHORITY-DARK — a gate you could read and could not satisfy
 
 `services/api/src/aec_api/deal_authority.py` opens with the case for itself:

@@ -10,6 +10,7 @@ import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
+import { renderDecisionGateCard } from "./decisionGateCard";
 import { renderRentRollQuality } from "./rentRollQuality";
 import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
@@ -170,6 +171,11 @@ export class ProformaUI {
       // The authority table is the gate on whether any figure on this tab should be trusted, so it
       // sits with the underwriting rather than beside one of the things it governs.
       renderAuthorityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // Last on the tab, because it is the gate over everything above it: the readiness check reads
+      // the evidence the other cards produce rather than the conclusions they draw.
+      renderDecisionGateCard(uwSec, {
         api: this.api, projectId: this.projectId, setStatus: this.setStatus,
       });
       this.renderDraws();
