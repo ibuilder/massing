@@ -320,7 +320,7 @@ const UNCALLED: readonly string[] = [
   "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
   "saveMacros", "saveViewTemplates",
-  "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
+  "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",
   "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
   "topicComments", "updateConnection", "veLog", "verificationDeviations",

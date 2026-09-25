@@ -549,6 +549,45 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       rows_read: number; rows_cap: number; rows_truncated: boolean;
       unchanged: number }>;
   }
+  /** SCAN → LOD 500 — attribute an uploaded point cloud to individual ELEMENTS and stamp the ones
+   *  that verify. `/scan/deviation` compares the cloud to the whole model and returns one aggregate,
+   *  which is useful for QA and useless for verification because it cannot say WHICH element is
+   *  right. This runs the query per element, and unlike the aggregate it never truncates the model.
+   *
+   *  Three outcomes, and the distinction is the whole value: covered and inside tolerance → stamped
+   *  with its measured deviation, so the LOD 500 assertion states an accuracy; covered and outside →
+   *  returned as a finding and deliberately NOT stamped, because verified-as-wrong is a punch item;
+   *  never scanned → reported uncovered, because absence of points is not evidence.
+   *
+   *  `apply=false` returns the same plan without writing, so a team can see what a scan would assert
+   *  before it touches the model. Added 2026-09-25: the route shipped complete and was frozen in
+   *  `services/api/test_route_reachability.py` as having no client — and `scan_deviation`'s own
+   *  refusal message points at it, so the refusal was directing people to something unreachable. */
+  async scanVerifyLod500(pid: string, file: File, opts: { tolerance?: number; apply?: boolean;
+                                                          verifiedBy?: string } = {}) {
+    const fd = new FormData(); fd.append("file", file);
+    const q = new URLSearchParams({ tolerance: String(opts.tolerance ?? 0.05),
+      apply: String(opts.apply ?? false), verified_by: opts.verifiedBy ?? "" });
+    const res = await fetch(this.url(`/projects/${pid}/scan/verify-lod500?${q}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new HttpError(e.detail || `verify-lod500 -> ${res.status}`, res.status);
+    }
+    return res.json() as Promise<{
+      applied: boolean; verified: number; stamped: number; accuracy_recorded: number;
+      findings: { guid: string; ifc_class: string | null; p95_deviation: number | null;
+        max_deviation: number | null }[];
+      findings_count: number; uncovered: number; uncovered_guids: string[];
+      tolerance: number | null; note: string;
+      deviation: { elements?: never; tolerance: number; coverage_band: number; scan_points: number;
+        covered: number; uncovered: number; within_tolerance: number; out_of_tolerance: number;
+        note: string };
+      elements: { guid: string; ifc_class: string | null; name: string | null; covered: boolean;
+        within_tolerance: boolean | null; sampled?: number; scanned_points?: number;
+        mean_deviation?: number; max_deviation?: number; p95_deviation?: number; note?: string }[];
+    }>;
+  }
   /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
    *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */
   modelSelect(pid: string, q: string, limit = 5000) {

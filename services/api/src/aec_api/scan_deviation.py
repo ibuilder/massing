@@ -48,11 +48,15 @@ def analyze(points: Any, reference: Any, tolerance: float = 0.05, *,
     ref = np.asarray(reference, dtype=float).reshape(-1, 3)
     if len(pts) == 0 or len(ref) == 0:
         return {"point_count": int(len(pts)), "reference_count": int(len(ref)),
+                "points_total": int(points_total) if points_total is not None else int(len(pts)),
+                "points_truncated": False, "reference_truncated": bool(reference_truncated),
                 "error": "empty point cloud or reference", "within_pct": None}
     if reference_truncated:
         return {
             "point_count": int(len(pts)), "reference_count": int(len(ref)),
             "tolerance": tolerance,
+            "points_total": int(points_total) if points_total is not None else int(len(pts)),
+            "points_truncated": points_total is not None and points_total > len(pts),
             "reference_truncated": True, "within_pct": None,
             "error": (f"the model reference was capped at {len(ref):,} surface vertices, so part of "
                       "the model is absent from the comparison. Scan points near an omitted element "

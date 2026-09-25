@@ -290,10 +290,13 @@ export class ApiClient extends _ApiStageB {
     const res = await fetch(this.url(`/projects/${pid}/scan/deviation?tolerance=${tolerance}`),
       { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new HttpError((await res.json().catch(() => ({ detail: res.status }))).detail || `scan -> ${res.status}`, res.status);
-    return res.json() as Promise<{ point_count: number; reference_count: number; tolerance: number;
-      within_tolerance: number; within_pct: number | null; out_of_tolerance: number;
-      mean_deviation: number; max_deviation: number; p95_deviation: number;
-      histogram: { band: string; count: number }[]; note: string }>;
+    // A truncated REFERENCE produces no deviation figure at all — `within_pct` is null and every
+    // per-band field is absent — so those are optional and a reader has to handle the refusal.
+    return res.json() as Promise<{ point_count: number; reference_count: number; tolerance?: number;
+      points_total: number; points_truncated: boolean; reference_truncated: boolean;
+      within_pct: number | null; error?: string; within_tolerance?: number; out_of_tolerance?: number;
+      mean_deviation?: number; max_deviation?: number; p95_deviation?: number;
+      histogram?: { band: string; count: number }[]; note?: string }>;
   }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export

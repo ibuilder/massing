@@ -17,6 +17,7 @@ import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
 import { renderRoundtripDiff } from "./roundtripDiffView";
+import { renderScanCard } from "./scanVerifyView";
 
 /**
  * R39-DECOMP-VIEWER ② — the clash / QA tool section, out of `app.ts`.
@@ -340,6 +341,10 @@ export function buildQaSection(d: QaDeps): void {
         // on it; this endpoint checks it and had no client caller, so the promise was unverifiable
         // from the product. Distinct from `roundtripDiff`, which compares a file YOU bring back —
         // this one asks whether OUR OWN export is lossless.
+        b.appendChild(toolBtn2("📡 Scan → as-built (deviation + LOD 500 verify)", () => {
+          showResult("Scan to as-built", (body) => renderScanCard(body,
+            { api, projectId: () => pid, setStatus: (m) => { out.textContent = m; } }));
+        }));
         b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
           let r;
           try { r = await api.modelRoundtrip(pid); }

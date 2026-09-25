@@ -284,7 +284,6 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/provenance/admissibility",
     "/projects/{pid}/recipes/replay-plan",
     # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
-    "/projects/{pid}/scan/verify-lod500",
     "/projects/{pid}/verified-progress/from-layout",
     # `/view-templates/{tid}/graphics` left here in v0.3.1138 — Model Analysis reads cut vs projection.
 

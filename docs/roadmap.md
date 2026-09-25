@@ -672,6 +672,38 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ ⭐ **SCAN-DARK — the refusal SCAN-TRUNC added pointed at a route frozen as unreachable**
+  *(S — Lane E/G; **CLOSED 2026-09-25**; gated by `apps/web/src/viewer/tools/scanVerifyView.test.ts`)*
+
+  **This entry exists because of the previous one.** SCAN-TRUNC made `/scan/deviation` refuse when
+  the model reference was cut short, and its message says *"use `/scan/verify-lod500`, which queries
+  per element and never truncates the model."* That route had **no client method at all** and was
+  listed in `services/api/test_route_reachability.py` as deliberately clientless. *A refusal that
+  redirects to an unreachable feature is a gate you can read and cannot satisfy* — the AUTHORITY-DARK
+  shape, created here by my own wording one item earlier.
+
+  And `ApiClient.scanDeviation`'s declared return type **omitted every field SCAN-TRUNC added** —
+  `reference_truncated`, `points_truncated`, `points_total`, `error` — so the refusal was invisible
+  to the client. The third instance of that hole this session, after `excluded_comparables` and
+  `roundtripDiff.truncated`. The engine also returned the two flags from only two of its three
+  branches, so they are emitted from all three now and the client type requires them.
+
+  **A CLEAN NEGATIVE, measured before a line of UI was written.** Five engines this session carried
+  a verdict that went vacuous once nothing had been evaluated, so `verify_from_scan` was measured on
+  a scan covering nothing: `verified: 0, stamped: 0, uncovered: 50`, nothing stamped, and
+  `within_tolerance` is `null` rather than `false` on an uncovered element. **It fails closed and
+  needed no repair** — the card's only job is not to subtract that care. So `uncovered` is given the
+  same weight as `verified` (a high verified count over a thin scan is the number somebody quotes),
+  a finding renders as *verified as wrong, not stamped*, and the aggregate's refusal renders as a
+  refusal rather than as a zero.
+
+  **The surviving mutation named a branch the fixtures did not have.** Keying `refused()` on
+  `reference_truncated` instead of on the missing figure passed every test, because every fixture
+  set the two together — and the engine has a THIRD refusal branch, an empty cloud or reference,
+  where `within_pct` is null and that flag is `false`. *Asserting the one case you thought of is not
+  asserting the property.* The predicate reads the absent figure, and both branches are fixtures now.
+
+
 - ✅ ⭐ **TRUNC-COUNTED — three screens printed the length of a page as if it were the total, and
   one of them ACTED on it** *(S — Lane C/G; **CLOSED 2026-09-25**; gated by
   `services/api/test_trunc_counted.py`)*

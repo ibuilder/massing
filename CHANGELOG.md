@@ -6,6 +6,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SCAN-DARK — scan-to-BIM deviation and LOD 500 verification reach a screen
+
+SCAN-TRUNC's refusal tells the reader to use `/scan/verify-lod500` instead. That route had no client
+method and was frozen as deliberately clientless, so the refusal redirected to something unreachable.
+`scanDeviation`'s declared type also omitted every field SCAN-TRUNC added, making the refusal
+invisible to the client.
+
+Both are wired now, behind **📡 Scan → as-built** in the model-QA tools. The engines were measured
+first and are sound: a scan covering nothing reports `verified: 0, stamped: 0, uncovered: 50` and
+stamps nothing. The card renders the aggregate's refusal as a refusal rather than a zero, gives
+`uncovered` the same weight as `verified`, and shows a finding as *verified as wrong, not stamped* —
+a punch item rather than a handover.
+
 ### TRUNC-COUNTED — three screens printed the size of a page as the total, and one acted on it
 
 `roundtrip_diff` carries three bounds and disclosed one. `apps/web/src/api/model.ts` never declared
