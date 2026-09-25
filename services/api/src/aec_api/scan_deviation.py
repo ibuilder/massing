@@ -13,9 +13,33 @@ import contextlib
 from typing import Any
 
 
-def analyze(points: Any, reference: Any, tolerance: float = 0.05) -> dict[str, Any]:
+def analyze(points: Any, reference: Any, tolerance: float = 0.05, *,
+            points_total: int | None = None, reference_truncated: bool = False) -> dict[str, Any]:
     """points / reference: Nx3 arrays (scan points, model surface vertices). Returns the deviation
-    summary + histogram. `tolerance` is the in/out threshold in model units (metres)."""
+    summary + histogram. `tolerance` is the in/out threshold in model units (metres).
+
+    **The two truncation arguments are not decoration, and they are not symmetric.**
+
+    `model_surface_points` caps the reference at 200,000 vertices and BREAKS out of the element
+    iterator to do it, so whole elements are simply absent from the reference — and which ones is
+    whatever order ifcopenshell yielded. Every scan point near an omitted element is then measured
+    against the nearest surface that IS present, which can be metres away. Measured on a two-wing
+    model built exactly to design:
+
+        full reference                 within_pct 100.0 · 0 out of tolerance · max 0.004 m
+        reference truncated to wing A  within_pct  50.0 · 500 out of tolerance · max 50.0 m
+
+    So a truncated reference does not make the answer less precise, it **fabricates as-built
+    defects** — and on a QA/QC check that sends a crew to re-survey a wing that is fine. A deviation
+    figure computed against a partial model is not a measurement of anything, so `within_pct` and
+    the histogram are WITHHELD rather than qualified: there is no reading to caveat.
+
+    `points_total` is different in kind. `parse_point_cloud` caps the scan at 500,000 points, and
+    every point that WAS read is still measured correctly — the verdict is true of the part of the
+    cloud that was examined. A scan file is written in sweep order, so a prefix is a spatial subset
+    rather than a random sample, which is a coverage claim and not a correctness one. It is reported
+    beside the verdict, in the shape this repository uses everywhere else for that.
+    """
     import numpy as np
     from scipy.spatial import cKDTree
 
@@ -24,6 +48,19 @@ def analyze(points: Any, reference: Any, tolerance: float = 0.05) -> dict[str, A
     if len(pts) == 0 or len(ref) == 0:
         return {"point_count": int(len(pts)), "reference_count": int(len(ref)),
                 "error": "empty point cloud or reference", "within_pct": None}
+    if reference_truncated:
+        return {
+            "point_count": int(len(pts)), "reference_count": int(len(ref)),
+            "tolerance": tolerance,
+            "reference_truncated": True, "within_pct": None,
+            "error": (f"the model reference was capped at {len(ref):,} surface vertices, so part of "
+                      "the model is absent from the comparison. Scan points near an omitted element "
+                      "would be measured against whatever surface remains, which reports a correct "
+                      "structure as out of tolerance — no deviation figure is produced"),
+            "note": "Absence of reference geometry is not evidence of deviation. Compare a smaller "
+                    "region, or use /scan/verify-lod500, which queries per element and never "
+                    "truncates the model.",
+        }
     dist, _ = cKDTree(ref).query(pts, k=1)
     within = int((dist <= tolerance).sum())
     n = int(len(pts))
@@ -31,8 +68,12 @@ def analyze(points: Any, reference: Any, tolerance: float = 0.05) -> dict[str, A
     edges = [0, tolerance, 2 * tolerance, 3 * tolerance, float("inf")]
     labels = ["≤1×tol", "1–2×tol", "2–3×tol", ">3×tol"]
     hist = [int(((dist >= edges[i]) & (dist < edges[i + 1])).sum()) for i in range(4)]
+    truncated_pts = points_total is not None and points_total > n
     return {
         "point_count": n, "reference_count": int(len(ref)),
+        "points_total": int(points_total) if points_total is not None else n,
+        "points_truncated": bool(truncated_pts),
+        "reference_truncated": False,
         "tolerance": tolerance,
         "within_tolerance": within, "within_pct": round(100 * within / n, 1),
         "out_of_tolerance": n - within,
@@ -40,8 +81,11 @@ def analyze(points: Any, reference: Any, tolerance: float = 0.05) -> dict[str, A
         "max_deviation": round(float(dist.max()), 4),
         "p95_deviation": round(float(np.percentile(dist, 95)), 4),
         "histogram": [{"band": lbl, "count": c} for lbl, c in zip(labels, hist)],
-        "note": "Nearest-surface deviation of each scan point vs the model's triangulated vertices; "
-                "within-tolerance is the share ≤ the tolerance. Feeds a red/green deviation heatmap.",
+        "note": ("Nearest-surface deviation of each scan point vs the model's triangulated vertices; "
+                 "within-tolerance is the share ≤ the tolerance. Feeds a red/green deviation heatmap."
+                 + (f" ONLY {n:,} of {points_total:,} readable scan points were examined — a scan "
+                    "file is written in sweep order, so this covers a REGION of the cloud rather "
+                    "than a sample of it." if truncated_pts else "")),
     }
 
 
@@ -207,8 +251,20 @@ def verify_from_scan(model, deviation: dict[str, Any], verified_by: str = "",
 
 
 def model_surface_points(model, max_points: int = 200000):
-    """Triangulated-surface vertices of the IFC model (reference for the deviation query). Iterates
-    ifcopenshell.geom; capped at `max_points` so a huge model can't blow memory. Returns an Nx3 list."""
+    """Triangulated-surface vertices of the IFC model. Kept for callers that only want the array;
+    `model_surface_points_capped` is what the route uses, because whether this CAP was hit changes
+    the meaning of every number computed from the result."""
+    verts, _ = model_surface_points_capped(model, max_points)
+    return verts
+
+
+def model_surface_points_capped(model, max_points: int = 200000):
+    """`(vertices, truncated)` — the triangulated-surface vertices, and whether the cap was reached.
+
+    **The cap breaks out of the element iterator**, so hitting it does not thin the reference
+    evenly; it drops whole elements, in whatever order ifcopenshell yielded them. A scan point over
+    a dropped element is then measured against the nearest surface still present. `analyze` refuses
+    to produce a deviation figure when this is True, and the docstring there has the measurement."""
     import ifcopenshell.geom as geom
     import numpy as np
 
@@ -227,14 +283,28 @@ def model_surface_points(model, max_points: int = 200000):
             if not it.next():
                 break
     if not verts:
-        return np.zeros((0, 3))
-    return np.vstack(verts)[:max_points]
+        return np.zeros((0, 3)), False
+    stacked = np.vstack(verts)
+    return stacked[:max_points], bool(len(stacked) >= max_points)
 
 
 def parse_point_cloud(text: str, max_points: int = 500000):
-    """Parse an ASCII point cloud (XYZ / CSV — one point per line, first three numbers are x y z)."""
+    """Parse an ASCII point cloud (XYZ / CSV — one point per line, first three numbers are x y z).
+    Kept for callers that only want the array; `parse_point_cloud_counted` is what the route uses."""
+    pts, _ = parse_point_cloud_counted(text, max_points)
+    return pts
+
+
+def parse_point_cloud_counted(text: str, max_points: int = 500000):
+    """`(points, readable_total)` — the points KEPT, and how many the file actually contained.
+
+    The old form stopped reading at the cap and returned an array whose length was the cap, so
+    `point_count: 500000` was indistinguishable from a file that happened to hold exactly that many.
+    Counting continues past the cap while appending does not, so memory stays bounded and the
+    response can say what share of the cloud it examined."""
     import numpy as np
     pts = []
+    total = 0
     for line in text.splitlines():
         line = line.strip()
         if not line or line[0] in "#/":
@@ -242,9 +312,11 @@ def parse_point_cloud(text: str, max_points: int = 500000):
         parts = line.replace(",", " ").split()
         if len(parts) >= 3:
             try:
-                pts.append((float(parts[0]), float(parts[1]), float(parts[2])))
+                xyz = (float(parts[0]), float(parts[1]), float(parts[2]))
             except ValueError:
                 continue
-        if len(pts) >= max_points:
-            break
-    return np.asarray(pts, dtype=float) if pts else np.zeros((0, 3))
+            total += 1
+            if len(pts) < max_points:
+                pts.append(xyz)
+    arr = np.asarray(pts, dtype=float) if pts else np.zeros((0, 3))
+    return arr, total

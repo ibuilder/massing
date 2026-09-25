@@ -6,6 +6,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SCAN-TRUNC — a model cut short turned a correct building into 500 as-built findings
+
+`scan_deviation.model_surface_points` caps the reference at 200,000 surface vertices and reaches the
+cap by **breaking out of the element iterator**, so it drops whole elements rather than thinning
+evenly. Scan points over a dropped element were measured against whatever surface remained.
+
+Measured on a two-wing model built exactly to design: **100.0% within tolerance** against the full
+reference, **50.0% with 500 out-of-tolerance points and a 50 m maximum** once the reference was cut
+short — with nothing in the response saying so. That is a fabricated defect, not a loss of precision,
+and on a QA/QC check it sends a crew to re-survey a wing that is fine. It is the *opposite sign* from
+CLASH-TRUNC, where truncation made a partial matrix read clean.
+
+The two caps are now handled differently on purpose. A truncated **scan** is a coverage claim — the
+points read were read correctly — so the verdict stands with its coverage beside it. A truncated
+**reference** is a correctness claim, so `within_pct` and the histogram are withheld and the response
+says why, pointing at `/scan/verify-lod500`, which queries per element and never truncates the model.
+
 ### SUPPLY-DARK — an empty competitive set reported the most favourable market verdict there is
 
 `services/api/src/aec_api/supply_pipeline.py` weighs a competitive pipeline by what is **recorded**

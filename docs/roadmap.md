@@ -672,6 +672,46 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ ⭐ **SCAN-TRUNC — a model cut short turns a correct building into 500 as-built findings**
+  *(S — Lane C; **CLOSED 2026-09-25**; gated by `services/api/test_scan_trunc.py`)*
+
+  `scan_deviation.model_surface_points` caps the reference at 200,000 surface vertices, and reaches
+  that cap by **breaking out of the element iterator**. So hitting it does not thin the reference
+  evenly — it drops whole elements, in whatever order ifcopenshell yielded them. Every scan point
+  over a dropped element is then measured against the nearest surface that remains, which can be
+  metres away. Nothing in the response said the cap had been hit.
+
+  **Measured on a two-wing model built exactly to design:**
+
+  | reference | `within_pct` | out of tolerance | max deviation |
+  |---|---|---|---|
+  | full | **100.0** | 0 | 0.004 m |
+  | truncated to the first wing | **50.0** | **500** | **50.0 m** |
+
+  *That is not a loss of precision, it is a fabricated defect* — and on a QA/QC as-built check it
+  sends a crew to re-survey a wing that is fine. **It is the opposite sign from CLASH-TRUNC**, where
+  truncation made a partial matrix read *clean*. The direction a silent bound pushes the answer is a
+  property of the bound, not of truncation, so neither case predicts the other and both had to be
+  measured. The cap exists *for* large models, so this is the normal case on a real project.
+
+  **The two caps are treated differently, and the asymmetry is the load-bearing decision.** A
+  truncated SCAN (`parse_point_cloud`, 500,000 points) is a coverage claim — every point read was
+  measured correctly, so the verdict is true of the part examined and is reported beside its
+  coverage, the shape this repository uses everywhere else. A truncated REFERENCE is a correctness
+  claim — there is no population the figure is true of — so `within_pct` and the histogram are
+  **withheld** rather than qualified. *A caveat is for a number that means something.* The refusal
+  also points at `/scan/verify-lod500`, which queries per element and never truncates the model.
+
+  **And the gate's first draft verified the refusal without verifying anything could reach it.** Two
+  mutations — the producer returning `False` unconditionally, and the route dropping the keyword —
+  both left it reporting a clean tree, because it exercised `analyze()` in isolation. The refusal
+  could have been correct and dead. *Verifying a refusal is not verifying that anything can reach
+  it.* The producer is now exercised against a fake geometry iterator, and the route's call is read
+  by AST with both keywords required to be names rather than constants — a hardcoded `False` was the
+  form the second mutation took. Ten mutations, all red, in both directions: over-correcting (the
+  scan cap also refusing, the producer claiming truncation always) reds as well as under-correcting.
+
+
 
 Seven of eleven engines once shipped with no route. The R32 filing-spine entries that occupied this
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
