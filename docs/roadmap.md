@@ -672,6 +672,45 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ ⭐ **SSO-DOOR-DERIVED — the fourth sign-in door arrived guarded, and the gate watching for it
+  could not see it** *(XS — Lane C; **CLOSED 2026-09-25**; the derivation lives in
+  `services/api/test_sso_provision_race.py` beside the behavioural arms it bounds)*
+
+  The concurrency sweep record on this page ends with a prediction: *"a fourth sign-in path is the
+  risk."* **It arrived, and the prediction half came true.** `routers/scim.py` auto-provisions users
+  and **does** route through `auth.get_or_create_sso_user`, so the code was right. What was wrong is
+  that `test_sso_provision_race` tested three doors from a hardcoded `DOORS` list and printed
+  *"all 3 auto-provisioning doors (OAuth, SAML, massing.cloud)"* — **silent about the fourth, and
+  about any fifth.** *A registry reports on what it contains, and its silence is indistinguishable
+  from a clean bill* — `test_gap_records`' own sentence, arriving from the other direction: not a
+  stale OPEN, but a population that quietly stopped being whole.
+
+  **The population is derived twice, from two angles, and neither needs an exemption list:**
+
+  | derivation | what it refuses |
+  |---|---|
+  | every CALLER of the helper is a known door | a fifth door wired correctly but never race-tested |
+  | every site CONSTRUCTING a `User` reaches the helper or is a by-request creation | a fifth door that provisions inline, which is the dangerous shape |
+
+  Both are mutation-proved by writing a real fifth door into the tree: wired to the helper, it reds
+  the first; provisioning inline, it reds the second. The by-request set — `register`, `create_user`
+  and the admin bootstrap — is a real category rather than a fudge: each guards with an explicit
+  409 and none is a sign-in door.
+
+  **The walk double-counted on its first draft and did not fail, it ANSWERED.** Attributing each
+  `User(...)` to every enclosing function put a construction inside a nested `_make_user` under both
+  the factory and its route: **11 sites where an independent probe found 7**, and "8 via the helper"
+  when there are four. The precondition floor was calibrated on the inflated number, so it would
+  have been satisfied by a walk finding half the tree. Attribution is innermost-wins by line range
+  now, and the floor is 7.
+
+  *Recorded and not fixed, deliberately:* `register` and `create_user` are check-then-insert, so a
+  true race yields a **500 where 409 was intended**. That is low severity and saying so matters —
+  unlike a sign-in, where both racers are the same legitimate user and the loser must succeed, the
+  loser here is claiming a taken username and its request correctly fails either way. A wrong status
+  code on an already-failing request is not the defect the SSO doors had.
+
+
 - 🟡 **PORTAL-TXN-DARK — the client-decision loop is unreachable at BOTH ends**
   *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/`; **OPEN — the write half
   needs the user's call**; measured 2026-09-25)*

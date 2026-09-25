@@ -6,6 +6,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SSO-DOOR-DERIVED — the sign-in door list is derived from the helper's callers
+
+The roadmap's concurrency record predicted "a fourth sign-in path is the risk". SCIM is that fourth
+path, and it correctly routes through `auth.get_or_create_sso_user` — but `test_sso_provision_race`
+tested a hardcoded list of three and reported "all 3 auto-provisioning doors", silent about the
+fourth and about any fifth.
+
+The population is now derived twice: every caller of the helper must be a known door, and every site
+constructing a `User` must either reach the helper or be a by-request creation guarded with a 409.
+Both are proved by writing a real fifth door into the tree — wired to the helper it reds the first,
+provisioning inline it reds the second.
+
 ### CI-LATEST-DARK — the Model CI tool opens on the stored badge instead of re-running the pack
 
 `ciRun` was wired and `ciLatest` was not, so the persisted model-CI report — stored precisely so the
