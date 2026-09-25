@@ -189,16 +189,22 @@ check("operations.ts counts broken links from the server's total",
 check("...and no longer sums the three page lengths",
       "g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length" not in ops)
 
+# The three RENDERING decisions moved to `apps/web/src/viewer/tools/roundtripDiffView.test.ts`,
+# which asserts them by calling the functions. String-matching a panel's source was the weakest
+# check available — it cannot tell a rendered string from a comment, and the declaration check
+# above passed twice while its subject was deleted. What stays here is what a unit test cannot see:
+# that the panel delegates at all, rather than keeping a second copy of the logic.
 qa = read("viewer", "tools", "qaSection.ts")
-check("qaSection headline uses change_count, not changes.length",
-      "<b>${d.change_count}</b> change(s)" in qa and "<b>${d.changes.length}</b> change(s)" not in qa)
-check("...and unknown_count, not unknown_guids.length",
-      "d.unknown_count" in qa and "d.unknown_guids.length" not in qa)
-check("the Apply button says it applies only the PAGE when the sheet overflows",
-      "Apply the first ${d.changes.length} of ${d.change_count}" in qa,
-      "this is the one that ACTS on the number rather than just printing it")
-check("...and warns that the rest are left unwritten",
-      "leaves the rest" in qa)
+check("qaSection delegates the diff view instead of rendering it inline",
+      "renderRoundtripDiff(d, {" in qa)
+check("...and no longer counts the page itself",
+      "d.changes.length" not in qa and "d.unknown_guids.length" not in qa)
+
+view = read("viewer", "tools", "roundtripDiffView.ts")
+check("PRECONDITION: the extracted view was read", len(view) > 1500, f"{len(view)} bytes")
+check("the view is unit-tested rather than grepped",
+      (WEB / "viewer" / "tools" / "roundtripDiffView.test.ts").is_file(),
+      "if this file goes, the rendering assertions go with it and nothing here would notice")
 
 portal = read("portal", "portal.ts")
 check("the dashboard worklist says how many it is showing of how many",

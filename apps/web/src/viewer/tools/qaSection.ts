@@ -16,6 +16,7 @@ import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
+import { renderRoundtripDiff } from "./roundtripDiffView";
 
 /**
  * R39-DECOMP-VIEWER ② — the clash / QA tool section, out of `app.ts`.
@@ -695,48 +696,15 @@ export function buildQaSection(d: QaDeps): void {
               status.textContent = "computing dry-run diff…"; diffBox.replaceChildren();
               try {
                 const d = await api.roundtripDiff(pid, f);
-                // COUNTS, NOT PAGE LENGTHS. `changes` caps at 1000 and `unknown_guids` at 100, so
-                // every figure here used to stop climbing at the cap while the sheet grew.
-                status.innerHTML = `<b>${d.change_count}</b> change(s) across ${d.checked} rows`
-                  + (d.unknown_count ? ` · <b>${d.unknown_count}</b> unknown GUID(s) skipped` : "")
-                  + ` · ${d.unchanged} unchanged`
-                  + (d.rows_truncated
-                      ? ` · <b style="color:var(--status-warn)">only the first ${d.rows_cap} rows of `
-                        + `${d.rows_read} were read</b>`
-                      : "");
-                if (!d.changes.length) return;
-                const tbl = document.createElement("table"); tbl.className = "result-table";
-                for (const c of d.changes.slice(0, 300)) {
-                  const tr = document.createElement("tr");
-                  tr.innerHTML = `<td class="k">${escapeHtml(c.guid.slice(0, 8))}… ${escapeHtml(c.pset)}.${escapeHtml(c.prop)}</td>`
-                    + `<td class="v">${escapeHtml(c.old ?? "—")} → <b>${escapeHtml(c.new)}</b></td>`;
-                  tbl.appendChild(tr);
-                }
-                diffBox.appendChild(tbl);
-                const apply = document.createElement("button"); apply.className = "mini-btn on"; apply.style.marginTop = "6px";
-                // THE BUTTON NAMES WHAT IT WILL ACTUALLY DO. It posts `d.changes`, which is the
-                // PAGE — so on a sheet past the cap it applies 1000 of N and the model then differs
-                // from the spreadsheet the user believes they applied, with no error anywhere. It
-                // said "Apply ${d.change_count}" by accident of reading the wrong length.
-                apply.textContent = d.truncated
-                  ? `✓ Apply the first ${d.changes.length} of ${d.change_count} change(s) + republish`
-                  : `✓ Apply ${d.changes.length} change(s) + republish`;
-                if (d.truncated) {
-                  diffBox.insertAdjacentHTML("beforeend",
-                    `<div class="meta" style="color:var(--status-warn);margin-top:4px">`
-                    + `This sheet has ${d.change_count} changes and the diff returns at most `
-                    + `${d.changes.length}. Applying now writes those and leaves the rest — split the `
-                    + `sheet and re-upload to apply all of them.</div>`);
-                }
-                apply.onclick = async () => {
-                  apply.disabled = true; status.textContent = "applying via set_props_by_guid…";
+                // Rendering, the three bounds and the Apply label live in `roundtripDiffView.ts`.
+                renderRoundtripDiff(d, { status, diffBox, apply: async (changes, btn) => {
+                  btn.disabled = true; status.textContent = "applying via set_props_by_guid…";
                   try {
-                    const r = await api.editIfc(pid, "set_props_by_guid", { changes: d.changes });
+                    const r = await api.editIfc(pid, "set_props_by_guid", { changes });
                     status.textContent = `applied ${r.changed} change(s) — model republishing`;
                     notify("properties applied — reload the model to see them", "success");
-                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; apply.disabled = false; }
-                };
-                diffBox.appendChild(apply);
+                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; btn.disabled = false; }
+                } });
               } catch (e) { status.textContent = `diff failed: ${(e as Error).message}`; }
               finally { upInput.value = ""; }
             };
