@@ -54,6 +54,26 @@ const WORD: Record<string, string> = {
   unknown: "no evidence — blocks",
 };
 
+/** The coverage a row carries, or null when it carries none.
+ *
+ *  **This card shipped without it and `services/api/test_verdict_coverage.py` caught it** — the gate
+ *  written one commit earlier, on the card written to demonstrate the principle it enforces.
+ *  `_gate()` splats `**extra` onto the row, so `rent_roll_scrubbed` arrives with `ran`, `failed` and
+ *  `not_applicable`, and its `detail` expresses none of them: a scrub with ONE check run and SIX not
+ *  applicable is a `pass` reading *"the scrub ran but found nothing"*, where "nothing" means "no
+ *  problems found" and is read as "nothing was wrong".
+ *
+ *  Written as a RULE over whatever coverage a row carries rather than as a special case for the one
+ *  gate that carries it today, because the next `_gate(..., **extra)` will arrive the same way and a
+ *  special case is a thing somebody has to remember to widen. The engine's own status word is left
+ *  alone — this card does not overrule the engine, it declines to drop what the engine measured. */
+export function coverageOf(g: { ran?: number; not_applicable?: number }): string | null {
+  const na = g.not_applicable ?? 0;
+  if (!na) return null;
+  const ran = g.ran ?? 0;
+  return `${ran} of ${ran + na} check(s) ran · ${na} could not`;
+}
+
 export function renderDecisionGate(host: HTMLElement, g: Gate): HTMLElement {
   const el = document.createElement("div");
   el.style.marginTop = "8px";
@@ -84,7 +104,10 @@ export function renderDecisionGate(host: HTMLElement, g: Gate): HTMLElement {
     + g.gates.map((x) =>
         `<tr><td>${esc(x.label)}</td>`
         + `<td style="color:${COLOUR[x.status] ?? ""}">${esc(WORD[x.status] ?? x.status)}</td>`
-        + `<td>${esc(x.detail)}</td></tr>`).join("")
+        + `<td>${esc(x.detail)}`
+        + (coverageOf(x) ? `<span class="meta" style="color:var(--status-warn)"> — `
+            + `${esc(coverageOf(x)!)}</span>` : ``)
+        + `</td></tr>`).join("")
     + `</table>`);
 
   el.insertAdjacentHTML("beforeend", meta(esc(g.note)));

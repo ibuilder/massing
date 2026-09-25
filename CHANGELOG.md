@@ -6,6 +6,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### The pre-committee gate card dropped the coverage its own gate demands
+
+`services/api/test_verdict_coverage.py` — added one commit earlier, to derive exactly this class —
+failed on `apps/web/src/proforma/decisionGateCard.ts`, the card written to demonstrate the principle
+it enforces.
+
+`_gate()` in `decision_gate.py` splats `**extra` onto the row, so `rent_roll_scrubbed` arrives
+carrying `ran`, `failed` and `not_applicable`. The card declared five fields and rendered `detail`,
+which expresses none of them. Measured through the real engine with a scrub of `ran: 1,
+not_applicable: 6, failed: 0`:
+
+> `status: "pass"` · `detail: "the scrub ran but found nothing"`
+
+— where "nothing" means *no problems found*, over six checks that never ran.
+
+`DecisionGateRow` and `DecisionGateResult` are now named interfaces in `apps/web/src/api/creDeal.ts`
+rather than an inline re-spelling, and `coverageOf()` renders the coverage beside the verdict as a
+rule over whatever a row carries, not as a special case for the one gate that carries it today. The
+engine's own status word is left alone: this card declines to drop what the engine measured, it does
+not overrule the engine.
+
 ### DECISION-GATE-DARK — the keystone over everything else on the tab, and nothing called it
 
 `services/api/src/aec_api/decision_gate.py` names the failure it exists to prevent:

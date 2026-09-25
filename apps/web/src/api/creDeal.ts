@@ -130,6 +130,29 @@ export interface AuthorityEntryWire {
   reviewer?: string | null;
 }
 
+/** One row of the pre-committee gate.
+ *
+ *  **The last three are the COVERAGE, and they were undeclared until 2026-09-25.** `_gate()` in
+ *  `decision_gate.py` splats `**extra` onto the row, so `rent_roll_scrubbed` arrives carrying
+ *  `ran`, `failed` and `not_applicable` — and the card declared five fields and rendered `detail`,
+ *  so a gate that PASSED with one check run and six not applicable read "pass · the scrub ran but
+ *  found nothing", where "nothing" means "no problems". Found by
+ *  `services/api/test_verdict_coverage.py`, on the card written to demonstrate the principle that
+ *  gate enforces. */
+export interface DecisionGateRow {
+  gate: string; label: string; status: "pass" | "fail" | "unknown";
+  detail: string; action: string;
+  ran?: number; failed?: number; not_applicable?: number;
+}
+
+export interface DecisionGateResult {
+  verdict: "ready" | "blocked"; ready: boolean;
+  gates: DecisionGateRow[];
+  blocking: { gate: string; status: string; detail: string }[];
+  actions: { gate: string; action: string }[];
+  counts: Record<string, number>; note: string;
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -228,12 +251,7 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   /** CRE-DECISION-GATE — the pre-committee gate; a gate without evidence is unknown, and blocks. */
   decisionGate(pid: string, evidence: unknown, requiredExhibits?: string[], minCoverage?: number) {
-    return this.json<{ verdict: "ready" | "blocked"; ready: boolean;
-      gates: { gate: string; label: string; status: "pass" | "fail" | "unknown"; detail: string;
-        action: string }[];
-      blocking: { gate: string; status: string; detail: string }[];
-      actions: { gate: string; action: string }[];
-      counts: Record<string, number>; note: string }>(
+    return this.json<DecisionGateResult>(
       `/projects/${pid}/decision-gate`,
       { method: "POST", body: JSON.stringify({ evidence, required_exhibits: requiredExhibits,
                                                min_coverage: minCoverage ?? 0.9 }) });
