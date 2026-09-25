@@ -30,9 +30,21 @@ assert len(r["gap_items"]) == 2, r["gap_items"]
 assert r["items"][0]["id"] == "s2", r["items"]                # highest-value gap first
 assert r["by_owner"][0]["owner"] == "ABC Concrete" and r["by_owner"][0]["value"] == 50000, r["by_owner"]
 
-# empty input is well-formed
+# empty input is well-formed — and DISTINGUISHABLE from a register with nothing done.
+#
+# This line used to assert `pct_quantified == 0.0` on an empty register, which is the defect it was
+# written to protect against: 0.0 is byte-identical to a register holding one item that is
+# unquantified, and those are opposite findings — "go write the register" versus "go do the work".
+# `spine.traceability`, named beside this engine in apps/web/src/api/coverageMaps.ts as the other
+# completeness mapper, has always returned None for an empty population; the two disagreed. The
+# assertion now pins the PROPERTY the old value was standing in for.
 e = sr.register([])
-assert e["item_count"] == 0 and e["pct_quantified"] == 0.0 and e["total_value"] == 0.0, e
+assert e["item_count"] == 0 and e["total_value"] == 0.0, e
+assert e["pct_quantified"] is None and e["pct_allocated"] is None and e["pct_scheduled"] is None, e
+
+_one = sr.register([{"ref": "S-1", "description": "Slab on grade", "cost_code": "03-30-00"}])
+assert _one["pct_quantified"] == 0.0, _one          # a real 0% is still a real number
+assert e["pct_quantified"] != _one["pct_quantified"], (e, _one)   # ...and the two cannot be confused
 
 # --- route: 404 missing project; 200 otherwise -----------------------------------------------------
 if os.path.exists("./test_scope_register.db"):

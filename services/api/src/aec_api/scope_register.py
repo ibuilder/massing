@@ -115,9 +115,15 @@ def register(scope_items: list[dict], qto_lines: list[dict] | None = None,
     rows.sort(key=lambda r: (r["status"] == "complete", -(r["value"] or 0)))   # gaps first, highest-value first
     return {
         "item_count": n, "complete": complete, "with_gaps": n - complete,
-        "pct_quantified": round(n_quant / n, 3) if n else 0.0,
-        "pct_allocated": round(n_alloc / n, 3) if n else 0.0,
-        "pct_scheduled": round(n_sched / n, 3) if n else 0.0,
+        # `None`, not 0.0, on an empty register. `0.0` reads as "nothing is quantified" and is
+        # BYTE-IDENTICAL to a register holding one item with nothing done — opposite findings: one
+        # says go write the register, the other says go do the work. `spine.traceability`, named
+        # beside this engine in `apps/web/src/api/coverageMaps.ts` as the other completeness mapper,
+        # has always returned None here; two engines documented as answering the same question
+        # disagreed about how to say "no population".
+        "pct_quantified": round(n_quant / n, 3) if n else None,
+        "pct_allocated": round(n_alloc / n, 3) if n else None,
+        "pct_scheduled": round(n_sched / n, 3) if n else None,
         "total_value": round(total_value, 2),
         "by_owner": sorted(({"owner": k, "value": round(v, 2)} for k, v in by_owner.items()),
                            key=lambda r: -r["value"]),

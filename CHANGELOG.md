@@ -6,6 +6,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SCOPE-EMPTY — an empty scope register no longer reads as one where nothing was done
+
+`scope_register.register` returned `0.0` for all three coverage percentages on an empty register —
+byte-identical to a register holding one item with nothing quantified, allocated or scheduled. Those
+are opposite findings, and only `item_count` separated them.
+
+`spine.traceability`, named beside this engine in `apps/web/src/api/coverageMaps.ts` as the other
+completeness mapper, has always returned `None` for an empty population. The two now agree. The
+existing test asserted the old value, so it now asserts the property that value stood in for: the
+three are `None`, a real 0% is still `0.0`, and the two cannot be confused.
+
 ### PROGRESS-UNMATCHED — a capture diff now says how much of the capture it could not use
 
 `progress_rollup.capture_diff` filtered both its added and disappeared sets through the model's

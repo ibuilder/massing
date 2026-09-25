@@ -672,6 +672,43 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ **SCOPE-EMPTY — an empty scope register and one with nothing done were the same three numbers**
+  *(XS — Lane C; **CLOSED 2026-09-25**; held by `services/api/test_scope_register.py`)*
+
+  `scope_register.register` returned `pct_quantified` / `pct_allocated` / `pct_scheduled` as `0.0`
+  when there were no items. Measured, and the two responses are **indistinguishable on every number
+  a card would show**:
+
+  | | `item_count` | the three percentages |
+  |---|---|---|
+  | an empty register | 0 | **0.0 / 0.0 / 0.0** |
+  | one item, nothing done | 1 | **0.0 / 0.0 / 0.0** |
+
+  Those are opposite findings — *go write the register* versus *go do the work* — and only
+  `item_count` separated them, which a percentage-led card need not render. Same shape as
+  T12-SELFTIE, where the two responses were likewise byte-identical.
+
+  **The repair is not a judgement call, because the answer was already in the tree.**
+  `spine.traceability` returns `None` for an empty population, and
+  `apps/web/src/api/coverageMaps.ts` names the two engines side by side as *the* two completeness
+  mappers, each answering "what proportion of these records carry the link they need". **Two engines
+  documented as answering the same question disagreed about how to say 'no population'**, and one of
+  the two spellings cannot be told from a real measurement.
+
+  **An existing test asserted the defect**, and that is the part worth recording. `test_scope_register`
+  had `assert e["pct_quantified"] == 0.0` on the empty case — a VALUE standing in for a property it
+  did not state. It is now the property: the three are `None`, a real 0% is still `0.0`, and the two
+  cannot be equal. *Changing a test to match new behaviour is only legitimate when the old assertion
+  encoded the bug, and saying which it was is the whole of the justification.* Five mutations, all
+  red, including the over-correction that turns a genuine 0% into `None`.
+
+  **Wiring `scopeRegister` is a feature, not a card** — the route takes `scope_items`, `qto_lines`
+  and `activities` entirely from the request body and reads nothing from the database, so a caller
+  has to assemble three datasets first. Unlike PROGRESS-UNMATCHED the producers do exist, so this is
+  buildable rather than blocked; it is simply not extra-small, and the method stays in the callerless
+  freeze list until somebody sizes it honestly.
+
+
 - ✅ **PROGRESS-UNMATCHED — an engine whose note promised "never silently dropped" and silently
   dropped** *(XS — Lane C; **CLOSED 2026-09-25**; gated by
   `services/api/test_progress_unmatched.py`)*
