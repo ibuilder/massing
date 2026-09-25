@@ -138,18 +138,34 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/contracts/review`,
       { method: "POST", body: JSON.stringify({ contract_type: contractType, findings, document }) });
   }
-  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start). */
+  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start).
+   *
+   *  FIELDS DECLARED 2026-09-25, AND THE REASON IS THE ENGINE'S OWN PURPOSE. `covenants.py`'s module
+   *  docstring says the calculated due date *"shows its work: the anchor date, the basis, the count,
+   *  and every non-working day it skipped. **A due date a reviewer cannot re-derive by hand is not a
+   *  due date.**"* — and `anchor_date`, `non_working_days_skipped`, `delivered_date` and `days_early`
+   *  were declared nowhere here, so the one property the engine was built for was invisible to its
+   *  client by construction. Likewise the covenant `note` (*"A breach inside an open cure window is a
+   *  different conversation from one outside it"*) and `actual` / `cure_days`: the sentence that
+   *  distinguishes the two states could not reach a screen. */
   loanCovenants(pid: string, loan: unknown, actuals?: Record<string, number>) {
-    return this.json<{ loan: { name: string; lender: string }; at_risk: boolean;
+    return this.json<{ loan: { name: string | null; lender: string | null }; at_risk: boolean;
       summary: Record<string, number>;
-      reporting: { obligations: { name: string; computable: boolean; due_date?: string;
-        day_basis?: string; clock_start?: string; anchor_source?: string; status?: string;
-        risk?: string; days_remaining?: number; clock_start_matters?: boolean;
-        alternate_reading?: { due_date: string; days_difference: number; warning: string } }[];
+      reporting: { as_of: string; horizon_days: number; note: string;
+        obligations: { name: string; computable: boolean; reason?: string; due_date?: string;
+        day_basis?: string; clock_start?: string; anchor_source?: string; anchor_date?: string;
+        days?: number; non_working_days_skipped?: { date: string; why: string }[];
+        delivered_date?: string | null; days_early?: number;
+        status?: string; risk?: string; days_remaining?: number | null; clock_start_matters?: boolean;
+        alternate_reading?: { clock_start: string; due_date: string; days_difference: number;
+                              warning: string } }[];
         upcoming: unknown[]; overdue: unknown[]; not_computable: { name: string; reason: string }[];
         counts: Record<string, number> };
-      financial: { covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
-        headroom?: number; cure_ends?: string | null; reason?: string }[];
+      financial: { as_of: string; note: string;
+        covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
+        actual?: number; threshold?: number; direction?: string; frequency?: string;
+        headroom?: number; cure_days?: number | null; cure_ends?: string | null;
+        note?: string; reason?: string }[];
         untested: { name: string; reason: string }[]; counts: Record<string, number>;
         clean: boolean } }>(
       `/projects/${pid}/loan/covenants`,

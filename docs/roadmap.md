@@ -1322,6 +1322,36 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **COVENANT-DARK — two verdicts that read clean when nothing was evaluated** *(S —
+  `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/covenantCard.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  `ApiClient.loanCovenants()` was callerless, so nothing had yet had the chance to get CRE-COVENANT's
+  verdicts wrong. **Measured through the real engine:**
+
+  | register state | `at_risk` | `financial.clean` | evaluated |
+  |---|---|---|---|
+  | 2 uncomputable obligations, 2 untested covenants | `false` | `false` | **nothing** |
+  | 1 of 3 covenants tested and passing | `false` | **`true`** | one third |
+
+  `at_risk` reads four counts that are zero **for want of inputs rather than want of problems**, and
+  `clean` fails closed only at *zero* tested. **The fourth engine this session with that shape** —
+  after `soft_clash`, `rent_scrub` and `t12` — which is why VERDICT-COVERAGE below exists.
+
+  Also rendered, all previously undeclared on the client: the four fields that make a due date
+  re-derivable (*"A due date a reviewer cannot re-derive by hand is not a due date"* is the engine's
+  own sentence, and its client could not see them), the `alternate_reading` when the two clock starts
+  disagree, and the covenant `note` distinguishing a breach inside an open cure window from one
+  outside it.
+
+  **Two mistakes in its own tests, both the same shape.** A mutation that did not compile printed no
+  results line and the loop read that as silence rather than as a failed experiment. And the
+  three-state test first asserted only text — all of it from the server — so painting a curable breach
+  and an uncured one identically **passed**; `curable !== uncured` was the next draft, and a mutation
+  giving a curable breach the *passing* colour satisfied it while being worse than folding the two
+  together. *Asserting one inequality is not asserting that three states are three states.*
+
 - ✅ ⭐ **T12-SELFTIE — a gate that could not fail, because nobody was handing it evidence**
   *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/t12Card.test.ts` and the `UNCALLED` deletion in

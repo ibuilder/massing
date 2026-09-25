@@ -8,6 +8,7 @@ import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderCovenantCard } from "./covenantCard";
 import { renderRentRollQuality } from "./rentRollQuality";
 import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
@@ -152,7 +153,13 @@ export class ProformaUI {
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
     if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty(); });
-    if (sections.cap) into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
+    if (sections.cap) into(sections.cap, () => {
+      this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty();
+      // Beside the facility it is about: renderSourcesUses prints the loan amount and its fees.
+      renderCovenantCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
     const uwSec = sections.uw;
     if (uwSec) into(uwSec, () => {
       uwSec.appendChild(form);

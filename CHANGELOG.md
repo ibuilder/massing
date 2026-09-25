@@ -6,6 +6,78 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### COVENANT-DARK — two verdicts that read clean when nothing was evaluated
+
+`services/api/src/aec_api/covenants.py` opens with the case for itself:
+
+> A borrower with clean financials who files on day nine of a "ten business days" notice — counted
+> from the lender's notice date, not from the day it landed — has breached exactly as surely as one
+> who missed a DSCR test.
+
+`ApiClient.loanCovenants()` was written for it and **no screen ever called it**, so nothing had yet
+had the chance to get its verdicts wrong. **Measured through the real engine, not reasoned about:**
+
+| register state | `at_risk` | `financial.clean` | what was evaluated |
+|---|---|---|---|
+| 2 uncomputable obligations, 2 untested covenants | `false` | `false` | **nothing** |
+| 1 of 3 covenants tested and passing | `false` | **`true`** | one third |
+
+`at_risk` is `overdue > 0 or due_soon > 0 or breach > 0 or cure_period_open > 0`, so a register that
+could evaluate nothing reports *not at risk* — every count it reads is zero **for want of inputs
+rather than for want of problems**. And `clean` is `bool(tested) and all(passing)`, which fails closed
+only at *zero* tested; one tested and two not is `true`. This is the **fourth** engine this session
+with that shape, after `soft_clash`, `rent_scrub` and `t12`.
+
+The engine is not wrong and hands over the antidote to both — `summary.untested_covenants`,
+`summary.uncomputable_obligations`, and its own note: *"an untested covenant is not a passing one."*
+
+### Added
+
+- **`apps/web/src/proforma/covenantCard.ts`**, on Budget & Capital beside the facility it is about.
+  Coverage is the headline — *"N of M obligations computable · K of L covenants tested"* — and the
+  verdicts are qualifiers on it. A register that evaluated nothing says so in those words, rather
+  than inheriting `at_risk: false`.
+- **The due date shows its work**, which is the engine's stated purpose: *"the anchor date, the
+  basis, the count, and every non-working day it skipped. **A due date a reviewer cannot re-derive by
+  hand is not a due date.**"* All four fields were **declared nowhere in `api/creDeal.ts`** until this
+  change, so the one property the engine was built for was invisible to its client by construction.
+- **Both readings when the clock starts disagree.** When the lender's notice date and our receipt
+  date differ, the obligation carries two due dates, the day difference and *"confirm the counting
+  basis with counsel before the calendar goes live."* A calendar showing one of two possible dates is
+  worse than one that admits it has two.
+- **Three covenant states, not two.** The engine keeps `cure_period_open` apart from `breach` and
+  says why in a `note` that was also undeclared — *"A breach inside an open cure window is a different
+  conversation from one outside it"* — so the sentence could not reach a screen.
+- An unreadable line in the actuals box is reported, because an absent actual is an **untested**
+  covenant: a typo would otherwise look exactly like a figure you never had.
+- `apps/web/src/proforma/covenantCard.test.ts` — fourteen tests, seven mutations.
+
+### The two mistakes this found in its own tests, both the same shape
+
+- **A mutation that did not compile proved nothing, and printed nothing.** The runner emitted no
+  results line at all and the loop read that as silence rather than as a failed experiment. The
+  mutation harness now says so explicitly when no result line comes back.
+- **Asserting one inequality is not asserting that three states are three states.** The three-state
+  test first checked only text — every word of which comes from the server — so painting a curable
+  breach and an uncured one the same colour **passed**. Asserting `curable !== uncured` was the next
+  draft, and a mutation giving a curable breach the *passing* colour satisfied it while being worse
+  than folding the two together. All three are now compared pairwise.
+
+### Fixed
+
+- **`day()` formatted through `toLocaleDateString`, which is environment-dependent.** This Node's ICU
+  renders `en-GB` short September as **"Sept"**; another build renders "Sep", so the test pinning it
+  would pass or fail on which runtime executed it — and a covenant calendar read across machines
+  would spell its dates differently on two of them. Formatted from a fixed month table now, the same
+  reasoning that made `test_route_reachability`'s verdict invariant under file order.
+- **The localStorage key had no readable stem.** `apps/web/src/ui/clearCacheKeys.test.ts` walks every
+  `localStorage.*Item` call and refuses an argument it cannot resolve — *"an unread key is an
+  unclassified key"*, because **Clear cached data** then makes a decision about it that nothing has
+  checked. The first draft built the key through a helper, so the argument began with `${` and had no
+  stem; the prefix is a literal at the call site now. It is *kept* by that button, which falls out of
+  the denylist design rather than needing a declaration — a hand-entered register has no server copy,
+  so clearing it loses work rather than evicting a cache.
+
 ### T12-SELFTIE — a gate that could not fail, because nobody was handing it evidence
 
 `services/api/src/aec_api/t12.py` exists for one refusal, stated in its own module docstring:

@@ -304,7 +304,8 @@ const UNCALLED: readonly string[] = [
   "energyModel", "equipmentSpecCheck",
   "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
-  "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
+    // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
+  "liveStream", "massingOptionRecipes", "mcpTools",
   "modelAdjacency", "moduleCalc", "myWork",
   // `netEffectiveRent` and `rentRollScrub` left this list 2026-09-25 — `proforma/rentRollQuality.ts`
   // renders both under the Operations rent roll. Shipped with R20, called by nothing.
