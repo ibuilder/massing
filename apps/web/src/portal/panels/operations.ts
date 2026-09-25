@@ -301,18 +301,30 @@ export async function renderSpine(ctx: PanelContext) {
 
       // coverage gaps
       const g = t.gaps;
-      const gapCount = g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length + g.sheets_without_spec.length;
+      // The server's own totals, not the lengths of the three 100-row pages. The percentages
+      // rendered above this card were always taken over the full population, so summing the page
+      // lengths made the card disagree with the numbers directly beside it.
+      const gapCount = g.counts.total;
       const gc = el("div", "dash-card"); gc.style.marginBottom = "10px";
       gc.innerHTML = `<div class="section-title">${gapCount ? "⚠ " : "✓ "}Broken links (${gapCount})</div>`;
-      const gapList = (title: string, items: string[]) => {
-        if (!items.length) return;
+      const gapList = (title: string, items: string[], total: number) => {
+        if (!total) return;
         const d = el("div", "meta"); d.style.margin = "3px 0";
-        d.innerHTML = `<b>${esc(title)} (${items.length}):</b> ${items.slice(0, 12).map(esc).join(", ")}${items.length > 12 ? " …" : ""}`;
+        // `total` is escaped even though it is a server-side number: `innerHtmlGuard.test.ts` keys
+        // on the BINDING NAME, and a name does not move when a caller starts passing something else.
+        const n = esc(String(total));
+        d.innerHTML = `<b>${esc(title)} (${n}):</b> ${items.slice(0, 12).map(esc).join(", ")}`
+          + (total > items.length
+              ? ` … <span style="color:var(--status-warn)">showing ${items.length} of ${n}</span>`
+              : items.length > 12 ? " …" : "");
         gc.appendChild(d);
       };
-      gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref));
-      gapList("Bid packages with no cost code", g.bid_packages_without_cost_code.map((x) => x.name || x.ref));
-      gapList("Sheets with no governing spec", g.sheets_without_spec.map((x) => x.sheet || x.ref));
+      gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref),
+              g.counts.specs_without_bid_package);
+      gapList("Bid packages with no cost code", g.bid_packages_without_cost_code.map((x) => x.name || x.ref),
+              g.counts.bid_packages_without_cost_code);
+      gapList("Sheets with no governing spec", g.sheets_without_spec.map((x) => x.sheet || x.ref),
+              g.counts.sheets_without_spec);
       if (!gapCount) gc.insertAdjacentHTML("beforeend", `<div class="meta">Every sheet, spec and package is linked through to the budget.</div>`);
       body.appendChild(gc);
 

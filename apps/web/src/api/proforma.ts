@@ -201,11 +201,17 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/proforma/scenarios/${sid}/review`, { method: "POST", body: JSON.stringify({ action, note: note ?? "" }) });
   }
 
-  /** FIN-CALC — residual land value: the land price that hits a target return (bisection over the solve). */
+  /** FIN-CALC — residual land value: the land price that hits a target return (bisection over the solve).
+   *
+   *  `bounds` was returned by the route, listed in `proforma/residual.py`'s own docstring, and
+   *  **declared nowhere here** until 2026-09-25 — so no unread-field audit in this tree could see it:
+   *  every one of them starts from the declared interfaces. It is the honest answer in the
+   *  `converged: false` case, where the `land_value` above is a bracket endpoint rather than a price,
+   *  and `proforma/residualLandCard.ts` renders it as the range. */
   residualLand(assumptions: unknown, target: string, targetValue: number, maxLand?: number) {
     return this.json<{ land_value: number | null; achieved: number | null; target: string;
       target_value: number; iterations: number; converged: boolean; at_zero_land: number | null;
-      note?: string }>(
+      bounds?: [number, number]; note?: string }>(
       `/proforma/residual-land`, { method: "POST",
         body: JSON.stringify({ assumptions, target, target_value: targetValue, max_land: maxLand ?? null }) });
   }

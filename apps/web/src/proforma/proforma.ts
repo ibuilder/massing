@@ -7,6 +7,13 @@ import { provenanceLine } from "./provenanceLine";
 import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
+import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderAuthorityCard } from "./authorityCard";
+import { renderCovenantCard } from "./covenantCard";
+import { renderDecisionGateCard } from "./decisionGateCard";
+import { renderRentRollQuality } from "./rentRollQuality";
+import { renderSupplyCard } from "./supplyCard";
+import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
@@ -148,14 +155,37 @@ export class ProformaUI {
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
-    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
-    if (sections.cap) into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
+    if (sections.feas) into(sections.feas, () => {
+      this.renderMassing(); this.renderTestFit(); this.renderResidualLand(); this.renderProperty();
+      // Beside the residual: what you can pay for the dirt is an argument about absorption, and
+      // absorption is an argument about who else is delivering into the same window.
+      renderSupplyCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
+    if (sections.cap) into(sections.cap, () => {
+      this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty();
+      // Beside the facility it is about: renderSourcesUses prints the loan amount and its fees.
+      renderCovenantCard(this.root, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+    });
     const uwSec = sections.uw;
     if (uwSec) into(uwSec, () => {
       uwSec.appendChild(form);
       const out = document.createElement("div"); out.id = "pf-out"; uwSec.appendChild(out);
       const sens = document.createElement("div"); sens.id = "pf-sens"; uwSec.appendChild(sens);
       const mc = document.createElement("div"); mc.id = "pf-mc"; uwSec.appendChild(mc);
+      // The authority table is the gate on whether any figure on this tab should be trusted, so it
+      // sits with the underwriting rather than beside one of the things it governs.
+      renderAuthorityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // Last on the tab, because it is the gate over everything above it: the readiness check reads
+      // the evidence the other cards produce rather than the conclusions they draw.
+      renderDecisionGateCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
       this.renderDraws();
     });
     if (sections.deliver) into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
@@ -532,6 +562,21 @@ export class ProformaUI {
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
       rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
+      // The card above is FACE rent. These qualify it: what the roll is worth after concessions,
+      // which diligence checks could actually run against it, and the seller's own T-12 tied out.
+      // All three engines shipped with R20 and had no caller — see rentRollQuality.ts / t12Card.ts.
+      const quality = document.createElement("div"); host.appendChild(quality);
+      await renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus });
+      renderT12Card(host, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+        // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
+        // thing that moves, and it has to be visibly the same cards rather than a second opinion
+        // appearing further down the page.
+        scrubWithIncome: (income) => {
+          quality.replaceChildren();
+          void renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus }, income);
+        },
+      });
       await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
@@ -880,6 +925,26 @@ export class ProformaUI {
   private renderTestFit() {
     // extracted to testfitTab.ts along the LCOM4 seam; delegation keeps the into() root-swap
     renderTestFitTab(this.root, { api: this.api, setStatus: this.setStatus });
+  }
+
+  /** Residual land value — the inverse of this whole tab: the most you can pay for the site and
+   *  still clear a target return. `ApiClient.residualLand()` and the engine behind it shipped with
+   *  FIN-CALC and had no caller until this card. */
+  private renderResidualLand() {
+    renderResidualLandCard(this.root, {
+      api: this.api,
+      assumptions: () => this.a,
+      // Both halves go through the land-basis helpers, which address the basis the way
+      // `proforma/residual.py` defines it rather than the way the driver form's "Land $" field is
+      // bound — see their docstrings in residualLandCard.ts.
+      currentLand: () => landBasis((this.a as { cost_lines?: LandLine[] }).cost_lines ?? []),
+      applyLandValue: (v) => {
+        if (!applyLandBasis((this.a as { cost_lines: LandLine[] }).cost_lines ?? [], v)) return;
+        this.render();
+        void this.solve();
+      },
+      setStatus: this.setStatus,
+    });
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */

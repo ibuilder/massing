@@ -326,12 +326,131 @@ finally:
     db.close()
     settings_store._cache.pop(SKEY, None)
 
+# =================================================================================================
+# IS `DOORS` STILL THE WHOLE POPULATION?
+#
+# The roadmap's concurrency record predicted the exact failure this block exists to stop: *"a fourth
+# sign-in path is the risk."* **The fourth path arrived and the prediction half came true** — SCIM
+# auto-provisions at `routers/scim.py`, and it DOES route through `auth.get_or_create_sso_user`, so
+# the code was fine. What was not fine is that everything above tested three doors by name and said
+# so in its verdict line, which is *"a registry reports on what it contains, and its silence is
+# indistinguishable from a clean bill"* — the sentence `test_gap_records` was built around, arriving
+# here from the other direction: not a stale OPEN, but a population that quietly stopped being whole.
+#
+# So the population is derived twice, from two different angles, and NEITHER needs an exemption list:
+#
+#   1. every CALLER of the helper must be covered by `DOORS` — a door added and wired correctly can
+#      no longer go untested;
+#   2. every site that CONSTRUCTS a `User` must either reach the helper, or be a creation made by
+#      explicit request rather than by auto-provisioning on sign-in. That second set is named, and it
+#      is a real category rather than a fudge: `register`, `create_user` and the admin bootstrap all
+#      guard with an explicit 409 and are not sign-in doors at all.
+# =================================================================================================
+import ast as _ast  # noqa: E402
+import pathlib  # noqa: E402
+
+_SRC = pathlib.Path(__file__).resolve().parent / "src" / "aec_api"
+
+
+def _helper_callers() -> set[str]:
+    """Modules calling `get_or_create_sso_user`, excluding the module that defines it."""
+    out: set[str] = set()
+    for f in sorted(_SRC.rglob("*.py")):
+        try:
+            tree = _ast.parse(f.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for n in _ast.walk(tree):
+            if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute) \
+               and n.func.attr == "get_or_create_sso_user":
+                out.add(f.stem)
+    return out
+
+
+def _user_construction_sites() -> set[str]:
+    """`module.function` for every site constructing a `User(...)`, attributed to the INNERMOST
+    enclosing function.
+
+    The first draft walked every function and took any `User(...)` beneath it, so a construction
+    inside a nested `_make_user` was attributed to the nested factory AND to the route enclosing it.
+    It reported **11 sites** where an independent probe found **7**, and said "8 via the helper" when
+    there are four. *A walk that double-counts does not fail, it answers* — and the floor below was
+    calibrated on the inflated number, so it would have been satisfied by a walk finding half the
+    tree. Attribution is by line range now, innermost wins."""
+    out: set[str] = set()
+    for f in sorted(_SRC.rglob("*.py")):
+        try:
+            tree = _ast.parse(f.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        funcs = [n for n in _ast.walk(tree)
+                 if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))]
+        for n in _ast.walk(tree):
+            if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id == "User"):
+                continue
+            enclosing = [fn for fn in funcs
+                         if fn.lineno <= n.lineno <= (fn.end_lineno or fn.lineno)]
+            if not enclosing:
+                continue
+            innermost = max(enclosing, key=lambda fn: fn.lineno)
+            out.add(f"{f.stem}.{innermost.name}")
+    return out
+
+
+#: Sites that create a user BY EXPLICIT REQUEST, not by auto-provisioning on sign-in. Each guards
+#: with a 409 and none is a sign-in door, so the savepoint idiom does not apply to them. (Their
+#: check-then-insert does degrade a 409 into a 500 under a true race — recorded in the roadmap as
+#: low severity on purpose: unlike a sign-in, the loser's request is one that correctly fails.)
+BY_REQUEST = {"auth.register", "auth.create_user", "auth.require_admin_user"}
+
+_callers = _helper_callers()
+_doors = {d for d, _u, _s in DOORS}
+#: `scim` is the fourth door and is covered by the mapping below rather than by a behavioural arm:
+#: it provisions from a directory push, not from an interactive sign-in, so it has no callback to
+#: drive. What matters here is that it cannot be ADDED without this file noticing.
+_CALLER_TO_DOOR = {"auth": "oauth", "saml": "saml", "cloud": "cloud", "scim": "scim"}
+
+_unmapped = _callers - set(_CALLER_TO_DOOR)
+if _unmapped:
+    FAILED.append(f"a NEW sign-in door calls the helper and this file does not know it: "
+                  f"{sorted(_unmapped)} — add it to _CALLER_TO_DOOR and give it a DOORS arm")
+    print(f"FAIL  every helper caller is a known door   unmapped={sorted(_unmapped)}")
+else:
+    print(f"PASS  every helper caller is a known door   {sorted(_callers)}")
+
+_expected_behavioural = {d for c, d in _CALLER_TO_DOOR.items() if c in _callers and d != "scim"}
+if not _expected_behavioural <= _doors:
+    FAILED.append(f"a door calls the helper but has no behavioural arm: "
+                  f"{sorted(_expected_behavioural - _doors)}")
+    print(f"FAIL  every interactive door has a race arm   missing={sorted(_expected_behavioural - _doors)}")
+else:
+    print(f"PASS  every interactive door has a race arm   {sorted(_doors)}")
+
+_sites = _user_construction_sites()
+_via_helper = {f"{c}.{fn}" for c in _callers for fn in ("_make_user",)}
+_stray = {s for s in _sites if s not in BY_REQUEST and s.split(".")[0] not in _callers}
+if _stray:
+    FAILED.append(f"a User is constructed outside both the helper and the by-request set: {sorted(_stray)}")
+    print(f"FAIL  no User is created outside the two known shapes   stray={sorted(_stray)}")
+else:
+    print(f"PASS  no User is created outside the two known shapes   "
+          f"{len(_sites)} site(s): {len(_sites) - len(BY_REQUEST)} auto-provisioning, {len(BY_REQUEST)} by request")
+
+if len(_callers) < 4 or len(_sites) < 7:
+    FAILED.append(f"PRECONDITION: the AST walk under-counted (callers={len(_callers)}, "
+                  f"sites={len(_sites)}) — a walk that finds nothing reports a clean tree")
+    print("FAIL  PRECONDITION: the walk found the population it reasons about")
+else:
+    print(f"PASS  PRECONDITION: the walk found the population it reasons about   "
+          f"{len(_callers)} caller(s), {len(_sites)} construction site(s)")
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
 print(
-    f"SSO PROVISION RACE OK - all {len(DOORS)} auto-provisioning doors (OAuth, SAML, massing.cloud) "
-    "go through one helper whose INSERT sits in a SAVEPOINT: losing the seeding race hands back the "
+    f"SSO PROVISION RACE OK - all {len(_callers)} auto-provisioning doors ({', '.join(sorted(_callers))}) "
+    "go through one helper whose INSERT sits in a SAVEPOINT -- and the door list is DERIVED from "
+    "the helper's callers, so a fifth cannot arrive unseen. Losing the seeding race hands back the "
     "winner's row instead of raising, the session stays usable so the sign-in audit entry still "
     "commits, exactly one account exists, and an uncontested first sign-in still creates one."
 )

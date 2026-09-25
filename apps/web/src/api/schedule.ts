@@ -81,6 +81,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
                                     crew_threshold: String(crewThreshold) });
     return this.json<{
       analyzed: number; skipped_count: number; locations: number;
+      skipped: { id?: string; name: string; reason: string }[];
       findings: { location: string; overlap_days: number; combined_crew: number;
         a: { id?: string; name: string; trade: string };
         b: { id?: string; name: string; trade: string };

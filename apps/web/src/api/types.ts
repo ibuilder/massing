@@ -614,7 +614,9 @@ export interface Dashboard {
   party: string;
   kpis: Record<string, number>;
   cost: { budget: number; committed: number; actual: number; projected_over_under: number } | null;
+  /** A page of at most 100; `action_item_count` is how many are actually in this party's court. */
   action_items: { module: string; module_name: string; id: string; ref: string; title: string | null; state: string; actions: string[] }[];
+  action_item_count: number;
   by_module: { key: string; name: string; section: string; count: number; by_state: Record<string, number> }[];
 }
 
@@ -1161,9 +1163,15 @@ export interface SpineTraceability {
     sheets_specced_pct: number | null; spec_to_budget_pct: number | null };
   spec_count: number;
   withdrawn_excluded: { ref: string; section: string; title: string }[];
+  /** The three lists are PAGES (100 each); `counts` is the population each was taken from. The
+   *  `*_pct` values above were always computed over the full lists, so a screen summing the array
+   *  lengths contradicted the percentages printed beside them. */
   gaps: { specs_without_bid_package: { ref: string; section: string; title: string }[];
     bid_packages_without_cost_code: { ref: string; name: string }[];
-    sheets_without_spec: { ref: string; sheet: string }[] };
+    sheets_without_spec: { ref: string; sheet: string }[];
+    counts: { specs_without_bid_package: number; bid_packages_without_cost_code: number;
+      sheets_without_spec: number; total: number } };
+  chain_count: number;
   chain: { spec: string; section: string; title: string; discipline: string | null;
     bid_package: string | null; bid_package_name: string | null; cost_code: string | null;
     cost_code_value: string | null; linked: boolean }[];

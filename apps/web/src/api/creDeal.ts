@@ -98,6 +98,115 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One declared authority row. `table` and `stale` return the SAME record — `stale` adds
+ *  `days_over` — so they share a type rather than being spelled twice. */
+export interface AuthorityRow {
+  fact_type: string; label: string; document: string; as_of: string;
+  age_days: number | null; freshness_days: number; fresh: boolean;
+  reviewer: string | null; required: boolean; supersedes: string[];
+}
+
+/** The assessment `deal_authority.assess()` returns. **Both routes return it** — the GET directly and
+ *  the PUT under `assessment` — and until 2026-09-25 the PUT declared it as
+ *  `{ gate: { passes: boolean } }`, a narrowed re-spelling of the same record. That is the shape
+ *  `apps/web/src/api/noRespelledShapes.test.ts` exists to catch, and it forced a consumer that wanted
+ *  to render the saved verdict to cast. One name, used twice. */
+export interface AuthorityAssessment {
+  table: AuthorityRow[];
+  missing: { fact_type: string; label: string; required: boolean }[];
+  stale: (AuthorityRow & { days_over: number })[];
+  superseded_still_active: { fact_type: string; document: string; issue: string }[];
+  gate: { passes: boolean; blocking: { fact_type: string; why: string }[];
+          advisory: { fact_type: string; why: string }[] };
+  as_of: string;
+  counts: Record<string, number>;
+  note: string;
+}
+
+/** An entry as the PUT stores it, after `validate()` has normalised it. */
+export interface AuthorityEntryWire {
+  fact_type: string; document: string; as_of: string;
+  freshness_days: number | null; authoritative: boolean; supersedes: string[];
+  reviewer?: string | null;
+}
+
+/** One row of the pre-committee gate.
+ *
+ *  **The last three are the COVERAGE, and they were undeclared until 2026-09-25.** `_gate()` in
+ *  `decision_gate.py` splats `**extra` onto the row, so `rent_roll_scrubbed` arrives carrying
+ *  `ran`, `failed` and `not_applicable` — and the card declared five fields and rendered `detail`,
+ *  so a gate that PASSED with one check run and six not applicable read "pass · the scrub ran but
+ *  found nothing", where "nothing" means "no problems". Found by
+ *  `services/api/test_verdict_coverage.py`, on the card written to demonstrate the principle that
+ *  gate enforces. */
+export interface DecisionGateRow {
+  gate: string; label: string; status: "pass" | "fail" | "unknown";
+  detail: string; action: string;
+  ran?: number; failed?: number; not_applicable?: number;
+}
+
+export interface DecisionGateResult {
+  verdict: "ready" | "blocked"; ready: boolean;
+  gates: DecisionGateRow[];
+  blocking: { gate: string; status: string; detail: string }[];
+  actions: { gate: string; action: string }[];
+  counts: Record<string, number>; note: string;
+}
+
+/** One project in the competitive pipeline, as `supply_pipeline.assess()` reports it back.
+ *  `weight` and `weighted_units` are the discount applied; `from_status_label` says the evidence was
+ *  INFERRED from a status string rather than read from a recorded flag, which is the difference
+ *  between "a loan is recorded" and "the deck says under construction". */
+export interface SupplyProjectRow {
+  name: string | null; units: number; delivery_date: string | null;
+  product_type: string | null; distance_mi: number | null;
+  evidence: string; evidence_label: string; weight: number;
+  from_status_label: boolean; weighted_units: number; rumored: boolean;
+  /** Present only on an EXCLUDED row, and it is the reason. */
+  excluded?: string;
+}
+
+/** The evidence-weighted competitive set. `certain_supply_units` and `rumored_supply_units` are
+ *  deliberately separate totals and must not be added together on screen — the engine's note says
+ *  rumored supply "is never blended into the certain count". */
+export interface SupplyAssessment {
+  window: { start: string | null; end: string | null };
+  product_type: string | null;
+  competing: SupplyProjectRow[];
+  certain_supply_units: number;
+  rumored_supply_units: number;
+  raw_units: number;
+  weighted_units: number;
+  discount_pct: number;
+  by_evidence: { evidence: string; label: string; projects: number;
+                 units: number; weighted: number }[];
+  /** THE COVERAGE. Every total above is computed over `competing` alone, so these counts are what
+   *  say whether the totals are an answer or an absence — see `supplyCard.ts`. */
+  excluded: { out_of_window: SupplyProjectRow[]; wrong_product: SupplyProjectRow[];
+              counts: { out_of_window: number; wrong_product: number } };
+  counts: { competing: number; certain: number; rumored: number };
+  note: string;
+}
+
+/** `absorption.lot_supply_index()`. `months_of_supply` and `lsi` are `null` and `band` is
+ *  `"unknown"` when absorption is not positive; `equilibrium_months` is absent on that branch. */
+export interface LotSupplyIndex {
+  vdl: number; monthly_absorption: number; equilibrium_months?: number;
+  months_of_supply: number | null; lsi: number | null;
+  band: "oversupplied" | "balanced" | "undersupplied" | "unknown";
+  note: string;
+}
+
+/** What the route returns when `monthly_absorption` is supplied. Both readings are returned because
+ *  "the gap between them IS the argument". */
+export interface SupplyIndexResult {
+  supply: SupplyAssessment;
+  weighted_index: LotSupplyIndex;
+  raw_index: LotSupplyIndex;
+  delta_months: number | null;
+  note: string;
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -138,53 +247,71 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/contracts/review`,
       { method: "POST", body: JSON.stringify({ contract_type: contractType, findings, document }) });
   }
-  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start). */
+  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start).
+   *
+   *  FIELDS DECLARED 2026-09-25, AND THE REASON IS THE ENGINE'S OWN PURPOSE. `covenants.py`'s module
+   *  docstring says the calculated due date *"shows its work: the anchor date, the basis, the count,
+   *  and every non-working day it skipped. **A due date a reviewer cannot re-derive by hand is not a
+   *  due date.**"* — and `anchor_date`, `non_working_days_skipped`, `delivered_date` and `days_early`
+   *  were declared nowhere here, so the one property the engine was built for was invisible to its
+   *  client by construction. Likewise the covenant `note` (*"A breach inside an open cure window is a
+   *  different conversation from one outside it"*) and `actual` / `cure_days`: the sentence that
+   *  distinguishes the two states could not reach a screen. */
   loanCovenants(pid: string, loan: unknown, actuals?: Record<string, number>) {
-    return this.json<{ loan: { name: string; lender: string }; at_risk: boolean;
+    return this.json<{ loan: { name: string | null; lender: string | null }; at_risk: boolean;
       summary: Record<string, number>;
-      reporting: { obligations: { name: string; computable: boolean; due_date?: string;
-        day_basis?: string; clock_start?: string; anchor_source?: string; status?: string;
-        risk?: string; days_remaining?: number; clock_start_matters?: boolean;
-        alternate_reading?: { due_date: string; days_difference: number; warning: string } }[];
+      reporting: { as_of: string; horizon_days: number; note: string;
+        obligations: { name: string; computable: boolean; reason?: string; due_date?: string;
+        day_basis?: string; clock_start?: string; anchor_source?: string; anchor_date?: string;
+        days?: number; non_working_days_skipped?: { date: string; why: string }[];
+        delivered_date?: string | null; days_early?: number;
+        status?: string; risk?: string; days_remaining?: number | null; clock_start_matters?: boolean;
+        alternate_reading?: { clock_start: string; due_date: string; days_difference: number;
+                              warning: string } }[];
         upcoming: unknown[]; overdue: unknown[]; not_computable: { name: string; reason: string }[];
         counts: Record<string, number> };
-      financial: { covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
-        headroom?: number; cure_ends?: string | null; reason?: string }[];
+      financial: { as_of: string; note: string;
+        covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
+        actual?: number; threshold?: number; direction?: string; frequency?: string;
+        headroom?: number; cure_days?: number | null; cure_ends?: string | null;
+        note?: string; reason?: string }[];
         untested: { name: string; reason: string }[]; counts: Record<string, number>;
         clean: boolean } }>(
       `/projects/${pid}/loan/covenants`,
       { method: "POST", body: JSON.stringify({ loan, actuals }) });
   }
-  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis. */
+  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis.
+   *
+   *  FIELDS CORRECTED 2026-09-25. `stale` carries the FULL row — label, document, `as_of`,
+   *  `age_days`, `freshness_days`, `supersedes` and `days_over` — and was declared as
+   *  `{fact_type, days_over}`, so a screen could say a document was stale and not which one. And
+   *  `advisory` was typed `unknown[]` when it is `{fact_type, why}[]`: rendering it would have
+   *  needed an inline cast, which is the re-spelled shape `apps/web/src/api/noRespelledShapes.test.ts`
+   *  exists to stop. `reviewer` and `supersedes` on a table row were undeclared too. */
   dealAuthority(pid: string) {
-    return this.json<{ table: { fact_type: string; label: string; document: string; as_of: string;
-      age_days: number | null; freshness_days: number; fresh: boolean; required: boolean }[];
-      missing: { fact_type: string; label: string }[];
-      stale: { fact_type: string; days_over: number }[];
-      superseded_still_active: { fact_type: string; document: string; issue: string }[];
-      gate: { passes: boolean; blocking: { fact_type: string; why: string }[]; advisory: unknown[] };
-      counts: Record<string, number>; note: string }>(`/projects/${pid}/deal-room/authority`);
+    return this.json<AuthorityAssessment>(`/projects/${pid}/deal-room/authority`);
   }
   saveDealAuthority(pid: string, entries: unknown[]) {
-    return this.json<{ entries: unknown[]; assessment: { gate: { passes: boolean } } }>(
+    return this.json<{ entries: AuthorityEntryWire[]; assessment: AuthorityAssessment }>(
       `/projects/${pid}/deal-room/authority`,
       { method: "PUT", body: JSON.stringify({ entries }) });
   }
-  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label. */
+  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label.
+   *
+   *  DECLARED 2026-09-25. This returned `Record<string, unknown>`, so every field below was
+   *  invisible to `deadFieldTyped.test.ts` and to any other audit that starts from the client's
+   *  declarations — the same hole `excluded_comparables` fell through in SCREEN-VS-REPORT. The
+   *  overload is real and is kept: `monthly_absorption` switches the response from a bare
+   *  assessment to the index wrapper, which is why the return type is a union. */
   competitiveSupply(pid: string, body: { projects: unknown[]; window_start?: string;
                                          window_end?: string; product_type?: string;
                                          monthly_absorption?: number }) {
-    return this.json<Record<string, unknown>>(
+    return this.json<SupplyAssessment | SupplyIndexResult>(
       `/projects/${pid}/supply/competitive`, { method: "POST", body: JSON.stringify(body) });
   }
   /** CRE-DECISION-GATE — the pre-committee gate; a gate without evidence is unknown, and blocks. */
   decisionGate(pid: string, evidence: unknown, requiredExhibits?: string[], minCoverage?: number) {
-    return this.json<{ verdict: "ready" | "blocked"; ready: boolean;
-      gates: { gate: string; label: string; status: "pass" | "fail" | "unknown"; detail: string;
-        action: string }[];
-      blocking: { gate: string; status: string; detail: string }[];
-      actions: { gate: string; action: string }[];
-      counts: Record<string, number>; note: string }>(
+    return this.json<DecisionGateResult>(
       `/projects/${pid}/decision-gate`,
       { method: "POST", body: JSON.stringify({ evidence, required_exhibits: requiredExhibits,
                                                min_coverage: minCoverage ?? 0.9 }) });
@@ -213,8 +340,21 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       one_time_items?: { description: string; amount: number; kind: string }[];
       capital_items?: { description: string; amount: number }[];
       by_category?: { category: string; label: string; amount: number; run_rate: number }[];
-      run_rate_vs_trailing?: { category: string; trailing: number; run_rate: number; delta: number }[];
-      add_back_questions?: { check: string; severity: string; finding: string; question: string }[];
+      // `label` here was undeclared too, and the COMPILER found this one rather than a reader: the
+      // first draft of `proforma/t12Card.ts` rendered `x.label` and `tsc` refused it. That is the
+      // argument for the declared type doing work — a re-spelled inline shape would have accepted it
+      // silently and `noRespelledShapes.test.ts` exists because two wire types already did exactly
+      // that. (`by_category`'s `kind` / `operating` / `line_count` stay undeclared on purpose:
+      // nothing here reads them, and declaring a field no reader wants adds noise to the very audit
+      // that counts unread fields.)
+      run_rate_vs_trailing?: { category: string; label?: string; trailing: number;
+                               run_rate: number; delta: number }[];
+      // `amount` and `pct_of_income` were returned by `t12.add_back_questions` and declared nowhere
+      // here until 2026-09-25 — the third instance of the axis SCREEN-VS-REPORT names, and the one
+      // that matters most for this field: the engine's docstring says each is *"a QUESTION with the
+      // number behind it"*, so the number is the point of the finding rather than detail beside it.
+      add_back_questions?: { check: string; severity: string; finding: string; question: string;
+                             amount?: number; pct_of_income?: number }[];
       note: string }>(
       `/projects/${pid}/t12/normalize`, { method: "POST", body: JSON.stringify({ t12, units }) });
   }

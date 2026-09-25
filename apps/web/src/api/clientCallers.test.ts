@@ -295,25 +295,32 @@ const UNCALLED: readonly string[] = [
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
-  "ciLatest", "citedQuery", "clashFederated", "clausePlaybook",
+  "citedQuery", "clashFederated", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
-  "competitiveSupply", "connectElements", "costSummary", "createAssembly", "createGroup",
-  "createType", "decisionGate",
+  "connectElements", "costSummary", "createAssembly", "createGroup",
+  "createType",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
   "energyModel", "equipmentSpecCheck",
   "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
-  "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
+    // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
+  "liveStream", "massingOptionRecipes", "mcpTools",
   "modelAdjacency", "moduleCalc", "myWork",
-  "netEffectiveRent", "normalizeT12", "parcelsDataStatus",
+  // `netEffectiveRent` and `rentRollScrub` left this list 2026-09-25 — `proforma/rentRollQuality.ts`
+  // renders both under the Operations rent roll. Shipped with R20, called by nothing.
+  // `normalizeT12` left this list 2026-09-25 — `proforma/t12Card.ts`. Its tie-out is a gate that
+  // could not fail without a caller supplying stated totals; see T12-SELFTIE in that file's header.
+  "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot",
   "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
-  "rentRollScrub", "residualLand", "reviewPost",
+  // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
+  // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
+  "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
-  "saveDealAuthority", "saveMacros", "saveViewTemplates",
-  "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
+  "saveMacros", "saveViewTemplates",
+  "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",
   "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
   "topicComments", "updateConnection", "veLog", "verificationDeviations",

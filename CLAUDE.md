@@ -410,6 +410,83 @@ whose regex carries the prefix by construction, and probe validity is **self-che
 must match its own route), so an unhandled converter reds the build. *A list of known cases is a list
 somebody stopped widening; a self-check is not.*
 
+**A seventeenth joined them on 2026-09-25: `services/api/test_schema_types_agree.py`** — does the
+committed `apps/web/src/api/schema.d.ts` describe the API this server serves? It is generated from the
+FastAPI spec and checked in, so it is a claim about the server sitting beside the client, and nothing
+was checking the claim: **500 of 947 paths, 541 of 1,021 operations**, 482 undeclared across 165 of 203
+path groups. **Filed as "SCHEMA-STALE", and the name was the first thing wrong with it** — stale
+implies it was once right, and that file and the `.gitignore` line hiding its input were written in the
+SAME commit, with the app carrying *fewer* route decorators today (1016 vs 1022) than when it was
+generated. *A stale-sounding name sends the next reader at the one action that cannot fix it*, which
+here was re-running the generator: `gen:api-types` read `src/api/openapi.json`, **a gitignored file**,
+so it regenerated from whatever dump sat on that machine, printed a green tick and wrote the same file.
+*"Regenerate the types" did not mean "read the server", and nothing said so* — the generator now dumps
+from `aec_api.main:app` into a temp file it deletes, so there is no persistent input left to be stale.
+**The rule is method-level and that is load-bearing:** `openapi-typescript` emits all eight verbs per
+path and marks the unserved ones `?: never`, so a path-level check passes a file declaring all 947 URLs
+and none of their verbs — which is the shape a half-regenerated file actually has. Both arms are
+mutation-proved, and the parser REFUSES a group it cannot classify rather than narrowing, because a
+silent narrowing reports that path as missing everything, reading as "regeneration due" instead of "the
+parser no longer understands this file".
+**The reason it went unseen is worth more than the fix: SEVEN audits here exempt this file by name**
+(`deadFieldScope`, `docComments`, `unfiledMap`, `deadFieldTyped`, `noRespelledShapes`,
+`test_route_reachability`, `test_file_sizes`), each for a good reason of its own. *Seven exemptions and
+no owner is how an artifact stops being checked by anybody.* And `test_route_reachability`'s is the
+opposite error, still instructive: it once counted this file as CLIENT code, so **29 routes were
+"called" by a generated file restating the server's own route table.** It is only ever a claim about
+the SERVER. **The item had also been parked on a decision that was not load-bearing** — commit
+`openapi.json`, or produce it in CI? — and needed neither answer, because an input that does not
+persist needs no home, and the agreement check needs no node and no artifact crossing jobs. *An item
+parked on a decision stays parked until somebody re-derives whether the decision was load-bearing.*
+**And the gate's own first draft asked its newest precondition from the wrong place.** The
+env-independence scan globbed `Path("src")`, relative to the working directory — which `run_tests.py`
+sets to `services/api`, while `ci.yml` invokes `python services/api/run_tests.py` from the repo ROOT.
+`rglob` over a missing directory yields nothing and raises nothing, so it would have reported a clean
+tree under CI and nowhere else. *A wrong question returns a confident number* — the same failure
+`test_scratch_ignored` paid for twice, in a file written days after reading its lesson. **A relative
+path is a question about where somebody stood**; it is anchored on `__file__` now, the population
+count is returned rather than discarded and floored beside the verdict, and the gate is run from both
+directories.
+**And its parity check was not a check.** A path group whose shape the group regex cannot match is
+absent from the parse *silently*, and is then reported as "served but undeclared" — a parser failure
+wearing the costume of a stale file — so the path keys are counted independently. The first draft
+counted them with a regex that **fails in exactly the same way the group regex does**, so a
+trailing-whitespace mutation broke both derivations and the counts stayed equal. *A parity check
+between two derivations that share a failure mode is not a check* — the crude count catches what the
+strict one cannot, and both mutations are now folded in and must be refused before the gate reports.
+
+**An eighteenth joined them on 2026-09-25: `services/api/test_verdict_coverage.py`** — does a screen
+that reads a verdict about a SUBSET also read what the engine could not evaluate? Five engines in one
+session returned a boolean beside a count of the unevaluated, and the boolean was meaningless without
+the count: `soft_clash.coordinated` over a page of the matrix (CLASH-TRUNC), `rent_scrub.clean` =
+`bool(ran) and not failed` with 1 of 7 checks run, `t12.tie_out.reconciles` against a reference derived
+from the answer, `covenants.clean`/`at_risk` on counts that are zero for want of inputs, and
+`sequence_clash.clean` over the activities that happened to have a date and a location. **Every one of
+those engines is careful** — each hands the caller the coverage and three attach a sentence saying why.
+*The defect is always in the consumer*, and four of the five had none, so nothing was wrong until
+somebody wrote one. **A subset verdict is derived structurally, not by name:** a dict key whose value
+is `bool(A) and (all(…) | not B)`, the guard being the author writing down that the subset can be
+empty. Matching coverage-ish WORDS instead returned 24 candidates of mostly unrelated senses — a
+sprinkler's coverage area, a `dry_run` flag — and *a rule that needs an exemption list is a rule whose
+population is wrong.* The structural form returns 5 with no exemptions, and **three of the five were
+instances nobody had found by hand.**
+**Four more drafts were wrong in ways only measurement showed.** Linking consumers by shared
+VOCABULARY cross-talked — a net-effective-rent card was reported as a `sequence_clash` consumer on
+`skipped`, `findings` — so the link is the call site of the owning client method, the only thing that
+claims *this file reads THIS response*. Treating `not_` as a coverage prefix matched `not_covered`, a
+prose note about a **different dimension**, which *would have blessed the one consumer the rule exists
+to catch*. Detecting a read as `.name` missed `const { not_applicable: notRun } = …` and called a
+careful card bare; widening to a bare word boundary then matched the English word "skipped" inside an
+unrelated prose string in the same file. *A detector keyed on one spelling cannot see the others, and
+one keyed on none sees everything.*
+**And mutating it found the limit it does not cover:** wrapping the coverage render in `if (false)`
+leaves the text in place and PASSES. It is a source-level check — the same bargain
+`test_route_reachability` makes for URL literals — and the complement is the consumer's own test,
+where `apps/web/src/proforma/rentRollQuality.test.ts` and
+`apps/web/src/proforma/covenantCard.test.ts` assert the coverage is *rendered*. Written down rather
+than discovered later, because a gate whose reach is assumed is the thing these eighteen entries are
+about.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

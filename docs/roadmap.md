@@ -672,6 +672,353 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   three named axes were spent — true, and this was a fourth nobody had named.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
+- ✅ ⭐ **SSO-DOOR-DERIVED — the fourth sign-in door arrived guarded, and the gate watching for it
+  could not see it** *(XS — Lane C; **CLOSED 2026-09-25**; the derivation lives in
+  `services/api/test_sso_provision_race.py` beside the behavioural arms it bounds)*
+
+  The concurrency sweep record on this page ends with a prediction: *"a fourth sign-in path is the
+  risk."* **It arrived, and the prediction half came true.** `routers/scim.py` auto-provisions users
+  and **does** route through `auth.get_or_create_sso_user`, so the code was right. What was wrong is
+  that `test_sso_provision_race` tested three doors from a hardcoded `DOORS` list and printed
+  *"all 3 auto-provisioning doors (OAuth, SAML, massing.cloud)"* — **silent about the fourth, and
+  about any fifth.** *A registry reports on what it contains, and its silence is indistinguishable
+  from a clean bill* — `test_gap_records`' own sentence, arriving from the other direction: not a
+  stale OPEN, but a population that quietly stopped being whole.
+
+  **The population is derived twice, from two angles, and neither needs an exemption list:**
+
+  | derivation | what it refuses |
+  |---|---|
+  | every CALLER of the helper is a known door | a fifth door wired correctly but never race-tested |
+  | every site CONSTRUCTING a `User` reaches the helper or is a by-request creation | a fifth door that provisions inline, which is the dangerous shape |
+
+  Both are mutation-proved by writing a real fifth door into the tree: wired to the helper, it reds
+  the first; provisioning inline, it reds the second. The by-request set — `register`, `create_user`
+  and the admin bootstrap — is a real category rather than a fudge: each guards with an explicit
+  409 and none is a sign-in door.
+
+  **The walk double-counted on its first draft and did not fail, it ANSWERED.** Attributing each
+  `User(...)` to every enclosing function put a construction inside a nested `_make_user` under both
+  the factory and its route: **11 sites where an independent probe found 7**, and "8 via the helper"
+  when there are four. The precondition floor was calibrated on the inflated number, so it would
+  have been satisfied by a walk finding half the tree. Attribution is innermost-wins by line range
+  now, and the floor is 7.
+
+  *Recorded and not fixed, deliberately:* `register` and `create_user` are check-then-insert, so a
+  true race yields a **500 where 409 was intended**. That is low severity and saying so matters —
+  unlike a sign-in, where both racers are the same legitimate user and the loser must succeed, the
+  loser here is claiming a taken username and its request correctly fails either way. A wrong status
+  code on an already-failing request is not the defect the SSO doors had.
+
+
+- 🟡 **PORTAL-TXN-DARK — the client-decision loop is unreachable at BOTH ends**
+  *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/`; **OPEN — the write half
+  needs the user's call**; measured 2026-09-25)*
+
+  `POST /shared/{token}/decision` is complete and careful: public by design, inputs whitelisted and
+  length-capped, a hard per-token decision cap, unknown or revoked token → 404. It records a
+  timestamped **approve / acknowledge / decline** and is explicit that it is *"NOT a payment and NOT
+  an e-signature of record"*. **Nothing can reach it, and nothing can read what it stores.**
+
+  | | |
+  |---|---|
+  | the page a client actually sees (`GET /shared/{token}`) | **read-only HTML** — grepped: no `<form`, no `<button`, no `fetch(`, no mention of `/decision` |
+  | `sharedDecision` (the SPA's recipient method) | callerless |
+  | `clientDecisions` (the owner's feed) | callerless |
+
+  So this is not a callerless method, it is **a whole transaction with neither end built** — the
+  reason both methods sit in the freeze list, which reading either one alone would not have
+  explained. *Two callerless methods on the same seam are one missing feature, not two missing
+  buttons.*
+
+  **Deliberately not built in this pass, and the reason is the write half.** Giving the client a way
+  to decide means putting interactive elements on a **public, unauthenticated HTML surface** whose
+  docstring currently promises every value is escaped and the page is read-only. That is a security
+  posture, not a layout choice, and changing it is the user's call. **Building only the owner's feed
+  would be decoration** — a panel empty by construction on every project, because nothing can write
+  a decision. *Half a loop is worse than none, because the empty screen reads as "no client has
+  decided anything" rather than as "no client can".*
+
+  What a decision would need if it is built: the form on the public page (or an SPA route behind the
+  token), the owner's feed panel, and a statement of what the record is for — the endpoint already
+  says what it is *not*.
+
+
+- ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
+  only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/viewer/tools/modelCiView.test.ts`)*
+
+  `ciRun` had a caller; `ciLatest` did not. The MODEL-CI pack — rule library, data completeness,
+  clash, pinned IDS, quantity drift — **persists its report**, and the tool's own footnote says why:
+  *"the badge is stored so every model version carries a quality gate."* Opening the tool ran the
+  whole pack again. *A result persisted specifically so it need not be recomputed, reachable only by
+  recomputing it.* The tool now opens on the stored report and offers **⟳ Run again**; an unrun
+  project gets **▶ Run the check pack**.
+
+  **Wiring it handed the renderer a state `ciRun` can never produce, and it could not describe it.**
+  `model_ci.latest` returns `{overall: "none", badge: "NONE", checks: [], note: "No CI run yet."}`,
+  and the inline line `${r.passed ?? 0}/${r.total_checks ?? r.checks.length} passed` renders that as
+  **"0/0 passed"** — a score, for something never scored. *A renderer is only as sound as the states
+  it has been handed*, and for as long as `ciRun` was its only source it had never been handed this
+  one. `isUnrun` is a branch rather than a caveat: no score, the engine's own sentence, and a warn
+  colour rather than a pass.
+
+  **The engine was clean before any of this** and is in the DEGENERATE-SWEEP ledger as such: it
+  already refuses to let a no-run read as a pass. The defect was entirely in what could reach it.
+
+  **The surviving mutation named a third state.** Reducing `isUnrun` to `!r.checks.length` passed
+  every test, because no fixture had an empty `checks` on a report that had actually RUN — a run with
+  nothing applicable to check. *Run it* and *it ran and found nothing to check* are different
+  findings, and conflating them is this session's own theme one level down. Both are fixtures now,
+  and `isUnrun` keyed on either field alone reds.
+
+  Extracted to a module rather than grown in place: `apps/web/src/viewer/tools/qaSection.ts` is under
+  a down-only size ratchet and had eight lines of headroom.
+
+
+- ✅ **DEGENERATE-SWEEP — the ledger of what was measured, so the negative half is not re-run**
+  *(the sweep behind nine of this session's items; a SNAPSHOT, not a gate — see the last paragraph)*
+
+  Every item from RENTROLL-DARK onward began the same way: **call the engine with nothing to
+  evaluate, before writing a line of UI.** Not reading the code — calling it. Seventeen engines were
+  measured that way. **Nine carried a defect, eight were clean**, and the clean ones are listed here
+  because an unrecorded negative gets re-derived by the next person.
+
+  | engine | what it returned when nothing could be evaluated |
+  |---|---|
+  | `rent_scrub` | `clean: true` with 1 of 7 checks run — **defect** |
+  | `covenants` | `at_risk: false`, every count zero for want of inputs — **defect** |
+  | `t12.tie_out` | `reconciles: true` against a reference derived from the answer — **defect** |
+  | `sequence_clash` | `clean` over whatever fraction had dates and a location — **defect** |
+  | `soft_clash` (federated caller) | `clean` over a truncated page — **defect**, CLASH-TRUNC |
+  | `supply_pipeline` | `band: "undersupplied"`, the most favourable verdict there is — **defect** |
+  | `scan_deviation.analyze` | a correct building at 50% out of tolerance, max 50 m — **defect** |
+  | `progress_rollup.capture_diff` | 200 capture GUIDs dropped, note promising otherwise — **defect** |
+  | `scope_register.register` | `0.0` percentages, indistinguishable from nothing-done — **defect** |
+  | `decision_gate.evaluate` | `unknown` blocks; coverage attached to the row — **clean** |
+  | `deal_authority.assess` | blocks on all three required fact types — **clean** |
+  | `scan_deviation.verify_from_scan` | `verified: 0`, stamps nothing, *absence is not a pass* — **clean** |
+  | `adjacency.summary` | `total`, `satisfiable` and the full `unmet` list, uncapped — **clean** |
+  | `ci/latest` | `overall: "none"`, `badge: "NONE"`, *"No CI run yet."* — **clean** |
+  | `doc-graph` | 409 with the reason — **clean** |
+  | `drawings/sync-status` | `model_loaded: false`, `elements: 0`, with a note — **clean** |
+  | `client-decisions` | `{decisions: []}` — no verdict to go vacuous — **clean** |
+
+  **The clean ones are not a rounding error, they are the argument.** *A sweep that only ever finds
+  things is one nobody should trust* — and the four self-supplying endpoints probed last were clean
+  on an actually-empty project, which is how this axis ended rather than being abandoned.
+
+  **This is a SNAPSHOT and deliberately not a gate**, which the roadmap's own rule makes a claim
+  needing justification: *a sweep held as prose is a check that can only report good news.* The
+  mechanically derivable part of this population **already is** a gate —
+  `services/api/test_verdict_coverage.py` derives boolean subset verdicts structurally, with no
+  exemption list. What is left over is not derivable: `band: "undersupplied"` is a string, `0.0` is a
+  float, and "would a reader mistake this for a measurement" is a judgement. **A rule that needs
+  judgement calls needs an exemption list, which is where the next instance hides** — the lesson
+  TRUNC-COUNTED paid for twice. So the ledger says what was measured and when, and the next sweep
+  starts by re-measuring rather than by trusting this table.
+
+
+- ✅ **SCOPE-EMPTY — an empty scope register and one with nothing done were the same three numbers**
+  *(XS — Lane C; **CLOSED 2026-09-25**; held by `services/api/test_scope_register.py`)*
+
+  `scope_register.register` returned `pct_quantified` / `pct_allocated` / `pct_scheduled` as `0.0`
+  when there were no items. Measured, and the two responses are **indistinguishable on every number
+  a card would show**:
+
+  | | `item_count` | the three percentages |
+  |---|---|---|
+  | an empty register | 0 | **0.0 / 0.0 / 0.0** |
+  | one item, nothing done | 1 | **0.0 / 0.0 / 0.0** |
+
+  Those are opposite findings — *go write the register* versus *go do the work* — and only
+  `item_count` separated them, which a percentage-led card need not render. Same shape as
+  T12-SELFTIE, where the two responses were likewise byte-identical.
+
+  **The repair is not a judgement call, because the answer was already in the tree.**
+  `spine.traceability` returns `None` for an empty population, and
+  `apps/web/src/api/coverageMaps.ts` names the two engines side by side as *the* two completeness
+  mappers, each answering "what proportion of these records carry the link they need". **Two engines
+  documented as answering the same question disagreed about how to say 'no population'**, and one of
+  the two spellings cannot be told from a real measurement.
+
+  **An existing test asserted the defect**, and that is the part worth recording. `test_scope_register`
+  had `assert e["pct_quantified"] == 0.0` on the empty case — a VALUE standing in for a property it
+  did not state. It is now the property: the three are `None`, a real 0% is still `0.0`, and the two
+  cannot be equal. *Changing a test to match new behaviour is only legitimate when the old assertion
+  encoded the bug, and saying which it was is the whole of the justification.* Five mutations, all
+  red, including the over-correction that turns a genuine 0% into `None`.
+
+  **Wiring `scopeRegister` is a feature, not a card** — the route takes `scope_items`, `qto_lines`
+  and `activities` entirely from the request body and reads nothing from the database, so a caller
+  has to assemble three datasets first. Unlike PROGRESS-UNMATCHED the producers do exist, so this is
+  buildable rather than blocked; it is simply not extra-small, and the method stays in the callerless
+  freeze list until somebody sizes it honestly.
+
+
+- ✅ **PROGRESS-UNMATCHED — an engine whose note promised "never silently dropped" and silently
+  dropped** *(XS — Lane C; **CLOSED 2026-09-25**; gated by
+  `services/api/test_progress_unmatched.py`)*
+
+  `progress_rollup.capture_diff` builds both of its sets by filtering through the model's element
+  list — `added = [g for g in (s2 - s1) if g in known]`, and the same for `removed` — while its note
+  said:
+
+  > Elements present at t1 but absent at t2 are surfaced as `disappeared` — a re-scan or rework
+  > flag, **never silently dropped**.
+
+  **The promise held only among elements the CURRENT model still contains**, which excludes exactly
+  the case a rework flag exists for: something taken out of the model *and* off the site between two
+  captures. Measured — 500 capture GUIDs at t2 against a 300-element model: `installed_t2` 300,
+  `newly_installed` 300, `pct_complete_t2` **1.0**, 200 dropped, and no key anywhere naming them.
+  *A note that claims more than the code does is worse than no note, because it is read as a
+  guarantee and stops the next person looking.*
+
+  **The filter is kept and only the silence is fixed.** A diff is scoped to the model it is about,
+  and an unmatched GUID carries no class or storey, so `added_by_class` and `added_by_level` have
+  nowhere to put it — removing the filter crashes the engine, which the gate proves by doing it.
+  What changed is that `unmatched_t1`/`unmatched_t2` are reported, so a capture aimed at a different
+  model version shows as an unmatched count instead of arriving as a quietly smaller diff that reads
+  like slower progress. The note now states the scope it has.
+
+  **THE WIRING HALF IS NOT SMALL, and assuming it was is the correction worth recording.** This was
+  opened as another callerless-method item. It is not one: `progressCaptureDiff` *and*
+  `progressRollup` are both callerless, and **nothing in the product produces an "installed GUIDs at
+  time T" set** — so giving either a screen means building capture capture, not adding a card. Same
+  shape as CITE-RECORD, where "give the record builder a producer" turned out to mean building
+  record-aware QA. *An item's size is a claim about its dependencies, and this one's was wrong until
+  somebody looked for the producer.* Both methods stay in the callerless freeze list, deliberately.
+
+  Two clean negatives from the same sweep, recorded so nobody re-runs them: `adjacency.summary`
+  returns `total`, `satisfiable` and the complete `unmet` list with no cap and no vacuous verdict;
+  `scan_deviation.verify_from_scan` fails closed on a scan that covered nothing. **Half the engines
+  measured in this sweep needed no repair**, and saying so is what makes the other half credible.
+
+
+- ✅ ⭐ **SCAN-DARK — the refusal SCAN-TRUNC added pointed at a route frozen as unreachable**
+  *(S — Lane E/G; **CLOSED 2026-09-25**; gated by `apps/web/src/viewer/tools/scanVerifyView.test.ts`)*
+
+  **This entry exists because of the previous one.** SCAN-TRUNC made `/scan/deviation` refuse when
+  the model reference was cut short, and its message says *"use `/scan/verify-lod500`, which queries
+  per element and never truncates the model."* That route had **no client method at all** and was
+  listed in `services/api/test_route_reachability.py` as deliberately clientless. *A refusal that
+  redirects to an unreachable feature is a gate you can read and cannot satisfy* — the AUTHORITY-DARK
+  shape, created here by my own wording one item earlier.
+
+  And `ApiClient.scanDeviation`'s declared return type **omitted every field SCAN-TRUNC added** —
+  `reference_truncated`, `points_truncated`, `points_total`, `error` — so the refusal was invisible
+  to the client. The third instance of that hole this session, after `excluded_comparables` and
+  `roundtripDiff.truncated`. The engine also returned the two flags from only two of its three
+  branches, so they are emitted from all three now and the client type requires them.
+
+  **A CLEAN NEGATIVE, measured before a line of UI was written.** Five engines this session carried
+  a verdict that went vacuous once nothing had been evaluated, so `verify_from_scan` was measured on
+  a scan covering nothing: `verified: 0, stamped: 0, uncovered: 50`, nothing stamped, and
+  `within_tolerance` is `null` rather than `false` on an uncovered element. **It fails closed and
+  needed no repair** — the card's only job is not to subtract that care. So `uncovered` is given the
+  same weight as `verified` (a high verified count over a thin scan is the number somebody quotes),
+  a finding renders as *verified as wrong, not stamped*, and the aggregate's refusal renders as a
+  refusal rather than as a zero.
+
+  **The surviving mutation named a branch the fixtures did not have.** Keying `refused()` on
+  `reference_truncated` instead of on the missing figure passed every test, because every fixture
+  set the two together — and the engine has a THIRD refusal branch, an empty cloud or reference,
+  where `within_pct` is null and that flag is `false`. *Asserting the one case you thought of is not
+  asserting the property.* The predicate reads the absent figure, and both branches are fixtures now.
+
+
+- ✅ ⭐ **TRUNC-COUNTED — three screens printed the length of a page as if it were the total, and
+  one of them ACTED on it** *(S — Lane C/G; **CLOSED 2026-09-25**; gated by
+  `services/api/test_trunc_counted.py`)*
+
+  **The one that acts is `roundtrip_diff`.** It carries three bounds — `rows[1:5001]` on the sheet,
+  `changes[:1000]`, `unknown_guids[:100]` — of which only the middle one was disclosed, via
+  `truncated`. And `apps/web/src/api/model.ts` **did not declare `truncated`**, so
+  `apps/web/src/viewer/tools/qaSection.ts` could not read it — while the same file reads the
+  identical flag correctly forty lines earlier, on a response whose type does declare it. *A field
+  absent from the declaration is invisible to every audit over declarations* — the CLASH-TRUNC hole
+  in a second place, and the reason this was carelessness by nobody.
+
+  The Apply button posts `d.changes`, the PAGE. **A sheet with more changes than the cap was applied
+  in part and reported as whole**, so the model ends up differing from the spreadsheet the operator
+  believes they applied, with no error anywhere. The cap is reachable by construction rather than in
+  principle: `_diff_row` emits one change per changed CELL against a 5,000-row bound, so a single
+  property column overflows a 1,000 cap fivefold.
+
+  The other two only print: `portal/panels/operations.ts` summed three 100-row pages into
+  *"Broken links (N)"* beside percentages computed over the full population — so the card
+  contradicted the numbers next to it — and `portal/portal.ts` showed 20 of a 100-row page with no
+  total at all. *The `✓ Every sheet, spec and package is linked` verdict was never wrong*, because
+  truncation cannot make a non-empty list empty; only the counts were.
+
+  **WHY THERE IS NO SWEEP GATE, which is the part worth reading.** The class was derived: **43 list
+  truncations inside returned dicts, and 26 already carry a sibling `len()`** — the good pattern is
+  this codebase's own convention, which is what makes the rest anomalous rather than normal. Of the
+  17 without, **11 carry the count under a different NAME** (`total - compliant` in `naming.py`,
+  `unapproved` in `design_standards.py`, `count` in `rfi_prevention.py`) or are top-N by design,
+  leaving 6 fields in 3 files.
+
+  Joining those names to `.length` reads in the web tree reports **35 sites, and it is not a
+  finding**: `guids` alone accounts for 12, matched against engines their callers never call. Two
+  were read in full — `viewer/tools/qaSection.ts:205` reads an assembly-thermal result's `guids`
+  (and slices to 200 itself), and `viewer/tools/repairPanel.ts:184` reads `sample.length` only to
+  decide whether to print an ellipsis, with the authoritative `removable` count rendered beside it.
+  *A leaf name is not a response, and a number with a list attached reads as evidence.* Even a
+  checker-resolved join would still have to separate "`.length` shown to a user as a count" from
+  "`.length` used for an ellipsis" — a judgement call, and **a rule that needs judgement calls needs
+  an exemption list, which is where the next instance hides.** So the three fixed sites are gated
+  behaviourally and the sweep stops there, deliberately.
+
+  **The gate's own check was wrong twice, both times by matching a name too widely.**
+  `"truncated:" in model_ts` passed with the field deleted, because `rows_truncated:` contains it —
+  a suffix match, the mirror of the prefix match `test_gap_records` paid for. Word-boundary matching
+  over the whole file **also** passed, because `truncated: boolean` is declared on four other
+  unrelated endpoints in that 66 KB file. *The sentence in this entry's own paragraph above —* a
+  leaf name is not a response *— was committed as a defect one screen later.* The subject is now
+  `roundtripDiff`'s own declaration, extracted by locator, and renaming the method reds eight checks
+  rather than silently narrowing the search to nothing.
+
+
+- ✅ ⭐ **SCAN-TRUNC — a model cut short turns a correct building into 500 as-built findings**
+  *(S — Lane C; **CLOSED 2026-09-25**; gated by `services/api/test_scan_trunc.py`)*
+
+  `scan_deviation.model_surface_points` caps the reference at 200,000 surface vertices, and reaches
+  that cap by **breaking out of the element iterator**. So hitting it does not thin the reference
+  evenly — it drops whole elements, in whatever order ifcopenshell yielded them. Every scan point
+  over a dropped element is then measured against the nearest surface that remains, which can be
+  metres away. Nothing in the response said the cap had been hit.
+
+  **Measured on a two-wing model built exactly to design:**
+
+  | reference | `within_pct` | out of tolerance | max deviation |
+  |---|---|---|---|
+  | full | **100.0** | 0 | 0.004 m |
+  | truncated to the first wing | **50.0** | **500** | **50.0 m** |
+
+  *That is not a loss of precision, it is a fabricated defect* — and on a QA/QC as-built check it
+  sends a crew to re-survey a wing that is fine. **It is the opposite sign from CLASH-TRUNC**, where
+  truncation made a partial matrix read *clean*. The direction a silent bound pushes the answer is a
+  property of the bound, not of truncation, so neither case predicts the other and both had to be
+  measured. The cap exists *for* large models, so this is the normal case on a real project.
+
+  **The two caps are treated differently, and the asymmetry is the load-bearing decision.** A
+  truncated SCAN (`parse_point_cloud`, 500,000 points) is a coverage claim — every point read was
+  measured correctly, so the verdict is true of the part examined and is reported beside its
+  coverage, the shape this repository uses everywhere else. A truncated REFERENCE is a correctness
+  claim — there is no population the figure is true of — so `within_pct` and the histogram are
+  **withheld** rather than qualified. *A caveat is for a number that means something.* The refusal
+  also points at `/scan/verify-lod500`, which queries per element and never truncates the model.
+
+  **And the gate's first draft verified the refusal without verifying anything could reach it.** Two
+  mutations — the producer returning `False` unconditionally, and the route dropping the keyword —
+  both left it reporting a clean tree, because it exercised `analyze()` in isolation. The refusal
+  could have been correct and dead. *Verifying a refusal is not verifying that anything can reach
+  it.* The producer is now exercised against a fake geometry iterator, and the route's call is read
+  by AST with both keywords required to be names rather than constants — a hardcoded `False` was the
+  form the second mutation took. Ten mutations, all red, in both directions: over-correcting (the
+  scan cap also refusing, the producer claiming truncation always) reds as well as under-correcting.
+
+
 
 Seven of eleven engines once shipped with no route. The R32 filing-spine entries that occupied this
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
@@ -1114,21 +1461,57 @@ instances:
   silent, because somebody acts on it.* The two are now separate assertions, each mutation-checked in
   its own direction.
 
-- ◧ **SCHEMA-STALE — the generated client types are half the API, and nothing regenerates them**
-  *(S — Lane I; found while measuring ROUTE-SHADOW's blast radius, NOT fixed here)*
+- ✅ **SCHEMA-UNGENERATED — the generated client types were never complete, because the generator's
+  input was a file nobody tracked** *(S — Lane I; opened while measuring ROUTE-SHADOW's blast radius,
+  **CLOSED 2026-09-25**; gated by `services/api/test_schema_types_agree.py`)*
 
-  `apps/web/src/api/schema.d.ts` is produced by `npm run gen:api-types`, which reads
-  `src/api/openapi.json` — **a file that is not in the repository**. So the checked-in types are a
-  hand-run dump from an unrecorded moment, and no CI step notices them ageing. Measured 2026-09-24:
-  **500 paths declared against 947 the server serves**, and the two operations ROUTE-SHADOW's `/mep`
-  and `plan.svg` resolve to today are absent from it entirely.
+  **Filed as "SCHEMA-STALE", and that name was the first thing wrong with it.** Stale implies the
+  file was once right. `apps/web/src/api/schema.d.ts` and the `apps/web/.gitignore` line hiding its
+  input were last written in the **same commit** (`8432a88`, 2026-09-11), and the app has *fewer*
+  route decorators today — 1016 against 1022 at that commit — so drift cannot account for a gap that
+  runs in the other direction. **The types were already half the API on the day they were generated.**
+  A stale-sounding name sends the next reader to re-run the generator, which is the one action that
+  could not fix it. *(The name also collided with `services/api/test_schema_stale.py`, an unrelated
+  gate about module-record schema versioning — two items one word apart in a 139-module tree.)*
 
-  Recorded rather than fixed, and the reason is worth stating: the repair is not running the
-  generator. It is deciding whether `openapi.json` is checked in (a large generated artifact in every
-  diff) or dumped in CI (a step that needs the API importable in the web job), and then whether a
-  stale `schema.d.ts` should FAIL a build or be regenerated for you. That is a decision about the
-  build, not a gap to close on the way past. *A generated file with no producer in CI is prose with a
-  file extension.*
+  **Why re-running it could not fix it.** `package.json` ran
+  `openapi-typescript src/api/openapi.json -o src/api/schema.d.ts`, and `apps/web/.gitignore` ignores
+  `src/api/openapi.json`. On a fresh clone the command fails for want of an input; on a machine that
+  has one it regenerates from whatever dump is sitting there, **prints a green tick, and writes the
+  same file**. *"Regenerate the types" did not mean "read the server", and nothing said so.*
+
+  | | |
+  |---|---|
+  | paths the app serves | **947** (1,021 operations) |
+  | paths `schema.d.ts` declared | **500** (541 operations) |
+  | operations served but undeclared | **482**, across 165 of 203 path groups |
+  | operations declared but no longer served | **2** |
+
+  Fixed in three parts, because any one of them alone leaves the defect reachable.
+  `apps/web/scripts/gen-api-types.mjs` dumps the spec from `aec_api.main:app` into a temp file it then
+  deletes, so **there is no persistent input left to be stale** — and it sorts `paths` first, because
+  FastAPI emits them in route-registration order and including a router earlier shuffles thousands of
+  lines, which is much of why "regenerating churned 38,231 lines" had become a reason not to.
+  `schema.d.ts` is regenerated, by that script rather than by hand, and asserted byte-identical across
+  two runs. And `services/api/test_schema_types_agree.py` asserts every live `(path, method)` is
+  declared — because a generator can only be *run*, and nothing makes anyone run it.
+
+  **The reason it went unseen for a fortnight is worth more than the fix.** Seven audits in this tree
+  exempt `schema.d.ts` by name — `deadFieldScope`, `docComments`, `unfiledMap`, `deadFieldTyped`,
+  `noRespelledShapes`, `test_route_reachability`, `test_file_sizes` — each for a good reason of its
+  own. *Seven exemptions and no owner is how an artifact stops being checked by anybody.* And
+  `test_route_reachability`'s is the sharpest: it once counted this file as client code, so **29
+  routes were "called" by a generated file restating the server's own route table.** That is the
+  opposite error — treating the artifact as evidence about the *client*. It is only ever a claim about
+  the *server*, and nothing was checking the claim.
+
+  *(The entry this replaces said the repair was "a decision about the build, not a gap to close on the
+  way past" — whether `openapi.json` is committed or dumped in CI. That framing was wrong in a way
+  that mattered: it presented a real question as a **blocking** one, and the fix needed neither
+  answer. The input does not have to be committed **or** produced in CI if it does not persist, and
+  the agreement check needs no node and no artifact passing between jobs — it reads the committed
+  `schema.d.ts` and the live app in the one job that already imports it. *An item parked on a decision is
+  parked until somebody re-derives whether the decision was load-bearing.*)*
 
 - ✅ **RESPELLED-SHAPE — a wire type declared twice is invisible to every audit over the
   declarations** *(XS — Lane I; **CLOSED 2026-09-24**; gated by
@@ -1285,6 +1668,296 @@ instances:
   `apps/web/src/proforma/sourcesUsesFees.test.ts` and the three pins in
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
+
+- ✅ ⭐ **SUPPLY-DARK — an empty competitive set reported the most favourable market verdict the
+  engine can produce** *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/supplyCard.test.ts`, whose tripwire reads
+  `services/api/src/aec_api/supply_pipeline.py` off disk)*
+
+  `supply_pipeline.py` weighs a competitive pipeline by what is **recorded** about each project
+  rather than by the label on the deck, and states the distinction it exists for: *"Under
+  construction" on a broker deck and "under construction" with a recorded construction deed of trust
+  are not the same fact, and a rendering with no permit is neither certain supply nor zero.*
+  `ApiClient.competitiveSupply()` was written for it and **no screen called it**.
+
+  **The response was additionally typed `Record<string, unknown>`, which is a second finding.** Every
+  field was therefore invisible to `apps/web/src/api/deadFieldTyped.test.ts` and to every other audit
+  that starts from the client's declarations — the same hole `excluded_comparables` fell through in
+  SCREEN-VS-REPORT. Five interfaces are now declared in `apps/web/src/api/creDeal.ts`.
+
+  **MEASURED THROUGH THE ENGINE BEFORE A LINE OF THE CARD WAS WRITTEN, and this is the sharpest
+  instance of the shape this session kept finding.** A pipeline of four projects, none matching the
+  subject's product type:
+
+  | | |
+  |---|---|
+  | `counts.competing` | **0** |
+  | `excluded.counts.wrong_product` | **4** |
+  | `weighted_index.band` | **`"undersupplied"`** |
+  | `lsi` | **0** |
+  | `discount_pct` | **0.0** |
+
+  A market in which every supplied project was filtered out reports **the most favourable verdict the
+  engine can produce**, byte-identical to a market with genuinely no competition. *"Undersupplied" is
+  an argument to build* — which is worse than the four `clean: true` cases this session fixed, because
+  those at least read as neutral. **The engine is not wrong and nothing in it claims coverage**:
+  `counts.competing` and `excluded.counts` are in the response, and its own note says the excluded
+  projects are listed *"so a thin competitive set is visible, not implied"*. The defect would have
+  been entirely the consumer's, which is why the card withholds rather than annotates — the band, the
+  totals and the discount are all absent on a vacuous set, and the exclusions with their reasons are
+  the only thing left on the card.
+
+  **`test_verdict_coverage.py` does not flag this, and the limit is worth recording rather than
+  papering over.** That gate derives *boolean subset verdicts* — `bool(A) and (all(…) | not B)`. A
+  `band` string and an `lsi` integer match no part of that shape, so the sweep it automates would not
+  have found this one. *A derived population is bounded by the form it derives, and the form here was
+  chosen from five hand-found instances that happened to all be booleans.*
+
+  **And the mutation that survived was the one that mattered.** Eleven of twelve mutations redded
+  immediately; the twelfth — folding the rumored units into the certain total, which is the single
+  thing the engine is most careful to keep apart — passed, because the test asserted the engine's
+  *wording* on the stated grounds that "300 + 450 = 750 is the raw total and is legitimately shown, so
+  the number is not checkable". It is checkable; it just has to be read out of the row it belongs to.
+  *A number asserted against the whole card is not asserted at all* — the AUTHORITY-DARK lesson, one
+  item later, in the opposite direction.
+
+- ✅ ⭐ **DECISION-GATE-DARK — the keystone over everything else on the tab, and nothing called it**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/decisionGateCard.test.ts`)*
+
+  `decision_gate.py` composes citation coverage, comp tiering, the T-12 tie-out, the rent-roll scrub,
+  the authority gate, exhibits and a named human sign-off, and its contract is **the principle this
+  session spent itself enforcing in consumers, implemented in the engine**: *"A gate whose evidence
+  was not supplied is `unknown`, and unknown BLOCKS — absent evidence must never read as a pass. The
+  actions list says what to do, not just what failed."* `ApiClient.decisionGate()` was callerless.
+
+  So the card's job is not to add judgement but to avoid subtracting it: the actions lead, `unknown`
+  renders as blocking in **word and colour** rather than as a shrug, and a vacuous pass keeps its
+  reason — with nothing supplied, `exhibits` passes *"no exhibits were required for this package"*,
+  which is a gate that tested nothing and must not read as a tick.
+
+  **The evidence it gathers is named, and what it cannot gather it leaves absent.** The card sends the
+  authority assessment and the rent-roll scrub; the other five stay `unknown`, and therefore blocking.
+  *That is the correct answer rather than a gap in the card* — and naming what was supplied makes an
+  `unknown` legible as "not gathered here" rather than "gathered and found wanting". A source that
+  fails is omitted rather than filled in, because an invented payload would make a gate pass or fail
+  on something the card made up. Measured with no evidence: 6 of 7 unknown, blocked, six actions.
+
+- ✅ ⭐ **AUTHORITY-DARK — a gate you could read and could not satisfy** *(S —
+  `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/authorityCard.test.ts`, whose tripwire reads
+  `services/api/src/aec_api/deal_authority.py` off disk)*
+
+  **The finding is sharper than "nobody called it", and my first reading of it was wrong.**
+  `dealAuthority()` — the READ — has had a caller all along: `apps/web/src/portal/panels/design.ts`
+  renders the gate on its go/no-go card, and renders it well. What was callerless is
+  `saveDealAuthority()` — the WRITE. So the table could be **seen and never declared**: the design
+  panel could say *"Source facts NOT current"* and nothing in the product could make them current.
+  *A gate you can read and cannot satisfy is worse to ship than one nobody can see*, because it is
+  visibly unfinished and reads as a bug in the analysis rather than as a missing surface.
+
+  The card is on Underwriting — it governs every figure on that tab rather than one of them — and
+  renders the gate first, advisory apart from blocking, `superseded_still_active` in its own table
+  (the one row type a reader cannot derive from the others), and age against each fact type's own
+  freshness limit rather than a bare "stale".
+
+  **The tripwire is the load-bearing test, not the rendering.** `FACT_TYPES` has to be mirrored
+  because the GET returns declared rows plus the *required* missing ones, so an optional type nobody
+  has declared appears in neither and a card built from the response could never offer to add one.
+  The test reads the Python off disk and asserts key, label, default freshness and required flag in
+  order — the `reportMoments.test.ts` technique. **The `required` flag is the one that matters**: a
+  drift there shows a fact type as optional while `assess()` blocks on it.
+
+  **A clean negative, recorded as such:** the empty table was measured first, since four engines this
+  session carried a verdict that went vacuous when nothing had been evaluated. This one fails closed —
+  `gate.passes` is `not blocking`, and an empty table blocks on all three required fact types.
+  `services/api/test_verdict_coverage.py` leaves it alone correctly.
+
+  **And a test satisfied by the wrong code path.** The blocking-table test asserted the fact type's
+  label against the whole card's text, and the same label also appears in the "Not declared" line,
+  which is built straight from `FACT_TYPES` rather than through `label()` — so a mutation rendering the
+  raw key in the blocking table passed. *An assertion satisfied by a different code path than the one
+  it is about is not an assertion about that path.*
+
+- 🟡 **AUTHORITY-DOWNSTREAM — the CRE cards do not consult the gate that exists to block them**
+  *(S — `apps/web/src/proforma/`; **OPEN — needs the user's call on how hard to block**)*
+
+  `deal_authority.py`: *"Required fact types that are missing, stale, or superseded-but-still-active
+  BLOCK downstream analysis — the point is to stop the work, not to annotate it after the fact."* The
+  residual-land, net-effective-rent, rent-roll-scrub, T-12 and covenant cards all compute regardless.
+  If the authority table says the rent roll is 87 days past its freshness limit, the NER card values
+  it and says nothing. Wiring the gate through is coherent and small; **how hard to block — refuse,
+  warn, or annotate — is a product decision**, and the wrong choice in either direction is expensive:
+  refusing makes the tab unusable during diligence, annotating makes the gate decorative.
+
+- ✅ ⭐ **VERDICT-COVERAGE — the class found five times by hand, now derived** *(S — Lane J;
+  **CLOSED 2026-09-25**; gated by `services/api/test_verdict_coverage.py`)*
+
+  Five engines this session returned a boolean verdict beside a count of what they could not evaluate:
+  `soft_clash.coordinated`, `rent_scrub.clean`, `t12.tie_out.reconciles`, `covenants.clean`/`at_risk`,
+  `sequence_clash.clean`. **Every one of those engines is careful** — each hands the caller the coverage
+  and three attach a sentence saying why. *The defect is always in the consumer*, and four of the five
+  had none, so nothing was wrong until somebody wrote one.
+
+  **The verdict is derived structurally, not by name:** `bool(A) and (all(…) | not B)`, where the guard
+  is the author recording that the subset can be empty. Coverage-*word* matching returned 24 candidates
+  of mostly unrelated senses and would have needed five exemptions; the structural form returns **5 with
+  none** — and **three were instances nobody had found by hand** (`sequence_clash`, `fived`,
+  `perf_budget`; the last two have no client method, so the gate reports them unexposed rather than
+  passing them).
+
+  **It found a live defect on its first run.** `viewer/tools/analyseSection.ts` printed **"clean"** over
+  whatever fraction of the schedule was analysable — `sequence_clash` skips any activity with no
+  location, no dates, or finish before start, each with a stated reason, and the panel rendered
+  `analyzed` and `not_covered` but never `skipped_count`. Fixed, with `skipped` (the reasons) declared
+  on the client for the first time and a `warn` kind added to `resultNote`, which had no way to say
+  *the check ran and part of the input was not examined*.
+
+  Four more drafts were wrong in ways only measurement showed — vocabulary linking cross-talked between
+  responses, a `not_` prefix matched a note about a different dimension and would have blessed the very
+  consumer the rule exists to catch, and read-detection failed first too narrowly (missing a
+  destructure) then too widely (matching the word "skipped" in prose). *And mutating it found the limit
+  it does not cover*: a coverage render wrapped in `if (false)` leaves the text and passes, so this is a
+  source-level check and the consumer's own tests are the complement — written down rather than
+  discovered later.
+
+- ✅ ⭐ **COVENANT-DARK — two verdicts that read clean when nothing was evaluated** *(S —
+  `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/covenantCard.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  `ApiClient.loanCovenants()` was callerless, so nothing had yet had the chance to get CRE-COVENANT's
+  verdicts wrong. **Measured through the real engine:**
+
+  | register state | `at_risk` | `financial.clean` | evaluated |
+  |---|---|---|---|
+  | 2 uncomputable obligations, 2 untested covenants | `false` | `false` | **nothing** |
+  | 1 of 3 covenants tested and passing | `false` | **`true`** | one third |
+
+  `at_risk` reads four counts that are zero **for want of inputs rather than want of problems**, and
+  `clean` fails closed only at *zero* tested. **The fourth engine this session with that shape** —
+  after `soft_clash`, `rent_scrub` and `t12` — which is why VERDICT-COVERAGE below exists.
+
+  Also rendered, all previously undeclared on the client: the four fields that make a due date
+  re-derivable (*"A due date a reviewer cannot re-derive by hand is not a due date"* is the engine's
+  own sentence, and its client could not see them), the `alternate_reading` when the two clock starts
+  disagree, and the covenant `note` distinguishing a breach inside an open cure window from one
+  outside it.
+
+  **Two mistakes in its own tests, both the same shape.** A mutation that did not compile printed no
+  results line and the loop read that as silence rather than as a failed experiment. And the
+  three-state test first asserted only text — all of it from the server — so painting a curable breach
+  and an uncured one identically **passed**; `curable !== uncured` was the next draft, and a mutation
+  giving a curable breach the *passing* colour satisfied it while being worse than folding the two
+  together. *Asserting one inequality is not asserting that three states are three states.*
+
+- ✅ ⭐ **T12-SELFTIE — a gate that could not fail, because nobody was handing it evidence**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/t12Card.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  `services/api/src/aec_api/t12.py` exists for one refusal — *"it does not publish an adjusted NOI on
+  top of a mapping that lost money"* — and `ApiClient.normalizeT12()` was callerless. **Measuring what
+  a caller would get found something sharper than the missing screen.** `normalize()`'s docstring says
+  that without stated totals *"the sum of the source lines is"* the reference, so both sides of the
+  comparison come from the same mapped rows and the deltas are zero by construction. Measured through
+  the real engine on one T-12 with a single unmapped $90,000 line:
+
+  | input | tie-out | adjusted NOI |
+  |---|---|---|
+  | no stated totals | `reconciles: true`, all deltas `0.0` | **published: $3,180,000** |
+  | with stated totals | `reconciles: false`, expense −90,000 | `stopped: true`, `null` |
+
+  The reclass the gate exists to catch is invisible in the first case. **Not an engine defect: a
+  caller obligation that never had a caller** — *a guard is only as sound as the evidence it is
+  handed*, CLASH-TRUNC one layer over. **And the two responses are indistinguishable**: `reconciles`
+  is true either way, so "were totals stated" is a parameter of the renderer rather than something
+  inferred — inferring it would mean inferring it from the very field that cannot tell.
+
+  Stated totals are the primary input now; absent them the card prints *"tied to itself — not a
+  check"* with `unmapped_count` where the verdict would be. It also closes the loop on RENTROLL-DARK:
+  five of the scrub's seven checks want an income statement, and a normalised T-12 is one, so the
+  handoff supplies `gross_potential_rent` and `bad_debt` — **and only those**, because the prior-period
+  fields would have to be invented and inventing them is the defect the scrub refuses, committed from
+  outside.
+
+  Two more undeclared fields fell out: `run_rate_vs_trailing.label`, found by **the compiler** when the
+  card rendered it, and `add_back_questions.{amount, pct_of_income}`, where the engine calls each
+  finding *"a QUESTION with the number behind it"*. And `residualLandCard.ts`'s buttons carried
+  `className = "btn"`, which **matches no rule in `style.css`** — *a class name is not a style, and
+  nothing typechecks the gap*; six files under `portal/panels/` carry the same unstyled class and are
+  left for Lane B.
+
+- ✅ ⭐ **RENTROLL-DARK — two engines that say whether you can believe the rent roll, and no screen
+  called either** *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/rentRollQuality.test.ts` and two `UNCALLED` deletions in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  The Operations tab shows FACE numbers — base rent, in-place income, occupancy, WALT. CRE-NER and
+  CRE-RRSCRUB shipped to qualify them; `ApiClient.netEffectiveRent()` and `ApiClient.rentRollScrub()`
+  were both callerless. **Both engines are built around a refusal, and the refusal is what a panel
+  destroys** — which is why the fourteen tests pin the caveats rather than the numbers:
+
+  * `rent_scrub.py` computes `clean` as `bool(ran) and not failed`, so **one** check running and
+    passing with six unable to run is `clean: true`. Its own docstring names the defect a green tick
+    would be: *"a scrub that reports 'no findings' because half its inputs were missing … launders
+    absent data into apparent confidence."* Coverage is the headline here and the flag qualifies it.
+  * `net_effective.roll_up` sums over the COMPUTABLE leases only, so with any `skipped_count > 0` the
+    Face GPR is a different population from the "Base rent / yr" three lines above it on the same
+    screen. Stated, with the skipped leases and reasons.
+  * `skipped` is capped at 50 while `skipped_count` is not — *the CLASH-TRUNC shape*, a page presented
+    as the whole set — so the card says when it is showing a page.
+  * `lc_included` false means the landlord's costs are understated and both NERs are the optimistic
+    case; an absent input must not read as a complete answer.
+  * Zero computable leases renders as a refusal rather than `$0`, because a total of zero and an
+    absence of a total are different claims.
+
+  Six mutations, each redding exactly one test: rendering `clean` as clean, dropping the population
+  warning, presenting the skipped page as whole, dropping the commission caveat, rendering zeros as a
+  valuation, and dropping what a blocked check needs.
+
+- ✅ ⭐ **RESIDUAL-DARK — the developer's actual question was built, routed, tested and unreachable**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/residualLandCard.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  Every other figure on the pro forma runs **forward** from a land price somebody typed. Site
+  acquisition is the one number a developer negotiates, and the question at the table is *"what is the
+  most I can pay for the dirt and still clear my hurdle"* — a different solve, not a re-reading of the
+  same one. FIN-CALC shipped that solve: `services/api/src/aec_api/proforma/residual.py` bisects the
+  land line over the same forward `solve()` every other number comes from, the route serves it,
+  `services/api/test_fin_calc.py` covers it, and `ApiClient.residualLand()` was written for it.
+  **No screen called it.** Same shape as DISC-poché and the MEP systems browser.
+
+  **The substance of the fix is the three caveats, not the number.** `residual_land_value` is careful
+  in exactly the way a panel throws away, which is this document's SCREEN-VS-REPORT axis:
+  `land_value: null` means the target is unreachable **even at $0 land** (printing a figure would be
+  inventing one; the engine's own note says *"the deal, not the dirt"*); `converged: false` **with** a
+  figure means the bisection hit its cap, so that figure is a bracket endpoint rather than a price; and
+  `bounds` — the honest answer in that second case — **was declared nowhere in this client**, so no
+  unread-field audit here could see it, every one of them starting from the declared interfaces. All
+  three are rendered, one `it` each, because one test over three caveats passes when two of them work.
+
+  **A second finding came out of the write-back.** `residual.py::_with_land` scales the **first**
+  `category: "land"` line and zeroes any others, so the residual is the *total* land basis; the driver
+  form's "Land $" field is bound to `cost_lines.0.amount`, which is true of the default assumption set
+  and not of one adopted from the massing tab. Writing the answer under the looser definition would
+  leave a second land line standing, and the forward re-solve would then carry more land than the
+  answer allowed for — *an inverse answer applied under a different definition than the one it was
+  solved under stops reconciling with the deal it came from*, silently, because every visible number
+  still balances.
+
+  **It also found a live defect in an existing gate, in the direction that costs the most.** The XSS
+  source pin in `apps/web/src/proforma/proforma.render.test.ts` required the literal spelling
+  `escapeHtml((e as Error).message)`, and this directory imports the escaper under two names —
+  so a line escaping **correctly** under the conventional alias was reported as an unescaped sink.
+  *A check keyed on the local NAME cannot see a call that is about the BINDING*, and this was not a
+  miss but a confident accusation about a safe line, telling its author they had an XSS. Renaming the
+  import to suit the regex was the tempting repair and the wrong one: the convention it would bend to
+  is the regex's, not the directory's. The escaper resolves through the file's own import now — and the
+  pin additionally could not tell *"no offenders"* from *"nothing to offend"*, asserting an empty list
+  with no floor on either side, so it now proves it found files and is still looking at sinks before it
+  may report none unescaped.
 
 - ✅ ⭐ **PIN-POPULATION — the pin engine read 5 registers of 37, and six of its names were not
   modules** *(M — Lane C; **CLOSED**, fix in this change; gated by
@@ -4001,12 +4674,12 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCHEMA-STALE *(open — `schema.d.ts` declares 500 of the 947 paths the server serves, and its generator reads an `openapi.json` that is not in the repository. Filed here because the artifact lives in this directory; **the repair is a build decision, not a file edit** — whether `openapi.json` is committed or dumped in CI, and whether a stale `schema.d.ts` fails a build or is regenerated for you)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · AUTHORITY-DOWNSTREAM · PORTAL-TXN-DARK (all seven need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**

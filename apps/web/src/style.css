@@ -441,6 +441,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .result-note { margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; background: var(--panel2); }
 .result-note.ok { border-left: 3px solid #33d17a; }
 .result-note.bad { border-left: 3px solid #e2554a; }
+.result-note.warn { border-left: 3px solid var(--status-warn); }
 
 /* properties */
 #props { width: 320px; overflow: auto; padding: 12px 14px; background: var(--panel); border-left: 1px solid var(--line); }

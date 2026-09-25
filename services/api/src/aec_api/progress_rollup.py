@@ -66,6 +66,15 @@ def capture_diff(elements: list[dict], installed_t1: list | set, installed_t2: l
     known = {str(el.get("guid") or el.get("GlobalId") or ""): el for el in elements or [] if isinstance(el, dict)}
     added = sorted(g for g in (s2 - s1) if g in known)
     removed = sorted(g for g in (s1 - s2) if g in known)
+    # EVERY capture GUID THE MODEL DOES NOT KNOW is dropped from both sets above, and the note used
+    # to promise the opposite: "never silently dropped". It was true only among elements the CURRENT
+    # model still contains — which excludes exactly the case a rework flag is for, an element taken
+    # out of the model and off the site between captures. The filter stays (a diff is scoped to the
+    # model it is about, and a GUID with no element has no class or storey to group by), but the
+    # count no longer does: unmatched is reported, so a capture aimed at the wrong model version is
+    # visible instead of arriving as a quietly smaller diff.
+    unmatched_t1 = sorted(g for g in s1 if g not in known)
+    unmatched_t2 = sorted(g for g in s2 if g not in known)
 
     def _grp(guids: list[str], key: str, fallback: str) -> list[dict]:
         counts: dict[str, int] = {}
@@ -87,14 +96,21 @@ def capture_diff(elements: list[dict], installed_t1: list | set, installed_t2: l
         "installed_t1": len(s1 & set(known)), "installed_t2": len(s2 & set(known)),
         "newly_installed": len(added), "disappeared": len(removed),
         "added_guids": added[:200], "disappeared_guids": removed[:200],
+        "unmatched_t1": len(unmatched_t1), "unmatched_t2": len(unmatched_t2),
+        "unmatched_guids": sorted(set(unmatched_t1) | set(unmatched_t2))[:200],
         "added_by_class": _grp(added, "ifc_class", "Unclassified"),
         "added_by_level": _grp(added, "storey", "—"),
         "pct_complete_t1": r1["pct_complete"], "pct_complete_t2": r2["pct_complete"],
         "pct_delta": round(r2["pct_complete"] - r1["pct_complete"], 3),
         "elements_per_day": round(len(added) / days, 2) if days and days > 0 else None,
-        "note": "Capture-to-capture change log: newly installed per class/level + the progress delta (+ a "
-                "daily rate when dates are given). Elements present at t1 but absent at t2 are surfaced as "
-                "'disappeared' — a re-scan or rework flag, never silently dropped.",
+        "note": ("Capture-to-capture change log: newly installed per class/level + the progress delta "
+                 "(+ a daily rate when dates are given). An element present at t1 and absent at t2 is "
+                 "surfaced as 'disappeared' — a re-scan or rework flag. BOTH sets cover only GUIDs the "
+                 "model still contains; anything else is counted in `unmatched_t1`/`unmatched_t2` "
+                 "rather than dropped, because a capture aimed at a different model version otherwise "
+                 "arrives as a quietly smaller diff."
+                 + (f" {len(unmatched_t1) + len(unmatched_t2)} capture GUID(s) matched no element."
+                    if (unmatched_t1 or unmatched_t2) else "")),
     }
 
 

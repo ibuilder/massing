@@ -811,16 +811,22 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     # The point-cloud parse and — far heavier — the IFC open + full tessellation are CPU-bound and
     # would block the event loop (stalling every other request on this worker) if run inline. Offload
     # to the threadpool, mirroring run_validate below.
-    pts = await run_in_threadpool(lambda: sd.parse_point_cloud(raw.decode("utf-8", "ignore")))
+    pts, points_total = await run_in_threadpool(
+        lambda: sd.parse_point_cloud_counted(raw.decode("utf-8", "ignore")))
     if len(pts) == 0:
         raise HTTPException(400, "no readable XYZ points in the upload")
     try:
-        ref = await run_in_threadpool(lambda: sd.model_surface_points(ifcopenshell.open(ifc_path)))
+        # BOTH caps are carried into `analyze`, because whether they were hit changes what the
+        # numbers mean — and for the reference cap it changes whether there are numbers at all.
+        ref, ref_truncated = await run_in_threadpool(
+            lambda: sd.model_surface_points_capped(ifcopenshell.open(ifc_path)))
     except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
         raise HTTPException(400, f"could not build model geometry: {e}") from e
     if len(ref) == 0:
         raise HTTPException(409, "the model has no triangulated geometry to compare against")
-    return await run_in_threadpool(lambda: sd.analyze(pts, ref, tolerance))
+    return await run_in_threadpool(
+        lambda: sd.analyze(pts, ref, tolerance,
+                           points_total=points_total, reference_truncated=ref_truncated))
 
 
 @router.post("/projects/{pid}/scan/verify-lod500")

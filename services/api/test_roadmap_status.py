@@ -79,6 +79,14 @@ DONE_WHEN = {
             "test_vendor_reachable reports 0 unreached vendored modules"),
     "R37-TRIAGE": (lambda: _gate_says("test_dead_code_population.py", "0 unreferenced"),
                    "test_dead_code_population reports 0 unreferenced public functions"),
+    #: Registered by the pull request that CLOSED it, which is the thing `test_gap_records` exists
+    #: because nothing forces: *a registry reports on what it contains, and its silence is
+    #: indistinguishable from a clean bill.* The needle deliberately avoids the path and operation
+    #: counts in the same verdict line — those move on every route added, and a needle that decays
+    #: with normal work is one somebody loosens rather than reads.
+    "SCHEMA-UNGENERATED": (
+        lambda: _gate_says("test_schema_types_agree.py", "all declared, 0 declared-but-gone"),
+        "test_schema_types_agree reports every served (path, method) declared in schema.d.ts"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug
@@ -168,8 +176,12 @@ for code, (still_open, what) in OPEN_WHEN.items():
     check(f"{code} is open and its measurement still says so", still_open(),
           f"{what} (negative control: proves a False predicate is not how this passes)")
 
-print(("ROADMAP-STATUS OK — every item with a measurement agrees with its marker. "
-       "The four found by hand on 2026-08-29 (R46, R37-TRIAGE, R37-TESTED-UNWIRED, QTO-TRADE) are "
-       "corrected; the two that HAVE a gate are now held by it.")
+# The counts are DERIVED, not written. This line said "the two that HAVE a gate" and was wrong the
+# moment a third registered itself — the narrative-copy-of-a-number drift CLAUDE.md names for
+# `viewer/app.ts`, reproduced inside the gate whose whole subject is markers that stopped being true.
+print((f"ROADMAP-STATUS OK — every item with a measurement agrees with its marker. "
+       f"The four found by hand on 2026-08-29 (R46, R37-TRIAGE, R37-TESTED-UNWIRED, QTO-TRADE) are "
+       f"corrected; {len(DONE_WHEN)} closed item(s) and {len(OPEN_WHEN)} open one(s) are held by a "
+       f"gate here — {', '.join(sorted(DONE_WHEN))} closed, {', '.join(sorted(OPEN_WHEN))} open.")
       if not FAILED else f"roadmap_status: {len(FAILED)} FAILED — {FAILED}")
 sys.exit(1 if FAILED else 0)

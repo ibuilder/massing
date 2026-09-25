@@ -1008,7 +1008,7 @@ export class PortalUI {
       cols.append(main, side); root.appendChild(cols);
 
       // MAIN — Ball in your court (the most actionable list)
-      main.appendChild(Object.assign(el("div", "section-title"), { textContent: "Ball in your court" }));
+      main.appendChild(Object.assign(el("div", "section-title"), { textContent: d.action_item_count > 20 ? `Ball in your court — showing 20 of ${d.action_item_count}` : "Ball in your court" }));
       if (d.action_items.length) {
         for (const a of d.action_items.slice(0, 20)) {
           const row = el("button", "portal-mod") as HTMLButtonElement;

@@ -16,6 +16,9 @@ import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
+import { renderRoundtripDiff } from "./roundtripDiffView";
+import { isUnrun, renderCiReport } from "./modelCiView";
+import { renderScanCard } from "./scanVerifyView";
 
 /**
  * R39-DECOMP-VIEWER ② — the clash / QA tool section, out of `app.ts`.
@@ -339,6 +342,10 @@ export function buildQaSection(d: QaDeps): void {
         // on it; this endpoint checks it and had no client caller, so the promise was unverifiable
         // from the product. Distinct from `roundtripDiff`, which compares a file YOU bring back —
         // this one asks whether OUR OWN export is lossless.
+        b.appendChild(toolBtn2("📡 Scan → as-built (deviation + LOD 500 verify)", () => {
+          showResult("Scan to as-built", (body) => renderScanCard(body,
+            { api, projectId: () => pid, setStatus: (m) => { out.textContent = m; } }));
+        }));
         b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
           let r;
           try { r = await api.modelRoundtrip(pid); }
@@ -695,29 +702,15 @@ export function buildQaSection(d: QaDeps): void {
               status.textContent = "computing dry-run diff…"; diffBox.replaceChildren();
               try {
                 const d = await api.roundtripDiff(pid, f);
-                status.innerHTML = `<b>${d.changes.length}</b> change(s) across ${d.checked} rows`
-                  + (d.unknown_guids.length ? ` · <b>${d.unknown_guids.length}</b> unknown GUID(s) skipped` : "")
-                  + ` · ${d.unchanged} unchanged`;
-                if (!d.changes.length) return;
-                const tbl = document.createElement("table"); tbl.className = "result-table";
-                for (const c of d.changes.slice(0, 300)) {
-                  const tr = document.createElement("tr");
-                  tr.innerHTML = `<td class="k">${escapeHtml(c.guid.slice(0, 8))}… ${escapeHtml(c.pset)}.${escapeHtml(c.prop)}</td>`
-                    + `<td class="v">${escapeHtml(c.old ?? "—")} → <b>${escapeHtml(c.new)}</b></td>`;
-                  tbl.appendChild(tr);
-                }
-                diffBox.appendChild(tbl);
-                const apply = document.createElement("button"); apply.className = "mini-btn on"; apply.style.marginTop = "6px";
-                apply.textContent = `✓ Apply ${d.changes.length} change(s) + republish`;
-                apply.onclick = async () => {
-                  apply.disabled = true; status.textContent = "applying via set_props_by_guid…";
+                // Rendering, the three bounds and the Apply label live in `roundtripDiffView.ts`.
+                renderRoundtripDiff(d, { status, diffBox, apply: async (changes, btn) => {
+                  btn.disabled = true; status.textContent = "applying via set_props_by_guid…";
                   try {
-                    const r = await api.editIfc(pid, "set_props_by_guid", { changes: d.changes });
+                    const r = await api.editIfc(pid, "set_props_by_guid", { changes });
                     status.textContent = `applied ${r.changed} change(s) — model republishing`;
                     notify("properties applied — reload the model to see them", "success");
-                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; apply.disabled = false; }
-                };
-                diffBox.appendChild(apply);
+                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; btn.disabled = false; }
+                } });
               } catch (e) { status.textContent = `diff failed: ${(e as Error).message}`; }
               finally { upInput.value = ""; }
             };
@@ -779,22 +772,25 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(resultNote("AABB-level checks on the clash geometry path: seven table-driven clearances (doors high; MEP/code at medium), straight-line egress, accessible clear width. Property rules live in ✔ Rule check.", ""));
           });
         })));
-        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
+        // Opens on the STORED report — the badge is persisted precisely so it need not be
+        // recomputed, and re-running the pack is the expensive path, not the default one.
+        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Reading the stored model CI report", async () => {
           let r;
-          try { r = await api.ciRun(pid); }
+          try { r = await api.ciLatest(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          const mark: Record<string, string> = { pass: "✅", warn: "🟡", fail: "🔴", skip: "➖", none: "➖" };
           out.textContent = `CI: ${r.badge}`;
           showResult("Model CI — quality gate", (body) => {
-            body.appendChild(resultNote(`Overall <b>${mark[r!.overall] || ""} ${escapeHtml(r!.badge)}</b>`
-              + (r!.ran_at ? ` · ${escapeHtml(r!.ran_at)}` : "")
-              + ` · ${r!.passed ?? 0}/${r!.total_checks ?? r!.checks.length} passed`,
-            r!.overall === "fail" ? "bad" : r!.overall === "pass" ? "ok" : ""));
-            for (const chk of r!.checks) {
-              body.appendChild(resultNote(`${mark[chk.status] || "•"} <b>${escapeHtml(chk.label)}</b> — ${escapeHtml(chk.summary)}`,
-                chk.status === "fail" ? "" : "ok"));
-            }
-            body.appendChild(resultNote("Checks compose the rule library + data-completeness gates; the badge is stored so every model version carries a quality gate. Add rules via the ✔ Rule check tool.", ""));
+            const paint = (rep: typeof r) => { body.replaceChildren(); renderCiReport(body, rep!);
+              const run = document.createElement("button");
+              run.className = "mini-btn on"; run.style.marginTop = "6px";
+              run.textContent = isUnrun(rep!) ? "▶ Run the check pack" : "⟳ Run again";
+              run.onclick = async () => {
+                run.disabled = true; run.textContent = "running the check pack…";
+                try { const fresh = await api.ciRun(pid); out.textContent = `CI: ${fresh.badge}`; paint(fresh); }
+                catch (e) { toast((e as Error).message, "error"); run.disabled = false; }
+              };
+              body.appendChild(run); };
+            paint(r);
           });
         })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Queueing federated clash + coordination", async () => {

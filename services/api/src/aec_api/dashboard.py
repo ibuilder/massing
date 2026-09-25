@@ -93,4 +93,8 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
     by_module.sort(key=lambda m: (-m["count"], m["name"]))
     action_items.sort(key=lambda a: a["module"])
     return {"party": party or "GC", "kpis": kpis, "cost": cost_snapshot,
-            "action_items": action_items[:100], "by_module": by_module}
+            # `action_items` is a page; `action_item_count` is how many are actually in this
+            # party's court. The dashboard renders the first 20 of the page, so without the total
+            # a user with 340 open items and one with 100 saw the same screen.
+            "action_items": action_items[:100], "action_item_count": len(action_items),
+            "by_module": by_module}

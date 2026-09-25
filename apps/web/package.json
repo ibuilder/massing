@@ -31,7 +31,7 @@
     "cap:sync": "cap sync",
     "mobile:android": "npm run build:mobile && cap sync android && cap open android",
     "mobile:ios": "npm run build:mobile && cap sync ios && cap open ios",
-    "gen:api-types": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
+    "gen:api-types": "node scripts/gen-api-types.mjs"
   },
   "dependencies": {
     "@mkkellogg/gaussian-splats-3d": "^0.4.7",
