@@ -6,6 +6,77 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### VERDICT-COVERAGE — the class found five times by hand, now derived
+
+Five engines in this session returned a boolean verdict beside a count of what they could not
+evaluate, and the verdict was only meaningful in light of the count:
+
+| engine | verdict | vacuous because |
+|---|---|---|
+| `soft_clash` | `coordinated` | fed a page of the matrix (CLASH-TRUNC) |
+| `rent_scrub` | `clean` | `bool(ran) and not failed` — 1 of 7 checks ran |
+| `t12` | `tie_out.reconciles` | reference derived from the answer |
+| `covenants` | `clean`, `at_risk` | counts zero for want of inputs |
+| `sequence_clash` | `clean` | over the activities that had a date and a location |
+
+Every one of those engines is careful: each hands the caller the coverage beside the verdict, and
+three attach a sentence saying why. **The defect is always in the consumer**, and for four of the five
+there was no consumer — so nothing was wrong until somebody wrote one. Finding it a sixth time by hand
+is what `services/api/test_verdict_coverage.py` exists to prevent.
+
+### Added
+
+- **`services/api/test_verdict_coverage.py`.** A **subset verdict** is a dict key whose value is
+  `bool(A) and (all(…)/any(…) | not B)` — the `bool(A)` guard being the author writing down that the
+  subset can be empty, which is precisely when the verdict means nothing. Its **coverage** is a
+  sibling key, including nested ones, whose name by itself says something was not evaluated. A
+  **consumer** is a web file calling the client method whose declared response type carries the
+  verdict plus ≥3 of its siblings. Every consumer must read at least one coverage field.
+- Population today: **5 subset verdicts, 616 client methods, 0 bare consumers** — and the derivation
+  found **three instances nobody had found by hand** (`sequence_clash`, `fived`, `perf_budget`). Two of
+  those have no client method at all, so the gate reports them as unexposed rather than passing them
+  silently.
+- It replays the pre-fix consumer it was written from — frozen in the file, not fetched with
+  `git show`, because CI's checkout is shallow — and must re-find it, and must find its repair clean.
+
+### Fixed — the defect the gate found on its first run
+
+- **`viewer/tools/analyseSection.ts` printed "clean" over whatever fraction of the schedule was
+  analysable.** `sequence_clash` skips any activity with no location, no dates, or finish before
+  start, *each with a stated reason*, and the panel rendered `analyzed`, `finding_count`,
+  `support_unscheduled_count` and the `not_covered` note but never `skipped_count`. So on a schedule
+  where 180 of 200 activities lack a location it read *"20 dated locatable activities · 0 space
+  contention · 0 install-before-support"* with a green note and the status **clean**. It now says
+  `clean of N · M not checked`, groups the skipped activities by the engine's own reason, and stops
+  claiming `ok` while anything went unexamined.
+- `skipped` — the list carrying those reasons — was **declared nowhere** in `api/schedule.ts`, so the
+  reasons could not reach a screen even once somebody went looking.
+- **`resultNote` had no way to say the third thing.** Its kinds were `ok` (green, which over an
+  unexamined remainder is the appearance of a result) and `bad` (red, which claims a finding that is
+  not there). `warn` added, using the `--status-warn` token — the two rules above it are literal hexes
+  equal to the same tokens, left alone rather than bundled in, since light mode redefines them.
+
+### Five things the gate's first drafts got wrong, each measured
+
+1. **Matching coverage-ish WORDS** against client response types returned **24** methods, mostly
+   unrelated senses: a sprinkler's `max_coverage_m2_per_head`, a `dry_run` flag, `ok`/`writes` beside
+   a `truncated` list. *A rule that needs an exemption list is a rule whose population is wrong.*
+2. **Linking consumers by shared vocabulary** cross-talked: it reported a net-effective-rent card as a
+   consumer of `sequence_clash`, on `skipped`, `skipped_count` and `findings`. The link is the call
+   site of the owning client method; nothing else claims *this file reads THIS response*.
+3. **Treating `not_` as a coverage prefix** matched `not_covered`, a prose note about a *different*
+   dimension — it would have blessed the one consumer the rule exists to catch.
+4. **Detecting a read as `.name`** missed `const { not_applicable: notRun } = s.counts` and called a
+   carefully-written card bare.
+5. **Widening that to a bare word boundary** then matched the English word *"skipped"* inside an
+   unrelated prose string in the same file — the opposite error, one line later.
+
+And what it does **not** prove, found by mutating it: this is a source-level check. Wrapping the
+coverage render in `if (false)` leaves the text in place and passes — measured, not assumed. Same
+bargain `test_route_reachability` makes for URL literals; the complement is the consumer's own test,
+where `rentRollQuality.test.ts` and `covenantCard.test.ts` assert the coverage is *rendered*, with
+mutations. This gate's job is to stop a new consumer being written without one.
+
 ### COVENANT-DARK — two verdicts that read clean when nothing was evaluated
 
 `services/api/src/aec_api/covenants.py` opens with the case for itself:

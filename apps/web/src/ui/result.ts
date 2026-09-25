@@ -106,8 +106,14 @@ export function metricGrid(items: { label: string; value: string; sub?: string }
   return g;
 }
 
-/** A status/section line in the result body. */
-export function resultNote(html: string, kind: "ok" | "bad" | "" = ""): HTMLElement {
+/** A status/section line in the result body.
+ *
+ *  `warn` was added 2026-09-25 for a third state these notes had no way to say: *the check ran and
+ *  part of the input was not examined*. Before it the only choices were `ok` (green, which over an
+ *  unexamined remainder is the appearance of a result rather than one) and `bad` (red, which claims
+ *  a finding that is not there). `services/api/test_verdict_coverage.py` is the gate that made this
+ *  necessary — a verdict true of a subset needs a note that is neither. */
+export function resultNote(html: string, kind: "ok" | "warn" | "bad" | "" = ""): HTMLElement {
   const d = document.createElement("div");
   d.className = `result-note ${kind}`.trim();
   d.innerHTML = html;

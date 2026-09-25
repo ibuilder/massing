@@ -455,6 +455,38 @@ trailing-whitespace mutation broke both derivations and the counts stayed equal.
 between two derivations that share a failure mode is not a check* — the crude count catches what the
 strict one cannot, and both mutations are now folded in and must be refused before the gate reports.
 
+**An eighteenth joined them on 2026-09-25: `services/api/test_verdict_coverage.py`** — does a screen
+that reads a verdict about a SUBSET also read what the engine could not evaluate? Five engines in one
+session returned a boolean beside a count of the unevaluated, and the boolean was meaningless without
+the count: `soft_clash.coordinated` over a page of the matrix (CLASH-TRUNC), `rent_scrub.clean` =
+`bool(ran) and not failed` with 1 of 7 checks run, `t12.tie_out.reconciles` against a reference derived
+from the answer, `covenants.clean`/`at_risk` on counts that are zero for want of inputs, and
+`sequence_clash.clean` over the activities that happened to have a date and a location. **Every one of
+those engines is careful** — each hands the caller the coverage and three attach a sentence saying why.
+*The defect is always in the consumer*, and four of the five had none, so nothing was wrong until
+somebody wrote one. **A subset verdict is derived structurally, not by name:** a dict key whose value
+is `bool(A) and (all(…) | not B)`, the guard being the author writing down that the subset can be
+empty. Matching coverage-ish WORDS instead returned 24 candidates of mostly unrelated senses — a
+sprinkler's coverage area, a `dry_run` flag — and *a rule that needs an exemption list is a rule whose
+population is wrong.* The structural form returns 5 with no exemptions, and **three of the five were
+instances nobody had found by hand.**
+**Four more drafts were wrong in ways only measurement showed.** Linking consumers by shared
+VOCABULARY cross-talked — a net-effective-rent card was reported as a `sequence_clash` consumer on
+`skipped`, `findings` — so the link is the call site of the owning client method, the only thing that
+claims *this file reads THIS response*. Treating `not_` as a coverage prefix matched `not_covered`, a
+prose note about a **different dimension**, which *would have blessed the one consumer the rule exists
+to catch*. Detecting a read as `.name` missed `const { not_applicable: notRun } = …` and called a
+careful card bare; widening to a bare word boundary then matched the English word "skipped" inside an
+unrelated prose string in the same file. *A detector keyed on one spelling cannot see the others, and
+one keyed on none sees everything.*
+**And mutating it found the limit it does not cover:** wrapping the coverage render in `if (false)`
+leaves the text in place and PASSES. It is a source-level check — the same bargain
+`test_route_reachability` makes for URL literals — and the complement is the consumer's own test,
+where `apps/web/src/proforma/rentRollQuality.test.ts` and
+`apps/web/src/proforma/covenantCard.test.ts` assert the coverage is *rendered*. Written down rather
+than discovered later, because a gate whose reach is assumed is the thing these eighteen entries are
+about.
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including

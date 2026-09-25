@@ -5,7 +5,7 @@ import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
-import { toast, withLoading } from "../../ui/feedback";
+import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { populate4dPanel } from "../fourD";
 import type { LogisticsResource } from "../../api/client";
 
@@ -133,14 +133,34 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
           try { r = await api.sequenceClash(pid); }
           catch { toast("Needs a project with a schedule", "error"); return; }
           const n = r.finding_count + r.support_finding_count;
-          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}` : (r.clean ? "clean" : "checked");
+          // `clean` is true of the activities the engine COULD analyse — it skips any with no
+          // location, no dates, or finish before start. Saying "clean" over a schedule where most
+          // activities were skipped states a result about a sample as though it were the whole.
+          // `services/api/test_verdict_coverage.py` is the gate; this line is what it found.
+          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}`
+            : r.clean ? (r.skipped_count ? `clean of ${r.analyzed} · ${r.skipped_count} not checked` : "clean")
+            : "checked";
           showResult("Sequence clash — space contention + install-before-support", (body) => {
             body.appendChild(resultNote(
               `${r!.analyzed} dated locatable activit${r!.analyzed === 1 ? "y" : "ies"} · `
               + `<b>${r!.finding_count}</b> space contention · <b>${r!.support_finding_count}</b> install-before-support`
               + (r!.support_unscheduled_count ? ` · ${r!.support_unscheduled_count} pair(s) missing a dated binding` : "")
               + `.`,
-              n ? "bad" : (r!.clean ? "ok" : "")));
+              // Not "ok" while activities went unchecked: a green note over a tenth of the schedule
+              // is the appearance of a result rather than one.
+              n ? "bad" : (r!.clean && !r!.skipped_count ? "ok" : "")));
+            if (r!.skipped_count) {
+              // The engine names WHY each one was skipped, which makes the gap fixable rather than
+              // merely reported — every reason is a missing field on a schedule activity.
+              const why = new Map<string, number>();
+              for (const s of r!.skipped) why.set(s.reason, (why.get(s.reason) ?? 0) + 1);
+              body.appendChild(resultNote(
+                `<b>${r!.skipped_count}</b> activit${r!.skipped_count === 1 ? "y was" : "ies were"} `
+                + `not checked at all: `
+                + [...why].map(([reason, count]) => `${count} ${escapeHtml(reason)}`).join(" · ")
+                + `. Sequence clash can only see activities with a location and both dates.`,
+                "warn"));
+            }
             if (r!.findings.length) {
               body.appendChild(kvTable(r!.findings.slice(0, 40).map((f) => ({
                 k: f.location,

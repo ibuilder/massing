@@ -1322,6 +1322,37 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **VERDICT-COVERAGE — the class found five times by hand, now derived** *(S — Lane J;
+  **CLOSED 2026-09-25**; gated by `services/api/test_verdict_coverage.py`)*
+
+  Five engines this session returned a boolean verdict beside a count of what they could not evaluate:
+  `soft_clash.coordinated`, `rent_scrub.clean`, `t12.tie_out.reconciles`, `covenants.clean`/`at_risk`,
+  `sequence_clash.clean`. **Every one of those engines is careful** — each hands the caller the coverage
+  and three attach a sentence saying why. *The defect is always in the consumer*, and four of the five
+  had none, so nothing was wrong until somebody wrote one.
+
+  **The verdict is derived structurally, not by name:** `bool(A) and (all(…) | not B)`, where the guard
+  is the author recording that the subset can be empty. Coverage-*word* matching returned 24 candidates
+  of mostly unrelated senses and would have needed five exemptions; the structural form returns **5 with
+  none** — and **three were instances nobody had found by hand** (`sequence_clash`, `fived`,
+  `perf_budget`; the last two have no client method, so the gate reports them unexposed rather than
+  passing them).
+
+  **It found a live defect on its first run.** `viewer/tools/analyseSection.ts` printed **"clean"** over
+  whatever fraction of the schedule was analysable — `sequence_clash` skips any activity with no
+  location, no dates, or finish before start, each with a stated reason, and the panel rendered
+  `analyzed` and `not_covered` but never `skipped_count`. Fixed, with `skipped` (the reasons) declared
+  on the client for the first time and a `warn` kind added to `resultNote`, which had no way to say
+  *the check ran and part of the input was not examined*.
+
+  Four more drafts were wrong in ways only measurement showed — vocabulary linking cross-talked between
+  responses, a `not_` prefix matched a note about a different dimension and would have blessed the very
+  consumer the rule exists to catch, and read-detection failed first too narrowly (missing a
+  destructure) then too widely (matching the word "skipped" in prose). *And mutating it found the limit
+  it does not cover*: a coverage render wrapped in `if (false)` leaves the text and passes, so this is a
+  source-level check and the consumer's own tests are the complement — written down rather than
+  discovered later.
+
 - ✅ ⭐ **COVENANT-DARK — two verdicts that read clean when nothing was evaluated** *(S —
   `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/covenantCard.test.ts` and the `UNCALLED` deletion in
