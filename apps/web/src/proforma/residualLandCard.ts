@@ -132,8 +132,12 @@ export function renderResidualLandCard(root: HTMLElement, ctx: ResidualLandCtx):
   host.appendChild(grid);
 
   const out = document.createElement("div"); out.style.cssText = "margin-top:6px";
-  const go = document.createElement("button"); go.className = "btn"; go.textContent = "Solve residual land";
-  const applyBtn = document.createElement("button"); applyBtn.className = "btn";
+  // `file-btn`, not `btn`: **`.btn` matches no rule in `style.css`**, so a button carrying it renders
+  // as a browser default beside styled siblings. Six files under `portal/panels/` use it and this card
+  // copied them; every button in `proforma/` uses `file-btn` or `tool-btn`, which is the convention
+  // that actually has CSS behind it. A class name is not a style, and nothing typechecks the gap.
+  const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Solve residual land";
+  const applyBtn = document.createElement("button"); applyBtn.className = "file-btn";
   applyBtn.textContent = "Apply to the deal"; applyBtn.style.display = "none"; applyBtn.style.marginLeft = "6px";
   const actions = document.createElement("div"); actions.style.cssText = "margin-top:6px";
   actions.appendChild(go); actions.appendChild(applyBtn);

@@ -213,8 +213,21 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       one_time_items?: { description: string; amount: number; kind: string }[];
       capital_items?: { description: string; amount: number }[];
       by_category?: { category: string; label: string; amount: number; run_rate: number }[];
-      run_rate_vs_trailing?: { category: string; trailing: number; run_rate: number; delta: number }[];
-      add_back_questions?: { check: string; severity: string; finding: string; question: string }[];
+      // `label` here was undeclared too, and the COMPILER found this one rather than a reader: the
+      // first draft of `proforma/t12Card.ts` rendered `x.label` and `tsc` refused it. That is the
+      // argument for the declared type doing work — a re-spelled inline shape would have accepted it
+      // silently and `noRespelledShapes.test.ts` exists because two wire types already did exactly
+      // that. (`by_category`'s `kind` / `operating` / `line_count` stay undeclared on purpose:
+      // nothing here reads them, and declaring a field no reader wants adds noise to the very audit
+      // that counts unread fields.)
+      run_rate_vs_trailing?: { category: string; label?: string; trailing: number;
+                               run_rate: number; delta: number }[];
+      // `amount` and `pct_of_income` were returned by `t12.add_back_questions` and declared nowhere
+      // here until 2026-09-25 — the third instance of the axis SCREEN-VS-REPORT names, and the one
+      // that matters most for this field: the engine's docstring says each is *"a QUESTION with the
+      // number behind it"*, so the number is the point of the finding rather than detail beside it.
+      add_back_questions?: { check: string; severity: string; finding: string; question: string;
+                             amount?: number; pct_of_income?: number }[];
       note: string }>(
       `/projects/${pid}/t12/normalize`, { method: "POST", body: JSON.stringify({ t12, units }) });
   }

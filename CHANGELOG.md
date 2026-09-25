@@ -6,6 +6,85 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### T12-SELFTIE — a gate that could not fail, because nobody was handing it evidence
+
+`services/api/src/aec_api/t12.py` exists for one refusal, stated in its own module docstring:
+
+> income, expense and NOI must reconcile *before* and *after* mapping, or the engine stops and lists
+> the reconciling items. It does not publish an adjusted NOI on top of a mapping that lost money.
+
+`ApiClient.normalizeT12()` was written for it and **no screen ever called it**. Measuring what a
+caller would actually get found something sharper than the missing UI.
+
+**`normalize()` says what it does and the consequence is easy to miss** — *"When the caller supplies
+source totals they are the reference the mapping must reproduce; **without them the sum of the source
+lines is**."* Both sides of the comparison are then computed from the same mapped rows, so the deltas
+are zero by construction and **the gate passes vacuously.** Measured through the real engine on one
+T-12 carrying a single unmapped $90,000 line:
+
+| input | tie-out | adjusted NOI |
+|---|---|---|
+| no stated totals | `reconciles: true`, all deltas `0.0` | **published: $3,180,000** |
+| with stated totals | `reconciles: false`, expense −90,000 | `stopped: true`, `null` |
+
+The $90k reclass — precisely what the gate exists to catch — is invisible in the first case, and an
+adjusted NOI is published on top of it. **That is not an engine defect: it is a caller obligation that
+never had a caller.** *A guard is only as sound as the evidence it is handed* — the CLASH-TRUNC lesson
+one layer over, where a panel fed the guard a page of a matrix and declared it whole. Here a caller
+can feed it a reference derived from the answer.
+
+**And the two responses are indistinguishable.** `reconciles` is `true` either way, and so is every
+other field the card could read. Only the caller knows which it handed over, which is why "were totals
+stated" is a parameter of the renderer rather than something derived from the response — a check that
+tried to infer it would be inferring it from the very thing that cannot tell.
+
+### Added
+
+- **`apps/web/src/proforma/t12Card.ts`** — paste the seller's statement, give its own stated totals,
+  and get the mapping tied out. Stated totals are the **primary** input, not an optional extra; with
+  them absent the card prints *"Tie-out tied to itself — not a check"* and puts `unmapped_count` where
+  the verdict would be, because that is the only signal left.
+- Past the gate: adjusted NOI, one-time income and expense separated from run-rate, capital below the
+  line, the run-rate-vs-trailing movers, and the owner-operated **questions** — rendered as questions
+  with the number behind each, and labelled *never applied for you*, because treating them as priced
+  in is the 15–25% NOI miss they exist to prevent.
+- A stopped tie-out says its derived views were **never calculated**, not hidden. `add_back_questions`
+  and `run_rate_vs_trailing` are computed only past the gate, so "hidden" would misdescribe what
+  happened and send someone looking for a toggle.
+- **The paste parser splits on the LAST comma**, because account names carry commas
+  (*"Repairs, maintenance & turnover"*) and amounts do not carry tabs. Splitting on the first truncates
+  the description **and** reads the remainder as the amount — which parses, so the failure would be a
+  wrong number rather than an error. An unreadable amount returns `null`, never `0`: a zero would enter
+  the mapping as a real line worth nothing, shift no total, and be invisible in both the tie-out and the
+  unmapped list. Rows the client cannot read are reported, because they never reach the engine and are
+  therefore absent from both totals and invisible to the tie-out however it is run.
+- **The handoff into the rent-roll scrub.** Five of the scrub's seven checks report
+  `applicable: false` for want of an income statement, and a normalised T-12 is exactly that input —
+  so **Use in the rent-roll scrub** re-runs it with `gross_potential_rent` and `bad_debt`, in place,
+  and says which statement it ran against. Only those two: `prior_bad_debt`, `occupancy_pct` and
+  `prior_occupancy_pct` describe a prior period and a unit inventory, and filling them from this period
+  to make a check run would be the defect the scrub is written to refuse, committed from the outside.
+  The check that needs them stays not-run and says so.
+- `apps/web/src/proforma/t12Card.test.ts` — sixteen tests, **seven mutations each redding exactly
+  one**: trusting `reconciles` without knowing whether totals were stated, splitting the paste on the
+  first comma, returning `0` for an unreadable amount, presenting the unmapped page as the whole set,
+  inventing the prior-period fields for the scrub, dropping *"never applied for you"*, and calling the
+  derived views hidden rather than never calculated.
+
+### Fixed
+
+- **Two more fields the client declared nowhere**, both on this response. `run_rate_vs_trailing.label`
+  was found by **the compiler** rather than by a reader — the card rendered `x.label` and `tsc` refused
+  it, which is the declared type doing its job; an inline re-spelled shape would have accepted it
+  silently, which is why `noRespelledShapes.test.ts` exists. And `add_back_questions` omitted `amount`
+  and `pct_of_income`, where the engine's docstring says each finding is *"a QUESTION with the number
+  behind it"* — the number being the point of the finding rather than detail beside it.
+- **`residualLandCard.ts`'s buttons carried `className = "btn"`, and `.btn` matches no rule in
+  `style.css`** — so they rendered as browser defaults beside styled siblings. Every button in
+  `proforma/` uses `file-btn` or `tool-btn`; this card copied a class from `portal/panels/`, where six
+  files use it and are equally unstyled. *A class name is not a style, and nothing typechecks the gap.*
+  Fixed here for `proforma/`; the six in `portal/panels/` are pre-existing and left for Lane B.
+
 ### RENTROLL-DARK — two engines that say whether you can believe the rent roll, and no screen called either
 
 The pro forma's Operations tab shows **face** numbers: base rent, in-place income, occupancy, WALT.

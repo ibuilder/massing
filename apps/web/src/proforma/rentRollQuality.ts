@@ -190,12 +190,17 @@ export interface RentRollQualityCtx {
 }
 
 /** Fetch both and render them under the rent roll. Each failure is reported on its own card, so one
- *  engine being unavailable does not hide the other's answer. */
-export async function renderRentRollQuality(host: HTMLElement, pid: string,
-                                            ctx: RentRollQualityCtx): Promise<void> {
+ *  engine being unavailable does not hide the other's answer.
+ *
+ *  `income` re-runs the scrub with an income statement — the normalised T-12 from
+ *  `proforma/t12Card.ts`. Five of the scrub's seven checks report `applicable: false` for want of
+ *  one, so this is what moves its coverage; the scrub's own not-run table names what is still
+ *  missing, which is why nothing here has to guess. */
+export async function renderRentRollQuality(host: HTMLElement, pid: string, ctx: RentRollQualityCtx,
+                                            income?: Record<string, number>): Promise<void> {
   const [ner, scrub] = await Promise.allSettled([
     ctx.api.netEffectiveRent(pid),
-    ctx.api.rentRollScrub(pid),
+    ctx.api.rentRollScrub(pid, income),
   ]);
   if (ner.status === "fulfilled") renderNetEffective(host, ner.value);
   else {
@@ -203,8 +208,15 @@ export async function renderRentRollQuality(host: HTMLElement, pid: string,
     el.insertAdjacentHTML("beforeend", meta(esc((ner.reason as Error).message), "var(--status-crit)"));
     host.appendChild(el);
   }
-  if (scrub.status === "fulfilled") renderRentScrub(host, scrub.value);
-  else {
+  if (scrub.status === "fulfilled") {
+    const el = renderRentScrub(host, scrub.value);
+    if (income) {
+      // Say WHICH income statement this ran against. A coverage figure that moved is otherwise
+      // indistinguishable from a rent roll that changed, and the reader has no way to tell which.
+      el.insertAdjacentHTML("beforeend", meta(
+        `Run against the normalised T-12 above (${Object.keys(income).sort().join(", ")}).`));
+    }
+  } else {
     const el = card("Rent-roll scrub (diligence checks)");
     el.insertAdjacentHTML("beforeend", meta(esc((scrub.reason as Error).message), "var(--status-crit)"));
     host.appendChild(el);

@@ -1322,6 +1322,43 @@ instances:
   `apps/web/src/api/deadFieldTyped.test.ts`; both panel fixes were mutation-checked by deleting them
   and watching all ten checks red.*
 
+- ✅ ⭐ **T12-SELFTIE — a gate that could not fail, because nobody was handing it evidence**
+  *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
+  `apps/web/src/proforma/t12Card.test.ts` and the `UNCALLED` deletion in
+  `apps/web/src/api/clientCallers.test.ts`)*
+
+  `services/api/src/aec_api/t12.py` exists for one refusal — *"it does not publish an adjusted NOI on
+  top of a mapping that lost money"* — and `ApiClient.normalizeT12()` was callerless. **Measuring what
+  a caller would get found something sharper than the missing screen.** `normalize()`'s docstring says
+  that without stated totals *"the sum of the source lines is"* the reference, so both sides of the
+  comparison come from the same mapped rows and the deltas are zero by construction. Measured through
+  the real engine on one T-12 with a single unmapped $90,000 line:
+
+  | input | tie-out | adjusted NOI |
+  |---|---|---|
+  | no stated totals | `reconciles: true`, all deltas `0.0` | **published: $3,180,000** |
+  | with stated totals | `reconciles: false`, expense −90,000 | `stopped: true`, `null` |
+
+  The reclass the gate exists to catch is invisible in the first case. **Not an engine defect: a
+  caller obligation that never had a caller** — *a guard is only as sound as the evidence it is
+  handed*, CLASH-TRUNC one layer over. **And the two responses are indistinguishable**: `reconciles`
+  is true either way, so "were totals stated" is a parameter of the renderer rather than something
+  inferred — inferring it would mean inferring it from the very field that cannot tell.
+
+  Stated totals are the primary input now; absent them the card prints *"tied to itself — not a
+  check"* with `unmapped_count` where the verdict would be. It also closes the loop on RENTROLL-DARK:
+  five of the scrub's seven checks want an income statement, and a normalised T-12 is one, so the
+  handoff supplies `gross_potential_rent` and `bad_debt` — **and only those**, because the prior-period
+  fields would have to be invented and inventing them is the defect the scrub refuses, committed from
+  outside.
+
+  Two more undeclared fields fell out: `run_rate_vs_trailing.label`, found by **the compiler** when the
+  card rendered it, and `add_back_questions.{amount, pct_of_income}`, where the engine calls each
+  finding *"a QUESTION with the number behind it"*. And `residualLandCard.ts`'s buttons carried
+  `className = "btn"`, which **matches no rule in `style.css`** — *a class name is not a style, and
+  nothing typechecks the gap*; six files under `portal/panels/` carry the same unstyled class and are
+  left for Lane B.
+
 - ✅ ⭐ **RENTROLL-DARK — two engines that say whether you can believe the rent roll, and no screen
   called either** *(S — `apps/web/src/proforma/`; **CLOSED 2026-09-25**; gated by
   `apps/web/src/proforma/rentRollQuality.test.ts` and two `UNCALLED` deletions in

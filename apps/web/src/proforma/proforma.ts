@@ -9,6 +9,7 @@ import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderRentRollQuality } from "./rentRollQuality";
+import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
@@ -534,10 +535,21 @@ export class ProformaUI {
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
       rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
-      // The card above is FACE rent. These two qualify it: what the roll is worth after concessions,
-      // and which diligence checks could actually run against it. Both engines shipped with R20 and
-      // had no caller — see rentRollQuality.ts.
-      await renderRentRollQuality(host, pid, { api: this.api, setStatus: this.setStatus });
+      // The card above is FACE rent. These qualify it: what the roll is worth after concessions,
+      // which diligence checks could actually run against it, and the seller's own T-12 tied out.
+      // All three engines shipped with R20 and had no caller — see rentRollQuality.ts / t12Card.ts.
+      const quality = document.createElement("div"); host.appendChild(quality);
+      await renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus });
+      renderT12Card(host, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+        // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
+        // thing that moves, and it has to be visibly the same cards rather than a second opinion
+        // appearing further down the page.
+        scrubWithIncome: (income) => {
+          quality.replaceChildren();
+          void renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus }, income);
+        },
+      });
       await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
