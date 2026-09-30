@@ -61,7 +61,7 @@
     "globals": "^17.12.0",
     "happy-dom": "^20.11.6",
     "openapi-typescript": "^7.13.0",
-    "oxlint": "^1.80.0",
+    "oxlint": "^1.83.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.69.0",
     "vite": "8.2.2",
