@@ -39,6 +39,16 @@ export interface PrefabKit {
    * scope still comes from the selector is a live query the shop is building against.
    */
   scope_source: "selector" | "frozen";
+  /**
+   * PREFAB-FREEZE-RACE — the token `prefabFreeze` must echo back, **opaque by contract.**
+   *
+   * The server composes it from the model version and the record's own `modified_at`, so it moves
+   * when either half of the kit's scope moves. Nothing here may parse it or compare its parts: the
+   * only operation is handing back the exact string this read returned. It is readable rather than
+   * hashed so an operator can see which half moved in a log — a convenience for them, not a format
+   * for us.
+   */
+  scope_version: string;
   selector: { selector: string; guids: string[]; matched: number; truncated?: boolean; error?: string };
   frozen_count: number;
   elements: number;
@@ -72,6 +82,9 @@ export interface PrefabFreezeResult {
   matched: number;
   selector: string;
   frozen: number;
+  /** The token the NEXT write must echo — the write bumped the record, so the one just sent is
+   *  spent. Handed back so a second freeze needs no extra read. */
+  scope_version: string;
   note: string;
 }
 
@@ -94,10 +107,22 @@ export function withPrefab<TBase extends Ctor<HttpCore>>(Base: TBase) {
      * The server refuses an empty, erroring or truncated result with a 422 carrying a fixed literal
      * — a released kit with nothing frozen is indistinguishable from a correct one on every screen,
      * which is the failure the whole mechanism exists to prevent.
+     *
+     * **`scopeVersion` is required by the route, and it is a parameter rather than a default so
+     * this method cannot be called without one.** PREFAB-FREEZE-RACE: the server re-resolves the
+     * selector at write time, so without the token a model republished or a selector edited while
+     * the confirmation dialog was open writes a GlobalId list the person never saw. Pass the
+     * `scope_version` from the read the reader is looking at — not a fresh one, which would be a
+     * token for numbers nobody has seen and would defeat the whole precondition.
+     *
+     * Three refusals, three codes: **400** no token sent, **409** the scope moved since that read,
+     * **422** the scope itself cannot be frozen. A caller recovering from 409 re-reads the kit and
+     * asks again against the new numbers.
      */
-    prefabFreeze(pid: string, rid: string) {
+    prefabFreeze(pid: string, rid: string, scopeVersion: string) {
+      const q = `?if_scope_version=${encodeURIComponent(scopeVersion)}`;
       return this.json<PrefabFreezeResult>(
-        `/projects/${encodeURIComponent(pid)}/prefab/kits/${encodeURIComponent(rid)}/freeze`,
+        `/projects/${encodeURIComponent(pid)}/prefab/kits/${encodeURIComponent(rid)}/freeze${q}`,
         { method: "POST" });
     }
   };

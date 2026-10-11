@@ -4646,10 +4646,94 @@ The engine work is done either way; only the naming is open.
   such route: `/elements/{guid}` matched with `guid="properties"`. Resolved against the OpenAPI table
   rather than the status line, because probing alone gets this one wrong.
 
-### PREFAB-FREEZE-RACE — the write re-resolves what the reader already agreed to *(OPEN, needs a decision)*
+### PREFAB-FREEZE-RACE — the write re-resolves what the reader already agreed to *(✅ CLOSED 2026-10-11)*
 
-*(M — Lanes D/B; raised by review on PR #524, 2026-09-11; the DETECTION half shipped there,
-the PREVENTION half did not.)*
+*(M — Lanes D/B; raised by review on PR #524, 2026-09-11; the DETECTION half shipped there, the
+PREVENTION half shipped 2026-10-11 — `services/api/test_prefab_route.py`,
+`services/api/test_prefab_kit.py`, `apps/web/src/portal/panels/prefabKitsPanel.test.ts`.)*
+
+**The heading said "needs a decision" for a month and the body named no question.** It said the fix
+was filed rather than done *"because it is a route change"* — a size, not a decision. The three
+numbered steps below were a complete design, and the only thing between them and a merge was
+somebody re-reading the entry instead of its marker. *An item parked on a decision stays parked
+until somebody re-derives whether the decision was load-bearing* — the lesson SCHEMA-STALE recorded
+three weeks earlier, with "needs a decision" doing the parking this time instead of a question.
+
+  **A second signal was already in this document and nobody read the two together: the parked
+  register never contained it.** "Parked — not available to pick up" above the lane table is this
+  roadmap's list of items needing the user's call, and this item was never on it — so the heading
+  and the register disagreed for a month about the same fact. Measured afterwards, with the heading
+  now corrected: **a decision claim in an item's own heading matches exactly two items,
+  PORTAL-TXN-DARK and AUTHORITY-SUPERSEDE, and both ARE on the register.** So the two agree
+  everywhere else, and this is **deliberately not made a gate** — a population of two that already
+  agrees, against one instance found by reading, does not pay for the restructuring a gate would
+  need first: the register is a prose sentence whose parentheticals name NON-members (it records
+  AUTHORITY-DOWNSTREAM *leaving* the list, which any code-shaped extraction reads as joining it), and
+  `test_ruff_scope` and `test_gap_records` both cost a round to learn what a checker reading prose
+  reports. *Recording the measurement is the work here; the gate would be the appearance of it.*
+
+**Shipped as specified, with one correction to the specification.** Step 1 said the token combines
+the model version with *"the kit's `updated_at`"*. Module rows have no `updated_at`; the column is
+`modified_at`, and that is not a typo with no consequences — `modules._next_stamp` makes
+`modified_at` **strictly monotonic per row** for the CAS next door, so it cannot repeat even when
+the clock does not advance, which is exactly the property a precondition needs. The right column
+was already load-bearing for the right reason.
+
+**`if_scope_version` is MANDATORY, which is the opposite of the mechanism next to it, deliberately.**
+`modules.update_record` has had `expected_modified_at` all along and it is opt-in — *its own
+RMW-SWEEP comment measures the consequence: "one of five web call sites passes it"*. That shape is
+forced there (139 registers, many callers); here there is one caller and one write, and an optional
+precondition would have left the defect exactly as it is for anybody who omits it. The freeze now
+passes `expected_modified_at` **as well**, so the record half is closed atomically rather than
+merely checked.
+
+**Three refusals, three codes, and the 400 is hand-raised on purpose.** 400 you did not state what
+you were shown · 409 what you were shown has moved · 422 the scope itself cannot be frozen.
+Declaring the parameter `Query(...)` would mark it required in the OpenAPI document and hand the
+refusal to FastAPI's validator, which answers **422** — so a forgotten token would arrive wearing
+the costume of `FREEZE_NO_MATCH` and the client would tell somebody to narrow a selector that is
+fine. The cost is a `required: false` in a generated document, named rather than papered over: the
+only consumer is `apps/web/src/api/prefab.ts`, whose `prefabFreeze(pid, rid, scopeVersion)` takes
+the token as a positional `string`, so TypeScript refuses the call the schema would permit.
+
+**Two guards survived mutation at first, and both for the same structural reason.** Deleting the
+post-resolve re-check, and dropping `expected_modified_at`, each left the whole file green — they
+cover interleavings a sequential test cannot produce. *A duplicated guard is indistinguishable from
+a load-bearing one until a test exercises the gap between them.* They are measured now by injecting
+the concurrent event **at the seam it would arrive through** (a republish during `freeze()`, a
+record edit in the instant before the write), which is stated for what it is: a simulated
+interleaving through a monkeypatch — stronger than no test, since it reds the moment either guard
+goes, and weaker than the two real processes `test_pid_lock_pgxproc.py` had to build for a lock
+whose whole subject was exclusion. A third survivor was the *pre*-resolve check, and the gap there
+is one case: **a kit that is both stale and unfreezable must answer 409, not 422**, or the reader
+gets a true sentence about a selector they have not seen.
+
+**The lock was measured and declined.** `pid_lock.mutating(pid)` would close the remaining
+in-request window, and it is not taken: it would add a wait-timeout failure mode to the one write
+this item exists to make trustworthy, and the writers it serialises against are the authoring
+routes rather than every path that can re-ingest a model. The window it would close is microseconds
+inside one request; the window the item is about is the minutes a person spends reading a
+confirmation dialog, and the token closes that one completely.
+
+**`freezeSummary` kept its branch and lost its sentence.** The client's divergence note said *"the
+model changed between confirming and writing"* — correct while the write had no precondition, and
+wrong the moment that case became a 409. Reaching it now means the token failed to cover something
+that changed the resolution, which is a different and worse statement, and the old wording would
+have sent the reader to check a model that is innocent. Kept rather than deleted because its
+unreachability rests on a measurement about **another module** — the index cache has exactly one
+content writer, `POST /projects/{pid}/properties/index`, and that route bumps the model version.
+*A backstop whose reachability rests on somebody else's behaviour is worth keeping; a backstop whose
+message describes the case it no longer catches is not.*
+
+**And the panel test caught two of my own mistakes, one in each direction.** Its provenance
+assertion first demanded that `prefabKit` was *never* called before the write — false, because a
+successful write re-reads the kit to rebuild the card; the claim is about ORDER, and *"never" and
+"not yet" are different claims, the stronger-sounding one simply wrong.* Then the 409 fixture
+rejected with `HttpError("scope moved", 409)`, so swapping the status check for a message match
+**passed every test in the file**: *a fixture whose message happens to match makes a message-keyed
+bug invisible.* The fixtures now carry the two bodies the server really sends — the route's literal,
+and the bare `POST … -> 409` that `update_record`'s dict detail degrades to — which is also what
+makes "two bodies, one recovery" a measured claim rather than a comment.
 
 `POST /projects/{pid}/prefab/kits/{rid}/freeze` resolves the kit's selector against the model index
 **at write time** — `prefab_kit.freeze` calls `resolve()` afresh — and nothing in the register

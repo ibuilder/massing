@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   blockerLabel, registerHeadline, modelCaveat, scopeNote, driftLine, freezeGate,
-  freezeConfirm, freezeSummary,
+  freezeConfirm, freezeSummary, staleScopeNote,
 } from "./prefabKits";
 import type { PrefabKit, PrefabRegister } from "../../api/prefab";
 
 const kit = (over: Partial<PrefabKit> = {}): PrefabKit => ({
   id: 1, ref: "KIT-004", name: "Level 3 riser", trade: "mechanical", fabricator: null,
   state: "draft", scope_source: "selector",
+  scope_version: "m3.r2026-09-11T08:00:00+00:00",
   selector: { selector: "type=IfcPipeSegment", guids: ["a", "b"], matched: 2 },
   frozen_count: 0, elements: 2,
   bom: { lines: [], totals: {}, unresolved: [] },
@@ -171,26 +172,72 @@ describe("freezeConfirm", () => {
 
 describe("freezeSummary", () => {
   it("reports what was written AND what the selector matched, so a mismatch is visible", () => {
-    const s = freezeSummary({ ref: "KIT-004", matched: 12, selector: "x", frozen: 12, note: "written" });
+    const s = freezeSummary({ ref: "KIT-004", matched: 12, selector: "x", frozen: 12, scope_version: "m3.r2026-09-11T08:00:01+00:00", note: "written" });
     expect(s).toContain("KIT-004: 12 elements written");
     expect(s).toContain("selector matched 12");
   });
 
-  it("says so when the written count differs from the one CONFIRMED", () => {
-    // The server re-resolves the selector at write time, so a model that changed between the
-    // confirmation and the write records a different list than the one agreed to. Raised in review.
-    // Closing the race needs a snapshot precondition on the API; what this can do is refuse to let
-    // the difference pass as a clean success, because an unnoticed divergence is what puts the
-    // wrong list in front of a fabricator.
-    const s = freezeSummary({ ref: "KIT-004", matched: 9, selector: "x", frozen: 9, note: "written" }, 12);
+  it("says so when the written count differs from the one CONFIRMED — now as an INVARIANT", () => {
+    // This assertion's REASON changed with PREFAB-FREEZE-RACE even though the branch did not, and
+    // that is the thing being pinned. It used to say the model changed between confirming and
+    // writing, which was true while the write had no precondition. `if_scope_version` makes that
+    // case a 409, so arriving here with a mismatch now means the token failed to cover something
+    // that changed the resolution — a different and worse statement, and the old sentence would
+    // have sent the reader to check a model that is innocent.
+    const s = freezeSummary({ ref: "KIT-004", matched: 9, selector: "x", frozen: 9, scope_version: "m3.r2026-09-11T08:00:01+00:00", note: "written" }, 12);
     expect(s).toContain("you confirmed 12");
-    expect(s).toContain("not the one you were shown");
+    expect(s).toContain("should not have been possible");
+    expect(s).toContain("unverified");
+    // The sentence it must no longer carry: the server now refuses that case instead of reporting it.
+    expect(s).not.toContain("The model changed between confirming");
   });
 
   it("stays quiet when the write matches the confirmation, and when nothing was confirmed", () => {
-    const same = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, note: "n" }, 5);
-    const none = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, note: "n" });
+    const same = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, scope_version: "m3.r2026-09-11T08:00:01+00:00", note: "n" }, 5);
+    const none = freezeSummary({ ref: "K", matched: 5, selector: "x", frozen: 5, scope_version: "m3.r2026-09-11T08:00:01+00:00", note: "n" });
     expect(same).not.toContain("you confirmed");
     expect(none).not.toContain("you confirmed");
+  });
+});
+
+describe("staleScopeNote — the 409 recovery, and what moved", () => {
+  const before = kit({ ref: "KIT-004" });
+
+  it("names a SELECTOR edit, with the new selector and the new count", () => {
+    const after = kit({ selector: { selector: "type=IfcDuctSegment", guids: ["a"], matched: 1 } });
+    const s = staleScopeNote(before, after);
+    expect(s).toContain("not written");
+    expect(s).toContain("The selector itself was edited");
+    expect(s).toContain("type=IfcDuctSegment");
+    expect(s).toContain("matching 1");
+  });
+
+  it("names a COUNT change, with both numbers", () => {
+    const after = kit({ selector: { selector: "type=IfcPipeSegment", guids: ["a"], matched: 1 } });
+    const s = staleScopeNote(before, after);
+    expect(s).toContain("matched 2 when you confirmed");
+    expect(s).toContain("matches 1 now");
+  });
+
+  it("THE ONE THAT MATTERS: identical numbers are not 'nothing changed'", () => {
+    // Neither half of the token is a count, so a model republished with a different set of elements
+    // that happens to match the same NUMBER moves the token while every figure on the card stays
+    // the same. Reporting that as "try again, nothing changed" would be this codebase's
+    // empty-versus-absent confusion in a third costume — the scope really did move.
+    const s = staleScopeNote(before, kit({ scope_version: "m4.r2026-09-11T08:00:00+00:00" }));
+    expect(s).toContain("The model was republished");
+    expect(s).toContain("the same count is not the same elements");
+    expect(s).toContain("confirmed again");
+    expect(s).not.toMatch(/nothing (changed|moved)/i);
+  });
+
+  it("always says the write did NOT happen — a refusal read as a failure gets retried blind", () => {
+    for (const after of [kit(), kit({ selector: { selector: "z", guids: [], matched: 0 } })]) {
+      expect(staleScopeNote(before, after)).toContain("refused rather than record a list you have not seen");
+    }
+  });
+
+  it("falls back to a neutral noun with no ref, like every other sentence here", () => {
+    expect(staleScopeNote(kit({ ref: null }), kit({ ref: null }))).toContain("This kit:");
   });
 });

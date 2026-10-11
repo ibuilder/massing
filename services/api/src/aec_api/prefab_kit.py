@@ -39,6 +39,11 @@ FREEZE_NO_MATCH = "the selector matches no elements — there is nothing to rele
 FREEZE_TRUNCATED = ("the selector matched more elements than the query limit returns; a frozen scope "
                     "must be the whole set, not the first page of it")
 FREEZE_FAILED = "the kit's scope could not be frozen"
+FREEZE_NO_SCOPE_VERSION = ("freezing a kit requires the scope version it was shown with — re-read the "
+                           "kit and send the `scope_version` from that read")
+FREEZE_STALE_SCOPE = ("the kit's scope changed since you were shown it — the model was republished or "
+                      "the record was edited, so this write would record a list you have not seen; "
+                      "re-read the kit and confirm against the new numbers")
 
 #: A kit is only as good as the moment it was frozen, so the states that mean "the shop is working"
 #: are named. Before `released` a kit is a proposal and the live selector IS its scope; from
@@ -220,7 +225,7 @@ def drift(frozen: list[str], live: list[str]) -> dict[str, Any]:
 
 def assess(kit: dict[str, Any], idx: dict[str, dict] | None, *,
            pull_task: dict[str, Any] | None = None, delivery: dict[str, Any] | None = None,
-           today: Any = None) -> dict[str, Any]:
+           today: Any = None, model_version: Any = None) -> dict[str, Any]:
     """One kit, fully resolved: scope, BOM, drift, the task it installs under, and its blockers.
 
     `blockers` is the answer to "can this be released / is it going to be there in time", and every
@@ -245,6 +250,9 @@ def assess(kit: dict[str, Any], idx: dict[str, dict] | None, *,
         "name": data.get("name"), "trade": data.get("trade"),
         "fabricator": data.get("fabricator"),
         "state": state, "scope_source": scope_source,
+        # PREFAB-FREEZE-RACE — the token `POST …/freeze` demands back. On the row the reader acts
+        # from, so the thing they echo is the thing they were shown.
+        "scope_version": scope_version(kit, model_version),
         "selector": live, "frozen_count": len(frozen),
         "elements": len(scope),
         "bom": bom(idx, scope),
@@ -331,7 +339,7 @@ _SEVERITY = {"released_without_freezing": 0, "scope_drift": 1, "unresolved_eleme
 def register(kits: list[dict[str, Any]], idx: dict[str, dict] | None, *,
              tasks_by_id: dict[str, dict] | None = None,
              deliveries_by_id: dict[str, dict] | None = None,
-             today: Any = None) -> dict[str, Any]:
+             today: Any = None, model_version: Any = None) -> dict[str, Any]:
     """Every kit on the project, worst first."""
     tasks_by_id = tasks_by_id or {}
     deliveries_by_id = deliveries_by_id or {}
@@ -342,7 +350,7 @@ def register(kits: list[dict[str, Any]], idx: dict[str, dict] | None, *,
             k, idx,
             pull_task=tasks_by_id.get(str(d.get("pull_task") or "")),
             delivery=deliveries_by_id.get(str(d.get("delivery") or "")),
-            today=today,
+            today=today, model_version=model_version,
         ))
     rows.sort(key=lambda r: (min((_SEVERITY.get(b["code"], 99) for b in r["blockers"]), default=99),
                              r.get("needed_on_site") or "9999-12-31",
@@ -360,6 +368,40 @@ def register(kits: list[dict[str, Any]], idx: dict[str, dict] | None, *,
         "as_of": (parse_date(today) or date.today()).isoformat(),
         "model_loaded": idx is not None,
     }
+
+
+def scope_version(kit: dict[str, Any], model_version: Any = None) -> str:
+    """An opaque token for *the scope this kit would freeze to right now*. PREFAB-FREEZE-RACE.
+
+    **Why a token at all.** `freeze()` re-resolves the selector at write time, so a model republished
+    or a selector edited between the confirmation and the POST writes a GlobalId list the person
+    never saw. `freezeSummary` on the client can say afterwards that the counts differ — detection,
+    and it ships — but the wrong list is already on the record, and a kit is fabricated off-site from
+    that record. The token turns it into a precondition: the reader echoes what they were shown and
+    the write is refused if the ground moved.
+
+    **Two inputs, because there are two ways for the ground to move.** The model version (what
+    `resolve()` evaluates against) and the record's own `modified_at` (what the selector IS). Either
+    alone leaves half the race open: a token on the model version only would let a selector edit
+    through, and one on the record only would let a republish through. `modified_at` is strictly
+    monotonic per row — `modules._next_stamp` makes it so, for the CAS next door — so it cannot
+    repeat and a second freeze needs a second read.
+
+    **Readable, and OPAQUE TO THE CLIENT.** It is composed rather than hashed so an operator reading
+    a 409 in a log can see which half moved; nothing outside this module may parse it, and the only
+    comparison anybody makes is equality against what a read returned. A client that split it on
+    `.` would be asserting a format this docstring does not promise.
+    """
+    mv = model_version if isinstance(model_version, int) and not isinstance(model_version, bool) else None
+    stamp = kit.get("modified_at") or kit.get("created_at")
+    if hasattr(stamp, "isoformat"):
+        stamp = stamp.isoformat()
+    stamp = str(stamp) if stamp else ""
+    # "-" for absent on BOTH halves, never "" or "0". A record with no stamp and a project with no
+    # published model are *unknown*, not version zero — and the empty-versus-absent confusion is the
+    # one this tree has corrected most often. They still produce a STABLE token, which is what the
+    # precondition needs: two reads of an unchanged kit agree.
+    return f"m{mv if mv is not None else '-'}.r{stamp or '-'}"
 
 
 def freeze_blocker(kit: dict[str, Any], idx: dict[str, dict] | None) -> str | None:

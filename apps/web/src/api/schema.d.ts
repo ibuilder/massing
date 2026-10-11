@@ -15631,6 +15631,35 @@ export interface paths {
          *     Refuses to freeze an empty, erroring or truncated result — a released kit with nothing frozen is
          *     precisely the failure this whole mechanism exists to prevent, and it would be indistinguishable
          *     from a correctly released one on every screen.
+         *
+         *     **`if_scope_version` is MANDATORY, and the mandate is the point.** PREFAB-FREEZE-RACE: this
+         *     route resolves the selector at write time, so without a precondition a model republished or a
+         *     selector edited between the confirmation and the POST writes a list the person never saw. PR
+         *     #524 shipped the DETECTION half — the client compares the count it confirmed against the count
+         *     written and says when they differ — and detection arrives after the record a shop fabricates
+         *     from already holds the wrong list.
+         *
+         *     Mandatory rather than opt-in, which is the opposite of `modules.update_record`'s
+         *     `expected_modified_at`, deliberately: that mechanism serves 139 registers and many callers, so
+         *     opting in is the only shape available to it, and the measured consequence is that *one of five
+         *     web call sites passes it*. This route has one caller and one write, and an optional precondition
+         *     here would leave the defect exactly as it is for anybody who omits it.
+         *
+         *     **It is enforced HERE and the OpenAPI document therefore calls it optional, which is a real
+         *     discrepancy and is named rather than papered over.** Declaring it `Query(...)` would mark it
+         *     required in the schema and hand the refusal to FastAPI's validator, which answers **422** — the
+         *     code this route already uses for "the scope itself cannot be frozen". A forgotten token would
+         *     then arrive wearing the costume of `FREEZE_NO_MATCH` and the client would tell somebody to
+         *     narrow a selector that is fine. So the three refusals get one code each — **400** you did not
+         *     state what you were shown, **409** what you were shown has moved, **422** the scope cannot be
+         *     frozen — and the cost is a `required: false` in a generated document. The cost is small because
+         *     the only consumer is `api/prefab.ts`, whose `prefabFreeze(pid, rid, scopeVersion)` takes the
+         *     token as a positional `string`: TypeScript refuses the call that the schema would permit. A
+         *     generated client built from the document alone would be told it may omit the parameter, learn
+         *     otherwise from one 400, and the 400 says exactly what to send.
+         *
+         *     Three codes, three conditions, every message a module-level literal — no text in any response
+         *     here derives from a caught exception (py/stack-trace-exposure).
          */
         post: operations["prefab_freeze_projects__pid__prefab_kits__rid__freeze_post"];
         delete?: never;
@@ -51893,7 +51922,9 @@ export interface operations {
     };
     prefab_freeze_projects__pid__prefab_kits__rid__freeze_post: {
         parameters: {
-            query?: never;
+            query?: {
+                if_scope_version?: string | null;
+            };
             header?: {
                 "x-user"?: string | null;
                 authorization?: string | null;
