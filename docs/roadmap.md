@@ -6471,6 +6471,56 @@ refute one, so this goes first even though it is the least visible.
 
   Nine mutations over the new behaviour, all red.
 
+  **Slice ⑦ — FIELD-STREAM-SILENT: slice ⑥'s classification was inert for three of its four
+  callers, and the only thing watching was a comment** *(**CLOSED 2026-10-11**; gated by
+  `apps/web/src/api/liveStreamOnStatus.test.ts`, `apps/web/src/ui/liveState.test.ts` and
+  `apps/web/src/drawings/drawings.test.ts`)*. Slice ⑥ ends the infinite reconnect only
+  `if (why && onStatus)`, and its own review wrote down why: *"a refusal nobody can see is worse
+  than a retry loop"*, naming the three callers that pass no `onStatus`. That default is right.
+  **What nobody did was finish the sentence** — for `portal/panels/schedule.ts`,
+  `viewer/collabPresence.ts` and `drawings/drawings.ts` the whole of slice ⑥ did nothing at all: a
+  stream the server will never serve them again still backed off to the 60-second ceiling and
+  retried for ever, exactly as before. *A guard disabled for three of its four callers has a
+  population of one, and the review that found the exemption recorded it rather than closing it.*
+
+  **Each of the three loses something different, and the sharpest is the one that looked healthiest:**
+
+  | subscriber | what silently stopped |
+  |---|---|
+  | `portal/panels/schedule.ts` | an 8 px dot in `--status-good` reading **"live"**, with a `title` promising the board *"refreshes automatically as any trade edits"* — over a dead stream. *A status light is a verdict, and this one had no coverage behind it* |
+  | `viewer/collabPresence.ts` | the publish banner, the only thing that says a collaborator has published. **The 20-second presence heartbeat is a separate poll and keeps the 👥 chips populated**, so the room still looks live — *the half that still works is what makes the dead half invisible* |
+  | `drawings/drawings.ts` | live co-markup. Nothing appears wrong: the pins just stop, so two people mark up one sheet each believing they see the other's work. *A stale drawing is indistinguishable from a quiet one, and only one of them is safe* |
+
+  **The gate is the point, not the three fixes.** The three were found by reading, and a fourth
+  subscriber added tomorrow re-opens the hole with nothing going red — the comment naming them was
+  the only thing watching, and *a comment reports on what somebody remembered.* So the population is
+  derived twice: the stream METHODS from whatever in the client returns `this.liveStream(...)`, and
+  their CALL SITES from the app. **It reads the AST rather than the text**, because an argument list
+  cannot be split on commas — `pid, (d) => { f(1, 2); }, cb` is three arguments and five commas, and
+  a hand-rolled scanner is how this file would have produced a confident wrong number, which is the
+  failure its neighbours keep paying for. It **fails closed**: a subscriber reached by computed
+  dispatch cannot be checked by argument count, so it is reported UNKNOWN and reds the build, the
+  exact blind spot `apps/web/src/api/clientCallers.test.ts` paid for when its first draft matched
+  only `.foo(` and called a method unreachable while `portal.ts` dispatched it by name on every
+  load. Run against the tree as slice ⑥ left it, it returns precisely the three the comment names —
+  independent confirmation there was no fourth, which reading could not have given.
+
+  **The wording is shared and the DOM is not** (`apps/web/src/ui/liveState.ts`). Three private
+  copies of which state is which colour and what the sentence says is the shape
+  `apps/web/src/api/noRespelledShapes.test.ts` exists to catch, and prose is the part most likely to
+  drift; the chrome genuinely differs per screen and forcing one renderer on all three would need an
+  options bag per caller. The indicator also **starts at "connecting…", not at "live"** — a frame is
+  proof the stream works and an accepted socket is not, which is why `liveStream` reports
+  `connected` on the first message. Claiming live before anything has arrived is the same unearned
+  verdict in miniature.
+
+  Seven mutations, all red, including the empty-reason fallback reduced to `||` — *the
+  empty-versus-absent confusion, now corrected an eighth time on this branch* — and *Try again*
+  wired to clear the notice without resuming the stream, which is the defect slice ⑤'s review paid
+  for in another file. **And the stub was the thing that had to change first**: `drawings.test.ts`
+  typed `markupStream: (_pid, _cb) => …` and dropped the third argument, so it accepted either
+  shape. *A fake that ignores an argument is how a caller omitting it stays invisible.*
+
 - ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
   said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*
 

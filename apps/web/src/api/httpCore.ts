@@ -311,11 +311,16 @@ export class HttpCore {
             // closes in flight, one transient verdict and one permanent — but `open` is where it
             // has to be handled, because the timer has already been scheduled by then.
             if (closed) return;
-            // A REFUSAL NOBODY CAN SEE IS WORSE THAN A RETRY LOOP. Three callers hold their handle
-            // privately and pass no `onStatus` (`portal/panels/schedule.ts`, `viewer/collabPresence.ts`,
-            // `drawings/drawings.ts`), so refusing would stop them permanently and SILENTLY where
-            // the old loop at least kept trying. With no one to tell, the stop has no advocate — so
-            // the classification only takes effect for a caller that asked to hear about it.
+            // A REFUSAL NOBODY CAN SEE IS WORSE THAN A RETRY LOOP, so the stop takes effect only
+            // for a caller that asked to hear about it. **That is now a safety net rather than a
+            // live exemption, and the difference matters.** When slice ⑥ shipped, three of the four
+            // subscribers passed no `onStatus` — so for them this whole classification was inert
+            // and the infinite loop it exists to end ran exactly as before, which is a guard with a
+            // population of one. Slice ⑦ gave all four a status handler;
+            // `liveStreamOnStatus.test.ts` derives the subscribers from this method's own callers
+            // and reds the build when a new one subscribes without one, because *the next instance
+            // would have re-opened the hole with nothing going red* — the comment naming the three
+            // was the only thing watching, and a comment reports on what somebody remembered.
             if (why && onStatus) { refused = true; onStatus("refused", why); return; }
             timer = window.setTimeout(open, wait);
           });

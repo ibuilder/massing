@@ -1,5 +1,6 @@
-import type { ModuleDef } from "../../api/client";
+import type { LiveStatus, LiveStream, ModuleDef } from "../../api/client";
 import { groupedBar, usd } from "../../ui/charts";
+import { liveDisplay } from "../../ui/liveState";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
@@ -20,7 +21,9 @@ import { flattenLookahead, mondayUtc, renderWeeklyGantt } from "./weeklyGantt";
 // M3 live-board resources of the CURRENT render. The panel has no dispose hook, so each re-render
 // closes its predecessor's SSE stream + presence timer synchronously — rapid Schedule↔Home toggling
 // must replace the live subscription, never stack them (the 20s heartbeat probe alone left a window).
-let livePull: { close(): void } | null = null;
+// `retry()` as well as `close()`: the live indicator's *Try again* resumes a refused stream through
+// this handle, and typing it as `{ close(): void }` is what made the refusal unanswerable.
+let livePull: LiveStream | null = null;
 let livePullTimer = 0;
 
 export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
@@ -538,10 +541,42 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
 
   // --- M3: real-time collaboration — the board live-refreshes as any trade edits, and presence shows
   //     who else is on it. Reuses the SSE + presence infra; self-cleans when the view is replaced. ---
+  // THE DOT ASSERTED "live" WHATEVER THE STREAM WAS DOING — in green, with a `title` promising the
+  // board "refreshes automatically". Slice ⑥ taught `liveStream` to classify a fatal close and stop
+  // retrying, but only `if (why && onStatus)`, and this caller passed no `onStatus`. So for the
+  // pull-plan board the whole of that work was inert: a stream the server will never serve this
+  // caller again — removed from the project, project deleted — backed off to the 60-second ceiling
+  // and retried for ever, while this span went on saying live. *A status light is a verdict, and a
+  // verdict rendered without the coverage behind it is the defect this branch is about.*
   const liveEl = document.createElement("span"); liveEl.className = "meta";
-  liveEl.title = "Live — the board refreshes automatically as any trade edits its sticky notes";
-  liveEl.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:11px";
-  liveEl.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:var(--status-good);display:inline-block"></span>live`;
+  liveEl.style.cssText = "display:inline-flex;align-items:center;gap:6px;font-size:11px";
+  // It starts at "connecting…", not at "live". A FRAME is the proof the stream works; an accepted
+  // socket is not, and `liveStream` reports `connected` on the first message for exactly that
+  // reason. All three of this project's SSE streams open with a snapshot, so the state is brief —
+  // but claiming live before anything has arrived is the same unearned verdict in miniature.
+  const paintLive = (s: LiveStatus | "connecting", why?: string) => {
+    liveEl.replaceChildren();
+    // The state→tone→wording mapping is shared with the viewer's and drawings' indicators
+    // (`ui/liveState.ts`); only the chrome below is this screen's. Three private copies of that
+    // prose is the shape `noRespelledShapes.test.ts` exists to catch.
+    const d = liveDisplay(s, why, "Live board updates");
+    const dot = document.createElement("span");
+    dot.style.cssText = `width:8px;height:8px;border-radius:50%;display:inline-block;background:var(${d.tone})`;
+    const label = document.createElement("span");
+    label.textContent = d.text;
+    liveEl.append(dot, label);
+    if (d.retryable) {
+      // Reversibility, and the reason as VISIBLE text rather than a tooltip: the probe rules on one
+      // status code and can be wrong, and the field tablet this board is read on has no hover. The
+      // button's visible label IS its accessible name — no `title`, no `aria-label` to drift from it.
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "file-btn"; again.textContent = "Try again";
+      again.style.cssText = "font-size:11px;padding:1px 6px";
+      again.onclick = () => { paintLive("connecting"); livePull?.retry(); };
+      liveEl.append(again);
+    }
+  };
+  paintLive("connecting");
   ppRight.insertBefore(liveEl, msSel);
   let lastSig = "";
   const es = ctx.host.api.pullPlanStream(pid, (d) => {
@@ -551,7 +586,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     if (sig === lastSig) return;
     lastSig = sig;
     if (!first) { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); }   // someone edited → refresh
-  });
+  }, paintLive);
   livePull = es;
   const renderPeers = (active: { user: string; viewpoint: unknown }[]) => {
     const peers = active.filter((a) => a.viewpoint && (a.viewpoint as { board?: string }).board === "pull-plan");

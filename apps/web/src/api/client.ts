@@ -56,7 +56,11 @@ export * from "./types";
 // BASE of ApiClient and cannot see ApiClient's `private` members, which blocked every SSE method
 // from extraction. Re-exported because drawings.ts imports the type as
 // `import("../api/client").LiveStream`.
-export type { LiveStream } from "./httpCore";
+//
+// `LiveStatus` travels with it as of slice ⑦: three subscribers now render the stream's state, and
+// a caller that cannot name the state cannot be asked to handle it — which is part of why the three
+// passed no `onStatus` for a release.
+export type { LiveStatus, LiveStream } from "./httpCore";
 // The module-graph DTOs travelled with the /modules methods in SCALE-SEAM ④; re-exported because
 // portal/panels/moduleGraph.ts imports them as `from "../../api/client"`.
 export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";

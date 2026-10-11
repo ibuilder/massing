@@ -29,6 +29,7 @@ interface FakeOpts {
 
 function mount(opts: FakeOpts = {}) {
   const calls: string[] = [];
+  let streamStatus: ((s: string, why?: string) => void) | null = null;
   const host = document.createElement("div");
   document.body.appendChild(host);
 
@@ -64,9 +65,17 @@ function mount(opts: FakeOpts = {}) {
       }
       return (id.endsWith("#pdf") ? opts.takeoff : opts.pins) ?? [];
     },
-    markupStream: (_pid: string, _cb: () => void) => {
+    // THE THIRD ARGUMENT IS CAPTURED, not ignored. The old stub dropped it, which is exactly how a
+    // subscriber that passes no `onStatus` goes unnoticed: the fake accepts either shape.
+    markupStream: (_pid: string, _cb: () => void,
+                   onStatus?: (s: string, why?: string) => void) => {
       calls.push("stream");
-      return { get connected() { return true; }, close() { calls.push("stream:close"); } };
+      streamStatus = onStatus ?? null;
+      return {
+        get connected() { return true; },
+        close() { calls.push("stream:close"); },
+        retry() { calls.push("stream:retry"); },
+      };
     },
     url: (p: string) => p,
     authHeaders: () => ({}),
@@ -77,7 +86,7 @@ function mount(opts: FakeOpts = {}) {
     projectId: () => "p1",
     setStatus: (m: string) => calls.push(`status:${m}`),
   } as never);
-  return { ui, host, calls, api };
+  return { ui, host, calls, api, status: () => streamStatus };
 }
 
 /** Let the open()/show() promise chains settle. */
@@ -264,5 +273,98 @@ describe("the markup toggle", () => {
     const again = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Markup"));
     again!.click();
     expect(viewport.classList.contains("marking")).toBe(false);
+  });
+});
+
+describe("live co-markup says so when it stops — R24-FIELD-MODE ⑦", () => {
+  // This subscriber passed no `onStatus`, so `HttpCore.liveStream`'s refusal classification was
+  // disabled for it: a stream the server will never serve this client again retried for ever and
+  // the pins simply stopped updating. Nothing looked wrong, which is the whole problem — two people
+  // mark up the same sheet believing they can see each other's work. *A stale drawing is
+  // indistinguishable from a quiet one, and only one of them is safe.*
+  it("THE DEFECT: it asks to be told at all", async () => {
+    const { ui, status } = mount();
+    await ui.open();
+    await settle();
+    expect(status(), "a subscriber that passes no onStatus cannot be told it was refused")
+      .not.toBeNull();
+  });
+
+  it("a refusal is shown in the toolbar, with the server's reason as visible text", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "you were removed from this project");
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "the notice mounts").toBeTruthy();
+    expect(note!.textContent).toContain("you were removed from this project");
+    // The consequence, not the transport — "the SSE stream closed" is not actionable.
+    expect(note!.textContent).toContain("markups will not appear");
+    // No hover-only reason: this is read on a tablet in the field.
+    expect(note!.querySelector("[title]"), "nothing hides the reason behind a tooltip").toBeNull();
+  });
+
+  it("the retry control is a real button whose visible label is its accessible name", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    const b = host.querySelector<HTMLButtonElement>("#dwg-live-refused button")!;
+    expect(b.tagName).toBe("BUTTON");
+    expect(b.type).toBe("button");
+    expect(b.textContent).toBe("Try again");
+    expect(b.getAttribute("aria-label"), "no second name to drift from the first").toBeNull();
+    expect(b.getAttribute("title")).toBeNull();
+  });
+
+  it("...and clicking it actually resumes the stream", async () => {
+    // The lesson slice ⑤'s review paid for: its first escape hatch cleared the mark and
+    // re-rendered without sending, and the test did not notice because the test did the sending.
+    const { ui, host, calls, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    host.querySelector<HTMLButtonElement>("#dwg-live-refused button")!.click();
+    expect(calls, "retry() reaches the stream handle").toContain("stream:retry");
+    expect(host.querySelector("#dwg-live-refused"), "and the notice clears").toBeNull();
+  });
+
+  it("an EMPTY reason still shows a refusal — empty is not absent", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "");
+    const note = host.querySelector("#dwg-live-refused");
+    expect(note, "a refusal with no stated reason is still a refusal").toBeTruthy();
+    expect(note!.textContent).toContain("refused by the server");
+    expect(note!.textContent, "and never a dangling dash").not.toMatch(/—\s*\./);
+  });
+
+  it("a transient reconnect is NOT shown — a retry the user can see is not the problem", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("reconnecting");
+    expect(host.querySelector("#dwg-live-refused")).toBeNull();
+  });
+
+  it("a recovered stream clears a notice that was up", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    expect(host.querySelector("#dwg-live-refused")).toBeTruthy();
+    status()!("connected");
+    expect(host.querySelector("#dwg-live-refused"), "it must not outlive the refusal").toBeNull();
+  });
+
+  it("two refusals in a row leave ONE notice, not two", async () => {
+    const { ui, host, status } = mount();
+    await ui.open();
+    await settle();
+    status()!("refused", "gone");
+    status()!("refused", "still gone");
+    expect(host.querySelectorAll("#dwg-live-refused").length).toBe(1);
+    expect(host.querySelector("#dwg-live-refused")!.textContent).toContain("still gone");
   });
 });

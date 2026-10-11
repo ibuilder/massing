@@ -1,6 +1,7 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
+import { liveDisplay } from "../ui/liveState";
 import { askConfirm, askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
@@ -66,13 +67,47 @@ export class DrawingsUI {
     const pid = this.host_.projectId();
     if (pid && !this.markupSub) {
       let first = true;
+      // LIVE CO-MARKUP COULD STOP AND THE SHEET WOULD LOOK CURRENT. This caller passed no
+      // `onStatus`, so slice ⑥'s classification was disabled for it and a refused stream retried
+      // for ever. Nothing was wrong on screen — which is the problem: the pins just stop updating,
+      // so two people mark up the same sheet believing they are seeing each other's work.
+      // *A stale drawing is indistinguishable from a quiet one, and only one of them is safe.*
       this.markupSub = this.host_.api.markupStream(pid, () => {
         if (first) { first = false; return; }
         void this.loadPins();
-      });
+      }, (st, why) => this.paintMarkupLive(st, why));
     }
   }
   private markupSub: import("../api/client").LiveStream | null = null;
+
+  /** The live-co-markup state, rendered in the toolbar where the sheet's own chrome is. Only a
+   *  REFUSAL is shown: "reconnecting…" on every transient drop would cry wolf over a dropped
+   *  packet, and slice ⑥'s own review established that a retry the user can see is not the
+   *  problem — a refusal they cannot is. */
+  private paintMarkupLive(st: import("../api/client").LiveStatus, why?: string) {
+    const bar = this.root.querySelector<HTMLElement>("#dwg-toolbar");
+    let note = this.root.querySelector<HTMLElement>("#dwg-live-refused");
+    if (st !== "refused") { note?.remove(); return; }
+    if (!bar) return;
+    if (!note) {
+      note = document.createElement("span");
+      note.id = "dwg-live-refused";
+      note.className = "meta";
+      note.style.cssText = "margin-left:8px;color:var(--status-crit);display:inline-flex;gap:6px;align-items:center";
+      bar.appendChild(note);
+    }
+    note.replaceChildren();
+    const msg = document.createElement("span");
+    // Visible text, and it names what stopped rather than the transport: the reason a reader needs
+    // is "other people's markups will not appear", not "the SSE stream closed".
+    msg.textContent = `⚠ ${liveDisplay(st, why, "Live markup").text} `
+      + `Other people's markups will not appear until you reload.`;
+    const again = document.createElement("button");
+    again.type = "button"; again.className = "file-btn"; again.textContent = "Try again";
+    again.style.cssText = "font-size:11px;padding:1px 6px";
+    again.onclick = () => { note?.remove(); this.markupSub?.retry(); };
+    note.append(msg, again);
+  }
 
   private build() {
     this.root.innerHTML = "";

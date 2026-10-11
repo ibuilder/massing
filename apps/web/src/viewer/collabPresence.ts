@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import type { ApiClient } from "../api/client";
+import type { ApiClient, LiveStatus, LiveStream } from "../api/client";
 import { installPeerCursors } from "./peerCursors";
+import { liveDisplay } from "../ui/liveState";
 import { showQrModal } from "../ui/qr";
 
 /** REL-4 leaf — COLLAB-1 live presence + shared viewpoints + the publish-reload banner.
@@ -44,7 +45,9 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
   let collabKnownVersion = -1;
   let bannerEl: HTMLElement | null = null;
   let heartbeat: number | null = null;                         // PERF-4: torn down in dispose()
-  let stream: { close: () => void } | null = null;
+  // `LiveStream`, not `{ close }`: slice ⑦ needs `retry()` to answer a refusal, and a handle typed
+  // down to the one method this file happened to use is part of why the refusal went unanswered.
+  let stream: LiveStream | null = null;
 
   function captureViewpoint() {
     const p = new THREE.Vector3(), t = new THREE.Vector3();
@@ -128,6 +131,39 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
 
     // subscribe to the model-edit SSE stream: refresh presence instantly + raise the banner when the
     // published version climbs past what we have loaded (a collaborator's edit, not our own)
+    // THE STREAM COULD DIE AND NOTHING WOULD SAY SO. This caller passed no `onStatus`, so slice ⑥'s
+    // classification was disabled for it: a model stream the server will never serve this client
+    // again retried for ever and the banner below — the only thing that tells you a collaborator
+    // published — simply never fired again. **The 20-second presence heartbeat keeps polling, so
+    // the 👥 chips stay populated**, which makes it look live. *The half that still works is what
+    // makes the dead half invisible.* So the notice says what specifically stopped, not "offline".
+    const sBanner = document.createElement("div");
+    sBanner.className = "collab-reload-banner";
+    sBanner.style.cssText = banner.style.cssText;
+    const paintStream = (st: LiveStatus, why?: string) => {
+      if (st !== "refused") { sBanner.style.display = "none"; return; }
+      sBanner.replaceChildren();
+      const msg = document.createElement("span");
+      // The reason as visible text, and it names the consequence rather than the mechanism: "the
+      // SSE stream was refused" tells a modeller nothing they can act on. The sentence itself comes
+      // from `ui/liveState.ts`, shared with the other two indicators; only the trailing consequence
+      // is this screen's, because what each screen loses is the part that differs.
+      msg.textContent = `⚠ ${liveDisplay(st, why, "Live model updates").text} `
+        + `You will not be told when a collaborator publishes.`;
+      const again = document.createElement("button");
+      again.type = "button"; again.className = "tool-btn"; again.textContent = "Try again";
+      again.style.cssText = "font-size:11px;padding:2px 10px";
+      again.onclick = () => { sBanner.style.display = "none"; stream?.retry(); };
+      const hide = document.createElement("button");
+      hide.type = "button"; hide.className = "tool-btn"; hide.textContent = "✕";
+      hide.style.cssText = "font-size:11px;padding:2px 6px";
+      hide.onclick = () => { sBanner.style.display = "none"; };
+      sBanner.append(msg, again, hide);
+      sBanner.style.display = "flex";
+      sBanner.style.top = "52px";          // below the collaborator-updated banner, not over it
+    };
+    container.appendChild(sBanner);
+
     try {
       const es = api.modelStream(pid0, (raw) => {
         const snap = raw as { model?: { version?: number }; editors?: Peer[] };
@@ -137,7 +173,7 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
           if (collabKnownVersion < 0) collabKnownVersion = v;
           else if (v > collabKnownVersion) { collabKnownVersion = v; banner.style.display = "flex"; }
         }
-      });
+      }, paintStream);
       stream = es;
       window.addEventListener("beforeunload", () => es.close());
     } catch { /* EventSource unsupported / offline — presence still polls */ }
