@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { scheduleQuantity, scheduleScope } from "./equipment";
+import { gapShown } from "./operations";
 import { earlierNote } from "./topicBoard";
 
 /** The two places a server-side cap becomes something a person can read.
@@ -65,5 +66,31 @@ describe("earlierNote — the topic timeline drawer", () => {
   it("never reports fewer than the window it was handed", () => {
     // A total that arrives smaller than the count is nonsense; prefer the count over a negative.
     expect(earlierNote({ event_count: 500, event_total: 3 })).toBe("…488 earlier event(s)");
+  });
+});
+
+describe("gapShown — the broken-links list on the Spine traceability card", () => {
+  it("says nothing when the whole gap list is on screen", () => {
+    expect(gapShown(5, 5)).toEqual({ shown: 5, note: "" });
+    expect(gapShown(12, 12)).toEqual({ shown: 12, note: "" });
+  });
+
+  it("THE DEFECT: it counted the server's PAGE, not the twelve rows rendered", () => {
+    // 240 broken links, the server returns its first 100, the card renders twelve. The note read
+    // "showing 100 of 240" — a page-as-total conflation inside the change set that existed to
+    // remove the class, because the number nearest the honest caption was the uncounted one.
+    expect(gapShown(100, 240)).toEqual({ shown: 12, note: "showing 12 of 240" });
+  });
+
+  it("discloses the cut even when the server sent everything", () => {
+    // 40 gaps, all 40 returned, twelve rendered: the previous branch printed a bare "…" here,
+    // which says something is missing without saying how much.
+    expect(gapShown(40, 40)).toEqual({ shown: 12, note: "showing 12 of 40" });
+  });
+
+  it("never claims to show more than it has", () => {
+    // A server total ahead of a short page (a row deleted between the count and the page) must
+    // not produce "showing 12 of 8" — `shown` is bounded by what is actually in hand.
+    expect(gapShown(3, 8)).toEqual({ shown: 3, note: "showing 3 of 8" });
   });
 });

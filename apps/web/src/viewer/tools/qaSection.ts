@@ -783,11 +783,14 @@ export function buildQaSection(d: QaDeps): void {
             const paint = (rep: typeof r) => { body.replaceChildren(); renderCiReport(body, rep!);
               const run = document.createElement("button");
               run.className = "mini-btn on"; run.style.marginTop = "6px";
-              run.textContent = isUnrun(rep!) ? "▶ Run the check pack" : "⟳ Run again";
+              const label = isUnrun(rep!) ? "▶ Run the check pack" : "⟳ Run again";
+              run.textContent = label;
               run.onclick = async () => {
                 run.disabled = true; run.textContent = "running the check pack…";
+                // The LABEL is restored with the button. Re-enabling it while it still reads
+                // "running the check pack…" leaves a control that is clickable and says it is busy.
                 try { const fresh = await api.ciRun(pid); out.textContent = `CI: ${fresh.badge}`; paint(fresh); }
-                catch (e) { toast((e as Error).message, "error"); run.disabled = false; }
+                catch (e) { toast((e as Error).message, "error"); run.disabled = false; run.textContent = label; }
               };
               body.appendChild(run); };
             paint(r);

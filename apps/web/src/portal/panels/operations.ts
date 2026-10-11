@@ -11,6 +11,20 @@ import { renderOperateBrief } from "./operateBrief";
  * Resilience, metered Energy, and the Turnover package — each a free render*(ctx) function.
  */
 
+/** The "…showing N of M" note for a list that is a page OF a page.
+ *
+ *  `gaps.*` arrive as the server's 100-row pages and the card renders twelve of each. The first
+ *  version of this note read `showing ${items.length} of ${total}` — "showing 100 of 240" above a
+ *  list of twelve — which is the page-as-total conflation the change set carrying it existed to
+ *  remove. *The number nearest the honest caption was the one nobody counted.* Extracted and
+ *  exported because the version inside the closure could not be asserted, and the other two
+ *  truncation notes on this page are tested as pure functions for exactly that reason. */
+export function gapShown(itemCount: number, total: number, limit = 12):
+    { shown: number; note: string } {
+  const shown = Math.min(itemCount, limit);
+  return { shown, note: total > shown ? `showing ${shown} of ${total}` : "" };
+}
+
   // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------
 export async function renderOperations(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
@@ -313,10 +327,9 @@ export async function renderSpine(ctx: PanelContext) {
         // `total` is escaped even though it is a server-side number: `innerHtmlGuard.test.ts` keys
         // on the BINDING NAME, and a name does not move when a caller starts passing something else.
         const n = esc(String(total));
-        d.innerHTML = `<b>${esc(title)} (${n}):</b> ${items.slice(0, 12).map(esc).join(", ")}`
-          + (total > items.length
-              ? ` … <span style="color:var(--status-warn)">showing ${items.length} of ${n}</span>`
-              : items.length > 12 ? " …" : "");
+        const { shown, note } = gapShown(items.length, total);
+        d.innerHTML = `<b>${esc(title)} (${n}):</b> ${items.slice(0, shown).map(esc).join(", ")}`
+          + (note ? ` … <span style="color:var(--status-warn)">${esc(note)}</span>` : "");
         gc.appendChild(d);
       };
       gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref),

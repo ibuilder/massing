@@ -743,6 +743,106 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   code on an already-failing request is not the defect the SSO doors had.
 
 
+- ✅ ⭐ **COVENANT-PCT — a percent sign made every covenant verdict wrong, in both directions, and
+  the test asserted it** *(XS — Lane B; **CLOSED 2026-10-11**; held by
+  `apps/web/src/proforma/covenantCard.test.ts`)*
+
+  `parseActuals` read the loan actuals a person types into the covenant card and stripped `%` as
+  punctuation. **Every threshold the engine compares against is a FRACTION** — the example register
+  declares `debt_yield` as `min 0.09` and `ltv` as `max 0.65` — so:
+
+  | typed | parsed | threshold | reported | truth |
+  |---|---|---|---|---|
+  | `debt_yield = 9%` | `9` | min `0.09` | **pass**, hundredfold headroom | exactly on the line |
+  | `ltv = 62%` | `62` | max `0.65` | **breach** | comfortably inside |
+
+  *Two confident verdicts from one defect, pointing opposite ways* — which is the worst available
+  combination, because there is no reading of the card that looks odd enough to check. A covenant
+  breach is a notice to a lender; a missed one is a covenant nobody cured.
+
+  **And `covenantCard.test.ts` had been taught the defect.** Its first assertion read
+  `ltv: 62%` → `62` under the heading *"strips percent and thousands marks"*, so the one check that
+  could have caught the misreading instead froze it. *A test can pin a misreading as firmly as it
+  can pin a fix, and a test written from the implementation will.* The repair is that a percent
+  divides by 100, the UI label says so out loud (`62%` and `0.62` must reach the same verdict, and
+  the only way a reader knows that is if the card says it), and five assertions cover both
+  spellings landing on the same side of the same threshold.
+
+  **A second defect fell out of the same line.** `replace(/[%\s,]/g, "")` also removed whitespace,
+  so `dscr = 1.4 1` became `1.41` — **two numbers fused into a plausible third**, under a docstring
+  promising that an unreadable actual is REPORTED rather than guessed. The value is matched
+  strictly now, so a typo is a skipped line with the text shown.
+
+- ✅ ⭐ **AUTHORITY-REPLACE — the authority editor's "Save" was a delete button** *(S — Lane B;
+  **CLOSED 2026-10-11**; held by `apps/web/src/proforma/authorityCard.test.ts` and
+  `services/api/test_cre_governance.py`)*
+
+  **Two endpoints, each defensible alone.** `GET /projects/{pid}/deal-room/authority` returns the
+  AUTHORITATIVE view: `assess()` omits archival rows (`authoritative: false`) and their supersedes
+  chains on purpose, because the table exists to name the one document to underwrite from.
+  `PUT` **replaces the whole stored blob**. So `entriesFromAssessment` built the save body from
+  `assessment.table` — the only thing it had — and one press of Save permanently deleted every
+  archival entry, every supersedes chain on a row the editor rebuilt, and the `reviewer` on all of
+  them. *A lossy read and a replacing write are each defensible; together they are a delete button
+  labelled "Save".*
+
+  **Nothing went red, and the gate it broke is the one that reads the deleted rows.**
+  `assess()` computes `superseded_still_active` — a document named as superseded that is still
+  flagged authoritative, which is exactly how a stale number reaches a committee — out of the
+  archival rows. Delete them and the check cannot fire, while the response still reports a passing
+  gate. **The test fixture already carried an archival row** (`OM_v2.pdf`), so the defect was
+  destroying real history on every run and no assertion could see it.
+
+  Three repairs, and the order matters: **the GET returns `entries`, the stored table verbatim**, so
+  a round-trip is possible at all; the editor holds the whole table and only ever touches the
+  authoritative row for its fact type; and `sync()` **carries `supersedes` through instead of
+  rebuilding it** — it constructed a fresh object, so the chain was dropped from every row the
+  person touched while rows they left alone kept theirs, *a loss proportional to how much they
+  edited.* Making the PUT merge was considered and rejected: it leaves no way to delete a row, and a
+  supersedes chain nobody can prune grows without bound.
+
+  **There is deliberately NO fallback to `assessment.table`** — that fallback is the defect. A
+  server that does not return `entries` makes the editor refuse to open, with the reason on screen,
+  because refusing is visible and opening is a silent delete the next time somebody presses Save.
+  `renderAuthority` was narrowed to take the assessment rather than the read, and the post-save
+  repaint failing to typecheck is what proved the entries are an editor concern and not a render one.
+
+  *Found by review, with the two endpoints read together.* Neither half is wrong in its own file,
+  which is why `apps/web/src/api/deadFieldTyped.test.ts`, the reachability gates and the full suite
+  were all green over it: **the defect is the RELATIONSHIP between a read and a write, and every
+  check here is scoped to one file or one call.** One thing did improve on the way out — `reviewer`
+  round-tripped through the engine and was surfaced on the assessment while **no screen could set
+  it or show it**, so it has an input now; preserving a value nobody can see is a fix nobody can
+  check.
+
+- ✅ **REVIEW-TRIO — three findings from one review, each a declaration that disagrees with the
+  state behind it** *(XS — Lanes B/I/E; **CLOSED 2026-10-11**; the first held by
+  `apps/web/src/portal/panels/truncationNotes.test.ts`)*
+
+  Grouped because they share a shape, not a file: in each case something *stated* a fact the code
+  beside it had stopped supporting.
+
+  | where | the statement | the state |
+  |---|---|---|
+  | `apps/web/src/portal/panels/operations.ts` | `showing ${items.length} of ${total}` | `items` is the server's 100-row PAGE; **twelve** are rendered |
+  | `apps/web/src/api/coverageMaps.ts` | `pct_quantified: number` ×3 | SCOPE-EMPTY made them `null` on an empty register, four weeks earlier |
+  | `apps/web/src/viewer/tools/qaSection.ts` | a re-enabled button reading "running the check pack…" | the run had failed |
+
+  **The first is the page-as-total conflation TRUNC-COUNTED existed to remove, committed inside the
+  change set that removed it** — *the number nearest the honest caption was the one nobody counted.*
+  It is extracted and exported as `gapShown` now, because the version inside a render closure could
+  not be asserted, and the other two truncation notes on that page are tested as pure functions for
+  precisely that reason. Its old second branch printed a bare `…` whenever the server sent
+  everything, which says something is missing without saying how much; `gapShown` discloses both
+  cuts and is bounded by what is in hand, so a total ahead of a short page cannot produce
+  "showing 12 of 8".
+
+  The second has no symptom and no caller: `scopeRegister` is frozen as callerless, so **the first
+  caller would have been written against the declaration rather than against the engine.** *A
+  nullable field declared non-nullable is a defect with no symptom until somebody trusts it* — and
+  the whole point of SCOPE-EMPTY was to make "nothing is quantified" distinguishable from "there is
+  nothing to quantify", which `number` asserts cannot happen.
+
 - 🟡 **PORTAL-TXN-DARK — the client-decision loop is unreachable at BOTH ends**
   *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/`; **OPEN — the write half
   needs the user's call**; measured 2026-09-25)*
