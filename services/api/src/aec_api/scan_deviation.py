@@ -267,6 +267,14 @@ def model_surface_points_capped(model, max_points: int = 200000):
 
     settings = geom.settings()
     verts: list = []
+    # Whether the walk stopped with geometry STILL TO COME, which is not the same question as
+    # "did we reach the cap". A model whose full geometry totals exactly `max_points` hits the
+    # break on its last element, and the first version reported that as truncated — so `analyze`
+    # refused to give a deviation figure for a model from which nothing had been dropped.
+    # `parse_point_cloud_counted` gets this right by counting past its own cap, so the two
+    # producers of the same flag disagreed at the boundary. *A cap reached and a cap exceeded are
+    # different facts, and only one of them is a reason to withhold an answer.*
+    more_remained = False
     from aec_data.geomconf import bounded_iterator  # type: ignore
     it = bounded_iterator(geom, settings, model, num_threads=1)
     if it.initialize():
@@ -276,13 +284,16 @@ def model_surface_points_capped(model, max_points: int = 200000):
             if v:
                 verts.append(np.asarray(v, dtype=float).reshape(-1, 3))
                 if sum(len(a) for a in verts) >= max_points:
+                    # Advancing is free here — we are leaving the loop either way — and its answer
+                    # is the only way to tell a full model from a truncated one.
+                    more_remained = bool(it.next())
                     break
             if not it.next():
                 break
     if not verts:
         return np.zeros((0, 3)), False
     stacked = np.vstack(verts)
-    return stacked[:max_points], bool(len(stacked) >= max_points)
+    return stacked[:max_points], bool(more_remained or len(stacked) > max_points)
 
 
 def parse_point_cloud(text: str, max_points: int = 500000):

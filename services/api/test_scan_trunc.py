@@ -198,6 +198,25 @@ under_verts, under_flag = _with_fake_geometry(chunks=3, per=100, max_points=1000
 check("...and does NOT claim truncation on a model that fits",
       under_flag is False, f"truncated={under_flag} verts={len(under_verts)}")
 
+# THE BOUNDARY, found by review. The flag was `len(stacked) >= max_points`, so a model whose FULL
+# geometry totals exactly the cap hit the break on its last element and was reported truncated —
+# and `analyze` then refused to publish a deviation figure for a model from which nothing had been
+# dropped. A false refusal is quieter than a false finding and just as wrong.
+#
+# `parse_point_cloud_counted` already got this right by counting past its own cap, so the two
+# producers of ONE flag disagreed at the boundary. *A cap reached and a cap exceeded are different
+# facts, and only one of them is a reason to withhold an answer.*
+exact_verts, exact_flag = _with_fake_geometry(chunks=5, per=50, max_points=250)
+check("THE BOUNDARY: a model of exactly max_points is NOT truncated — nothing was dropped",
+      exact_flag is False, f"truncated={exact_flag} verts={len(exact_verts)}")
+check("...and every vertex it had is returned",
+      len(exact_verts) == 250, f"{len(exact_verts)} vertices")
+
+# One element past the cap must still read truncated, so the fix above cannot be "never truncate".
+past_verts, past_flag = _with_fake_geometry(chunks=6, per=50, max_points=250)
+check("...while one element MORE than the cap still is",
+      past_flag is True, f"truncated={past_flag} verts={len(past_verts)}")
+
 # --------------------------------------------------------------------------------------------
 # IS THE FLAG THREADED THROUGH THE ROUTE? — the second half of the same hole.
 #

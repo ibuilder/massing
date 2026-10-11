@@ -117,6 +117,108 @@ check("dashboard returns action_item_count beside the page",
       {"action_items", "action_item_count"} <= db,
       f"missing {sorted({'action_items', 'action_item_count'} - db)}")
 
+# ==================================================================================================
+# AND THE FIELD ITSELF WAS A PAGE LENGTH — found by review, in the change that added it.
+#
+# `action_item_count` was `len(action_items)`, and collection stops at `ACTION_CAP = 300`. So the
+# count could never exceed 300: this file's own note promises that "a user with 340 open items and
+# one with 100" stop looking alike, and at 340 the field read exactly `300`. The `my_action_items`
+# KPI beside it carried the identical defect and predates the field.
+#
+# *A field added to disclose a cap is the easiest place in the codebase to re-introduce one, because
+# nobody audits the fix.* The check above asserted only that the KEY exists — which is why it
+# passed. This one asserts the ARITHMETIC, driven past the cap without inserting 340 records:
+# `state_counts_all` is the single query the total is now derived from, so stubbing it is stubbing
+# the real input rather than a mock of the answer.
+# ==================================================================================================
+from aec_api import dashboard as _dash  # noqa: E402
+from aec_api import modules as _me  # noqa: E402
+
+_ACTIONABLE = "open"
+_BIG = 340
+
+
+def _one_module_with(count: int):
+    """`build()` over a single synthetic module holding `count` records in an actionable state.
+
+    `REGISTRY` is stubbed too, rather than borrowing a real module: the arithmetic under test is
+    "sum the actionable states' counts", and a real module's workflow would make the expected total
+    depend on which states `available_actions` happens to allow — a fixture that decides the answer
+    it is checking. One synthetic module, one actionable state, one count."""
+    key = "synthetic"
+    mod = {"name": "Synthetic", "section": "test"}
+    saved = (_me.state_counts_all, _me.active_records, _me.available_actions,
+             _me._due_field_name, _me.REGISTRY)
+    _me.REGISTRY = {key: mod}
+    _me.state_counts_all = lambda db, pid: {key: {_ACTIONABLE: count}}
+    _me.available_actions = lambda m, state, party: ([{"action": "submit"}]
+                                                     if state == _ACTIONABLE else [])
+    _me._due_field_name = lambda m: None
+    _me.active_records = lambda db, k, pid, terminal, with_data=True, states=None, limit=None: [
+        {"id": f"r{i}", "ref": f"R-{i}", "title": "x", "workflow_state": _ACTIONABLE,
+         "data": {}} for i in range(min(limit or 0, count))
+    ]
+    try:
+        return _dash.build(None, "p1", "GC"), mod
+    finally:
+        (_me.state_counts_all, _me.active_records, _me.available_actions,
+         _me._due_field_name, _me.REGISTRY) = saved
+
+
+_big, _mod = _one_module_with(_BIG)
+check("THE DEFECT: action_item_count is the TRUE total, not the capped page length",
+      _big["action_item_count"] == _BIG,
+      f"{_big['action_item_count']} (expected {_BIG}); page held {len(_big['action_items'])}")
+check("...and the page is still bounded, so the cap was not simply removed",
+      len(_big["action_items"]) <= 100,
+      f"{len(_big['action_items'])} item(s) returned")
+check("...and the my_action_items KPI beside it agrees, having had the same defect",
+      _big["kpis"]["my_action_items"] == _BIG, f"{_big['kpis']['my_action_items']}")
+
+_small, _ = _one_module_with(7)
+check("a count UNDER the cap is unchanged — the fix is not a constant",
+      _small["action_item_count"] == 7 and _small["kpis"]["my_action_items"] == 7,
+      f"count={_small['action_item_count']} kpi={_small['kpis']['my_action_items']}")
+
+
+def _two_modules(first: int, second: int):
+    """Two modules where the FIRST alone exceeds `ACTION_CAP`, so collection stops before the
+    second is reached.
+
+    This is what makes the derivation's PLACE load-bearing rather than its arithmetic. With one
+    module the cap guard never trips mid-loop, so moving the `sum` back inside it passes — which
+    the single-module fixture above could not tell, and nearly let through. *A guard tested with a
+    population too small to trip it is not tested.*"""
+    keys = ["mod_a", "mod_b"]
+    saved = (_me.state_counts_all, _me.active_records, _me.available_actions,
+             _me._due_field_name, _me.REGISTRY)
+    _me.REGISTRY = {k: {"name": k, "section": "test"} for k in keys}
+    _me.state_counts_all = lambda db, pid: {keys[0]: {_ACTIONABLE: first},
+                                            keys[1]: {_ACTIONABLE: second}}
+    _me.available_actions = lambda m, state, party: ([{"action": "submit"}]
+                                                     if state == _ACTIONABLE else [])
+    _me._due_field_name = lambda m: None
+    _me.active_records = lambda db, k, pid, terminal, with_data=True, states=None, limit=None: [
+        {"id": f"{k}{i}", "ref": f"R-{i}", "title": "x", "workflow_state": _ACTIONABLE,
+         "data": {}} for i in range(min(limit or 0, first if k == keys[0] else second))
+    ]
+    try:
+        return _dash.build(None, "p1", "GC")
+    finally:
+        (_me.state_counts_all, _me.active_records, _me.available_actions,
+         _me._due_field_name, _me.REGISTRY) = saved
+
+
+_spill = _two_modules(400, 50)
+check("A MODULE PAST THE CAP STILL COUNTS — the derivation sits outside the collection guard",
+      _spill["action_item_count"] == 450,
+      f"{_spill['action_item_count']} (expected 450: 400 + the 50 the page never reached)")
+check("...and its records are correctly absent from the page",
+      len(_spill["action_items"]) <= 100 and
+      all(a["module"] == "mod_a" for a in _spill["action_items"]),
+      f"{len(_spill['action_items'])} item(s), modules "
+      f"{sorted({a['module'] for a in _spill['action_items']})}")
+
 # ------------------------------------------------------------------------------------------------
 # 4) THE CLIENT MUST DECLARE THEM — an undeclared field is unreadable, which is the whole cause here.
 #    `truncated` shipped on the wire for months and `model.ts` never declared it, so no type error,

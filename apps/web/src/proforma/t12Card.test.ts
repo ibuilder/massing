@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApiClient } from "../api/client";
-import { hasStatedTotals, incomeFromT12, parseAmount, parseT12, renderT12Result } from "./t12Card";
+import {
+  hasStatedTotals, incomeFromT12, parseAmount, parseT12, renderT12Card, renderT12Result,
+} from "./t12Card";
 
 /**
  * T12-SELFTIE — `t12.py` exists for one refusal and the refusal is unreachable without a caller that
@@ -236,5 +238,61 @@ describe("AUTHORITY-DOWNSTREAM — a blocked operating statement withholds the P
     const t = renderT12Result(mount(), PASSED(), true, { kind: "undeclared" }).textContent ?? "";
     expect(t).toContain("Tie-out passed against the stated totals");
     expect(t).toContain("not governed by a source of record");
+  });
+});
+
+describe("the STATUS LINE withholds too", () => {
+  // The card printed "Tie-out result withheld" and hid the adjusted NOI while the status bar said
+  // "T-12 tie-out passed" — the withheld verdict reappearing two inches away, in the one place a
+  // reader glances at. `covenantCard` already had the `withholds(gate)` branch; applying it to one
+  // card and not its sibling is how a withholding becomes advisory.
+  //
+  // Found by review BECAUSE nothing here drove `renderT12Card` — every assertion above calls the
+  // pure renderer, so the whole status-setting path had no test. *A defect in the caller is
+  // invisible to a suite that only tests the callee.*
+  const drive = async (authority: unknown) => {
+    const status: string[] = [];
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const api = {
+      normalizeT12: async () => PASSED(),
+      dealAuthority: async () => authority,
+    } as unknown as ApiClient;
+    renderT12Card(root, { api, projectId: () => "p1", setStatus: (m) => status.push(m) });
+    const ta = root.querySelector("textarea")!;
+    ta.value = "Gross potential rent, 3600000\nRepairs, 240000";
+    const nums = root.querySelectorAll<HTMLInputElement>('input[type="number"]');
+    nums[0]!.value = "3600000";
+    nums[1]!.value = "240000";
+    root.querySelector<HTMLButtonElement>("button")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    return { status, text: root.textContent ?? "" };
+  };
+
+  const BLOCKED = {
+    entries: [{ fact_type: "operating_statement", document: "T12.xlsx", as_of: "2026-01-01",
+                authoritative: true, freshness_days: 60, supersedes: [] }],
+    gate: { passes: false, blocking: [{ fact_type: "operating_statement", why: "140 day(s) stale" }],
+            advisory: [] },
+  };
+
+  it("THE DEFECT: a blocked gate must not leave 'tie-out passed' in the status bar", async () => {
+    const { status, text } = await drive(BLOCKED);
+    expect(text).toContain("Tie-out result withheld");
+    expect(status.at(-1)).toContain("withheld");
+    expect(status).not.toContain("T-12 tie-out passed");
+  });
+
+  it("...and still says passed when the gate is clear", async () => {
+    const { status, text } = await drive({ entries: BLOCKED.entries,
+                                           gate: { passes: true, blocking: [], advisory: [] } });
+    expect(text).toContain("Tie-out passed against the stated totals");
+    expect(status.at(-1)).toBe("T-12 tie-out passed");
+  });
+
+  it("an unreadable authority table does not withhold — it is ungoverned, not blocked", async () => {
+    const { status } = await drive(Promise.reject(new Error("boom")) as unknown);
+    expect(status.at(-1)).toBe("T-12 tie-out passed");
   });
 });

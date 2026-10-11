@@ -566,15 +566,26 @@ export class ProformaUI {
       // which diligence checks could actually run against it, and the seller's own T-12 tied out.
       // All three engines shipped with R20 and had no caller — see rentRollQuality.ts / t12Card.ts.
       const quality = document.createElement("div"); host.appendChild(quality);
+      let qualityGen = 0;
       await renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus });
       renderT12Card(host, {
         api: this.api, projectId: this.projectId, setStatus: this.setStatus,
         // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
         // thing that moves, and it has to be visibly the same cards rather than a second opinion
         // appearing further down the page.
+        // A GENERATION TOKEN, and staged rather than cleared. `renderRentRollQuality` appends its
+        // cards only after three requests settle, so clearing the host and firing it twice before
+        // the first lands appended BOTH sets: two NER cards and two scrub cards, from different
+        // runs, under one heading. Staging into a detached node and committing only the newest
+        // generation also removes the flash of an empty panel while the three requests are in
+        // flight. *An async render that appends into a host it cleared synchronously is a race
+        // with however fast the reader can click.*
         scrubWithIncome: (income) => {
-          quality.replaceChildren();
-          void renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus }, income);
+          const gen = ++qualityGen;
+          const staged = document.createElement("div");
+          void renderRentRollQuality(staged, pid, { api: this.api, setStatus: this.setStatus },
+                                     income)
+            .then(() => { if (gen === qualityGen) quality.replaceChildren(...staged.childNodes); });
         },
       });
       await this.renderLeaseManagement(host, pid);

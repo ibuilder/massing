@@ -71,6 +71,15 @@ const spec = spawnSync(py, ["-c", DUMP], {
   maxBuffer: 64 * 1024 * 1024,
   env: { ...process.env, PYTHONPATH: ["src", join("..", "data", "src")].join(process.platform === "win32" ? ";" : ":") },
 });
+// `spec.error` BEFORE `spec.status`. A `spawnSync` that cannot start the interpreter at all sets
+// `error` and leaves `status` null and `stderr` empty, so the branch below printed the fallback
+// "the app could not be imported" — which sends the reader at their Python imports when the real
+// cause is a missing venv or a bad path. *A fallback message is a diagnosis, and the wrong one
+// costs more than none.*
+if (spec.error) {
+  console.error(`gen:api-types — could not run ${py}: ${String(spec.error)}`);
+  process.exit(1);
+}
 if (spec.status !== 0) {
   console.error(spec.stderr || "gen:api-types — the app could not be imported");
   process.exit(spec.status ?? 1);

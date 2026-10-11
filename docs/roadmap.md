@@ -4921,7 +4921,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK (all six need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK · AUTHORITY-SUPERSEDE (all seven need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped, and AUTHORITY-SUPERSEDE joined it the same day out of the review of that work. **The count went six → seven, not back to seven**: closing a parked item and opening one are separate events, and a bare number records neither) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**
@@ -6493,6 +6493,53 @@ refute one, so this goes first even though it is the least visible.
   live chip is deliberately SEPARATE from `room-tab-count`: "items in your court" and "unread
   notifications" are different numbers, and one badge carrying both would make neither readable.
 
+
+- ✅ ⭐ **CR-REVIEW-1 — the first independent review of this branch, and the worst finding was a cap
+  presented as a total inside the change that removed caps** *(S — Lanes B/C; **CLOSED 2026-10-11**;
+  held by `services/api/test_trunc_counted.py`, `services/api/test_scan_trunc.py` and
+  `apps/web/src/proforma/t12Card.test.ts`)*
+
+  Marking the PR ready for review got CodeRabbit onto 30 commits that had only ever been reviewed by
+  their author. Five actionable findings; four were real.
+
+  | finding | verdict |
+  |---|---|
+  | `dashboard.action_item_count` was `len(action_items)` | **REAL, and the sharpest of the session.** Collection stops at `ACTION_CAP = 300`, so the field added to disclose a cap **was itself a page length** — and its own comment promises that "a user with 340 open items and one with 100" stop looking alike, while at 340 it read exactly `300`. The `my_action_items` KPI beside it predates the field and carried the identical defect |
+  | `t12Card`'s status line said "tie-out passed" over a withheld card | **REAL.** `covenantCard` already had the `withholds(gate)` branch; applying it to one card and not its sibling is how a withholding becomes advisory. *A conclusion suppressed in one place and printed in another is printed* |
+  | `model_surface_points_capped` flagged an exactly-full model as truncated | **REAL.** `>= max_points` on the last element → `analyze` refused to publish a figure for a model from which **nothing was dropped**. `parse_point_cloud_counted` counts past its own cap and gets this right, so *two producers of one flag disagreed at the boundary* |
+  | `scrubWithIncome` cleared its host then appended asynchronously | **REAL.** Two clicks before the first of three requests settled appended both sets — two NER cards and two scrub cards, from different runs, under one heading |
+  | auto-archive the replaced authority document | **DECLINED, with reasons on the thread.** Accurate description, but a behaviour change: a typo correction would permanently record a prior document that never existed. The suggested patch's own un-archive dance is the evidence that the implicit rule needs a special case to be safe. *A fabricated record in a diligence table costs more than a missing one.* The real gap it points at is filed as AUTHORITY-SUPERSEDE below |
+
+  **The dashboard one is the lesson.** `test_trunc_counted.py` already asserted that
+  `action_item_count` EXISTS — which is exactly why it passed. *A field added to disclose a cap is
+  the easiest place in the codebase to re-introduce one, because nobody audits the fix.* The gate
+  now asserts the arithmetic instead, driven past the cap without inserting 340 records by stubbing
+  `state_counts_all`, the single query the total is derived from.
+
+  **And the two-module fixture is what made it a real check.** With one module the `ACTION_CAP`
+  guard never trips mid-loop, so moving the derivation back inside it **passed** — the first fixture
+  could not tell the arithmetic from its placement. Two modules where the first alone exceeds the
+  cap reds it. *A guard tested with a population too small to trip it is not tested.*
+
+  The `t12Card` finding existed because **nothing drove `renderT12Card` at all** — every assertion
+  in that file called the pure renderer, so the whole status-setting path was untested. *A defect in
+  the caller is invisible to a suite that only tests the callee.*
+
+- 🟡 **AUTHORITY-SUPERSEDE — the supersedes chain cannot be built from any screen**
+  *(XS — Lane B; **OPEN — needs the user's call on implicit vs explicit**; raised 2026-10-11 by
+  review of AUTHORITY-REPLACE)*
+
+  `deal_authority.py`'s premise is that *"an older file is archived rather than merely older"*, and
+  `assess()` reads those archival rows to compute `superseded_still_active` — the check that catches
+  a superseded document still being underwritten from. **Today a chain can only be built through the
+  raw PUT.** The editor preserves one it was handed and never creates one, which is the same class
+  as `reviewer` was before this branch gave it an input.
+
+  Review proposed inferring it: archive the loaded row whenever its document name changes. Declined
+  — a typo correction would permanently record a prior document that never existed, and the
+  authority table is read by a committee. **The explicit form is a "supersede the previous document"
+  control that appears when the name changes**, so the user states the supersession rather than
+  having it guessed. Which of implicit, explicit or neither to ship is a product decision.
 - 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from four places and rendered by none**
   *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD)*
 

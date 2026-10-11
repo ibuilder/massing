@@ -26,6 +26,9 @@ def _overdue(rec: dict) -> bool:
 def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
     by_module: list[dict] = []
     action_items: list[dict] = []
+    #: How many records are ACTUALLY in this party's court, across every module. Counted from the
+    #: state counts, never from `action_items`, which is capped — see the note at the return.
+    action_total = 0
     overdue = 0
     open_states = {"open", "submitted", "draft", "issued", "scheduled", "investigating",
                    "applied", "agenda", "proposed", "pending"}
@@ -57,25 +60,30 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
         # action items: query only the states where this party has a move AND that are "open", with
         # lean columns (no JSON) and a cap — not the whole active tail. `available_actions` needs
         # only workflow_state, which is an indexed column.
-        if len(action_items) < ACTION_CAP:
-            actionable = {s for s in states
-                          if s in open_states and me.available_actions(mod, s, party)}
-            if actionable:
-                need = ACTION_CAP - len(action_items)
-                for r in me.active_records(db, key, pid, terminal_states, with_data=False,
-                                           states=actionable, limit=need):
-                    action_items.append({
-                        "module": key, "module_name": mod["name"], "id": r["id"], "ref": r["ref"],
-                        "title": r["title"], "state": r["workflow_state"],
-                        "actions": [a["action"] for a in me.available_actions(mod, r["workflow_state"], party)],
-                    })
+        # The actionable STATES are derived for every module, outside the cap — `states` already
+        # holds this party's per-state counts from the single UNION-ALL above, so the true total
+        # costs no query. Deriving it inside the cap is what made the count a page length.
+        actionable = {s for s in states
+                      if s in open_states and me.available_actions(mod, s, party)}
+        action_total += sum(states[s] for s in actionable)
+        if actionable and len(action_items) < ACTION_CAP:
+            need = ACTION_CAP - len(action_items)
+            for r in me.active_records(db, key, pid, terminal_states, with_data=False,
+                                       states=actionable, limit=need):
+                action_items.append({
+                    "module": key, "module_name": mod["name"], "id": r["id"], "ref": r["ref"],
+                    "title": r["title"], "state": r["workflow_state"],
+                    "actions": [a["action"] for a in me.available_actions(mod, r["workflow_state"], party)],
+                })
 
     def open_count(key):
         return counts.get(f"open:{key}", 0)
 
     kpis = {
         "total_records": counts["total"],
-        "my_action_items": len(action_items),
+        # The TRUE total, not the length of a capped collection. This KPI predates
+        # `action_item_count` and carried the identical defect.
+        "my_action_items": action_total,
         "overdue": overdue,
         "open_rfis": open_count("rfi"),
         "pending_change_orders": open_count("cor"),
@@ -96,5 +104,12 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
             # `action_items` is a page; `action_item_count` is how many are actually in this
             # party's court. The dashboard renders the first 20 of the page, so without the total
             # a user with 340 open items and one with 100 saw the same screen.
-            "action_items": action_items[:100], "action_item_count": len(action_items),
+            #
+            # **AND THE FIRST VERSION OF THIS FIELD WAS `len(action_items)`, WHICH IS ITSELF A PAGE
+            # LENGTH.** Collection stops at `ACTION_CAP`, so the count could never exceed 300 and
+            # the 340-item user in the sentence above read exactly `300` — a cap presented as a
+            # total, which is the defect TRUNC-COUNTED existed to remove, shipped inside the change
+            # that removed it. Found by review. *A field added to disclose a cap is the easiest
+            # place in the codebase to re-introduce one, because nobody audits the fix.*
+            "action_items": action_items[:100], "action_item_count": action_total,
             "by_module": by_module}

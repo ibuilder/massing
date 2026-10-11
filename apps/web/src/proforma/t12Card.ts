@@ -371,8 +371,15 @@ export function renderT12Card(root: HTMLElement, ctx: T12Ctx): HTMLElement {
           };
         }
       }
+      // THE STATUS LINE WITHHOLDS TOO. The card printed "Tie-out result withheld" and hid the
+      // adjusted NOI while this said "T-12 tie-out passed" — the withheld verdict reappearing two
+      // inches away, in the one place a reader glances at. `covenantCard` already had the
+      // `withholds(gate)` branch; applying it to one card and not its sibling is how a withholding
+      // becomes advisory. *A conclusion suppressed in one place and printed in another is printed.*
       ctx.setStatus(r.stopped ? "T-12 tie-out stopped"
-                    : stated ? "T-12 tie-out passed" : "T-12 mapped (tie-out tied to itself)");
+                    : !stated ? "T-12 mapped (tie-out tied to itself)"
+                    : withholds(gate) ? "T-12 tie-out withheld — authority blocked"
+                    : "T-12 tie-out passed");
     } catch (e) {
       out.innerHTML = meta(esc((e as Error).message), "var(--status-crit)");
       ctx.setStatus("T-12 normalisation failed");
