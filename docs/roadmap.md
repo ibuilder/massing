@@ -6981,6 +6981,35 @@ refute one, so this goes first even though it is the least visible.
   | `apps/web/src/style.css` | six rules still style the class |
   | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders. **`colorContract.test.ts` checks the allowlist against the stylesheet in BOTH directions and neither against the DOM** — which is exactly how a dead selector comes to sit in both and look doubly attested |
 
+  **The third direction — allowlist against the DOM — was measured 2026-10-11 and DELIBERATELY NOT
+  BUILT, and the measurement is the reason.** `ACCENT_ALLOWED` holds **26 entries, of which exactly
+  one is dead**: `.ws-btn.active`, the row above. Getting to that number took five attempts, and the
+  four discarded ones are the content here, because each would have shipped a gate telling somebody
+  to **delete a working style**:
+
+  | the derivation said dead | it was live, via |
+  |---|---|
+  | `#props-close:hover` | static markup in `index.html`, which is **outside `src/`** and so outside the scan |
+  | `#rail-resize:hover` | `resizer.id = "rail-resize"` — a property assignment, not a `class=`/`id=` attribute |
+  | `.chip2-info` | `` `chip2 chip2-${tone}` `` — a class composed in a template, never written literally |
+  | `.studio-dot-out` | `` `studio-dot studio-dot-${kind}` `` — the same mechanism again |
+
+  **And the first attempt failed in the opposite direction, which is worse.** Counting any string
+  occurrence as production made `.ws-btn.active` look LIVE — because `roomMarking.test.ts` and
+  `wsReturn.test.ts` mention the class repeatedly *while asserting it is dead*. **A detector that
+  reads a test about deadness as evidence of liveness inverts its own answer**, and it hid the single
+  true positive. Excluding tests is principled rather than an exemption — a test is not a producer of
+  app DOM — but nothing about the first draft announced that it needed the rule.
+
+  So the rule would have to accept a **prefix** match to keep the two composed cases, and that is the
+  weakening `test_gap_records` already paid for (*"matching a PREFIX of a backticked span made
+  `edit-mep` match the route `edit`"*): a prefix-accepting liveness rule calls almost everything live,
+  so the gate's power collapses toward nothing precisely in order to stop it deleting working CSS.
+  **One known instance, already recorded one row above, does not pay for that** — and the instance it
+  would catch is this item's own CSS half, which is open with its reason. *A gate that cannot be made
+  precise is not a smaller gate, it is a confident wrong instruction, and this one's failure message
+  would be "delete this".*
+
   **WHY IT LOOKS ALIVE, measured rather than relayed** *(re-checked by hand 2026-10-11 because the
   first draft of this entry took a review bot's reading plus a grep as the finding)*: `applyPersona`
   filters `.ws-btn` **and** `.rail-btn` in two adjacent lines, and `.rail-btn` IS rendered
