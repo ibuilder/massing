@@ -6513,6 +6513,17 @@ refute one, so this goes first even though it is the least visible.
   where it needs no `role`, no `tabindex` and no event-swallowing. Putting a plain `<button>` among
   `role="tab"` children would have been the same mistake in ARIA instead of HTML.
 
+  **AND THAT CONTROL THEN FAILED THE BRANCH'S OWN RULE TWICE** *(round 4, 2026-10-11)*:
+
+  | finding | verdict |
+  |---|---|
+  | the reason sat in `title` and `aria-label`; the button read only *"Live updates stopped"* | **REAL.** On a touch device there is no hover, and **this product ships a tablet field mode** — so the user this control exists for could not read why. *A reason carried but not shown is the defect this whole branch is about, committed in the control written to fix it.* It is visible text in a sibling `<span>` now, and the button is "Try again", so its visible label IS its accessible name with no `aria-label` to drift from it (WCAG 2.5.3) |
+  | `host.hidden = !refused` | **REAL but LATENT, and saying which matters.** `main.ts` builds the value with `why ?? "…"`, which preserves an empty string, so a truthiness check hid the control for a stream that IS refused — silence about a refusal, the worst available outcome. **Not reachable today**: `permanentRejection` returns non-empty on every branch. Fixed anyway, because the type says `string | null` and this is the empty-versus-absent confusion this branch has now corrected **six** times |
+
+  *Four review rounds, and the pattern did not change: the defects were never in code that had been
+  neglected. They were in the code just written to fix the previous round — and all of it passed its
+  author's own checks first.*
+
 
 - ✅ ⭐ **CR-REVIEW-1 — the first independent review of this branch, and the worst finding was a cap
   presented as a total inside the change that removed caps** *(S — Lanes B/C; **CLOSED 2026-10-11**;

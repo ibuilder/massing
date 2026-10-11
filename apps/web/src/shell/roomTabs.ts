@@ -136,18 +136,34 @@ export function renderRoomTabs(
  *
  * `host` is a sibling of the tablist, so this owns it entirely: no refusal renders nothing at all,
  * rather than an empty box holding a line of layout open.
+ *
+ * **THE REASON IS VISIBLE TEXT, not a `title`.** The first draft put the server's reason in `title`
+ * and `aria-label` and labelled the button only *"Live updates stopped"* — so on a touch device,
+ * where there is no hover, a sighted user could not read WHY. This product ships a tablet field
+ * mode; that is exactly who loses. *A reason carried but not shown is the defect this whole branch
+ * is about, committed in the control written to fix it.* It is also why the button's visible text
+ * is now its accessible name: a separate `aria-label` that differs from the visible label is its
+ * own failure (WCAG 2.5.3), so the reason sits in a sibling `<span>` and the button stays "Try
+ * again".
+ *
+ * **`refused === null`, NOT truthiness.** `main.ts` builds this value with `why ?? "…"`, which
+ * preserves an empty string, so `!refused` hid the control for a stream that IS refused — the
+ * worst available outcome, silence about a refusal. Not reachable today (`permanentRejection`
+ * returns non-empty on every branch) and fixed anyway, because it is the empty-versus-absent
+ * confusion this branch has now corrected six times, and the type says `string | null`.
  */
 export function renderLiveRefusal(host: HTMLElement, refused: string | null,
                                   onRetry: () => void): void {
   host.replaceChildren();
-  host.hidden = !refused;
-  if (!refused) return;
+  host.hidden = refused === null;
+  if (refused === null) return;
+  const why = document.createElement("span");
+  why.className = "live-refused-why";
+  why.textContent = `Live updates stopped — ${refused || "refused by the server"}.`;
   const b = document.createElement("button");
   b.type = "button";
   b.className = "live-refused";
-  b.textContent = "Live updates stopped";
-  b.title = `${refused} — activate to try again.`;
-  b.setAttribute("aria-label", `Live updates stopped: ${refused}. Try again`);
+  b.textContent = "Try again";
   b.onclick = () => onRetry();
-  host.appendChild(b);
+  host.append(why, b);
 }

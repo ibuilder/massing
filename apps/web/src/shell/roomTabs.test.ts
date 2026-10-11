@@ -223,16 +223,36 @@ describe("renderLiveRefusal — the refusal is a real button, outside the tablis
     expect(host.children).toHaveLength(0);
   });
 
-  it("THE POINT: a refusal is a native <button> carrying the server's reason", () => {
+  it("THE POINT: the reason is VISIBLE TEXT, not a title a touch user cannot reach", () => {
+    // The first draft labelled the button "Live updates stopped" and put the reason in `title` and
+    // `aria-label`, so on a touch device — and this product ships a tablet field mode — a sighted
+    // user could not read why. A reason carried but not shown is the defect this branch is about.
     const host = box();
     renderLiveRefusal(host, "No longer permitted on this project", () => {});
     expect(host.hidden).toBe(false);
+    expect(host.textContent).toContain("No longer permitted on this project");
+    expect(host.querySelector(".live-refused-why")?.textContent)
+      .toContain("Live updates stopped");
     const b = host.querySelector("button")!;
     expect(b.tagName).toBe("BUTTON");
     expect(b.type).toBe("button");
-    expect(b.textContent).toContain("Live updates stopped");
-    expect(b.title).toContain("No longer permitted on this project");
-    expect(b.getAttribute("aria-label")).toContain("Try again");
+    // The button's VISIBLE text is its accessible name: an `aria-label` that differs from the
+    // visible label is its own failure (WCAG 2.5.3), so there is none to drift.
+    expect(b.textContent).toBe("Try again");
+    expect(b.getAttribute("aria-label")).toBeNull();
+    expect(b.title).toBe("");
+  });
+
+  it("an EMPTY reason still renders the control — only null means no refusal", () => {
+    // `main.ts` builds this with `why ?? "…"`, which preserves an empty string, so a truthiness
+    // check hid the control for a stream that IS refused: silence about a refusal, the worst
+    // available outcome. Not reachable through `permanentRejection` today and fixed anyway —
+    // it is the empty-versus-absent confusion this branch has corrected six times.
+    const host = box();
+    renderLiveRefusal(host, "", () => {});
+    expect(host.hidden).toBe(false);
+    expect(host.querySelector("button")).not.toBeNull();
+    expect(host.textContent).toContain("refused by the server");
   });
 
   it("activating it retries, with no stopPropagation workaround needed", () => {
@@ -245,6 +265,7 @@ describe("renderLiveRefusal — the refusal is a real button, outside the tablis
     const b = host.querySelector("button")!;
     expect(b.getAttribute("tabindex")).toBeNull();
     expect(b.getAttribute("role")).toBeNull();
+    expect(host.textContent).toContain("Gone");
     b.click();
     expect(retries).toBe(1);
   });
