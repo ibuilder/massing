@@ -296,3 +296,66 @@ describe("the STATUS LINE withholds too", () => {
     expect(status.at(-1)).toBe("T-12 tie-out passed");
   });
 });
+
+describe("a new normalisation invalidates whatever the previous one produced", () => {
+  // The caller's generation token advanced only when a new SCRUB started, so a scrub still in
+  // flight from one T-12 landed under a NEWLY normalised one, captioned "run against the normalised
+  // T-12 above" — a figure attributed to a statement it was never computed from, which is the one
+  // thing this pair of cards exists to prevent. The card has to say when it starts, because the
+  // caller cannot otherwise know. Found by review.
+  it("THE HOOK: onNormaliseStart fires before the request, not after it resolves", async () => {
+    const order: string[] = [];
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const api = {
+      normalizeT12: async () => { order.push("request"); return PASSED(); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+    } as unknown as ApiClient;
+    renderT12Card(root, {
+      api, projectId: () => "p1", setStatus: () => {},
+      onNormaliseStart: () => order.push("invalidate"),
+    });
+    root.querySelector("textarea")!.value = "Gross potential rent, 3600000";
+    root.querySelector<HTMLButtonElement>("button")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    // Before, not after: an in-flight scrub has to be discarded while it is still in flight.
+    expect(order).toEqual(["invalidate", "request"]);
+  });
+
+  it("is optional — a caller that does not pass it still normalises", async () => {
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const api = {
+      normalizeT12: async () => PASSED(),
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+    } as unknown as ApiClient;
+    renderT12Card(root, { api, projectId: () => "p1", setStatus: () => {} });
+    root.querySelector("textarea")!.value = "Gross potential rent, 3600000";
+    root.querySelector<HTMLButtonElement>("button")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.textContent).toContain("Tie-out");
+  });
+
+  it("does NOT fire when the paste cannot be parsed — nothing was normalised", async () => {
+    // Invalidating here would clear a scrub that is still correctly attributed to the statement on
+    // screen, because that statement has not changed.
+    let fired = 0;
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const api = {
+      normalizeT12: async () => PASSED(),
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+    } as unknown as ApiClient;
+    renderT12Card(root, {
+      api, projectId: () => "p1", setStatus: () => {},
+      onNormaliseStart: () => { fired++; },
+    });
+    root.querySelector("textarea")!.value = "nothing parsable here";
+    root.querySelector<HTMLButtonElement>("button")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fired).toBe(0);
+    expect(root.textContent).toContain("No parsable lines");
+  });
+});

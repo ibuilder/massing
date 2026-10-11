@@ -543,7 +543,17 @@ export class ProformaUI {
     try {
       const rr = await this.api.rentRoll(pid);
       host.innerHTML = "";
-      if (rr.lease_count === 0) { host.innerHTML = `<div class="meta">No active leases yet — add them under Construction ▸ Operations ▸ Leases.</div>`; return; }
+      // AN EMPTY ROLL NO LONGER TAKES THE T-12 CARD WITH IT. This was an early `return`, so a
+      // project with no leases could not reach the seller's-T-12 card at all — and that card needs
+      // no lease: it normalises a PASTED statement. In an acquisition the T-12 arrives before any
+      // lease exists in this system, so the card was unreachable in precisely the case it is for.
+      // *An early return written for one card silenced every card below it.*
+      const empty = rr.lease_count === 0;
+      if (empty) {
+        host.insertAdjacentHTML("beforeend",
+          `<div class="meta">No active leases yet — add them under `
+          + `Construction ▸ Operations ▸ Leases. The seller's T-12 below does not need them.</div>`);
+      }
       const rc = document.createElement("div"); rc.className = "fin-card";
       rc.innerHTML = `<div class="section-title">Rent roll (operating)</div>`
         + `<table class="fin-table">`
@@ -561,34 +571,46 @@ export class ProformaUI {
         try { const v = await this.api.appraisalFromRentRoll(pid); this.setStatus(`Income approach (in-place): ${money(v.income.value)}`); }
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
-      rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
+      rb.append(rl, rx, rrv); rc.appendChild(rb);
+      if (!empty) host.appendChild(rc);
       // The card above is FACE rent. These qualify it: what the roll is worth after concessions,
       // which diligence checks could actually run against it, and the seller's own T-12 tied out.
       // All three engines shipped with R20 and had no caller — see rentRollQuality.ts / t12Card.ts.
       const quality = document.createElement("div"); host.appendChild(quality);
+
+      // ONE PAINT PATH, GENERATION-GUARDED, for every reason the quality cards are redrawn.
+      //
+      // `renderRentRollQuality` appends its cards only after three requests settle, so the first
+      // version cleared the host synchronously and fired it again on a second click: both runs
+      // appended into the same cleared node, giving two NER cards and two scrub cards from
+      // different runs under one heading. Staging into a detached node and committing only the
+      // newest generation fixes that and removes the empty-panel flash while the requests fly.
+      //
+      // **And a generation that advances only on a new SCRUB is not enough**, which review caught:
+      // a scrub still in flight from one T-12 would land under a NEWLY normalised one, captioned
+      // *"run against the normalised T-12 above"* — a figure attributed to a statement it was never
+      // computed from, which is the one thing this pair of cards exists to prevent. Every
+      // normalisation advances it too, and repaints the baseline without income, because a scrub
+      // run against the previous statement is not a scrub of the one now on screen.
       let qualityGen = 0;
-      await renderRentRollQuality(quality, pid, { api: this.api, setStatus: this.setStatus });
+      const paintQuality = (income?: Record<string, number>) => {
+        const gen = ++qualityGen;
+        const staged = document.createElement("div");
+        return renderRentRollQuality(staged, pid, { api: this.api, setStatus: this.setStatus },
+                                     income)
+          .then(() => { if (gen === qualityGen) quality.replaceChildren(...staged.childNodes); });
+      };
+
+      if (!empty) await paintQuality();
       renderT12Card(host, {
         api: this.api, projectId: this.projectId, setStatus: this.setStatus,
         // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
         // thing that moves, and it has to be visibly the same cards rather than a second opinion
         // appearing further down the page.
-        // A GENERATION TOKEN, and staged rather than cleared. `renderRentRollQuality` appends its
-        // cards only after three requests settle, so clearing the host and firing it twice before
-        // the first lands appended BOTH sets: two NER cards and two scrub cards, from different
-        // runs, under one heading. Staging into a detached node and committing only the newest
-        // generation also removes the flash of an empty panel while the three requests are in
-        // flight. *An async render that appends into a host it cleared synchronously is a race
-        // with however fast the reader can click.*
-        scrubWithIncome: (income) => {
-          const gen = ++qualityGen;
-          const staged = document.createElement("div");
-          void renderRentRollQuality(staged, pid, { api: this.api, setStatus: this.setStatus },
-                                     income)
-            .then(() => { if (gen === qualityGen) quality.replaceChildren(...staged.childNodes); });
-        },
+        scrubWithIncome: (income) => { void paintQuality(income); },
+        onNormaliseStart: () => { if (!empty) void paintQuality(); },
       });
-      await this.renderLeaseManagement(host, pid);
+      if (!empty) await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
 

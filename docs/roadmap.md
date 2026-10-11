@@ -6545,6 +6545,21 @@ refute one, so this goes first even though it is the least visible.
   in that file called the pure renderer, so the whole status-setting path was untested. *A defect in
   the caller is invisible to a suite that only tests the callee.*
 
+  **A THIRD ROUND found two more, both in `proforma.ts`, and the second was on a line the diff never
+  touched.**
+
+  | finding | verdict |
+  |---|---|
+  | the generation token advanced only on a new SCRUB | **REAL.** A scrub still in flight from one T-12 lands under a NEWLY normalised one, captioned *"run against the normalised T-12 above"* — *a figure attributed to a statement it was never computed from*, which is the one thing this pair of cards exists to prevent. The card now reports `onNormaliseStart` and every normalisation advances the token and repaints the baseline |
+  | `if (rr.lease_count === 0) { …; return; }` | **REAL, and worse than it reads.** That early return sat above `renderT12Card`, which needs **no lease at all** — it normalises a pasted statement. In an acquisition the seller's T-12 arrives *before* any lease exists in this system, so the card was unreachable in precisely the case it is for. *An early return written for one card silenced every card below it* |
+
+  **And the first of those two had already defeated its own fix once.** Guarding the race with a
+  generation token read as complete, because the token *is* the right mechanism — it just advanced
+  on one of the two events that invalidate the result. Then the mutation run found the same shape a
+  layer up: *the caller acting on the hook was untested*, so wiring `onNormaliseStart` to nothing
+  passed. `t12Card.test.ts` proves the card FIRES it; `proforma.render.test.ts` now proves the
+  caller acts. *A hook tested only at its source is a hook nobody has shown is connected.*
+
 - 🟡 **AUTHORITY-SUPERSEDE — the supersedes chain cannot be built from any screen**
   *(XS — Lane B; **OPEN — needs the user's call on implicit vs explicit**; raised 2026-10-11 by
   review of AUTHORITY-REPLACE)*

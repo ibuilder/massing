@@ -263,6 +263,11 @@ export interface T12Ctx {
   setStatus: (m: string) => void;
   /** Re-run the rent-roll scrub with an income statement derived from this T-12. */
   scrubWithIncome?: (income: Record<string, number>) => void;
+  /** A NEW normalisation has started, so anything on screen attributed to the previous statement
+   *  is now mislabelled. Without this the caller can only invalidate on a new SCRUB, and a scrub
+   *  still in flight from the old T-12 lands under the new one still captioned *"run against the
+   *  normalised T-12 above"* — a figure attributed to a statement it was never computed from. */
+  onNormaliseStart?: () => void;
 }
 
 /** The income fields `rent_scrub.py` reads, taken from a normalised T-12's categories.
@@ -340,6 +345,7 @@ export function renderT12Card(root: HTMLElement, ctx: T12Ctx): HTMLElement {
     go.disabled = true; toScrub.style.display = "none";
     out.innerHTML = meta("mapping and reconciling…");
     ctx.setStatus("normalising the T-12…");
+    ctx.onNormaliseStart?.();
     try {
       // The authority read rides alongside and may fail without taking the card with it — its
       // failure is `unknown`, which does not withhold.

@@ -552,3 +552,97 @@ describe("renderAppraisal — the screen no longer says less than the PDF", () =
     expect(txt).not.toContain("excluded by the appraiser");
   });
 });
+
+describe("renderOperations — an empty rent roll must not take the T-12 card with it", () => {
+  // The early `return` on `rr.lease_count === 0` silenced every card below it, including the
+  // seller's-T-12 card — which needs no lease at all: it normalises a PASTED statement. In an
+  // acquisition the T-12 arrives before any lease exists in this system, so the card was
+  // unreachable in precisely the case it is for. *An early return written for one card silenced
+  // every card below it.* Found by review, on a line the diff never touched.
+  const EMPTY_ROLL = {
+    lease_count: 0, occupancy_pct: 0, base_rent_annual: 0, in_place_gross_income: 0, walt_years: 0,
+  };
+  const FULL_ROLL = { ...EMPTY_ROLL, lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000 };
+
+  const ops = async (rentRoll: unknown) => {
+    const api = {
+      rentRoll: async () => rentRoll,
+      reportUrl: () => "#",
+      netEffectiveRent: async () => { throw new Error("no roll"); },
+      rentRollScrub: async () => { throw new Error("no roll"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    await (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+    await flush();
+    return host;
+  };
+
+  it("THE DEFECT: the T-12 card mounts even with no active leases", async () => {
+    const host = await ops(EMPTY_ROLL);
+    expect(host.textContent).toContain("No active leases yet");
+    expect(host.textContent).toContain("Seller's T-12");
+    // ...and says so, rather than leaving the reader to wonder why it is there
+    expect(host.textContent).toContain("does not need them");
+  });
+
+  it("...and the rent-roll card itself is still withheld, because it has nothing to say", async () => {
+    const host = await ops(EMPTY_ROLL);
+    expect(host.textContent).not.toContain("Rent roll (operating)");
+  });
+
+  it("a populated roll still renders both", async () => {
+    const host = await ops(FULL_ROLL);
+    expect(host.textContent).toContain("Rent roll (operating)");
+    expect(host.textContent).toContain("Seller's T-12");
+    expect(host.textContent).not.toContain("No active leases yet");
+  });
+});
+
+describe("renderOperations — a normalisation invalidates the quality cards", () => {
+  // The caller's generation token advanced only on a new SCRUB, so a scrub in flight from one T-12
+  // could land under a newly normalised one, captioned "run against the normalised T-12 above".
+  // `t12Card.test.ts` proves the card FIRES `onNormaliseStart`; this proves the caller acts on it,
+  // which is a different claim — and the mutation that wires the hook to nothing passed until this
+  // existed. *A hook tested only at its source is a hook nobody has shown is connected.*
+  it("THE POINT: normalising repaints the quality cards from scratch", async () => {
+    let nerCalls = 0;
+    const api = {
+      rentRoll: async () => ({
+        lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000,
+        in_place_gross_income: 1_100_000, walt_years: 5,
+      }),
+      reportUrl: () => "#",
+      netEffectiveRent: async () => { nerCalls++; throw new Error("not the subject"); },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+      normalizeT12: async () => ({
+        stopped: false, tie_out: { reconciles: true, deltas: {}, tolerance: 1 },
+        source_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        mapped_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        line_count: 2, unmapped_count: 0, unmapped: [], categories: {},
+      }),
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    await (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+    await flush();
+    expect(nerCalls, "the initial paint").toBe(1);
+
+    const ta = host.querySelector("textarea")!;
+    ta.value = "Gross potential rent, 3600000\nRepairs, 240000";
+    const go = [...host.querySelectorAll("button")]
+      .find((b) => /Normalise/i.test(b.textContent ?? ""))!;
+    go.click();
+    await flush();
+    await flush();
+    expect(nerCalls, "and a repaint once a NEW statement is normalised").toBe(2);
+  });
+});
