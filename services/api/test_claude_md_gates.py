@@ -353,6 +353,26 @@ if _stated and _pinned:
            " — update the prose in the SAME EDIT as the slice that moved it, not the same commit"),
     )
 
+# EVERY TRACKED MARKDOWN FILE, not the four standing docs. **The mutation run forced this.**
+# Reinstating the seven shipped `docs/internal/README.md` rows did NOT red the build, because `DOCS`
+# is four files and that is not one of them — so the sweep that FOUND those rows walked all of
+# `docs/`, while the gate meant to hold them walked a quarter of it. *My "clean" and the gate's
+# "clean" were claims about different populations, and they read identically.*
+#
+# `DOCS` is right for the CITATION check above: those are the documents whose backticked paths are
+# offered as evidence. It is wrong for the three table checks below, which are about RENDERING and
+# have no reason to care which document they are in. Measured before widening: 127 tracked markdown
+# files, 1,590 body rows (up from 1,343), and zero findings of any of the three kinds — so the
+# widening costs no exemptions and quadruples what is held.
+MD_FILES = [p for p in tracked if p.endswith(".md")]
+check(
+    "the markdown sweep reaches more than the four standing docs",
+    len(MD_FILES) > 100 and "docs/internal/README.md" in MD_FILES,
+    f"{len(MD_FILES)} tracked .md files"
+    + ("" if "docs/internal/README.md" in MD_FILES else " — docs/internal/README.md MISSING"),
+)
+
+
 # ---------------------------------------------------------------------------------------------
 # A PIPE INSIDE BACKTICKS IS STILL A CELL DELIMITER.
 #
@@ -496,7 +516,7 @@ check(
 )
 
 _pipe_hits = []
-for _rel in DOCS:
+for _rel in MD_FILES:
     _abs = os.path.join(ROOT, _rel)
     if not os.path.exists(_abs):
         continue
@@ -527,11 +547,22 @@ check(
 
 def prose_absorbed_by_table(text):
     """First pipe-less line of each table body — a paragraph GFM is rendering as a row."""
+    # `table_row_lines` rescans the whole document, so calling it per row is O(rows x lines).
+    # Measured when review raised it: **9.8 s** for this one check over the 127 tracked markdown
+    # files — on every CI run and every local invocation. It was graded a trivial nitpick and the
+    # number is not trivial, because the cost only became real an hour earlier when the sweep went
+    # from 4 files to 127. *A performance note's severity depends on a population that moves.*
     lines, out = text.splitlines(), []
-    for i in sorted(table_row_lines(text)):
+    rows = table_row_lines(text)
+    for i in sorted(rows):
         j = i + 1
-        if j in table_row_lines(text) or j >= len(lines):
+        if j >= len(lines):
             continue
+        # No `j in rows` skip. It was here, and mutation showed **deleting it changes nothing**: for
+        # an interior row the next line IS a row, so it contains a pipe and the test below already
+        # rejects it. Provably equivalent, therefore impossible to mutation-test — and the house rule
+        # is that a surviving mutation gets fixtured or deleted as unmeasured. The performance
+        # argument for it died when `rows` stopped being recomputed per row.
         nxt = lines[j]
         if nxt.strip() and "|" not in nxt and not nxt.lstrip().startswith("```"):
             out.append((j + 1, nxt.strip()[:70]))
@@ -552,7 +583,7 @@ check(
 )
 
 _absorbed = []
-for _rel in DOCS:
+for _rel in MD_FILES:
     _abs = os.path.join(ROOT, _rel)
     if not os.path.exists(_abs):
         continue
@@ -566,6 +597,108 @@ check(
     "clean" if not _absorbed else
     "GitHub renders each of these as a table ROW, splitting the sentence at every pipe — "
     "put a blank line between the table and the paragraph: " + " · ".join(_absorbed),
+)
+
+# ---------------------------------------------------------------------------------------------
+# A ROW WITH THE WRONG NUMBER OF CELLS LOSES OR SHIFTS ITS CONTENT.
+#
+# **This check exists because the one above it is a SUBSET of the real problem, and I defended that
+# one at length before measuring this.** `pipes_in_table_cells` only looks inside backtick spans — a
+# BARE unescaped pipe in cell text splits a cell just as completely and is invisible to it. Asking
+# the stronger question found **eight rows the backtick check calls clean**:
+#
+#   * `docs/internal/README.md` rows 72–78 — a two-column table with THREE cells. GFM ignores the
+#     excess, so an author's status qualifier ("not superseded — active") had never rendered once,
+#     in seven rows.
+#   * `docs/roadmap.md` row 4891 — a five-column header with FOUR cells. GFM pads the missing one at
+#     the END, so every value shifted one column left: the Outcome text rendered under Size and
+#     Outcome came out blank.
+#
+# *The two failure directions are not symmetric.* Too many cells DELETES content silently; too few
+# SHIFTS it, which is worse, because a shifted row still looks like data and the reader has no way
+# to know the columns have slipped. Both render without any warning from GitHub.
+#
+# Parity subsumes the backtick rule — a backticked pipe that splits a cell also changes the count —
+# and needs **no exemptions**: 1,343 body rows, zero mismatches after the eight fixes. The backtick
+# check is kept because it names the cause precisely ("escape this pipe") where this one only names
+# the symptom ("this row has one cell too many").
+
+
+def _cell_count(line):
+    """Cells in a GFM table row. Outer pipes are delimiters, not cells; `\|` is not a delimiter."""
+    s = line.strip()
+    parts = _RAW_PIPE.split(s)
+    if s.startswith("|"):
+        parts = parts[1:]
+    if s.endswith("|") and len(parts) > 1:
+        parts = parts[:-1]
+    return len(parts)
+
+
+def cell_count_mismatches(text):
+    """(line, header cells, row cells) for each body row that disagrees with its header."""
+    lines, out, fenced = text.splitlines(), [], False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if _DELIM_ROW.match(line) and i > 0 and "|" in lines[i - 1]:
+            header = _cell_count(lines[i - 1])
+            # GFM: the delimiter row MUST match the header or no table is recognised at all.
+            if _cell_count(line) != header:
+                out.append((i + 1, header, _cell_count(line)))
+            j = i + 1
+            while (j < len(lines) and lines[j].strip() and "|" in lines[j]
+                   and not lines[j].lstrip().startswith("```")):
+                if _cell_count(lines[j]) != header:
+                    out.append((j + 1, header, _cell_count(lines[j])))
+                j += 1
+    return out
+
+
+_TOO_MANY = cell_count_mismatches("| a | b |\n|---|---|\n| x | y | z |\n")
+check(
+    "the cell-count scan finds a row with too MANY cells",
+    _TOO_MANY == [(3, 2, 3)],
+    f"canary={_TOO_MANY}",
+)
+_TOO_FEW = cell_count_mismatches("| a | b | c |\n|---|---|---|\n| x | y |\n")
+check(
+    "...and one with too FEW, which shifts rather than drops",
+    _TOO_FEW == [(3, 3, 2)],
+    f"canary={_TOO_FEW}",
+)
+_ESCAPED_CELL = cell_count_mismatches("| a | b |\n|---|---|\n| x | `p \\| q` |\n")
+check(
+    "...and an ESCAPED pipe is not counted as a cell break",
+    _ESCAPED_CELL == [],
+    f"canary={_ESCAPED_CELL}",
+)
+_BARE = cell_count_mismatches("| a | b |\n|---|---|\n| x | p | q |\n")
+check(
+    "...and a BARE pipe is caught where the backtick scan cannot see it",
+    _BARE == [(3, 2, 3)] and pipes_in_table_cells("| a | b |\n|---|---|\n| x | p | q |\n") == [],
+    "the bare-pipe row is caught here and invisible to the backtick scan — "
+    "which is why this check exists",
+)
+
+_cellbad = []
+for _rel in MD_FILES:
+    _abs = os.path.join(ROOT, _rel)
+    if not os.path.exists(_abs):
+        continue
+    with open(_abs, encoding="utf-8") as _fh:
+        for _n, _h, _c in cell_count_mismatches(_fh.read()):
+            _cellbad.append(f"{_rel}:{_n} header={_h} row={_c}")
+
+check(
+    "every table row has exactly as many cells as its header",
+    not _cellbad,
+    "clean" if not _cellbad else
+    "GitHub DROPS excess cells and PADS missing ones at the end, so each of these loses or shifts "
+    "content with no warning: " + " · ".join(_cellbad),
 )
 
 if FAILED:

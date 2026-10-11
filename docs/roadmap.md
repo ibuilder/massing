@@ -4888,7 +4888,7 @@ worth checking: two of the three were mis-sized, and both in the same direction.
 |---|---|---|---|---|
 | 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. ✅ **comment round-tripping shipped v0.3.1042** — a resubmittal now carries the review that asked for it, labelled with the revision it was written against. **Submittal *packages*: the inbound half was ALREADY SHIPPED and this row did not say so — see the note under the entry.** |
 | 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference — but **not the alarm an earlier version of this cell made it sound like, either.** Re-measured 2026-08-27: the file was 2,865 lines against a pin of 2,865, and it is **2,570 after slices ⑭⑮⑯**, with the pin lowered each time — **and then raised back to 2,865 the same afternoon by an unrelated lane's commit to the same shared file, which no gate could see. Re-measured again 2026-08-29 and restored; see the entry.** That is the fourth consecutive time this row's number was wrong, and the first time the *pin* was the thing that had moved rather than the prose. Zero headroom is the ratchet's DESIGNED state, not a regression: it pins each file at (or one line above) its current size — `client.ts` sits at 2,836/2,837 the same way — and `test_file_sizes.py` says so itself, that the threshold is set just above the worst offender and tightening it is part of the work. So the next line added here reds the build, permanently, and **the remedy is always extraction, never waiting for room**. That is the mechanism, working. This cell said *"97%, ~136 lines of headroom"* until today, which was the third consecutive time this row's number was stale: the ratchet has come down twice since (2,944 → 2,885 → 2,865) and the prose never followed. The note in the outcome column already says a justification was *"copied forward without re-measuring"* — and then the correction itself was copied forward without re-measuring. **Re-derive it before quoting it:** `wc -l apps/web/src/viewer/app.ts` against its entry in `services/api/test_file_sizes.py`. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
-| 3 | ~~**R37-TRIAGE tail**~~ — **CLOSED 2026-08-29, before this sprint was taken.** `services/api/test_dead_code_population.py` reports 0 unreferenced and an empty `DELIBERATELY_UNCALLED`; the 12 candidates this row proposes reading are gone. *A proposed sprint is a status line too, and this one had gone stale in the same way the item it names had.* | — | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. *(That sentence is restored here: the first draft of the strikethrough above deleted it, and a status correction that takes a recorded finding with it costs more than the stale status did.)* |
+| 3 | ~~**R37-TRIAGE tail**~~ — **CLOSED 2026-08-29, before this sprint was taken.** `services/api/test_dead_code_population.py` reports 0 unreferenced and an empty `DELIBERATELY_UNCALLED`; the 12 candidates this row proposes reading are gone. *A proposed sprint is a status line too, and this one had gone stale in the same way the item it names had.* | — | — | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. *(That sentence is restored here: the first draft of the strikethrough above deleted it, and a status correction that takes a recorded finding with it costs more than the stale status did.)* |
 
 **What the outcomes say about the sizing.** Both misjudgements came from trusting a written number
 instead of re-deriving it — a stale ceiling in row 2, a stale population in row 3. The sprint that
@@ -6586,6 +6586,51 @@ refute one, so this goes first even though it is the least visible.
   carry no backticked pipe, so the defect was fixed and unguarded — *the worst of the two states,
   because the fix reads as the end of the matter.* `prose_absorbed_by_table` now gates the class
   that mutation exposed. Nine mutations, all red.
+
+- ✅ ⭐ **TABLE-CELLS — the pipe gate I had just shipped and defended at length was a SUBSET, and
+  eight rows were losing or shifting content through the half it cannot see**
+  *(XS — Lane F; **CLOSED 2026-10-11**; held by `services/api/test_claude_md_gates.py`)*
+
+  Found by investigating a doubt I had raised about my own work in the round-6 review request rather
+  than waiting for an answer: *is `prose_absorbed_by_table` sound against a paragraph whose first
+  line contains a pipe?* It is not — two of four shapes escape it, and **the escaping shapes are the
+  ones that render worst**, because a prose line containing a pipe is precisely the line that gets
+  split into cells. Probing that led to the bigger finding.
+
+  **`pipes_in_table_cells` only looks inside backtick spans. A BARE unescaped pipe in cell text
+  splits a cell just as completely and is invisible to it.** Asking the stronger question — does
+  every row have as many cells as its header? — found **eight rows the backtick check calls clean**:
+
+  | where | what GitHub does with it |
+  |---|---|
+  | `docs/internal/README.md` rows 72–78 | a two-column table with **three** cells. GFM ignores the excess, so an author's status qualifier — *"not superseded — active"* — had never rendered once, in seven rows |
+  | `docs/roadmap.md` row 4891 | a five-column header with **four** cells. GFM pads the missing one at the END, so every value shifted one column left: the Outcome text rendered under Size, and Outcome came out blank |
+
+  *The two directions are not symmetric.* Too many cells **deletes** content silently; too few
+  **shifts** it, which is worse, because a shifted row still looks like data and nothing tells the
+  reader the columns have slipped. Parity subsumes the backtick rule and needs **no exemptions**:
+  1,590 body rows, zero mismatches after the fixes. The backtick check stays because it names the
+  cause (*escape this pipe*) where parity names only the symptom.
+
+  **And the mutation run caught the same failure as round 6, one commit later.** Reinstating the
+  seven shipped README rows did not red the build: `DOCS` is four files and that is not one of them,
+  so the sweep that FOUND those rows walked all of `docs/` while the gate meant to hold them walked
+  a quarter of it. *My "clean" and the gate's "clean" were claims about different populations, and
+  they read identically* — which is this file's own note about a population smaller than it looks,
+  paid for again. The three table checks now walk every tracked markdown file (127, up from 4);
+  `DOCS` stays for the CITATION check, where it is the right population. Five mutations, all red,
+  including the narrowed sweep.
+
+  **Round 7 then returned one nitpick, and the number under it was not a nitpick.**
+  `prose_absorbed_by_table` called `table_row_lines` once per row, each call rescanning the whole
+  document — graded *trivial*, measured at **9.8 s** for that one check across the 127 files, on
+  every CI run and every local invocation. It is 0.07 s now. *The grading was defensible and the
+  severity still wrong, because the cost only became real an hour earlier when the sweep went from 4
+  files to 127 — a performance note's severity depends on a population that moves.* Fixing it also
+  retired a line: the `j in rows` skip survived mutation, and it survived because it is **provably
+  equivalent** — for an interior row the next line is a row, so it carries a pipe and the test below
+  already rejects it. A line that cannot change behaviour cannot be mutation-tested, so it is gone
+  rather than fixtured, and the performance argument for it died with the rescan.
 
 - ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
   said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*
