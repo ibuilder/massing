@@ -1163,11 +1163,15 @@ body.embed #workspaces { display: none; }
   background: var(--muted, #8b949e); color: #fff; border-radius: 999px; margin-left: 4px;
   font-size: 11px; font-weight: 700; min-width: 18px; padding: 1px 5px; text-align: center;
 }
-/* a stream the server refused is a CONTROL, not a decoration: it is the only way back */
-.room-tab-live.is-refused {
-  background: var(--status-crit, #e5534b); cursor: pointer;
+/* A refused live stream is a CONTROL, not a decoration: it is the only way back. A real <button>
+   OUTSIDE the tablist — nesting a focusable element in a role="tab" button is invalid in both HTML
+   and ARIA, and needed an event-swallowing workaround to behave at all. */
+.live-refused {
+  background: var(--status-crit, #e5534b); color: #fff; border: none; border-radius: 4px;
+  font-size: 11px; font-weight: 600; padding: 3px 8px; margin-left: 8px; cursor: pointer;
 }
-.room-tab-live.is-refused:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: 1px; }
+.live-refused:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: 1px; }
+#live-refused[hidden] { display: none; }
 #next-action { display: inline-flex; align-items: center; gap: 9px; margin-left: 14px; }
 #next-action[hidden] { display: none; }
 .nba-cap {

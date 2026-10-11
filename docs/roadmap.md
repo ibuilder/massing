@@ -6488,10 +6488,30 @@ refute one, so this goes first even though it is the least visible.
 
   It owns state and repaints through `paintRoomTabs` now, rather than reaching for an element the
   strip rebuilds on every render — which is the second half of why the old shape could not have
-  worked even with the right selector. The count and the refusal land on the room
-  `preselectedRoom("construction")` resolves to (`schedule`), **derived rather than named**. The
-  live chip is deliberately SEPARATE from `room-tab-count`: "items in your court" and "unread
-  notifications" are different numbers, and one badge carrying both would make neither readable.
+  worked even with the right selector. The unread count lands on the room
+  `preselectedRoom("construction")` resolves to (`schedule`), **derived rather than named**, and is
+  deliberately SEPARATE from `room-tab-count`: "items in your court" and "unread notifications" are
+  different numbers, and one badge carrying both would make neither readable.
+
+  **AND THE RETRY CONTROL WAS INVALID HTML, found by review** *(2026-10-11)*. It shipped as a
+  focusable `<span>` with `role="button"` and `tabindex="0"` **inside the tab `<button>`** —
+  whose content model permits no interactive content, so assistive technology need not expose or
+  activate it however many ARIA attributes it carries. It also needed `stopPropagation` to stop a
+  retry from switching room; *that workaround was a symptom of the nesting and was read at the time
+  as a feature of it.*
+
+  **The test could not see any of it: it dispatched `click` and `keydown` straight at the span.**
+  That proves the handler runs when the event arrives, never that a person can make it arrive.
+  *A test that supplies the thing under test cannot notice it being unreachable* — the same failure
+  `services/api/test_mcp_attribution.py` records, and the reason FIELD-POISON's own escape hatch
+  shipped sending nothing. The replacement asserts STRUCTURALLY that no tab button contains
+  anything focusable, because dispatching is exactly what hid the defect.
+
+  Moving it out fixed the placement too, and the first draft of this work had already noted the
+  placement and then got it wrong anyway: **the stream is APP-level** — one subscription, not one
+  per room — so the control is a real `<button>` in a sibling of the tablist (`renderLiveRefusal`),
+  where it needs no `role`, no `tabindex` and no event-swallowing. Putting a plain `<button>` among
+  `role="tab"` children would have been the same mistake in ARIA instead of HTML.
 
 
 - ✅ ⭐ **CR-REVIEW-1 — the first independent review of this branch, and the worst finding was a cap

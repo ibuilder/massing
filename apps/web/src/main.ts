@@ -4,7 +4,9 @@ import { ApiClient, type MassingParams } from "./api/client";
 import { sealIdentity } from "./api/assetRights";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
-import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
+import {
+  buildRoomTabs, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
+} from "./shell/roomTabs";
 import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
@@ -904,6 +906,7 @@ window.addEventListener("aec:workspace", (e) => {
   if (WORKSPACES.some((w) => w.key === key)) setWorkspace(key, "jump");
 });
 const wsEl = $("workspaces");
+const liveRefusedEl = $("live-refused");
 
 /**
  * Switch to a room: go to the workspace that hosts it, then TELL the portal which room is active.
@@ -950,8 +953,8 @@ function paintPinnedRail() {
 let roomTabsActive = "model";
 function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
-  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount, notifLive), roomTabsActive, goToRoom,
-                 () => notifStream?.retry());
+  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount, notifLive), roomTabsActive, goToRoom);
+  renderLiveRefusal(liveRefusedEl, notifLive?.refused ?? null, () => notifStream?.retry());
 }
 
 /** Ball-in-your-court count for the Work badge — the one number the tab bar carries. */

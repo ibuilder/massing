@@ -26,11 +26,13 @@ export interface RoomTab {
   job: string;
   /** Ball-in-your-court count. Only ever set for `work`; `null` renders no badge at all. */
   count: number | null;
-  /** Live-notification state for the room the notification stream belongs to (`construction`'s
+  /** Unread live notifications for the room the notification stream belongs to (`construction`'s
    *  room, which `preselectedRoom` resolves to `schedule`). A SEPARATE chip from `count` on
    *  purpose: "items in your court" and "unread notifications" are different numbers, and
-   *  overloading one badge with both would make neither readable. `null` renders nothing. */
-  live?: { count: number; refused: string | null } | null;
+   *  overloading one badge with both would make neither readable. `null` renders nothing.
+   *
+   *  A plain COUNT, never a control — see `renderLiveRefusal` for why the refusal left this type. */
+  live?: { count: number } | null;
 }
 
 /**
@@ -41,7 +43,7 @@ export interface RoomTab {
  * offline-first. `FALLBACK_ROOMS` is the same five ids, so the shell is identical either way.
  */
 export function buildRoomTabs(rooms?: readonly RoomDef[] | null, workCount?: number | null,
-                              live?: { room: string; count: number; refused: string | null } | null,
+                              live?: { room: string; count: number } | null,
                              ): RoomTab[] {
   const byId = new Map<string, RoomDef>();
   for (const r of rooms?.length ? rooms : FALLBACK_ROOMS) byId.set(r.id, r);
@@ -55,7 +57,7 @@ export function buildRoomTabs(rooms?: readonly RoomDef[] | null, workCount?: num
       label: def.label,
       job: def.job,
       count: id === "work" ? (workCount ?? null) : null,
-      live: live && live.room === id ? { count: live.count, refused: live.refused } : null,
+      live: live && live.room === id ? { count: live.count } : null,
     };
   });
 }
@@ -75,7 +77,6 @@ export function renderRoomTabs(
   tabs: readonly RoomTab[],
   active: string,
   onPick: (id: string) => void,
-  onLiveRetry?: (id: string) => void,
 ): void {
   host.innerHTML = "";
   host.setAttribute("role", "tablist");
@@ -99,30 +100,54 @@ export function renderRoomTabs(
       badge.setAttribute("aria-label", `${t.count} items in your court`);
       b.appendChild(badge);
     }
-    // LIVE NOTIFICATIONS. A second chip, and the refused form is a real control rather than a
-    // decoration: a stream the server will never serve this caller does not come back on its own,
-    // so the only way out used to be reloading the page. `role="button"` + `tabindex` + Enter/Space
-    // because an `onclick` on a `<span>` inside a `<button>` is pointer-only — Enter would switch
-    // room instead — and `stopPropagation` keeps a retry from also changing room.
-    if (t.live && (t.live.refused || t.live.count > 0)) {
+    // LIVE NOTIFICATIONS — a count, and nothing interactive. A `<span>` inside a `<button>` is
+    // fine; a FOCUSABLE one is not, which is why the refusal control moved out (see below).
+    if (t.live && t.live.count > 0) {
       const chip = document.createElement("span");
-      const refused = t.live.refused;
-      chip.className = refused ? "room-tab-live is-refused" : "room-tab-live";
-      chip.textContent = refused ? "!" : String(t.live.count);
-      if (refused) {
-        chip.title = `Live updates stopped — ${refused}. Activate to try again.`;
-        chip.setAttribute("role", "button");
-        chip.setAttribute("tabindex", "0");
-        chip.setAttribute("aria-label", `Live updates stopped: ${refused}. Try again`);
-        const go = (e: Event) => { e.stopPropagation(); e.preventDefault(); onLiveRetry?.(t.id); };
-        chip.onclick = go;
-        chip.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") go(e); };
-      } else {
-        chip.setAttribute("aria-label", `${t.live.count} unread notification(s)`);
-      }
+      chip.className = "room-tab-live";
+      chip.textContent = String(t.live.count);
+      chip.setAttribute("aria-label", `${t.live.count} unread notification(s)`);
       b.appendChild(chip);
     }
     b.onclick = () => onPick(t.id);
     host.appendChild(b);
   }
+}
+
+/**
+ * The live-stream refusal control — a real `<button>`, OUTSIDE the tablist.
+ *
+ * **It started as a focusable `<span>` inside the tab `<button>`, which is invalid HTML**:
+ * `<button>`'s content model permits no interactive content, so a nested control is not reliably
+ * exposed or activatable by assistive technology however many ARIA attributes it carries. It also
+ * needed `stopPropagation` to stop a retry from switching room — *a workaround for the nesting,
+ * read at the time as a feature of the nesting.* And putting a plain `<button>` among `role="tab"`
+ * children would have been the same mistake in ARIA instead of HTML.
+ *
+ * **The test could not see any of it.** It dispatched `click` and `keydown` straight at the span,
+ * so it proved the handler runs when the event arrives — never that a person can make it arrive.
+ * *A test that supplies the thing under test cannot notice it being unreachable*, which is the same
+ * failure `test_mcp_attribution.py` records and the reason FIELD-POISON's escape hatch shipped
+ * sending nothing.
+ *
+ * Moving it out also fixes the placement. The stream is APP-level: one subscription, not one per
+ * room. A per-tab control said otherwise, and the first draft of this work noted that and put it on
+ * a tab anyway.
+ *
+ * `host` is a sibling of the tablist, so this owns it entirely: no refusal renders nothing at all,
+ * rather than an empty box holding a line of layout open.
+ */
+export function renderLiveRefusal(host: HTMLElement, refused: string | null,
+                                  onRetry: () => void): void {
+  host.replaceChildren();
+  host.hidden = !refused;
+  if (!refused) return;
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "live-refused";
+  b.textContent = "Live updates stopped";
+  b.title = `${refused} — activate to try again.`;
+  b.setAttribute("aria-label", `Live updates stopped: ${refused}. Try again`);
+  b.onclick = () => onRetry();
+  host.appendChild(b);
 }

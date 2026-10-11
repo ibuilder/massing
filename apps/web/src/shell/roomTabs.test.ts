@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ROOM_IDS } from "./spine";
-import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./roomTabs";
+import {
+  buildRoomTabs, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
+} from "./roomTabs";
 
 /**
  * The rooms as primary navigation.
@@ -163,8 +165,7 @@ describe("FIELD-STREAM-POISON — the live-notification chip", () => {
     // workspace→room map already answers where that went.
     const room = roomForWorkspace("construction");
     const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, null, { room, count: 3, refused: null }), "model",
-                   () => {});
+    renderRoomTabs(host, buildRoomTabs(null, null, { room, count: 3 }), "model", () => {});
     const on = host.querySelector<HTMLElement>(`.room-tab[data-room="${room}"] .room-tab-live`);
     expect(on?.textContent).toBe("3");
     expect(host.querySelectorAll(".room-tab-live")).toHaveLength(1);
@@ -174,8 +175,7 @@ describe("FIELD-STREAM-POISON — the live-notification chip", () => {
     // "Items in your court" and "unread notifications" are different numbers. Overloading one
     // badge with both would make neither readable.
     const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2, refused: null }),
-                   "model", () => {});
+    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2 }), "model", () => {});
     const work = host.querySelector<HTMLElement>('.room-tab[data-room="work"]')!;
     expect(work.querySelector(".room-tab-count")?.textContent).toBe("6");
     expect(work.querySelector(".room-tab-live")?.textContent).toBe("2");
@@ -183,57 +183,22 @@ describe("FIELD-STREAM-POISON — the live-notification chip", () => {
 
   it("renders nothing at zero unread — no permanent zero in the bar", () => {
     const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 0, refused: null }),
-                   "model", () => {});
+    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 0 }), "model",
+                   () => {});
     expect(chip(host)).toBeNull();
   });
 
-  it("THE POINT: a refused stream renders a CONTROL that carries the reason", () => {
+  it("NOTHING inside a tab button is focusable or interactive", () => {
+    // The chip began as a focusable `<span>` with `role="button"` INSIDE the tab `<button>`, which
+    // is invalid HTML — `<button>` permits no interactive content — so assistive technology need
+    // not expose or activate it however many ARIA attributes it carries. Asserted structurally
+    // rather than by dispatching at it, because dispatching is exactly what hid the defect.
     const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, null,
-                   { room: "schedule", count: 0, refused: "No longer permitted on this project" }),
-                   "model", () => {});
-    const c = chip(host)!;
-    expect(c.textContent).toBe("!");
-    expect(c.className).toContain("is-refused");
-    expect(c.title).toContain("No longer permitted on this project");
-    expect(c.getAttribute("role")).toBe("button");
-    expect(c.getAttribute("tabindex")).toBe("0");
-    expect(c.getAttribute("aria-label")).toContain("Try again");
-  });
-
-  it("activates by KEYBOARD as well as pointer, and does not switch room", () => {
-    // An `onclick` on a `<span>` inside a `<button>` is pointer-only: Enter would switch room
-    // instead of retrying. And a retry that also navigates is a retry nobody meant to press.
-    let retried: string[] = [];
-    let picked: string[] = [];
-    const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, null,
-                   { room: "schedule", count: 0, refused: "Gone" }), "model",
-                   (id) => picked.push(id), (id) => retried.push(id));
-    const c = chip(host)!;
-    c.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(retried).toEqual(["schedule"]);
-    expect(picked).toEqual([]);
-    retried = []; picked = [];
-    for (const key of ["Enter", " "]) {
-      c.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2 }), "model", () => {});
+    for (const b of host.querySelectorAll(".room-tab")) {
+      expect(b.querySelectorAll("button, a, input, select, textarea, [tabindex], [role=button]"))
+        .toHaveLength(0);
     }
-    expect(retried).toEqual(["schedule", "schedule"]);
-    expect(picked).toEqual([]);
-    // an unrelated key does nothing
-    c.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
-    expect(retried).toHaveLength(2);
-  });
-
-  it("a healthy chip is not a control — nothing to activate", () => {
-    const host = strip();
-    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 4, refused: null }),
-                   "model", () => {});
-    const c = chip(host)!;
-    expect(c.getAttribute("role")).toBeNull();
-    expect(c.getAttribute("tabindex")).toBeNull();
-    expect(c.getAttribute("aria-label")).toContain("4 unread");
   });
 
   it("no live state at all leaves every tab exactly as before", () => {
@@ -241,5 +206,54 @@ describe("FIELD-STREAM-POISON — the live-notification chip", () => {
     renderRoomTabs(host, buildRoomTabs(null, 6), "model", () => {});
     expect(host.querySelectorAll(".room-tab-live")).toHaveLength(0);
     expect(host.querySelectorAll(".room-tab")).toHaveLength(ROOM_IDS.length);
+  });
+});
+
+describe("renderLiveRefusal — the refusal is a real button, outside the tablist", () => {
+  const box = () => {
+    const host = document.createElement("div");
+    document.body.replaceChildren(host);
+    return host;
+  };
+
+  it("renders nothing, and hides itself, when there is no refusal", () => {
+    const host = box();
+    renderLiveRefusal(host, null, () => {});
+    expect(host.hidden).toBe(true);
+    expect(host.children).toHaveLength(0);
+  });
+
+  it("THE POINT: a refusal is a native <button> carrying the server's reason", () => {
+    const host = box();
+    renderLiveRefusal(host, "No longer permitted on this project", () => {});
+    expect(host.hidden).toBe(false);
+    const b = host.querySelector("button")!;
+    expect(b.tagName).toBe("BUTTON");
+    expect(b.type).toBe("button");
+    expect(b.textContent).toContain("Live updates stopped");
+    expect(b.title).toContain("No longer permitted on this project");
+    expect(b.getAttribute("aria-label")).toContain("Try again");
+  });
+
+  it("activating it retries, with no stopPropagation workaround needed", () => {
+    // A real button needs no `role`, no `tabindex` and no event-swallowing: the browser gives it a
+    // tab stop and Enter/Space for free. The nested span needed all three, and the workaround was
+    // read at the time as a feature rather than as evidence the nesting was wrong.
+    let retries = 0;
+    const host = box();
+    renderLiveRefusal(host, "Gone", () => { retries++; });
+    const b = host.querySelector("button")!;
+    expect(b.getAttribute("tabindex")).toBeNull();
+    expect(b.getAttribute("role")).toBeNull();
+    b.click();
+    expect(retries).toBe(1);
+  });
+
+  it("clears the control when the refusal lifts", () => {
+    const host = box();
+    renderLiveRefusal(host, "Gone", () => {});
+    renderLiveRefusal(host, null, () => {});
+    expect(host.children).toHaveLength(0);
+    expect(host.hidden).toBe(true);
   });
 });
