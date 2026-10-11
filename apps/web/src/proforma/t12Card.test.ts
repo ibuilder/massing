@@ -180,3 +180,41 @@ describe("the handoff into the rent-roll scrub", () => {
     expect(incomeFromT12(PASSED({ by_category: undefined }))).toEqual({});
   });
 });
+
+describe("AUTHORITY-DOWNSTREAM — a blocked operating statement withholds the PASS only", () => {
+  const BLOCKED = { kind: "blocked" as const, blocks: [
+    { fact_type: "operating_statement",
+      why: "authoritative document is 140 day(s) past its 60-day freshness limit" }] };
+
+  it("THE POINT: a passing tie-out is not stated as a pass", () => {
+    const t = renderT12Result(mount(), PASSED(), true, BLOCKED).textContent ?? "";
+    expect(t).toContain("140 day(s)");
+    expect(t).toContain("Tie-out result withheld");
+    expect(t).not.toContain("Tie-out passed against the stated totals");
+  });
+
+  it("...and says so with a clear gate instead", () => {
+    const t = renderT12Result(mount(), PASSED(), true, { kind: "clear" }).textContent ?? "";
+    expect(t).toContain("Tie-out passed against the stated totals");
+    expect(t).not.toContain("withheld");
+  });
+
+  it("a STOPPED tie-out still renders in full — a refusal is not an opinion of value", () => {
+    // The gate stops work being published off a stale document. Suppressing the engine's own
+    // refusal because the document is stale would hide the finding and leave nothing in its place.
+    const t = renderT12Result(mount(), STOPPED(), true, BLOCKED).textContent ?? "";
+    expect(t).toContain("Tie-out STOPPED");
+    expect(t).toContain("never calculated");
+  });
+
+  it("the tied-to-itself warning also survives the block", () => {
+    const t = renderT12Result(mount(), PASSED(), false, BLOCKED).textContent ?? "";
+    expect(t).toContain("Tie-out tied to itself");
+  });
+
+  it("an undeclared table prints the pass with a note that it is ungoverned", () => {
+    const t = renderT12Result(mount(), PASSED(), true, { kind: "undeclared" }).textContent ?? "";
+    expect(t).toContain("Tie-out passed against the stated totals");
+    expect(t).toContain("not governed by a source of record");
+  });
+});

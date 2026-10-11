@@ -39,6 +39,7 @@
  */
 import type { ApiClient } from "../api/client";
 import { escapeHtml as esc } from "../ui/feedback";
+import { type GateState, gateFor, gateNote, withholds } from "./authorityGate";
 import { money } from "./format";
 
 type T12 = Awaited<ReturnType<ApiClient["normalizeT12"]>>;
@@ -94,9 +95,18 @@ export function hasStatedTotals(t: { income?: number | null; expense?: number | 
 }
 
 /** Render one normalisation result. `stated` says whether the caller supplied source totals. */
-export function renderT12Result(host: HTMLElement, r: T12, stated: boolean): HTMLElement {
+export function renderT12Result(host: HTMLElement, r: T12, stated: boolean,
+                                gate?: GateState): HTMLElement {
   const el = document.createElement("div");
   el.style.marginTop = "8px";
+
+  // AUTHORITY-DOWNSTREAM. A blocked `operating_statement` withholds the PASSING verdict and
+  // nothing else. The two negative verdicts — STOPPED, and tied-to-itself — still render: they are
+  // findings against the paste, not opinions drawn from it, and suppressing a refusal because a
+  // document is stale would make the gate hide the very thing it exists to surface.
+  const note = gate && gateNote(gate);
+  if (note) el.insertAdjacentHTML("beforeend", meta(esc(note.text), note.tone || undefined));
+  const held = gate ? withholds(gate) : false;
 
   // ---- THE VERDICT, and the three cases are genuinely different claims -------------------------
   if (r.stopped) {
@@ -130,6 +140,13 @@ export function renderT12Result(host: HTMLElement, r: T12, stated: boolean): HTM
              + `by construction and a lost line cannot show up here. `
              + `<strong>${r.unmapped_count}</strong> line(s) did not map — that is the only signal `
              + `left. Enter the statement's own totals to make this a real gate.`));
+  } else if (held) {
+    el.insertAdjacentHTML("beforeend",
+      `<div style="font-weight:600;color:var(--status-crit)">Tie-out result withheld</div>`
+      + meta(`The arithmetic reconciled against the stated totals. Whether that makes the adjusted `
+             + `NOI underwritable is a question about the <em>document</em>, and the authority gate `
+             + `above answers it no — so the result is not stated as a pass. The mapped lines and `
+             + `every figure behind them are below.`));
   } else {
     el.insertAdjacentHTML("beforeend",
       `<div style="font-weight:600;color:var(--status-good)">Tie-out passed against the stated totals</div>`
@@ -311,7 +328,15 @@ export function renderT12Card(root: HTMLElement, ctx: T12Ctx): HTMLElement {
     out.innerHTML = meta("mapping and reconciling…");
     ctx.setStatus("normalising the T-12…");
     try {
-      const r = await ctx.api.normalizeT12(pid, body, isFinite(units) ? units : undefined);
+      // The authority read rides alongside and may fail without taking the card with it — its
+      // failure is `unknown`, which does not withhold.
+      const [norm, auth] = await Promise.allSettled([
+        ctx.api.normalizeT12(pid, body, isFinite(units) ? units : undefined),
+        ctx.api.dealAuthority(pid),
+      ]);
+      if (norm.status === "rejected") throw norm.reason as Error;
+      const r = norm.value;
+      const gate = gateFor(auth.status === "fulfilled" ? auth.value : null, "t12");
       out.innerHTML = "";
       if (skipped.length) {
         // Lines this client dropped never reach the engine, so they are absent from BOTH totals and
@@ -322,7 +347,7 @@ export function renderT12Card(root: HTMLElement, ctx: T12Ctx): HTMLElement {
           + (skipped.length > 5 ? ` … and ${skipped.length - 5} more` : ""),
           "var(--status-warn)"));
       }
-      renderT12Result(out, r, stated);
+      renderT12Result(out, r, stated, gate);
       if (!r.stopped && ctx.scrubWithIncome) {
         const inc = incomeFromT12(r);
         if (Object.keys(inc).length) {

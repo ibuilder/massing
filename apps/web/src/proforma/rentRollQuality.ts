@@ -28,6 +28,7 @@
  */
 import type { ApiClient } from "../api/client";
 import { escapeHtml as esc } from "../ui/feedback";
+import { type GateState, gateFor, gateNote, withholds } from "./authorityGate";
 import { money, pct } from "./format";
 
 type Ner = Awaited<ReturnType<ApiClient["netEffectiveRent"]>>;
@@ -44,9 +45,23 @@ const card = (title: string) => {
 const meta = (html: string, colour?: string) =>
   `<div class="meta" style="margin-top:4px${colour ? `;color:${colour}` : ""}">${html}</div>`;
 
-/** Net effective rent: what the rent roll is worth after concessions, and over which leases. */
-export function renderNetEffective(host: HTMLElement, n: Ner): HTMLElement {
+/** The line the authority gate contributes, when it has something to say. Shared by both cards
+ *  here so a blocked rent roll reads identically on each — two different sentences about one fact
+ *  is how a reader decides the gate is noise. */
+function gateLine(el: HTMLElement, gate?: GateState): void {
+  const note = gate && gateNote(gate);
+  if (note) el.insertAdjacentHTML("beforeend", meta(esc(note.text), note.tone || undefined));
+}
+
+/** Net effective rent: what the rent roll is worth after concessions, and over which leases.
+ *
+ *  `gate` is the deal-room authority verdict for `rent_roll` (AUTHORITY-DOWNSTREAM). When it
+ *  blocks, the face GPR and the concession load still render — they are the working — and the two
+ *  NER figures and the delta are WITHHELD, because those are the opinion of value the authority
+ *  table says not to form from this document. */
+export function renderNetEffective(host: HTMLElement, n: Ner, gate?: GateState): HTMLElement {
   const el = card("Net effective rent (after concessions)");
+  gateLine(el, gate);
 
   if (n.lease_count === 0) {
     // Nothing computable. Saying "0" for every total would render an absence as a measurement.
@@ -59,16 +74,18 @@ export function renderNetEffective(host: HTMLElement, n: Ner): HTMLElement {
     return el;
   }
 
+  const held = gate ? withholds(gate) : false;
+  const w = (v: string) => (held ? `<span class="meta">withheld</span>` : v);
   el.insertAdjacentHTML("beforeend",
     `<table class="fin-table">`
     + `<tr><td>Face GPR / yr</td><td class="num">${esc(money(n.face_gpr_annual))}</td></tr>`
     + `<tr><td>NER / yr (discounted @ ${esc(pct(n.discount_rate))})</td>`
-    + `<td class="num">${esc(money(n.ner_gpr_annual_discounted))}</td></tr>`
+    + `<td class="num">${w(esc(money(n.ner_gpr_annual_discounted)))}</td></tr>`
     + `<tr><td>NER / yr (straight-line)</td>`
-    + `<td class="num">${esc(money(n.ner_gpr_annual_straight_line))}</td></tr>`
+    + `<td class="num">${w(esc(money(n.ner_gpr_annual_straight_line)))}</td></tr>`
     + `<tr><td>Concession load</td><td class="num">${n.concession_load_pct}%</td></tr>`
     + `<tr class="fin-total"><td>Face → NER</td>`
-    + `<td class="num">−${esc(money(n.face_to_ner_delta_annual))} (${n.face_to_ner_delta_pct}%)</td></tr>`
+    + `<td class="num">${w(`−${esc(money(n.face_to_ner_delta_annual))} (${n.face_to_ner_delta_pct}%)`)}</td></tr>`
     + `</table>`);
 
   // The discounted form is the commercial underwriting figure; the straight-line one is the
@@ -131,9 +148,16 @@ export function renderNetEffective(host: HTMLElement, n: Ner): HTMLElement {
   return el;
 }
 
-/** Rent-roll scrub: which diligence checks ran, which could not, and what they would need. */
-export function renderRentScrub(host: HTMLElement, s: Scrub): HTMLElement {
+/** Rent-roll scrub: which diligence checks ran, which could not, and what they would need.
+ *
+ *  When the authority gate blocks `rent_roll`, the counts and the findings still render — a finding
+ *  against a stale rent roll is still a finding, and hiding it would be the opposite of the gate's
+ *  purpose — but the "no findings among the checks that ran" reassurance is withheld, because that
+ *  sentence is the only conclusion on this card. */
+export function renderRentScrub(host: HTMLElement, s: Scrub, gate?: GateState): HTMLElement {
   const el = card("Rent-roll scrub (diligence checks)");
+  gateLine(el, gate);
+  const held = gate ? withholds(gate) : false;
   const { total, ran, not_applicable: notRun, passed, failed } = s.counts;
 
   // COVERAGE IS THE HEADLINE, not `clean`. `clean` is `bool(ran) && !failed`, so one check running
@@ -148,7 +172,7 @@ export function renderRentScrub(host: HTMLElement, s: Scrub): HTMLElement {
     + `</div>`
     + meta(esc(s.coverage_note)));
 
-  if (s.clean && notRun > 0) {
+  if (s.clean && notRun > 0 && !held) {
     // The one sentence this card exists for.
     el.insertAdjacentHTML("beforeend", meta(
       `No findings <em>among the ${ran} check(s) that ran</em> — which is not the same as a clean `
@@ -198,18 +222,28 @@ export interface RentRollQualityCtx {
  *  missing, which is why nothing here has to guess. */
 export async function renderRentRollQuality(host: HTMLElement, pid: string, ctx: RentRollQualityCtx,
                                             income?: Record<string, number>): Promise<void> {
-  const [ner, scrub] = await Promise.allSettled([
+  // The authority read rides along with the two engine calls rather than gating them: a gate that
+  // is down must not take the card with it, which is why its failure lands as `unknown` and not as
+  // a refusal. `allSettled`, so one rejection cannot cancel the others.
+  const [ner, scrub, auth] = await Promise.allSettled([
     ctx.api.netEffectiveRent(pid),
     ctx.api.rentRollScrub(pid, income),
+    ctx.api.dealAuthority(pid),
   ]);
-  if (ner.status === "fulfilled") renderNetEffective(host, ner.value);
+  const read = auth.status === "fulfilled" ? auth.value : null;
+  // Resolved PER CONSUMER, not once. Both depend on `rent_roll` today, so one call would give the
+  // same answer — and the moment the map diverges, the scrub would be reporting the NER's verdict.
+  // *Two consumers sharing a derivation share its blind spot.*
+  const nerGate = gateFor(read, "net_effective_rent");
+  const scrubGate = gateFor(read, "rent_roll_scrub");
+  if (ner.status === "fulfilled") renderNetEffective(host, ner.value, nerGate);
   else {
     const el = card("Net effective rent (after concessions)");
     el.insertAdjacentHTML("beforeend", meta(esc((ner.reason as Error).message), "var(--status-crit)"));
     host.appendChild(el);
   }
   if (scrub.status === "fulfilled") {
-    const el = renderRentScrub(host, scrub.value);
+    const el = renderRentScrub(host, scrub.value, scrubGate);
     if (income) {
       // Say WHICH income statement this ran against. A coverage figure that moved is otherwise
       // indistinguishable from a rent roll that changed, and the reader has no way to tell which.

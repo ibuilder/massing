@@ -1954,16 +1954,63 @@ instances:
   raw key in the blocking table passed. *An assertion satisfied by a different code path than the one
   it is about is not an assertion about that path.*
 
-- 🟡 **AUTHORITY-DOWNSTREAM — the CRE cards do not consult the gate that exists to block them**
-  *(S — `apps/web/src/proforma/`; **OPEN — needs the user's call on how hard to block**)*
+- ✅ ⭐ **AUTHORITY-DOWNSTREAM — the CRE cards do not consult the gate that exists to block them**
+  *(S — Lane B; **CLOSED 2026-10-11**, on the user's call; gated by
+  `apps/web/src/proforma/authorityGate.test.ts` plus withholding tests in
+  `apps/web/src/proforma/rentRollQuality.test.ts`, `apps/web/src/proforma/t12Card.test.ts` and
+  `apps/web/src/proforma/covenantCard.test.ts`)*
 
   `deal_authority.py`: *"Required fact types that are missing, stale, or superseded-but-still-active
   BLOCK downstream analysis — the point is to stop the work, not to annotate it after the fact."* The
-  residual-land, net-effective-rent, rent-roll-scrub, T-12 and covenant cards all compute regardless.
-  If the authority table says the rent roll is 87 days past its freshness limit, the NER card values
-  it and says nothing. Wiring the gate through is coherent and small; **how hard to block — refuse,
-  warn, or annotate — is a product decision**, and the wrong choice in either direction is expensive:
-  refusing makes the tab unusable during diligence, annotating makes the gate decorative.
+  net-effective-rent, rent-roll-scrub, T-12 and covenant cards all computed regardless. If the
+  authority table said the rent roll was 87 days past its freshness limit, the NER card valued it and
+  said nothing.
+
+  **The decision this was parked on: refuse, warn, or annotate.** Answered *withhold the verdict,
+  show the working* — the card computes, renders every input and intermediate figure, and replaces
+  only the conclusion with which fact is blocking and why. That dissolves the dilemma rather than
+  splitting it: refusing to compute makes the tab unusable in exactly the phase when facts are
+  legitimately stale, and annotating while still printing the conclusion makes the gate decorative.
+  It is also the pattern four cards on this branch already use for an unrelated reason
+  (`supplyCard.isVacuous`, the scrub's coverage headline, `decisionGateCard.coverageOf`,
+  `scanVerifyView.refused`): *show the working, withhold the verdict, say what is missing.*
+
+  | card | withheld when its fact is blocked | still rendered |
+  |---|---|---|
+  | net effective rent | the two NER figures and the face→NER delta | face GPR, concession load |
+  | rent-roll scrub | *"no findings among the N that ran"* | the coverage counts **and every finding** |
+  | T-12 | *"tie-out passed against the stated totals"* | the mapped lines; **STOPPED and tied-to-itself still render** |
+  | covenants | *"nothing overdue, due soon, breached or in cure"*, and the tested-passed reading | the calendar, per-covenant rows, **and every breach** |
+
+  **A FINDING IS NEVER WITHHELD, and that asymmetry is the design.** The gate exists to stop work
+  being published off a bad document, not to stop that document's problems being seen — so the
+  engines' own refusals (T-12 STOPPED, a scrub finding, a covenant breach) render whatever the gate
+  says. *Suppressing a refusal because its source is stale would invert the gate into a filter.*
+
+  **AN UNDECLARED TABLE IS NOT A BLOCKED ONE, and this is where the implementation nearly went
+  wrong.** `assess([])` reports every required fact type as `missing`, so a project nobody has
+  declared anything for yields a full set of blocking entries — and withholding on that would make a
+  fresh project look like a governed one that failed. *The same empty-versus-zero confusion this
+  whole group of cards exists to refuse, one level up, applied to the gate itself.* A table with no
+  entries has no opinion: the verdict shows, with one line saying it is ungoverned. Reading that
+  state at all is only possible because AUTHORITY-REPLACE made the GET return `entries`. There are
+  four states, not two — `clear`, `undeclared`, `unknown` (the gate could not be read; it does not
+  withhold, because an API outage is not a diligence finding) and `blocked`.
+
+  **`residual_land` is deliberately NOT wired, and the sentence above naming it was wrong.**
+  `POST /proforma/residual-land` takes `Assumptions` and nothing else — no project id, no rent roll,
+  no operating statement — so it consumes no governed fact. Wiring it would have invented a
+  dependency, which is worse than the omission: *a block nobody can act on teaches the reader to
+  dismiss the ones they can.* Asserted, so nobody adds it back from the old prose.
+
+  The dependency map is pinned to `FACT_TYPES`, which is itself pinned against the Python — without
+  that, renaming a fact type on the engine would silently stop blocking the card that depends on it
+  *and the card would still look wired.* The two rent-roll cards resolve the gate **per consumer**
+  rather than sharing one call: both depend on `rent_roll` today, so one call gives the same answer,
+  and the moment the map diverges the scrub would be reporting the NER's verdict. Each of the five
+  withholding sites was mutation-checked by disabling it; **the covenant card survived the first
+  pass** — its `held` flag only reached a status colour, so the card printed the authority note and
+  withheld nothing. *A note that explains a withholding that is not happening is worse than silence.*
 
 - ✅ ⭐ **VERDICT-COVERAGE — the class found five times by hand, now derived** *(S — Lane J;
   **CLOSED 2026-09-25**; gated by `services/api/test_verdict_coverage.py`)*
@@ -4854,7 +4901,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · AUTHORITY-DOWNSTREAM · PORTAL-TXN-DARK (all seven need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK (all six need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**

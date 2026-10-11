@@ -185,3 +185,68 @@ describe("rent-roll scrub card", () => {
     expect(t).toContain("4 excluded as not active");
   });
 });
+
+describe("AUTHORITY-DOWNSTREAM — the gate reaches these two cards", () => {
+  const BLOCKED = { kind: "blocked" as const, blocks: [
+    { fact_type: "rent_roll",
+      why: "authoritative document is 87 day(s) past its 45-day freshness limit" }] };
+
+  it("THE POINT: a blocked rent roll withholds the NER figures and keeps the working", () => {
+    const t = renderNetEffective(mount(), NER(), BLOCKED).textContent ?? "";
+    expect(t).toContain("87 day(s)");
+    expect(t).toContain("withheld");
+    // the working stays: face GPR and concession load are inputs, not opinions of value
+    expect(t).toContain("3,600,000");
+    expect(t).toContain("9.4");
+    // ...and the three conclusion figures are gone
+    expect(t).not.toContain("3,150,000");
+    expect(t).not.toContain("3,240,000");
+    expect(t).not.toContain("450,000");
+  });
+
+  it("and prints every figure when the gate is clear, saying nothing about itself", () => {
+    const t = renderNetEffective(mount(), NER(), { kind: "clear" }).textContent ?? "";
+    expect(t).toContain("3,150,000");
+    expect(t).not.toContain("withheld");
+    expect(t).not.toContain("authority");
+  });
+
+  it("an UNDECLARED table does not withhold — it says the figures are ungoverned", () => {
+    const t = renderNetEffective(mount(), NER(), { kind: "undeclared" }).textContent ?? "";
+    expect(t).toContain("3,150,000");
+    expect(t).toContain("not governed by a source of record");
+    expect(t).not.toContain("withheld");
+  });
+
+  it("the scrub keeps its counts and findings but withholds the reassurance", () => {
+    const blockedScrub = SCRUB({
+      clean: true,
+      counts: { total: 7, ran: 1, not_applicable: 6, passed: 1, failed: 0 },
+    });
+    const held = renderRentScrub(mount(), blockedScrub, BLOCKED).textContent ?? "";
+    expect(held).toContain("1 of 7 checks could run");
+    expect(held).toContain("87 day(s)");
+    expect(held).not.toContain("which is not the same as a clean");
+    // the same scrub with a clear gate DOES print it, so the suppression is the gate's doing
+    const clear = renderRentScrub(mount(), blockedScrub, { kind: "clear" }).textContent ?? "";
+    expect(clear).toContain("which is not the same as a clean");
+  });
+
+  it("a FINDING against a stale rent roll still renders — the gate must not hide one", () => {
+    // Suppressing a finding because its source is stale would invert the gate: it exists to stop
+    // work being published off a bad document, not to stop the document's problems being seen.
+    const t = renderRentScrub(mount(), SCRUB({
+      clean: false,
+      counts: { total: 7, ran: 7, not_applicable: 0, passed: 6, failed: 1 },
+      findings: [{ check: "suite_collision", severity: "high",
+                   finding: "Two leases share suite 400" }],
+    }) as never, BLOCKED).textContent ?? "";
+    expect(t).toContain("Two leases share suite 400");
+    expect(t).toContain("1 finding(s)");
+  });
+
+  it("no gate argument at all leaves both cards exactly as they were", () => {
+    expect(renderNetEffective(mount(), NER()).textContent).toContain("3,150,000");
+    expect(renderRentScrub(mount(), SCRUB()).textContent).not.toContain("withheld");
+  });
+});

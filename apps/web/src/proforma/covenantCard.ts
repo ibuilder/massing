@@ -45,6 +45,7 @@
  */
 import type { ApiClient } from "../api/client";
 import { escapeHtml as esc } from "../ui/feedback";
+import { type GateState, gateFor, gateNote, withholds } from "./authorityGate";
 
 type Register = Awaited<ReturnType<ApiClient["loanCovenants"]>>;
 
@@ -155,9 +156,15 @@ export function day(iso?: string | null): string {
 }
 
 /** Render one evaluated register. */
-export function renderRegister(host: HTMLElement, r: Register): HTMLElement {
+export function renderRegister(host: HTMLElement, r: Register, gate?: GateState): HTMLElement {
   const el = document.createElement("div");
   el.style.marginTop = "8px";
+  // AUTHORITY-DOWNSTREAM. A blocked `operating_statement` or `loan` withholds the REASSURING
+  // reading only. Breaches, overdue filings and the nothing-was-evaluated warning all still
+  // render — a gate that suppressed findings because their source is stale would be inverted.
+  const note = gate && gateNote(gate);
+  if (note) el.insertAdjacentHTML("beforeend", meta(esc(note.text), note.tone || undefined));
+  const held = gate ? withholds(gate) : false;
   const rep = r.reporting, fin = r.financial;
   const untested = fin.counts.untested ?? 0;
   const uncomputable = rep.not_computable.length;
@@ -166,7 +173,7 @@ export function renderRegister(host: HTMLElement, r: Register): HTMLElement {
   const evaluatedNothing = (rep.counts.computable ?? 0) === 0 && (fin.counts.tested ?? 0) === 0;
   const trouble = (r.summary.overdue_filings ?? 0) + (r.summary.covenant_breaches ?? 0)
                 + (r.summary.in_cure_period ?? 0);
-  const colour = trouble > 0 ? "var(--status-crit)"
+  const colour = trouble > 0 || held ? "var(--status-crit)"
     : (untested || uncomputable) ? "var(--status-warn)" : "var(--status-good)";
   el.insertAdjacentHTML("beforeend",
     `<div style="font-weight:600;color:${colour}">`
@@ -181,19 +188,29 @@ export function renderRegister(host: HTMLElement, r: Register): HTMLElement {
       + `<code>at_risk: false</code> because every count it reads is zero — that is an absence of `
       + `inputs, not an absence of risk. Supply the dates and the actuals below before treating this `
       + `as a calendar.`, "var(--status-crit)"));
+  } else if (r.at_risk) {
+    // A FINDING, so it renders whatever the gate says. The gate exists to stop work being
+    // published off a bad document, not to stop that document's problems being seen.
+    el.insertAdjacentHTML("beforeend", meta(
+      `<strong>At risk</strong> — ${r.summary.overdue_filings ?? 0} overdue · `
+      + `${r.summary.filings_due_soon ?? 0} due soon · ${r.summary.covenant_breaches ?? 0} breach · `
+      + `${r.summary.in_cure_period ?? 0} in cure`, "var(--status-crit)"));
+  } else if (held) {
+    // THE WITHHELD CASE, and it is the reassuring reading that goes. "Nothing overdue, breached or
+    // in cure" is the one sentence on this card somebody forwards to a lender.
+    el.insertAdjacentHTML("beforeend", meta(
+      `<strong>Verdict withheld.</strong> Nothing was found overdue, due soon, breached or in cure `
+      + `among what could be evaluated — but that is not a statement this register can make while `
+      + `the authority gate blocks its source. The calendar and the per-covenant results are below.`,
+      "var(--status-crit)"));
   } else {
     el.insertAdjacentHTML("beforeend", meta(
-      r.at_risk
-        ? `<strong>At risk</strong> — ${r.summary.overdue_filings ?? 0} overdue · `
-          + `${r.summary.filings_due_soon ?? 0} due soon · ${r.summary.covenant_breaches ?? 0} breach · `
-          + `${r.summary.in_cure_period ?? 0} in cure`
-        : `Nothing overdue, due soon, breached or in cure among what could be evaluated.`,
-      r.at_risk ? "var(--status-crit)" : undefined));
+      `Nothing overdue, due soon, breached or in cure among what could be evaluated.`));
   }
 
   // `clean` is `bool(tested) and all(passing)` — true with one tested and two untested. The engine's
   // own note is the wording; rendering the flag without it is what this card exists to refuse.
-  if (fin.clean && untested > 0) {
+  if (fin.clean && untested > 0 && !held) {
     el.insertAdjacentHTML("beforeend", meta(
       `Every covenant that was <em>tested</em> passed — and ${untested} could not be tested. `
       + esc(fin.note), "var(--status-warn)"));
@@ -367,7 +384,13 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
     out.innerHTML = meta("evaluating…");
     ctx.setStatus("evaluating the covenant register…");
     try {
-      const r = await ctx.api.loanCovenants(project, loan, actuals);
+      const [cov, auth] = await Promise.allSettled([
+        ctx.api.loanCovenants(project, loan, actuals),
+        ctx.api.dealAuthority(project),
+      ]);
+      if (cov.status === "rejected") throw cov.reason as Error;
+      const r = cov.value;
+      const gate = gateFor(auth.status === "fulfilled" ? auth.value : null, "covenants");
       out.innerHTML = "";
       if (skipped.length) {
         // An unreadable actual is an ABSENT actual, and an absent actual is an untested covenant —
@@ -386,8 +409,9 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
           `Percent readings, against this register's own thresholds: `
           + readings.map((x) => esc(x)).join(" · ") + `.`));
       }
-      renderRegister(out, r);
-      ctx.setStatus(r.at_risk ? "covenant register: at risk" : "covenant register evaluated");
+      renderRegister(out, r, gate);
+      ctx.setStatus(withholds(gate) ? "covenant verdict withheld — authority blocked"
+                    : r.at_risk ? "covenant register: at risk" : "covenant register evaluated");
     } catch (e) {
       out.innerHTML = meta(esc((e as Error).message), "var(--status-crit)");
       ctx.setStatus("covenant evaluation failed");

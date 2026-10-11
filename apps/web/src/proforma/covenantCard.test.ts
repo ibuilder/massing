@@ -273,3 +273,53 @@ describe("three covenant states, not two", () => {
     expect(t).toContain("0.16");
   });
 });
+
+describe("AUTHORITY-DOWNSTREAM — the covenant verdict defers to the authority gate", () => {
+  const BLOCKED = { kind: "blocked" as const, blocks: [
+    { fact_type: "operating_statement", why: "required fact type has no authoritative document" }] };
+
+  it("THE POINT: the reassuring reading is withheld, in the gate's own words", () => {
+    const t = renderRegister(mount(), REG(), BLOCKED).textContent ?? "";
+    expect(t).toContain("no authoritative document");
+    expect(t).toContain("Operating statement");
+    expect(t).toContain("Verdict withheld");
+    // the one sentence somebody forwards to a lender is not stated on its own
+    expect(t).not.toMatch(/^.*Nothing overdue, due soon, breached or in cure among what could be evaluated\.$/m);
+  });
+
+  it("and a tested-passed reassurance with untested covenants is withheld too", () => {
+    const reg = REG({
+      financial: {
+        as_of: "2026-09-09", note: "An untested covenant is not a passing one.",
+        covenants: [{ name: "DSCR", tested: true, passing: true, status: "pass", actual: 1.41,
+                      threshold: 1.25, headroom: 0.16 }],
+        untested: [], clean: true,
+        counts: { total: 3, tested: 1, untested: 2, passing: 1, breach: 0, cure_period_open: 0 },
+      },
+    }) as never;
+    expect(renderRegister(mount(), reg, BLOCKED).textContent)
+      .not.toContain("could not be tested");
+    expect(renderRegister(mount(), reg, { kind: "clear" }).textContent)
+      .toContain("could not be tested");
+  });
+
+  it("and says nothing when the gate is clear", () => {
+    const t = renderRegister(mount(), REG(), { kind: "clear" }).textContent ?? "";
+    expect(t).not.toContain("Withheld");
+    expect(t).not.toContain("authority");
+  });
+
+  it("a BREACH still renders — the gate must not hide a finding", () => {
+    const t = renderRegister(mount(), REG({
+      summary: { overdue_filings: 0, covenant_breaches: 1, in_cure_period: 0 },
+    }) as never, BLOCKED).textContent ?? "";
+    expect(t).toContain("Withheld");
+    expect(t).toContain("obligations computable");
+  });
+
+  it("an undeclared table notes that the figures are ungoverned, and withholds nothing", () => {
+    const t = renderRegister(mount(), REG(), { kind: "undeclared" }).textContent ?? "";
+    expect(t).toContain("not governed by a source of record");
+    expect(t).not.toContain("Withheld");
+  });
+});
