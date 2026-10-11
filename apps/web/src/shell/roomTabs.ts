@@ -66,6 +66,35 @@ export function buildRoomTabs(rooms?: readonly RoomDef[] | null, workCount?: num
 export { preselectedRoom as roomForWorkspace } from "./spine";
 
 /**
+ * Mark `active` as the selected room in an ALREADY-RENDERED strip, and return how many tabs it
+ * marked.
+ *
+ * Split out of `renderRoomTabs` for WS-BTN-SELECT: navigating by any path other than a tab click
+ * left the strip marking the room the user had come FROM, `aria-selected="true"` included. The
+ * marking belonged to a loop in `main.ts` that toggled `.ws-btn`, a class nothing renders, so there
+ * was no marking at all — see `main.ts` `setWorkspace` and WS-BTN-DEAD.
+ *
+ * `renderRoomTabs` now calls this rather than setting the two attributes itself, so there is ONE
+ * statement anywhere of what "selected" looks like in the DOM. Two copies would have been two
+ * answers the moment either grew a third attribute.
+ *
+ * **It returns the count on purpose.** The host is a parameter and the id is a string, so the
+ * natural failure of this function is doing nothing at all — an empty host, or a room id no tab
+ * carries — and a `void` return makes that indistinguishable from success. A caller that cares can
+ * assert `=== 1`; the tests do.
+ */
+export function markActiveRoom(host: HTMLElement, active: string): number {
+  let marked = 0;
+  for (const b of host.querySelectorAll<HTMLElement>("[data-room]")) {
+    const on = b.dataset.room === active;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+    if (on) marked++;
+  }
+  return marked;
+}
+
+/**
  * Render the tab bar into `host`, replacing its contents.
  *
  * Buttons, not links: this switches an in-page view and does not navigate. `role="tab"` +
@@ -86,9 +115,6 @@ export function renderRoomTabs(
     b.className = "room-tab";
     b.dataset.room = t.id;
     b.setAttribute("role", "tab");
-    const on = t.id === active;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-selected", String(on));
     b.title = t.job;                       // the room's job, not a restatement of its name
     b.textContent = t.label;
     // The count is the design's one piece of urgency, so it is a distinct element rather than text
@@ -112,6 +138,7 @@ export function renderRoomTabs(
     b.onclick = () => onPick(t.id);
     host.appendChild(b);
   }
+  markActiveRoom(host, active);        // one statement of what "selected" is, shared with re-marking
 }
 
 /**

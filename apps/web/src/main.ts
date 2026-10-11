@@ -5,12 +5,12 @@ import { sealIdentity } from "./api/assetRights";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import {
-  buildRoomTabs, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
+  buildRoomTabs, markActiveRoom, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
 } from "./shell/roomTabs";
 import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOST, destRoom } from "./shell/spine";
+import { ROOM_HOST, destRoom, roomForOpenWorkspace } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -864,11 +864,18 @@ function setWorkspace(key: string, arrival: "jump" | "nav" = "nav") {
   const moved = key !== currentWs;
   if (moved) previousWs = currentWs;
   currentWs = key;
-  document.querySelectorAll(".ws-btn").forEach((b) => {
-    const on = (b as HTMLElement).dataset.ws === key;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-selected", String(on));
-  });
+  // WS-BTN-SELECT — this used to toggle `.active` and `aria-selected` on `.ws-btn`, the class
+  // WS-BTN-DEAD measures as queried from four places and rendered by none. So the room strip was
+  // marked by the ONE caller that repaints it (`goToRoom`) and by none of the other thirteen
+  // `setWorkspace` call sites: the command palette, the return bar, the project-home signpost, the
+  // `aec:workspace`/`aec:goto-workspace` deep links, a persona's home jump, select-by-GUID,
+  // `withPortal`, the finance shortcut and `initNav` all left the strip marking the room the user
+  // had come from — `aria-selected="true"` and all, which is the attribute `renderRoomTabs` added
+  // "so the active room is stated rather than only coloured".
+  //
+  // *Dead code that merely does nothing is cheap; this one was holding a job.* The loop read as the
+  // place selection is maintained, so nothing looked missing at the thirteen sites.
+  markRoomForWorkspace(key);
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
   showProjectHomeSignpost(key);
   if (key === "drawings") openDrawingsTab();
@@ -955,6 +962,24 @@ function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
   renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount, notifLive), roomTabsActive, goToRoom);
   renderLiveRefusal(liveRefusedEl, notifLive?.refused ?? null, () => notifStream?.retry());
+}
+
+/**
+ * Which room the strip should mark once `key` is the open workspace — and mark it.
+ *
+ * The RULE is `roomForOpenWorkspace`, in `spine.ts` beside the two tables it reads — not here.
+ * `wsReturn.test.ts` had to learn that the hard way: it reproduced `setWorkspace`'s plumbing *and*
+ * its decisions, and its own copy of `DEAD_END_WS` silently disagreed with the shipped one for
+ * months. *A test asserting a reproduction cannot fail when the original is wrong*, so what a test
+ * must be able to import is the decision, and all that is left here is three lines of DOM.
+ *
+ * It repaints nothing. The strip carries a live notification chip and the Work badge, and a caller
+ * that only changed workspace has no business rebuilding either — nor discarding focus, which a
+ * full `paintRoomTabs` does.
+ */
+function markRoomForWorkspace(key: string) {
+  roomTabsActive = roomForOpenWorkspace(roomTabsActive, key);
+  markActiveRoom(wsEl, roomTabsActive);
 }
 
 /** Ball-in-your-court count for the Work badge — the one number the tab bar carries. */

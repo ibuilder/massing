@@ -6834,17 +6834,68 @@ refute one, so this goes first even though it is the least visible.
   authority table is read by a committee. **The explicit form is a "supersede the previous document"
   control that appears when the name changes**, so the user states the supersession rather than
   having it guessed. Which of implicit, explicit or neither to ship is a product decision.
-- 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from four places and rendered by none**
-  *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD)*
+- ✅ **WS-BTN-SELECT — the room strip marked the room you came FROM, on every path but one**
+  *(S — Lane A; SHIPPED 2026-10-11, `apps/web/src/shell/roomMarking.test.ts`)*
 
-  One of the four is now fixed (above). The rest, measured:
+  The third of WS-BTN-DEAD's four sites, and **the one that was not merely dead.** `setWorkspace`
+  maintained the strip's selection by toggling `.active` and `aria-selected` on `.ws-btn`, so the
+  marking was done by `goToRoom` — which repaints the strip afterwards — and by **none of the other
+  thirteen `setWorkspace` call sites**: the command palette's "Go to …", the return bar, the
+  project-home signpost, the `aec:workspace` and `aec:goto-workspace` deep links, a persona's home
+  jump, select-by-GUID, `withPortal`, the finance shortcut, the embed path and `initNav`.
+
+  **`initNav` makes it a FIRST-LOAD defect rather than a corner case.** Module scope marks the room
+  derived from `localStorage("workspace") || "model"` — `design` for a fresh profile — and `initNav`
+  then calls `setWorkspace(cfg.home)`, which for six of the ten personas is `construction` or
+  `developer`. A GC opening the app for the first time saw the Schedule room's content under a strip
+  stating `aria-selected="true"` on Design. The attribute exists, in `renderRoomTabs`' own words,
+  *"so the active room is stated rather than only coloured"* — and **stating it wrongly is worse than
+  not stating it, because a screen reader has no colour to disagree with.**
+
+  *Dead code that merely does nothing is cheap; this one was holding a job.* The loop read as the
+  place selection is maintained, so nothing looked missing at any of the thirteen sites — and the
+  three audits that know `.ws-btn` is dead were all looking at it as **dead code rather than as a
+  missing feature**, which is why it survived them.
+
+  **Deriving the marker from the workspace alone would have been the same defect pointing the other
+  way.** `ROOM_HOST` is not a bijection — construction hosts planning, cost, schedule and work — so
+  `preselectedRoom(workspace)` moves the marker to Schedule every time anything re-enters
+  construction while the portal is still rendering Cost. `spine.roomForOpenWorkspace` keeps the open
+  room when the incoming workspace still hosts it, which is the portal's own rule and not a second
+  one: `portal.room()` is `activeRoom ?? preselectedRoom(wsFilter)`.
+
+  **Mutation deleted a clause of that rule, and the comment beside it was the actual finding.** The
+  first draft also kept the room when `preselectedRoom(workspace) === cur`, written for the four
+  workspaces that share the `design` room, with a comment saying the clause was what kept their
+  marker "instead of re-deriving the same answer by luck". Whenever that disjunct decides, the
+  fall-through returns `derived`, which **is** `cur` — so it could not change one answer, no
+  mutation of it could ever red, and the re-derivation is not luck, it is the mapping. *A clause
+  that cannot change the output is a claim about behaviour no test can hold to account.* The
+  four-workspace case is still asserted; the line pretending to be the reason it passes is gone.
+
+  Seven mutations, all red: the call deleted from `setWorkspace`, the rule always-deriving and
+  always-keeping, `markActiveRoom` lying about its count or never unmarking, `renderRoomTabs` no
+  longer delegating to it, and the dead `.ws-btn` loop reinstated. The last one needed its own
+  repair first — the assertion's first draft red on the *comment in `setWorkspace` explaining the
+  deletion*, which names both `.ws-btn` and `aria-selected`. *A check that cannot tell an
+  explanation from the thing it explains reds hardest on the commit that fixes the defect.*
+  **The limit, stated rather than discovered later:** the three `main.ts` assertions are source-level
+  (the same bargain `test_route_reachability` makes), so a call wrapped in `if (false)` would pass
+  them. The behavioural half is the harness above them, which imports the real rule and the real DOM
+  write rather than reproducing either — `wsReturn.test.ts` reproduced `setWorkspace`'s decisions and
+  its copy of `DEAD_END_WS` disagreed with the shipped one for months.
+- 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from two places and rendered by none**
+  *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD; re-measured the same
+  day on closing WS-BTN-SELECT, which took the third of the four sites)*
+
+  Two of the four are now fixed (above, and WS-BTN-SELECT). The rest, measured:
 
   | site | what it does today |
   |---|---|
-  | `apps/web/src/main.ts` `roomLabel` | a documented `??` fallback after the `[data-room]` lookup — harmless, and the only deliberate one |
-  | `apps/web/src/main.ts` `querySelectorAll(".ws-btn")` ×2 | iterate an empty NodeList. One is `applyPersona`, so **all ten personas declare a `ws` allowlist that has never had any effect** — every room shows to everyone |
+  | `apps/web/src/main.ts` `wsLabel` | a documented `??` fallback after the `[data-room]` lookup — harmless, and the only deliberate one *(the entry said `roomLabel`, which is not what the function is called)* |
+  | `apps/web/src/main.ts` `applyPersona`'s `querySelectorAll(".ws-btn")` | iterates an empty NodeList, so **all ten personas declare a `ws` allowlist that has never had any effect** — every room shows to everyone. The remaining behavioural question, and the reason this stays open |
   | `apps/web/src/style.css` | six rules still style the class |
-  | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders |
+  | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders. **`colorContract.test.ts` checks the allowlist against the stylesheet in BOTH directions and neither against the DOM** — which is exactly how a dead selector comes to sit in both and look doubly attested |
 
   **WHY IT LOOKS ALIVE, measured rather than relayed** *(re-checked by hand 2026-10-11 because the
   first draft of this entry took a review bot's reading plus a grep as the finding)*: `applyPersona`
@@ -6856,7 +6907,7 @@ refute one, so this goes first even though it is the least visible.
   which is a shorter proof than counting the queries.
 
   **Left open on purpose rather than swept into the slice that found it.** Deleting the styles while
-  three live queries remain would make the next reader's job harder, not easier, and the persona
+  a live query remains would make the next reader's job harder, not easier, and the persona
   one is a behavioural question — rooms replaced workspaces, so "which rooms does a subcontractor
   see" has to be answered before `buildRoomTabs` can take a persona — rather than a rename.
   *Fixing the instance in front of you is not closing the class — and saying which one you did is

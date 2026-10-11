@@ -213,6 +213,34 @@ export const ROOM_HOST: Record<string, string> = {
 };
 
 /**
+ * Which room the tab strip should mark once `workspace` is the open one, given the room `open` that
+ * it marks right now. WS-BTN-SELECT.
+ *
+ * **Not `preselectedRoom(workspace)`, and the reason is the comment directly above: `ROOM_HOST` is
+ * not a bijection.** Construction hosts planning, cost, schedule and work, so deriving the marker
+ * from the workspace alone moves it to `schedule` whenever anything re-enters construction while
+ * the portal is still showing Cost — swapping a marker stuck on the room you left for one that
+ * contradicts what is on screen.
+ *
+ * The two branches are the portal's own rule, not a second one: `portal.room()` is
+ * `activeRoom ?? preselectedRoom(wsFilter)`. "Still hosted" is the first half; the fall-through is
+ * the second.
+ *
+ * **It had a third clause, `|| derived === cur`, and mutation testing deleted it**: whenever that
+ * disjunct is the true one the fall-through returns `derived`, which *is* `cur`, so the clause
+ * could not change a single answer. It was written for the four workspaces that share the `design`
+ * room — whose host is only `model` — and the comment beside it claimed it was what kept their
+ * marker "instead of re-deriving the same answer by luck". The re-derivation is not luck, it is the
+ * mapping, and *a clause that cannot change the output is a claim about behaviour that no test can
+ * ever hold to account.* The four-workspace case is still asserted in `roomMarking.test.ts`; what
+ * is gone is the line pretending to be the reason it passes.
+ */
+export function roomForOpenWorkspace(open: string | null | undefined, workspace: string): string {
+  const cur = String(open || "");
+  return ROOM_HOST[cur] === workspace ? cur : preselectedRoom(workspace);
+}
+
+/**
  * The rooms a portal instance can be ACTIVE in, by its workspace filter.
  *
  * `design` is special-cased: the design *room* is hosted by the viewer workspace (`model`), but the
