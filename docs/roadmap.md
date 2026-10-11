@@ -6524,6 +6524,64 @@ refute one, so this goes first even though it is the least visible.
   neglected. They were in the code just written to fix the previous round — and all of it passed its
   author's own checks first.*
 
+- ✅ ⭐ **OPS-REENTRY — the Operations panel re-renders into one host on every tab click, and two
+  renders race for it** *(XS — Lane B; **CLOSED 2026-10-11**; held by
+  `apps/web/src/proforma/proforma.render.test.ts`)*
+
+  Found by **answering the two questions review left open** on the branch rather than waiting for a
+  fifth round — neither had been addressed by any of the four. The first was *"is there a third
+  event that invalidates a pending `paintQuality` render?"* There is, and **it is not an event
+  inside the panel at all**: `showTab("ops")` calls `renderOperations(sections.ops)` on every click
+  of the Operations tab, into the same element. Click away and back while the first render's
+  requests are in flight and two renders are live against one host — whichever finishes **last**
+  wins. The per-closure generation token cannot see it, because the second render builds a NEW
+  closure with its own `qualityGen`, so the first closure's guard still answers yes about its own
+  last generation. *A guard scoped to one invocation cannot see the invocation that replaced it.*
+
+  Four writes a superseded render could still make, each now asked to stand down:
+
+  | write | what the stale render did |
+  |---|---|
+  | `host.innerHTML = ""` then the whole panel | repainted the host from the **older** request's rent roll, so the figures on screen were the ones the user had navigated away from |
+  | `ctx.setStatus("rent-roll quality unavailable")` | printed a failure over cards a newer run had just rendered successfully |
+  | `renderT12Card(host, …)` | mounted a **second** seller's-T-12 card into a panel it no longer owned |
+  | the lease card, and the `catch`'s error line | appended after the live render had finished, and replaced a good panel with a stale render's failure message |
+
+  **The status write is the half worth naming.** `renderRentRollQuality` calls `ctx.setStatus` when
+  both engines reject, and that call sits **outside** the caller's `.then()` — so a generation guard
+  applied *after* the promise cannot reach it. The repair hands a guarded `setStatus` **into** the
+  engine instead of filtering after it, which covers every status write the engine may ever add
+  rather than the one it makes today. *Guarding the DOM commit is not guarding the report.*
+
+  The second question — *is `renderLeaseManagement` also lease-independent, the way `renderT12Card`
+  turned out to be?* — is a **clean negative, and it is recorded in the code so nobody re-derives
+  it**. `leasemgmt.lease_management` reads exactly one register, `lease`, and feeds all three of its
+  sections from that list: renewals, escalations, CAM. At zero leases every figure it can return is
+  structurally zero, so the `!empty` gate is right here. *A gate that was wrong for one card is not
+  thereby wrong for its neighbour; both are questions about where the inputs come from.*
+
+  **And the mutation run found something older and worse than anything in this item: CR-REVIEW-3's
+  generation token had no coverage at all.** Reducing `fresh()` to the panel epoch alone — so the
+  token is still computed and then ignored — passed all 37 tests, the two written for that very fix
+  among them. Those two assert the card FIRES `onNormaliseStart` and that the caller repaints; both
+  are about the **hook**, and *a hook test reads exactly like coverage of the guard the hook feeds.*
+  The token is now measured directly, by resolving two quality runs out of order within one render
+  and asserting the superseded one does not take the card back. **Getting there needed three
+  generations, not two**, because the render awaits its first quality paint before the T-12 card
+  exists to click — so the token's discrimination is first observable at the second normalisation.
+  *A guard can be load-bearing, correct, and have no mutation that reds it.*
+
+  Eight mutations now, all red: one per guard, the epoch hard-wired to `true`, and each half of
+  `fresh()` deleted in turn. **And the tests' own drafts were wrong twice, both in the house style.**
+  They counted microtask turns to decide when a render had reached its next request, and all four
+  failed on a deferred that did not exist yet — the number of turns between a rejection and the next
+  call is a property of how many `await`s sit between them, so *a hard-coded flush count is a test
+  that breaks when the code it watches is refactored, for no reason the failure message can
+  explain.* And the generation test waited for the scrub hand-off button by matching its text, which
+  found it immediately: it is in the DOM from the start under `display:none`, so the test clicked a
+  hidden control and the click did nothing. *A control located is not a control shown* — the same
+  distinction the retry button cost two review rounds to learn, one directory away.
+
 
 - ✅ ⭐ **CR-REVIEW-1 — the first independent review of this branch, and the worst finding was a cap
   presented as a total inside the change that removed caps** *(S — Lanes B/C; **CLOSED 2026-10-11**;

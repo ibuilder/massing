@@ -609,6 +609,11 @@ describe("renderOperations — a normalisation invalidates the quality cards", (
   // `t12Card.test.ts` proves the card FIRES `onNormaliseStart`; this proves the caller acts on it,
   // which is a different claim — and the mutation that wires the hook to nothing passed until this
   // existed. *A hook tested only at its source is a hook nobody has shown is connected.*
+  //
+  // NEITHER OF THOSE TWO MEASURES THE TOKEN ITSELF, which went unnoticed until OPS-REENTRY's
+  // mutation run: ignoring `gen === qualityGen` passed both. The discrimination is pinned in
+  // "the generation token must DISCRIMINATE, not merely exist" at the end of this file — do not
+  // read this block as coverage of it.
   it("THE POINT: normalising repaints the quality cards from scratch", async () => {
     let nerCalls = 0;
     const api = {
@@ -644,5 +649,251 @@ describe("renderOperations — a normalisation invalidates the quality cards", (
     await flush();
     await flush();
     expect(nerCalls, "and a repaint once a NEW statement is normalised").toBe(2);
+  });
+});
+
+describe("renderOperations — OPS-REENTRY: two renders racing for one host", () => {
+  // `showTab("ops")` calls `renderOperations(sections.ops)` on EVERY click of the Operations tab,
+  // into the same element. Click away and back while the first render's requests are in flight and
+  // two renders are live against one host — whichever finishes LAST wins the DOM, the status bar
+  // and the error line. These four pin the stale render standing down at each of those writes.
+  //
+  // It is also the third invalidator of a pending quality paint, and the one the per-closure
+  // generation token above cannot see: a second render builds a new closure with its own
+  // `qualityGen`, so the FIRST closure's guard still answers yes about its own last generation.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  }
+
+  /** Wait for a condition rather than counting microtask turns — the number of turns between a
+   *  rejection and the next request depends on how many `await`s sit between them, so a hard-coded
+   *  flush count is a test that breaks when the code it watches is refactored, for no real reason. */
+  const until = async (what: string, p: () => boolean) => {
+    for (let i = 0; i < 100 && !p(); i++) await flush();
+    if (!p()) throw new Error(`timed out waiting for ${what}`);
+  };
+
+  /** Resolve to whether a render FINISHED, instead of awaiting it. A superseded render must stand
+   *  down, which means it must also terminate: with the epoch guard broken it carries on into
+   *  requests the test will never answer and a bare `await` hangs for ever. *A mutation that hangs
+   *  the suite is a worse signal than one that fails it*, so the property is asserted. */
+  const settled = async (p: Promise<unknown>) => {
+    let done = false;
+    const mark = () => { done = true; };
+    void p.then(mark, mark);
+    for (let i = 0; i < 100 && !done; i++) await flush();
+    return done;
+  };
+
+  const roll = (occupancy_pct: number) => ({
+    lease_count: 4, occupancy_pct, base_rent_annual: 1_200_000,
+    in_place_gross_income: 1_100_000, walt_years: 5,
+  });
+  const LM = {
+    renewals: { expiring: {}, holdover_count: 0, options_outstanding: 0, at_risk_rent: 0 },
+    escalations: { current_base_rent: 1_000, projected_base_rent: 1_100, years: 5 },
+    cam: { recoverable_income: 0 },
+  };
+
+  function harness(opts: { deferLease?: boolean } = {}) {
+    const rolls: ReturnType<typeof deferred<unknown>>[] = [];
+    const ners: ReturnType<typeof deferred<unknown>>[] = [];
+    const leases: ReturnType<typeof deferred<unknown>>[] = [];
+    const api = {
+      rentRoll: () => { const d = deferred<unknown>(); rolls.push(d); return d.promise; },
+      netEffectiveRent: () => { const d = deferred<unknown>(); ners.push(d); return d.promise; },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: () => {
+        if (!opts.deferLease) return Promise.reject(new Error("none"));
+        const d = deferred<unknown>(); leases.push(d); return d.promise;
+      },
+      reportUrl: () => "#",
+    };
+    const { root, ui, setStatus } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    const ops = ui as unknown as { renderOperations(h: HTMLElement): Promise<void> };
+    return { host, setStatus, rolls, ners, leases, until, settled,
+             run: () => ops.renderOperations(host) };
+  }
+
+  it("THE DEFECT: the older render must not repaint the host after the newer one has", async () => {
+    const h = harness();
+    const a = h.run();                       // first click — its rent roll never comes back yet
+    const b = h.run();                       // second click supersedes it
+    h.rolls[1]!.resolve(roll(92));
+    await until("the newer render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "the newer render owns the panel").toContain("92%");
+
+    h.rolls[0]!.resolve(roll(11));           // the stale render's data finally arrives
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "and the stale one does not take it back").not.toContain("11%");
+    expect(h.host.textContent).toContain("92%");
+  });
+
+  it("a stale quality run's status write is suppressed — guarding the commit is not guarding the report", async () => {
+    const h = harness();
+    const a = h.run();
+    h.rolls[0]!.resolve(roll(92));
+    await until("the first render to reach its quality paint", () => h.ners.length === 1);
+    const b = h.run();                       // supersede it while its NER is still in flight
+    h.rolls[1]!.resolve(roll(92));
+    await until("the second render to reach its own", () => h.ners.length === 2);
+    h.ners[1]!.reject(new Error("down"));    // B: both engines rejected → one status line
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    const said = () => h.setStatus.mock.calls.filter((c) => /quality unavailable/.test(String(c[0]))).length;
+    expect(said(), "B reports its own failure").toBe(1);
+
+    h.ners[0]!.reject(new Error("down"));    // A's failure lands after B rendered
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(said(), "the superseded run stays quiet").toBe(1);
+    // And it carries on past its quality paint into the rest of the render, so the guard has to be
+    // re-asked there too: `renderT12Card` mounts synchronously and would append a SECOND seller's
+    // T-12 card into the panel this render no longer owns.
+    expect(h.host.querySelectorAll("textarea").length,
+           "one T-12 card, from the render that owns the host").toBe(1);
+  });
+
+  it("a stale render's error line must not wipe the live panel", async () => {
+    const h = harness();
+    const a = h.run();
+    const b = h.run();
+    h.rolls[1]!.resolve(roll(92));
+    await until("the newer render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+
+    h.rolls[0]!.reject(new Error("stale boom"));
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "the error belongs to a render nobody is watching").not.toContain("stale boom");
+    expect(h.host.textContent).toContain("92%");
+  });
+
+  it("a stale lease card must not append into the live panel", async () => {
+    const h = harness({ deferLease: true });
+    const a = h.run();
+    h.rolls[0]!.resolve(roll(92));
+    await until("the first render to reach its quality paint", () => h.ners.length === 1);
+    h.ners[0]!.reject(new Error("not the subject"));
+    await until("the first render to request lease management", () => h.leases.length === 1);
+    const b = h.run();
+    h.rolls[1]!.resolve(roll(92));
+    await until("the second render to reach its own quality paint", () => h.ners.length === 2);
+    h.ners[1]!.reject(new Error("not the subject"));
+    await until("the second render to request lease management", () => h.leases.length === 2);
+    h.leases[1]!.reject(new Error("none"));  // B renders no lease card
+    expect(await h.settled(b), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent).not.toContain("Lease management");
+
+    h.leases[0]!.resolve(LM);                // the stale render's card finally arrives
+    expect(await h.settled(a), "the render terminates").toBe(true);
+    await flush();
+    expect(h.host.textContent, "it belongs to a render that was replaced").not.toContain("Lease management");
+  });
+});
+
+describe("renderOperations — the generation token must DISCRIMINATE, not merely exist", () => {
+  // CR-REVIEW-3 made every normalisation advance `qualityGen`, and the test beside it asserts the
+  // card FIRES `onNormaliseStart` and that the caller repaints. Both are about the hook. **Neither
+  // is about the token**: a mutation reducing `fresh()` to the panel-level epoch alone — so the
+  // token is computed and ignored — passed all of those tests. *A guard can be load-bearing and
+  // have no mutation that reds, and the hook tests read exactly like coverage of it.*
+  //
+  // The property is that the OLDER quality run does not commit after the newer one has, within one
+  // render. Two NER calls, resolved out of order, with different Face GPR so the committed card
+  // says which generation wrote it.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((res) => { resolve = res; });
+    return { promise, resolve };
+  }
+  const ner = (face_gpr_annual: number) => ({
+    lease_count: 2, skipped_count: 0, excluded_not_active: 0, skipped: [], leases: [],
+    face_gpr_annual, discount_rate: 0.08, ner_gpr_annual_discounted: face_gpr_annual,
+    ner_gpr_annual_straight_line: face_gpr_annual, concession_load_pct: 0,
+    face_to_ner_delta_annual: 0, face_to_ner_delta_pct: 0, lc_included: true,
+  });
+
+  it("THE POINT: a superseded quality run does not overwrite the newer one's cards", async () => {
+    const ners: ReturnType<typeof deferred<unknown>>[] = [];
+    const api = {
+      rentRoll: async () => ({
+        lease_count: 4, occupancy_pct: 92, base_rent_annual: 1_200_000,
+        in_place_gross_income: 1_100_000, walt_years: 5,
+      }),
+      netEffectiveRent: () => { const d = deferred<unknown>(); ners.push(d); return d.promise; },
+      rentRollScrub: async () => { throw new Error("not the subject"); },
+      dealAuthority: async () => ({ entries: [], gate: { blocking: [] } }),
+      leaseManagement: async () => { throw new Error("none"); },
+      reportUrl: () => "#",
+      normalizeT12: async () => ({
+        stopped: false, tie_out: { reconciles: true, deltas: {}, tolerance: 1 },
+        source_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        mapped_totals: { income: 3_600_000, expense: 240_000, noi: 3_360_000 },
+        line_count: 2, unmapped_count: 0, unmapped: [], categories: {},
+        // `incomeFromT12` reads THIS, and without it the hand-off button stays hidden — which the
+        // first draft of this test did not notice, because the button exists in the DOM from the
+        // start with `display:none` and a text match found it anyway. *A control located is not a
+        // control shown*, and clicking a hidden one is a click that quietly does nothing.
+        by_category: [
+          { category: "gross_potential_rent", amount: 3_600_000 },
+          { category: "bad_debt", amount: 12_000 },
+        ],
+      }),
+    };
+    const { root, ui } = mount(api, "p1");
+    const host = document.createElement("div");
+    root.appendChild(host);
+    const run = (ui as unknown as { renderOperations(h: HTMLElement): Promise<void> })
+      .renderOperations(host);
+
+    const spin = async (what: string, p: () => boolean) => {
+      for (let i = 0; i < 100 && !p(); i++) await flush();
+      if (!p()) throw new Error(`timed out waiting for ${what}`);
+    };
+    // The render AWAITS its first quality paint before mounting the T-12 card, so generation 1 has
+    // to land before there is a Normalise button to press at all — which is itself why the token's
+    // discrimination is only observable from the second normalisation onwards.
+    await spin("the first quality run", () => ners.length === 1);
+    ners[0]!.resolve(ner(900_900));
+    await spin("the T-12 card to mount", () => host.querySelector("textarea") !== null);
+
+    // Two more paints, from the card's two hooks: `onNormaliseStart` when a normalisation begins,
+    // and `scrubWithIncome` when the reader takes the normalised statement into the scrub — a
+    // separate button, which is why this needs two clicks rather than one. Generations 2 and 3.
+    const click = (re: RegExp) => [...host.querySelectorAll("button")]
+      .find((b) => re.test(b.textContent ?? ""))!.click();
+    const ta = host.querySelector("textarea")!;
+    ta.value = "Gross potential rent, 3600000\nRepairs, 240000";
+    click(/Normalise/i);
+    await spin("the paint the normalisation starts", () => ners.length === 2);
+    await spin("the scrub hand-off to be SHOWN", () => [...host.querySelectorAll("button")]
+      .some((b) => /Use in the rent-roll scrub/i.test(b.textContent ?? "")
+                   && (b as HTMLButtonElement).style.display !== "none"));
+    click(/Use in the rent-roll scrub/i);
+    await spin("the paint the hand-off starts", () => ners.length === 3);
+
+    ners[2]!.resolve(ner(222_222));            // the newer generation commits first
+    await spin("the newer generation to paint", () => /222,222/.test(host.textContent ?? ""));
+
+    ners[1]!.resolve(ner(111_111));            // the superseded one lands late
+    await flush(); await flush(); await flush();
+    expect(host.textContent, "the superseded generation does not take the card back")
+      .not.toContain("111,111");
+    expect(host.textContent, "and the newer one still holds it").toContain("222,222");
+    await run;
   });
 });

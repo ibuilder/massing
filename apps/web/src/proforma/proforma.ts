@@ -75,6 +75,7 @@ export class ProformaUI {
   private overviewEl?: HTMLElement;       // the Overview tab's container (re-rendered on each solve)
   private memoryEl?: HTMLElement;         // R35 deal-memory strip — repainted on every hard-cost edit
   private basisEl?: HTMLElement;          // PF-INCOME-BASIS — income provenance, repainted with the rent
+  private opsEpoch = 0;                   // OPS-REENTRY — which Operations render owns the host
 
   constructor(private root: HTMLElement, private api: ApiClient,
               private setStatus: (m: string) => void,
@@ -539,9 +540,22 @@ export class ProformaUI {
   private async renderOperations(host: HTMLElement) {
     const pid = this.projectId();
     if (!pid) { host.innerHTML = `<div class="meta">Open or save a project to track operations.</div>`; return; }
+    // THE OPERATIONS TAB RE-RENDERS ON EVERY CLICK, INTO THE SAME HOST. `showTab("ops")` calls this
+    // again each time the tab is selected, so clicking away and back leaves two renders in flight
+    // against one element and the SLOWER one wins the DOM — the panel can end up painted from the
+    // older request. An epoch makes the stale render stand down at every point it would otherwise
+    // write: the panel, the status bar, the error line, the lease card.
+    //
+    // This is also the THIRD thing that invalidates a pending quality paint, and the only one the
+    // per-closure generation token cannot see: a new render builds a NEW closure with its own
+    // `qualityGen`, so the old closure's guard still answers yes about its own last generation.
+    // *A guard scoped to one invocation cannot see the invocation that replaced it.*
+    const epoch = ++this.opsEpoch;
+    const live = () => epoch === this.opsEpoch;
     host.innerHTML = `<div class="meta">Computing rent roll…</div>`;
     try {
       const rr = await this.api.rentRoll(pid);
+      if (!live()) return;
       host.innerHTML = "";
       // AN EMPTY ROLL NO LONGER TAKES THE T-12 CARD WITH IT. This was an early `return`, so a
       // project with no leases could not reach the seller's-T-12 card at all — and that card needs
@@ -595,13 +609,21 @@ export class ProformaUI {
       let qualityGen = 0;
       const paintQuality = (income?: Record<string, number>) => {
         const gen = ++qualityGen;
+        const fresh = () => live() && gen === qualityGen;
         const staged = document.createElement("div");
-        return renderRentRollQuality(staged, pid, { api: this.api, setStatus: this.setStatus },
-                                     income)
-          .then(() => { if (gen === qualityGen) quality.replaceChildren(...staged.childNodes); });
+        // The engine's own status write sits OUTSIDE the `.then()` below — `renderRentRollQuality`
+        // calls `setStatus` when both engines reject — so the guard has to be handed to it rather
+        // than applied after it. A superseded run whose two calls both fail would otherwise print
+        // "rent-roll quality unavailable" over cards a newer run had just rendered successfully.
+        // *Guarding the DOM commit is not guarding the report*, and passing a guarded `setStatus`
+        // covers every status write the engine may ever add rather than the one it makes today.
+        const setStatus = (m: string) => { if (fresh()) this.setStatus(m); };
+        return renderRentRollQuality(staged, pid, { api: this.api, setStatus }, income)
+          .then(() => { if (fresh()) quality.replaceChildren(...staged.childNodes); });
       };
 
       if (!empty) await paintQuality();
+      if (!live()) return;
       renderT12Card(host, {
         api: this.api, projectId: this.projectId, setStatus: this.setStatus,
         // Re-render the two quality cards against the normalised T-12: the scrub's coverage is the
@@ -610,14 +632,26 @@ export class ProformaUI {
         scrubWithIncome: (income) => { void paintQuality(income); },
         onNormaliseStart: () => { if (!empty) void paintQuality(); },
       });
-      if (!empty) await this.renderLeaseManagement(host, pid);
-    } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+      // AND THIS ONE IS GENUINELY LEASE-DEPENDENT — measured, because the T-12 card above was not
+      // and the same gate was wrong for it. `leasemgmt.lease_management` reads exactly one register,
+      // `lease`, and feeds all three of its sections from that list: the renewal pipeline, the
+      // escalation schedule and the CAM reconciliation. At zero leases every figure it can return
+      // is structurally zero, so the gate is right here. *A gate that was wrong for one card is not
+      // thereby wrong for its neighbour; both are questions about where the inputs come from.*
+      if (!empty) await this.renderLeaseManagement(host, pid, live);
+    } catch (e) {
+      // A stale render's failure must not wipe a live panel: the error line is a write like any
+      // other. `rentRoll` rejecting for the render the user has already navigated away from would
+      // otherwise replace the one they are looking at with that message.
+      if (live()) host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`;
+    }
   }
 
   /** Lease-management card (under Operations): renewal pipeline, escalation steps, CAM recovery. */
-  private async renderLeaseManagement(host: HTMLElement, pid: string) {
+  private async renderLeaseManagement(host: HTMLElement, pid: string, live: () => boolean) {
     try {
       const lm = await this.api.leaseManagement(pid);
+      if (!live()) return;
       const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
       const ex = lm.renewals.expiring;
       const esc = lm.escalations;
