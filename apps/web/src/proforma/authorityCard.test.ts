@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { ApiClient } from "../api/client";
-import { FACT_TYPES, day, entriesFromAssessment, renderAuthority } from "./authorityCard";
+import { FACT_TYPES, day, entriesFromRead, renderAuthority } from "./authorityCard";
 
 /**
  * CRE-AUTHORITY could be **read and never declared**.
@@ -33,8 +33,14 @@ const ROW = (over: Partial<Assessment["table"][number]> = {}) => ({
   supersedes: [], ...over,
 });
 
+const ENTRY = (over: Partial<Assessment["entries"][number]> = {}) => ({
+  fact_type: "rent_roll", document: "RR 2026-08.xlsx", as_of: "2026-09-01",
+  freshness_days: 45, authoritative: true, supersedes: [], reviewer: null, ...over,
+});
+
 const ASSESS = (over: Partial<Assessment> = {}): Assessment => ({
-  as_of: "2026-09-25", table: [ROW()], missing: [], stale: [], superseded_still_active: [],
+  as_of: "2026-09-25", table: [ROW()], entries: [ENTRY()],
+  missing: [], stale: [], superseded_still_active: [],
   gate: { passes: true, blocking: [], advisory: [] },
   counts: { declared: 1, missing: 0, stale: 0, blocking: 0, advisory: 0 },
   note: "Authority is declared per fact type, not per file.",
@@ -156,15 +162,46 @@ describe("the declared table", () => {
 
 describe("round-tripping into the editor", () => {
   it("opens on what is already declared rather than a blank form", () => {
-    expect(entriesFromAssessment(ASSESS())).toEqual([{
+    expect(entriesFromRead(ASSESS())).toEqual([{
       fact_type: "rent_roll", document: "RR 2026-08.xlsx", as_of: "2026-09-01",
-      freshness_days: 45, authoritative: true, supersedes: [],
+      freshness_days: 45, authoritative: true, supersedes: [], reviewer: null,
     }]);
   });
 
   it("carries a supersedes chain through", () => {
-    const [e] = entriesFromAssessment(ASSESS({
-      table: [ROW({ supersedes: ["RR 2026-06.xlsx"] })] }));
+    const [e] = entriesFromRead(ASSESS({
+      entries: [ENTRY({ supersedes: ["RR 2026-06.xlsx"] })] }));
     expect(e!.supersedes).toEqual(["RR 2026-06.xlsx"]);
+  });
+
+  // THE DEFECT. The editor's body used to be built from `assessment.table`, which is the
+  // AUTHORITATIVE view — archival rows are absent from it by design — while the PUT replaces the
+  // whole stored blob. So one save deleted the history the gate's `superseded_still_active` check
+  // reads, and nothing anywhere went red: the response still reported a passing gate.
+  it("THE DEFECT: an archival row survives a round-trip", () => {
+    const read = ASSESS({
+      entries: [
+        ENTRY({ supersedes: ["RR 2026-06.xlsx"] }),
+        ENTRY({ document: "RR 2026-06.xlsx", as_of: "2026-07-01", authoritative: false }),
+      ],
+    });
+    const back = entriesFromRead(read);
+    expect(back).toHaveLength(2);
+    expect(back.filter((r) => r.authoritative === false).map((r) => r.document))
+      .toEqual(["RR 2026-06.xlsx"]);
+    // and it is the STORED row, not one reconstructed from the authoritative view
+    expect(back[0]!.supersedes).toEqual(["RR 2026-06.xlsx"]);
+  });
+
+  it("carries the reviewer, which no screen could set and every save erased", () => {
+    const [e] = entriesFromRead(ASSESS({ entries: [ENTRY({ reviewer: "K. Oyelaran" })] }));
+    expect(e!.reviewer).toBe("K. Oyelaran");
+  });
+
+  it("refuses to invent entries from the assessment when the server sent none", () => {
+    // No fallback to `a.table` ON PURPOSE: that fallback IS the defect. An empty list here makes
+    // the card fail closed rather than silently round-trip a lossy reconstruction.
+    expect(entriesFromRead({ ...ASSESS(), entries: undefined } as unknown as Assessment))
+      .toEqual([]);
   });
 });

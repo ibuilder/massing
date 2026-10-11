@@ -123,11 +123,27 @@ export interface AuthorityAssessment {
   note: string;
 }
 
-/** An entry as the PUT stores it, after `validate()` has normalised it. */
+/** An entry as the PUT stores it, after `validate()` has normalised it — and as the GET now hands
+ *  it back under `entries`, which is what makes a round-trip possible at all. */
 export interface AuthorityEntryWire {
   fact_type: string; document: string; as_of: string;
   freshness_days: number | null; authoritative: boolean; supersedes: string[];
   reviewer?: string | null;
+  /** Re-derived from `FACT_TYPES` by `validate()`, so the stored row always carries it and a
+   *  request never needs to. Declared because the round-trip spreads the stored row verbatim. */
+  label?: string;
+}
+
+/** What the GET returns: the assessment, **plus the stored entries it was computed from**.
+ *
+ *  `AuthorityAssessment.table` is the AUTHORITATIVE view by design — archival rows and their
+ *  supersedes chains are absent, because the table exists to name the one document to underwrite
+ *  from. The PUT replaces the whole stored blob. So an editor that opened on the assessment alone
+ *  could only send back the authoritative rows, and **every save permanently deleted the archival
+ *  history and the `reviewer` on every row**. *The write was destructive because the read was
+ *  incomplete, and neither endpoint was wrong on its own.* */
+export interface AuthorityRead extends AuthorityAssessment {
+  entries: AuthorityEntryWire[];
 }
 
 /** One row of the pre-committee gate.
@@ -289,9 +305,12 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
    *  needed an inline cast, which is the re-spelled shape `apps/web/src/api/noRespelledShapes.test.ts`
    *  exists to stop. `reviewer` and `supersedes` on a table row were undeclared too. */
   dealAuthority(pid: string) {
-    return this.json<AuthorityAssessment>(`/projects/${pid}/deal-room/authority`);
+    return this.json<AuthorityRead>(`/projects/${pid}/deal-room/authority`);
   }
-  saveDealAuthority(pid: string, entries: unknown[]) {
+  /** Replaces the whole stored table, so the caller must send back everything the GET gave it
+   *  under `entries` — not just the rows it edited. Typed as the wire entry rather than `unknown[]`
+   *  so a caller that builds the body from `assessment.table` no longer typechecks. */
+  saveDealAuthority(pid: string, entries: AuthorityEntryWire[]) {
     return this.json<{ entries: AuthorityEntryWire[]; assessment: AuthorityAssessment }>(
       `/projects/${pid}/deal-room/authority`,
       { method: "PUT", body: JSON.stringify({ entries }) });

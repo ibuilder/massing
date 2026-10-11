@@ -168,4 +168,19 @@ def assess(entries: list[dict], as_of: date | None = None,
 
 
 def from_project(db, pid: str, as_of: date | None = None) -> dict[str, Any]:
-    return assess(load(pid), as_of)
+    """The assessment, **plus the stored entries it was computed from**.
+
+    `assess()` reports the AUTHORITATIVE view: archival rows (`authoritative: false`) and their
+    supersedes chains are deliberately absent from `table`, because the point of the table is to
+    name the one document to underwrite from. That made this read **lossy relative to what the PUT
+    replaces** — and the PUT replaces the whole blob. A client that opened on the GET, edited one
+    row and saved could only send back what it had been given, so every save silently deleted the
+    archival history and the `reviewer` on every row. *The write was destructive because the read
+    was incomplete, and neither endpoint was wrong on its own.*
+
+    `entries` is therefore the round-trip half: a caller holds it, edits the authoritative row it
+    means to change, and sends the whole list back. The alternative — making the PUT merge — was
+    rejected because it leaves no way to DELETE a row, and a supersedes chain nobody can prune
+    grows without bound."""
+    entries = load(pid)
+    return {"entries": entries, **assess(entries, as_of)}

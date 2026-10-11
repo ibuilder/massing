@@ -39,6 +39,7 @@
  *  as optional while the gate blocks on it, which is worse than not showing it at all.
  */
 import type { ApiClient } from "../api/client";
+import type { AuthorityAssessment, AuthorityEntryWire } from "../api/creDeal";
 import { escapeHtml as esc } from "../ui/feedback";
 
 type Authority = Awaited<ReturnType<ApiClient["dealAuthority"]>>;
@@ -74,7 +75,10 @@ export function day(iso?: string | null): string {
 }
 
 /** Render one assessment. */
-export function renderAuthority(host: HTMLElement, a: Authority): HTMLElement {
+// Takes the ASSESSMENT, not the whole read. Both routes produce one — the GET inline and the PUT
+// under `assessment` — and widening this to the GET's type made the post-save repaint stop
+// typechecking, which is the signal that the entries are an editor concern and not a render one.
+export function renderAuthority(host: HTMLElement, a: AuthorityAssessment): HTMLElement {
   const el = document.createElement("div");
   el.style.marginTop = "8px";
   const gate = a.gate;
@@ -152,24 +156,27 @@ function label(factType: string): string {
   return FACT_TYPES.find(([k]) => k === factType)?.[1] ?? factType;
 }
 
-/** One row of the editable table, as the PUT wants it. */
-export interface AuthorityEntry {
-  fact_type: string;
-  document: string;
-  as_of: string;
-  freshness_days?: number | null;
-  authoritative?: boolean;
-  supersedes?: string[];
-}
-
-/** The entries a saved assessment implies, so the editor opens on what is already declared rather
- *  than on a blank form. Superseded rows are not returned by the GET — it reports the authoritative
- *  view — so this round-trips what IS authoritative and leaves archival history to the server. */
-export function entriesFromAssessment(a: Authority): AuthorityEntry[] {
-  return a.table.map((r) => ({
-    fact_type: r.fact_type, document: r.document, as_of: r.as_of,
-    freshness_days: r.freshness_days, authoritative: true,
+/** The entries the editor opens on, and the entries it sends back.
+ *
+ *  **THIS FUNCTION USED TO BUILD THE SAVE BODY FROM `a.table`, AND THAT IS A DATA-LOSS DEFECT.**
+ *  `table` is the AUTHORITATIVE view — archival rows (`authoritative: false`) and their supersedes
+ *  chains are deliberately absent from it, because the table exists to name the one document to
+ *  underwrite from. The PUT *replaces the whole stored blob*. So saving round-tripped the
+ *  authoritative rows and **permanently deleted every archival entry, every supersedes chain on a
+ *  row the editor rebuilt, and the `reviewer` on all of them** — and `assess()` reads
+ *  `superseded_still_active` out of exactly those deleted rows, so the check that catches a
+ *  resurrected superseded document stopped being able to fire. *A lossy read and a replacing write
+ *  are each defensible; together they are a delete button labelled "Save".*
+ *
+ *  The GET now returns `entries`, the stored table verbatim, and this hands it through unchanged
+ *  apart from filling the two fields `validate()` treats as optional. There is deliberately **no
+ *  fallback to `a.table`**: that fallback IS the defect, and a path that silently discards history
+ *  is worse than one that refuses. */
+export function entriesFromRead(a: Authority): AuthorityEntryWire[] {
+  return (a.entries ?? []).map((r) => ({
+    ...r,
     supersedes: r.supersedes ?? [],
+    authoritative: r.authoritative ?? true,
   }));
 }
 
@@ -193,15 +200,21 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
   const editor = document.createElement("div"); editor.style.marginTop = "8px"; host.appendChild(editor);
   root.appendChild(host);
 
-  const rows: AuthorityEntry[] = [];
+  // The WHOLE stored table, archival rows included. The editor only ever touches the authoritative
+  // row for each fact type; everything else rides through the save untouched, which is the only
+  // way a replacing PUT can be driven from a form without destroying history.
+  const rows: AuthorityEntryWire[] = [];
 
   const paint = () => {
     editor.replaceChildren();
     const table = document.createElement("table"); table.className = "fin-table";
     table.innerHTML = `<tr class="fin-sub"><td>Fact type</td><td>document</td><td>as of</td>`
-      + `<td class="num">freshness</td><td></td></tr>`;
+      + `<td class="num">freshness</td><td>reviewed by</td><td></td></tr>`;
     for (const [key, lab, days, required] of FACT_TYPES) {
-      const row = rows.find((r) => r.fact_type === key);
+      // `authoritative !== false`, not just `fact_type` — an archival row for a fact whose
+      // authoritative document has been removed would otherwise be loaded into the form and then
+      // saved back as authoritative, which is the `superseded_still_active` state the gate blocks.
+      const row = rows.find((r) => r.fact_type === key && r.authoritative !== false);
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.innerHTML = `${esc(lab)}${required ? ` <span class="meta">required</span>` : ""}`;
@@ -222,28 +235,45 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
       fresh.value = row?.freshness_days != null && row.freshness_days !== days
         ? String(row.freshness_days) : "";
       freshCell.appendChild(fresh);
+      const revCell = document.createElement("td");
+      const rev = document.createElement("input");
+      rev.className = "portal-filter"; rev.style.width = "100%";
+      // `reviewer` round-tripped through the engine, was surfaced on the assessment, and NO SCREEN
+      // could set it or show it — a field only the raw API could write. Preserving it on save was
+      // the defect's fix; giving it an input is what makes the preservation visible to the person
+      // doing the preserving.
+      rev.placeholder = "reviewed by"; rev.value = row?.reviewer ?? "";
+      revCell.appendChild(rev);
       const clearCell = document.createElement("td");
       const clear = document.createElement("button");
       clear.className = "tool-btn"; clear.textContent = "✕"; clear.title = "Remove this declaration";
-      clear.onclick = () => { doc.value = ""; date.value = ""; fresh.value = ""; };
+      clear.onclick = () => { doc.value = ""; date.value = ""; fresh.value = ""; rev.value = ""; };
       clearCell.appendChild(clear);
 
       const sync = () => {
-        const i = rows.findIndex((r) => r.fact_type === key);
+        const i = rows.findIndex((r) => r.fact_type === key && r.authoritative !== false);
+        const prev = i >= 0 ? rows[i] : undefined;
         // A row with no document is not declared at all — sending an empty one would be refused by
-        // `validate()`, which requires a document name and a real date on every entry.
+        // `validate()`, which requires a document name and a real date on every entry. Removing it
+        // drops ONLY the authoritative row; archival rows for the same fact type stay, which is
+        // what "this document is no longer the one to underwrite from" should mean.
         if (!doc.value.trim()) { if (i >= 0) rows.splice(i, 1); return; }
-        const entry: AuthorityEntry = {
+        const entry: AuthorityEntryWire = {
           fact_type: key, document: doc.value.trim(), as_of: date.value,
           freshness_days: fresh.value.trim() === "" ? null : Number(fresh.value),
           authoritative: true,
+          // CARRIED THROUGH, not rebuilt. `sync()` constructed a fresh object, so `supersedes` was
+          // dropped from every row the person touched while rows they left alone kept theirs — the
+          // worst available shape, because the loss is proportional to how much they edited.
+          supersedes: prev?.supersedes ?? [],
+          reviewer: rev.value.trim() || null,
         };
         if (i >= 0) rows[i] = entry; else rows.push(entry);
       };
-      for (const input of [doc, date, fresh]) input.onchange = sync;
+      for (const input of [doc, date, fresh, rev]) input.onchange = sync;
       clear.addEventListener("click", sync);
 
-      tr.append(name, docCell, dateCell, freshCell, clearCell);
+      tr.append(name, docCell, dateCell, freshCell, revCell, clearCell);
       table.appendChild(tr);
     }
     editor.appendChild(table);
@@ -298,7 +328,17 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
   void ctx.api.dealAuthority(pid).then((a) => {
     out.replaceChildren();
     renderAuthority(out, a);
-    rows.splice(0, rows.length, ...entriesFromAssessment(a));
+    if (!Array.isArray(a.entries)) {
+      // FAIL CLOSED. Without the stored table there is nothing to round-trip, and an editor that
+      // opened anyway would save the authoritative view over the archival history. Refusing to
+      // open is a visible problem; opening is a silent delete the next time somebody presses Save.
+      editor.innerHTML = meta(
+        `This server did not return the stored authority table, so the editor cannot save without `
+        + `discarding archival rows and supersedes chains. The gate above is still accurate.`,
+        "var(--status-crit)");
+      return;
+    }
+    rows.splice(0, rows.length, ...entriesFromRead(a));
     paint();
   }).catch((e: Error) => {
     out.innerHTML = meta(esc(e.message), "var(--status-crit)");
