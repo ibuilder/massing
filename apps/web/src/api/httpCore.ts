@@ -255,17 +255,35 @@ export class HttpCore {
     let connected = false;
 
     /** Ask the same URL what the status actually was. Returns the refusal reason, or `null` for
-     *  "retry" — including when the probe itself fails, which is the transient case by default. */
+     *  "retry" — including when the probe itself fails or hangs, which is the transient case.
+     *
+     *  **IT MUST AUTHENTICATE THE WAY THE STREAM DOES, and the first draft did not.** `EventSource`
+     *  cannot send an `Authorization` header and authenticates only with the `aec_token` cookie —
+     *  which is the exact asymmetry `setToken` above documents, quoted in this method's own
+     *  docstring, and then contradicted by a probe sending `authHeaders()`. With the cookie missing
+     *  and the localStorage token present (blocked cookies, a cross-origin `VITE_API_URL`, a
+     *  swallowed `document.cookie` write) the stream 403s as anonymous while the probe returns 200,
+     *  so the verdict is "transient" and the loop runs for ever: **byte for byte the defect this
+     *  change exists to remove.** In the other direction a working stream is marked permanently
+     *  refused. So: no header, `credentials: "include"`, and the probe sees what the stream sees.
+     *
+     *  Bounded, too. The reopen is scheduled only inside this promise, so a probe that never
+     *  settles leaves the stream neither retrying nor refused — stuck on "reconnecting…" with
+     *  `retry()` a no-op, which is a worse outcome than either verdict. */
     const classify = async (): Promise<string | null> => {
+      const abort = new AbortController();
+      const bail = window.setTimeout(() => abort.abort(), 10_000);
       try {
-        const res = await fetch(this.url(path), { headers: this.authHeaders() });
+        const res = await fetch(this.url(path), { credentials: "include", signal: abort.signal });
         // The body is an endless stream; cancel it rather than reading it. Without this the probe
         // holds a connection open for as long as the server keeps the stream alive.
         res.body?.cancel().catch(() => { /* already gone */ });
         if (res.ok) return null;
         return permanentRejection(new HttpError(`${path} -> ${res.status}`, res.status));
       } catch {
-        return null;                      // offline, DNS, a proxy eating it — all worth retrying
+        return null;                      // offline, DNS, a timeout, a proxy — all worth retrying
+      } finally {
+        clearTimeout(bail);
       }
     };
 
@@ -293,7 +311,12 @@ export class HttpCore {
             // closes in flight, one transient verdict and one permanent — but `open` is where it
             // has to be handled, because the timer has already been scheduled by then.
             if (closed) return;
-            if (why) { refused = true; onStatus?.("refused", why); return; }
+            // A REFUSAL NOBODY CAN SEE IS WORSE THAN A RETRY LOOP. Three callers hold their handle
+            // privately and pass no `onStatus` (`portal/panels/schedule.ts`, `viewer/collabPresence.ts`,
+            // `drawings/drawings.ts`), so refusing would stop them permanently and SILENTLY where
+            // the old loop at least kept trying. With no one to tell, the stop has no advocate — so
+            // the classification only takes effect for a caller that asked to hear about it.
+            if (why && onStatus) { refused = true; onStatus("refused", why); return; }
             timer = window.setTimeout(open, wait);
           });
         }
@@ -305,6 +328,10 @@ export class HttpCore {
       close() { closed = true; if (timer !== undefined) clearTimeout(timer); es?.close(); },
       retry() {
         if (closed || !refused) return;
+        // Clear any backoff timer first. In the 503-then-403 race this file tests, a reopen is
+        // already booked when the refusal lands, so retrying without clearing it opened TWO
+        // sources — duplicate `onMessage` delivery and a leaked slot in the connection pool.
+        if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
         refused = false;
         retryMs = 5000;
         onStatus?.("reconnecting");

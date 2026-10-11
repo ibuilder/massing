@@ -4908,7 +4908,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · WS-BTN-DEAD *(a class queried from three remaining places in `main.ts` and rendered by none; one of the loops is how a persona config is meant to hide workspaces, so that hiding does nothing. Here rather than with the stylesheet or the colour contract that also carry the dead class, because the live QUERIES are what keep it looking plausible and they are this lane's file — the same "lanes go by the directory the work touches" correction the Lane E cell below had to make)* · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
@@ -6457,6 +6457,59 @@ refute one, so this goes first even though it is the least visible.
   four streams reconnecting through a deploy would exhaust it and the next would simply never
   connect. **`liveStream` had no test of any kind before this** — a reconnect loop with nothing
   driving it is how it retried forever unnoticed.
+
+  **REVIEW FOUND SIX MORE, and the sharpest one is the slice contradicting its own docstring.**
+
+  | finding | why |
+  |---|---|
+  | the probe sent `Authorization: Bearer`; **`EventSource` authenticates only with the `aec_token` cookie** | the asymmetry this slice QUOTES from `setToken` and then reproduced. Cookie missing, token present → the stream 403s as anonymous while the probe returns 200 → "transient" → **the same infinite loop, byte for byte.** Reverse direction marks a working stream permanently refused. It is `credentials: "include"` and no header now, so the probe sees what the stream sees |
+  | **the only consumer was dead code** | see WS-BTN-DEAD below — a new state routed into a function that never runs is the most expensive dead code there is, because it tests clean |
+  | no timeout on the probe | the reopen is scheduled only inside its `.then`, so a probe that never settles left the stream neither retrying nor refused — *"reconnecting…"* for ever with `retry()` a no-op, which is worse than either verdict. 10s abort, and aborting reads as transient |
+  | `retry()` never cleared the pending backoff | in the 503-then-403 race this file already tested, a retry opened a **second** source: duplicate `onMessage` delivery and a leaked pool slot |
+  | three callers pass no `onStatus` (`portal/panels/schedule.ts`, `viewer/collabPresence.ts`, `drawings/drawings.ts`) | refusing would stop them permanently and **silently**, where the old loop at least kept trying. *A refusal nobody can see is worse than a retry loop*, so the classification only takes effect for a caller that asked to hear about it — and that is measured, not assumed |
+  | the retry affordance was pointer-only | an `onclick` on a `<span>` inside a `<button>`: Enter switched room instead of retrying, and `stopPropagation` made the badge swallow the tab's own click. `role="button"`, `tabindex`, Enter/Space |
+
+  Nine mutations over the new behaviour, all red.
+
+- ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
+  said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*
+
+  `main.ts`'s `connectNotifications` queried `.ws-btn[data-ws="construction"]`, found nothing, and
+  **returned before opening a stream at all** — so the badge it exists to paint has never once
+  rendered since the room spine landed. Found while wiring FIELD-STREAM-POISON's `refused` state
+  into it.
+
+  **The identical mistake is documented 1,100 lines above, in the same file.** `roomLabel`'s
+  docstring records it being found and fixed: *"a class that does not exist anywhere in the running
+  shell: the tab strip is `[data-room]` since the room spine landed. Every lookup missed and every
+  label silently fell back to the raw key … while the unit test passed."* And
+  `apps/web/src/shell/wsReturn.test.ts`'s fixture comment says flatly *"there is no `.ws-btn`
+  anywhere in the app"*. *A lesson written down in a file is not applied to the file.*
+
+  It owns state and repaints through `paintRoomTabs` now, rather than reaching for an element the
+  strip rebuilds on every render — which is the second half of why the old shape could not have
+  worked even with the right selector. The count and the refusal land on the room
+  `preselectedRoom("construction")` resolves to (`schedule`), **derived rather than named**. The
+  live chip is deliberately SEPARATE from `room-tab-count`: "items in your court" and "unread
+  notifications" are different numbers, and one badge carrying both would make neither readable.
+
+- 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from four places and rendered by none**
+  *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD)*
+
+  One of the four is now fixed (above). The rest, measured:
+
+  | site | what it does today |
+  |---|---|
+  | `apps/web/src/main.ts` `roomLabel` | a documented `??` fallback after the `[data-room]` lookup — harmless, and the only deliberate one |
+  | `apps/web/src/main.ts` `querySelectorAll(".ws-btn")` ×2 | iterate an empty NodeList. One of them is how a **persona config hides workspaces**, so that hiding does nothing |
+  | `apps/web/src/style.css` | six rules still style the class |
+  | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders |
+
+  **Left open on purpose rather than swept into the slice that found it.** Deleting the styles while
+  three live queries remain would make the next reader's job harder, not easier, and the persona
+  one is a behavioural question (what SHOULD hide a room strip per persona?) rather than a rename.
+  *Fixing the instance in front of you is not closing the class — and saying which one you did is
+  the difference between a fix and a claim.*
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
   now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above

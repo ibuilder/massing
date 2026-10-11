@@ -67,9 +67,11 @@ const fatal = async () => {
   await vi.advanceTimersByTimeAsync(0);
 };
 
-const probeStatus = (status: number) => vi.stubGlobal("fetch", vi.fn(async () => ({
-  ok: status < 400, status, body: { cancel: async () => {} },
-} as unknown as Response)));
+let probeInit: RequestInit | undefined;
+const probeStatus = (status: number) => vi.stubGlobal("fetch", vi.fn(async (_u, init) => {
+  probeInit = init as RequestInit;
+  return { ok: status < 400, status, body: { cancel: async () => {} } } as unknown as Response;
+}));
 
 describe("a fatal close is classified, not retried blindly", () => {
   it("THE DEFECT: a 403 used to back off for ever; it now REFUSES, with the reason", async () => {
@@ -235,5 +237,68 @@ describe("the healthy path is unchanged", () => {
     // a malformed frame is skipped and does NOT kill the stream
     sources[0]!.onmessage?.({ data: "not json" });
     expect(got).toHaveLength(1);
+  });
+});
+
+describe("the probe must authenticate the way the STREAM does", () => {
+  it("THE HIGH FINDING: cookie credentials, never an Authorization header", async () => {
+    // `EventSource` cannot send an Authorization header and authenticates only with the
+    // `aec_token` cookie — the asymmetry `HttpCore.setToken` documents and this method quotes. The
+    // first draft of the probe sent `authHeaders()`, so with the cookie missing and the
+    // localStorage token present the stream 403s as anonymous while the probe returns 200: the
+    // verdict is "transient" and the loop runs for ever, which is the defect being removed.
+    probeStatus(403);
+    new Probe().open("/p/1/stream", () => {}, () => {});
+    await fatal();
+    expect(probeInit?.credentials).toBe("include");
+    expect(probeInit?.headers).toBeUndefined();
+    expect(probeInit?.signal).toBeDefined();
+  });
+
+  it("a probe that never settles still ends in a retry, not a limbo", async () => {
+    // The reopen is scheduled only inside the probe's `.then`, so a hung probe would leave the
+    // stream neither retrying nor refused — "reconnecting…" for ever with `retry()` a no-op, which
+    // is worse than either verdict. A 10s abort bounds it and aborting reads as transient.
+    vi.stubGlobal("fetch", vi.fn((_u, init: RequestInit) => new Promise((_res, rej) => {
+      init.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
+    })));
+    new Probe().open("/p/1/stream", () => {}, () => {});
+    sources[0]!.readyState = 2;
+    sources[0]!.onerror?.();
+    await vi.advanceTimersByTimeAsync(10_000);   // the abort fires
+    await vi.advanceTimersByTimeAsync(5000);     // ...then the backoff
+    expect(opened).toHaveLength(2);
+  });
+});
+
+describe("a refusal nobody can see is worse than a retry loop", () => {
+  it("a caller with no onStatus keeps RETRYING a permanent refusal", async () => {
+    // Three callers hold their handle privately and pass no `onStatus`. Refusing would stop them
+    // permanently and SILENTLY, where the old loop at least kept trying — and a stop with nobody
+    // to tell has no advocate. Measured rather than assumed: this is the one place the
+    // classification is deliberately not acted on.
+    probeStatus(403);
+    const s = new Probe().open("/p/1/stream", () => {});
+    await fatal();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(opened).toHaveLength(2);
+    expect(s.connected).toBe(false);
+  });
+});
+
+describe("retry() clears the backoff it is replacing", () => {
+  it("THE LEAK: a pending reopen plus a retry used to open TWO sources", async () => {
+    const verdicts = [503, 403];
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      const status = verdicts.shift() ?? 403;
+      return { ok: false, status, body: { cancel: async () => {} } } as unknown as Response;
+    }));
+    const live = new Probe().open("/p/1/stream", () => {}, () => {});
+    await fatal();                 // 503 -> reopen booked 5s out
+    await fatal();                 // 403 -> refused, timer still pending
+    live.retry();
+    expect(opened).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(opened, "the stale backoff must not open a third").toHaveLength(2);
   });
 });

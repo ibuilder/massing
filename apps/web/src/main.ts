@@ -950,7 +950,8 @@ function paintPinnedRail() {
 let roomTabsActive = "model";
 function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
-  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount), roomTabsActive, goToRoom);
+  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount, notifLive), roomTabsActive, goToRoom,
+                 () => notifStream?.retry());
 }
 
 /** Ball-in-your-court count for the Work badge — the one number the tab bar carries. */
@@ -1943,37 +1944,59 @@ async function applyCapabilities() {
   lastMembershipProject = projectId;
 }
 
-// live notification badge on the Construction workspace tab (SSE)
+/**
+ * Live notification state for the room tab strip (SSE).
+ *
+ * **THIS FUNCTION HAS BEEN ENTIRELY DEAD SINCE THE ROOM SPINE LANDED, and the file already says
+ * why.** It queried `.ws-btn[data-ws="construction"]`, returned early because nothing matches, and
+ * never opened a stream at all — so the notification badge it exists to paint has never once
+ * appeared. `roomLabel`'s docstring 1,100 lines above records the identical mistake being found and
+ * fixed in this same file (*"a class that does not exist anywhere in the running shell: the tab
+ * strip is `[data-room]` since the room spine landed"*), and `shell/wsReturn.test.ts`'s fixture
+ * comment says flatly *"there is no `.ws-btn` anywhere in the app"*.
+ *
+ * *The lesson is the one that docstring already paid for: **ask the DOM the app actually renders.***
+ * Found while wiring FIELD-STREAM-POISON's `refused` state into it — a new state routed into a
+ * function that never runs is the most expensive kind of dead code, because it tests clean.
+ *
+ * **THE CLASS IS WIDER THAN THIS FUNCTION AND IS NOT FIXED HERE.** `.ws-btn` is still queried from
+ * three other places in this file — a documented fallback at `roomLabel`, and two
+ * `querySelectorAll(".ws-btn")` loops that iterate an empty NodeList, one of which is how a persona
+ * config is meant to hide workspaces — and six rules in `style.css` still style it. Those live
+ * queries are exactly what keep the class looking plausible, and removing the styles while they
+ * remain would make the next reader's job harder, not easier. Recorded as WS-BTN-DEAD in
+ * `docs/roadmap.md` with the measurement, because untangling it is a shell change and this is a
+ * notification-stream slice. *Fixing the instance in front of you is not closing the class — and
+ * saying which one you did is the difference between a fix and a claim.*
+ *
+ * It now owns STATE and repaints through `paintRoomTabs`, rather than reaching into the DOM for an
+ * element the strip rebuilds on every render. The count and the refusal land on the room
+ * `preselectedRoom("construction")` resolves to — derived, never a second list.
+ */
+let notifStream: { retry: () => void; close: () => void } | null = null;
+let notifLive: { room: string; count: number; refused: string | null } | null = null;
+
 function connectNotifications() {
   if (!projectId) return;
-  const ws = document.querySelector<HTMLElement>('.ws-btn[data-ws="construction"]');
-  if (!ws) return;
-  let badge = ws.querySelector<HTMLElement>(".ws-badge");
-  if (!badge) { badge = document.createElement("span"); badge.className = "ws-badge"; ws.appendChild(badge); }
+  notifStream?.close();
+  const room = roomForWorkspace("construction");
+  notifLive = { room, count: 0, refused: null };
   try {
     const stream = api.notificationStream(projectId, ({ count }) => {
-      badge!.textContent = count > 0 ? String(count) : "";
-      badge!.style.display = count > 0 ? "" : "none";
+      notifLive = { room, count: typeof count === "number" ? count : 0, refused: null };
+      paintRoomTabs();
     }, (s, why) => {
       // THREE states, not two. A `refused` stream is never coming back on its own, so saying
-      // "reconnecting…" about it is a promise the client cannot keep — and until FIELD-STREAM-POISON
-      // that is exactly what this said, for ever, with a page reload as the only cure. The badge
-      // becomes a clickable "!" carrying the server's reason, because a refusal the reader can
-      // neither see nor undo is worse than a stale number.
-      if (s === "refused") {
-        ws.title = `Live notifications stopped — ${why ?? "refused by the server"}. Click to try again.`;
-        badge!.textContent = "!";
-        badge!.style.display = "";
-        badge!.style.opacity = "0.6";
-        badge!.style.cursor = "pointer";
-        badge!.onclick = (e) => { e.stopPropagation(); stream.retry(); };
-        return;
-      }
-      badge!.onclick = null;
-      badge!.style.cursor = "";
-      ws.title = s === "reconnecting" ? "Live notifications disconnected — reconnecting…" : "";
-      badge!.style.opacity = s === "reconnecting" ? "0.5" : "";
+      // "reconnecting…" about it is a promise the client cannot keep — and that is what this said,
+      // for ever, with a page reload as the only cure that would not have worked either.
+      notifLive = {
+        room,
+        count: notifLive?.count ?? 0,
+        refused: s === "refused" ? (why ?? "refused by the server") : null,
+      };
+      paintRoomTabs();
     });
+    notifStream = stream;
     window.addEventListener("pagehide", () => stream.close(), { once: true });
   } catch { /* SSE unsupported / offline */ }
 }

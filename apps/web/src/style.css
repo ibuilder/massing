@@ -1153,11 +1153,21 @@ body.embed #workspaces { display: none; }
 .room-tab:hover { background: rgba(255,255,255,.07); }
 .room-tab.active { background: rgba(255,255,255,.12); font-weight: 600; }
 .room-tab:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: 1px; }
-/* the one badge in the bar — Work, and only when something is owed */
+/* the ball-in-your-court badge — Work, and only when something is owed */
 .room-tab-count {
   background: var(--accent, #4b9fff); color: #fff; border-radius: 999px;
   font-size: 11px; font-weight: 700; min-width: 18px; padding: 1px 5px; text-align: center;
 }
+/* unread live notifications — a SECOND chip, muted, so it never competes with the court count */
+.room-tab-live {
+  background: var(--muted, #8b949e); color: #fff; border-radius: 999px; margin-left: 4px;
+  font-size: 11px; font-weight: 700; min-width: 18px; padding: 1px 5px; text-align: center;
+}
+/* a stream the server refused is a CONTROL, not a decoration: it is the only way back */
+.room-tab-live.is-refused {
+  background: var(--status-crit, #e5534b); cursor: pointer;
+}
+.room-tab-live.is-refused:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: 1px; }
 #next-action { display: inline-flex; align-items: center; gap: 9px; margin-left: 14px; }
 #next-action[hidden] { display: none; }
 .nba-cap {

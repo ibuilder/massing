@@ -149,3 +149,97 @@ describe("rendering", () => {
     expect(host.querySelectorAll(".room-tab-count").length).toBe(1);
   });
 });
+
+describe("FIELD-STREAM-POISON — the live-notification chip", () => {
+  const strip = () => {
+    const host = document.createElement("div");
+    document.body.replaceChildren(host);
+    return host;
+  };
+  const chip = (host: HTMLElement) => host.querySelector<HTMLElement>(".room-tab-live");
+
+  it("lands on the room `construction` resolves to, not on a guessed tab", () => {
+    // Derived, never a second list: the old consumer named the Construction WORKSPACE, and the
+    // workspace→room map already answers where that went.
+    const room = roomForWorkspace("construction");
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null, { room, count: 3, refused: null }), "model",
+                   () => {});
+    const on = host.querySelector<HTMLElement>(`.room-tab[data-room="${room}"] .room-tab-live`);
+    expect(on?.textContent).toBe("3");
+    expect(host.querySelectorAll(".room-tab-live")).toHaveLength(1);
+  });
+
+  it("is a SECOND chip — it never replaces the ball-in-your-court count", () => {
+    // "Items in your court" and "unread notifications" are different numbers. Overloading one
+    // badge with both would make neither readable.
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, 6, { room: "work", count: 2, refused: null }),
+                   "model", () => {});
+    const work = host.querySelector<HTMLElement>('.room-tab[data-room="work"]')!;
+    expect(work.querySelector(".room-tab-count")?.textContent).toBe("6");
+    expect(work.querySelector(".room-tab-live")?.textContent).toBe("2");
+  });
+
+  it("renders nothing at zero unread — no permanent zero in the bar", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 0, refused: null }),
+                   "model", () => {});
+    expect(chip(host)).toBeNull();
+  });
+
+  it("THE POINT: a refused stream renders a CONTROL that carries the reason", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null,
+                   { room: "schedule", count: 0, refused: "No longer permitted on this project" }),
+                   "model", () => {});
+    const c = chip(host)!;
+    expect(c.textContent).toBe("!");
+    expect(c.className).toContain("is-refused");
+    expect(c.title).toContain("No longer permitted on this project");
+    expect(c.getAttribute("role")).toBe("button");
+    expect(c.getAttribute("tabindex")).toBe("0");
+    expect(c.getAttribute("aria-label")).toContain("Try again");
+  });
+
+  it("activates by KEYBOARD as well as pointer, and does not switch room", () => {
+    // An `onclick` on a `<span>` inside a `<button>` is pointer-only: Enter would switch room
+    // instead of retrying. And a retry that also navigates is a retry nobody meant to press.
+    let retried: string[] = [];
+    let picked: string[] = [];
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null,
+                   { room: "schedule", count: 0, refused: "Gone" }), "model",
+                   (id) => picked.push(id), (id) => retried.push(id));
+    const c = chip(host)!;
+    c.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(retried).toEqual(["schedule"]);
+    expect(picked).toEqual([]);
+    retried = []; picked = [];
+    for (const key of ["Enter", " "]) {
+      c.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }
+    expect(retried).toEqual(["schedule", "schedule"]);
+    expect(picked).toEqual([]);
+    // an unrelated key does nothing
+    c.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    expect(retried).toHaveLength(2);
+  });
+
+  it("a healthy chip is not a control — nothing to activate", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, null, { room: "schedule", count: 4, refused: null }),
+                   "model", () => {});
+    const c = chip(host)!;
+    expect(c.getAttribute("role")).toBeNull();
+    expect(c.getAttribute("tabindex")).toBeNull();
+    expect(c.getAttribute("aria-label")).toContain("4 unread");
+  });
+
+  it("no live state at all leaves every tab exactly as before", () => {
+    const host = strip();
+    renderRoomTabs(host, buildRoomTabs(null, 6), "model", () => {});
+    expect(host.querySelectorAll(".room-tab-live")).toHaveLength(0);
+    expect(host.querySelectorAll(".room-tab")).toHaveLength(ROOM_IDS.length);
+  });
+});
