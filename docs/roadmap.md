@@ -4762,6 +4762,51 @@ conversation is the same shape as the seeding sweep this repo already learned ab
 as prose is a check that can only report good news* — and a PR thread is worse than prose, because
 it is closed by default once the PR merges.
 
+### CAP-IOS-CRIT — a CRITICAL advisory in the shipped iOS bridge, left behind by a partial bump *(OPEN — needs one command this environment cannot run)*
+
+*(XS — Lane J; measured 2026-10-11 while triaging the `node` dependency-scan red on PR #581.)*
+
+**The check that reports it says "4 npm advisory(ies) have a published fix", and that sentence is
+why nobody looked.** The root tree carries **7**: 1 critical, 2 high, 4 moderate. The critical is
+`@capacitor/ios@8.5.0` — *"Capacitor Android and iOS: remote content can be loaded at the app
+origin"* — fixed in **8.5.1**.
+
+| package | declared in `apps/web/package.json` | locked | state |
+|---|---|---|---|
+| `@capacitor/android` | `^8.5.1` | 8.5.1 | patched |
+| `@capacitor/cli` | `^8.5.1` | 8.5.1 | patched |
+| `@capacitor/core` | `^8.4.2` | 8.5.0 | behind |
+| `@capacitor/ios` | `^8.5.0` | **8.5.0** | **CRITICAL** |
+
+**It is a PARTIAL BUMP, not an unfixed advisory.** The same class was patched for Android and iOS
+together; somebody raised the `android` and `cli` declarations to `^8.5.1` and left `ios` and `core`.
+And the caret ranges **already permit 8.5.1** — `^8.5.0` covers it — so no manifest edit is needed at
+all. The fix is a lockfile refresh of those two packages and nothing else, which is about as
+low-risk as a dependency change gets. *An advisory satisfiable inside the range already declared is
+not a dependency decision, it is an unrefreshed lock.*
+
+**Why `dev=True` does not mean "does not ship", which is the trap this nearly fell into twice.**
+Every one of the 7 is dev-classified, and the root package has **zero production dependencies** — so
+`npm audit --omit=dev` over it is structurally incapable of reporting anything, and returns a
+confident "found 0 vulnerabilities". `security.yml`'s own header records that exact failure
+(*"EVERY advisory was dev-only … It printed 'found 0 vulnerabilities' while two HIGHs sat in the tree
+that builds and signs the desktop and mobile artifacts"*). `@capacitor/ios` is a **build-time
+generator**: `mobile.yml` runs `npm ci` from this lock and the native bridge is copied into the
+shipped app, so the advisory is in shipped code. **npm's dev/prod axis is the wrong axis for a code
+generator** — and the first two measurements here got it backwards, once by auditing `apps/web`
+prod-only (0 findings) and once by reading `dev=True` as harmless.
+
+**Not fixed here, and the blocker is the environment rather than a judgement.** Refreshing a lock
+needs `npm install`/`npm update`, which this agent is prohibited from running; `npm ci` installs
+from the lock and cannot bump. Hand-editing `package-lock.json` — swapping the version, `resolved`
+and `integrity` from the registry — is possible and is **declined**: generated files are regenerated
+with the repo's tooling, never by hand. So the work is one command by somebody who can run it:
+
+    npm update @capacitor/ios @capacitor/core     # then commit package-lock.json
+
+**Filed here rather than left in the PR thread** for the reason PREFAB-FREEZE-RACE was: a follow-up
+recorded only in a review conversation is closed by default the moment that pull request merges.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
