@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApiClient } from "../api/client";
-import { day, parseActuals, renderRegister } from "./covenantCard";
+import { day, parseActuals, renderRegister, thresholdsOf } from "./covenantCard";
 
 /**
  * CRE-COVENANT shipped complete and `ApiClient.loanCovenants()` was callerless, so nothing had yet
@@ -83,6 +83,40 @@ describe("reading the actuals", () => {
     expect(parseActuals("debt_yield = 9%").actuals.debt_yield).toBe(0.09);
     expect(parseActuals("ltv = 62%").actuals.ltv).toBeLessThan(0.65);
     expect(parseActuals("ltv = 62%").actuals.ltv).toBeGreaterThan(0.6);
+  });
+
+  // AND THE PERCENT FIX WAS ITSELF HALF WRONG, found by the next review. `covenants.py` compares
+  // the typed actual against a threshold the USER supplied and normalises neither, so the scale is
+  // a property of the register, not of the metric. Dividing unconditionally turned
+  // `occupancy = 92%` into `0.92` against `min 90` and reported a breach on a compliant property —
+  // the same false breach, in a register shape nothing refuses.
+  it("THE SECOND DEFECT: a per-hundred threshold keeps the typed percent as typed", () => {
+    const hints = thresholdsOf({ covenants: [
+      { name: "Occupancy", metric: "occupancy", direction: "min", threshold: 90 },
+      { name: "LTV", metric: "ltv", direction: "max", threshold: 0.65 },
+    ] });
+    const { actuals } = parseActuals("occupancy = 92%\nltv = 62%", hints);
+    expect(actuals).toEqual({ occupancy: 92, ltv: 0.62 });
+  });
+
+  it("falls back to dividing when the register declares no threshold for the metric", () => {
+    expect(parseActuals("ltv = 62%", { dscr: 1.25 }).actuals).toEqual({ ltv: 0.62 });
+    expect(parseActuals("ltv = 62%").actuals).toEqual({ ltv: 0.62 });
+  });
+
+  it("reports every percent reading, because the resolution depends on the register", () => {
+    const hints = thresholdsOf({ covenants: [
+      { metric: "occupancy", threshold: 90 }, { metric: "ltv", threshold: 0.65 }] });
+    expect(parseActuals("occupancy = 92%\nltv = 62%\ndscr = 1.41", hints).readings)
+      .toEqual(["occupancy 92% read as 92", "ltv 62% read as 0.62"]);
+  });
+
+  it("thresholdsOf survives a register that is not one", () => {
+    expect(thresholdsOf(null)).toEqual({});
+    expect(thresholdsOf({})).toEqual({});
+    expect(thresholdsOf({ covenants: "nope" })).toEqual({});
+    expect(thresholdsOf({ covenants: [null, { metric: "ltv" }, { threshold: 1 },
+                                      { metric: "x", threshold: "1" }] })).toEqual({});
   });
 
   it("does not FUSE two numbers into a plausible third", () => {

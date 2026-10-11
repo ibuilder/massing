@@ -86,9 +86,11 @@ export const EXAMPLE_REGISTER = {
  *  The value is also matched STRICTLY now rather than stripped of whitespace. `[%\s,]` removal
  *  turned `dscr = 1.4 1` into `1.41` — two numbers fused into a plausible third — and the promise
  *  in the line above is that an unreadable actual is REPORTED, which a number it invents is not. */
-export function parseActuals(text: string): { actuals: Record<string, number>; skipped: string[] } {
+export function parseActuals(text: string, thresholds: Record<string, number> = {}):
+    { actuals: Record<string, number>; skipped: string[]; readings: string[] } {
   const actuals: Record<string, number> = {};
   const skipped: string[] = [];
+  const readings: string[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const row = raw.trim();
     if (!row) continue;
@@ -96,9 +98,40 @@ export function parseActuals(text: string): { actuals: Record<string, number>; s
     const v = m ? /^(-?[\d,]*\.?\d+)\s*(%?)$/.exec(m[2]!.trim()) : null;
     const n = v ? Number(v[1]!.replace(/,/g, "")) : NaN;
     if (!m || !v || !isFinite(n)) { skipped.push(row); continue; }
-    actuals[m[1]!] = v[2] ? n / 100 : n;
+    const key = m[1]!;
+    // A percent divides only when the register is written per-UNIT. `covenants.py` compares the
+    // typed actual against a threshold the user supplied and normalises NEITHER, so the scale is a
+    // property of the register and not of the metric: `ltv max 0.65` wants `0.62`, while
+    // `occupancy min 90` wants `92`. Dividing unconditionally — which the first repair did —
+    // turned `occupancy = 92%` into `0.92` and reported a breach on a compliant property, *the
+    // same false breach the repair was written about, in a register shape nothing refuses.*
+    const scale = thresholds[key];
+    const perHundred = scale !== undefined && Math.abs(scale) >= 1;
+    const value = v[2] && !perHundred ? n / 100 : n;
+    actuals[key] = value;
+    // Every percent reading is reported, because the resolution depends on the register and a
+    // reader who cannot see which way it went cannot tell a scale mismatch from a real breach.
+    if (v[2]) readings.push(`${key} ${n}% read as ${value}`);
   }
-  return { actuals, skipped };
+  return { actuals, skipped, readings };
+}
+
+/** `metric -> threshold` from a register, so a typed `%` can be aligned to the scale the register
+ *  is actually written in. Tolerant by design: a register that does not parse into covenants
+ *  yields no hints and `parseActuals` falls back to dividing, which is right for the fractional
+ *  thresholds the example register and every documented metric use. */
+export function thresholdsOf(loan: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  const cov = (loan as { covenants?: unknown } | null)?.covenants;
+  if (!Array.isArray(cov)) return out;
+  for (const c of cov) {
+    const metric = (c as { metric?: unknown } | null)?.metric;
+    const threshold = (c as { threshold?: unknown } | null)?.threshold;
+    if (typeof metric === "string" && typeof threshold === "number" && isFinite(threshold)) {
+      out[metric] = threshold;
+    }
+  }
+  return out;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -327,7 +360,7 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
                            "var(--status-crit)");
       return;
     }
-    const { actuals, skipped } = parseActuals(actIn.value);
+    const { actuals, skipped, readings } = parseActuals(actIn.value, thresholdsOf(loan));
     save("register", regIn.value); save("actuals", actIn.value);
 
     go.disabled = true;
@@ -344,6 +377,14 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
           + skipped.slice(0, 4).map((s) => esc(s)).join(" · ")
           + `. A covenant whose metric is missing is reported <em>untested</em> below, so a typo here `
           + `looks exactly like a figure you never had.`, "var(--status-warn)"));
+      }
+      if (readings.length) {
+        // The percent resolution depends on the REGISTER's scale, so it is shown. A reader who
+        // cannot see which way a `%` went cannot tell a scale mismatch from a real breach — and
+        // both of this card's percent defects produced a confident verdict with no visible cause.
+        out.insertAdjacentHTML("beforeend", meta(
+          `Percent readings, against this register's own thresholds: `
+          + readings.map((x) => esc(x)).join(" · ") + `.`));
       }
       renderRegister(out, r);
       ctx.setStatus(r.at_risk ? "covenant register: at risk" : "covenant register evaluated");

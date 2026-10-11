@@ -341,8 +341,16 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
     rows.splice(0, rows.length, ...entriesFromRead(a));
     paint();
   }).catch((e: Error) => {
-    out.innerHTML = meta(esc(e.message), "var(--status-crit)");
-    paint();
+    // ALSO FAIL CLOSED, and this arm is the MORE destructive of the two. `paint()` here opened the
+    // editor over an empty `rows`, the undated pre-check passed trivially because there is nothing
+    // to check, and Save then PUT `{entries: []}` over the whole stored blob — archival rows,
+    // supersedes chains and reviewers gone, from a card that had just told the reader it could not
+    // read the table. The branch above refuses to open for the *lesser* case, which is how review
+    // found this one: *a fail-closed guard beside a fail-open neighbour reads as coverage.*
+    out.innerHTML = meta(
+      `${esc(e.message)} — the authority table could not be read, so the editor will not open: `
+      + `saving from a blank form would replace the stored table with nothing.`,
+      "var(--status-crit)");
   });
   return host;
 }

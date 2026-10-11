@@ -728,13 +728,36 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   and still be true, and a never-persisted exemption is refused the moment its function calls
   `.add(...)`.
 
-  Ten self-tests run over synthetic trees **before** any verdict, including a CLEAN baseline —
-  *a check whose expected answer is zero is the easiest kind to break silently.* Nine mutations of
-  the analyser were run and the ninth is the one that taught something: `callers - definers` stayed
-  **green**, because `auth.py` does not call its own helper, so the exclusion the first draft's
-  docstring *claimed and did not implement* was still doing nothing measurable once implemented —
-  the same position `_via_helper` was in. **Defensive is not the same as exercised.** A fixture now
-  calls the helper from the module that defines it.
+  Fourteen self-tests run over synthetic trees **before** any verdict, including a CLEAN baseline —
+  *a check whose expected answer is zero is the easiest kind to break silently.* Twelve mutations of
+  the analyser are run, and three of them taught something.
+
+  **① `callers - definers` stayed green.** `auth.py` does not call its own helper, so the exclusion
+  the first draft's docstring *claimed and did not implement* was still doing nothing measurable
+  once implemented — the same position `_via_helper` was in. **Defensive is not the same as
+  exercised.** A fixture now calls the helper from the module that defines it.
+
+  **② AND THE REPAIR OF THE SCOPING HOLE SHIPPED WITH THE HOLE STILL OPEN — twice.** Review of the
+  repair found that the prefix loop admitted the factory name under *every* enclosing scope
+  **including the empty one**, so `<module>.<factory>` was always routed and an inline fifth door
+  using a module-level `_make_user` came back clean. *A loop over prefixes includes the one that
+  means "anywhere".* Narrowing it to "the module defines that name at module scope" was still
+  unsound, because the wired route's nested `def _make_user` **shadows** the module-level one: the
+  name passed came from the route, and the guard admitted the module-level site anyway. *Two
+  definitions of one name is not a question about the module, it is a question about scope.* The
+  factory is now resolved **lexically** — walk out from the call's scope, first definition wins —
+  and a name no scope defines routes nothing, so a matching site reads as a stray. **The fixture
+  for this was itself wrong on its first draft**: spelled `_seed_user`, it passed the hole it was
+  written to catch, because the collision needs the house name every real door uses. *A collision
+  test spelled with a different name tests nothing.*
+
+  **③ The persistence predicate was named for one thing and measured another.** The never-persisted
+  exemption was refused whenever its function contained *any call named `add`*, so a `set.add(...)`
+  or an audit append in `require_admin_user` would have redded the build with *"it needs the 409
+  guard or the savepoint idiom"* about a function that still persists nothing. *A predicate named
+  for the thing it is about, measured on something else, produces a confident finding with the
+  wrong remedy attached.* It now asks whether **that** `User` reaches a `.add(...)`, in either of
+  the two forms — the direct argument and the two-statement assign — both fixtured.
 
   *Recorded and not fixed, deliberately:* `register` and `create_user` are check-then-insert, so a
   true race yields a **500 where 409 was intended**. That is low severity and saying so matters —
@@ -772,6 +795,18 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   so `dscr = 1.4 1` became `1.41` — **two numbers fused into a plausible third**, under a docstring
   promising that an unreadable actual is REPORTED rather than guessed. The value is matched
   strictly now, so a typo is a skipped line with the text shown.
+
+  **AND THE REPAIR WAS HALF WRONG, found by the next review.** Dividing unconditionally assumed
+  every threshold is fractional. `covenants.py` compares the typed actual against a threshold **the
+  user supplied** and normalises neither, so the scale is a property of the REGISTER, not of the
+  metric: `ltv max 0.65` wants `0.62`, while `occupancy min 90` wants `92`. So `occupancy = 92%`
+  became `0.92` and reported a breach on a compliant property — *the same false breach the repair
+  was written about, in a register shape nothing refuses.* The percent is now aligned against the
+  register's own threshold for that metric (`thresholdsOf`), and **every percent reading is printed
+  on the card**, because the resolution depends on the register and a reader who cannot see which
+  way a `%` went cannot tell a scale mismatch from a real breach. *Both of this card's percent
+  defects produced a confident verdict with no visible cause; showing the reading is what removes
+  the whole class rather than its current instance.*
 
 - ✅ ⭐ **AUTHORITY-REPLACE — the authority editor's "Save" was a delete button** *(S — Lane B;
   **CLOSED 2026-10-11**; held by `apps/web/src/proforma/authorityCard.test.ts` and
@@ -814,6 +849,14 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   round-tripped through the engine and was surfaced on the assessment while **no screen could set
   it or show it**, so it has an input now; preserving a value nobody can see is a fix nobody can
   check.
+
+  **And the fix shipped beside a WORSE instance of itself.** The load path's `.catch` arm still
+  called `paint()`, so when the GET *failed* the editor opened over an empty `rows`, the undated
+  pre-check passed trivially because there was nothing to check, and Save PUT `{entries: []}` over
+  the whole stored blob — from a card that had just told the reader it could not read the table.
+  The new fail-closed branch three lines above refuses to open for the **lesser** case. *A
+  fail-closed guard beside a fail-open neighbour reads as coverage*, which is why review found this
+  and reading the diff did not.
 
 - ✅ **REVIEW-TRIO — three findings from one review, each a declaration that disagrees with the
   state behind it** *(XS — Lanes B/I/E; **CLOSED 2026-10-11**; the first held by

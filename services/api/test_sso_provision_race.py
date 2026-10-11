@@ -453,7 +453,10 @@ def _analyse(root: pathlib.Path) -> dict:
     unresolved: list[str] = []       # helper calls whose factory argument is not a plain name
     sites: dict[str, str] = {}       # "<module>.<qualname>" -> "<module>:<lineno>"
     module_level: set[str] = set()   # the subset of `sites` constructed outside any function
-    adders: set[str] = set()         # "<module>.<qualname>" of functions calling `.add(...)`
+    node_site: dict[int, str] = {}   # id(User call node) -> its site key
+    added_nodes: set[int] = set()    # id(User call node) passed DIRECTLY to `.add(...)`
+    added_names: set[tuple] = set()  # (module, scope, name) passed to `.add(...)`
+    assigned: dict[tuple, int] = {}  # (module, scope, name) -> id(the User call assigned to it)
     files = 0
     for f in sorted(root.rglob("*.py")):
         if "__pycache__" in f.parts:
@@ -465,11 +468,23 @@ def _analyse(root: pathlib.Path) -> dict:
         files += 1
         mod = _modname(f, root)
         scope = _scope_of(tree)
+        # {scope qualname: names DEFINED in that scope}. Used to resolve the factory argument
+        # LEXICALLY, which is the only sound reading: see the comment at the resolution below.
+        defs_in: dict[str, set[str]] = {}
+        for d_ in _ast.walk(tree):
+            if isinstance(d_, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                defs_in.setdefault(scope.get(d_, ""), set()).add(d_.name)
         for n in _ast.walk(tree):
             if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and n.name == _HELPER:
                 definers.add(mod)
                 continue
-            if not isinstance(n, _ast.Call):
+            if not isinstance(n, (_ast.Call, _ast.Assign)):
+                continue
+            if isinstance(n, _ast.Assign):
+                if isinstance(n.value, _ast.Call) and _called(n.value.func) == "User":
+                    for t_ in n.targets:
+                        if isinstance(t_, _ast.Name):
+                            assigned[(mod, scope.get(n, ""), t_.id)] = id(n.value)
                 continue
             name, here = _called(n.func), scope.get(n, "")
             if name == _HELPER:
@@ -477,29 +492,61 @@ def _analyse(root: pathlib.Path) -> dict:
                 arg = n.args[2] if len(n.args) > 2 else next(
                     (k.value for k in n.keywords if k.arg == "make_user"), None)
                 if isinstance(arg, _ast.Name):
-                    # The factory resolves from the scope that CALLS the helper or any scope
-                    # ENCLOSING it — never from "any function in this module that happens to carry
-                    # that name", which is the hole review found. The enclosing prefixes matter:
-                    # every door today nests the factory in its route beside the call, but a call
-                    # moved one scope deeper would otherwise read as a stray. That is a fail-CLOSED
-                    # false positive rather than a miss, and the prefixes remove it without
-                    # readmitting a SIBLING route's identically named factory.
+                    # LEXICAL RESOLUTION, and nothing looser. The factory is the definition the
+                    # calling scope would actually reach: walk out from the call's scope and take
+                    # the FIRST scope that defines the name.
+                    #
+                    # Two earlier drafts were each wrong in the same direction. The first keyed
+                    # sites `module.function`, so a fifth door using the house name `_make_user`
+                    # collapsed onto an existing key. The second added the name under EVERY
+                    # enclosing prefix including the empty one — so `<module>.<factory>` was always
+                    # routed, and a fifth door provisioning inline through a module-level
+                    # `_make_user` came back clean. *A loop over prefixes includes the one that
+                    # means "anywhere".* Narrowing that to "the module defines this name at module
+                    # scope" was still unsound, because a nested `def _make_user` in the wired
+                    # route SHADOWS the module-level one: the name passed came from the route, and
+                    # the guard admitted the module-level site anyway. *Two definitions of one name
+                    # is not a question about the module, it is a question about scope.*
+                    #
+                    # A name no enclosing scope defines (a parameter, an import) resolves to
+                    # nothing and is added to nothing, so a site matching it reads as a STRAY —
+                    # fail CLOSED. Measured at 0 occurrences today.
                     _parts = here.split(".") if here else []
                     for _i in range(len(_parts), -1, -1):
                         _q = ".".join(_parts[:_i])
-                        routed.add(f"{mod}.{_q}.{arg.id}" if _q else f"{mod}.{arg.id}")
+                        if arg.id in defs_in.get(_q, ()):
+                            routed.add(f"{mod}.{_q}.{arg.id}" if _q else f"{mod}.{arg.id}")
+                            break
                 else:
                     unresolved.append(f"{mod}.{here or '<module>'}:{n.lineno}")
             elif name == "User":
                 key = f"{mod}.{here}" if here else mod
                 sites[key] = f"{mod}:{n.lineno}"
+                node_site[id(n)] = key
                 if not here:
                     module_level.add(key)
-            elif name == "add" and here:
-                adders.add(f"{mod}.{here}")
+            elif name == "add":
+                # The question is whether THIS User reaches a `.add(...)`, not whether the function
+                # contains a call named `add`. The first draft asked the latter, so a `set.add(...)`
+                # or an audit row appended in `require_admin_user` would have redded the build with
+                # "it needs the 409 guard or the savepoint idiom" about a function that still
+                # persists nothing. *A predicate named for the thing it is about, measured on
+                # something else, produces a confident finding with the wrong remedy attached.*
+                for a_ in n.args:
+                    if isinstance(a_, _ast.Call) and _called(a_.func) == "User":
+                        added_nodes.add(id(a_))
+                    elif isinstance(a_, _ast.Name):
+                        added_names.add((mod, here, a_.id))
+    # A site is PERSISTED when its own `User(...)` reaches a `.add(...)`: directly as the argument,
+    # or through a local name the same scope later adds. Resolved here rather than in the walk
+    # because `u = User(...)` and `db.add(u)` are two statements and may be in either order.
+    persisted = {node_site[i] for i in added_nodes if i in node_site}
+    for keyed, node_id in assigned.items():
+        if keyed in added_names and node_id in node_site:
+            persisted.add(node_site[node_id])
     return {"definers": definers, "callers": callers - definers, "routed": routed,
             "unresolved": unresolved, "sites": sites, "module_level": module_level,
-            "adders": adders, "files": files}
+            "persisted": persisted, "files": files}
 
 
 def _findings(a: dict, caller_to_door: dict[str, str], by_request: set[str],
@@ -534,9 +581,9 @@ def _findings(a: dict, caller_to_door: dict[str, str], by_request: set[str],
             out.append(f"STALE EXEMPTION: {key} is exempted here and constructs no User — delete "
                        f"the entry ({len(a['sites'])} site(s) found, so this is not a blind walk)")
     for key in sorted(not_persisted):
-        if key in a["sites"] and key in a["adders"]:
+        if key in a["sites"] and key in a["persisted"]:
             out.append(f"EXEMPTION NO LONGER TRUE: {key} is exempted as never-persisted and now "
-                       "calls .add(...) — it needs the 409 guard or the savepoint idiom")
+                       "adds its User to a session — it needs the 409 guard or the savepoint idiom")
     return out
 
 
@@ -740,6 +787,90 @@ _probe("the module that DEFINES the helper is not itself a door",
             return u
        """},
        must_not=["NEW DOOR", "STRAY", "UNKNOWN"])
+
+# SHAPE 1b — the same inline fifth door, with its factory at MODULE scope AND UNDER THE HOUSE NAME.
+# Both halves are load-bearing. The second repair's prefix loop ran down to the empty prefix, so
+# `routers.auth._make_user` was routed because `oauth_callback` passes a NESTED factory of that
+# name; narrowing that to "the module defines this name" did not help, because the module here DOES
+# define it — the nested def in the wired route simply SHADOWS it. The fixture deliberately reuses
+# `_make_user`, since all four real doors use it: *a collision test spelled with a different name
+# tests nothing, and the first draft of this fixture was spelled `_seed_user` and passed the hole
+# it was written to catch.*
+_probe("a fifth door whose MODULE-LEVEL factory never reaches the helper is a STRAY",
+       extra={"routers/auth.py": """
+
+        def _make_user(email):
+            return User(username=email)
+
+        def device_callback(db, email):
+            u = db.get(User, email)
+            if u is None:
+                u = _make_user(email)
+                db.add(u)
+            return u
+       """},
+       must=["STRAY", "routers.auth._make_user"],
+       must_not=["NEW DOOR"])
+
+# ...and the narrowed module-scope spelling still RESOLVES when the module really defines it there
+# and really passes it. Without this the repair above could be "never admit module scope", which
+# would red a legitimate shared factory.
+_probe("a MODULE-LEVEL factory that IS passed to the helper resolves",
+       replace={"routers/saml.py": """
+        from .. import auth
+
+        def _make_user(email):
+            return User(username=email)
+
+        def saml_acs(db, email):
+            return auth.get_or_create_sso_user(db, email, _make_user)
+       """},
+       must_not=["STRAY", "UNKNOWN", "NEW DOOR"])
+
+# THE PERSISTENCE PREDICATE is about THIS User, not about any call named `add`. Asking the latter
+# turned an audit append or a set insert into "it needs the 409 guard or the savepoint idiom" —
+# a confident finding with the wrong remedy attached, about a function that persists nothing.
+_probe("a never-persisted exemption may call .add() on something that is not its User",
+       replace={"routers/auth.py": """
+        from ..auth import get_or_create_sso_user
+
+        def require_admin_user(db, seen, audit_rows):
+            seen.add("local")
+            audit_rows.add({"action": "admin.local"})
+            return User(username="local", role="admin")
+
+        def register(db, username):
+            if db.get(User, username):
+                raise HTTPException(409, "username already taken")
+            db.add(User(username=username))
+
+        def oauth_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+       """},
+       must_not=["EXEMPTION NO LONGER TRUE"])
+
+# Both persisting forms are caught: the two-statement one above, and the direct argument.
+_probe("a never-persisted exemption that adds its User DIRECTLY is refused",
+       replace={"routers/auth.py": """
+        from ..auth import get_or_create_sso_user
+
+        def require_admin_user(db):
+            db.add(User(username="local", role="admin"))
+            return db.get(User, "local")
+
+        def register(db, username):
+            if db.get(User, username):
+                raise HTTPException(409, "username already taken")
+            db.add(User(username=username))
+
+        def oauth_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+       """},
+       must=["EXEMPTION NO LONGER TRUE", "routers.auth.require_admin_user"])
 
 # ---- the real tree ------------------------------------------------------------------------------
 #: Sites that INSERT a user BY EXPLICIT REQUEST rather than auto-provisioning on sign-in. Both
