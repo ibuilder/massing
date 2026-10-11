@@ -70,9 +70,22 @@ export const EXAMPLE_REGISTER = {
   ],
 };
 
-/** `dscr = 1.41` / `ltv: 0.62` — one metric per line. Returns `null` for a line it cannot read, so a
- *  typo becomes a reported problem rather than a silently absent actual (and hence an untested
- *  covenant, which is exactly the state this card exists to make visible). */
+/** `dscr = 1.41` / `ltv: 0.62` / `ltv: 62%` — one metric per line. Reports a line it cannot read
+ *  instead of guessing, so a typo becomes a visible problem rather than a silently absent actual
+ *  (and hence an untested covenant, which is exactly the state this card exists to make visible).
+ *
+ *  **A PERCENT SIGN DIVIDES BY 100, and the first draft stripped it.** The engine's thresholds are
+ *  fractions — `debt_yield` is declared `min 0.09`, `ltv` `max 0.65` — so `debt_yield = 9%` parsed
+ *  to `9` and reported a **passing** covenant with a hundredfold margin, while `ltv = 62%` parsed
+ *  to `62` and reported a breach on a loan that is comfortably inside its limit. **Both verdicts
+ *  were confident and both were wrong, in opposite directions**, which is the worst available
+ *  combination: there is no reading of the card that looks odd. And `covenantCard.test.ts` ASSERTED
+ *  it (`ltv: 62%` → `62`), so the one thing that could have caught it had been taught the defect.
+ *  *A test can freeze a misreading as firmly as it can pin a fix.*
+ *
+ *  The value is also matched STRICTLY now rather than stripped of whitespace. `[%\s,]` removal
+ *  turned `dscr = 1.4 1` into `1.41` — two numbers fused into a plausible third — and the promise
+ *  in the line above is that an unreadable actual is REPORTED, which a number it invents is not. */
 export function parseActuals(text: string): { actuals: Record<string, number>; skipped: string[] } {
   const actuals: Record<string, number> = {};
   const skipped: string[] = [];
@@ -80,9 +93,10 @@ export function parseActuals(text: string): { actuals: Record<string, number>; s
     const row = raw.trim();
     if (!row) continue;
     const m = /^([A-Za-z_][\w.]*)\s*[=:]\s*(.+)$/.exec(row);
-    const n = m ? Number(m[2]!.replace(/[%\s,]/g, "")) : NaN;
-    if (!m || !isFinite(n)) { skipped.push(row); continue; }
-    actuals[m[1]!] = n;
+    const v = m ? /^(-?[\d,]*\.?\d+)\s*(%?)$/.exec(m[2]!.trim()) : null;
+    const n = v ? Number(v[1]!.replace(/,/g, "")) : NaN;
+    if (!m || !v || !isFinite(n)) { skipped.push(row); continue; }
+    actuals[m[1]!] = v[2] ? n / 100 : n;
   }
   return { actuals, skipped };
 }
@@ -282,7 +296,11 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
   };
   const regIn = area("Register (JSON)", 8, load("register", ""),
                      '{"name": …, "obligations": [...], "covenants": [...]}');
-  const actIn = area("Actuals — one metric per line", 3, load("actuals", ""), "dscr = 1.41\nltv = 0.62");
+  // The placeholder shows BOTH spellings on purpose. Thresholds are fractions, so a reader who
+  // types `62%` and a reader who types `0.62` must land on the same covenant verdict, and the only
+  // way they do is if the card says out loud that it accepts the percent form.
+  const actIn = area("Actuals — one metric per line (`62%` and `0.62` are the same)", 3,
+                     load("actuals", ""), "dscr = 1.41\nltv = 62%\ndebt_yield = 0.09");
 
   const actions = document.createElement("div"); actions.style.cssText = "margin-top:6px";
   const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Evaluate register";

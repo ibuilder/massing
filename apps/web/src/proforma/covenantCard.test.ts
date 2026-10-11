@@ -62,9 +62,35 @@ const mount = () => {
 };
 
 describe("reading the actuals", () => {
-  it("accepts `=` and `:`, and strips percent and thousands marks", () => {
-    expect(parseActuals("dscr = 1.41\nltv: 62%\ndebt_yield = 0.09").actuals)
-      .toEqual({ dscr: 1.41, ltv: 62, debt_yield: 0.09 });
+  it("accepts `=` and `:`, and strips thousands marks", () => {
+    expect(parseActuals("dscr = 1.41\nltv: 0.62\nnoi = 1,250,000").actuals)
+      .toEqual({ dscr: 1.41, ltv: 0.62, noi: 1250000 });
+  });
+
+  // THE FIRST VERSION OF THIS BLOCK ASSERTED THE DEFECT: it expected `ltv: 62%` to parse to `62`
+  // under the heading "strips percent", and the engine's thresholds are FRACTIONS. So the only
+  // check that could have caught the misreading had been taught it instead. A percent sign divides.
+  it("divides a percent by 100, because every threshold is a fraction", () => {
+    expect(parseActuals("ltv: 62%\ndebt_yield = 9%\ndscr = 1.41").actuals)
+      .toEqual({ ltv: 0.62, debt_yield: 0.09, dscr: 1.41 });
+  });
+
+  it("the two readings land on opposite sides of the same threshold", () => {
+    // Measured against the engine's own example register rather than reasoned about: `debt_yield`
+    // is `min 0.09`, so the stripped reading PASSES with a hundredfold margin and the correct one
+    // sits exactly on the line; `ltv` is `max 0.65`, so the stripped reading BREACHES a loan that
+    // is inside its limit. One defect, two confident verdicts, pointing opposite ways.
+    expect(parseActuals("debt_yield = 9%").actuals.debt_yield).toBe(0.09);
+    expect(parseActuals("ltv = 62%").actuals.ltv).toBeLessThan(0.65);
+    expect(parseActuals("ltv = 62%").actuals.ltv).toBeGreaterThan(0.6);
+  });
+
+  it("does not FUSE two numbers into a plausible third", () => {
+    // `replace(/[%\s,]/g, "")` turned `1.4 1` into `1.41`, which is not a misparse the reader can
+    // see — it is a different covenant verdict with no symptom. Strict matching reports the line.
+    const { actuals, skipped } = parseActuals("dscr = 1.4 1\nltv = 0.62");
+    expect(actuals).toEqual({ ltv: 0.62 });
+    expect(skipped).toEqual(["dscr = 1.4 1"]);
   });
 
   it("reports a line it cannot read instead of dropping it", () => {
