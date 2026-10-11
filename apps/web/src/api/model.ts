@@ -175,7 +175,7 @@
  *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
  *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
-import { HttpError } from "./httpCore";
+import { HttpError, type LiveStatus } from "./httpCore";
 import type { LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEditIfc } from "./types";
 
@@ -238,7 +238,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
   modelStream(pid: string, onMessage: (snap: unknown) => void,
-              onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+              onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/model/stream`, onMessage, onStatus);
   }
 

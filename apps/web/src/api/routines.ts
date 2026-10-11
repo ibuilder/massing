@@ -25,7 +25,7 @@
  *
  *  SCALE-SEAM ⓵ adds the job tray — *what's running in the background?* Enqueue, status, list, artifact URL. The leftover R24-JOB-TRAY banner travelled with them. 5D heatmap sat below and did **not** come.
  */
-import { HttpCore, type LiveStream } from "./httpCore";
+import { HttpCore, type LiveStatus, type LiveStream } from "./httpCore";
 import type { DueFeed, EscalationRun, EscalationScan, Job, NotifItem, WorkItem, WorkQueue } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -99,7 +99,7 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   /** Live notification stream — count plus items as they arrive. */
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
-                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+                     onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }

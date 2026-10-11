@@ -1954,8 +1954,23 @@ function connectNotifications() {
     const stream = api.notificationStream(projectId, ({ count }) => {
       badge!.textContent = count > 0 ? String(count) : "";
       badge!.style.display = count > 0 ? "" : "none";
-    }, (s) => {
-      // surface a silent disconnect instead of the badge just going stale
+    }, (s, why) => {
+      // THREE states, not two. A `refused` stream is never coming back on its own, so saying
+      // "reconnecting…" about it is a promise the client cannot keep — and until FIELD-STREAM-POISON
+      // that is exactly what this said, for ever, with a page reload as the only cure. The badge
+      // becomes a clickable "!" carrying the server's reason, because a refusal the reader can
+      // neither see nor undo is worse than a stale number.
+      if (s === "refused") {
+        ws.title = `Live notifications stopped — ${why ?? "refused by the server"}. Click to try again.`;
+        badge!.textContent = "!";
+        badge!.style.display = "";
+        badge!.style.opacity = "0.6";
+        badge!.style.cursor = "pointer";
+        badge!.onclick = (e) => { e.stopPropagation(); stream.retry(); };
+        return;
+      }
+      badge!.onclick = null;
+      badge!.style.cursor = "";
       ws.title = s === "reconnecting" ? "Live notifications disconnected — reconnecting…" : "";
       badge!.style.opacity = s === "reconnecting" ? "0.5" : "";
     });

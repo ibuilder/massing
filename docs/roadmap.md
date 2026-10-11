@@ -6425,6 +6425,38 @@ refute one, so this goes first even though it is the least visible.
   where the first entry fails transiently and the second uploads, and it discarded the file that
   never reached the server while leaving the one that did to be uploaded again. *A mock of that
   store would have been perfectly green.*
+
+  **Slice ⑥ — FIELD-STREAM-POISON: the class had a THIRD instance, and its diagnosis was already
+  written down beside it** *(**CLOSED 2026-10-11**; gated by
+  `apps/web/src/api/liveStreamRefusal.test.ts`)*. `HttpCore.liveStream` re-subscribes a dead SSE
+  stream with bounded backoff — and `EventSource.onerror` **carries no status**, so a fatal close
+  and a transient drop arrive through the identical handler. A 403 on a project the caller has been
+  removed from, or a 404 on one that was deleted, therefore backed off to the 60-second ceiling and
+  **retried for ever**, while the one UI reading it said *"Live notifications disconnected —
+  reconnecting…"* indefinitely. A page reload was the only cure, and it would not have helped.
+
+  **The symptom was in the file, twenty lines up.** `HttpCore.setToken`'s docstring says *"without
+  the cookie every live stream (model/notifications/pull-plan) resolves anonymous under RBAC and
+  **dies in a reconnect loop**."* Nothing acted on it. *A symptom named in a docstring beside the
+  code that produces it is not a fixed defect, and it reads like one* — which is why the sweep that
+  found slice ⑤ and UPLOAD-POISON walked past this twice.
+
+  A fatal close is CLASSIFIED now: one `fetch` of the same path, ruled on by the same
+  `permanentRejection` the two queues share rather than a third opinion about which failures are
+  worth repeating. Permanent → stop and say why, with the badge becoming a clickable *"!"* that
+  carries the server's reason and calls `retry()` — reversibility, the lesson slice ⑤'s review paid
+  for. The probe **fails open**: a probe that cannot complete means retry, because offline is both
+  the most retryable failure there is and exactly when the probe cannot answer.
+
+  *Two things the mutation run decided rather than the design.* The promise's `|| refused` guard was
+  redundant — mutating it out changed no test — so it went, and the race it looked like it covered
+  (two fatal closes in flight, one transient verdict and one permanent) is handled in `open` and
+  **tested**, because by then the timer is already booked. And `es.close()` on the dead source
+  survived every behavioural mutation, so it is asserted directly: a CLOSED `EventSource` still
+  holds its slot in the six-per-origin pool and this helper opens a fresh one on every reconnect, so
+  four streams reconnecting through a deploy would exhaust it and the next would simply never
+  connect. **`liveStream` had no test of any kind before this** — a reconnect loop with nothing
+  driving it is how it retried forever unnoticed.
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
   now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above

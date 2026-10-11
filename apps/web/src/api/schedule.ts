@@ -16,7 +16,7 @@
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
-import { HttpCore, HttpError, type LiveStream } from "./httpCore";
+import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
 import type { LogisticsResource, MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -684,7 +684,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
    *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
   pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-                 onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+                 onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/pull-plan/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }

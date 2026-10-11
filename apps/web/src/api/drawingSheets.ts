@@ -9,7 +9,7 @@
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
-import { HttpCore, HttpError, type LiveStream } from "./httpCore";
+import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
 import type { SheetLayout } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
@@ -82,7 +82,7 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
    *  markup so open sheets live-refresh (live co-markup). */
   markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-               onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+               onStatus?: (s: LiveStatus, why?: string) => void): LiveStream {
     return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
