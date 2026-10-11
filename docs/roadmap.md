@@ -4778,6 +4778,13 @@ origin"* — fixed in **8.5.1**.
 | `@capacitor/core` | `^8.4.2` | 8.5.0 | behind |
 | `@capacitor/ios` | `^8.5.0` | **8.5.0** | **CRITICAL** |
 
+**The patch has been available for SIX WEEKS.** Queried from the npm registry rather than taken
+from the advisory: `@capacitor/ios` 8.5.0 was published **2026-07-31**, the fix **8.5.1 on
+2026-08-31**, then 8.5.2 (09-11) and 8.5.3 (10-07), which is `latest`. So the command below resolves
+to **8.5.3**, not 8.5.1 — two further patch releases inside the range already declared. *The
+advisory names the first version that fixes it; the range names what you actually get, and those are
+different numbers.*
+
 **It is a PARTIAL BUMP, not an unfixed advisory.** The same class was patched for Android and iOS
 together; somebody raised the `android` and `cli` declarations to `^8.5.1` and left `ios` and `core`.
 And the caret ranges **already permit 8.5.1** — `^8.5.0` covers it — so no manifest edit is needed at
@@ -4806,6 +4813,26 @@ with the repo's tooling, never by hand. So the work is one command by somebody w
 
 **Filed here rather than left in the PR thread** for the reason PREFAB-FREEZE-RACE was: a follow-up
 recorded only in a review conversation is closed by default the moment that pull request merges.
+
+**AND THE `python` HALF OF THE SAME SCAN IS UNENUMERATED, NOT CLEAN.** The npm side above was
+measurable here only because `npm audit` reaches the registry, which the agent proxy allows. The
+Python side is not: `api.osv.dev` is **403 at CONNECT** through that proxy, GitHub's
+`/advisories` endpoint is 403 for a repo-scoped session, and installing `pip-audit` into
+`services/api/.venv` would add unpinned packages to a venv whose *"109 pins, 0 version mismatches"*
+property is recorded in `CLAUDE.md` as verified — a bad trade for a diagnostic. So the `python`
+red's CONTENTS are unknown from this environment, and after what the npm summary turned out to be
+hiding, *"red on main too" is a statement about provenance and not about severity.*
+
+**The first attempt at it reported a clean tree having made zero network calls**, which is worth
+more than the attempt. `requirements.lock` is `pip-compile --generate-hashes` output, so every pin
+ends in ` \` before its hash lines; a regex anchored with `$` after the version matched **0 of
+117**, every OSV batch went out empty, and the script printed *"0 advisory hit(s)"*. The only reason
+that was caught is the population count printed beside the verdict — the floor
+`test_schema_types_agree` had to learn — and `services/data/requirements.txt` then tripped it
+legitimately, because it declares **floors (`>=`) rather than pins**, so there is no version to
+query there at all and CI's `pip-audit -r` resolves them at scan time. *A verdict over an empty
+population is the most confident wrong answer available, and nothing about its output looks
+different from a clean one.*
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
