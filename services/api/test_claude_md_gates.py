@@ -353,6 +353,80 @@ if _stated and _pinned:
            " — update the prose in the SAME EDIT as the slice that moved it, not the same commit"),
     )
 
+# ---------------------------------------------------------------------------------------------
+# A PIPE INSIDE BACKTICKS IS STILL A CELL DELIMITER.
+#
+# Round 5 of this branch's review found `` `string | null` `` in a two-column roadmap table: GitHub
+# splits that row into THREE cells and the rest of the sentence — the whole verdict the row exists
+# to carry — is simply not rendered. Backticks do not protect a pipe in a table, which is the kind
+# of thing everybody knows and nobody checks.
+#
+# **It is the quiet failure mode that earns the gate, not the frequency.** A broken citation is
+# loud: the path 404s and this file already reds the build. A swallowed cell renders as a shorter
+# sentence that still reads as a sentence — nothing looks wrong, and these documents are the record
+# the next reader works from. One instance across every tracked markdown file today, so the cost of
+# the rule is zero and its value is entirely in the next one.
+#
+# Fenced code blocks are skipped: a line beginning with `|` inside a ``` fence is not a table row,
+# and a checker that cannot tell the difference reports a confident finding about nothing.
+_TABLE_ROW = re.compile(r"^\s*\|")
+_BACKTICK_SPAN = re.compile(r"`+[^`]*`+")
+_RAW_PIPE = re.compile(r"(?<!\\)\|")
+
+
+def pipes_in_table_cells(text):
+    """Backtick spans on table rows that carry an unescaped pipe. (line number, span)."""
+    hits, fenced = [], False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or not _TABLE_ROW.match(line):
+            continue
+        for m in _BACKTICK_SPAN.finditer(line):
+            if _RAW_PIPE.search(m.group(0)):
+                hits.append((n, m.group(0).strip()))
+    return hits
+
+
+# The checker must be able to SAY YES, or its silence proves nothing — the fail-open hole
+# `test_roadmap_status.py` had, where one broken regex made every item report PASS.
+_canary = pipes_in_table_cells("| `a | b` | c |")
+check(
+    "the table-pipe scan can still find one",
+    _canary == [(1, "`a | b`")],
+    f"canary={_canary}",
+)
+_fenced_canary = pipes_in_table_cells("```\n| `a | b` |\n```")
+check(
+    "...and does not report a table row inside a fenced code block",
+    _fenced_canary == [],
+    f"fenced canary={_fenced_canary}",
+)
+_escaped_canary = pipes_in_table_cells("| `a \\| b` | c |")
+check(
+    "...and accepts an escaped pipe, which is the fix it asks for",
+    _escaped_canary == [],
+    f"escaped canary={_escaped_canary}",
+)
+
+_pipe_hits = []
+for _rel in DOCS:
+    _abs = os.path.join(ROOT, _rel)
+    if not os.path.exists(_abs):
+        continue
+    with open(_abs, encoding="utf-8") as _fh:
+        for _n, _span in pipes_in_table_cells(_fh.read()):
+            _pipe_hits.append(f"{_rel}:{_n} {_span}")
+
+check(
+    "no markdown table cell hides an unescaped pipe",
+    not _pipe_hits,
+    "clean" if not _pipe_hits else
+    "GitHub renders each of these as an extra cell and DROPS the rest of the row — "
+    "escape the pipe as `\\|`: " + " · ".join(_pipe_hits),
+)
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

@@ -6521,6 +6521,31 @@ refute one, so this goes first even though it is the least visible.
   typed `markupStream: (_pid, _cb) => …` and dropped the third argument, so it accepted either
   shape. *A fake that ignores an argument is how a caller omitting it stays invisible.*
 
+- ✅ ⭐ **CR-REVIEW-5 — one finding, and it was a sentence this file had already lost**
+  *(XS — Lane F; **CLOSED 2026-10-11**; held by `services/api/test_claude_md_gates.py`)*
+
+  Round 5 reviewed `123f2a6a..b55d4fbb` and returned a single issue: `` `string | null` `` inside a
+  **two-column** table cell. **Backticks do not protect a pipe in a Markdown table** — GitHub split
+  that row into three cells and dropped everything after it, which was the rest of the verdict the
+  row exists to carry. Measured across every tracked markdown file: **one instance**, so the fix is
+  one character.
+
+  **The gate is the whole value, and the reason is the failure MODE rather than the count.** A broken
+  citation is loud — the path 404s and this same file already reds the build for it. A swallowed cell
+  renders as a shorter sentence that still reads as a sentence, in the documents the next reader
+  works from. *Nothing looks wrong, which is the only property these eighteen entries have in
+  common.* Four mutations, all red: the shipped pipe reinstated, the scan made blind, fence tracking
+  removed so a ``` block reads as a table, and escaping no longer accepted. Three canaries run before
+  any verdict, because **a checker whose expected answer is zero must be able to say yes** — the
+  fail-open hole `services/api/test_roadmap_status.py` had, where one broken regex made every item
+  report PASS.
+
+  *And the first run of those mutations reported two of the four as SURVIVING.* They had not: the
+  `sed` that was supposed to apply them never matched, because a regex full of backslashes was being
+  passed through two layers of shell quoting. **A mutation that does not apply is indistinguishable
+  from one the tests catch** — both print a pass — so each one is now applied by a script that
+  asserts its own target matched, and the mutated line is printed before the run.
+
 - ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
   said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*
 
@@ -6568,7 +6593,7 @@ refute one, so this goes first even though it is the least visible.
   | finding | verdict |
   |---|---|
   | the reason sat in `title` and `aria-label`; the button read only *"Live updates stopped"* | **REAL.** On a touch device there is no hover, and **this product ships a tablet field mode** — so the user this control exists for could not read why. *A reason carried but not shown is the defect this whole branch is about, committed in the control written to fix it.* It is visible text in a sibling `<span>` now, and the button is "Try again", so its visible label IS its accessible name with no `aria-label` to drift from it (WCAG 2.5.3) |
-  | `host.hidden = !refused` | **REAL but LATENT, and saying which matters.** `main.ts` builds the value with `why ?? "…"`, which preserves an empty string, so a truthiness check hid the control for a stream that IS refused — silence about a refusal, the worst available outcome. **Not reachable today**: `permanentRejection` returns non-empty on every branch. Fixed anyway, because the type says `string | null` and this is the empty-versus-absent confusion this branch has now corrected **six** times |
+  | `host.hidden = !refused` | **REAL but LATENT, and saying which matters.** `main.ts` builds the value with `why ?? "…"`, which preserves an empty string, so a truthiness check hid the control for a stream that IS refused — silence about a refusal, the worst available outcome. **Not reachable today**: `permanentRejection` returns non-empty on every branch. Fixed anyway, because the type says `string \| null` and this is the empty-versus-absent confusion this branch has now corrected **six** times |
 
   *Four review rounds, and the pattern did not change: the defects were never in code that had been
   neglected. They were in the code just written to fix the previous round — and all of it passed its
