@@ -1961,13 +1961,22 @@ async function applyCapabilities() {
  *
  * **THE CLASS IS WIDER THAN THIS FUNCTION AND IS NOT FIXED HERE.** `.ws-btn` is still queried from
  * three other places in this file — a documented fallback at `roomLabel`, and two
- * `querySelectorAll(".ws-btn")` loops that iterate an empty NodeList, one of which is how a persona
- * config is meant to hide workspaces — and six rules in `style.css` still style it. Those live
- * queries are exactly what keep the class looking plausible, and removing the styles while they
- * remain would make the next reader's job harder, not easier. Recorded as WS-BTN-DEAD in
- * `docs/roadmap.md` with the measurement, because untangling it is a shell change and this is a
- * notification-stream slice. *Fixing the instance in front of you is not closing the class — and
- * saying which one you did is the difference between a fix and a claim.*
+ * `querySelectorAll(".ws-btn")` loops that iterate an empty NodeList — and six rules in
+ * `style.css` still style it. **`data-ws` is never SET anywhere in the tree**, only read, which is
+ * the shortest proof that none of it can work.
+ *
+ * One of those loops is `applyPersona`, so **all ten personas declare a `ws` allowlist that has
+ * never had any effect**: every room shows to everyone. It filters `.ws-btn` and `.rail-btn` in two
+ * adjacent lines and `.rail-btn` really is rendered, so half the function demonstrably works and a
+ * reader who switches persona and watches the rail change concludes the whole thing does. *A dead
+ * branch beside a live one is not read as dead.*
+ *
+ * Recorded as WS-BTN-DEAD in `docs/roadmap.md` with that measurement, because untangling it is a
+ * shell change and this is a notification-stream slice — and because the persona half is a
+ * behavioural question (rooms replaced workspaces, so "which rooms does a subcontractor see" has to
+ * be answered before `buildRoomTabs` can take a persona) rather than a rename. *Fixing the instance
+ * in front of you is not closing the class — and saying which one you did is the difference between
+ * a fix and a claim.*
  *
  * It now owns STATE and repaints through `paintRoomTabs`, rather than reaching into the DOM for an
  * element the strip rebuilds on every render. The count and the refusal land on the room

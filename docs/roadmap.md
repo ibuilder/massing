@@ -6548,13 +6548,23 @@ refute one, so this goes first even though it is the least visible.
   | site | what it does today |
   |---|---|
   | `apps/web/src/main.ts` `roomLabel` | a documented `??` fallback after the `[data-room]` lookup — harmless, and the only deliberate one |
-  | `apps/web/src/main.ts` `querySelectorAll(".ws-btn")` ×2 | iterate an empty NodeList. One of them is how a **persona config hides workspaces**, so that hiding does nothing |
+  | `apps/web/src/main.ts` `querySelectorAll(".ws-btn")` ×2 | iterate an empty NodeList. One is `applyPersona`, so **all ten personas declare a `ws` allowlist that has never had any effect** — every room shows to everyone |
   | `apps/web/src/style.css` | six rules still style the class |
   | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders |
 
+  **WHY IT LOOKS ALIVE, measured rather than relayed** *(re-checked by hand 2026-10-11 because the
+  first draft of this entry took a review bot's reading plus a grep as the finding)*: `applyPersona`
+  filters `.ws-btn` **and** `.rail-btn` in two adjacent lines, and `.rail-btn` IS rendered
+  (`main.ts` sets `className = "rail-btn"` with `dataset.rail`). So half the function demonstrably
+  works — a reader who switches persona and watches the rail change concludes the whole thing does.
+  *A dead branch beside a live one is not read as dead.* And `data-ws` is never **set** anywhere in
+  the tree; it is only ever read, in three places. The attribute the filter keys on has no writer,
+  which is a shorter proof than counting the queries.
+
   **Left open on purpose rather than swept into the slice that found it.** Deleting the styles while
   three live queries remain would make the next reader's job harder, not easier, and the persona
-  one is a behavioural question (what SHOULD hide a room strip per persona?) rather than a rename.
+  one is a behavioural question — rooms replaced workspaces, so "which rooms does a subcontractor
+  see" has to be answered before `buildRoomTabs` can take a persona — rather than a rename.
   *Fixing the instance in front of you is not closing the class — and saying which one you did is
   the difference between a fix and a claim.*
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
