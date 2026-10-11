@@ -389,9 +389,84 @@ check(
 #
 # Fenced code blocks are skipped: a line beginning with `|` inside a ``` fence is not a table row,
 # and a checker that cannot tell the difference reports a confident finding about nothing.
-_DELIM_ROW = re.compile(r"^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$")
 _BACKTICK_SPAN = re.compile(r"`+[^`]*`+")
-_RAW_PIPE = re.compile(r"(?<!\\)\|")
+_DELIM_CELL = re.compile(r":?-{1,}:?\Z")
+
+
+def _unescaped_pipes(s):
+    r"""Positions of pipes that are real cell delimiters, by BACKSLASH PARITY.
+
+    **Review of round 8 found `(?<!\\)\|` wrong in both directions**, and both were measured:
+
+    * `| a | b \|` — a two-column row ending in an ESCAPED pipe. The old `s.endswith("|")` took it
+      for an outer delimiter and dropped the last cell, so the row counted **1** and the scan
+      reported a false mismatch. A gate that reds on correct markdown is worse than one that misses,
+      because the next person's fix is to loosen it.
+    * `| a | b \\| c |` — an escaped BACKSLASH followed by a REAL pipe. A one-character lookbehind
+      sees the backslash and calls the pipe escaped, so the row counted **2** instead of 3 and a
+      genuine cell break went unseen.
+
+    *One lookbehind cannot answer a question about a RUN of characters.* An odd number of preceding
+    backslashes escapes the pipe; an even number leaves it a delimiter.
+    """
+    out, i = [], 0
+    while i < len(s):
+        if s[i] == "|":
+            bs = 0
+            k = i - 1
+            while k >= 0 and s[k] == "\\":
+                bs += 1
+                k -= 1
+            if bs % 2 == 0:
+                out.append(i)
+        i += 1
+    return out
+
+
+def _split_cells(line):
+    """A table row's cells. Outer pipes are delimiters, not cells — but only when UNESCAPED."""
+    s = line.strip()
+    pos = _unescaped_pipes(s)
+    if not pos:
+        return [s]
+    parts, prev = [], 0
+    for p in pos:
+        parts.append(s[prev:p])
+        prev = p + 1
+    parts.append(s[prev:])
+    if pos[0] == 0:
+        parts = parts[1:]
+    if pos[-1] == len(s) - 1 and len(parts) > 1:
+        parts = parts[:-1]
+    return parts
+
+
+def _is_delim_row(line):
+    """A GFM delimiter row: every cell a dash run, and **at least one pipe**.
+
+    The pipe requirement is what keeps a bare `---` (a thematic break, or a setext underline) from
+    opening a phantom table. **One-column tables are legal GFM and the old regex rejected them** —
+    it demanded a second `|`-prefixed cell, so `| --- |` failed and every body row of such a table
+    was invisible to all three checks below. Found by review, not by this file's own canaries, which
+    all used two columns.
+    """
+    s = line.strip()
+    if "|" not in s:
+        return False
+    cells = _split_cells(s)
+    return bool(cells) and all(_DELIM_CELL.match(c.strip()) for c in cells)
+
+
+def _has_raw_pipe(text):
+    """Does this span carry an unescaped pipe? Parity-aware, for the same reason as above."""
+    return bool(_unescaped_pipes(text))
+
+
+# A line that STARTS A NEW BLOCK ends the table, even with no blank line between — GFM breaks a
+# table at "the beginning of another block-level structure". So a heading, list item, blockquote,
+# fence or HTML block directly after a row is NOT absorbed prose, and reporting it would red the
+# build on correct markdown. Every one of these was reported before review caught it.
+_BLOCK_START = re.compile(r"^(#{1,6}\s|>|[-*+]\s|\d+[.)]\s|```|~~~|<[a-zA-Z/!]|\s*$|(\s*[-*_]){3,}\s*$)")
 
 
 def table_row_lines(text):
@@ -425,7 +500,7 @@ def table_row_lines(text):
             continue
         if fenced:
             continue
-        if _DELIM_ROW.match(line) and i > 0 and "|" in lines[i - 1]:
+        if _is_delim_row(line) and i > 0 and "|" in lines[i - 1]:
             rows.add(i - 1)
             rows.add(i)
             j = i + 1
@@ -442,7 +517,7 @@ def pipes_in_table_cells(text):
     hits = []
     for i in sorted(table_row_lines(text)):
         for m in _BACKTICK_SPAN.finditer(lines[i]):
-            if _RAW_PIPE.search(m.group(0)):
+            if _has_raw_pipe(m.group(0)):
                 hits.append((i + 1, m.group(0).strip()))
     return hits
 
@@ -564,7 +639,7 @@ def prose_absorbed_by_table(text):
         # is that a surviving mutation gets fixtured or deleted as unmeasured. The performance
         # argument for it died when `rows` stopped being recomputed per row.
         nxt = lines[j]
-        if nxt.strip() and "|" not in nxt and not nxt.lstrip().startswith("```"):
+        if nxt.strip() and "|" not in nxt and not _BLOCK_START.match(nxt):
             out.append((j + 1, nxt.strip()[:70]))
     return out
 
@@ -625,14 +700,8 @@ check(
 
 
 def _cell_count(line):
-    """Cells in a GFM table row. Outer pipes are delimiters, not cells; `\|` is not a delimiter."""
-    s = line.strip()
-    parts = _RAW_PIPE.split(s)
-    if s.startswith("|"):
-        parts = parts[1:]
-    if s.endswith("|") and len(parts) > 1:
-        parts = parts[:-1]
-    return len(parts)
+    """Cells in a GFM table row — see `_split_cells` for why this is parity-aware."""
+    return len(_split_cells(line))
 
 
 def cell_count_mismatches(text):
@@ -644,7 +713,7 @@ def cell_count_mismatches(text):
             continue
         if fenced:
             continue
-        if _DELIM_ROW.match(line) and i > 0 and "|" in lines[i - 1]:
+        if _is_delim_row(line) and i > 0 and "|" in lines[i - 1]:
             header = _cell_count(lines[i - 1])
             # GFM: the delimiter row MUST match the header or no table is recognised at all.
             if _cell_count(line) != header:
@@ -684,6 +753,47 @@ check(
     "which is why this check exists",
 )
 
+# ROUND 8's three code findings, each with the measurement that confirmed it.
+_one_col = cell_count_mismatches("| h |\n| --- |\n| x | y |\n")
+check(
+    "a ONE-COLUMN table is scanned — legal GFM the first delimiter regex rejected",
+    _one_col == [(3, 1, 2)],
+    f"one-column canary={_one_col}",
+)
+check(
+    "...and a bare `---` still does not open a phantom table",
+    not _is_delim_row("---") and not _is_delim_row("- - -") and _is_delim_row("| --- |"),
+    f"bare={_is_delim_row('---')} spaced={_is_delim_row('- - -')} piped={_is_delim_row('| --- |')}",
+)
+
+# A heading after a row ends the table; reporting it would RED THE BUILD on correct markdown.
+_heading = prose_absorbed_by_table(_TBL + "| a | b |\n## Next section\n")
+check(
+    "a block start after a table row is not absorbed prose",
+    _heading == [],
+    f"heading canary={_heading}",
+)
+_still = prose_absorbed_by_table(_TBL + "| a | b |\nOrdinary prose with no pipe.\n")
+check(
+    "...and ordinary prose after a row is still reported",
+    len(_still) == 1,
+    f"prose canary={_still}",
+)
+
+# Backslash parity, both directions, both measured before the fix.
+_esc_end = _cell_count("| a | b \\|")
+check(
+    "a row ending in an ESCAPED pipe keeps both its cells",
+    _esc_end == 2,
+    f"cells={_esc_end} (the old one-char lookbehind gave 1, a false mismatch)",
+)
+_esc_bs = _cell_count("| a | b \\\\| c |")
+check(
+    "...and an escaped BACKSLASH leaves the pipe after it a real cell break",
+    _esc_bs == 3,
+    f"cells={_esc_bs} (the old lookbehind gave 2, missing the break)",
+)
+
 _cellbad = []
 for _rel in MD_FILES:
     _abs = os.path.join(ROOT, _rel)
@@ -699,6 +809,92 @@ check(
     "clean" if not _cellbad else
     "GitHub DROPS excess cells and PADS missing ones at the end, so each of these loses or shifts "
     "content with no warning: " + " · ".join(_cellbad),
+)
+
+# ---------------------------------------------------------------------------------------------
+# TWO ROWS FOR ONE FILE ARE TWO ANSWERS TO ONE QUESTION.
+#
+# Round 8 found `docs/internal/README.md` carrying `plan-2026-08-10.md` TWICE: one row calling CC0
+# an open user decision, the other recording *"CC0 settled 2026-08-19"*. **A stale OPEN record** —
+# the class `test_gap_records.py` exists for, which guards the roadmap and the threat model and had
+# no view of this index. *A stale OPEN costs more than a stale CLOSED*, because it sends the next
+# reader at work that is already done, and here it misreported a decision as still the user's.
+#
+# Scoped to a BACKTICKED first cell on purpose: that column is an identifier — a filename, a path, a
+# code symbol — where two rows is a contradiction. A prose first column legitimately repeats, and
+# including it would need an exemption list, which is the mistake round 6 paid for.
+#
+# Zero across every tracked markdown file after the fix, so no exemptions. The replay below is the
+# removed row itself, frozen rather than fetched — `test_gap_records.py` learned that depending on
+# `git show` breaks under CI's shallow checkout.
+_DUP_FIXTURE = (
+    "| File | Status |\n| --- | --- |\n"
+    "| `plan-2026-08-10.md` | **LIVE** — the two decisions that are the user's (CC0 on the "
+    "permitted list; massingviser vs modelmaker as the platform). |\n"
+    "| `vendorable-core-standard.md` | **LIVE, not superseded** — the standard. |\n"
+    "| `plan-2026-08-10.md` | **LIVE** — **CC0 settled 2026-08-19**, massingviser vs modelmaker "
+    "still the user's. |\n"
+)
+
+
+def duplicate_key_rows(text):
+    """(line, key) for each table row whose backticked first cell already appeared in that table."""
+    lines, out, fenced = text.splitlines(), [], False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if _is_delim_row(line) and i > 0 and "|" in lines[i - 1]:
+            seen, j = {}, i + 1
+            while j < len(lines) and lines[j].strip() and "|" in lines[j]:
+                cells = _split_cells(lines[j])
+                if cells:
+                    key = cells[0].strip()
+                    if re.fullmatch(r"`[^`]+`", key):
+                        if key in seen:
+                            out.append((j + 1, key))
+                        else:
+                            seen[key] = j + 1
+                j += 1
+    return out
+
+
+_dup_canary = duplicate_key_rows(_DUP_FIXTURE)
+check(
+    "PROOF OF REACH: the row round 8 removed is re-found in its frozen form",
+    _dup_canary == [(5, "`plan-2026-08-10.md`")],
+    f"replay={_dup_canary}",
+)
+_dup_clean = duplicate_key_rows("| File | Status |\n| --- | --- |\n| `a.md` | x |\n| `b.md` | y |\n")
+check(
+    "...and distinct identifiers are not reported",
+    _dup_clean == [],
+    f"clean canary={_dup_clean}",
+)
+_dup_prose = duplicate_key_rows("| What | Why |\n| --- | --- |\n| same | x |\n| same | y |\n")
+check(
+    "...and a repeated PROSE first cell is not an identifier, so not a contradiction",
+    _dup_prose == [],
+    f"prose canary={_dup_prose}",
+)
+
+_dupes = []
+for _rel in MD_FILES:
+    _abs = os.path.join(ROOT, _rel)
+    if not os.path.exists(_abs):
+        continue
+    with open(_abs, encoding="utf-8") as _fh:
+        for _n, _key in duplicate_key_rows(_fh.read()):
+            _dupes.append(f"{_rel}:{_n} {_key}")
+
+check(
+    "no table gives one identifier two rows",
+    not _dupes,
+    "clean" if not _dupes else
+    "two rows for one identifier are two answers to one question — and the stale one is read as "
+    "live: " + " · ".join(_dupes),
 )
 
 if FAILED:

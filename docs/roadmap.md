@@ -6609,7 +6609,11 @@ refute one, so this goes first even though it is the least visible.
   *The two directions are not symmetric.* Too many cells **deletes** content silently; too few
   **shifts** it, which is worse, because a shifted row still looks like data and nothing tells the
   reader the columns have slipped. Parity subsumes the backtick rule and needs **no exemptions**:
-  1,590 body rows, zero mismatches after the fixes. The backtick check stays because it names the
+  1,592 body rows, zero mismatches after the fixes (1,591 once round 8 removed a
+  duplicate row). **`bb8b7b5f`'s commit message says 1,590 and that figure does not reproduce** —
+  off by two, caught while explaining a count that had moved. *A narrative copy of a number is what
+  drifts*, which this file says three sections above, so the live record is here and the commit
+  message is wrong where it is frozen. The backtick check stays because it names the
   cause (*escape this pipe*) where parity names only the symptom.
 
   **And the mutation run caught the same failure as round 6, one commit later.** Reinstating the
@@ -6631,6 +6635,31 @@ refute one, so this goes first even though it is the least visible.
   equivalent** — for an interior row the next line is a row, so it carries a pipe and the test below
   already rejects it. A line that cannot change behaviour cannot be mutation-tested, so it is gone
   rather than fixtured, and the performance argument for it died with the rescan.
+
+  **Round 8 returned FOUR findings, three of them in the parity check itself, and two of those
+  would have RED THE BUILD ON CORRECT MARKDOWN** — the worse direction, because the next person's
+  response to a gate that cries wolf is to loosen it:
+
+  | finding | measured |
+  |---|---|
+  | the one-character lookbehind is wrong in **both** directions | a two-column row ending in an escaped pipe counted **1** cell — a false mismatch. An escaped backslash followed by a real pipe counted **2** instead of 3 — a missed break. *One lookbehind cannot answer a question about a RUN of characters*; it is backslash **parity** now |
+  | a heading after a row read as absorbed prose | GFM ends a table at any block-level structure, so a following heading is not absorbed. Every block form was being reported — heading, list item, blockquote, fence |
+  | one-column tables invisible | the delimiter regex demanded a second cell, so a one-column delimiter failed it and that table's rows were checked by none of the three. **Measured population today: 0** — a hole nothing currently falls into, and legal GFM |
+  | a duplicate `plan-2026-08-10.md` row in `docs/internal/README.md` | **a stale OPEN record**, the class `services/api/test_gap_records.py` exists for: it called CC0 an open user decision beside a row recording *"CC0 settled 2026-08-19"* |
+
+  **And the fix introduced a defect ruff could not see.** The new docstring explains the parity rule
+  with an escaped pipe in it, in a non-raw string — a `SyntaxWarning` today, a `SyntaxError` in a
+  future Python, and already fatal under `-W error`. Found by a stray warning in my own probe, not
+  by lint; the gate now runs clean under `-W error::SyntaxWarning`, which is worth saying out loud
+  rather than pretending a check caught it.
+
+  **And the duplicate row was the one finding nothing gated**, which the mutation run said plainly:
+  reinstating it passed. So it is gated now — within a table, a **backticked** first cell may not
+  repeat. Backticked on purpose: that column is an identifier, where two rows is a contradiction,
+  while a prose first column legitimately repeats and including it would need the exemption list
+  round 6 paid to avoid. Zero across all 127 files, and the proof of reach is the removed row
+  itself, frozen in the test rather than fetched — `services/api/test_gap_records.py` learned that
+  `git show` breaks under CI's shallow checkout. Nine mutations across round 8, all red.
 
 - ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
   said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*
