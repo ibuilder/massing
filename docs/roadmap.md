@@ -7040,6 +7040,39 @@ refute one, so this goes first even though it is the least visible.
   them. The behavioural half is the harness above them, which imports the real rule and the real DOM
   write rather than reproducing either — `wsReturn.test.ts` reproduced `setWorkspace`'s decisions and
   its copy of `DEAD_END_WS` disagreed with the shipped one for months.
+
+  **CR-REVIEW-9 — AND THE RULE WAS WRONG ACROSS A DETOUR, found by review and not by any of that.**
+  The keep-the-open-room clause worked on a direct re-entry and failed the moment another workspace
+  came between:
+
+      goToRoom("cost")              portal activeRoom = "cost", marker cost
+      setWorkspace("drawings")      marker design — no aec:room, so the portal still holds Cost
+      setWorkspace("construction")  marker schedule, and the portal is STILL rendering Cost
+
+  which is the disagreement the clause existed to prevent, arriving by the one path untested.
+  **The cause is that it mirrored the portal's EXPRESSION and not its STATE SHAPE.**
+  `portal.room()` is `activeRoom ?? preselectedRoom(wsFilter)` where `activeRoom` is **sticky** —
+  only an `aec:room` event changes it — while `roomTabsActive` was recomputed on every workspace
+  change. *Mirroring a rule means mirroring the data it reads, not just the branch it writes* — and
+  the docstring asserting it "mirrors the portal's own rule exactly" was the most confident line in
+  the file, which is why nobody re-derived it.
+
+  The fix is the keying: `apps/web/src/main.ts` now holds `roomByPortal`, one sticky room per
+  `PortalUI` instance, with `portalForRoom` / `portalForWorkspace` in
+  `apps/web/src/shell/spine.ts` **derived from `portalRooms`** rather than written as a fourth
+  table, because the `design` special case is already expressed there. The rule then becomes the
+  portal's own expression and the ownership test is gone — a room remembered under a portal key
+  belongs to that portal by construction.
+
+  **Two things the test suite got wrong are worth more than the fix.** The harness held ONE
+  `roomTabsActive` and fed it back in, *faithfully reproducing the broken shape, so it could not
+  fail on it* — the same trap `wsReturn.test.ts` paid for, one level up from decisions into state
+  layout. And the property test asserted the WEAKER invariant: "the marker never names a room the
+  open workspace cannot show", which `schedule` satisfies for construction while the portal renders
+  Cost. It now compares against `activeRoom ?? preselectedRoom(wsFilter)` directly, over only the
+  (sticky room, workspace) pairs a caller can actually produce. *A property test that passes on the
+  defect was measuring a neighbouring property, and its stronger-sounding name hid that.* Seven
+  mutations, all red, including the shipped pre-fix rule reinstated.
 - 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from two places and rendered by none**
   *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD; re-measured the same
   day on closing WS-BTN-SELECT, which took the third of the four sites)*

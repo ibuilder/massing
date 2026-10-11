@@ -34,7 +34,9 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { buildRoomTabs, markActiveRoom, renderRoomTabs } from "./roomTabs";
-import { ROOM_HOST, ROOM_IDS, preselectedRoom, roomForOpenWorkspace } from "./spine";
+import {
+  ROOM_HOST, ROOM_IDS, portalForRoom, portalForWorkspace, preselectedRoom, roomForOpenWorkspace,
+} from "./spine";
 
 const MAIN = readFileSync(resolve(__dirname, "../main.ts"), "utf8");
 
@@ -44,12 +46,26 @@ function makeNav(startRoom = "design") {
   document.body.replaceChildren(strip);
   renderRoomTabs(strip, buildRoomTabs(null, 6), startRoom, () => {});
   let roomTabsActive = startRoom;
+  // CR-REVIEW-9 — keyed by PORTAL, like `main.ts`, and that keying IS the fix. The previous harness
+  // held one `roomTabsActive` and fed it back in, which is what let the detour defect through: it
+  // reproduced the broken shape faithfully and therefore could not fail on it.
+  const roomByPortal = new Map<string, string>();
+  const seed = portalForRoom(startRoom);
+  if (seed) roomByPortal.set(seed, startRoom);
   return {
     strip,
     room: () => roomTabsActive,
+    /** `main.ts`'s `goToRoom`, in the part that matters here: record, then switch workspace. */
+    goToRoom(roomId: string) {
+      const host = ROOM_HOST[roomId] ?? "construction";
+      roomByPortal.set(portalForRoom(roomId) ?? portalForWorkspace(host), roomId);
+      this.setWorkspace(host);
+      roomTabsActive = roomId;
+      markActiveRoom(strip, roomTabsActive);          // `paintRoomTabs(roomId)` in main.ts
+    },
     /** `main.ts`'s `markRoomForWorkspace`, which after this change is only this. */
     setWorkspace(key: string) {
-      roomTabsActive = roomForOpenWorkspace(roomTabsActive, key);
+      roomTabsActive = roomForOpenWorkspace(roomByPortal.get(portalForWorkspace(key)), key);
       markActiveRoom(strip, roomTabsActive);
     },
   };
@@ -124,57 +140,91 @@ describe("roomForOpenWorkspace — which room a workspace switch should mark", (
     expect(marked(nav.strip)).toEqual([preselectedRoom("construction")]);
   });
 
-  it("KEEPS the open room when the workspace still hosts it — ROOM_HOST is not a bijection", () => {
+  it("KEEPS the room this workspace's portal has open — a direct re-entry", () => {
     // Construction hosts planning, cost, schedule and work. Deriving from the workspace alone would
     // swap a marker stuck on the room you left for one contradicting what is on screen: the portal
     // goes on rendering Cost, because `portal.room()` is `activeRoom ?? preselectedRoom(wsFilter)`.
-    for (const room of ["planning", "cost", "schedule", "work"]) {
-      expect(roomForOpenWorkspace(room, "construction"), room).toBe(room);
-    }
-    const nav = makeNav("cost");
+    const nav = makeNav("design");
+    nav.goToRoom("cost");
+    expect(nav.room()).toBe("cost");
     nav.setWorkspace("construction");
     expect(nav.room()).toBe("cost");
     expect(marked(nav.strip)).toEqual(["cost"]);
   });
 
-  it("four workspaces share the design room, and all four keep it", () => {
-    // `ROOM_HOST.design` is only `model`, so for the other three this is the FALL-THROUGH agreeing
-    // with the keep, not a keep. The rule had a `|| derived === cur` clause written for exactly
-    // this case; mutation deleted it, because whenever that disjunct decides, the fall-through
-    // returns the same room by construction. The case is real and worth asserting — the clause
-    // claiming to be the reason it passes was not.
+  it("CR-REVIEW-9 — AND KEEPS IT ACROSS A DETOUR, which the first version did not", () => {
+    // The regression, in the reviewer's own words: Cost is open, you go to Drawings and come back.
+    // No `aec:room` fires on a workspace switch, so `PortalUI.activeRoom` is still `cost` the whole
+    // time. The first rule tracked the LAST MARKER and re-derived on every switch, so Drawings
+    // overwrote `cost` with `design` and the return leg derived `schedule` — a strip stating
+    // Schedule over a portal rendering Cost.
+    const nav = makeNav("design");
+    nav.goToRoom("cost");
+    nav.setWorkspace("drawings");
+    expect(nav.room(), "the design portal has no room open, so Drawings preselects its own")
+      .toBe("design");
+    nav.setWorkspace("construction");
+    expect(nav.room(), "the construction portal still has Cost open — the strip must say Cost")
+      .toBe("cost");
+    expect(marked(nav.strip)).toEqual(["cost"]);
+  });
+
+  it("each portal remembers its OWN room — one sticky value would collide", () => {
+    const nav = makeNav("design");
+    nav.goToRoom("cost");                 // construction portal
+    nav.goToRoom("deal");                 // developer portal
+    nav.setWorkspace("construction");
+    expect(nav.room()).toBe("cost");
+    nav.setWorkspace("developer");
+    expect(nav.room()).toBe("deal");
+  });
+
+  it("four workspaces share the design room, and all four preselect it", () => {
+    // `ROOM_HOST.design` is only `model`, and `portalRooms("design")` is `["design"]` — the design
+    // portal is special-cased there. With nothing open, all four fall through to the same room.
     for (const ws of ["model", "drawings", "studio", "design"]) {
-      expect(roomForOpenWorkspace("design", ws), ws).toBe("design");
+      expect(roomForOpenWorkspace(null, ws), ws).toBe("design");
+      expect(portalForWorkspace(ws), ws).toBe("design");
     }
   });
 
-  it("falls through when the workspace cannot show the open room", () => {
-    expect(roomForOpenWorkspace("cost", "model")).toBe("design");
-    expect(roomForOpenWorkspace("design", "developer")).toBe("deal");
-    expect(roomForOpenWorkspace("schedule", "finance")).toBe("deal");
-  });
-
-  it("no open room yet, or a junk one, derives from the workspace", () => {
+  it("nothing open, or a junk value, derives from the workspace", () => {
     for (const open of [null, undefined, "", "not-a-room"]) {
       expect(roomForOpenWorkspace(open, "construction"), String(open)).toBe("schedule");
     }
   });
 
   it("an unknown workspace lands in Work rather than nowhere", () => {
-    expect(roomForOpenWorkspace("cost", "wat")).toBe("work");
+    expect(roomForOpenWorkspace(null, "wat")).toBe("work");
+    expect(portalForWorkspace("wat")).toBe("construction");   // Work's portal
   });
 
-  it("THE PROPERTY: the marker never names a room the open workspace does not show", () => {
-    // Over every (open room, workspace) pair: the answer is a real room, and it is either hosted by
-    // that workspace or the room that workspace preselects. A marker failing this is the defect in
-    // its other direction — a strip stating a room whose content is not on screen.
-    const workspaces = [...new Set([...Object.values(ROOM_HOST), "drawings", "studio", "design",
-                                    "finance", "wat"])];
-    for (const open of [...ROOM_IDS, "", "junk"]) {
-      for (const ws of workspaces) {
-        const r = roomForOpenWorkspace(open, ws);
-        expect(ROOM_IDS as readonly string[], `${open} -> ${ws}`).toContain(r);
-        expect(ROOM_HOST[r] === ws || preselectedRoom(ws) === r, `${open} -> ${ws} = ${r}`).toBe(true);
+  it("portalForRoom covers every room, and no room belongs to two portals", () => {
+    // The function is derived from `portalRooms` over the three filters rather than written as a
+    // fourth table. If it ever returned null for a shipped room, `goToRoom` would record that room
+    // under a fallback key and the detour defect would come back for it alone.
+    const owners = ROOM_IDS.map((r) => [r, portalForRoom(r)] as const);
+    for (const [r, o] of owners) expect(o, `${r} belongs to no portal`).not.toBeNull();
+    expect(new Set(owners.map(([, o]) => o))).toEqual(new Set(["construction", "developer", "design"]));
+  });
+
+  it("THE PROPERTY: the marker is exactly what that workspace's portal would render", () => {
+    // The old property here was weaker and it is why the detour got through: it asserted only that
+    // the marker names a room the open workspace CAN show, which `schedule` does for construction
+    // even while the portal renders Cost. The right invariant compares against the portal's own
+    // expression, `activeRoom ?? preselectedRoom(wsFilter)`, over every (sticky room, workspace)
+    // pair — including the pairs where the sticky room belongs to a DIFFERENT portal, which the
+    // caller never produces and which must therefore not be asserted about.
+    const workspaces = ["model", "drawings", "studio", "design", "construction", "developer",
+                        "finance", "wat"];
+    for (const ws of workspaces) {
+      const owner = portalForWorkspace(ws);
+      for (const open of [...ROOM_IDS.filter((r) => portalForRoom(r) === owner), "", "junk"]) {
+        const got = roomForOpenWorkspace(open, ws);
+        const portalWould = (ROOM_IDS as readonly string[]).includes(open)
+          ? open : preselectedRoom(ws);
+        expect(got, `${open || "(none)"} -> ${ws}`).toBe(portalWould);
+        expect(ROOM_IDS as readonly string[], `${open} -> ${ws}`).toContain(got);
       }
     }
   });
@@ -189,8 +239,20 @@ describe("main.ts really calls them — the reproduction above is not the eviden
   });
 
   it("and the marking goes through the imported rule and the imported DOM write", () => {
-    expect(MAIN).toContain("roomTabsActive = roomForOpenWorkspace(roomTabsActive, key)");
+    expect(MAIN).toContain(
+      "roomTabsActive = roomForOpenWorkspace(roomByPortal.get(portalForWorkspace(key)), key)");
     expect(MAIN).toContain("markActiveRoom(wsEl, roomTabsActive)");
+  });
+
+  it("CR-REVIEW-9: the remembered room is keyed by PORTAL, not by the last marker", () => {
+    // The whole fix is this keying. Feeding `roomTabsActive` back in is what let a detour through
+    // another workspace destroy the room the portal still had open, and the harness above cannot
+    // catch a regression to that shape on its own — it would faithfully reproduce it.
+    expect(MAIN).toContain("const roomByPortal = new Map<string, string>()");
+    expect(MAIN).not.toContain("roomForOpenWorkspace(roomTabsActive,");
+    // and `goToRoom` is where the portal's choice is recorded
+    const g = MAIN.slice(MAIN.indexOf("function goToRoom("));
+    expect(g.slice(0, g.indexOf("\n}\n"))).toContain("roomByPortal.set(");
   });
 
   it("THE DEAD LOOP IS GONE: no `.ws-btn` query sets aria-selected any more", () => {

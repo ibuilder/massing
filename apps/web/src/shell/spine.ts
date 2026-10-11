@@ -213,31 +213,53 @@ export const ROOM_HOST: Record<string, string> = {
 };
 
 /**
- * Which room the tab strip should mark once `workspace` is the open one, given the room `open` that
- * it marks right now. WS-BTN-SELECT.
+ * Which PORTAL owns a room — the instance whose sticky `activeRoom` the tab strip has to agree with.
  *
- * **Not `preselectedRoom(workspace)`, and the reason is the comment directly above: `ROOM_HOST` is
- * not a bijection.** Construction hosts planning, cost, schedule and work, so deriving the marker
- * from the workspace alone moves it to `schedule` whenever anything re-enters construction while
- * the portal is still showing Cost — swapping a marker stuck on the room you left for one that
- * contradicts what is on screen.
- *
- * The two branches are the portal's own rule, not a second one: `portal.room()` is
- * `activeRoom ?? preselectedRoom(wsFilter)`. "Still hosted" is the first half; the fall-through is
- * the second.
- *
- * **It had a third clause, `|| derived === cur`, and mutation testing deleted it**: whenever that
- * disjunct is the true one the fall-through returns `derived`, which *is* `cur`, so the clause
- * could not change a single answer. It was written for the four workspaces that share the `design`
- * room — whose host is only `model` — and the comment beside it claimed it was what kept their
- * marker "instead of re-deriving the same answer by luck". The re-derivation is not luck, it is the
- * mapping, and *a clause that cannot change the output is a claim about behaviour that no test can
- * ever hold to account.* The four-workspace case is still asserted in `roomMarking.test.ts`; what
- * is gone is the line pretending to be the reason it passes.
+ * Derived from `portalRooms` over the three filters rather than written as a fourth table, because
+ * `design` is special-cased there (its room is hosted by `model` but served by the design portal)
+ * and a hand-copy of that exception is the thing that drifts.
  */
-export function roomForOpenWorkspace(open: string | null | undefined, workspace: string): string {
-  const cur = String(open || "");
-  return ROOM_HOST[cur] === workspace ? cur : preselectedRoom(workspace);
+export function portalForRoom(room: string): string | null {
+  for (const f of ["construction", "developer", "design"]) {
+    if (portalRooms(f).includes(room)) return f;
+  }
+  return null;
+}
+
+/** Which portal serves a workspace — the one that owns the room that workspace preselects. */
+export function portalForWorkspace(workspace: string | null | undefined): string {
+  return portalForRoom(preselectedRoom(workspace)) ?? "construction";
+}
+
+/**
+ * Which room the tab strip should mark once `workspace` is the open one, given the room that
+ * workspace's PORTAL last had opened. WS-BTN-SELECT, corrected by review (CR-REVIEW-9).
+ *
+ * **This is now the portal's own expression, because the first version mirrored the expression and
+ * not the STATE SHAPE, and that is where it broke.** `portal.room()` is
+ * `activeRoom ?? preselectedRoom(wsFilter)`, and `activeRoom` is **sticky**: nothing but an
+ * `aec:room` event ever changes it. The first version instead passed the LAST MARKER and asked
+ * whether the incoming workspace hosts it — recomputed on every workspace change — so a detour
+ * destroyed it:
+ *
+ *   `goToRoom("cost")` → portal `activeRoom = "cost"`, marker `cost`
+ *   `setWorkspace("drawings")` → marker `design`  (no `aec:room`, so the portal still holds `cost`)
+ *   `setWorkspace("construction")` → marker `schedule`, **portal still renders `cost`**
+ *
+ * which is the disagreement the rule existed to prevent, arriving by the one path its tests did not
+ * take. *Mirroring a rule means mirroring the data it reads, not just the branch it writes* — and
+ * the docstring claiming it "mirrors the portal's own rule exactly" was the loudest thing in the
+ * file, which is why it went unexamined.
+ *
+ * `remembered` is therefore per-PORTAL sticky state, not the previous marker, and the ownership
+ * test the old version needed is gone: a room remembered under a portal key is owned by that portal
+ * by construction. The `ROOM_IDS` check is a fail-safe on the one input that is a bare string, not
+ * a second rule — a marker naming no tab would mark nothing at all, which is the pre-fix bug.
+ */
+export function roomForOpenWorkspace(remembered: string | null | undefined,
+                                     workspace: string): string {
+  const r = String(remembered || "");
+  return (ROOM_IDS as readonly string[]).includes(r) ? r : preselectedRoom(workspace);
 }
 
 /**

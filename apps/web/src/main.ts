@@ -10,7 +10,7 @@ import {
 import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOST, destRoom, roomForOpenWorkspace } from "./shell/spine";
+import { ROOM_HOST, ROOM_IDS, destRoom, portalForRoom, portalForWorkspace, roomForOpenWorkspace } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -930,6 +930,13 @@ const liveRefusedEl = $("live-refused");
 function goToRoom(roomId: string) {
   const host = ROOM_HOST[roomId] ?? "construction";
   setRoomOpen(`${host}:${roomId}`, true);   // composite key — the shape `buildNav` actually reads
+  // Record the choice against its PORTAL before switching workspace, so the `setWorkspace` below
+  // marks the room being opened rather than the workspace's default and then having to be corrected
+  // by the `paintRoomTabs` after it. The portal learns the same fact from the `aec:room` event at
+  // the end of this function; this is the strip's copy of it, and the two are set in one place.
+  if ((ROOM_IDS as readonly string[]).includes(roomId)) {
+    roomByPortal.set(portalForRoom(roomId) ?? portalForWorkspace(host), roomId);
+  }
   setWorkspace(host);
   paintRoomTabs(roomId);
   window.dispatchEvent(new CustomEvent("aec:room", { detail: roomId }));
@@ -977,8 +984,21 @@ function paintRoomTabs(active?: string) {
  * that only changed workspace has no business rebuilding either — nor discarding focus, which a
  * full `paintRoomTabs` does.
  */
+/**
+ * The room each PORTAL last had opened — the strip's mirror of `PortalUI.activeRoom`.
+ *
+ * CR-REVIEW-9. Keyed by portal rather than by workspace, because that is how the thing it mirrors is
+ * keyed: there are three `PortalUI` instances, each with its own sticky `activeRoom`, and
+ * `portal.room()` is `activeRoom ?? preselectedRoom(wsFilter)`. The first version of this tracked
+ * the LAST MARKER and re-derived on every workspace change, so a detour through another workspace
+ * overwrote it while the portal's own state was untouched — Cost open, out to Drawings, back to
+ * Construction, strip says Schedule and the portal is still rendering Cost. Found by review, not by
+ * the tests here, which only ever took single transitions.
+ */
+const roomByPortal = new Map<string, string>();
+
 function markRoomForWorkspace(key: string) {
-  roomTabsActive = roomForOpenWorkspace(roomTabsActive, key);
+  roomTabsActive = roomForOpenWorkspace(roomByPortal.get(portalForWorkspace(key)), key);
   markActiveRoom(wsEl, roomTabsActive);
 }
 
