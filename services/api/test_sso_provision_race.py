@@ -337,120 +337,483 @@ finally:
 # indistinguishable from a clean bill"* — the sentence `test_gap_records` was built around, arriving
 # here from the other direction: not a stale OPEN, but a population that quietly stopped being whole.
 #
-# So the population is derived twice, from two different angles, and NEITHER needs an exemption list:
+# So the population is derived twice, from two different angles, and neither needs a judgement-call
+# exemption list:
 #
-#   1. every CALLER of the helper must be covered by `DOORS` — a door added and wired correctly can
-#      no longer go untested;
-#   2. every site that CONSTRUCTS a `User` must either reach the helper, or be a creation made by
-#      explicit request rather than by auto-provisioning on sign-in. That second set is named, and it
-#      is a real category rather than a fudge: `register`, `create_user` and the admin bootstrap all
-#      guard with an explicit 409 and are not sign-in doors at all.
+#   1. every CALLER of the helper must be mapped to a door — a door added and wired correctly can no
+#      longer go untested;
+#   2. every site that CONSTRUCTS a `User` must be attributable: to a factory actually PASSED to the
+#      helper, or to one of two declared exemptions whose truth is itself checked.
+#
+# **The first draft of this block satisfied neither claim, and review found it before a fifth door
+# did.** It passed clean on both shapes a fifth door can take, by two unrelated mechanisms:
+#
+#   * **It exempted by MODULE.** `_stray` skipped any site whose module calls the helper *somewhere*,
+#     so a new door added to `routers/auth.py` provisioning inline was exempt because `oauth_callback`
+#     two screens up is wired correctly. *An exemption scoped wider than the thing it exempts is not
+#     an exemption, it is a hole with a comment beside it.*
+#   * **It keyed sites by `module.function`.** All four doors name their nested factory `_make_user`,
+#     so a fifth one using the house convention **collapsed onto an existing key** — the site set
+#     stayed at the identical seven entries, which the hardcoded floor of 7 could not see either.
+#     *A key that merges two things cannot report that there are two.*
+#
+# And the cross-check that would have caught both was *written and never read*: `_via_helper` was
+# computed into a module-scope name nothing consumed, so "reaches the helper" was never asked —
+# `len(_sites) - len(BY_REQUEST)` simply **labelled** the remainder as helper-routed. Module scope, so
+# ruff's F841 could not see it either. *A dead cross-check is worse than a missing one: the next
+# reader sees the right idea in the file and assumes it runs.*
+#
+# Four further defects in that draft, each the same shape — a predicate deciding what to LOOK at:
+#
+#   * `_helper_callers` matched **attribute calls only**, so a door importing the helper by name was
+#     not a caller at all. Measured on a fixture: a *correctly wired* new door redded with "a User is
+#     constructed outside both the helper and the by-request set" — **the exact opposite of what it
+#     does** — while the caller count stayed at 4 and the verdict still claimed "all 4 doors". The
+#     docstring's "excluding the module that defines it" was not implemented either; it held by
+#     accident of that same restriction.
+#   * `User(...)` was matched as a bare `Name` only, so the `models.User(...)` spelling was invisible.
+#   * A construction at module or class scope was **dropped silently** (`if not enclosing: continue`),
+#     in a walk documented as failing closed.
+#   * The floor of 7 counted `auth.require_admin_user`, a non-persisted LOCAL_MODE construction, so
+#     refactoring it away would have redded the build with *"the AST walk under-counted"* —
+#     **misdiagnosing a clean edit as a broken analyser.** *A hardcoded population floor reports the
+#     one cause it was written for, whatever actually happened.*
+#
+# The repair: modules are keyed by their dotted path, not their stem (which conflated `auth.py`, the
+# definer, with `routers/auth.py`, the OAuth door); sites are keyed by **qualname**; "helper-routed"
+# means *this* site's qualname is a factory passed to the helper **from the scope that encloses the
+# call**, not a name that appears in a module which calls it somewhere; the floor is derived; and
+# every exemption must still resolve to a real site and still be true. Ten self-tests run first,
+# over synthetic trees, and include the two shapes that slipped through as well as a CLEAN baseline —
+# because *a check whose expected answer is zero is the easiest kind to break silently.* Nine
+# mutations of the analyser were run against them and all nine red; the ninth is the one that taught
+# something, and its lesson is written beside the fixture that now covers it.
 # =================================================================================================
 import ast as _ast  # noqa: E402
 import pathlib  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+import textwrap  # noqa: E402
 
 _SRC = pathlib.Path(__file__).resolve().parent / "src" / "aec_api"
+_HELPER = "get_or_create_sso_user"
 
 
-def _helper_callers() -> set[str]:
-    """Modules calling `get_or_create_sso_user`, excluding the module that defines it."""
-    out: set[str] = set()
-    for f in sorted(_SRC.rglob("*.py")):
+def _called(func: _ast.expr) -> str | None:
+    """The bare name of what a `Call` calls — `f()`, `mod.f()` and `a.b.f()` all answer ``f``.
+
+    Matching `Attribute` alone is how the first draft could not see a door that did
+    `from ..auth import get_or_create_sso_user`, and matching `Name` alone is how it could not see
+    `models.User(...)`. Both spellings are in use in this tree for other symbols."""
+    if isinstance(func, _ast.Name):
+        return func.id
+    if isinstance(func, _ast.Attribute):
+        return func.attr
+    return None
+
+
+def _modname(f: pathlib.Path, root: pathlib.Path) -> str:
+    """Dotted module path relative to the source root — `routers.auth`, not `auth`.
+
+    The stem is NOT unique here: `aec_api/auth.py` defines the helper and `aec_api/routers/auth.py`
+    is the OAuth door, and the first draft keyed both as ``auth``. That collision is why its
+    "excluding the module that defines it" could not work and why `BY_REQUEST` entries read
+    ambiguously."""
+    parts = list(f.relative_to(root).with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _scope_of(tree: _ast.AST) -> dict[_ast.AST, str]:
+    """{node: dotted qualname of the function/class chain the node SITS IN} for every node.
+
+    One downward walk, so a nested factory gets `route._make_user` and the route gets `route`. The
+    first draft attributed by line range and took the innermost match, which is the same answer for
+    the leaf but throws the chain away — and the chain is the whole point: `oauth_callback._make_user`
+    and `device_callback._make_user` are two sites, not one."""
+    out: dict[_ast.AST, str] = {tree: ""}
+    stack: list[tuple[_ast.AST, str]] = [(tree, "")]
+    while stack:
+        node, qual = stack.pop()
+        for child in _ast.iter_child_nodes(node):
+            out[child] = qual  # the scope the child sits in, not the scope it opens
+            if isinstance(child, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                stack.append((child, f"{qual}.{child.name}" if qual else child.name))
+            else:
+                stack.append((child, qual))
+    return out
+
+
+def _analyse(root: pathlib.Path) -> dict:
+    """Everything the checks below reason about, derived from one AST walk of `root`."""
+    definers: set[str] = set()
+    callers: set[str] = set()
+    routed: set[str] = set()         # qualnames of factories actually PASSED to the helper
+    unresolved: list[str] = []       # helper calls whose factory argument is not a plain name
+    sites: dict[str, str] = {}       # "<module>.<qualname>" -> "<module>:<lineno>"
+    module_level: set[str] = set()   # the subset of `sites` constructed outside any function
+    adders: set[str] = set()         # "<module>.<qualname>" of functions calling `.add(...)`
+    files = 0
+    for f in sorted(root.rglob("*.py")):
+        if "__pycache__" in f.parts:
+            continue
         try:
             tree = _ast.parse(f.read_text(encoding="utf-8"))
         except SyntaxError:
             continue
+        files += 1
+        mod = _modname(f, root)
+        scope = _scope_of(tree)
         for n in _ast.walk(tree):
-            if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute) \
-               and n.func.attr == "get_or_create_sso_user":
-                out.add(f.stem)
-    return out
+            if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and n.name == _HELPER:
+                definers.add(mod)
+                continue
+            if not isinstance(n, _ast.Call):
+                continue
+            name, here = _called(n.func), scope.get(n, "")
+            if name == _HELPER:
+                callers.add(mod)
+                arg = n.args[2] if len(n.args) > 2 else next(
+                    (k.value for k in n.keywords if k.arg == "make_user"), None)
+                if isinstance(arg, _ast.Name):
+                    # The factory resolves from the scope that CALLS the helper or any scope
+                    # ENCLOSING it — never from "any function in this module that happens to carry
+                    # that name", which is the hole review found. The enclosing prefixes matter:
+                    # every door today nests the factory in its route beside the call, but a call
+                    # moved one scope deeper would otherwise read as a stray. That is a fail-CLOSED
+                    # false positive rather than a miss, and the prefixes remove it without
+                    # readmitting a SIBLING route's identically named factory.
+                    _parts = here.split(".") if here else []
+                    for _i in range(len(_parts), -1, -1):
+                        _q = ".".join(_parts[:_i])
+                        routed.add(f"{mod}.{_q}.{arg.id}" if _q else f"{mod}.{arg.id}")
+                else:
+                    unresolved.append(f"{mod}.{here or '<module>'}:{n.lineno}")
+            elif name == "User":
+                key = f"{mod}.{here}" if here else mod
+                sites[key] = f"{mod}:{n.lineno}"
+                if not here:
+                    module_level.add(key)
+            elif name == "add" and here:
+                adders.add(f"{mod}.{here}")
+    return {"definers": definers, "callers": callers - definers, "routed": routed,
+            "unresolved": unresolved, "sites": sites, "module_level": module_level,
+            "adders": adders, "files": files}
 
 
-def _user_construction_sites() -> set[str]:
-    """`module.function` for every site constructing a `User(...)`, attributed to the INNERMOST
-    enclosing function.
+def _findings(a: dict, caller_to_door: dict[str, str], by_request: set[str],
+              not_persisted: set[str]) -> list[str]:
+    """Every way the derived population can disagree with what this file claims to cover.
 
-    The first draft walked every function and took any `User(...)` beneath it, so a construction
-    inside a nested `_make_user` was attributed to the nested factory AND to the route enclosing it.
-    It reported **11 sites** where an independent probe found **7**, and said "8 via the helper" when
-    there are four. *A walk that double-counts does not fail, it answers* — and the floor below was
-    calibrated on the inflated number, so it would have been satisfied by a walk finding half the
-    tree. Attribution is by line range now, innermost wins."""
-    out: set[str] = set()
-    for f in sorted(_SRC.rglob("*.py")):
-        try:
-            tree = _ast.parse(f.read_text(encoding="utf-8"))
-        except SyntaxError:
+    Deliberately a pure function of `_analyse`'s output and the three declarations, so the
+    self-tests below can run it over a synthetic tree and mutate the declarations directly. The
+    first draft's verdict was computed inline against module-scope names, which is why its one
+    cross-check could be dead without any test noticing."""
+    out: list[str] = []
+    for mod in sorted(set(caller_to_door) - a["callers"]):
+        out.append(f"STALE DOOR MAP: {mod} is mapped to door {caller_to_door[mod]!r} but no longer "
+                   f"calls {_HELPER} ({len(a['callers'])} caller(s) found in {a['files']} file(s))")
+    for mod in sorted(a["callers"] - set(caller_to_door)):
+        out.append(f"NEW DOOR: {mod} calls {_HELPER} and this file does not know it — map it in "
+                   "_CALLER_TO_DOOR and give it a DOORS arm (or declare it in NO_CALLBACK)")
+    for where in sorted(a["unresolved"]):
+        out.append(f"UNKNOWN: the factory argument to {_HELPER} at {where} is not a plain name, so "
+                   "no construction site can be attributed to it — this check cannot rule")
+    for key in sorted(a["sites"]):
+        if key in a["routed"] or key in by_request or key in not_persisted:
             continue
-        funcs = [n for n in _ast.walk(tree)
-                 if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))]
-        for n in _ast.walk(tree):
-            if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id == "User"):
-                continue
-            enclosing = [fn for fn in funcs
-                         if fn.lineno <= n.lineno <= (fn.end_lineno or fn.lineno)]
-            if not enclosing:
-                continue
-            innermost = max(enclosing, key=lambda fn: fn.lineno)
-            out.add(f"{f.stem}.{innermost.name}")
+        if key in a["module_level"]:
+            out.append(f"UNKNOWN: a User is constructed at module or class scope at "
+                       f"{a['sites'][key]} — outside any function, attributable to no door")
+        else:
+            out.append(f"STRAY: a User is constructed at {a['sites'][key]} ({key}), neither passed "
+                       "to the helper nor covered by a declared exemption")
+    for key in sorted(by_request | not_persisted):
+        if key not in a["sites"]:
+            out.append(f"STALE EXEMPTION: {key} is exempted here and constructs no User — delete "
+                       f"the entry ({len(a['sites'])} site(s) found, so this is not a blind walk)")
+    for key in sorted(not_persisted):
+        if key in a["sites"] and key in a["adders"]:
+            out.append(f"EXEMPTION NO LONGER TRUE: {key} is exempted as never-persisted and now "
+                       "calls .add(...) — it needs the 409 guard or the savepoint idiom")
     return out
 
 
-#: Sites that create a user BY EXPLICIT REQUEST, not by auto-provisioning on sign-in. Each guards
-#: with a 409 and none is a sign-in door, so the savepoint idiom does not apply to them. (Their
-#: check-then-insert does degrade a 409 into a 500 under a true race — recorded in the roadmap as
-#: low severity on purpose: unlike a sign-in, the loser's request is one that correctly fails.)
-BY_REQUEST = {"auth.register", "auth.create_user", "auth.require_admin_user"}
+# ---- self-tests: the analyser must find the two shapes that defeated the first draft -----------
+# Synthetic trees rather than edits to the real one, so the proof-of-reach is not a dependency on
+# anything outside this file. Each fixture carries its own declarations, because the defects being
+# reproduced were in how a declaration was SCOPED, not in the walk.
+_BASE_FILES = {
+    "auth.py": """
+        def get_or_create_sso_user(db, username, make_user):
+            u = db.get(User, username)
+            if u is None:
+                u = make_user()
+                db.add(u)
+            return u
+    """,
+    # Imports the helper BY NAME: invisible to the first draft's attribute-only matcher.
+    "routers/auth.py": """
+        from ..auth import get_or_create_sso_user
 
-_callers = _helper_callers()
-_doors = {d for d, _u, _s in DOORS}
-#: `scim` is the fourth door and is covered by the mapping below rather than by a behavioural arm:
-#: it provisions from a directory push, not from an interactive sign-in, so it has no callback to
-#: drive. What matters here is that it cannot be ADDED without this file noticing.
-_CALLER_TO_DOOR = {"auth": "oauth", "saml": "saml", "cloud": "cloud", "scim": "scim"}
+        def require_admin_user(db):
+            return User(username="local", role="admin")
 
-_unmapped = _callers - set(_CALLER_TO_DOOR)
-if _unmapped:
-    FAILED.append(f"a NEW sign-in door calls the helper and this file does not know it: "
-                  f"{sorted(_unmapped)} — add it to _CALLER_TO_DOOR and give it a DOORS arm")
-    print(f"FAIL  every helper caller is a known door   unmapped={sorted(_unmapped)}")
-else:
-    print(f"PASS  every helper caller is a known door   {sorted(_callers)}")
+        def register(db, username):
+            if db.get(User, username):
+                raise HTTPException(409, "username already taken")
+            db.add(User(username=username))
 
-_expected_behavioural = {d for c, d in _CALLER_TO_DOOR.items() if c in _callers and d != "scim"}
-if not _expected_behavioural <= _doors:
-    FAILED.append(f"a door calls the helper but has no behavioural arm: "
-                  f"{sorted(_expected_behavioural - _doors)}")
-    print(f"FAIL  every interactive door has a race arm   missing={sorted(_expected_behavioural - _doors)}")
-else:
-    print(f"PASS  every interactive door has a race arm   {sorted(_doors)}")
+        def oauth_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+    """,
+    # Calls it as an attribute, which is what the real SAML/cloud/SCIM doors do.
+    "routers/saml.py": """
+        from .. import auth
 
-_sites = _user_construction_sites()
-_via_helper = {f"{c}.{fn}" for c in _callers for fn in ("_make_user",)}
-_stray = {s for s in _sites if s not in BY_REQUEST and s.split(".")[0] not in _callers}
-if _stray:
-    FAILED.append(f"a User is constructed outside both the helper and the by-request set: {sorted(_stray)}")
-    print(f"FAIL  no User is created outside the two known shapes   stray={sorted(_stray)}")
-else:
-    print(f"PASS  no User is created outside the two known shapes   "
-          f"{len(_sites)} site(s): {len(_sites) - len(BY_REQUEST)} auto-provisioning, {len(BY_REQUEST)} by request")
+        def saml_acs(db, email):
+            def _make_user():
+                return User(username=email)
+            return auth.get_or_create_sso_user(db, email, _make_user)
+    """,
+}
+_BASE_MAP = {"routers.auth": "oauth", "routers.saml": "saml"}
+_BASE_BY_REQUEST = {"routers.auth.register"}
+_BASE_NOT_PERSISTED = {"routers.auth.require_admin_user"}
 
-if len(_callers) < 4 or len(_sites) < 7:
-    FAILED.append(f"PRECONDITION: the AST walk under-counted (callers={len(_callers)}, "
-                  f"sites={len(_sites)}) — a walk that finds nothing reports a clean tree")
-    print("FAIL  PRECONDITION: the walk found the population it reasons about")
-else:
-    print(f"PASS  PRECONDITION: the walk found the population it reasons about   "
-          f"{len(_callers)} caller(s), {len(_sites)} construction site(s)")
+
+def _fixture(extra: dict[str, str] | None = None,
+             replace: dict[str, str] | None = None) -> pathlib.Path:
+    """A synthetic source tree. Every source is dedented BEFORE anything is appended to it — the
+    first draft dedented the concatenation, so an already-flush `extra` left the base block at its
+    original eight-space indent and every fixture was an `IndentationError` the `except SyntaxError`
+    in `_analyse` would have swallowed into a silently empty tree."""
+    files = {rel: textwrap.dedent(src) for rel, src in _BASE_FILES.items()}
+    for rel, src in (replace or {}).items():
+        files[rel] = textwrap.dedent(src)
+    for rel, src in (extra or {}).items():
+        files[rel] = files.get(rel, "") + textwrap.dedent(src)
+    root = pathlib.Path(tempfile.mkdtemp(prefix="sso_pop_"))
+    for rel, src in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(src, encoding="utf-8")
+        _ast.parse(src)  # `_analyse` skips a SyntaxError; a fixture must never reach it as one
+    return root
+
+
+def _probe(name: str, *, extra=None, replace=None, by_request=None, not_persisted=None,
+           must=(), must_not=()) -> None:
+    root = _fixture(extra, replace)
+    try:
+        found = _findings(_analyse(root), _BASE_MAP,
+                          _BASE_BY_REQUEST if by_request is None else by_request,
+                          _BASE_NOT_PERSISTED if not_persisted is None else not_persisted)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    blob = " | ".join(found)
+    missing = [m for m in must if m not in blob]
+    present = [m for m in must_not if m in blob]
+    if not must and not must_not:            # the CLEAN baseline
+        check(f"[self-test] {name}", not found, f"findings={found}")
+        return
+    check(f"[self-test] {name}", not missing and not present,
+          f"missing={missing} unexpected={present} findings={found}")
+
+
+# A clean baseline FIRST: without it, every probe below could be passing because the analyser
+# reports everything, which is the failure mode a zero-expected check cannot distinguish.
+_probe("a correctly wired tree is CLEAN")
+
+# SHAPE 1 — a fifth door inside an EXISTING door module, provisioning inline. The first draft
+# exempted it twice over: by module stem, and by collapsing `_make_user` onto the OAuth door's key.
+_probe("a fifth door provisioning INLINE in an existing door module is a STRAY",
+       extra={"routers/auth.py": """
+
+        def device_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            u = db.get(User, email)
+            if u is None:
+                u = _make_user()
+                db.add(u)
+            return u
+       """},
+       must=["STRAY", "routers.auth.device_callback._make_user"],
+       must_not=["NEW DOOR"])
+
+# SHAPE 2 — a fifth door wired CORRECTLY, importing the helper by name. The first draft reported
+# this as a stray construction, which is the opposite of the truth; the only correct finding is
+# that the door is unmapped, because an unmapped door is one nobody gave an arm.
+_probe("a correctly wired new door is reported as UNMAPPED, not as a stray",
+       extra={"routers/device.py": """
+        from ..auth import get_or_create_sso_user
+
+        def device_acs(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+       """},
+       must=["NEW DOOR", "routers.device"],
+       must_not=["STRAY", "UNKNOWN"])
+
+# The dropped shapes: module scope, and the attribute spelling of the model.
+_probe("a User constructed at module scope is UNKNOWN, not skipped",
+       extra={"routers/auth.py": '\n_SEED_ADMIN = User(username="root", role="admin")\n'},
+       must=["UNKNOWN", "module or class scope"])
+_probe("the models.User(...) spelling is seen",
+       extra={"routers/jobs.py": """
+        from .. import models
+
+        def enqueue(db, who):
+            db.add(models.User(username=who))
+       """},
+       must=["STRAY", "routers.jobs.enqueue"])
+
+# A factory this analyser cannot resolve must be UNKNOWN, not silently helper-routed.
+_probe("an unresolvable factory argument fails CLOSED",
+       replace={"routers/saml.py": """
+        from .. import auth
+
+        def saml_acs(db, email):
+            return auth.get_or_create_sso_user(db, email, lambda: User(username=email))
+       """},
+       must=["UNKNOWN", "not a plain name"])
+
+# The exemptions are checked, not trusted — and the message must name the exemption rather than
+# blaming the walk, which is exactly what the hardcoded floor of 7 did.
+_probe("an exemption naming no real site is STALE, and says so",
+       by_request=_BASE_BY_REQUEST | {"routers.auth.legacy_invite"},
+       must=["STALE EXEMPTION", "routers.auth.legacy_invite"],
+       must_not=["under-counted"])
+_probe("a never-persisted exemption that starts persisting is refused",
+       replace={"routers/auth.py": """
+        from ..auth import get_or_create_sso_user
+
+        def require_admin_user(db):
+            u = User(username="local", role="admin")
+            db.add(u)
+            return u
+
+        def register(db, username):
+            if db.get(User, username):
+                raise HTTPException(409, "username already taken")
+            db.add(User(username=username))
+
+        def oauth_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+       """},
+       must=["EXEMPTION NO LONGER TRUE", "routers.auth.require_admin_user"])
+
+# And the keying must distinguish two factories of the same name in the same module even when BOTH
+# doors are correctly wired — otherwise shape 1 is caught by luck rather than by the key.
+_probe("two correctly wired doors in one module, same factory name, both resolve",
+       extra={"routers/auth.py": """
+
+        def device_callback(db, email):
+            def _make_user():
+                return User(username=email)
+            return get_or_create_sso_user(db, email, _make_user)
+       """},
+       must_not=["STRAY", "UNKNOWN"])
+
+# The definer is not a door. `callers - definers` was the one branch the nine-way mutation run left
+# GREEN: `aec_api/auth.py` does not call its own helper, so the subtraction was doing nothing
+# measurable — which is precisely the position `_via_helper` was in before review found it dead.
+# Defensive is not the same as exercised, so a fixture now calls the helper from the module that
+# DEFINES it (a retry path is the realistic way that arrives) and the module must not be reported
+# as a fifth door.
+_probe("the module that DEFINES the helper is not itself a door",
+       replace={"auth.py": """
+        def get_or_create_sso_user(db, username, make_user, _retry=True):
+            u = db.get(User, username)
+            if u is None:
+                u = make_user()
+                db.add(u)
+            if u is None and _retry:
+                return get_or_create_sso_user(db, username, make_user, _retry=False)
+            return u
+       """},
+       must_not=["NEW DOOR", "STRAY", "UNKNOWN"])
+
+# ---- the real tree ------------------------------------------------------------------------------
+#: Sites that INSERT a user BY EXPLICIT REQUEST rather than auto-provisioning on sign-in. Both
+#: guard with an explicit 409 and neither is a sign-in door, so the savepoint idiom does not apply.
+#: (Their check-then-insert does degrade a 409 into a 500 under a true race — recorded in the
+#: roadmap as low severity on purpose: unlike a sign-in, the loser's request is one that correctly
+#: fails.) `register` carries the first-user bootstrap; the first draft of this list attributed that
+#: bootstrap to `require_admin_user` and claimed a 409 for it, and **both halves were false** —
+#: `require_admin_user` raises 403 and inserts nothing at all. *A justification repeated into a
+#: roadmap entry is not evidence; it is the same sentence in two places.*
+BY_REQUEST = {"routers.auth.register", "routers.auth.create_user"}
+
+#: Sites that CONSTRUCT a `User` and never persist one. `require_admin_user` returns a synthetic
+#: in-memory admin under `rbac.LOCAL_MODE`; there is no row and no race. This exemption is a
+#: different category from `BY_REQUEST`, and conflating the two is what let the first draft's floor
+#: of 7 punish a legitimate refactor. It is VERIFIED rather than asserted: `_findings` refuses it
+#: the moment the function calls `.add(...)`.
+NOT_PERSISTED = {"routers.auth.require_admin_user"}
+
+_CALLER_TO_DOOR = {"routers.auth": "oauth", "routers.saml": "saml",
+                   "routers.cloud": "cloud", "routers.scim": "scim"}
+
+#: Doors that provision from a directory push rather than an interactive callback, and so have no
+#: redirect to drive and no behavioural arm above. Declaring them is what keeps the verdict line
+#: honest: the race properties are proved for the doors in `DOORS`, and a new door must either get
+#: an arm or be declared here — it cannot simply raise the count in a sentence that claims them.
+NO_CALLBACK = {"scim"}
+
+_a = _analyse(_SRC)
+_found = _findings(_a, _CALLER_TO_DOOR, BY_REQUEST, NOT_PERSISTED)
+
+check("PRECONDITION: the walk read the tree and found the helper's definition",
+      _a["files"] >= 100 and bool(_a["definers"]) and bool(_a["routed"]),
+      f"{_a['files']} file(s), definer={sorted(_a['definers'])}, "
+      f"{len(_a['routed'])} resolved factory qualname(s)")
+check("every helper caller is a mapped door, and every mapped door still calls it",
+      not [f for f in _found if f.startswith(("STALE DOOR MAP", "NEW DOOR"))],
+      f"{len(_a['callers'])} caller(s): {sorted(_a['callers'])}")
+#: Counted, not subtracted. The first draft of this line reported "N - len(BY_REQUEST)" as the
+#: helper-routed total, which is the same arithmetic `_via_helper`'s absence left behind: it LABELS
+#: the remainder instead of measuring it, so on the inline-fifth-door mutation it cheerfully said
+#: "5 via the helper" one line above a finding that one of them is not.
+_by_route = {"helper": 0, "by request": 0, "never persisted": 0, "unattributed": 0}
+for _k in _a["sites"]:
+    _by_route["helper" if _k in _a["routed"] else
+              "by request" if _k in BY_REQUEST else
+              "never persisted" if _k in NOT_PERSISTED else "unattributed"] += 1
+check("every User construction is attributable to the helper or a declared exemption",
+      not [f for f in _found if f.startswith(("STRAY", "UNKNOWN"))],
+      f"{len(_a['sites'])} site(s): " + ", ".join(f"{v} {k}" for k, v in _by_route.items() if v))
+check("every declared exemption still resolves to a real site and is still true",
+      not [f for f in _found if f.startswith(("STALE EXEMPTION", "EXEMPTION NO LONGER"))],
+      f"{sorted(BY_REQUEST | NOT_PERSISTED)}")
+
+_arms = {d for d, _u, _s in DOORS}
+_declared = set(_CALLER_TO_DOOR.values())
+check("every door either has a behavioural arm or is declared callback-less",
+      _declared == _arms | NO_CALLBACK and not (_arms & NO_CALLBACK),
+      f"arms={sorted(_arms)} no_callback={sorted(NO_CALLBACK)} doors={sorted(_declared)}")
+
+for _f in _found:
+    print("      " + _f)
 
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
 print(
-    f"SSO PROVISION RACE OK - all {len(_callers)} auto-provisioning doors ({', '.join(sorted(_callers))}) "
-    "go through one helper whose INSERT sits in a SAVEPOINT -- and the door list is DERIVED from "
-    "the helper's callers, so a fifth cannot arrive unseen. Losing the seeding race hands back the "
-    "winner's row instead of raising, the session stays usable so the sign-in audit entry still "
-    "commits, exactly one account exists, and an uncontested first sign-in still creates one."
+    f"SSO PROVISION RACE OK - all {len(_declared)} auto-provisioning doors "
+    f"({', '.join(sorted(_declared))}) go through one helper whose INSERT sits in a SAVEPOINT, and "
+    "the door list is DERIVED from the helper's callers with every User construction in the tree "
+    f"attributed, so a fifth cannot arrive unseen. For the {len(_arms)} doors with an interactive "
+    f"callback ({', '.join(sorted(_arms))}) this file proves the behaviour as well as the wiring: "
+    "losing the seeding race hands back the winner's row instead of raising, the session stays "
+    "usable so the sign-in audit entry still commits, exactly one account exists, and an "
+    f"uncontested first sign-in still creates one. {', '.join(sorted(NO_CALLBACK))} provisions from "
+    "a directory push with no callback to drive, and is covered by the derivation alone."
 )

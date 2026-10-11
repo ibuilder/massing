@@ -693,16 +693,48 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   | every site CONSTRUCTING a `User` reaches the helper or is a by-request creation | a fifth door that provisions inline, which is the dangerous shape |
 
   Both are mutation-proved by writing a real fifth door into the tree: wired to the helper, it reds
-  the first; provisioning inline, it reds the second. The by-request set — `register`, `create_user`
-  and the admin bootstrap — is a real category rather than a fudge: each guards with an explicit
-  409 and none is a sign-in door.
+  the first; provisioning inline, it reds the second. Every `User(...)` in the tree is accounted for,
+  and the two exemptions are **two different categories**, not one: `register` and `create_user`
+  INSERT by explicit request behind a 409, while `require_admin_user` constructs a synthetic
+  in-memory admin under `LOCAL_MODE` and persists nothing. Neither is a sign-in door.
 
   **The walk double-counted on its first draft and did not fail, it ANSWERED.** Attributing each
   `User(...)` to every enclosing function put a construction inside a nested `_make_user` under both
   the factory and its route: **11 sites where an independent probe found 7**, and "8 via the helper"
   when there are four. The precondition floor was calibrated on the inflated number, so it would
-  have been satisfied by a walk finding half the tree. Attribution is innermost-wins by line range
-  now, and the floor is 7.
+  have been satisfied by a walk finding half the tree.
+
+  **Review then found EIGHT defects in that derivation, and it had been passing clean on BOTH shapes
+  of fifth door it exists to refuse** *(found and repaired 2026-10-11)*. The headline: a fifth door
+  added to an existing door module and provisioning inline passed, by two independent mechanisms.
+
+  | the claim | why it was false |
+  |---|---|
+  | "every site constructing a `User` reaches the helper" | the cross-check (`_via_helper`) was computed into a module-scope name **nothing read**. `len(sites) − len(BY_REQUEST)` simply *labelled* the remainder as helper-routed |
+  | the exemption is scoped to the helper | `_stray` exempted by **module**, so an inline door in `routers/auth.py` was exempt because `oauth_callback` two screens up is wired right |
+  | sites are distinct | keyed `module.function`, and all four doors name their factory `_make_user` — a fifth **collapsed onto an existing key**, so the hardcoded floor of 7 could not see it either |
+  | every caller of the helper is found | matched **attribute calls only**: a door doing `from ..auth import get_or_create_sso_user` was not a caller, and a *correctly wired* new door redded with "a User is constructed outside the helper" — the exact opposite of the truth |
+  | every `User(...)` is found | matched a bare `Name` only; `models.User(...)` was invisible |
+  | the walk fails closed | a construction at module or class scope was **dropped silently** (`if not enclosing: continue`) |
+  | the floor catches an under-counting walk | the floor of 7 counted `require_admin_user`, so refactoring that away would have redded with *"the AST walk under-counted"* — **misdiagnosing a clean edit as a broken analyser** |
+  | the by-request set each "guards with a 409" | **false for `require_admin_user`**: it raises 403 and inserts nothing, and the bootstrap it was credited with is inside `register`. The sentence was repeated verbatim into this entry — *a justification repeated into a roadmap record is not evidence, it is the same sentence in two places* |
+
+  *Three lessons worth more than the fix.* **A dead cross-check is worse than a missing one** — the
+  next reader sees the right idea in the file and assumes it runs; module scope put it beyond ruff's
+  F841 as well. **An exemption scoped wider than the thing it exempts is a hole with a comment
+  beside it**, and five of the eight were a predicate deciding what to LOOK at rather than what to
+  report. And **a hardcoded population floor reports the one cause it was written for, whatever
+  actually happened**: the floor is derived now, every exemption must still resolve to a real site
+  and still be true, and a never-persisted exemption is refused the moment its function calls
+  `.add(...)`.
+
+  Ten self-tests run over synthetic trees **before** any verdict, including a CLEAN baseline —
+  *a check whose expected answer is zero is the easiest kind to break silently.* Nine mutations of
+  the analyser were run and the ninth is the one that taught something: `callers - definers` stayed
+  **green**, because `auth.py` does not call its own helper, so the exclusion the first draft's
+  docstring *claimed and did not implement* was still doing nothing measurable once implemented —
+  the same position `_via_helper` was in. **Defensive is not the same as exercised.** A fixture now
+  calls the helper from the module that defines it.
 
   *Recorded and not fixed, deliberately:* `register` and `create_user` are check-then-insert, so a
   true race yields a **500 where 409 was intended**. That is low severity and saying so matters —
