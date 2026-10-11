@@ -4889,6 +4889,7 @@ worth checking: two of the three were mis-sized, and both in the same direction.
 | 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. ✅ **comment round-tripping shipped v0.3.1042** — a resubmittal now carries the review that asked for it, labelled with the revision it was written against. **Submittal *packages*: the inbound half was ALREADY SHIPPED and this row did not say so — see the note under the entry.** |
 | 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference — but **not the alarm an earlier version of this cell made it sound like, either.** Re-measured 2026-08-27: the file was 2,865 lines against a pin of 2,865, and it is **2,570 after slices ⑭⑮⑯**, with the pin lowered each time — **and then raised back to 2,865 the same afternoon by an unrelated lane's commit to the same shared file, which no gate could see. Re-measured again 2026-08-29 and restored; see the entry.** That is the fourth consecutive time this row's number was wrong, and the first time the *pin* was the thing that had moved rather than the prose. Zero headroom is the ratchet's DESIGNED state, not a regression: it pins each file at (or one line above) its current size — `client.ts` sits at 2,836/2,837 the same way — and `test_file_sizes.py` says so itself, that the threshold is set just above the worst offender and tightening it is part of the work. So the next line added here reds the build, permanently, and **the remedy is always extraction, never waiting for room**. That is the mechanism, working. This cell said *"97%, ~136 lines of headroom"* until today, which was the third consecutive time this row's number was stale: the ratchet has come down twice since (2,944 → 2,885 → 2,865) and the prose never followed. The note in the outcome column already says a justification was *"copied forward without re-measuring"* — and then the correction itself was copied forward without re-measuring. **Re-derive it before quoting it:** `wc -l apps/web/src/viewer/app.ts` against its entry in `services/api/test_file_sizes.py`. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
 | 3 | ~~**R37-TRIAGE tail**~~ — **CLOSED 2026-08-29, before this sprint was taken.** `services/api/test_dead_code_population.py` reports 0 unreferenced and an empty `DELIBERATELY_UNCALLED`; the 12 candidates this row proposes reading are gone. *A proposed sprint is a status line too, and this one had gone stale in the same way the item it names had.* | — | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. *(That sentence is restored here: the first draft of the strikethrough above deleted it, and a status correction that takes a recorded finding with it costs more than the stale status did.)* |
+
 **What the outcomes say about the sizing.** Both misjudgements came from trusting a written number
 instead of re-deriving it — a stale ceiling in row 2, a stale population in row 3. The sprint that
 *was* correctly sized is the one whose entry demanded a premise-check before starting.
@@ -6545,6 +6546,46 @@ refute one, so this goes first even though it is the least visible.
   passed through two layers of shell quoting. **A mutation that does not apply is indistinguishable
   from one the tests catch** — both print a pass — so each one is now applied by a script that
   asserts its own target matched, and the mutated line is printed before the run.
+
+- ✅ ⭐ **CR-REVIEW-6 — a notice any unrelated redraw could erase, and a gate whose own canary was
+  wrong** *(XS — Lanes D/F; **CLOSED 2026-10-11**; held by `apps/web/src/drawings/drawings.test.ts`
+  and `services/api/test_claude_md_gates.py`)*
+
+  Two findings, and the first is **this branch's own defect reintroduced inside the fix for it**.
+  Slice ⑦'s refusal notice is appended to `#dwg-toolbar` — and `buildToolbar()` opens with
+  `bar.innerHTML = ""`, which runs on **every sheet selection**, while the Paper space button
+  rewrites the same bar outright. So the first click after a refusal erased the only thing saying
+  live markup had stopped, and the screen went back to looking healthy **while the stream was still
+  refused**: exactly the silence slice ⑥ exists to end, restored by a redraw. *A notice that any
+  unrelated redraw can erase is not a notice, it is a notification.* The refusal is stored state
+  now, repainted at the end of both wipes, and `string | null` rather than a bool so "refused with
+  no reason given" survives — the empty-versus-absent distinction, corrected a ninth time.
+
+  **The second finding was right about the hole and wrong about the fix, and measuring is what
+  separated them.** The table-pipe scan keyed on a leading `|`, which GFM does not require — true,
+  and worth fixing. The proposed repair, *match a row with or without a leading pipe*, was measured
+  before being written: **39 hits across these documents, every one legitimate prose** — a query
+  string `?standard=iso19650|cobie|ids`, a shell `|| true`, a CLI alternation, a literal `` `|` ``
+  being described. *A rule that needs an exemption list is a rule whose population is wrong.* The
+  row is identified by CONTEXT instead — a delimiter row under a pipe-bearing line opens a table —
+  which finds the same 1,797 rows today and catches a pipe-less one the moment it appears. Both
+  spellings are pinned: the leading-pipe-only rule and the naive widening each red.
+
+  **Then its own canary failed, and the canary was the thing that was wrong.** It asserted that a
+  prose line abutting a table is not part of it. GFM breaks a table at a **blank line**, so an
+  unseparated paragraph is lazy continuation and GitHub renders it as a ROW — which meant
+  `docs/roadmap.md` had a three-line paragraph being drawn inside the sprint table, its sentences
+  split into cells at every stray pipe. One instance tree-wide, fixed with a blank line. *A canary
+  that fails is doing its job even when the thing that is wrong is the canary.*
+
+  **And mutation found two more holes after the fix was already green.** Deleting the body's pipe
+  requirement changed no verdict — a line with no pipe cannot carry a cell-splitting pipe — so the
+  docstring calling it load-bearing was wrong; it is defensive, and the canary now measures the
+  **row set** rather than the verdict, because *reporting a site and classifying it are two
+  different questions.* Worse, **re-absorbing the paragraph redded nothing**: those three lines
+  carry no backticked pipe, so the defect was fixed and unguarded — *the worst of the two states,
+  because the fix reads as the end of the matter.* `prose_absorbed_by_table` now gates the class
+  that mutation exposed. Nine mutations, all red.
 
 - ✅ ⭐ **NOTIF-BADGE-DEAD — the live notification badge has never appeared, and the file already
   said why** *(XS — Lane A; **CLOSED 2026-10-11**; gated by `apps/web/src/shell/roomTabs.test.ts`)*

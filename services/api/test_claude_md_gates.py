@@ -369,41 +369,126 @@ if _stated and _pinned:
 #
 # Fenced code blocks are skipped: a line beginning with `|` inside a ``` fence is not a table row,
 # and a checker that cannot tell the difference reports a confident finding about nothing.
-_TABLE_ROW = re.compile(r"^\s*\|")
+_DELIM_ROW = re.compile(r"^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$")
 _BACKTICK_SPAN = re.compile(r"`+[^`]*`+")
 _RAW_PIPE = re.compile(r"(?<!\\)\|")
 
 
-def pipes_in_table_cells(text):
-    """Backtick spans on table rows that carry an unescaped pipe. (line number, span)."""
-    hits, fenced = [], False
-    for n, line in enumerate(text.splitlines(), 1):
+def table_row_lines(text):
+    """Line numbers (0-based) belonging to a GFM table: the header, the delimiter, and the body.
+
+    **Found by review: a leading `|` is not required by GFM, and the first draft keyed on one.**
+    The obvious repair — match a row with or without a leading pipe — was measured before it was
+    written, and it reports **39** hits across these documents, every one legitimate prose: a query
+    string (`?standard=iso19650|cobie|ids`), a shell `|| true`, a CLI alternation, a literal `` `|` ``
+    being described. *A rule that needs an exemption list is a rule whose population is wrong* — the
+    lesson COURT-PRIMARY paid for when it bounded its own.
+
+    So the row is identified by CONTEXT instead: a delimiter row (`---|---`) under a line containing
+    a pipe opens a table, and the body runs until a blank line, a fence, or a line with no pipe.
+    Measured on this tree: 1,797 rows, which is the same population the leading-pipe rule found, so
+    the widening costs nothing today and catches the pipe-less row the moment one appears.
+
+    **Requiring a pipe in each body line is DEFENSIVE, not load-bearing — mutation said so and the
+    first draft of this docstring claimed the opposite.** Deleting it changes no verdict, because a
+    line with no pipe cannot carry a cell-splitting pipe and so yields no hit either way. It is kept
+    because this function reports which lines ARE rows, and a caller that trusts that answer should
+    not be handed a prose paragraph; the canary below therefore measures the ROW SET directly rather
+    than the verdict. *Reporting a site and classifying it are two different questions* —
+    `test_unique_read_guard` paid for that distinction one layer up.
+    """
+    rows, fenced = set(), False
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         if line.lstrip().startswith("```"):
             fenced = not fenced
             continue
-        if fenced or not _TABLE_ROW.match(line):
+        if fenced:
             continue
-        for m in _BACKTICK_SPAN.finditer(line):
+        if _DELIM_ROW.match(line) and i > 0 and "|" in lines[i - 1]:
+            rows.add(i - 1)
+            rows.add(i)
+            j = i + 1
+            while (j < len(lines) and lines[j].strip() and "|" in lines[j]
+                   and not lines[j].lstrip().startswith("```")):
+                rows.add(j)
+                j += 1
+    return rows
+
+
+def pipes_in_table_cells(text):
+    """Backtick spans on table rows that carry an unescaped pipe. (line number, span)."""
+    lines = text.splitlines()
+    hits = []
+    for i in sorted(table_row_lines(text)):
+        for m in _BACKTICK_SPAN.finditer(lines[i]):
             if _RAW_PIPE.search(m.group(0)):
-                hits.append((n, m.group(0).strip()))
+                hits.append((i + 1, m.group(0).strip()))
     return hits
 
 
 # The checker must be able to SAY YES, or its silence proves nothing — the fail-open hole
 # `test_roadmap_status.py` had, where one broken regex made every item report PASS.
-_canary = pipes_in_table_cells("| `a | b` | c |")
+_TBL = "| h | h2 |\n|---|---|\n"
+_canary = pipes_in_table_cells(_TBL + "| `a | b` | c |")
 check(
     "the table-pipe scan can still find one",
-    _canary == [(1, "`a | b`")],
+    _canary == [(3, "`a | b`")],
     f"canary={_canary}",
 )
-_fenced_canary = pipes_in_table_cells("```\n| `a | b` |\n```")
+# CodeRabbit's case: GFM does not require the leading pipe, and the first draft did.
+_nolead = pipes_in_table_cells("h | h2\n---|---\na | `b | c` | d")
+check(
+    "...and finds one on a row with NO leading pipe",
+    _nolead == [(3, "`b | c`")],
+    f"no-leading-pipe canary={_nolead}",
+)
+# The load-bearing negative, and the reason this is context-based rather than a looser line regex:
+# 39 spans in these documents are pipes inside backticks in ORDINARY PROSE, all legitimate.
+_prose = pipes_in_table_cells(
+    "The flag is `?standard=iso19650|cobie|ids` and the step ran `|| true`.\n"
+)
+check(
+    "...and does NOT flag a pipe inside backticks in ordinary prose",
+    _prose == [],
+    f"prose canary={_prose}",
+)
+# **THE CANARY THAT WAS WRONG, AND WHAT IT FOUND.** This asserted that a prose line abutting a
+# table is not part of it. It failed — and the RULE was right, the EXPECTATION wrong: GFM breaks a
+# table at a blank line, so an unseparated following paragraph is lazy continuation and GitHub
+# renders it as a ROW. Which means `docs/roadmap.md` was rendering a three-line paragraph inside a
+# table, a real defect this check found by disagreeing with its author. One instance tree-wide,
+# fixed by ending the table with a blank line. *A canary that fails is doing its job even when the
+# thing that is wrong is the canary.*
+_abut = pipes_in_table_cells(_TBL + "| a | b |\nTrusting a written number `x | y` instead.\n")
+check(
+    "a pipe-bearing line abutting a table IS a row, because GFM says so",
+    _abut == [(4, "`x | y`")],
+    f"abutting-prose canary={_abut}",
+)
+# The pipe requirement, measured where it actually shows: the ROW SET. Nothing in the verdict can
+# see it, so a mutation deleting it survived until this existed.
+_rows = table_row_lines(_TBL + "| a | b |\nTrusting a written number, no pipe here.\n")
+check(
+    "a pipe-less line after a table body is not counted as a row",
+    _rows == {0, 1, 2},
+    f"row set={sorted(_rows)} (expected the header, delimiter and one body row)",
+)
+
+# ...and a blank line is what actually ends it. This is the half the fix relies on.
+_ended = pipes_in_table_cells(_TBL + "| a | b |\n\nTrusting a written number `x | y` instead.\n")
+check(
+    "...and a blank line ends the table, so the paragraph after one is not a row",
+    _ended == [],
+    f"blank-line canary={_ended}",
+)
+_fenced_canary = pipes_in_table_cells("```\n" + _TBL + "| `a | b` |\n```")
 check(
     "...and does not report a table row inside a fenced code block",
     _fenced_canary == [],
     f"fenced canary={_fenced_canary}",
 )
-_escaped_canary = pipes_in_table_cells("| `a \\| b` | c |")
+_escaped_canary = pipes_in_table_cells(_TBL + "| `a \\| b` | c |")
 check(
     "...and accepts an escaped pipe, which is the fix it asks for",
     _escaped_canary == [],
@@ -425,6 +510,62 @@ check(
     "clean" if not _pipe_hits else
     "GitHub renders each of these as an extra cell and DROPS the rest of the row — "
     "escape the pipe as `\\|`: " + " · ".join(_pipe_hits),
+)
+
+# ---------------------------------------------------------------------------------------------
+# A TABLE THAT RUNS STRAIGHT INTO A PARAGRAPH SWALLOWS IT.
+#
+# Found by MUTATION, not by review: re-absorbing the paragraph this change separated did not red any
+# check above, because those three lines carry no backticked pipe. So the defect was fixed and
+# unguarded — *the worst of the two states, because the fix reads as the end of the matter.*
+#
+# GFM breaks a table at a blank line. Without one, the following paragraph is lazy continuation and
+# GitHub renders it as a row: in `docs/roadmap.md` a three-line paragraph was being drawn inside the
+# sprint table, its sentences split into cells at every stray pipe and the rest of each line
+# dropped. One instance tree-wide when this was written.
+
+
+def prose_absorbed_by_table(text):
+    """First pipe-less line of each table body — a paragraph GFM is rendering as a row."""
+    lines, out = text.splitlines(), []
+    for i in sorted(table_row_lines(text)):
+        j = i + 1
+        if j in table_row_lines(text) or j >= len(lines):
+            continue
+        nxt = lines[j]
+        if nxt.strip() and "|" not in nxt and not nxt.lstrip().startswith("```"):
+            out.append((j + 1, nxt.strip()[:70]))
+    return out
+
+
+_absorb_canary = prose_absorbed_by_table(_TBL + "| a | b |\nA trailing paragraph with no pipe.\n")
+check(
+    "the absorbed-paragraph scan can still find one",
+    len(_absorb_canary) == 1,
+    f"canary={_absorb_canary}",
+)
+_absorb_ok = prose_absorbed_by_table(_TBL + "| a | b |\n\nA trailing paragraph with no pipe.\n")
+check(
+    "...and a blank line is what makes it a paragraph again",
+    _absorb_ok == [],
+    f"separated canary={_absorb_ok}",
+)
+
+_absorbed = []
+for _rel in DOCS:
+    _abs = os.path.join(ROOT, _rel)
+    if not os.path.exists(_abs):
+        continue
+    with open(_abs, encoding="utf-8") as _fh:
+        for _n, _txt in prose_absorbed_by_table(_fh.read()):
+            _absorbed.append(f"{_rel}:{_n} {_txt}")
+
+check(
+    "no table body runs straight into a paragraph",
+    not _absorbed,
+    "clean" if not _absorbed else
+    "GitHub renders each of these as a table ROW, splitting the sentence at every pipe — "
+    "put a blank line between the table and the paragraph: " + " · ".join(_absorbed),
 )
 
 if FAILED:
