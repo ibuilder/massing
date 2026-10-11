@@ -2007,10 +2007,30 @@ instances:
   that, renaming a fact type on the engine would silently stop blocking the card that depends on it
   *and the card would still look wired.* The two rent-roll cards resolve the gate **per consumer**
   rather than sharing one call: both depend on `rent_roll` today, so one call gives the same answer,
-  and the moment the map diverges the scrub would be reporting the NER's verdict. Each of the five
-  withholding sites was mutation-checked by disabling it; **the covenant card survived the first
-  pass** — its `held` flag only reached a status colour, so the card printed the authority note and
-  withheld nothing. *A note that explains a withholding that is not happening is worse than silence.*
+  and the moment the map diverges the scrub would be reporting the NER's verdict. Each withholding
+  site was mutation-checked by disabling it; **the covenant card survived the first pass** — its
+  `held` flag only reached a status colour, so the card printed the authority note and withheld
+  nothing. *A note that explains a withholding that is not happening is worse than silence.*
+
+  **REVIEW THEN FOUND EIGHT MORE, and the first two are the same sentence coming true again.** Every
+  one of them is a withholding that was announced and not performed, or performed in one place and
+  not another:
+
+  | finding | why it mattered |
+  |---|---|
+  | the T-12's **adjusted NOI still printed**, in 20px bold directly under the withheld verdict | the gate was decorative on the one number a reader takes away |
+  | the NER's **per-lease `ner_annual_discounted` still printed** for the eight widest leases | *withholding a figure in one place and printing it in another is not withholding it* — and the test only looked at the totals table |
+  | the covenant **status line checked the gate before `at_risk`** | a breach under a blocked gate reported "verdict withheld", which is strictly less information than either reading alone. *A finding outranks a withholding* — the card body had the order right and the status line inverted it |
+  | the note said *"Everything above is computed and shown"* | all three consumers insert it as the card's FIRST child, so everything it pointed at was below it |
+  | the note asserted *"the conclusion is not stated"* in branches that withhold nothing | a T-12 that STOPPED, one tied to itself, a scrub with a finding — *the exact failure the paragraph above names, committed in the note that explains it* |
+  | the scrub was re-run with **T-12-derived income** under a `rent_roll`-only dependency | that income lifts its coverage from "1 of 7 could run" to "7 of 7 · 7 passed", so a blocked operating statement raised the scrub's verdict with a clear gate and no note. *A consumer's dependencies are a property of the CALL, not of the card* |
+  | `consumer: string` **failed open** | an unknown key resolved to no facts and therefore to `clear`: a card that silently stops being governed. The map is `as const satisfies` now, so a typo is a compile error — *a count of entries cannot catch a rename; a key type can*, and the non-empty pin written to guard this could not |
+  | the covenant test's `not.toMatch(/^…$/m)` was **unfalsifiable** | `textContent` carries no newlines and a table always follows, so `$` never matched. Mutation-proved: disabling the branch printed the sentence and the assertion stayed green. *An assertion that cannot fail is indistinguishable from one that passes* |
+
+  The note now states the block and claims nothing about the card; each card says what IT withheld,
+  where it withheld it. Ten mutations are run over the withholding sites and all ten red — the
+  scrub-dependency one needed a new test driving the async wiring with `income`, because every
+  existing test called the pure renderers directly and **the defect was in the caller.**
 
 - ✅ ⭐ **VERDICT-COVERAGE — the class found five times by hand, now derived** *(S — Lane J;
   **CLOSED 2026-09-25**; gated by `services/api/test_verdict_coverage.py`)*

@@ -33,11 +33,19 @@ describe("the dependency map is pinned to the engine's vocabulary", () => {
     expect(Object.keys(FACT_DEPENDENCIES).length).toBeGreaterThanOrEqual(4);
   });
 
-  it("residual land is deliberately NOT in it", () => {
+  it("residual land is deliberately NOT in it, and the TYPE now says so", () => {
     // `POST /proforma/residual-land` takes `Assumptions` and nothing else, so it consumes no
     // governed fact. The roadmap entry listed it; wiring it would have invented a dependency, and
     // a block nobody can act on teaches the reader to dismiss the ones they can.
-    expect(FACT_DEPENDENCIES["residual_land"]).toBeUndefined();
+    //
+    // This started as `expect(FACT_DEPENDENCIES["residual_land"]).toBeUndefined()`, a runtime
+    // check. Once the map became `as const satisfies`, that line stopped COMPILING — which is the
+    // stronger statement, so it is kept in that form: the absence is enforced by the key type, and
+    // only a deliberate cast can read past it.
+    // @ts-expect-error — residual land is not a governed consumer.
+    const absent = FACT_DEPENDENCIES["residual_land"];
+    expect(absent).toBeUndefined();
+    expect(Object.keys(FACT_DEPENDENCIES)).not.toContain("residual_land");
   });
 });
 
@@ -101,11 +109,18 @@ describe("gateFor", () => {
   it("an explicit fact list works as well as a named consumer", () => {
     expect(gateFor(READ({ gate: { blocking: [{ fact_type: "survey", why: "stale" }] } }),
                    ["survey"]).kind).toBe("blocked");
-    // ...and an unknown consumer name depends on NOTHING, so it is never blocked. That is the
-    // fail-open direction, which is why the map's keys are the four call sites and the pin above
-    // asserts the map is non-empty: a typo'd key here is a card that stops being governed.
+  });
+
+  it("an unknown consumer key is a COMPILE error, not a silently ungoverned card", () => {
+    // An unknown key resolves to no facts and therefore to `clear`: the fail-OPEN direction, and a
+    // card that quietly stops being governed. The non-empty pin above cannot catch it, because a
+    // RENAME satisfies a count. `FACT_DEPENDENCIES` is `as const satisfies …`, so `keyof` is the
+    // four literal keys and the call below only compiles behind a cast — which is the point: the
+    // cast is what somebody would have to write on purpose.
     expect(gateFor(READ({ gate: { blocking: [{ fact_type: "rent_roll", why: "x" }] } }),
-                   "typo_card").kind).toBe("clear");
+                   "typo_card" as unknown as keyof typeof FACT_DEPENDENCIES).kind).toBe("clear");
+    // @ts-expect-error — the whole repair: this spelling no longer typechecks.
+    gateFor(READ(), "typo_card");
   });
 
   it("a malformed blocking entry is skipped rather than crashing the card", () => {

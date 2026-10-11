@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApiClient } from "../api/client";
-import { renderNetEffective, renderRentScrub } from "./rentRollQuality";
+import {
+  renderNetEffective, renderRentRollQuality, renderRentScrub,
+} from "./rentRollQuality";
 
 /**
  * Two R20 engines — CRE-NER and CRE-RRSCRUB — shipped complete, tested, and with no screen. Both are
@@ -202,11 +204,18 @@ describe("AUTHORITY-DOWNSTREAM — the gate reaches these two cards", () => {
     expect(t).not.toContain("3,150,000");
     expect(t).not.toContain("3,240,000");
     expect(t).not.toContain("450,000");
+    // EVERY NER FIGURE, including the per-lease column in the widest-delta table. The first draft
+    // withheld the totals and left this one printing, so the conclusion was still on the card and
+    // this test did not look at it. Withholding a figure in one place and printing it in another
+    // is not withholding it.
+    expect(t).not.toContain("402,000");
+    expect(t).toContain("480,000");          // the face rent beside it stays — that is the working
   });
 
   it("and prints every figure when the gate is clear, saying nothing about itself", () => {
     const t = renderNetEffective(mount(), NER(), { kind: "clear" }).textContent ?? "";
     expect(t).toContain("3,150,000");
+    expect(t).toContain("402,000");
     expect(t).not.toContain("withheld");
     expect(t).not.toContain("authority");
   });
@@ -216,6 +225,15 @@ describe("AUTHORITY-DOWNSTREAM — the gate reaches these two cards", () => {
     expect(t).toContain("3,150,000");
     expect(t).toContain("not governed by a source of record");
     expect(t).not.toContain("withheld");
+  });
+
+  it("the blocked note states the block and claims nothing about the card", () => {
+    // The first wording said "Everything above is computed and shown; the conclusion is not stated"
+    // — and the note is inserted as the card's FIRST child, so everything it pointed at was below
+    // it, and it printed in branches that withhold nothing. Each card says what IT withheld.
+    const t = renderNetEffective(mount(), NER(), BLOCKED).textContent ?? "";
+    expect(t).toContain("Deal-room authority blocks this fact");
+    expect(t).not.toContain("Everything above");
   });
 
   it("the scrub keeps its counts and findings but withholds the reassurance", () => {
@@ -248,5 +266,50 @@ describe("AUTHORITY-DOWNSTREAM — the gate reaches these two cards", () => {
   it("no gate argument at all leaves both cards exactly as they were", () => {
     expect(renderNetEffective(mount(), NER()).textContent).toContain("3,150,000");
     expect(renderRentScrub(mount(), SCRUB()).textContent).not.toContain("withheld");
+  });
+});
+
+describe("the scrub's dependency moves with its INPUT, not with the card", () => {
+  // `rent_roll_scrub` reads the project's rent roll, so `rent_roll` alone — EXCEPT when the T-12
+  // card re-runs it with `income` derived from the normalised statement. That income is what lifts
+  // the scrub's coverage from "1 of 7 checks could run" to "7 of 7 · 7 passed", so a blocked
+  // operating statement was raising the scrub's verdict with a CLEAR gate and no note at all.
+  // *A consumer's dependencies are a property of the call, not of the card.*
+  const BLOCKED_OPEX = [{
+    fact_type: "operating_statement",
+    why: "authoritative document is 140 day(s) past its 60-day freshness limit",
+  }];
+
+  const fakeCtx = () => ({
+    api: {
+      netEffectiveRent: () => Promise.resolve(NER()),
+      rentRollScrub: () => Promise.resolve(SCRUB({
+        clean: true,
+        counts: { total: 7, ran: 7, not_applicable: 0, passed: 7, failed: 0 },
+      })),
+      dealAuthority: () => Promise.resolve({
+        entries: [{ fact_type: "operating_statement", document: "T12.xlsx", as_of: "2026-01-01",
+                    authoritative: true, freshness_days: 60, supersedes: [] }],
+        gate: { passes: false, blocking: BLOCKED_OPEX, advisory: [] },
+      }),
+    } as unknown as ApiClient,
+    setStatus: () => {},
+  });
+
+  it("THE POINT: with T-12 income supplied, a blocked operating statement reaches the scrub", async () => {
+    const host = mount();
+    await renderRentRollQuality(host, "p1", fakeCtx(), { rental_income: 3_600_000 });
+    const t = host.textContent ?? "";
+    expect(t).toContain("140 day(s)");
+    expect(t).toContain('No "clean" reading is stated');
+  });
+
+  it("and without it the scrub is governed by the rent roll alone", async () => {
+    const host = mount();
+    await renderRentRollQuality(host, "p1", fakeCtx());
+    const t = host.textContent ?? "";
+    // the operating statement is blocked, but this run read no T-12 figure, so it does not apply
+    expect(t).not.toContain('No "clean" reading is stated');
+    expect(t).toContain("7 of 7 checks could run");
   });
 });

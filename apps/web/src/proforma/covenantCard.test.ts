@@ -283,8 +283,14 @@ describe("AUTHORITY-DOWNSTREAM — the covenant verdict defers to the authority 
     expect(t).toContain("no authoritative document");
     expect(t).toContain("Operating statement");
     expect(t).toContain("Verdict withheld");
-    // the one sentence somebody forwards to a lender is not stated on its own
-    expect(t).not.toMatch(/^.*Nothing overdue, due soon, breached or in cure among what could be evaluated\.$/m);
+    // THE ONE SENTENCE SOMEBODY FORWARDS TO A LENDER IS NOT STATED ON ITS OWN. The first version of
+    // this assertion was `not.toMatch(/^…$/m)` and was UNFALSIFIABLE: `textContent` carries no
+    // newlines and a table always follows, so `$` never matched whatever the card printed. Proved by
+    // mutation — disabling the `held` branch printed the sentence and the assertion stayed green.
+    // *An assertion that cannot fail is indistinguishable from one that passes.*
+    const clear = renderRegister(mount(), REG(), { kind: "clear" }).textContent ?? "";
+    expect(clear).toContain("Nothing overdue, due soon, breached or in cure");
+    expect(t).not.toContain("Nothing overdue, due soon, breached or in cure");
   });
 
   it("and a tested-passed reassurance with untested covenants is withheld too", () => {
@@ -309,12 +315,19 @@ describe("AUTHORITY-DOWNSTREAM — the covenant verdict defers to the authority 
     expect(t).not.toContain("authority");
   });
 
-  it("a BREACH still renders — the gate must not hide a finding", () => {
+  it("a BREACH still renders, and OUTRANKS the withholding", () => {
+    // Only the reassuring reading is withheld, so "at risk" wins: a finding outranks a block. The
+    // first draft of the status line had this backwards and reported "verdict withheld" over a
+    // breach, which is strictly less information than either reading alone.
     const t = renderRegister(mount(), REG({
-      summary: { overdue_filings: 0, covenant_breaches: 1, in_cure_period: 0 },
+      at_risk: true,
+      summary: { overdue_filings: 0, filings_due_soon: 0, covenant_breaches: 1, in_cure_period: 0 },
     }) as never, BLOCKED).textContent ?? "";
-    expect(t).toContain("Withheld");
-    expect(t).toContain("obligations computable");
+    expect(t).toContain("At risk");
+    expect(t).toContain("1 breach");
+    expect(t).not.toContain("Verdict withheld");
+    // ...and the block is still stated, because the reader needs to know the source is governed
+    expect(t).toContain("Deal-room authority blocks this fact");
   });
 
   it("an undeclared table notes that the figures are ungoverned, and withholds nothing", () => {

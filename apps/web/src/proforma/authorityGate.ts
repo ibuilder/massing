@@ -45,12 +45,17 @@ import { FACT_TYPES } from "./authorityCard";
  *  roll, no operating statement — so it consumes no governed fact. Wiring the gate into it would be
  *  inventing a dependency, which is worse than the omission: a block nobody can act on teaches the
  *  reader to dismiss the ones they can. */
-export const FACT_DEPENDENCIES: Record<string, readonly string[]> = {
+export const FACT_DEPENDENCIES = {
   net_effective_rent: ["rent_roll"],
   rent_roll_scrub: ["rent_roll"],
   t12: ["operating_statement"],
   covenants: ["operating_statement", "loan"],
-};
+  // `as const satisfies`, NOT `: Record<string, readonly string[]>`. The annotation widened
+  // `keyof` to `string`, so `gateFor(read, "typo_card")` typechecked and resolved to no facts and
+  // therefore to `clear` — a card that silently stops being governed, which is the fail-OPEN
+  // direction. `satisfies` keeps the shape checked while leaving the keys literal, so the same
+  // call is now a compile error. *A count of entries cannot catch a rename; a key type can.*
+} as const satisfies Record<string, readonly string[]>;
 
 export interface AuthorityBlock { fact_type: string; why: string }
 
@@ -74,8 +79,12 @@ interface AuthorityLike {
  *  not be consulted has not approved anything. It does not withhold either, because an API outage
  *  is not a diligence finding; it says so on the card instead. */
 export function gateFor(read: AuthorityLike | null | undefined,
-                        consumer: string | readonly string[]): GateState {
+                        consumer: keyof typeof FACT_DEPENDENCIES | readonly string[]): GateState {
   if (!read) return { kind: "unknown", why: "the authority table could not be read" };
+  // Typed as a key of the map, not as `string`. An unknown key resolves to no facts and therefore
+  // to `clear`, which is the FAIL-OPEN direction: a card that quietly stops being governed. The
+  // type makes a renamed or typo'd consumer a compile error rather than a silent de-gating, which
+  // the non-empty assertion in `authorityGate.test.ts` could not do — a rename satisfies a count.
   const facts = typeof consumer === "string" ? (FACT_DEPENDENCIES[consumer] ?? []) : consumer;
   if (!Array.isArray(read.entries)) {
     return { kind: "unknown", why: "this server did not return the stored authority table" };
@@ -114,13 +123,18 @@ export function gateNote(state: GateState): { text: string; tone: string } | nul
   if (state.kind === "unknown") {
     return { text: `${state.why}, so these figures are ungoverned.`, tone: "" };
   }
+  // STATES THE BLOCK AND NOTHING ELSE. The first draft of this sentence said "Everything above is
+  // computed and shown; the conclusion is not stated" — and it was wrong twice over. The note is
+  // inserted as the card's FIRST child, so everything it pointed at was below it; and all three
+  // consumers print it in branches that withhold nothing (a T-12 that STOPPED, a scrub with a
+  // finding), so it asserted a withholding that was not happening — *the exact failure the roadmap
+  // entry for this item names, committed in the note that explains it.* What was withheld is a
+  // per-card fact, so each card says it where it happens.
   const which = state.blocks
     .map((b) => `${label(b.fact_type)} — ${b.why}`)
     .join("; ");
   return {
-    text: `Withheld: the deal-room authority gate blocks this fact. ${which}. Everything above is `
-      + "computed and shown; the conclusion is not stated, because it would be an opinion drawn "
-      + "from a document the authority table says not to underwrite from.",
+    text: `Deal-room authority blocks this fact: ${which}.`,
     tone: "var(--status-crit)",
   };
 }

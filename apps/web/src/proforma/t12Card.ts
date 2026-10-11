@@ -145,8 +145,9 @@ export function renderT12Result(host: HTMLElement, r: T12, stated: boolean,
       `<div style="font-weight:600;color:var(--status-crit)">Tie-out result withheld</div>`
       + meta(`The arithmetic reconciled against the stated totals. Whether that makes the adjusted `
              + `NOI underwritable is a question about the <em>document</em>, and the authority gate `
-             + `above answers it no — so the result is not stated as a pass. The mapped lines and `
-             + `every figure behind them are below.`));
+             + `answers it no — so neither the pass nor the adjusted NOI is stated. The stated and `
+             + `mapped totals, the treatment of every line, the run-rate comparison and the `
+             + `add-back questions are all below.`));
   } else {
     el.insertAdjacentHTML("beforeend",
       `<div style="font-weight:600;color:var(--status-good)">Tie-out passed against the stated totals</div>`
@@ -183,12 +184,24 @@ export function renderT12Result(host: HTMLElement, r: T12, stated: boolean,
     }
   }
 
-  // ---- everything below exists only past the gate ---------------------------------------------
+  // ---- everything below exists only past the TIE-OUT gate -------------------------------------
+  //
+  // THE ADJUSTED NOI IS THE CONCLUSION, and the first draft of the authority wiring left it
+  // printing in 20px bold directly under the withheld verdict. A gate that suppresses the sentence
+  // and keeps the number is decorative on the one figure a reader takes away.
+  //
+  // What stays, deliberately: the run-rate comparison and the add-back questions. Both are
+  // diligence prompts rather than conclusions — the engine never applies an add-back, and says so
+  // — and withholding them would hide findings, which is the inversion this item's design refuses.
   if (r.adjusted_noi != null) {
-    el.insertAdjacentHTML("beforeend",
-      `<div style="margin-top:8px;font-size:20px;font-weight:600">${esc(money(r.adjusted_noi))}</div>`
-      + meta(`Adjusted NOI — one-time income removed, one-time expense added back, capital below the `
-             + `line.`));
+    el.insertAdjacentHTML("beforeend", held
+      ? `<div style="margin-top:8px;font-size:20px;font-weight:600;color:var(--status-crit)">`
+        + `Adjusted NOI withheld</div>`
+        + meta(`The figure computes. It is not stated, because an adjusted NOI is what a price is `
+               + `built on and the authority table says not to underwrite from this document.`)
+      : `<div style="margin-top:8px;font-size:20px;font-weight:600">${esc(money(r.adjusted_noi))}</div>`
+        + meta(`Adjusted NOI — one-time income removed, one-time expense added back, capital below `
+               + `the line.`));
   }
 
   if (r.one_time_items?.length || r.capital_items?.length) {

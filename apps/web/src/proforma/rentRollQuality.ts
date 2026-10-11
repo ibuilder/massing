@@ -28,7 +28,7 @@
  */
 import type { ApiClient } from "../api/client";
 import { escapeHtml as esc } from "../ui/feedback";
-import { type GateState, gateFor, gateNote, withholds } from "./authorityGate";
+import { FACT_DEPENDENCIES, type GateState, gateFor, gateNote, withholds } from "./authorityGate";
 import { money, pct } from "./format";
 
 type Ner = Awaited<ReturnType<ApiClient["netEffectiveRent"]>>;
@@ -75,7 +75,17 @@ export function renderNetEffective(host: HTMLElement, n: Ner, gate?: GateState):
   }
 
   const held = gate ? withholds(gate) : false;
+  // EVERY NER figure, including the per-lease column. The first draft withheld the three totals and
+  // left `ner_annual_discounted` printing for the eight widest leases, so the conclusion was still
+  // on the card — and the withholding test only looked at the totals table. *Withholding a figure
+  // in one place and printing it in another is not withholding it.*
   const w = (v: string) => (held ? `<span class="meta">withheld</span>` : v);
+  if (held) {
+    el.insertAdjacentHTML("beforeend", meta(
+      `Net effective rent is <strong>not stated</strong> below. The face rents and the concession `
+      + `load are shown; the NER figures are the opinion of value, and the authority table says not `
+      + `to form one from this document.`, "var(--status-crit)"));
+  }
   el.insertAdjacentHTML("beforeend",
     `<table class="fin-table">`
     + `<tr><td>Face GPR / yr</td><td class="num">${esc(money(n.face_gpr_annual))}</td></tr>`
@@ -139,7 +149,7 @@ export function renderNetEffective(host: HTMLElement, n: Ner, gate?: GateState):
       + n.leases.slice(0, 8).map((l) =>
           `<tr><td>${esc(l.tenant || "—")}${l.suite ? ` <span class="meta">${esc(l.suite)}</span>` : ""}</td>`
           + `<td class="num">${esc(money(l.face_rent_annual))}</td>`
-          + `<td class="num">${esc(money(l.ner_annual_discounted))}</td>`
+          + `<td class="num">${w(esc(money(l.ner_annual_discounted)))}</td>`
           + `<td class="num">${l.concession_load_pct}%</td></tr>`).join("")
       + `</table>`);
   }
@@ -171,6 +181,12 @@ export function renderRentScrub(host: HTMLElement, s: Scrub, gate?: GateState): 
     + (failed > 0 ? ` · ${failed} finding(s)` : ran > 0 ? ` · ${passed} passed` : "")
     + `</div>`
     + meta(esc(s.coverage_note)));
+
+  if (held) {
+    el.insertAdjacentHTML("beforeend", meta(
+      `No "clean" reading is stated. Every check that ran and every finding it produced are below — `
+      + `a finding against a stale rent roll is still a finding.`, "var(--status-crit)"));
+  }
 
   if (s.clean && notRun > 0 && !held) {
     // The one sentence this card exists for.
@@ -235,7 +251,15 @@ export async function renderRentRollQuality(host: HTMLElement, pid: string, ctx:
   // same answer — and the moment the map diverges, the scrub would be reporting the NER's verdict.
   // *Two consumers sharing a derivation share its blind spot.*
   const nerGate = gateFor(read, "net_effective_rent");
-  const scrubGate = gateFor(read, "rent_roll_scrub");
+  // THE SCRUB'S DEPENDENCY MOVES WITH ITS INPUT. `rent_roll_scrub` reads the project's rent roll,
+  // so `rent_roll` alone — EXCEPT when the caller passes `income` derived from the normalised T-12,
+  // which is how the T-12 card re-runs it. That income raises the scrub's coverage from "1 of 7
+  // checks could run" to "7 of 7 · 7 passed", so a blocked operating statement was lifting the
+  // scrub's verdict with a clear gate and no note. *A consumer's dependencies are a property of the
+  // call, not of the card.*
+  const scrubGate = gateFor(read, income
+    ? [...FACT_DEPENDENCIES["rent_roll_scrub"]!, ...FACT_DEPENDENCIES["t12"]!]
+    : "rent_roll_scrub");
   if (ner.status === "fulfilled") renderNetEffective(host, ner.value, nerGate);
   else {
     const el = card("Net effective rent (after concessions)");

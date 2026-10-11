@@ -410,8 +410,13 @@ export function renderCovenantCard(root: HTMLElement, ctx: CovenantCtx): HTMLEle
           + readings.map((x) => esc(x)).join(" · ") + `.`));
       }
       renderRegister(out, r, gate);
-      ctx.setStatus(withholds(gate) ? "covenant verdict withheld — authority blocked"
-                    : r.at_risk ? "covenant register: at risk" : "covenant register evaluated");
+      // AT RISK FIRST. The first draft checked the gate first, so a register with a breach under a
+      // blocked gate reported "verdict withheld" — the card body gets this order right and the
+      // status line inverted it. *A finding outranks a withholding: only the reassuring reading is
+      // withheld, and "at risk" is not reassuring.*
+      ctx.setStatus(r.at_risk ? "covenant register: at risk"
+                    : withholds(gate) ? "covenant verdict withheld — authority blocked"
+                    : "covenant register evaluated");
     } catch (e) {
       out.innerHTML = meta(esc((e as Error).message), "var(--status-crit)");
       ctx.setStatus("covenant evaluation failed");

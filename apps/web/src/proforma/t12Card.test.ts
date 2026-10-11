@@ -193,10 +193,30 @@ describe("AUTHORITY-DOWNSTREAM — a blocked operating statement withholds the P
     expect(t).not.toContain("Tie-out passed against the stated totals");
   });
 
+  it("AND THE ADJUSTED NOI GOES WITH IT — the figure a reader takes away", () => {
+    // The first draft withheld the verdict SENTENCE and left the adjusted NOI printing in 20px bold
+    // directly beneath it. A gate that suppresses the words and keeps the number is decorative.
+    const r = PASSED({ adjusted_noi: 2_140_000 });
+    const held = renderT12Result(mount(), r, true, BLOCKED).textContent ?? "";
+    expect(held).toContain("Adjusted NOI withheld");
+    expect(held).not.toContain("2,140,000");
+    const clear = renderT12Result(mount(), r, true, { kind: "clear" }).textContent ?? "";
+    expect(clear).toContain("2,140,000");
+  });
+
   it("...and says so with a clear gate instead", () => {
     const t = renderT12Result(mount(), PASSED(), true, { kind: "clear" }).textContent ?? "";
     expect(t).toContain("Tie-out passed against the stated totals");
     expect(t).not.toContain("withheld");
+  });
+
+  it("the note claims nothing about this card in a branch that withholds nothing", () => {
+    // STOPPED withholds nothing — the engine already refused. The first wording of the shared note
+    // asserted "the conclusion is not stated" in every branch, which is the exact failure this
+    // item's own roadmap entry names: a note explaining a withholding that is not happening.
+    const t = renderT12Result(mount(), STOPPED(), true, BLOCKED).textContent ?? "";
+    expect(t).toContain("Deal-room authority blocks this fact");
+    expect(t).not.toContain("the conclusion is not stated");
   });
 
   it("a STOPPED tie-out still renders in full — a refusal is not an opinion of value", () => {
