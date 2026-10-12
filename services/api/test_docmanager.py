@@ -30,6 +30,14 @@ assert folder_template.owner_of("04_Payment Applications") == "PM", "business fo
 assert folder_template.owner_of("02_Drawings/Architectural") == "Architect"
 assert not folder_template.is_valid("99_Nonsense")
 assert "CD" in folder_template.phases() and folder_template.phase_checklist("CD"), "AIA phase checklists"
+# EVERY known phase must have a non-empty checklist, which is what makes `phase_gaps`'s `bool(items)`
+# guard unreachable today — and this assertion is why keeping that guard is not superstition. A phase
+# added to `REQUIRED_BY_PHASE` with an empty list would be `known_phase: true` with no items, and
+# `not missing` alone would report the set COMPLETE for it. Mutating `bool(items)` away leaves the
+# suite green (measured), so this is the check that gives the guard its reason: when the table stops
+# satisfying it, THIS fails with the right diagnosis rather than `complete` going quietly wrong.
+for _ph in folder_template.phases():
+    assert folder_template.phase_checklist(_ph), f"{_ph} is a known phase with an empty checklist"
 
 # --- F2/F5 engine directly ------------------------------------------------------------------------
 PID = "proj-dm"
@@ -64,6 +72,47 @@ assert "01_Contract Documents/Contract Agreement" in h["required_missing"], h
 # phase gaps: CD needs structural drawings (present) + specs/BOQ (missing)
 pg = docmanager.phase_gaps(PID, "CD")
 assert not pg["complete"] and pg["missing"] >= 1, pg
+assert pg["known_phase"] is True and pg["refused"] is None, pg
+
+# BARE-NEGATED. `complete` was `not missing`, and `phase_checklist` returns [] for a phase it does
+# not know — so an unrecognised phase produced `items: [], missing: 0, complete: True` and told the
+# caller its document set was COMPLETE for a phase that does not exist. `phase` is an unvalidated
+# query parameter on `GET /projects/{pid}/documents/phase-gaps`, so this was reachable with one
+# typo, and it answered 200 with the reassuring value rather than refusing — the severity ordering
+# `test_system_columns.py` records: a defect that is refused loudly is nearly fixed.
+for bad in ("NONSENSE", "", "../etc", "SD/CD", "99"):
+    g = docmanager.phase_gaps(PID, bad)
+    assert g["known_phase"] is False, (bad, g)
+    assert g["complete"] is False, (bad, g)          # <- the field somebody actually reads
+    assert g["items"] == [] and g["missing"] == 0, (bad, g)
+    assert "not a design phase" in (g["refused"] or ""), (bad, g)
+    assert "CD" in g["known_phases"], (bad, g)
+# THE TOLERANCES ARE ASSERTED TOO, because trading one silent wrong answer for a loud wrong refusal
+# is not a fix. `"CD "` belongs here and NOT in the list above — my first draft had it in both, with
+# a comment arguing it should be accepted two lines above an assertion that it is refused. The
+# pre-fix code accepted a trailing space by ACCIDENT (`phase.upper()` with no strip left `"CD "`
+# unmatched -> empty checklist -> `complete: true`), so the trailing space was one of the inputs the
+# defect fired on, and stripping it is part of the repair rather than an exception to it.
+assert docmanager.phase_gaps(PID, "CD ")["known_phase"] is True, "a trailing space is a typo, not a phase"
+assert docmanager.phase_gaps(PID, "CD ")["missing"] >= 1, "and it must give the real answer"
+assert docmanager.phase_gaps(PID, "cd")["known_phase"] is True, "lowercase must still resolve"
+assert docmanager.phase_gaps(PID, "cd")["phase"] == "CD"
+
+# ...and the ROUTE gives it the right status code, which the engine's refusal body cannot: a 200
+# carrying `complete: false` still reads as a result to anything counting HTTP codes. Two
+# independent refusals — this one for the API's shape, the engine's for every caller that does not
+# come through this route.
+with TestClient(app) as _c:
+    _p = _c.post("/projects", json={"name": "Phase Route"}).json()["id"]
+    _ok = _c.get(f"/projects/{_p}/documents/phase-gaps", params={"phase": "CD"})
+    assert _ok.status_code == 200 and _ok.json()["known_phase"] is True, _ok.text
+    for _bad in ("NONSENSE", "", "../etc"):
+        _r = _c.get(f"/projects/{_p}/documents/phase-gaps", params={"phase": _bad})
+        assert _r.status_code == 422, (_bad, _r.status_code, _r.text[:200])
+        assert "not a design phase" in _r.text, (_bad, _r.text[:200])
+    # the known list is IN the refusal, so a caller can fix the call from the error alone
+    assert "CLOSEOUT" in _c.get(f"/projects/{_p}/documents/phase-gaps",
+                                params={"phase": "x"}).text
 present_struct = next(i for i in pg["items"] if i["folder"] == "02_Drawings/Structural")
 assert present_struct["present"] is True, pg
 

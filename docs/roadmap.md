@@ -6824,10 +6824,17 @@ eighteenth-note lesson warns against; resolving the negand to a list literal, co
 annotation or `.append()` call needs no list at all. *A smaller number is not the point — a derivable
 one is.*
 
-Not swept here, because 18 sites need 18 judgements and the table above is what one judgement costs
-— *a rule demanding 18 edits gets abandoned halfway and leaves the tree half-declared.* Three were
-read and confirmed as live: `cde.complete = not missing_core` (a CDE holding no documents is
-"complete"), `docmanager.complete = not missing`, `px.ready = not blockers`.
+Not swept in that change, because 18 sites need 18 judgements and the table above is what one
+judgement costs — *a rule demanding 18 edits gets abandoned halfway and leaves the tree
+half-declared.*
+
+**And the three it named as "confirmed live" were named from their NAMES. Two were wrong** — see
+BARE-NEGATED below, which read them. `cde.complete` computes `missing_core` against the fixed
+constant `CORE_REQS`, so an empty project reports all three missing and `complete: false`, correctly;
+`px.ready` is per-activity over that activity's own predecessors, where empty genuinely means
+nothing is blocking it. Only `docmanager.complete` was real, and it was worse than stated. *Asserting
+three sites from their names, inside the paragraph correcting a name-versus-structure error, is the
+same mistake one level up.*
 
 **And measuring this found a SCOPE gap in the gate it extends.** `test_verdict_coverage.py` scans
 `HERE / "src" / "aec_api"` only, so every subset verdict under `services/data/src/aec_data` — where
@@ -6839,6 +6846,74 @@ stood* — the same thing `test_schema_types_agree.py` paid for, in the same wor
 Widening it is its own change with its own consumer fixes. The new gate walks `git ls-files`, which is
 how the number is known at all, and the existing gate's own population went **6 → 8** as two of the
 flips acquired guards and entered it.
+
+
+### BARE-NEGATED — an unvalidated phase reported the document set COMPLETE *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane G**; `services/api/test_docmanager.py`)*
+
+The handover from NEGATED-VERDICT named three bare-`not` sites as confirmed live. **Reading them,
+two were wrong and the third was worse than stated** — which is the finding, because they had been
+named from their names.
+
+| site | the claim | what reading it showed |
+|---|---|---|
+| `cde.complete = not missing_core` | "a CDE with no documents is complete" | **wrong.** `missing_core` diffs `present` against the fixed constant `CORE_REQS = ("EIR","BEP","AIR")`, so an empty project reports all three missing and `complete: false`. Correct already. |
+| `px.ready = not blockers` | live | **wrong.** Per-ACTIVITY, over that activity's own predecessors and open submittals. No blockers means nothing is blocking it. |
+| `docmanager.complete = not missing` | live | **right, and caller-reachable** |
+
+*A third category exists that the structural split cannot see:* where the negand is computed against
+a **fixed population**, "empty" can only mean "all present", and no coverage would help. The split
+separates a collection negand from a scalar one; it does **not** separate a scan's findings from a
+fixed-population diff, and nothing short of reading each site does.
+
+## The one that was real, and the shape it had
+
+`folder_template.phase_checklist(phase)` is `REQUIRED_BY_PHASE.get(phase.upper(), [])` — it returns
+an **empty list** for a phase it does not know. `phase_gaps` then computed `missing` over nothing and
+`complete = not missing`, and `phase` is an **unvalidated query parameter** on
+`GET /projects/{pid}/documents/phase-gaps`. Measured:
+
+```
+phase='CD'        -> items=5  missing=5  complete=False     (correct)
+phase='NONSENSE'  -> items=0  missing=0  complete=True   <- one typo
+phase=''          -> items=0  missing=0  complete=True
+phase='../etc'    -> items=0  missing=0  complete=True
+```
+
+A project asking *are my CD documents complete?* with a typo in the phase was told **yes**, at 200,
+with a reassuring body. That is `services/api/test_system_columns.py`'s shape and its severity
+ordering: *a defect that is refused loudly is nearly fixed; one that is accepted and answered has to
+be found twice.*
+
+**Two independent refusals**, because they protect different things: the route raises 422 with the
+known phases listed, which is what a caller counting HTTP codes needs; the engine refuses on its own
+with `known_phase: false` and a reason, which protects every caller that does not come through that
+route. `complete` is `false` rather than absent in the refusal, because that field is the one
+somebody reads and a missing key is falsy in some clients and an error in others.
+
+**The tolerances are asserted too, and my first draft got that backwards.** `"CD "` was in the
+rejected list *with a comment two lines above arguing it should be accepted* — I wrote both halves
+and they disagreed. The pre-fix code accepted a trailing space by ACCIDENT (`phase.upper()` with no
+strip left `"CD "` unmatched → empty checklist → `complete: true`), so the trailing space is one of
+the inputs the defect fired on and stripping it is part of the repair, not an exception to it.
+Lowercase, trailing space and `"cd"` must all still answer; `NONSENSE`, `""`, `"../etc"`, `"SD/CD"`
+and `"99"` must all refuse. *Trading a silent wrong answer for a loud wrong refusal is not a fix.*
+
+## A guard kept because a mutation proved it redundant
+
+Four mutations red, one **GREEN** — and the green one is the useful result. Removing `bool(items)`
+from `complete` left the suite passing, because the `known_phase` guard above already stops an empty
+`items` reaching it. *An unmutable guard is an untested one.* It is kept anyway, with the reason
+written down: `phases()` is `list(REQUIRED_BY_PHASE)`, so a phase added to that table with an **empty
+list** would be `known_phase: true` with no items, and `not missing` alone would call it complete.
+The complement is an assertion that every phase in `phases()` has a non-empty checklist — probed by
+adding a `"GHOST": []` entry, which fails it with *"GHOST is a known phase with an empty checklist"*,
+the right diagnosis rather than a quietly wrong field. *A check earns its place from where it is the
+ONLY one*, and here it is the only thing between a one-line table edit and a false "complete".
+
+The other three mutations: the engine's refusal removed (reds), the route's 422 removed (reds, and
+independently of the engine's), and the strip tolerance removed (reds on `"CD "`).
 
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)

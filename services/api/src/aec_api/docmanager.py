@@ -277,13 +277,42 @@ def health(pid: str) -> dict[str, Any]:
 
 
 def phase_gaps(pid: str, phase: str) -> dict[str, Any]:
-    """For a design phase (AIA SD/DD/CD/CA/CLOSEOUT), which required documents are present vs missing."""
+    """For a design phase (AIA SD/DD/CD/CA/CLOSEOUT), which required documents are present vs missing.
+
+    **An unrecognised phase is a REFUSAL, not an empty checklist.** `complete` was `not missing`, and
+    `folder_template.phase_checklist` returns `[]` for a phase it does not know — so
+    `?phase=NONSENSE` produced `items: [], missing: 0, complete: true` and told a caller its document
+    set was complete for a phase that does not exist. Measured: `NONSENSE`, `""` and `"../etc"` all
+    returned `complete: true` while `CD` correctly returned 5 missing of 5.
+    """
+    known = {p.upper() for p in folder_template.phases()}
+    want = (phase or "").strip().upper()
+    if want not in known:
+        # Refused with the reason and the known values, never answered. `complete` is False rather
+        # than absent so a caller reading only that field cannot read a refusal as a pass — the
+        # field is the one somebody checks, and a missing key is falsy in some clients and an error
+        # in others.
+        return {"phase": want, "items": [], "missing": 0, "complete": False,
+                "known_phase": False, "known_phases": sorted(known),
+                "refused": f"{phase!r} is not a design phase this checklist covers; known: "
+                           + ", ".join(sorted(known))}
     idx = _load(pid)
     active = _active(idx)
     items = []
-    for chk in folder_template.phase_checklist(phase):
+    for chk in folder_template.phase_checklist(want):
         present = any(f["folder"] == chk["folder"] for f in active)
         items.append({**chk, "present": present})
     missing = [i for i in items if not i["present"]]
-    return {"phase": phase.upper(), "items": items, "missing": len(missing),
-            "complete": not missing}
+    return {"phase": want, "items": items, "missing": len(missing),
+            "known_phase": True, "known_phases": sorted(known),
+            "refused": None,
+            # `bool(items)` is UNREACHABLE TODAY and kept deliberately — mutating it away leaves the
+            # suite green, which was measured, not assumed. It guards a condition the data could
+            # reach but does not: `phases()` is `list(REQUIRED_BY_PHASE)`, so a phase added to that
+            # table with an EMPTY checklist would be `known` and have no items, and `not missing`
+            # alone would call it complete. The complement is in `test_docmanager.py`, which asserts
+            # every phase in `phases()` has a non-empty checklist — so the day that stops being true
+            # the assertion fires with the right diagnosis instead of this field going quietly wrong.
+            # *A check earns its place from where it is the ONLY one*, and here it is the only thing
+            # standing between a one-line table edit and a false "complete".
+            "complete": bool(items) and not missing}

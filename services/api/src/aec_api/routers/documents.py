@@ -162,6 +162,20 @@ def documents_health(pid: str, db=Depends(get_db), _: str = Depends(require_role
 
 @router.get("/projects/{pid}/documents/phase-gaps")
 def documents_phase_gaps(pid: str, phase: str, db=Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """Required-document gaps for a design phase (AIA SD / DD / CD / CA / CLOSEOUT)."""
+    """Required-document gaps for a design phase (AIA SD / DD / CD / CA / CLOSEOUT).
+
+    **An unrecognised `phase` is a 422 and never a result.** `?phase=NONSENSE` used to return 200
+    with `complete: true` over an empty checklist — caller input answered confidently where it
+    should have been refused, which is `services/api/test_system_columns.py`'s shape and the same
+    severity ordering: *a defect that is refused loudly is nearly fixed; one that is accepted and
+    answered has to be found twice.*
+
+    `docmanager.phase_gaps` refuses it too, with `known_phase: false` and a reason. Two independent
+    refusals on purpose: this one gives the API the right STATUS CODE, and the engine's protects
+    every caller that does not come through this route.
+    """
     _project_or_404(pid, db)
-    return docmanager.phase_gaps(pid, phase)
+    out = docmanager.phase_gaps(pid, phase)
+    if not out.get("known_phase"):
+        raise HTTPException(422, out.get("refused") or f"unknown design phase {phase!r}")
+    return out

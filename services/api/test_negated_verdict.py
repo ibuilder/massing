@@ -57,9 +57,19 @@ is_stale` by NAME needs a list of findings-ish words — the instrument the eigh
 against, because a rule needing an exemption list has the wrong population. Resolving the negand to a
 list literal, comprehension, type annotation or `.append()` call needs no list. Not swept here
 because 18 judgements is a sweep of its own and the table above is what one costs — *a rule demanding
-18 edits gets abandoned halfway and leaves the tree half-declared*, COURT-SPLIT again. Three
-confirmed live: `cde.complete = not missing_core`, `docmanager.complete = not missing`,
-`px.ready = not blockers`.
+18 edits gets abandoned halfway and leaves the tree half-declared*, COURT-SPLIT again.
+
+**A THIRD category turned up when the sites were actually read, and it invalidated two of the three
+this file first named as live.** Where the negand is computed against a FIXED population, "empty"
+can only mean "all present" and there is no coverage question at all: `cde.complete` diffs against
+the constant `CORE_REQS`, so an empty project reports all three missing. And where the negand is the
+subject's OWN list rather than a scan's findings, empty means nothing is blocking it:
+`px.ready = not blockers` is per-activity. One of the three was real — `docmanager.complete`, where
+an unvalidated `phase` query parameter reached a checklist that returns `[]` for a phase it does not
+know, so `?phase=NONSENSE` answered `complete: true`. *Three sites were named from their names, in
+the paragraph that corrects a name-versus-structure error.* The structural split above separates
+collection from scalar; it does NOT separate a findings list from a fixed-population diff, and
+nothing short of reading each site does.
 
 **And measuring this one found a SCOPE gap in the gate it extends.** `test_verdict_coverage.py` scans
 `HERE / "src" / "aec_api"` only, so every subset verdict in `services/data/src/aec_data` — where the
