@@ -63,7 +63,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_answers
          # Tier-1 competitive upgrades:
          "test_drafting", "test_bid_leveling", "test_benchmarking", "test_unit_rate_memory", "test_unit_rate_route",
          # R22-NOTICE-CLOCK — contractual notice periods + the register routes:
-         "test_notice_clock", "test_notices_route",
+         "test_notice_clock", "test_notices_route", "test_notice_coverage",
          # Tier-2/3 competitive upgrades:
          # REFUSAL-READERS — the behavioural gate for the refusal-state reader class:
          "test_refusal_readers",

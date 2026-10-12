@@ -6183,6 +6183,89 @@ strings moved to `textContent` — because a card that interpolates even a const
 editor that this is where strings go, and the next string will be a rule name off the wire.
 
 
+### NOTICE-CLOCK — the time-bar register was computed over the OLDEST 500 records, and no screen reached it *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane C**; `services/api/test_notice_coverage.py`, `apps/web/src/portal/panels/noticeClock.test.ts`)*
+
+A contract gives you a fixed number of days to notify the other party of an event before you lose
+the right to be paid or given time for it. `services/api/src/aec_api/notice_clock.py` counts those
+days from the field record already in the platform, and it is one of the most careful engines in
+this tree. Its header enumerates **three counting traps** — what starts the clock, which days count,
+which days are the weekend — and refuses on every one rather than guessing: with no awareness date
+recorded it reports `indeterminate` and names the missing field instead of substituting the
+occurrence date, because *"an event that occurred forty days ago and was discovered yesterday reads
+as expired when three weeks remain, and a claimant told the bar has fallen abandons a claim that was
+live."*
+
+**All of that care is about the events it is handed, and nothing was checking what it was handed.**
+The route read the field record as
+
+```python
+me.list_records(db, key, pid, limit=limit)        # limit: int = Query(500, ge=1, le=2000)
+```
+
+and `list_records` applies `ORDER BY created_at` **ascending** before the limit. So the register was
+assembled from the **oldest** 500 daily reports, change events and RFIs — and the events whose
+notice periods are still running are by definition the **newest**. On a project with 600 daily
+reports the hundred most recent were invisible, and the register reported "nothing expired" in
+exactly the words it uses when nothing has expired. *The same defeat-from-outside as CLASH-TRUNC: a
+guard is only as sound as the evidence it is handed.*
+
+**Three things made it invisible, and the third is the one that settles it.** The payload carried
+`events_found`, the number of triggering events *detected*, which reads as the number there is. The
+engine's refusals are all about individual clocks, so none of them could speak to the population.
+And **every other engine over these same tables scans everything** — `changeorders`, `dailylog`,
+`resilience`, `selections`, `tm` all pass `limit=100000`. This one route was the exception, on the
+one register in the product where an omission is a forfeited claim. The repository's own hardening
+checklist already names the shape — *"payload caps must keep the NEWEST rows: `order_by(asc).limit()`
+silently hides everything created after row N"* — written about response payloads; this is the same
+mistake one layer earlier, where the cap decides what is **computed** rather than what is shown, and
+a page that is short is visibly short while a register that is short is just a shorter list of
+deadlines.
+
+**The `limit` parameter is gone, not defaulted higher.** How much of the field record gets scanned is
+not a request-shaping knob: a caller passing a small number got a register that silently omitted
+events. The bound is a module constant, the slice is newest-first, and what it left out is reported
+per source with `complete` beside the counts.
+
+**The cut-off is a RECORDING date, and the gate's first run is what established that.** The slice is
+ordered by `created_at`, so what it keeps is what was *written down* most recently — which is the
+right end to keep, since a back-dated daily report entered today has a clock running today, and
+`detect` says the same thing about RFIs, whose only date is when somebody wrote them down. It also
+means an old event recorded late is in the register while a newer one recorded later still may not
+be. The first draft of the gate asserted the *event* date in the coverage sentence; the mismatch is
+what surfaced the distinction, and the sentence now says "recorded", not "occurred". *A bound
+reported in the wrong units is worse than no bound, because a reader acts on it.*
+
+## The screen, and the five refusals it could have thrown away
+
+All three routes were dark — `/notices` and `/notices/clauses` in `KNOWN_UNCALLED`, `/notices/draft`
+in `LEAF_COLLISION_BLIND`. **The third time on this branch that one capability had its parts in two
+different lists**, so each read as somebody else's gap.
+
+`apps/web/src/portal/panels/noticeClock.ts` opens from the schedule panel beside the EOT claim, for
+the reason the claim exists: late notice is what bars it. A button rather than a card that fetches on
+render, because the register walks the whole field record and that file's own comment says a panel
+firing several full computations on open is one people learn to avoid. Each of the engine's refusals
+is a thing a consumer can silently discard, and each is asserted:
+
+| the engine says | and a screen could | so the panel |
+|---|---|---|
+| `adopted: false` + `why` | render an empty table | reports the reason **and stops** — `items: []` with nothing adopted and `items: []` with nothing due look identical |
+| `complete: false` + `coverage` | print the counts | reads the coverage **first**, because "0 expired" over a subset is a statement about the wrong half of the project |
+| `indeterminate` | fold it into `open` | gives it its own label and names the missing field — one is a clock running, the other a clock nobody can start |
+| `holidays_supplied: false` | ignore it | flags the count as short, and says it moves the real deadline **earlier** |
+| `override` | show it as the register | labels it a what-if under a contract the project is not on |
+| `date_basis: "reported"` | print the date | says it is when somebody wrote it down, not when it occurred |
+
+Three server mutations red (back to oldest-first, truncation never reported, `complete` always true)
+and six client ones (each refusal in turn, plus an unknown status dropped from the counts rather than
+appended — a count that cannot be reconciled with the list beside it is the defect this branch keeps
+finding). The gate replays the pre-fix call against the same data and must watch it **lose the newest
+event** before it may report anything, and the coverage keys are derived from `detect`'s own
+signature rather than listed, so a fourth source cannot join the scan without joining the report.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

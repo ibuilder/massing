@@ -147,6 +147,30 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     .then((el) => { if (eotSlot.isConnected) eotSlot.appendChild(el); })
     .catch(() => {});
 
+  // NOTICE-CLOCK-DARK — the contractual notice register, beside the EOT claim for the reason the
+  // claim exists: late notice is what bars it. `notice_clock`, its clause library and its letter
+  // drafter all shipped and no screen reached any of them — two of the three routes sat in
+  // `services/api/test_route_reachability.py`'s uncalled list and the third in a different one, so
+  // each part of one capability read as somebody else's gap.
+  //
+  // A BUTTON, not a card that fetches on render: the register walks the whole field record, and the
+  // comment above this block already says a panel that fires several full computations when
+  // somebody opens it is a panel people learn to avoid.
+  const noticeCard = document.createElement("div");
+  noticeCard.className = "dash-card"; noticeCard.style.margin = "0 0 8px";
+  noticeCard.innerHTML = `<div><b>⏱ Notice clock</b></div>`
+    + `<div class="meta" style="margin-top:2px">Events in the field record that the contract `
+    + `requires notice of, and the days left under the adopted contract family. Late notice is what `
+    + `bars the claim above.</div>`;
+  const noticeBtn = document.createElement("button");
+  noticeBtn.className = "mini-btn on"; noticeBtn.textContent = "Open";
+  noticeBtn.style.marginTop = "6px";
+  noticeBtn.onclick = () => void (async () => {
+    await (await import("./noticeClock")).renderNoticeClock(ctx);
+  })();
+  noticeCard.appendChild(noticeBtn);
+  ctx.root.appendChild(noticeCard);
+
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
   const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
   ctx.root.appendChild(interopDrawer);

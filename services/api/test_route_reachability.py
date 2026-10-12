@@ -357,8 +357,20 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/market/exists",
     "/projects/{pid}/model/ensure",
     "/projects/{pid}/model/options/{slug}/activate",
-    "/projects/{pid}/notices",
-    "/projects/{pid}/notices/clauses",
+    # `/projects/{pid}/notices` and `/notices/clauses` left this set 2026-10-12 — NOTICE-CLOCK-DARK.
+    # `apps/web/src/portal/panels/noticeClock.ts`, opened from the schedule panel beside the EOT
+    # claim, for the reason the claim exists: late notice is what bars it. `/notices/draft` left
+    # LEAF_COLLISION_BLIND in the same change, which is the third time on this branch that **one
+    # capability had its parts in two different lists**, so each read as somebody else's gap.
+    #
+    # The engine needed a fix first, and it was not a small one. The register was computed from
+    # `me.list_records(db, key, pid, limit=limit)` with `limit` a query parameter defaulting to 500
+    # — and `list_records` orders by `created_at` ASCENDING before applying the limit, so the
+    # register was assembled from the OLDEST 500 records of each source while the events whose
+    # notice periods are still running are by definition the NEWEST. Every other engine over those
+    # tables passes `limit=100000`; this one route, on the one register where an omission is a
+    # forfeited claim, was the exception. *Wiring a screen to that would have shipped the defect to
+    # a user instead of leaving it dark.* See `services/api/test_notice_coverage.py`.
     "/projects/{pid}/quality/chain",
     # `/projects/{pid}/rules/effective` left this set 2026-10-12 — FIRM-RULES-OPTIONAL. The
     # "Standards that apply here" control in `apps/web/src/viewer/tools/qaSection.ts` reads it.
@@ -1663,7 +1675,9 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/model/options",
     "/projects/{pid}/model/options/{slug}",
     "/projects/{pid}/naming/validate",
-    "/projects/{pid}/notices/draft",
+    # `/projects/{pid}/notices/draft` left this set 2026-10-12 — NOTICE-CLOCK-DARK, with the two
+    # register routes that were in `KNOWN_UNCALLED` rather than here. The notice-clock panel drafts
+    # the letter per register item.
     "/projects/{pid}/notifications/digest/preview",
     "/projects/{pid}/productivity/summary",
     "/projects/{pid}/progress/reconciliation",
