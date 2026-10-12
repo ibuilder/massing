@@ -4834,6 +4834,73 @@ query there at all and CI's `pip-audit -r` resolves them at scan time. *A verdic
 population is the most confident wrong answer available, and nothing about its output looks
 different from a clean one.*
 
+### TOTAL-EXCLUDED — two screens printed a total and not what was left out of it *(✅ CLOSED 2026-10-12)*
+
+*(S — Lane B; found by a NEW derivation over the Python producers, not by the client-interface
+sweeps; `apps/web/src/portal/panels/budget.test.ts`,
+`apps/web/src/reportCenter.verification.test.ts`)*
+
+**The derivation is the reusable part.** SCREEN-VS-REPORT's second pass ranked its 52 asymmetric
+fields by *"the interface's OWN doc comment states the invariant"* — a filter keyed on the
+**TypeScript** side, which it correctly calls a candidate filter rather than an oracle. This repo
+writes its invariants in the **Python engine**, so the same rank applied to the producer finds a
+different set. And VERDICT-COVERAGE's gate covers a **boolean verdict** beside a coverage count; the
+**numeric** sibling — a TOTAL beside a key naming what was excluded from it — is outside its reach.
+`SpineTraceability.{spec_count, withdrawn_excluded}` was exactly that shape and was found by a grep.
+
+Derived by AST over 578 Python sources: **43 response dicts pair an exclusion-named key with a
+count or total.** Classified by what the web app reads: **34 read the exclusion** (including all
+three `withdrawn_excluded` and every field the VERDICT-COVERAGE work wired up — the positive
+control that the resolution works), **3 consume neither**, and **6 render a sibling total while
+ignoring the exclusion**. Of those six, three are `not_in_contention`, which `design_options.py`
+settles in its own words — *"This does not hide anything. Every option stays in `options` and in
+`by_state`"* — the count is `len(opts)` over everything, so the key is a classification and not a
+subtraction. *My filter matched a WORD, not a claim, which is the lesson SCREEN-VS-REPORT had
+already paid for.* A fourth, `prequalification.not_in_pool`, that entry had already triaged and
+cleared. **Two were real.**
+
+**① `procurement.skipped_unidentifiable` — and it is a MISDIAGNOSIS, not a missing caveat.**
+`buyout_packages` discards any QTO line with no item, description, material or IFC class and
+returns the tally, with a comment stating why: *"a caller seeing \"0 packages\" deserves to know
+lines were discarded, not conclude there is no scope."* The field was declared **nowhere** in the
+client — not in `apps/web/src/api/procurement.ts`, not in `schema.d.ts` (the route returns an
+untyped dict) — so the Budget panel printed `N package(s) · $X` over the nameable lines only, and
+its zero branch said **"that is a grouping problem, not an empty project."** That sentence is false
+when every line was unnameable, and it is the kind of wrong that gets acted on: it sends an
+estimator to re-map trades when the fix is to name the line items. *A message that can misdiagnose
+is worse than silence, because somebody follows it.* `buyoutOutcome` gains a fourth case and the
+tally reaches the success path too, because a total that balances is not a total that is explained.
+
+**② `feasibility.superseded_excluded` — and the empty branch was the worse half.** `compare` ranks
+LIVE schemes: SUPERSEDED zoning records are dropped and named, with the response's own `note`
+saying so. Neither field was declared, so `${c.count} scheme(s) ranked by buildable yield`
+understated the field — and `if (!c.count)` printed *"Add two or more Zoning & Site records (one per
+scheme) to compare."* **With every scheme superseded that tells the user to create records they
+already have.** Nothing distinguished *nothing recorded* from *everything replaced*: the
+empty-versus-absent confusion in its most expensive form, where the advice is actionable AND wrong.
+
+**Why neither was reachable by the existing sweeps, stated so the gap is not re-walked.** Every
+unread-field audit here starts from the client's declarations, and both fields are declared in none
+— the hole `excluded_comparables` fell through and that `reportCenter.verification.test.ts` names in
+its own header: *"found by reading the route beside the panel, not by any derivation."* It has a
+derivation now, and it runs from the other end.
+
+**Not made a gate, and the reason is the measurement.** Of six candidates two were real, so a
+blocking rule in this form needs four judgement-call exemptions — *a rule that needs an exemption
+list is a rule whose population is wrong*, which is what COURT-SPLIT paid to learn. Its precision
+also rests on key-name distinctiveness: `procurement` linked through `package_count` and
+`total_est_cost`, while the cleared four matched a bare `count` read somewhere in 348 app files, the
+leaf-name collision SCREEN-VS-REPORT already documents. The derivation is recorded here as a
+candidate filter to re-run, not installed as a check that would red the build on four non-defects.
+
+Thirteen mutations, all red, including the shipped pre-fix outcome reinstated. **One survived first
+and is worth recording**: asserting `esc(skippedNote)` appears in the source passed a mutation that
+replaced the condition with `false` — the string sat in a dead ternary. *A limit predicted in a
+comment is still a surviving mutation*, so the gate expression is pinned too. The three `main.ts`
+-style source pins carry the usual bargain: they prove the engine's number reaches the decision, and
+a DOM test is the complement not built here, because `renderBudget` needs some fifteen api methods
+mocked to reach one line.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

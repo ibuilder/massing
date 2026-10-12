@@ -13,12 +13,22 @@ import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, ty
  * overhead, fee & contingency, shown budget vs committed vs actual vs EAC with owner + sub billing,
  * buyout savings, and the cost-loaded cash-flow curve. Extracted from portal.ts (PanelContext seam).
  */
-/** What the buyout packaging actually found — the three cases kept distinct.
+/** What the buyout packaging actually found — the cases kept distinct.
  *
  * QTO-TRADE's whole complaint was that these collapse into one empty table. "No priced quantities"
  * and "lines went in, nothing came out" are different facts about a project: the first is a project
  * that has not been estimated yet, the second is a grouping failure on a fully-priced model. Showing
  * one message for both is what made a working model read as having no scope.
+ *
+ * **TOTAL-EXCLUDED added the fourth case, and it is a CORRECTION rather than an addition.**
+ * `buyout_packages` discards any line with no item, description, material or IFC class — it cannot
+ * be put in a package — and returns the tally as `skipped_unidentifiable`, with a comment stating
+ * why: *"a caller seeing \"0 packages\" deserves to know lines were discarded, not conclude there is
+ * no scope."* That field was declared nowhere in this client, so the `no-packages` branch said
+ * **"that is a grouping problem, not an empty project"** — which is FALSE when the lines simply had
+ * no names, and it is the kind of wrong that gets acted on: it sends an estimator to re-map trades
+ * when the fix is to name the line items. *A message that can misdiagnose is worse than silence,
+ * because somebody follows it.*
  *
  * Pure and exported so it can be asserted directly. The renderer around it needs a live api and a
  * mounted DOM, and a test that scanned the source for two different strings would prove they were
@@ -26,13 +36,34 @@ import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, ty
  */
 export type BuyoutOutcome =
   | { kind: "no-quantities" }
-  | { kind: "no-packages"; lineCount: number }
-  | { kind: "packages"; packageCount: number };
+  | { kind: "unidentifiable"; lineCount: number; skipped: number }
+  | { kind: "no-packages"; lineCount: number; skipped: number }
+  | { kind: "packages"; packageCount: number; skipped: number };
 
-export function buyoutOutcome(lineCount: number, packageCount: number): BuyoutOutcome {
+export function buyoutOutcome(lineCount: number, packageCount: number,
+                              skipped = 0): BuyoutOutcome {
+  const sk = Math.max(0, Math.trunc(skipped) || 0);
   if (lineCount <= 0) return { kind: "no-quantities" };
-  if (packageCount <= 0) return { kind: "no-packages", lineCount };
-  return { kind: "packages", packageCount };
+  // Nothing grouped AND every line unnameable: the cause is named lines, not grouping. `>=` rather
+  // than `===` because the engine counts non-dict rows out too, so `skipped` can exceed the priced
+  // lines the panel counted — a looser comparison is the honest one for two independently derived
+  // tallies.
+  if (packageCount <= 0 && sk >= lineCount) return { kind: "unidentifiable", lineCount, skipped: sk };
+  if (packageCount <= 0) return { kind: "no-packages", lineCount, skipped: sk };
+  return { kind: "packages", packageCount, skipped: sk };
+}
+
+/** The caveat beside a buyout total, or null when there is nothing to say.
+ *
+ * Separate from `buyoutOutcome` because it is wanted in the `packages` case too — the headline
+ * prints a package count and a dollar total, and both are over the lines that COULD be named. A
+ * total that balances is not the same as a total that is explained (the lesson
+ * `ProformaResult.sources_uses.loan_fees` cost). */
+export function buyoutSkippedNote(skipped: number): string | null {
+  const n = Math.max(0, Math.trunc(skipped) || 0);
+  if (!n) return null;
+  return `${n} line(s) carried no item, description, material or IFC class and could not be `
+    + `packaged — they are NOT in the count or the estimate above. Name them to include them.`;
 }
 
 export async function renderBudget(ctx: PanelContext) {
@@ -173,11 +204,20 @@ export async function renderBudget(ctx: PanelContext) {
         return;
       }
       const b = await ctx.host.api.buyoutPackages(pid, lines, "trade");
-      const outcome = buyoutOutcome(lines.length, b.packages.length);
+      const outcome = buyoutOutcome(lines.length, b.packages.length, b.skipped_unidentifiable);
+      if (outcome.kind === "unidentifiable") {
+        // The case the old message got WRONG. Every line that went in was unnameable, so this is
+        // not a grouping problem and telling somebody it is sends them to the wrong fix.
+        fillEst(`<div class="meta">${outcome.lineCount} priced line(s) went in and none could be `
+          + `packaged: ${esc(buyoutSkippedNote(outcome.skipped) || "")}</div>`);
+        return;
+      }
       if (outcome.kind === "no-packages") {
         // Named separately from "no quantities" on purpose: same empty table, different cause.
+        const also = buyoutSkippedNote(outcome.skipped);
         fillEst(`<div class="meta">${outcome.lineCount} priced line(s) went in and no package came `
-          + `out — that is a grouping problem, not an empty project. ${esc(b.note || "")}</div>`);
+          + `out — that is a grouping problem, not an empty project. ${esc(b.note || "")}`
+          + `${also ? ` ${esc(also)}` : ""}</div>`);
         return;
       }
       const pk = b.packages.map((p) => `<tr><td>${esc(p.package)}</td>`
@@ -185,8 +225,12 @@ export async function renderBudget(ctx: PanelContext) {
         + `<td style="text-align:right">${usd(p.est_cost)}</td>`
         + `<td class="meta">${esc(p.rfq_scope.slice(0, 3).map((s) => s.item).join(", "))}`
         + `${p.rfq_scope.length > 3 ? ` +${p.rfq_scope.length - 3}` : ""}</td></tr>`);
+      const skippedNote = buyoutSkippedNote(b.skipped_unidentifiable);
       fillEst(`<div style="font-weight:600;margin-bottom:4px">Buyout packages — ${b.package_count} `
         + `package(s) · <b>${usd(b.total_est_cost)}</b> · grouped by ${esc(b.grouped_by)}</div>`
+        + (skippedNote
+          ? `<div class="meta" style="color:var(--status-warn);margin-bottom:4px">${esc(skippedNote)}</div>`
+          : "")
         + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr>`
         + `<th>Package</th><th style="text-align:right">Lines</th><th style="text-align:right">Est. cost</th>`
         + `<th>RFQ scope</th></tr></thead><tbody>${rows(pk)}</tbody></table></div>`

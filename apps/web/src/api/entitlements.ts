@@ -98,9 +98,15 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
         headroom_gfa_sf: number; status: string } | null; warnings?: string[]; ref?: string }>(
       `/projects/${pid}/feasibility${qs}`);
   }
-  /** feasibilityCompare — zoning schemes ranked by buildable yield. */
+  /** feasibilityCompare — zoning schemes ranked by buildable yield.
+   *
+   *  TOTAL-EXCLUDED — `count` is the LIVE schemes only: `feasibility.py` drops SUPERSEDED records
+   *  from the ranking and names them in `superseded_excluded`, with its own `note` saying so in as
+   *  many words. Neither field was declared here, so the screen printed `count` as the size of the
+   *  field. Declared now so the panel can state what the number is over. */
   feasibilityCompare(pid: string) {
     return this.json<{ count: number; best_ref?: string | null; warnings?: string[];
+      superseded_excluded?: { ref?: string | null; zoning_id?: string | null }[]; note?: string;
       scenarios: { ref?: string; site?: string; use_type?: string; far?: number | null;
         max_floors?: number | null; allowed_gfa_sf?: number | null; binding_constraint?: string | null;
         net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;

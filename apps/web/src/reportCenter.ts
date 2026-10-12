@@ -48,6 +48,45 @@ import { showResult } from "./ui/result";
  *   is a shortcut into this surface, not a replacement for it, and the packages above the row are
  *   often the better answer to what the reader actually wanted.
  */
+/**
+ * What the feasibility scheme comparison is OVER, and what it left out. TOTAL-EXCLUDED.
+ *
+ * `feasibility.compare` ranks LIVE schemes: it drops SUPERSEDED zoning records and names them in
+ * `superseded_excluded`, saying so in the response's own `note` — *"a replaced scheme cannot be the
+ * baseline the live ones are measured against"*. Neither field was declared in this client, so
+ * `count` was printed as the size of the field and both failures below shipped.
+ *
+ * **`empty` is the worse one.** With every scheme superseded, `count` is 0 and the panel said *"Add
+ * two or more Zoning & Site records (one per scheme) to compare"* — instructing somebody to create
+ * records they already have, because nothing distinguished *no schemes recorded* from *every scheme
+ * replaced*. That is the empty-versus-absent confusion this tree keeps correcting, in its most
+ * expensive form: the advice is actionable and wrong.
+ *
+ * Pure and exported for the same reason `buyoutOutcome` is: the renderer needs a live api and a
+ * mounted DOM, and the choice between these three messages is the part worth asserting.
+ */
+export function feasibilityScope(count: number, supersededCount: number):
+    { empty: string | null; caveat: string | null } {
+  const live = Math.max(0, Math.trunc(count) || 0);
+  const gone = Math.max(0, Math.trunc(supersededCount) || 0);
+  if (!live) {
+    return {
+      empty: gone
+        ? `No LIVE scheme to compare — ${gone} recorded scheme(s) are SUPERSEDED and are excluded `
+          + "from the ranking. Reinstate one, or add a current Zoning & Site record."
+        : "Add two or more Zoning & Site records (one per scheme) to compare.",
+      caveat: null,
+    };
+  }
+  return {
+    empty: null,
+    caveat: gone
+      ? `${gone} superseded scheme(s) are excluded from this ranking — the count above is the live `
+        + "field, not everything on record."
+      : null,
+  };
+}
+
 export async function openReportCenter(api: ApiClient, projectId: string | null, focusId?: string) {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;
@@ -480,9 +519,14 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   tool("▟ Compare feasibility scenarios", () => showResult("Compare feasibility scenarios", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const c = await api.feasibilityCompare(pid);
-      if (!c.count) { body.innerHTML = `<div class="meta">Add two or more <b>Zoning &amp; Site</b> records (one per scheme) to compare.</div>`; return; }
+      const scope = feasibilityScope(c.count, (c.superseded_excluded ?? []).length);
+      // TOTAL-EXCLUDED — the empty branch used to say "Add two or more Zoning & Site records", which
+      // is advice to create records the user already has whenever every scheme is SUPERSEDED.
+      if (scope.empty) { body.innerHTML = `<div class="meta">${escapeHtml(scope.empty)}</div>`; return; }
       const sf = (v: number | null | undefined) => (typeof v === "number" ? `${Math.round(v).toLocaleString()} SF` : "—");
-      body.innerHTML = `<div class="meta"><b>${c.count} scheme(s)</b> ranked by buildable yield · best: ${escapeHtml(c.best_ref ?? "—")}</div>`;
+      body.innerHTML = `<div class="meta"><b>${c.count} scheme(s)</b> ranked by buildable yield · best: ${escapeHtml(c.best_ref ?? "—")}</div>`
+        + (scope.caveat
+          ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(scope.caveat)}</div>` : "");
       table(body, ["Scheme", "Site", "FAR", "Floors", "Allowed GFA", "Binds on", "Units", "Parking", "Δ units"],
         c.scenarios.map((s) => [s.ref ?? "", s.site ?? "", s.far ?? "—", s.max_floors ?? "—", sf(s.allowed_gfa_sf),
           s.binding_constraint ?? "—", s.unit_yield ?? "—", s.parking_required ?? "—",

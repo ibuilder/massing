@@ -36,7 +36,13 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       rfq_scope: { item: string; qty: number | null; unit: string }[];
       lines: { item: string; qty: number | null; unit: string; unit_price: number | null }[];
     };
-    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number; packages: Pkg[]; note: string }>(
+    // TOTAL-EXCLUDED — `skipped_unidentifiable` was returned by `procurement.buyout_packages` and
+    // declared NOWHERE in this client, so every unread-field audit that starts from these
+    // declarations was blind to it by construction (the hole `excluded_comparables` fell through).
+    // The engine counts it deliberately: *"a caller seeing \"0 packages\" deserves to know lines were
+    // discarded, not conclude there is no scope."*
+    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number;
+      skipped_unidentifiable: number; packages: Pkg[]; note: string }>(
       `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
   }
   /**
