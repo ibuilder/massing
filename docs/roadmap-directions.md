@@ -343,6 +343,26 @@ are structurally out of reach. Note the suite environment is **happy-dom**, wher
 no `file:` scheme — a test that reads source off disk must resolve from `process.cwd()` (which is
 `apps/web`), the way `shell/roadmapLanes.test.ts` does, not via `fileURLToPath`.
 
+### A web-only change can red a BACKEND gate, and the list is derived not remembered
+
+Many of this repo's gates read the other side of the tree — a frozen route allowlist, a size pin, a
+citation check, a client-caller ledger. So wiring one client method can turn a Python suite red with
+no Python touched, and a green `npm run test` says nothing about it. Measured 2026-10-12, after
+exactly that: `test_route_reachability` froze `/codes/seeded` as a route with no client caller,
+CODE-ADOPT-DARK gave it one, and the gate was right.
+
+**Do not keep a list — ask:**
+
+```
+cd services/api && grep -ln "apps/web" test_*.py          # 32 of them on 2026-10-12
+```
+
+Run the ones your change plausibly touches before pushing, or the whole suite if it is cheaper than
+a CI round trip (it usually is: ~27 min local against a wait plus a re-push). *The lesson is not
+"run more tests" — it is that the SET is a fact about the tree and a remembered subset of it is the
+thing that was wrong.* I had run four of the thirty-two and the one I missed was the one that
+watched the half of the gap the other frozen list cannot see.
+
 ### Announce before a full suite
 
 **Two suites on one machine share the SQLite files and both results become worthless.** The signature is
