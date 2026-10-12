@@ -375,7 +375,14 @@ KNOWN_UNCALLED: set[str] = {
     # than in the three-fifths this list could see: `apps/web/src/api/jurisdiction.ts` and the panel
     # in `apps/web/src/portal/panels/jurisdictionPanel.ts`. *A frozen entry undercounts whenever the
     # rule that produced it has a blind spot -- the list is a floor on the debt, never the debt.*
-    "/codes/seeded",
+    # **A FIFTH left on 2026-10-12: `/codes/seeded`.** CODE-ADOPT-DARK wired `/codes/adoptions`
+    # (which this list could not see, because it HAD a client method and no screen -- the blind spot
+    # `apps/web/src/api/clientCallers.test.ts` covers from the other side), and the unseeded answer
+    # needed it: *"nothing is seeded for WY"* reads as a claim about Wyoming until the reader can see
+    # the list it is missing from. `apps/web/src/api/codecheck.ts` `codeSeeded` plus the governing-code
+    # section in `apps/web/src/portal/panels/jurisdictionPanel.ts`. *The two frozen lists catch
+    # different halves of one gap, and this route was the half where the CLIENT METHOD was missing
+    # while its sibling's was the half where the SCREEN was.*
     "/projects/{pid}/clash/coordinate",
     "/projects/{pid}/documents/template",
     "/projects/{pid}/georeference",
