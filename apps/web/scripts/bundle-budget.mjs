@@ -32,6 +32,21 @@ const DIST = join(DIST_ROOT, "assets");
 // a tool's body behind its click, which is the right shape and is a pattern no tool in that
 // directory uses today (measured: zero `await import(` under `viewer/tools/`); applying it to two
 // of some forty tools would buy 0.4 KB and leave an inconsistency for the next reader to explain.
+//
+// **That last measurement went out of date the same day, and in the direction that flatters the
+// bump.** Re-measured 2026-10-12: FOUR files under `viewer/tools/` reach a module through
+// `await import(` in code — `analyseSection`, `modelReviewPanel`, `projectPanel`, `qaSection`, five
+// call sites between them — every one of them added by this gate refusing a build, not chosen. The
+// last one was refused TWICE: deferring only the rendering left the shell **five bytes** over, so
+// the fetch, the toast, the status line and the `showResult` call went behind the click as well.
+// So the alternative this paragraph declined on grounds of inconsistency is now what the newest
+// tools do, and the next legitimate growth should pay for itself the same way before this number
+// moves again.
+//
+// *A number that decays toward the conclusion it supports is the hardest kind to notice, because
+// nothing it predicts ever looks wrong.* Re-derive it, never read it — and count CODE, not
+// comments, because two of the six files that match the string only discuss it:
+//   grep -c "await import(" apps/web/src/viewer/tools/*.ts
 const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 224);
 
 // The eager shell = exactly what index.html loads up front: the entry chunk + its CSS, plus the split

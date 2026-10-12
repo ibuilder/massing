@@ -360,7 +360,28 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/notices",
     "/projects/{pid}/notices/clauses",
     "/projects/{pid}/quality/chain",
-    "/projects/{pid}/rules/effective",
+    # `/projects/{pid}/rules/effective` left this set 2026-10-12 — FIRM-RULES-OPTIONAL. The
+    # "Standards that apply here" control in `apps/web/src/viewer/tools/qaSection.ts` reads it.
+    # It was the starkest kind of entry in this file: not an unfinished endpoint but the ANSWER to
+    # a question two live code paths were getting wrong. `firm_standards.effective_rules` states
+    # that the failure mode is *"a firm discovering its standards were quietly optional"*, and it
+    # had exactly one consumer in the tree — this route — while `model_ci._rules_check` and
+    # `/rules/run` both read `rule_library.load(pid) or STARTER_RULES`. So the firm's standards
+    # gated nothing, and a project with no library was checked against three samples and the clean
+    # result stored as its badge. *A route that exists to prevent a silent wrong answer, left dark,
+    # is that wrong answer with the fix already paid for* — the same sentence this file wrote for
+    # `/elements/freshness` a few entries up, on the same day.
+    #
+    # **A measurement this gate cannot make, recorded because nobody else will.** `GET` and `PUT
+    # /projects/{pid}/rules` — the rule-library editor — have NO client caller either, and neither
+    # appears in any list here, because the leaf `rules` is matched against the whole web blob and
+    # `/projects/${pid}/rules/run` puts that substring in it. One route's URL vouches for another's.
+    # That is the `deal-memory` failure recorded above met from the other direction: there, adding a
+    # route made a frozen entry read as called; here a sibling that has always existed means an
+    # entry was never frozen at all. Those two routes are the remaining slice of this item: the
+    # library cannot be AUTHORED from the app, so until that lands every rule check in the product
+    # is a check against the three samples — which is now at least SAID, in the result and in the
+    # stored badge.
     "/projects/{pid}/scene/manifest",
     "/webhooks/deliveries",
     # ---- 6 of 8, added 2026-09-11 when `_SEGMENT` flipped from a blocklist of characters that may

@@ -257,6 +257,43 @@ export interface CoordStale {
   note: string;
 }
 
+/** FIRM-RULES-OPTIONAL — the firm version a project rule displaced, carried so an override reads
+ *  AS an override rather than as the standard. */
+export interface FirmRuleVersion {
+  id: string;
+  name: string;
+  scope: string;
+  require: string;
+  severity: string;
+}
+
+/** One rule in the set that applies to a project. `source`: `firm` · `project` · `starter`. */
+export interface EffectiveRule {
+  id: string;
+  name: string;
+  scope: string;
+  require: string;
+  severity: string;
+  source?: string | null;
+  overrides?: FirmRuleVersion | null;
+}
+
+/** Where the rules a check just evaluated came from.
+ *
+ *  `using_starter` is the load-bearing field: true means neither this project nor the firm has
+ *  authored anything and the three SAMPLE rules ran, so a clean result is unassessable rather than
+ *  a pass. `GET /projects/{pid}/rules` has always returned `seeded` for the same fallback — this is
+ *  that honesty arriving at the two places that EVALUATE the rules. */
+export interface RuleProvenance {
+  using_starter: boolean;
+  firm_count: number;
+  inherited_count: number;
+  overridden_count: number;
+  project_only_count: number;
+  overridden: { id: string; name: string; firm_require: string; project_require: string }[];
+  note: string;
+}
+
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
@@ -1074,14 +1111,35 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   ciLatest(pid: string) {
     return this.json<ModelCiReport>(`/projects/${pid}/ci/latest`);
   }
-  /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
-   *  + offending GUIDs + a by-severity rollup. */
+  /** RULE-LIB — check the loaded model against the rules that APPLY here → per-rule pass/fail +
+   *  offending GUIDs + a by-severity rollup.
+   *
+   *  FIRM-RULES-OPTIONAL. `provenance` and the per-row `source` / `overrides` are what make the
+   *  rollup readable: this route used to evaluate `rule_library.load(pid) or STARTER_RULES`, so a
+   *  firm standard a project inherits was checked by nothing, and a project with no library of its
+   *  own was checked against three SAMPLE rules with nothing in the response saying so. A clean
+   *  result over samples is not a pass — `provenance.using_starter` is how the screen knows. */
   rulesRun(pid: string) {
     return this.json<{ model_scored: boolean; total_rules: number; failing_rules?: number;
       total_violations?: number; by_severity?: Record<string, number>; note?: string;
+      provenance?: RuleProvenance;
       rules: { id: string; name: string; severity: string; scope: string; require: string;
-        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
+        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string;
+        source?: string | null; overrides?: FirmRuleVersion | null }[] }>(
       `/projects/${pid}/rules/run`);
+  }
+  /** FIRM-RULES-OPTIONAL — the standards that apply to this project: the firm's library with this
+   *  project's layered over it by rule id, every row saying which it is and what it displaced.
+   *
+   *  The engine behind this has existed and been tested since v0.3.778 and was reachable from
+   *  nothing — `services/api/test_route_reachability.py` carried the route as uncalled while
+   *  `firm_standards`'s own docstring named the failure mode: *"a firm discovering its standards
+   *  were quietly optional"*. */
+  rulesEffective(pid: string) {
+    return this.json<{ rules: EffectiveRule[]; count: number; firm_count: number;
+      inherited_count: number; overridden_count: number; project_only_count: number;
+      overridden: { id: string; name: string; firm_require: string; project_require: string }[];
+      note: string }>(`/projects/${pid}/rules/effective`);
   }
   /** RULE-LIB-2 — geometric rule checks over the model's baked AABBs (clearance / escape-distance /
    *  clear-width). Omit `checks` for the server's starter set. */

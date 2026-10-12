@@ -491,10 +491,17 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     by-severity rollup. When a space rule pack is stored and the project has a source IFC, the
     geometric space checks (dimensional / daylight / wet-wall, via the adjacency engine) run too and
     fold into the SAME rollup as `space:*` rows — one rule spine for elements AND spaces."""
-    from .. import rule_library
+    from .. import firm_standards, rule_library
     _project(db, pid)
-    stored = rule_library.load(pid) or rule_library.STARTER_RULES
-    out = rule_library.run(_idx_for(pid), stored)
+    # FIRM-RULES-OPTIONAL. This was `rule_library.load(pid) or STARTER_RULES`: the project's own
+    # rules and nothing else, so a firm standard a project inherits was never evaluated, and a
+    # project with no library was checked against three samples with nothing in the response saying
+    # so. `applicable_rules` answers both, and returns the provenance in the same dict so a caller
+    # cannot take the rules and drop where they came from.
+    app = firm_standards.applicable_rules(pid)
+    out = firm_standards.attach_provenance(rule_library.run(_idx_for(pid), app["rules"]),
+                                           app["rules"])
+    out["provenance"] = app["provenance"]
     pack = rule_library.load_space_pack(pid)
     if pack:
         try:
@@ -503,6 +510,11 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
         except HTTPException:
             out["space_rules_note"] = "space pack stored but no source IFC is loaded — space checks skipped"
         else:
+            # Labelled, not left with a null source: these come from the space pack, not from any
+            # rule library, and an unlabelled row beside labelled ones reads as "nobody knows".
+            for row in space_rows:
+                row["source"] = "space-pack"
+                row["overrides"] = None
             out["rules"] = (out.get("rules") or []) + space_rows
             out["total_rules"] = len(out["rules"])
             for row in space_rows:

@@ -23,18 +23,62 @@ _RANK = {"fail": 0, "warn": 1, "pass": 2, "skip": 3}
 
 
 def _rules_check(db: Session | None, pid: str, idx: dict | None) -> dict:
-    """RULE-LIB gate: the project's rule library must pass. High-severity failures fail the build;
-    medium/low failures warn."""
-    rules = rule_library.load(pid) or rule_library.STARTER_RULES
-    r = rule_library.run(idx, rules)
+    """RULE-LIB gate: the rules that APPLY here must pass. High-severity failures fail the build;
+    medium/low failures warn.
+
+    FIRM-RULES-OPTIONAL. Two corrections, and the second is why this stored badge mattered more than
+    the interactive check:
+
+    * **The firm's library is evaluated.** This read `rule_library.load(pid) or STARTER_RULES` — the
+      project's own rules, never the firm's. `firm_standards` exists precisely so a standard can
+      outlive a project, states that the failure mode is *"a firm discovering its standards were
+      quietly optional"*, and was consulted by nothing that checks a model. A firm rule a project
+      inherited gated nothing and appeared in no report.
+    * **A project with no library of its own no longer reports PASS.** The fallback to three SAMPLE
+      rules is a sensible way to avoid a vacuous pass over an empty list, and reporting its result as
+      a pass of *"the project's rule library"* is a verdict about a library that does not exist —
+      stored, as this project's quality badge, with nothing in the payload saying the rules were
+      examples. It is `skip` now: unassessable and clean are different claims. `GET
+      /projects/{pid}/rules` has always returned `seeded` for exactly this fallback, one route away.
+    """
+    from . import firm_standards
+    app = firm_standards.applicable_rules(pid)
+    r = firm_standards.attach_provenance(rule_library.run(idx, app["rules"]), app["rules"])
+    prov = app["provenance"]
     if not r.get("model_scored"):
-        return {"status": "skip", "summary": "no model loaded", "metrics": {}}
+        return {"status": "skip", "summary": "no model loaded", "metrics": {}, "provenance": prov}
     fails = r.get("failing_rules", 0)
     by = r.get("by_severity", {})
-    status = "fail" if by.get("high") else ("warn" if fails else "pass")
+    # The starter fallback is handled ASYMMETRICALLY, and the asymmetry is the whole correction.
+    # A failure a sample rule finds is a real defect — `test_model_ci`'s own fixture is a door with
+    # no fire rating, caught by the high-severity starter rule — so folding the samples into `skip`
+    # wholesale would turn that finding into a non-finding and this project's badge from FAIL to
+    # PASS. What is NOT a pass is a CLEAN result over rules nobody adopted: that is unassessable,
+    # because no one has said what this project must satisfy. *A finding is a finding whoever wrote
+    # the rule; the absence of a finding is only a pass against a standard somebody chose.*
+    if by.get("high"):
+        status = "fail"
+    elif fails:
+        status = "warn"
+    else:
+        status = "skip" if prov["using_starter"] else "pass"
+    if prov["using_starter"]:
+        return {"status": status,
+                "summary": (f"{fails}/{r['total_rules']} SAMPLE rules failing · "
+                            f"{r.get('total_violations', 0)} violations — no rule library is "
+                            "authored for this project or the firm" if fails else
+                            f"no rule library authored for this project or the firm; the "
+                            f"{r['total_rules']} sample rules found nothing, which is not a pass"),
+                "metrics": {"failing_rules": fails, "violations": r.get("total_violations", 0),
+                            "by_severity": by},
+                "provenance": prov}
     return {"status": status,
-            "summary": f"{fails}/{r['total_rules']} rules failing · {r.get('total_violations', 0)} violations",
-            "metrics": {"failing_rules": fails, "violations": r.get("total_violations", 0), "by_severity": by}}
+            "summary": f"{fails}/{r['total_rules']} rules failing · {r.get('total_violations', 0)} violations"
+                       + (f" · {prov['inherited_count']} inherited from the firm"
+                          if prov["inherited_count"] else ""),
+            "metrics": {"failing_rules": fails, "violations": r.get("total_violations", 0),
+                        "by_severity": by},
+            "provenance": prov}
 
 
 def _named_check(db: Session | None, pid: str, idx: dict | None) -> dict:

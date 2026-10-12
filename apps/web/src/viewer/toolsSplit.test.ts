@@ -196,7 +196,15 @@ describe("the qa/analyse split loses nothing", () => {
     // The twin of the assertion above: "Analyse has contents" passes just as happily if `qa` were
     // emptied wholesale, which would be a much worse outcome than not splitting at all.
     expect(labels("qa").length, "`qa` should keep the larger half").toBeGreaterThan(labels("analyse").length);
-    for (const probe of ['enqueueAndWait(api, pid, "clash_detect"', "api.modelHealth(", "api.rulesRun(", "api.dataQa("]) {
+    // FIRM-RULES-OPTIONAL moved the rule check's probe. It was `api.rulesRun(`, and that call now
+    // lives in `tools/ruleCheckView.ts`: `qaSection.ts` is on an exact line pin and the eager shell
+    // was 5 bytes over its budget, so the whole control body — fetch, toast, status line and
+    // render — was deferred behind the click. The property this loop asserts is unchanged (Review
+    // still owns the rule check) and the probe follows the call rather than the call being kept
+    // where the probe could see it. *A probe is a way of asking; moving the subject is not
+    // weakening the question, but keeping the subject in reach of a stale probe would be.*
+    for (const probe of ['enqueueAndWait(api, pid, "clash_detect"', "api.modelHealth(",
+                         'await import("./ruleCheckView")', "api.dataQa("]) {
       expect(sectionBody("qa"), `\`qa\` lost ${probe}`).toContain(probe);
     }
   });

@@ -6001,6 +6001,110 @@ written four lines above the block. It matches the string literal now, quotes in
 on words matches every mention of them, the explanation of the pin included.*
 
 
+### FIRM-RULES-OPTIONAL — the firm's standards were evaluated by nothing, and a pass over three samples was stored as a badge *(✅ CLOSED 2026-10-12, slice ① of ②)*
+
+*(M — **Lane C**; `services/api/test_firm_rules_applied.py`, `apps/web/src/viewer/tools/ruleCheckView.test.ts`)*
+
+**R27-FIRM-MEMORY shipped in v0.3.778 and `docs/roadmap-completed.md` records it as done.** Its
+module states the failure mode it exists to prevent, in its own words: *"A firm rule that a project
+silently replaces is how a firm's standards stop being standards… the failure here is not a wrong
+answer, it is a firm discovering its standards were quietly optional."* Measured today,
+`firm_standards.effective_rules` — the function that answers *what applies here* — had **exactly one
+consumer in the tree**: its own route, `/projects/{pid}/rules/effective`, which
+`services/api/test_route_reachability.py` carried as a route no screen reaches. Meanwhile both things
+that actually CHECK a model read this:
+
+```python
+rules  = rule_library.load(pid) or rule_library.STARTER_RULES   # model_ci._rules_check
+stored = rule_library.load(pid) or rule_library.STARTER_RULES   # routers/standards.rules_run
+```
+
+## Two defects out of one line, and the second has a stored artifact behind it
+
+**① A firm rule a project inherits was evaluated by nobody.** The firm authors a standard, every
+project lists it as inherited on a page that could not be opened, and neither the interactive rule
+check nor model CI reads it. *A capability whose only consumer is its own dark route is not shipped,
+whatever the changelog says.*
+
+**② A project with no library of its own was checked against three SAMPLE rules, and the clean
+result was reported as a pass** — stored by `model_ci` as that project's quality badge, with nothing
+in the payload saying the rules were examples. This is the session's recurring class again, and the
+sharpest instance of it so far, because **the honest flag already existed one route away**: `GET
+/projects/{pid}/rules` has always returned `seeded: not stored` for exactly this fallback. *The two
+places that EVALUATED the rules said nothing; the place that merely LISTED them had always said it.*
+
+## The asymmetry is the correction, and the first draft of it was a regression
+
+The obvious fix — report the whole starter result as `skip` — is wrong, and
+`services/api/test_model_ci.py` is what measures that. Its `IDX_FAIL` fixture is a door with no fire
+rating; the high-severity starter rule catches it; the check reported `fail` → badge **FAIL**.
+Folding the samples into `skip` wholesale turns that real finding into a non-finding and the badge
+into PASS. So: a **failure** a sample rule finds is still a failure — a door with no fire rating is a
+door with no fire rating whoever wrote the rule — while a **clean result** over rules nobody adopted
+is `skip`. *A finding is a finding; the absence of one is a pass only against a standard somebody
+chose.* The gate asserts both arms, and names the first draft in the failure message of the one that
+would have caught it.
+
+## The sweep, and the prose it first read instead of code
+
+The rule is function-level and needs no exemptions: **a function that calls `rule_library.run(` must
+not also reach the library directly.** Going through `applicable_rules` is the only way to get a
+project's rules, because it is the only place that knows about the firm's. Population by AST, so a
+fourth evaluator cannot be born with the defect. It re-finds both pre-fix evaluators before it may
+report, and it must NOT flag `jurisdiction_packs`, which runs a regulator's own requirements and
+never touches the library — *a rule that needs an exemption is a rule whose population is wrong.*
+
+**Its first draft matched the raw source, and the measurement is what caught it.** The second arm
+came back naming three functions — `model_ci._rules_check`, `routers/standards.rules_run` and
+`rule_library.load` — every one of them because a **docstring quotes the defect it replaced**. The
+main arm survived only by luck, because those same functions also mention `applicable_rules`. *A
+checker that reads prose can be tripped by an explanation and defeated by a comment*, which is the
+failure this repository has paid for more than any other. It now rules on `ast.unparse` of a
+docstring-stripped tree, so comments are gone by construction — and that narrowing is itself
+mutation-proved in both directions: prose-only must be clean, the same text as code must be caught.
+
+**And the "clean" fixture was not clean.** The first run reported `warn` where it wanted `skip`,
+because the starter set is three rules and `loadbearing-declared` scopes *every* `IfcWall` — a bare
+wall fails it at low severity. *A fixture meant to be clean has to be clean against the rules that
+will actually run on it.*
+
+## What is NOT closed, and a measurement no gate here can make
+
+`GET` and `PUT /projects/{pid}/rules` — the rule-library **editor** — have no client caller either,
+and **appear in no list in `test_route_reachability.py` at all**, because the leaf `rules` is matched
+against the whole web blob and `/projects/${pid}/rules/run` puts that substring in it. *One route's
+URL vouches for another's.* That is the `deal-memory` failure that file already records, met from the
+opposite direction: there, adding a route made a frozen entry read as called; here a sibling that has
+always existed meant an entry was never frozen. `GET/PUT /firm/rules` sit in `LEAF_COLLISION_BLIND`
+for the same reason.
+
+## Five bytes, and the half-measure one layer up
+
+The new control fit only after **the whole control body** moved to
+`apps/web/src/viewer/tools/ruleCheckView.ts`, not just the rendering. With the render deferred and the
+handler left behind, the eager shell came out at **229,381 brotli bytes against a 229,376 limit — five
+bytes over**, and `npm run budget` refused the build. Moving the fetch, the toast, the status line and
+the `showResult` call behind the click brought it to 223.8 KB. *Deferring the display and keeping the
+handler is the same half-measure EGRESS-TRAVEL-DARK paid for twice, met one layer up* — and it is the
+shape `scripts/bundle-budget.mjs`'s own note calls "the right shape" while recording that **zero tools
+under `viewer/tools/` used it**. Three do on this branch now, so that measurement is corrected where it
+is made rather than only here.
+
+Two bookkeeping corrections came out of the same change, both predicted by notes already in the tree
+and both made anyway on the first attempt. `apps/web/src/viewer/toolsSplit.test.ts` probes that Review
+still owns the rule check by looking for `api.rulesRun(` in that section — the call it looks for moved,
+so the probe follows the call rather than the call being kept where a stale probe could see it. And the
+three new client interfaces were first inserted by anchoring on the next DECLARATION, which put them
+between `CoordStale`'s doc comment and `CoordStale` — the exact failure `docComments.test.ts` and
+`docStranded.test.ts` exist to catch, and the exact mistake the previous item's roadmap entry describes
+making. *A lesson written down is not a lesson learned until the next edit is made differently.*
+
+So **slice ② is the authoring surface**: a rule-library editor and a firm-standards editor
+(admin-only `PUT`). Until it lands, every rule check in the product is still a check against the
+three samples — which is now at least *said*, in the result, in the stored badge, and in the new
+"Standards that apply here" control that is this route's first door.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

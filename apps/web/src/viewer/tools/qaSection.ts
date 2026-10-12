@@ -717,32 +717,17 @@ export function buildQaSection(d: QaDeps): void {
             };
           });
         }));
-        b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rule library", async () => {
-          let r;
-          try { r = await api.rulesRun(pid); }
-          catch (e) { toast((e as Error).message, "error"); return; }
-          if (!r.model_scored) { toast(r.note || "no model loaded", "info"); return; }
-          out.textContent = `rules: ${r.failing_rules ?? 0}/${r.total_rules} failing`;
-          showResult("Rule library check", (body) => {
-            const bySev = r!.by_severity || {};
-            body.appendChild(resultNote(`<b>${r!.failing_rules ?? 0}</b> of ${r!.total_rules} rules failing · `
-              + `${r!.total_violations ?? 0} violations` + (bySev.high ? ` · 🔴 ${bySev.high} high` : "")
-              + (bySev.medium ? ` · 🟡 ${bySev.medium} medium` : "") + (bySev.low ? ` · ⚪ ${bySev.low} low` : ""),
-            (r!.failing_rules ?? 0) ? "" : "ok"));
-            const sev: Record<string, string> = { high: "🔴", medium: "🟡", low: "⚪" };
-            for (const rule of r!.rules) {
-              const icon = rule.status === "pass" ? "✅" : rule.status === "n/a" ? "➖" : (sev[rule.severity] || "•");
-              const line = resultNote(`${icon} <b>${escapeHtml(rule.name)}</b> — ${rule.passed}/${rule.scoped} pass`
-                + (rule.failed ? ` · <b>${rule.failed}</b> fail` : ""), rule.status === "fail" ? "" : "ok");
-              if (rule.failed && rule.fail_guids.length) {
-                const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " isolate failures";
-                pick.style.cssText = "font-size:11px;margin-left:6px";
-                pick.onclick = (e) => { e.preventDefault(); void layerMgr.isolateGuids(rule.fail_guids.slice(0, 500)); };
-                line.appendChild(pick);
-              }
-              body.appendChild(line);
-            }
-          });
+        // FIRM-RULES-OPTIONAL. The rendering moved to `viewer/tools/ruleCheckView.ts` — this file
+        // is on its exact line pin and `viewer/tools/*` is the eager chunk at its exact budget, so
+        // the extraction is what PAYS for the control below. Every row now says whether its rule is
+        // the firm's, this project's, an override, or one of the three samples.
+        b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rules that apply here", async () => {
+          const m = await import("./ruleCheckView");
+          await m.runRuleCheck(api, pid, out, (g) => void layerMgr.isolateGuids(g));
+        })));
+        b.appendChild(toolBtn2("⚖ Standards that apply here", () => withLoading(container, "Reading the firm + project standards", async () => {
+          const m = await import("./ruleCheckView");
+          await m.showEffectiveStandards(api, pid, out);
         })));
         b.appendChild(toolBtn2("⛶ Geometry check (clearance/egress)", () => withLoading(container, "Running geometric checks", async () => {
           let r;
