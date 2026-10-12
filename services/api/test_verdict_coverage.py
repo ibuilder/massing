@@ -53,6 +53,22 @@ FIVE THINGS THE FIRST DRAFTS GOT WRONG, EACH MEASURED RATHER THAN REASONED ABOUT
     unrelated prose string in the same file — the opposite error, one line later. A read is `.name`,
     `["name"]` or `name:`, and nothing else.
 
+THREE BLIND SPOTS IN THE SHAPE PREDICATE — ONE CLOSED, TWO MEASURED AND DELIBERATELY NOT
+-----------------------------------------------------------------------------------------
+**The third was closed the same day it was found, and the difference is the measurement, not the
+enthusiasm.** TURNOVER-UNGATED found an eighth instance by hand — `quality_chain.turnover_readiness`,
+`"ready": not blocking and not silent and c["any_attached"]` — a presence guard in place of
+`bool(<name>)`. Dict values tree-wide with ≥1 negated operand, ≥1 plain truthiness operand and no
+`Compare`/`Call`: **exactly 1**, the instance itself. So it cost no exemptions, no noise and one
+vocabulary entry (`unrecorded`, whose four sites are all genuinely "no record exists"). Shapes 1 and
+3 are now both admitted; shape 2 still measures at 16 and still needs the vocabulary pointed the
+wrong way, so it stays out. *Widening a rule because an instance measured at one is not the same act
+as widening it because an instance exists.*
+
+A fourth blind spot was closed with it, in the consumer rule rather than the shape: a read that has
+been EXTRACTED into a sibling module. See `delegated` — the first instance was TURNOVER-UNGATED's own
+fix, and this codebase's line ratchet pushes every panel to do exactly that.
+
 TWO BLIND SPOTS IN THE SHAPE PREDICATE, MEASURED 2026-10-12 AND DELIBERATELY NOT CLOSED
 ---------------------------------------------------------------------------------------
 EVM-COVERAGE found a sixth and a seventh instance of this class by hand (`evm.model_ev`'s
@@ -120,12 +136,67 @@ def check(label, ok, detail=""):
 
 #: Names that, on their own, say "this was not evaluated". Anchored whole-word: `not_` as a prefix
 #: matched `not_covered`, a note about a different dimension — see lesson 3.
+#:
+#: `unrecorded\w*` joined 2026-10-12 (TURNOVER-UNGATED) because shape 3 below needs it, and the
+#: other candidates were MEASURED rather than waved in:
+#:
+#:   | candidate | sites | admitted? |
+#:   |---|---|---|
+#:   | `unrecorded` | 4 (`quality_chain` ×2, `approval_conditions`, `takeoff2d`) | **yes** — "un-" + "recorded" can only mean no record exists |
+#:   | `unverified` | 1 (`quality_chain.unverified_hold_points`) | **no** — an unverified hold point is an OPEN FINDING, evaluated and not signed off, not absent coverage. Admitting it is lesson 3 again: `not_covered` was refused for being about a different dimension, and this is the same error with a different prefix. |
+#:   | `unassessed` | 3 (`lean`, `pull_plan`, `schedule_lastplanner`) | **no** |
+#:   | `unanchored` | 2 (`coordination_fresh`) | **no** |
+#:   | `unreachable` | 3 (`egress_route`, `workflow_config` ×2) | **no** |
+#:
+#: The last three are correct senses of "not evaluated" and were still left out, because of which
+#: DIRECTION this vocabulary points: it widens what COUNTS AS coverage for a consumer, so every
+#: entry makes the consumer check easier to satisfy. An entry with no verdict needing it loosens the
+#: rule for nothing. *A vocabulary that grows because a word fits is a vocabulary that stops
+#: discriminating* — re-measure and add one when a verdict actually needs it.
 COVERAGE_NAME = re.compile(
-    r"^(untested|unmapped|unpriced|unmeasured|uncomputable|uncovered"
+    r"^(untested|unmapped|unpriced|unmeasured|uncomputable|uncovered|unrecorded\w*"
     r"|skipped\w*|not_applicable|not_computable|not_run|not_tested)$")
 
 
+def is_presence_guarded_verdict(value: ast.expr) -> bool:
+    """`not A and not B … and <plain truthiness>` — shape 3, admitted 2026-10-12 after measuring it.
+
+    `quality_chain.turnover_readiness` is
+
+        "ready": not blocking and not silent and c["any_attached"]
+
+    which is the same class as the five this gate was derived from — a verdict true of a subset,
+    guarded by the author writing down that the subset can be empty — spelled with a **presence
+    guard** rather than `bool(<name>)`. TURNOVER-UNGATED found it by hand, as the eighth instance,
+    and this gate saw nothing.
+
+    **It was measured before it was admitted, and that is why it is here while shape 2 is not.**
+    Dict values tree-wide with ≥1 negated operand, ≥1 plain truthiness operand and no `Compare` or
+    `Call` operand: **exactly 1** — the instance above. So this costs no exemptions and no noise. The
+    `Compare`/`Call` refusal is what keeps it from drifting into shape 2 (`bool(A and B and
+    <compare>)`), which measures at **16** and stays out for the reason recorded in the header: it
+    needs the coverage vocabulary widened to positively-named counts, and that is lesson 1 pointing
+    the other way.
+    """
+    if not (isinstance(value, ast.BoolOp) and isinstance(value.op, ast.And)):
+        return False
+    neg = plain = 0
+    for part in value.values:
+        if isinstance(part, ast.UnaryOp) and isinstance(part.op, ast.Not):
+            neg += 1
+        elif isinstance(part, (ast.Compare, ast.Call)):
+            return False
+        else:
+            plain += 1
+    return neg >= 1 and plain >= 1
+
+
 def is_subset_verdict(value: ast.expr) -> bool:
+    """Either admitted shape. See `is_presence_guarded_verdict` for the second and its measurement."""
+    return _is_guarded_quantified(value) or is_presence_guarded_verdict(value)
+
+
+def _is_guarded_quantified(value: ast.expr) -> bool:
     """`bool(A) and (all(…)/any(…) | not B)` — a verdict true of a subset, guarded because it can be empty.
 
     The guard is the load-bearing half. `truncated`, `ok` and `dry_run` are booleans too and are not
@@ -202,6 +273,54 @@ def reads(src: str, name: str) -> bool:
     return re.search(rf'(?:\.{n}\b)|(?:\[["\']{n}["\']\])|(?:\b{n}\s*:)', src) is not None
 
 
+#: `const x = await ….<owner>(` — the binding that holds one owner method's response.
+_HOLDER = r"(?:const|let|var)\s+(\w+)\s*=\s*await\s+[^;]*?\.{owner}\("
+#: An `import { a, b as c }` whose specifier begins with a dot — a RELATIVE import only; a package
+#: cannot be a local reading. The example is written in prose rather than quoted, because
+#: `services/api/test_scratch_ignored.py` reads every `"./<name>"` literal in this directory as a
+#: scratch directory and an illustration is not worth an exemption.
+_REL_IMPORT = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"(\.[^"]*)"')
+
+
+def delegated(src: str, path: "Path | None", owner: str) -> str:
+    """The source of any sibling module this file HANDS the owner's response to.
+
+    The consumer rule is file-local, and that was a blind spot the moment a consumer did what this
+    codebase's line ratchet pushes every panel to do: extract the reading into its own module. The
+    first instance was TURNOVER-UNGATED's own fix — `operations.ts` awaits
+    `qualityTurnoverReadiness` and hands it to `qualityReading(qt)` in `./qualityCloseout`, which
+    reads four coverage fields. File-locally that reads as a BARE consumer. *A detector keyed on
+    where the read usually sits cannot see a read that moved, and this repository moves them on
+    purpose.*
+
+    Deliberately narrow, and the narrowness is the whole of its safety:
+
+    * ONE hop, and only through a **relative** import — a package cannot hold this project's reading;
+    * only a module whose imported binding is **called with the variable that holds this owner's
+      response**, so an unrelated helper that happens to mention `skipped` cannot bless anything;
+    * and it only ever ADDS text to look in, so it cannot turn a passing tree red.
+
+    That last point is also why it was safe to land: with zero bare consumers today it hides no
+    present defect, and the frozen replay below has no imports at all, so the proof-of-reach is
+    untouched by it.
+    """
+    if path is None:
+        return ""
+    holders = set(re.findall(_HOLDER.format(owner=re.escape(owner)), src))
+    if not holders:
+        return ""
+    out = []
+    for names, rel in _REL_IMPORT.findall(src):
+        bound = [n.strip().split(" as ")[-1].strip() for n in names.split(",") if n.strip()]
+        if not any(re.search(rf"\b{re.escape(fn)}\(\s*{re.escape(v)}\b", src)
+                   for fn in bound for v in holders):
+            continue
+        target = (path.parent / (rel + ".ts")).resolve()
+        if target.is_file():
+            out.append(target.read_text(encoding="utf-8"))
+    return "\n" + "\n".join(out) if out else ""
+
+
 def web_files() -> list[Path]:
     """Application sources: not tests, not vendored, not the client layer itself."""
     return [p for p in sorted(WEB.rglob("*.ts"))
@@ -217,7 +336,8 @@ def bare_consumers(sources=None):
     """
     methods = client_methods()
     files = sources if sources is not None else [
-        (str(p.relative_to(WEB)), p.read_text(encoding="utf-8")) for p in web_files()]
+        (str(p.relative_to(WEB)), p.read_text(encoding="utf-8"), p) for p in web_files()]
+    files = [(f + (None,))[:3] for f in files]      # the replay passes (label, src) pairs
     out = []
     for mod, verdict, top, deep in subset_verdicts(API):
         coverage = sorted(k for k in deep if COVERAGE_NAME.match(k))
@@ -227,10 +347,11 @@ def bare_consumers(sources=None):
                   if verdict in declared and len(top & declared) >= 3]
         for owner in owners:
             call = re.compile(rf"\.{re.escape(owner)}\(")
-            for label, src in files:
+            for label, src, path in files:
                 if not call.search(src):
                     continue
-                if not any(reads(src, c) for c in coverage):
+                look = src + delegated(src, path, owner)
+                if not any(reads(look, c) for c in coverage):
                     out.append((label, mod, verdict, coverage))
     return out
 
@@ -253,8 +374,11 @@ check(f"the client surface parsed ({len(_METHODS)} methods)",
 
 _NAMES = {(m, v) for m, v, _, _ in _VERDICTS}
 _MUST_FIND = {("covenants.py", "clean"), ("rent_scrub.py", "clean"),
-              ("sequence_clash.py", "clean")}
-check("the walk re-finds the three known subset verdicts",
+              ("sequence_clash.py", "clean"),
+              # Shape 3, added 2026-10-12. The eighth instance of this class, found by hand while
+              # this gate reported a clean tree — so it is a proof of reach, not a nicety.
+              ("quality_chain.py", "ready")}
+check(f"the walk re-finds the {len(_MUST_FIND)} known subset verdicts",
       _MUST_FIND <= _NAMES,
       f"missing {sorted(_MUST_FIND - _NAMES)} — these are the instances the rule was derived from, "
       "so a walk that cannot see them is measuring something else")
@@ -286,6 +410,39 @@ check("SELF-TEST: …and the same word in PROSE is not a read",
       "the English word `skipped` in a string counted as reading the field — the opposite error, "
       "and the one that would bless the consumer this rule exists to catch")
 
+# SHAPE 3's own self-tests. The first says the shape is recognised; the second and third are the
+# bounds that keep it from becoming shape 2 by accident, which is the thing the header refused.
+_S3 = ast.parse("x = {'ready': not a and not b and c['any_attached'], 'unrecorded_count': 1}"
+                ).body[0].value
+_S3_PLAIN = ast.parse("x = {'ok': a and b, 'unrecorded_count': 1}").body[0].value
+_S3_CMP = ast.parse("x = {'flag': not a and b > 0, 'unrecorded_count': 1}").body[0].value
+check("SELF-TEST: shape 3 (`not A and not B and <presence>`) is a subset verdict…",
+      is_subset_verdict(_S3.values[0]),
+      "the shape TURNOVER-UNGATED found by hand is still invisible, so admitting it did nothing")
+check("SELF-TEST: …a plain conjunction is not…",
+      not is_subset_verdict(_S3_PLAIN.values[0]),
+      "`a and b` read as a subset verdict — the population widens to every conjunction")
+check("SELF-TEST: …and a THRESHOLD operand is refused, so shape 3 cannot drift into shape 2",
+      not is_subset_verdict(_S3_CMP.values[0]),
+      "`not a and b > 0` was admitted, which quietly pulls in the 16 instances the header "
+      "deliberately left out and the vocabulary widening they would need")
+
+# The delegation hop: a read HANDED to a sibling module counts, and one merely sitting in an
+# unrelated import does not.
+_DEL_SRC = ('import { qualityReading } from "./qualityCloseout";\n'
+            'const qt = await ctx.host.api.qualityTurnoverReadiness(pid);\n'
+            'const r = qualityReading(qt);\n')
+check("SELF-TEST: the delegation hop finds the response's holder and its callee",
+      set(re.findall(_HOLDER.format(owner="qualityTurnoverReadiness"), _DEL_SRC)) == {"qt"}
+      and _REL_IMPORT.findall(_DEL_SRC) == [(" qualityReading ", "./qualityCloseout")],
+      "the hop cannot identify the variable or the import, so it degrades to the file-local rule "
+      "and the blind spot it was added for is still open")
+check("SELF-TEST: …and it looks at NOTHING when the response is not handed anywhere",
+      delegated('const qt = await ctx.host.api.qualityTurnoverReadiness(pid);\n',
+                Path(__file__), "qualityTurnoverReadiness") == "",
+      "the hop widened the search without the response reaching the module, which is how an "
+      "unrelated helper mentioning `skipped` would bless a bare consumer")
+
 check("SELF-TEST: `not_covered` is not a coverage name",
       not COVERAGE_NAME.match("not_covered"),
       "a `not_` prefix rule matched a prose note about a different dimension, which is how this "
@@ -305,6 +462,56 @@ _REPLAY_BARE = ("replay/analyseSection.pre-fix.ts", """
 """)
 _REPLAY_OK = (_REPLAY_BARE[0].replace("pre-fix", "fixed"),
               _REPLAY_BARE[1] + '  if (r.skipped_count) body.appendChild(resultNote("not checked"));\n')
+
+# SHAPE 3's replay, and the most useful thing in this file is what it proves NEGATIVE.
+#
+# This is `operations.ts`'s quality card EXACTLY as it shipped before TURNOVER-UNGATED, not a
+# simplification of it — the first draft of this fixture printed only `ready` and was duly reported
+# BARE, which would have been a proof of reach against a strawman. *A replay is a claim about a
+# moment, and a fixture that is not that moment is a claim about nothing.* The real card read
+# `outstanding_count`, `unrecorded_count` and `coverage_pct`, so the widened rule reports it CLEAN.
+#
+# **So shape 3 did not buy the instance that existed; it bought the next one.** `quality_chain::ready`
+# is now in the population, so a consumer that renders `ready` alone fails here — and the one that
+# shipped would not have, because it printed every number and **gated nothing on them**. Reading a
+# coverage field and acting on it are different things, and this file only ever claimed the first
+# (see "WHAT THIS DOES NOT PROVE"). The acting-on-it half is
+# `apps/web/src/portal/panels/qualityCloseout.test.ts`, which drives the certify decision and fails
+# when the gate is computed and ignored.
+#
+# Asserted as CLEAN rather than deleted, because the bound is the finding: a future reader
+# wondering whether this gate would have caught TURNOVER-UNGATED can run it and see that it would
+# not have.
+_REPLAY_SHAPE3_SHIPPED = ("replay/operations.pre-fix.ts", """
+  void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
+    const qdiv = el("div", "dash-card"); qdiv.style.marginBottom = "8px";
+    const qm = el("div", "meta");
+    qm.textContent = qt.ready
+      ? "Quality evidence exists and is resolved."
+      : `${qt.outstanding_count} outstanding \u00b7 ${qt.unrecorded_count} never inspected \u00b7 coverage ${qt.coverage_pct}%`;
+    qdiv.append(qh, qm);
+    body.insertBefore(qdiv, rdiv.nextSibling);
+  }).catch(() => { /* quality registers may be empty */ });
+""")
+check("the shipped pre-fix quality card reads its coverage, so this gate would NOT have caught it",
+      not bare_consumers([_REPLAY_SHAPE3_SHIPPED]),
+      "the pre-fix card was reported bare, which contradicts the bound stated above — either the "
+      "fixture is no longer what shipped or the vocabulary changed, and the paragraph above is now "
+      "wrong about what shape 3 bought")
+
+# ...and the shape IS reaching `quality_chain::ready`, which is what admitting it bought. Without
+# this the check above passes just as happily when the verdict is invisible to the walk.
+_REPLAY_SHAPE3_BARE = ("replay/operations.verdict-only.ts", """
+  void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
+    const qm = el("div", "meta");
+    qm.textContent = qt.ready ? "Quality evidence exists and is resolved." : "not ready";
+    qdiv.append(qh, qm);
+  }).catch(() => {});
+""")
+check("…while a consumer that renders only the verdict IS reported bare — the reach shape 3 bought",
+      [v for _f, _m, v, _c in bare_consumers([_REPLAY_SHAPE3_BARE])] == ["ready"],
+      "a card rendering `ready` alone was not reported, so shape 3 or the `unrecorded` vocabulary "
+      "is not reaching `quality_chain::ready` and admitting them bought nothing at all")
 
 _FOUND = bare_consumers([_REPLAY_BARE])
 check("the replay finds the pre-fix consumer it was written from",

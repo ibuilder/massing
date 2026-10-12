@@ -6333,6 +6333,70 @@ into a variable rather than written inline. *The identity of a sink is the bindi
 does not move when the value does.*
 
 
+### VERDICT-SHAPE3 — the eighteenth gate's third blind spot, and the one that measured at ONE *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane C**; `services/api/test_verdict_coverage.py`)*
+
+`test_verdict_coverage.py` asks whether a screen reading a verdict about a SUBSET also reads what the
+engine could not evaluate. TURNOVER-UNGATED found the **eighth** instance of that class by hand while
+the gate reported a clean tree:
+
+```python
+"ready": not blocking and not silent and c["any_attached"]      # quality_chain.turnover_readiness
+```
+
+A presence guard where the rule expects `bool(<name>)`. The file already recorded **two** measured
+blind spots and the reasons it had declined to close them, so the question was not *does this fit* but
+*what would admitting it cost* — and the answer is the whole item: dict values tree-wide with ≥1
+negated operand, ≥1 plain truthiness operand and no `Compare`/`Call` operand number **exactly one**,
+the instance itself. No exemptions, no noise, and the `Compare`/`Call` refusal is what keeps it from
+drifting into shape 2, which still measures at 16 and still stays out.
+*Widening a rule because an instance measured at ONE is not the same act as widening it because an
+instance exists.*
+
+## The vocabulary was measured too, and three correct words were refused
+
+| candidate | sites | admitted? |
+|---|---|---|
+| `unrecorded` | 4 | **yes** — "un-" + "recorded" can only mean no record exists, and shape 3 needs it |
+| `unverified` | 1 (`quality_chain.unverified_hold_points`) | no — an unverified hold point is an **open finding**, evaluated and not signed off. This is lesson 3 again: `not_covered` was refused for being about a different dimension |
+| `unassessed` · `unanchored` · `unreachable` | 3 · 2 · 3 | no |
+
+The last three are *correct senses of "not evaluated"* and were still left out, because of which
+direction this vocabulary points: it widens what COUNTS AS coverage for a consumer, so **every entry
+makes the consumer check easier to satisfy.** An entry no verdict needs loosens the rule for nothing.
+
+## A fourth blind spot, in the consumer rule rather than the shape
+
+The consumer rule was file-local, and that broke the moment a consumer did what this repository's line
+ratchet pushes every panel to do: **extract the reading into its own module.** The first instance was
+TURNOVER-UNGATED's own fix — `operations.ts` awaits the response and hands it to `qualityReading(qt)`
+in `./qualityCloseout`, which reads four coverage fields. File-locally that is a bare consumer.
+
+The hop is one level, through a **relative** import only, and only to a module whose imported binding
+is called with the variable holding **that owner's** response — so an unrelated helper that happens to
+mention `skipped` cannot bless anything. It only ever adds text to search, so it cannot red a passing
+tree; with zero bare consumers today it hides no present defect, and the frozen replays have no
+imports at all.
+
+## The most useful thing in the change is what the replay proves NEGATIVE
+
+The first draft of the shape-3 replay printed only `ready` and was duly reported bare — a proof of
+reach **against a strawman**. The card that actually shipped read `outstanding_count`,
+`unrecorded_count` AND `coverage_pct`, so the widened rule reports it **clean**. *A replay is a claim
+about a moment, and a fixture that is not that moment is a claim about nothing.*
+
+So shape 3 did not buy the instance that existed; **it bought the next one** — and that bound is now
+asserted in the file, as a check that passes, rather than left for a future reader to assume the other
+way. The consumer that shipped printed every number and **gated nothing on them**: reading a coverage
+field and acting on it are different things, and this gate only ever claimed the first. The acting-on-it
+half is `apps/web/src/portal/panels/qualityCloseout.test.ts`, which drives the certify decision and
+fails when the gate is computed and ignored.
+
+Four mutations red: shape 3 withdrawn, the `unrecorded` entry withdrawn, the delegation hop withdrawn,
+and shape 3 relaxed to need no negation at all.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
@@ -6510,7 +6574,7 @@ four phantom entries — one of them a bare `SCALE-SEAM` with its `㉘` silently
 exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates caught all four.)*
 
 * **Not R39-DECOMP-VIEWER ③.** It ranked second last time on a size-ceiling argument that had
-  already gone false. `app.ts` is decomposing steadily (5,064 → 2,442, slices still landing), the ratchet
+  already gone false. `app.ts` is decomposing steadily (5,064 → 2,410, slices still landing), the ratchet
   is pinned, and it moves on its own whenever a feature pushes it. It does not need a sprint; it
   needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
   is the specific error row 2 made.
@@ -9106,7 +9170,7 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
 
-- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,442, a 52% cut. The `builders`
+- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **`app.ts` is 5,064 → 2,410, a 53% cut. The `builders`
   map is entirely gone.** Slice count deliberately not restated here: `services/api/test_file_sizes.py`
   is the record, and a count repeated in prose is a copy that drifts — this header said "seven slices"
   while the list immediately below it named eleven. The paragraph below saying the extraction "is NOT begun"
@@ -9121,7 +9185,7 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
   ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981 ·
   ⑫ **envelope & free-form geometry (75, v0.3.982)** · ⑬ **model federation & version compare
-  (88, v0.3.1043)**. `app.ts` 5,064 → **2,442**, a **52% cut**.
+  (88, v0.3.1043)**. `app.ts` 5,064 → **2,410**, a **53% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
 
