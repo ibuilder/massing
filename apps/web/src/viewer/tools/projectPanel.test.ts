@@ -66,6 +66,13 @@ function makeDeps(over: Partial<ProjectPanelDeps> = {}) {
     // still render the four name-based group modes — a spatial-tree fetch that can take the model
     // browser down with it would be a regression paid for by every existing project.
     spatialTree: vi.fn(async () => { throw new Error("422 index predates the spatial tree"); }),
+    // ELEMENTS-SILENT. A CURRENT index of exactly the two elements the fetch returns, so the
+    // default fixture renders no note at all — the ordinary case must stay silent, and a fixture
+    // that permanently showed a banner would hide a regression in `worthShowing`.
+    elementsFreshness: vi.fn(async () => ({
+      indexed_elements: ELEMENTS.length, stale: false,
+      built_from_source: true, model_reachable: true, hint: null,
+    })),
   } as unknown as ApiClient;
 
   const deps: ProjectPanelDeps = {
@@ -169,5 +176,77 @@ describe("app.ts hands over the ref itself, not a copy of it", () => {
     expect(call, "a spread ref compiles and silently drops every write")
       .not.toMatch(/spatialElements:\s*\{\s*\.\.\.[a-zA-Z]/);
     expect(call).toMatch(/discipline:\s*disciplineRef/);
+  });
+});
+
+/**
+ * ELEMENTS-SILENT — the index note, and the regression that writing it caused.
+ *
+ * The panel annotates its element list with `/elements/freshness`: whether the index still matches
+ * the model, and whether `limit: 5000` capped it. `/elements` returns a bare array with no total, so
+ * that route carries the only denominator in the API.
+ *
+ * **The first draft of this took the whole panel down**, and the test that caught it is the colour
+ * mode one above, which is about something else entirely. Both calls sat in one `Promise.all` inside
+ * the `try` that decides `noModel`, and a client without the method threw *synchronously* — so a
+ * TypeError about an annotation was caught by the branch that means "this project has no model", and
+ * the browser rendered the empty state over a model that was right there. The fetch is now started
+ * outside that `try`, through a `Promise.resolve().then(...)` so a synchronous throw is a rejection
+ * too. *A failure in the thing that describes the answer must not be able to replace the answer.*
+ */
+describe("the index note", () => {
+  it("renders nothing when the index is current and nothing was capped", async () => {
+    const { deps } = makeDeps();
+    await buildProjectPanels(deps);
+    const panel = document.getElementById("panel-tree")!;
+    expect(panel.textContent).not.toContain("capped");
+    expect(panel.textContent).not.toContain("older version");
+  });
+
+  it("names both numbers when the page is capped", async () => {
+    const { deps, api } = makeDeps();
+    (api.elementsFreshness as ReturnType<typeof vi.fn>).mockResolvedValue({
+      indexed_elements: 12000, stale: false,
+      built_from_source: true, model_reachable: true, hint: null,
+    });
+    await buildProjectPanels(deps);
+    const text = document.getElementById("panel-tree")!.textContent!;
+    expect(text).toContain("12000");
+    expect(text).toContain("spatial selection");
+  });
+
+  it("says a stale index is stale, above the tree", async () => {
+    const { deps, api } = makeDeps();
+    (api.elementsFreshness as ReturnType<typeof vi.fn>).mockResolvedValue({
+      indexed_elements: 2, stale: true, built_from_source: true,
+      model_reachable: true, hint: "republish to rebuild the index from the current model",
+    });
+    await buildProjectPanels(deps);
+    const text = document.getElementById("panel-tree")!.textContent!;
+    expect(text).toContain("older version of the model");
+    expect(text).toContain("republish");
+  });
+
+  it("still renders the tree when the freshness call REJECTS", async () => {
+    const { deps, api } = makeDeps();
+    (api.elementsFreshness as ReturnType<typeof vi.fn>)
+      .mockRejectedValue(new Error("404 no properties index for project"));
+    await buildProjectPanels(deps);
+    const panel = document.getElementById("panel-tree")!;
+    expect(panel.textContent, "a missing annotation must not become a missing panel")
+      .not.toContain("No model in this project yet");
+    expect(panel.querySelectorAll(".tree-node, .tree-row, button").length).toBeGreaterThan(0);
+  });
+
+  it("still renders the tree when the client has NO SUCH METHOD — the shipped regression", async () => {
+    // Not a hypothetical: this is exactly what the first draft did, and it was indistinguishable
+    // from a project with no model. A synchronous TypeError, not a rejection, which is why
+    // `.catch()` alone was not enough.
+    const { deps, api } = makeDeps();
+    delete (api as unknown as Record<string, unknown>).elementsFreshness;
+    await buildProjectPanels(deps);
+    const panel = document.getElementById("panel-tree")!;
+    expect(panel.textContent).not.toContain("No model in this project yet");
+    expect(panel.textContent).not.toContain("published with no elements");
   });
 });

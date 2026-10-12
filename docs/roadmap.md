@@ -5926,6 +5926,81 @@ next declaration lands above that declaration's comment, not above the declarati
 cousin of the line-based import edit that landed inside a multi-line `import` block earlier on this
 branch.
 
+### ELEMENTS-SILENT — the project browser was stale and truncated at once, and reported neither *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane C**; `services/api/test_elements_freshness.py`, `apps/web/src/viewer/tools/indexCoverage.test.ts`)*
+
+**`/projects/{pid}/elements/freshness` was the starkest entry in `services/api/test_route_reachability.py`'s
+frozen set: a route whose own docstring names the silent wrong answer it exists to prevent, left
+dark while the screen did exactly the quiet thing.** Its words, not a paraphrase: *"Authoring edits
+move the IFC and leave the snapshot behind until the next publish, so `/elements` can return a
+fraction of what the takeoff sees — and used to do it in complete silence… What it must do is **say
+so**, so a browser can show '5 elements added since this list was built — republish to see them'
+instead of quietly looking like a smaller building."* Neither live `/elements` caller asked anything
+of the kind. *A route written to prevent a silent failure, left unreached, is that failure with the
+fix already paid for.*
+
+## The second defect is this session's recurring class in its purest form
+
+`apps/web/src/viewer/tools/projectPanel.ts` calls `api.elements(projectId, { limit: 5000 })`, and
+`/elements` breaks at `if len(out) >= limit: break` and returns a **bare array**. So a 12,000-element
+model yields exactly 5,000 rows and the response carries **no field that could say otherwise** —
+TRUNC-COUNTED's class with the number removed entirely: *there is nothing to misread, because there
+is nothing.* And the same list feeds A29-SPATIAL-SELECT (`spatialElements.value = elements.map(…)`),
+so spatial selection was silently operating on whatever subset the page turned out to be.
+
+`indexed_elements` from the freshness route closes it **without a breaking change**, because it is
+the index's full size — the right denominator for an *unfiltered* page and the wrong one for a
+filtered page, which `indexCoverage.ts` is handed as a flag rather than left to infer. The
+no-filter-parameter pin in the gate is what keeps that true: adding `?ifc_class=` to the freshness
+route would turn `indexed_elements` into a filtered count and make the browser's comparison silently
+wrong with nothing going red.
+
+## Staleness is answered BEFORE truncation, and that ordering is the assertion
+
+They are not the same question and the stale one is worse. A truncated page of a current index is a
+paging problem the reader can solve by narrowing; a stale index is **a different building**, and
+"filter to see the rest" is advice about the wrong problem — the rest is not there either. A model
+that is both at once must therefore read stale, which is mutation-proved rather than asserted.
+
+**Three freshness states, not two.** `stale` is `true | false | null` and the route is explicit that
+*"Unknown and current are different claims and this endpoint refuses to conflate them."* A consumer
+folding `null` into "fine" would report a snapshot of unknown age as current — the original defect
+wearing the fix's label. Worse, the shape that makes it invisible is `shown === indexed_elements`,
+which is exactly what a complete answer looks like and means nothing when nobody could check.
+
+**And the two reasons for `null` are different advice.** No reachable source model says *go find the
+file*; an index that predates fingerprint stamping says *republish*. `built_from_source` and
+`model_reachable` are the only things separating them, so **collapsing those two booleans would have
+broken no test of this route** while making the screen give the wrong instruction to half its cases.
+That is the second mutation in the gate: a payload whose `stale` is entirely correct and whose
+reasons are folded into one flag.
+
+## What the two gates each own, because one file asserting both ends up asserting neither
+
+`services/api/test_index_freshness.py` already existed and already held the three-state **formula** —
+and held it as a local function with **nothing tying it to the route**. The endpoint could have been
+rewritten to fold unknown into current and every check in that file would still have printed PASS,
+because none of them ever reached it. *A replay with no pin is a claim about the copy.* The pin now
+lives there, beside the copy it holds, and the new gate drives the **real route function** over all
+four input combinations and asserts the rest of the payload the screen reads: both unknown reasons
+separately, `hint` absent on a current index (a republish instruction on a fresh project is a false
+alarm the browser would render), and `indexed_elements` as the whole index.
+
+Three client mutations and one server mutation, all red: the filtered guard removed (a filtered view
+reads as truncated, and a banner on every filtered view is how a banner stops being read), staleness
+no longer answered first, `null` folded into current, and the conflating `stale = built_from !=
+current` applied to the shipped route — which reds the behavioural arm **independently** of the
+static pin, measured by deleting one and then the other.
+
+**One pin had to be rewritten because it matched my own prose.** The ordering check — that the note
+renders above the empty state, since *"this model published with no elements"* and *"this index
+predates the model"* are different claims and an index of 0 built from an older model is both —
+first searched for the words `published with no elements`, and found them in the **comment** I had
+written four lines above the block. It matches the string literal now, quotes included. *A pin keyed
+on words matches every mention of them, the explanation of the pin included.*
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

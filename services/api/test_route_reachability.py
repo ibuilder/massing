@@ -344,7 +344,16 @@ KNOWN_UNCALLED: set[str] = {
     # distance. Its `/egress/plan.svg` sibling left the blind-spot list below in the same change,
     # and that is the point: they were in two different lists, so each half of one life-safety
     # capability read as somebody else's gap. *Neither list can see the other's half.*
-    "/projects/{pid}/elements/freshness",
+    # `/projects/{pid}/elements/freshness` left this set 2026-10-12 — ELEMENTS-SILENT. It was the
+    # starkest entry in this list: a route whose own docstring states the silent wrong answer it
+    # exists to prevent — *"a browser can show '5 elements added since this list was built —
+    # republish to see them' instead of quietly looking like a smaller building"* — sitting here
+    # unreached while the project browser did exactly the quiet thing. `projectPanel.ts` now reads
+    # it beside its own `/elements` call, which is also the only way that panel can tell a whole
+    # model from the first 5,000 rows of one: `/elements` breaks at its limit and returns a bare
+    # array with no total, so `indexed_elements` is the only denominator in the API.
+    # *A route written to prevent a silent failure, left dark, is that failure with the fix already
+    # paid for.* See `services/api/test_elements_freshness.py`.
     "/projects/{pid}/market/exists",
     "/projects/{pid}/model/ensure",
     "/projects/{pid}/model/options/{slug}/activate",

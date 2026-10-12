@@ -29,6 +29,22 @@ def staleness(built_from, current):
     return None if (not built_from or not current) else (built_from != current)
 
 
+# ...and PINNED to the line it copies, added 2026-10-12 (ELEMENTS-SILENT). Everything below this
+# point asserted a local function that merely looked like the route. A replay with nothing holding
+# it to its subject is a claim about the copy: the route could have been rewritten to fold unknown
+# into current and every check here would still have printed PASS, because none of them ever reached
+# it. The behavioural half — the real function, over both unknown REASONS and the rest of the
+# payload the project browser reads — is `services/api/test_elements_freshness.py`.
+import inspect  # noqa: E402
+
+from aec_api.routers import properties as _props  # noqa: E402
+
+check("the replayed formula is the line the route actually ships",
+      "stale = None if (not built_from or not current) else (built_from != current)"
+      in inspect.getsource(_props.elements_freshness),
+      "otherwise every check below is about this file, not about the endpoint")
+
+
 check("same fingerprint means current", staleness("k1", "k1") is False)
 check("different fingerprint means BEHIND", staleness("k1", "k2") is True)
 check("no stamp on the index is UNKNOWN, not current", staleness(None, "k2") is None,

@@ -5,6 +5,7 @@ import { LayerManager } from "../../tools/layers";
 import { askText } from "../../ui/prompt";
 import type { ModelIdMap } from "../modelIds";
 import type { SpatialElement } from "../spatialSelect";
+import type { ElementsFreshness } from "../../api/elements";
 
 /** Same one-liner `app.ts` uses; a module-level helper there, kept local here. */
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -79,13 +80,33 @@ export async function buildProjectPanels(d: ProjectPanelDeps): Promise<void> {
     // elements are layered on only if they arrive.
     let elements: ElementProps[] = [];
     let noModel = false;
+    // ELEMENTS-SILENT. `/elements` returns a bare array and breaks at `limit` with no total
+    // anywhere in the response, so this panel could not tell a whole model from the first 5,000
+    // elements of one — and could not tell either from an index built before the last authoring
+    // edit. `indexed_elements` answers both, and it is the RIGHT denominator here only because
+    // this call is unfiltered; `indexReading` is handed that fact rather than inferring it.
+    //
+    // Started here so it overlaps the element fetch — making the tree wait a second round trip for
+    // an annotation is how the annotation gets removed later — but deliberately OUTSIDE the `try`
+    // below, and wrapped so that even a SYNCHRONOUS throw becomes a rejection this `.catch` can
+    // absorb. The first draft put both calls in a `Promise.all` inside that `try`, and **a client
+    // with no such method took the whole panel down**: the TypeError landed in the catch that
+    // decides `noModel`, so "I could not annotate this list" rendered as "this project has no
+    // model" — four lines under a comment of mine promising a missing answer would not become a
+    // missing panel. *An annotation must not be able to answer a question it was not asked.*
+    const freshP = Promise.resolve()
+      .then(() => api.elementsFreshness(projectId))
+      .catch(() => null);
     try {
       elements = await api.elements(projectId, { limit: 5000 });
-      // A29-SPATIAL-SELECT reads containment from this same list — one fetch, one truth.
+      // A29-SPATIAL-SELECT reads containment from this same list — one fetch, one truth. Which is
+      // also why the truncation note matters here and not only for the visible tree: spatial
+      // selection silently operates on whatever subset this list turned out to be.
       spatialElements.value = elements.map((e) => ({ guid: e.guid, storey: e.storey }));
     } catch {
       noModel = true;
     }
+    const fresh: ElementsFreshness | null = await freshP;
     const treePanel = $("panel-tree");
     treePanel.innerHTML = "";
     // UX-4 Project-Browser spine: a Views · Sheets · Schedules nav strip above the spatial/element tree,
@@ -111,6 +132,18 @@ export async function buildProjectPanels(d: ProjectPanelDeps): Promise<void> {
     treeHead.className = "section-title"; treeHead.textContent = "Model";
     treeHead.style.cssText = "padding:0 6px";
     treePanel.append(spine, treeHead);
+    // Above the tree, and above the EMPTY state too: "this model published with no elements" and
+    // "this index was built before the model moved" are different sentences, and the empty branch
+    // can only say the first one. `renderIndexNote` returns null for the ordinary case, which keeps
+    // the banner meaning something — one rendered for every healthy project would be trained out.
+    //
+    // Dynamically imported, and the note's DOM is built inside that module rather than here:
+    // `viewer/tools/*` is the eager `app-*` chunk and the shell is at its budget.
+    if (fresh) {
+      const { renderIndexNote } = await import("./indexCoverage");
+      const note = renderIndexNote(fresh, elements.length);
+      if (note) treePanel.appendChild(note);
+    }
     if (noModel || !elements.length) {
       // Name the state and give it the two things that resolve it. Without this the panel is blank
       // and a reader cannot tell an empty project from a failed load.
