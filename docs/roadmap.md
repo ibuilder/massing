@@ -4958,6 +4958,76 @@ authored"** in words rather than a dash in a percentage column, and isolate butt
 which ask for different work — a fail wants a wider tray, an uncomputed tray wants its cables
 authored.
 
+### MACRO-DARK — RECIPE-MACROS shipped complete, with an optimistic lock and a preview endpoint, and had no button *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane E**; the work is one new file plus one line in `apps/web/src/viewer/tools/authoringSection.ts`,
+and the declaration it needed is Lane I's `apps/web/src/api/authoring.ts`;
+`apps/web/src/viewer/tools/macroTool.test.ts`)*
+
+**A macro is a saved, parameterized CHAIN of authoring recipes that applies as one GUID-stable
+version** — one entry in the edit history, so it undoes as a single step.
+`services/api/src/aec_api/macros.py` validates every step's recipe name against the edit engine's
+registry before storing, caps what one save can park, ships a starter bay (two columns + a beam),
+and exposes `expand()` as a **pure, model-free preview** whose docstring states its purpose: *"so a
+client can preview/validate before it ever touches the model"*. Four routes. **All four client
+methods were frozen in `apps/web/src/api/clientCallers.test.ts` as called by nothing** — the reuse
+multiplier the whole edit-recipe spine was built for, with no door. Its own module docstring says
+the starter set is *"offered by the UI as templates"*, and no UI existed to offer it.
+
+**Found by finishing TRAY-UNCOMPUTED's derivation rather than by a new one.** That item measured 5
+of 674 typed `this.json<…>` calls erasing their shape, fixed the one with a live defect, and left
+`authoring.runMacro` and `mep.mepSize` as declarations to tighten. Tightening the first is what
+surfaced this: a method with no caller has no shape to get wrong, so the erasure was a symptom of
+the absence and not an independent finding. *A sweep that stops at the defect it was looking for
+leaves the rest of its own population as a to-do nobody holds.* (`mepSize` stays erased **on
+measurement**: that one route dispatches five engine functions returning five different flat dicts,
+and its consumer renders `Object.entries` generically, so `Record<string, unknown>` is the honest
+type there rather than a missing one. The declaration a union would need has no reader.)
+
+**Three things the door had to get right, and each is where it would have gone wrong.**
+
+**① The starter set is not a saved library.** `GET /macros` falls back to `STARTER_MACROS` and says
+so in `seeded`. A screen listing the fallback without naming it tells a firm their standards are
+captured when nothing has been saved — the empty-versus-absent confusion this branch has now
+corrected repeatedly, and the API already carried the field that distinguishes them.
+
+**② Argument TYPE is load-bearing, and only the declaration can supply it.** `_subst` preserves the
+raw type when a param value is exactly `"${name}"`, so the starter bay's `"point": ["${x0}",
+"${y}"]` needs **numbers** — `askText` returns a string, and sending `"6"` hands a recipe a string
+where it wants a coordinate. Every value is coerced against the declared `default`'s type and
+**never guessed from the text**, because the same "looks numeric" rule that correctly types a
+coordinate turns the storey name `"2"` into the number 2. A param with no typed default therefore
+goes as typed; `EditMacroParam` has no type field, so that limit is real and stated rather than
+papered over. **Refusing an unparseable number is not defensive**: `JSON.stringify({x: NaN})` emits
+`{"x":null}`, so without the check the engine receives a supplied `null` instead of an error.
+
+**③ A blank answer OMITS the key.** The server's `expand()` fills omitted params from their
+declarations, so defaulting on the client would be a second answer to one question.
+
+**And the lock nobody was passing.** The run route honours the COLLAB-1 optimistic lock via
+`base_source` and refuses a stale edit with **409** — but only if the caller sends it, and **no
+caller in this app ever did**, `editGraph`'s one call site included. The signature is
+`collabSnapshot().model.source`, a declared field whose only reader took `.model.version` beside it.
+This run passes it; when the snapshot cannot be read the run proceeds and **says the lock was not
+applied**, because dropping a guard quietly is how it stops being one.
+
+**The preview is the feature, not a courtesy.** Nothing is applied until the expanded steps have
+been rendered and a second button pressed, and the steps are shown **as JSON on purpose**: quoting
+is how a mistyped argument becomes visible, `["6", 0]` against `[6, 0]`, and no prose caveat
+substitutes for seeing it. The apply reuses the args it previewed rather than re-collecting them —
+mutated, because a re-collection would silently preview one thing and apply another.
+
+Fourteen mutations. **Thirteen red and the fourteenth ALIVE, which is the finding here**: deleting
+the append so the button is built and never rendered changed nothing. `sectionButtonsWired.test.ts`
+exists for exactly that failure and derives its population from two shapes — `export interface
+*Buttons`, and `export function <name>Button(` whose call must sit inside an `append`. The first
+draft was `buildMacroTool`, assigned to a local and appended: **a third spelling, outside both
+populations.** It is `macroButton`, inlined into the append, and N14 now reds. *A gate that derives
+its population still only sees the conventions it derives from, so the cheap move is to conform to
+one rather than widen it — and the way to find out which you did is to mutate.* `saveMacros` stays
+frozen as uncalled: a macro **editor** is separate work, and claiming it because its three siblings
+found callers is how an entry goes stale in the flattering direction.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

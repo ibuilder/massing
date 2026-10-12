@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { type ApiClient } from "../../api/client";
 import { escapeHtml } from "../../ui/feedback";
 import { openNodeCanvas } from "../nodeCanvas";
+import { macroButton } from "./macroTool";
 import { describePlan, planApply, type ApplyPlan, type LockVariable } from "../dimLocks";
 
 /**
@@ -151,7 +152,17 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
         });
         nodeBtn.dataset.cap = "edit";
         nodeBtn.title = "Drag recipe nodes, wire outputs → inputs, and run the graph as one GUID-stable authoring pass";
-        b.append(fix, pub, furnish, nodeBtn, locksBtn(d, out), out);
+        // MACRO-DARK: the SAVED form of the same idea, one line below the ad-hoc one. The node canvas
+        // composes a chain you draw now; a macro runs a chain somebody already captured and
+        // parameterized. Both land as one GUID-stable version through the same engine; only the
+        // second had no door. Here rather than in its own section for the reason the comment below
+        // gives for the locks editor: `app.ts` is at its size pin and a new builder needs a line there.
+        // Inlined into the append, like `locksBtn` below it: `sectionButtonsWired.test.ts` asks of
+        // an exported `*Button()` builder that its CALL sit inside an append, because a button held
+        // in a local and never appended is the silent-inert failure that gate is named for.
+        b.append(fix, pub, furnish, nodeBtn,
+                 macroButton({ toolBtn2, api, pid, notify, waitForPublish, loadProjectModel }),
+                 locksBtn(d, out), out);
 }
 
 /**

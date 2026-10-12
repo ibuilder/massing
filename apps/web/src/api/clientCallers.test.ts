@@ -302,8 +302,13 @@ const UNCALLED: readonly string[] = [
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
   "energyModel", "equipmentSpecCheck",
-  "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
-  "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
+  // `listMacros`, `expandMacro` and `runMacro` left this list 2026-10-12 — MACRO-DARK:
+  // `viewer/tools/macroTool.ts` is the door onto RECIPE-MACROS, which shipped complete and
+  // reachable by nothing. `saveMacros` STAYS: a macro EDITOR is a separate piece of work, and
+  // claiming it here because its three siblings found callers is how an entry goes stale in the
+  // flattering direction.
+  "feasibilityLotSupply", "feasibilitySellout", "holdSell",
+  "importFamilyPack", "layoutVerify", "listingReso",
     // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
   "liveStream", "massingOptionRecipes", "mcpTools",
   "modelAdjacency", "moduleCalc", "myWork",
@@ -318,7 +323,7 @@ const UNCALLED: readonly string[] = [
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
   "reviewPost",
-  "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
+  "reviewScenario", "reviseDrawing", "runClash", "saveClausePlaybook",
   "saveMacros", "saveViewTemplates",
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",

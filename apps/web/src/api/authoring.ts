@@ -353,9 +353,21 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
         `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
     }
-    /** runMacro — run a saved recipe chain as one GUID-stable version. */
+    /** runMacro — run a saved recipe chain as one GUID-stable version.
+     *
+     *  Declared rather than erased (it was `Record<string, unknown>`, which is what kept `mepTrayFill`'s
+     *  defect out of reach of every declaration-derived audit here). `changed` stays `unknown` and that
+     *  is a different thing: five recipes answer five shapes — a count, a GUID, a list — so `unknown`
+     *  is the honest type for that one field rather than the absence of a type for all of them.
+     *
+     *  `baseSource` is the COLLAB-1 optimistic lock: the model signature this client loaded, from
+     *  `collabSnapshot().model.source`. Pass it and the route refuses a stale edit with 409 instead of
+     *  overwriting another editor's publish — a guard that does nothing unless the caller opts in. */
     runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
-      return this.json<Record<string, unknown>>(
+      return this.json<{
+        steps: { recipe: string; changed: unknown }[]; step_count: number; out: string;
+        macro: string; publish?: string;
+      }>(
         `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
         { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
     }
