@@ -11,7 +11,28 @@ const DIST_ROOT = join(process.cwd(), "dist");
 const DIST = join(DIST_ROOT, "assets");
 // Budget in KB (Brotli). Set generously above the current shell so it catches regressions, not noise.
 // Bump this deliberately (with a note) when the shell legitimately grows.
-const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 220);
+//
+// 220 -> 224 on 2026-10-12, and the measurement is the point. The shell hit **220.4 KB** and the
+// budget had never moved since it was written, so "generously above the current shell" had quietly
+// become a ceiling the shell was touching — the next change to land anywhere eager was going to pay
+// for everyone's growth. CODE-READY-DARK tipped it: `Web typecheck + test + build` was green through
+// b57490e7 and red on the next push, whose only bundle-affecting commit was that one.
+//
+// WHAT IT COST, measured per feature rather than assumed, by grepping the built chunks for a string
+// only each module emits:
+//
+//   viewer/tools/*            -> app-*.js        EAGER SHELL   (macroTool, codeReadiness, mepSection)
+//   portal/panels/*           -> jurisdictionPanel-*.js  lazy
+//   reportCenter + its helpers-> reportCenter-*.js        lazy
+//
+// So of four features shipped that day, two cost shell bytes and two cost none, and nothing told
+// anybody which — a tool added to the viewer rail is downloaded by every first-time visitor before
+// anything is interactive, while the same amount of code in a portal panel is not. **That asymmetry
+// is the useful finding here, not the number.** The honest alternative to this bump is to lazy-load
+// a tool's body behind its click, which is the right shape and is a pattern no tool in that
+// directory uses today (measured: zero `await import(` under `viewer/tools/`); applying it to two
+// of some forty tools would buy 0.4 KB and leave an inconsistency for the next reader to explain.
+const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 224);
 
 // The eager shell = exactly what index.html loads up front: the entry chunk + its CSS, plus the split
 // first-party `app-*` chunk the entry statically imports. Everything else is a lazy chunk that doesn't

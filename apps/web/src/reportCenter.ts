@@ -30,6 +30,7 @@ export function verificationCoverageCard(c: {
 }
 import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
 import { money } from "./ui/charts";
+import { exposureCaveat, veReading, veTargetFromAlignment } from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
@@ -574,9 +575,53 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   tool("✔ Decision log", () => showResult("Decision log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.decisionLog(pid);
-      body.innerHTML = `<div class="meta">${s.decision_count} decisions · ${s.open_count} open · ${s.disputed_count} disputed · cost exposure ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`;
+      // VE-DARK: the exposure is a sum over the open rows that carry a figure, and `open_count`
+      // counts all of them. This register was the one of the three already on screen, so the
+      // subset problem was live here rather than latent.
+      const cv = exposureCaveat(s.open_without_cost_impact, s.open_count, "cost", "open decision");
+      const sv = exposureCaveat(s.open_without_schedule_impact, s.open_count, "schedule",
+                                "open decision");
+      body.innerHTML = `<div class="meta">${s.decision_count} decisions · ${s.open_count} open · ${s.disputed_count} disputed · cost exposure ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`
+        + (cv ? `<div class="meta">⚠ ${escapeHtml(cv)}</div>` : "")
+        + (sv ? `<div class="meta">⚠ ${escapeHtml(sv)}</div>` : "");
       table(body, ["Decision", "Category", "Alignment", "State", "Cost"], s.rows.map((r: any) => [r.subject ?? "", r.category ?? "", r.alignment ?? "", r.state ?? "", money(r.cost_impact)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  // VE-DARK: both of these had no caller anywhere — frozen in `api/clientCallers.test.ts`. They
+  // are the two money registers a precon team actually argues over, and they sit beside the
+  // decision log because they answer the same question at different stages.
+  tool("✂ Value engineering", () => showResult("Value engineering", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try {
+      // The target is the project's OWN over-budget gap, and the basis travels with it — a VE
+      // target with no stated basis is a number nobody can check.
+      let basis: { target: number | null; basis: string };
+      try { basis = veTargetFromAlignment(await api.preconAlignment(pid)); }
+      catch { basis = { target: null, basis: "the alignment read failed, so no target is claimed" }; }
+      const v = await api.veLog(pid, basis.target ?? undefined);
+      const r = veReading(v, basis.basis);
+      const miss = exposureCaveat(v.rows_without_savings, v.ve_count, "savings", "idea");
+      body.innerHTML = `<div class="meta"><b>${escapeHtml(r.headline)}</b></div>`
+        + `<div class="meta">${escapeHtml(r.detail)}</div>`
+        + (miss ? `<div class="meta">⚠ ${escapeHtml(miss)}</div>` : "");
+      table(body, ["Ref", "Idea", "Status", "Savings"], v.rows.map((x) => [
+        x.ref ?? "", x.subject ?? "", x.status,
+        x.savings_given ? money(x.savings) : "not priced"]));
+    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  tool("❕ Assumptions & clarifications", () => showResult("Assumptions & clarifications", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try {
+      const a = await api.assumptionsRegister(pid);
+      const miss = exposureCaveat(a.open_without_cost_impact, a.open_count, "cost",
+                                  "open assumption");
+      body.innerHTML = `<div class="meta">${a.assumption_count} assumption(s) · ${a.open_count} open · `
+        + `${a.confirmed_count} confirmed · open allowance exposure ${money(a.open_cost_exposure)}</div>`
+        + (miss ? `<div class="meta">⚠ ${escapeHtml(miss)}</div>` : "");
+      table(body, ["Ref", "Assumption", "Category", "State", "Owner", "Cost impact"], a.rows.map((x) => [
+        x.ref ?? "", x.subject ?? "", x.category, x.state, x.owner ?? "",
+        x.cost_impact_given ? money(x.cost_impact) : "no figure"]));
+    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("Σ Estimate continuity (preconstruction)", () => showResult("Estimate continuity", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;

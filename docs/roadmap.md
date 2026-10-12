@@ -5133,6 +5133,75 @@ counting it as either would have been wrong.*
 Neither number is a code finding and the result says so: the route answers whether the model
 **carries** the data a plan review needs, not whether the building complies.
 
+### VE-DARK — the three preconstruction money registers, and what their totals leave out *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane B** for the readings and the render, **Lane C** for the engine counts;
+`apps/web/src/preconReadings.test.ts`, `services/api/test_precon.py`)*
+
+**One defect in three registers, and it was a live bug in one of them.** `decisions`, `assumptions`
+and `value_engineering` each sum a money field out of free-form record data through
+`services/api/src/aec_api/precon.py`'s `_num`, which **returns `0.0` for anything it cannot parse**.
+A row recorded with no figure is therefore counted in `open_count` or `ve_count`, contributes
+nothing to the money printed beside it, and nothing in the response said so. `decisionLog` was
+**already on screen** in `apps/web/src/reportCenter.ts` printing `open_cost_exposure`, so there the
+subset problem was shipped; `assumptionsRegister` and `veLog` had no caller at all (frozen in
+`apps/web/src/api/clientCallers.test.ts`), so for those it was a constraint on work not yet done.
+*The same shape was a bug in the register that had a screen and a design question in the two that
+did not.*
+
+**The sharpest instance is a verdict.** `ve_log` answers `target_met: accepted_savings >= target`,
+and an accepted idea with no savings figure adds 0 — so a `false` can mean *nobody recorded the
+numbers* rather than *the ideas do not close the gap*. **Those two have opposite remedies**: go and
+price the accepted ideas, or go and find more of them. So the unpriced case is answered **before**
+the verdict is read rather than appended as a caveat beside a number somebody has already believed,
+and `accepted_without_savings` is the count that decides it.
+
+**A VE target needs a stated basis**, so it is the project's own over-budget variance from
+`preconAlignment`, and when there is no budget there is **no target** — a gap derived from a missing
+budget is a number nobody can check. The reading says which of the two it is.
+
+**Which "no figure" states are reachable was MEASURED, and one was a surprise.** The module layer
+validates these fields on write and refuses `'TBD'` and whitespace-only with 422, so through the
+register the only ones are a missing field and an empty string — claiming a garbage string as a
+register state would have been a defect nobody can produce. But **a boolean is accepted** (measured:
+201), and `float(True)` is `1.0`, so under `_num` a stray flag in a money column became **one dollar
+of exposure**. `_num_or_none` excludes bools for that reason. The load-bearing distinction
+throughout is **absent versus zero**: a decision whose cost impact is genuinely `0` is a priced
+decision, and counting it as missing one would make the caveat permanent — *a warning that never
+turns off is one nobody reads*.
+
+Seventeen mutations, all red after one repair, five of them against the **engine** — counting a real
+zero as missing, treating a boolean as a dollar again, and dropping each of the three coverage
+counts — because the readings' correctness lives in Python and a change there leaves the TypeScript
+fixtures green. **One was retired rather than closed**, the second time today: "a bare target with no
+basis" first left the `try` that recomputes it in place, so it changed nothing. *A mutation that does
+not change the property under test is mis-stated, not surviving.*
+
+**And a THIRD gate, in CI rather than locally: the bundle budget.** `Web typecheck + test + build`
+was green through CODE-ADOPT-DARK and red on the next push, whose only bundle-affecting commit was
+CODE-READY-DARK — the eager shell hit **220.4 KB** against a 220 KB budget that had never moved since
+it was written, so "generously above the current shell" had become a ceiling the shell was touching.
+Measured per feature by grepping the built chunks for a string only each module emits:
+`viewer/tools/*` lands in the **eager** `app-*` chunk, while `portal/panels/*` and `reportCenter`'s
+helpers land in lazy ones. **So of the four features shipped that day, two cost shell bytes and two
+cost none, and nothing told anybody which** — that asymmetry is the finding, not the number. Bumped
+to 224 KB with the measurement in the script, because the alternative (lazy-loading a tool's body
+behind its click) is the right shape and a pattern **no** tool in that directory uses — zero
+`await import(` under `viewer/tools/`, measured — so applying it to two of some forty would buy
+0.4 KB and leave an inconsistency for the next reader. `npm run budget` is now in the directions'
+web routine: `typecheck && lint && test && build` is **not** the web check CI runs.
+
+**Two of this repo's own gates found real defects in the first draft, and both fixes were the shape
+rather than an exemption.** `apps/web/src/ui/charts.test.ts` refused a local `const money = …`:
+eighteen local currency formatters once disagreed about negatives and ten put the `$` on the wrong
+side of the minus — and `gap_after_accepted` goes **negative** the moment accepted VE exceeds the
+target, so the local copy would have printed `$-50,000`. *A ban with a measurement behind it caught a
+defect in the file written to explain that totals need their exclusions.* And `roadmapLanes.test.ts`
+caught the new files belonging to no lane; **the first draft of that claim wrapped the table cell
+across five lines**, which left the parser seeing **one** lane row and reporting 555 unowned files
+and 17 unassigned items. *A markdown table row is one line, and a parser that has lost the table
+reports a confident catalogue of what it can no longer read.*
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
@@ -5365,7 +5434,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · WS-BTN-DEAD *(a class queried from three remaining places in `main.ts` and rendered by none; one of the loops is how a persona config is meant to hide workspaces, so that hiding does nothing. Here rather than with the stylesheet or the colour contract that also carry the dead class, because the live QUERIES are what keep it looking plausible and they are this lane's file — the same "lanes go by the directory the work touches" correction the Lane E cell below had to make)* · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/preconReadings.ts`, `apps/web/src/preconReadings.test.ts` *(claimed 2026-10-12 by VE-DARK — the readings over the three preconstruction money registers, rendered by `reportCenter.ts` which this cell already owns. The unowned-file ratchet is how it surfaced and a row here is the remedy it names. **A MARKDOWN TABLE ROW IS ONE LINE**: the first draft of this claim wrapped it across five, which left the parser seeing **one** lane row and reporting 555 unowned files and 17 unassigned items — a confident catalogue of a table it could no longer read)*, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |

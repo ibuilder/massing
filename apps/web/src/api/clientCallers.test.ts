@@ -294,7 +294,12 @@ const UNCALLED: readonly string[] = [
   "job",
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
-  "assignMaterialSet", "assumptionsRegister", "attachDocument",
+  "assignMaterialSet", "attachDocument",
+  // `assumptionsRegister` and `veLog` left this list 2026-10-12 — VE-DARK: `reportCenter.ts` now
+  // renders both precon money registers, each with what its total leaves out. `preconSnapshot`
+  // STAYS: it is a POST that creates a milestone snapshot, and wiring a WRITE is a different
+  // question from surfacing a read — the same reason `saveMacros` stayed when its three siblings
+  // found callers hours earlier.
   "citedQuery", "clashFederated", "clausePlaybook",
   // `codeAdoptions` left this list 2026-10-12 — CODE-ADOPT-DARK: the Data Requirements panel now
   // resolves which code editions govern, and which of them are the jurisdiction's own rather than
@@ -335,7 +340,7 @@ const UNCALLED: readonly string[] = [
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",
   "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
-  "topicComments", "updateConnection", "veLog", "verificationDeviations",
+  "topicComments", "updateConnection", "verificationDeviations",
 ];
 
 describe("client methods the application actually calls", () => {

@@ -343,6 +343,25 @@ are structurally out of reach. Note the suite environment is **happy-dom**, wher
 no `file:` scheme — a test that reads source off disk must resolve from `process.cwd()` (which is
 `apps/web`), the way `shell/roadmapLanes.test.ts` does, not via `fileURLToPath`.
 
+### `npm run budget` is part of the web check, and `typecheck && lint && test && build` is not it
+
+The `Web typecheck + test + build` job also runs `npm run budget`, which fails the build when the
+EAGER shell outgrows its brotli budget. Measured 2026-10-12 after that job went red on a change whose
+typecheck, lint, full suite and build were all clean locally: a 0.4 KB overshoot, from one new module
+under `apps/web/src/viewer/tools/`.
+
+**Where a module lands decides whether it costs anything**, and it is not obvious from the source:
+
+```
+cd apps/web && npm run build && npm run budget
+grep -rl "<a string only your module emits>" dist/assets/*.js   # which chunk took it
+```
+
+`viewer/tools/*` lands in the eager `app-*` chunk; `portal/panels/*` and `reportCenter`'s helpers
+land in lazy chunks. So the same amount of code is downloaded by every first-time visitor in one
+place and by nobody in the other. *Four features shipped that day, two cost shell bytes and two cost
+none, and nothing told anybody which.*
+
 ### A web-only change can red a BACKEND gate, and the list is derived not remembered
 
 Many of this repo's gates read the other side of the tree — a frozen route allowlist, a size pin, a
