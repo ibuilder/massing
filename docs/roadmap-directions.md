@@ -369,10 +369,31 @@ print(sorted({p.stem for p in pathlib.Path(".").glob("test_*.py")} - names) or "
 EOF
 ```
 
-And run the suite the way CI does — `PYTHONPATH="src:../data/src" ./.venv/bin/python run_tests.py`
-from `services/api` — at least once before pushing a change that adds a gate or touches an engine.
-The 32-gate derivation in the section below is the complement, not a substitute: it catches a web
-change breaking a Python gate, and it cannot catch a Python gate nobody runs.
+### Run the API gate's BOTH steps, in order, before pushing
+
+`API test gate` is two steps and the first one is the lint:
+
+```
+cd services/api && ./.venv/bin/python -m ruff check ../..          # step 1 — whole tree, from here
+cd services/api && PYTHONPATH="src:../data/src" ./.venv/bin/python run_tests.py   # step 2
+```
+
+**This direction was written naming only step 2, and the very next push failed on step 1.** One
+change set reddened that single check three times, at three different steps: the TESTS manifest
+(a new gate file not registered), `test_money_spine` (a float `round(x/100*amount, 2)` on money),
+and `ruff`'s `I001` (an import block out of order inside a new test). Each fix was correct and each
+was followed by another failure of the same check. *A pre-push checklist that names some of a
+gate's steps is a checklist that teaches you the gate is flaky* — the lint is 0.2 s and it is first
+for a reason.
+
+Note the `ruff` invocation's shape: `ci.yml` runs it **from `services/api`, pointing at `../..`**,
+which is how `test_ruff_scope.py` can read the command out of the workflow and prove it reaches
+every tracked `.py`. Running `ruff check .` from the repo root is a different scope and can pass
+while CI fails.
+
+The 32-gate derivation in the section below is the complement to both, not a substitute: it catches
+a web change breaking a Python gate, and it cannot catch a Python gate nobody runs or a file nobody
+lints.
 
 ### `npm run budget` is part of the web check, and `typecheck && lint && test && build` is not it
 

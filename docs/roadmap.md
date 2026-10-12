@@ -5801,6 +5801,31 @@ handler and only the type import stays (erased, free): 223.6 KB, and the module 
 raised every time it fires is not a ratchet* — and the directions already said where a module lands
 decides whether it costs shell bytes.
 
+## One change set, one check, three red builds — at three different steps
+
+`API test gate` is two steps and I treated it as one. It went red on `9c9ba700`, `42696812` and
+`7b030666` in turn, each time for a different reason and each time after a correct fix for the
+previous one:
+
+| head | step | cause |
+|---|---|---|
+| `9c9ba700` | `run_tests.py`, first check | the TESTS manifest — two new gate files not registered |
+| `42696812` | `run_tests.py`, `test_money_spine` | a float `round(x / 100 * amount, 2)` on money in `wip.py` |
+| `7b030666` | `ruff check ../..` | `I001`, an import block out of order inside a new test |
+
+**Each fix was right and none of them was the problem.** The problem is that the direction added to
+`docs/roadmap-directions.md` after the first failure named only step 2, so step 1 — a 0.2-second lint
+that runs *first* — was still unverified when the second fix went out. *A pre-push checklist that
+names some of a gate's steps is a checklist that teaches you the gate is flaky.* The direction now
+names both, in order, with the exact `ruff` invocation: `ci.yml` runs it **from `services/api`
+pointing at `../..`**, which is a different scope from `ruff check .` at the repo root and can pass
+while CI fails.
+
+The deeper version is the one worth carrying: the gate that introduced all three was
+mutation-checked sixteen ways and run beside 36 neighbours, and **not one of those 36 was the gate
+that failed**, because the derivation was *"gates that read `apps/web`"*. Exhaustively verifying a
+property is not verifying the build.
+
 ## Twelve mutations, two survivors, and both were the same mistake in the pins
 
 Deleting `freshnessReading(cs)` for a literal `{headline: "", detail: "", tone: "", kind: "clean"}`

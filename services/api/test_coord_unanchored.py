@@ -194,8 +194,9 @@ with TestClient(app) as c:
     from aec_api.coordination_fresh import _CLASH_TYPES
     ok(set(_CLASH_TYPES) == {"clash", "coordination"},
        f"the engine's population is exactly those two   {_CLASH_TYPES}")
-    from aec_api.schemas import TopicType
     import typing
+
+    from aec_api.schemas import TopicType
     ok("coordination" not in typing.get_args(TopicType),
        "and the typed route's enum does not contain it, so this is a REAL asymmetry and not a "
        "missing validator — recorded rather than 'fixed' by widening either side, because which "
