@@ -5523,6 +5523,124 @@ for a wrong question returning a confident number; this is the first time the co
 about the TESTS rather than the code, and the only reason it was caught is that the survivor list
 had two entries and the other one turned out to be real.
 
+### EVM-COVERAGE — a front-loading accusation whose guard had a threshold of one record *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane B**; `services/api/test_evm_coverage.py`, `apps/web/src/portal/panels/modelEvReading.test.ts`)*
+
+**TWO SITES, one defect: `evm.model_ev` (a banner) and `wip.model_progress` (earned revenue).**
+
+**`evm.model_ev` compares the schedule's earned value against earned value derived from physically
+installed model elements, and raises `front_loaded_flag`.** The EVM panel rendered that as
+*"⚠ Reported progress is running ahead of physical installation — possible front-loaded SOV"*,
+beside a PDF download button. **That is a fraud allegation against a contractor.**
+
+**The engine had already identified this failure mode and written a guard for it**, in a comment
+reading *"with zero verified elements the model EV is 0 by definition, and flagging 'front-loaded'
+then would falsely accuse an un-surveyed job"*. The guard was `has_field_data = tracked > 0`. So the
+threshold was **one record**: survey a single element of four thousand and `model_percent_complete`
+is at most 0.025%, the divergence is nearly the whole EV, and the flag fires — on how much of the
+building somebody had walked, not on what was reported. *A guard whose threshold is one covers only
+the single case that was already harmless.* And `test_evm.py` asserted exactly that case
+(`has_field_data is False`) and nothing past it: **a test can assert every neighbouring state of a
+property and never the one the property is about.**
+
+**THE REPAIR IS A BOUND, NOT A BIGGER THRESHOLD.** Any coverage percentage would have been invented.
+What is not invented is the ceiling: the most physical progress the evidence could support is
+everything except the elements *known* to deviate, because every undetermined element might turn out
+to be installed. If the schedule's EV sits under that ceiling, the whole gap is explained by what
+nobody has looked at yet and there is no claim to make. At full coverage the ceiling equals the
+measured figure and the flag is unchanged — **so the bound only ever withholds a claim the evidence
+cannot carry, and never suppresses a real one.** That last sentence is the one worth distrusting, so
+the gate asserts it in both directions: the thin-coverage input must not accuse, and a
+fully-surveyed job 60% reported against 10% in place still must.
+
+**`pending` is not evidence.** Coverage is `determined / denominator`, never `tracked / total` — a
+`pending` row is a queued inspection, and counting it would report a job as fully surveyed the moment
+somebody generated an inspection list for it. The mutation setting `determined = tracked` reds.
+
+**The second defect: the denominator swapped silently.** `denom = total or tracked or 1` falls back
+from the model's element count to the surveyed count, so `model_percent_complete` measures a
+different quantity under one field name — eight installed elements read **80%** with no index loaded
+and **0.2%** against a 4,000-element index. Same data, 400× apart, same key. `basis` names it now,
+in the JSON and in the note, because the PDF carries the note and not the JSON.
+
+**And writing the fix produced a third instance of the same class, one layer down.** `coverage_pct`
+is rounded to one decimal, so 1 of 4,000 prints `0.0` — *the identical string an untouched job
+prints*. The gate asserts that collision directly: the thin-coverage job and the never-touched job
+report the same `coverage_pct` and are told apart only by `determined_elements`. So the counts are
+the authority, the note quotes `"1 of 4000"` rather than the percentage alone, and the card's
+headline leads with the counts. *A rounded ratio is a number that can erase its own subject, and the
+fix for an empty-versus-absent defect is a good place to introduce one.*
+
+**The consumer half.** `modelEvReading` answers coverage **before** the verdict, so `front_loaded`
+is unreachable while the survey is thin — not as a presentation choice but so the screen agrees with
+the engine instead of re-deriving the rule. The card's `total_elements > 0` gate also went: it hid
+the one state where the number means something *else* (no index, so the denominator is the surveyed
+set), leaving a user with field data and no model looking at no card and no reason.
+
+## The second site, found after the first, and worse
+
+**`wip.model_progress` has the same gap, and it drives EARNED REVENUE.** `percent_complete` is
+`installed ÷ total` over the whole model, so an element nobody has walked is counted exactly like one
+inspected and found absent — and `wip.schedule(method="units-installed")` multiplies that by the
+contract value to get `earned_revenue`, which drives over/under-billing, which
+`accounting.journal_entries` posts back as the WIP-ADJ revenue-recognition line. *The EVM instance
+raises a banner; this one moves a number in a financial statement.* **The loud one was found first,
+and severity ran the other way** — the same ordering `test_system_columns` recorded.
+
+**The bound here is ASYMMETRIC, and that is the whole design.** Missing coverage can only ever
+*depress* the measured physical percentage, so it biases the comparison in ONE direction:
+`physical-ahead` (physical > cost) cannot be manufactured by a gap — the gap works against it — so it
+keeps the shipped ±10 threshold untouched; `cost-ahead`, which the block's own note calls *"the
+classic front-loaded-billing signal"*, is exactly what a gap fabricates and must now clear the
+ceiling. **Bounding both would have suppressed a real finding in order to fix a false one.** Both
+halves are asserted, and the mutation that bounds both reds.
+
+**`earned_revenue` is deliberately NOT changed, and the reason is a boundary rather than a
+shortcut.** Which end of the band a percentage-of-completion schedule should recognise is a
+revenue-recognition policy question for the project's accountant; an engine picking one would be
+inventing accounting. So the WIP row now carries `earned_revenue_max`, `percent_complete_max` and
+`poc_coverage_partial`, and says in the note which end it recognises and that the choice is a policy
+decision. **What was wrong was never the arithmetic — it was that nothing said a band existed.**
+
+**The quantity-weighted ceiling is quantity-weighted**, because a count-weighted ceiling over a
+quantity-weighted figure is not a bound at all: one unsurveyed 400 m³ pour is a single element and a
+quarter of the concrete. *And the first fixture could not see that* — two elements, no deviation, so
+the count ceiling and the quantity ceiling were both 100% and the mutation passed. The fixture now
+has a deviation on the big pour so the two numbers differ, and asserts that they differ.
+
+**One consumer gained the band for free, and that is an argument for the prose.** The engine's
+`note` was extended as well as its keys, and `viewer/tools/qaSection.ts` renders that note verbatim —
+so it reports the coverage with no change at all, which matters because that file sits one line under
+its size pin. `portal/panels/budget.ts` composes its own line and did not, which is what
+`modelProgressReading` is for; it also stopped keeping its own copy of the "unavailable is not 0%"
+sentence, since two statements of that is how two screens come to disagree.
+
+**Nine mutations, one survivor, and the survivor was the lesson.** Deleting the `detail` line from
+the card left every assertion green, because they all read the headline — and `detail` is where
+*"survey coverage, not disagreement"* lives. `roomTabs.renderLiveRefusal` had already paid for this:
+**a reason carried in the data and not rendered is the defect this branch is about, committed inside
+the fix for it.** Closed with two render assertions. A tenth mutation was retired rather than
+counted: `not.toContain("front-load")` was the wrong assertion all along — the refusal *mentions*
+front-loading in order to decline it, so the test now asserts the refusal rather than the absence of
+a word.
+
+**And three more survivors at the second site, each one the same shape as the first.** The WIP
+engine's note losing its counts, `pending` counting as coverage, and the quantity ceiling left
+count-weighted all passed, because **every one of those distinctions was asserted at the EVM site and
+at neither.** *A lesson held at one of two sites is a lesson not learned* — the two engines shared a
+finding and not a test. Closed with one fixture each. And the budget card's own two survivors
+(dropping the warn tone, dropping the `detail` line) repeated the EVM card's survivor one file over,
+which is why each consumer now carries its own render pin rather than borrowing the other's.
+
+**The mutation harness itself had to be fixed mid-pass.** It counted lines matching `^FAIL`, so a
+mutation that made the gate *crash* scored zero failures and read as a survivor — three were
+mis-scored that way before the harness started reading the exit code. *A test harness is a
+measurement instrument, and this one was answering a question nobody asked.* The gate's own reads
+were then switched from `response["key"]` to `.get("key")` so a deleted field reports a missing value
+instead of dying with a `KeyError` that blames the test: **a red build whose message misdiagnoses is
+worse than one that stays silent, because somebody acts on it.**
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
