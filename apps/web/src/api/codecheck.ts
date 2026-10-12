@@ -66,6 +66,14 @@ export function withCodeCheck<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
 
+  /** CODE-1: the USPS state codes that have a specific adoption seed — everywhere else resolves to
+   *  the national baseline. The route shipped with `codeAdoptions` and had no client method at all,
+   *  which is what made that method's refusal a dead end: "nothing is seeded for WY" reads as a
+   *  claim about Wyoming until you can see the list it is missing from. */
+  codeSeeded() {
+    return this.json<{ jurisdictions: string[] }>(`/codes/seeded`);
+  }
+
   /** CODE-EBC: classify an existing-building scope under the IEBC Work Area Method. `infer` first-guesses
    * the scope from the model's phasing (existing vs new/demolish); explicit flags override the guess. */
   ebcClassify(pid: string, opts: { jurisdiction?: string; infer?: boolean; adds_area?: boolean;

@@ -5028,6 +5028,68 @@ one rather than widen it — and the way to find out which you did is to mutate.
 frozen as uncalled: a macro **editor** is separate work, and claiming it because its three siblings
 found callers is how an entry goes stale in the flattering direction.
 
+### CODE-ADOPT-DARK — which code editions govern here, and which of them are actually this jurisdiction's *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane B**; the work is a new decision module plus a section in
+`apps/web/src/portal/panels/jurisdictionPanel.ts`, and the one client method it needed is Lane I's
+`apps/web/src/api/codecheck.ts`; `apps/web/src/portal/panels/codeAdoption.test.ts`)*
+
+**`/codes/adoptions` resolves a jurisdiction to its adopted code editions and had no client caller.**
+Picked from `apps/web/src/api/clientCallers.test.ts`'s frozen UNCALLED list, which is a maintained
+ranking of server capability with no door — the same list MACRO-DARK came off an hour earlier. This
+is the first question the master-builder order asks (*which code governs, and who enforces it*) and
+the one the product's own skill file warns about: *never let a jurisdiction-specific answer
+masquerade as a universal one.*
+
+**The engine is scrupulous and the flag it is easiest to read is the wrong one.**
+`services/data/src/aec_data/codes.py` returns `resolved`, an `as_of` year, a `verify` note on every
+answer, and — the field this work exists for — a **per-family `source`** of `"seed"` or
+`"baseline"`. Measured against the shipped seed rather than assumed: **six jurisdictions are seeded
+and all six are MIXED** — CA 4 of 8 families, FL 4, NY 3, TX 3, WA 3, **IL 1 of 8**. There is no
+jurisdiction for which `resolved: true` means every edition shown is that jurisdiction's, so a
+screen keyed on the flag states the national baseline as Illinois law for seven of eight families,
+against a seed whose own comment on that row reads *"no statewide building code; home-rule
+adopts"*. *A top-level verdict beside per-row provenance is this session's recurring shape with the
+coverage spread across the rows instead of counted in a field.*
+
+**And the convenience field is the worst offender.** The response hands a reader
+`primary: {IBC, IECC, A117.1}` — the three a consumer naturally prints — carrying no `source` at
+all. **`A117.1` is seeded by nobody**, so the accessibility edition is the baseline for every
+jurisdiction including all six seeded ones, and an unseeded state returns the **identical**
+`primary` to a project with no jurisdiction whatsoever. `primaryCaveat` therefore names the baseline
+members family by family; it returns `null` only for a jurisdiction that seeds all three, which the
+shipped seed contains none of. *A field that collapses a provenance distinction is where the
+distinction gets lost, and it is the field the API makes most convenient.*
+
+**With no jurisdiction set the server is not asked at all** — it would answer an empty jurisdiction
+with the full baseline and a `resolved: false` nobody is obliged to read, putting eight editions on
+screen for a project that has no place. That is the rule this panel already states for data packs
+(*"requirements from the wrong authority are a different answer that looks exactly like the right
+one"*), applied to editions. Mutated: making the branch ask anyway reds.
+
+**`/codes/seeded` had no client method at all**, which is what made the unseeded answer a dead end —
+*"nothing is seeded for WY"* reads as a claim about Wyoming until you can see the list it is missing
+from. `codeSeeded` is added and the hint names the six, so the refusal reads as a gap in a dated
+seed. It is a second request and the section survives losing it.
+
+Fifteen mutations, all red — including three against the **engine**, because the module's
+correctness rests on facts in another language: making `source` unconditional, seeding `A117.1` for
+IL, and renaming the `verify` key all leave the helper's own fixtures green, which is CLASH-TRUNC's
+lesson one tree over. **Two survived first.** Deleting the `primary` caveat from the panel passed,
+because the DOM assertion looked for `"A117.1"` — *a family name that is on screen twice, so the
+assertion could not say which of the two it had found*; it now keys on a phrase only the caveat
+carries. And the unconditional-`source` mutation passed because the fixtures compose their own
+responses, so the engine expression is pinned.
+
+**The repo's own ratchet found a real defect in the first draft, and the fix was the shape rather
+than an exemption.** `adoptionScope` returned one `html` string carrying `<b>` emphasis, and
+`apps/web/src/ui/innerHtmlGuard.test.ts` refused it by name: the only interpolated value is the
+jurisdiction, which arrives from the project record, so that sink carried stored input. Every
+sibling in this panel already answers in plain text and is escaped at the call site — `adoptionLine`,
+`packHeadline`, `checkSummary`. *A ratchet that rejects a shape the neighbours do not use is telling
+you the shape is wrong, not that it needs a baseline entry.* It is a `headline`/`detail` pair now,
+asserted to contain no markup at all.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
