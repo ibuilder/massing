@@ -347,44 +347,17 @@ export function buildQaSection(d: QaDeps): void {
           showResult("Scan to as-built", (body) => renderScanCard(body,
             { api, projectId: () => pid, setStatus: (m) => { out.textContent = m; } }));
         }));
+        // NEGATED-VERDICT. Body extracted to `./roundtripCard` because the size ratchet refused
+        // the ten lines the third state cost — and the lazy import is the better shape anyway:
+        // `viewer/tools/*` is the eager chunk and this card is behind a click.
         b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
+          const m = await import("./roundtripCard");
           let r;
           try { r = await api.modelRoundtrip(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          // THREE states, not two. `fidelity_ok` was true over an empty snapshot, and this status
-          // line prints the bare verdict with the count nowhere in it — so "round-trip clean" was
-          // the answer for a model with no products. Now that the engine guards it, the two Falses
-          // mean opposite things and `nothing_compared` is which.
-          out.textContent = r.nothing_compared ? "nothing to round-trip"
-            : r.fidelity_ok ? "round-trip clean"
-            : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
-          showResult("Round-trip fidelity", (body) => {
-            body.appendChild(resultNote(r!.nothing_compared
-              ? "<b>Nothing was compared</b> — this model carries no IfcProduct or IfcTypeProduct, so "
-                + "serialise → re-parse proved nothing. This is not a lossless result; it is an "
-                + "unrun one."
-              : r!.fidelity_ok
-              ? `<b>Lossless</b> — all ${r!.element_count} elements survived serialise → re-parse with GUID, class, name, containment, type and psets intact.`
-              : `<b>Not lossless</b> — ${r!.counts.missing} missing · ${r!.counts.added} added · ${r!.counts.changed} changed, of ${r!.element_count} elements.`,
-              r!.nothing_compared ? "" : r!.fidelity_ok ? "ok" : "bad"));
-            // MISSING is the one that matters most: an element that does not survive our own export
-            // is data loss, and GUID stability is what every recipe and every pin depends on.
-            for (const [label, guids] of [["Missing after round-trip", r!.missing], ["Appeared after round-trip", r!.added]] as const) {
-              if (!guids.length) continue;
-              const row = document.createElement("div");
-              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
-              row.innerHTML = `<b>${escapeHtml(label)}</b>: ${guids.length}`;
-              row.title = "Select these elements";
-              row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
-              body.appendChild(row);
-            }
-            if (r!.changed.length) {
-              body.appendChild(resultNote("<b>Changed</b> — survived, but an aspect differs:", ""));
-              body.appendChild(kvTable(r!.changed.slice(0, 50).map((c) => ({
-                k: escapeHtml(c.class), v: escapeHtml(c.aspects.join(", ")),
-              }))));
-            }
-          });
+          out.textContent = m.roundtripReading(r).status;
+          m.renderRoundtripCard(r, { showResult, resultNote, kvTable, esc: escapeHtml,
+            select: async (g) => { await selectMap(await sets.fromGuids(g)); } });
         })));
 
         // AUTH-CONSTRAINTS — the model's OWN constraint graph: broken RelVoids/RelFills hosts,

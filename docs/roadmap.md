@@ -6773,6 +6773,32 @@ operand kind measures **0**, so `>= 2` and `>= 1` are the same rule today. Five 
 including each of the three engine guards reinstated one at a time — and one of those is
 `services/data/src/aec_data/roundtrip.py`, which **the gate it extends cannot see at all** (below).
 
+## The ratchet refused the fix, and was right to
+
+Giving `fidelity_ok`'s consumer a third state cost ten lines in
+`apps/web/src/viewer/tools/qaSection.ts`, which sat **exactly** on its 1,246-line pin. The gate
+refused, so the card body left for `apps/web/src/viewer/tools/roundtripCard.ts` — which pays for ten
+lines with seventeen to spare, gives the three-state reading a pure function with its own test, and
+takes a click-driven card out of the eager chunk, where the shell went **down** to 224.4 KB. *A
+ratchet refuses a change until an extraction pays for it*, which is the pin's own comment working as
+written for the sixth time on this file.
+
+**The useful part is WHEN the gate was run, not that it fired.** `test_file_sizes.py` was run and
+passed earlier in this same change — before the line that broke it — so "every affected gate is
+green" was true when said and stale by the time it was reported. *A gate result is a claim about a
+tree, and the tree moved.* Same shape as the rule `CLAUDE.md` records for a number and the change
+that moves it needing to land in one edit.
+
+**And it was hidden a second way, which cost more than the first.** The suite run that caught it was
+piped through `| tail -10`, which cut the `FAIL` line out of the captured output **and** replaced the
+runner's exit status with `tail`'s. The first reading of it was therefore *"730/731 passed, exited
+with code 0"* — a count that contradicts its own exit code, and the exit code is the half a reader
+trusts. `run_tests.py` returns `0 if passed == len(results) else 1`, correctly, so nothing was wrong
+with the gate; the pipeline reported the last command's status, as pipelines do. That is the repo
+root's *"exits 127 and reports 0 failures"* hazard wearing different clothes, and the same remedy
+applies: **read the count, never the exit code of a pipeline.** It also cost a 23-minute re-run to
+recover a name the first run had already printed and thrown away.
+
 ## Two gaps measured rather than hedged
 
 **The bare single `"key": not X` dict value measures 36**, with the identical defect. Three read and
