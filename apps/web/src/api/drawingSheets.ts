@@ -35,6 +35,20 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
       `/projects/${pid}/drawings/schedules`);
   }
+  /**
+   * One schedule (doors|windows|rooms) as a drafted SVG table — **every row**, with long cell
+   * values clipped to 22 characters by the renderer.
+   *
+   * SCHEDULE-TRUNC. The Schedules button's own tooltip has always said *"Also at GET
+   * /drawings/schedule.svg"* and nothing reached it, while the on-screen table showed the first 60
+   * rows under a heading that printed the real count. This is the escape for *reading* a long
+   * schedule; `drawingSchedulesCsvUrl` is the one that loses nothing at all. Both limits are stated
+   * on screen, because pointing a reader at an output that silently clips a 40-character type name
+   * would be the same defect one click along.
+   */
+  drawingScheduleSvgUrl(pid: string, kind: "doors" | "windows" | "rooms") {
+    return this.url(`/projects/${pid}/drawings/schedule.svg?kind=${encodeURIComponent(kind)}`);
+  }
   /** Door / window / room schedules as a CSV download (`kind` omits for all three). */
   drawingSchedulesCsvUrl(pid: string, kind?: "doors" | "windows" | "rooms") {
     const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";

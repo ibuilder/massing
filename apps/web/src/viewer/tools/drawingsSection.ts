@@ -1,6 +1,9 @@
 import type { ApiClient } from "../../api/client";
 import { toast, withLoading } from "../../ui/feedback";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import {
+  SCHEDULE_ROW_CAP, scheduleHeadHtml, scheduleReading,
+} from "./scheduleView";
 import type { CanvasModeSwitch } from "../canvasMode";
 import {
   type ViewSpec, PAGE_CATALOG, isSheetPage, railSheetOptions, readSheetPage,
@@ -125,18 +128,43 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
     showResult("Schedules (door / window / room)", (body) => {
       for (const [kind, label] of [["doors", "Door schedule"], ["windows", "Window schedule"], ["rooms", "Room schedule"]] as const) {
         const t = sc[kind];
-        body.appendChild(resultNote(`<b>${label}</b> — ${t.rows.length} row(s)`, ""));
+        // SCHEDULE-TRUNC. This printed the table's full row COUNT directly above a table of the
+        // first sixty and said nothing in between — the honest total one line above the subset.
+        // The route returns every row, so the cap was entirely the screen's.
+        //
+        // The defect's own spelling is deliberately NOT quoted here: `scheduleView.test.ts` pins
+        // the absence of that literal, and a comment quoting it satisfies the pin's own needle —
+        // the third time on this branch that a pin keyed on text matched the explanation beside it.
+        const r = scheduleReading(label, t);
+        body.appendChild(resultNote(scheduleHeadHtml(label, t), r.capped ? "warn" : ""));
         if (!t.rows.length) continue;
         const tbl = document.createElement("table"); tbl.className = "kv-table"; tbl.style.marginBottom = "6px";
         const hr = document.createElement("tr");
         for (const c of t.columns) { const th = document.createElement("th"); th.textContent = c; hr.appendChild(th); }
         tbl.appendChild(hr);
-        for (const row of t.rows.slice(0, 60)) {
+        for (const row of t.rows.slice(0, SCHEDULE_ROW_CAP)) {
           const tr = document.createElement("tr");
           for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
           tbl.appendChild(tr);
         }
         body.appendChild(tbl);
+        if (r.capped) {
+          // The two escapes, each labelled with what IT loses. `/drawings/schedule.svg` was dark
+          // and is named in this button's own tooltip.
+          const esc2 = document.createElement("div");
+          esc2.style.cssText = "display:flex;gap:8px;margin:-2px 0 8px;flex-wrap:wrap";
+          const svg = document.createElement("a"); svg.className = "file-btn";
+          svg.textContent = `▦ Drafted table — all ${r.total} rows`;
+          svg.title = "Every row, as a drafted SVG table. Long cell values are clipped to 22 "
+            + "characters by the renderer.";
+          svg.href = d.api.drawingScheduleSvgUrl(d.pid, kind); svg.target = "_blank"; svg.rel = "noopener";
+          const csv = document.createElement("a"); csv.className = "file-btn";
+          csv.textContent = "⤓ CSV — all rows, in full";
+          csv.title = "Every row with every value complete — the only output that loses nothing.";
+          csv.href = d.api.drawingSchedulesCsvUrl(d.pid, kind); csv.target = "_blank"; csv.rel = "noopener";
+          esc2.append(svg, csv);
+          body.appendChild(esc2);
+        }
       }
     });
   };

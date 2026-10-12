@@ -336,7 +336,15 @@ KNOWN_UNCALLED: set[str] = {
     # dark.* See `services/api/test_coord_unanchored.py`.
     "/projects/{pid}/design/options/economics",
     "/projects/{pid}/drawing-set/references",
-    "/projects/{pid}/drawings/schedule.svg",
+    # `/projects/{pid}/drawings/schedule.svg` left this set 2026-10-12 — SCHEDULE-TRUNC, and it
+    # came off as the ESCAPE from a different defect rather than for its own sake. The Schedules
+    # button in `apps/web/src/viewer/tools/drawingsSection.ts` has always named this route in its
+    # own tooltip — *"Also at GET /drawings/schedule.svg"* — while the on-screen table printed
+    # `${t.rows.length} row(s)` directly above `t.rows.slice(0, 60)` with nothing in between. The
+    # JSON route returns every row, so the cap was entirely the screen's; the drafted SVG table is
+    # now offered beside the CSV when it bites, each labelled with what IT loses (every row with
+    # cell text clipped at 22 characters, versus every row in full). *A tooltip naming a route is
+    # not a caller, and this gate is the only thing that could have said so.*
     # `/projects/{pid}/edit/batch` left this set 2026-10-12 — BATCH-DARK, and this entry is the one
     # that cost users something every day. Its own docstring names the caller it was built for —
     # *"so a multi-step NL command undoes as a single step"* — and **three** callers looped

@@ -6459,6 +6459,61 @@ than a failure. Re-stated — `recipe: ""`, and a real per-step loop — both re
 not change the behaviour under test is not evidence, and one that breaks the file is not either.*
 
 
+### SCHEDULE-TRUNC — the door schedule printed its row count directly above a table of sixty *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane C**; `apps/web/src/viewer/tools/scheduleView.test.ts`)*
+
+`apps/web/src/viewer/tools/drawingsSection.ts` rendered the computed door / window / room schedules
+as the full row count, and then the first sixty rows, with **nothing in between**:
+
+```ts
+resultNote(`<b>Door schedule</b> — ${t.rows.length} row(s)`)   //  240 row(s)
+for (const row of t.rows.slice(0, 60))                          //  …and sixty of them
+```
+
+**The honest total was printed one line above the subset.** That is TRUNC-COUNTED's class in its
+purest form — not a number that is wrong, but two numbers one of which was never shown — and
+`/drawings/schedules` returns every row, so the cap was entirely the screen's. A 240-door project is
+exactly the one with a procurement problem to find in row 180.
+
+## Three outputs, three different losses, and that is what a reader needs told
+
+The honest escape is not "download the CSV", it is **which one loses what**:
+
+| output | rows | cell text |
+|---|---|---|
+| the on-screen table | the first 60 | complete |
+| `/drawings/schedule.svg` — the drafted table | **every row** | clipped to 22 characters by the renderer's `cell()` |
+| `/drawings/schedule.csv` | every row | complete |
+
+`/drawings/schedule.svg` was in `KNOWN_UNCALLED` and is **named in the Schedules button's own
+tooltip** — *"Also at GET /drawings/schedule.svg"*. *A tooltip naming a route is not a caller, and
+`services/api/test_route_reachability.py` is the only thing that could have said so.* It is now the
+"read the whole schedule on screen" escape, offered **only when the cap bites**, with its own limit
+stated — because pointing a reader at an output that silently clips a 40-character type name would
+be the same defect one click along.
+
+Five mutations red: the cap boundary moved by one (which would cry wolf on every exactly-full
+screen), the heading dropping the shown count, the note never built, the escapes offered
+unconditionally, and the slice drifting away from the constant the heading counts with — *two
+literals drift, and the heading would say "60 of 240" over a table showing forty with nothing wrong
+enough to notice.*
+
+**The eager shell is at 224.5 KB of 225**, because `viewer/tools/*` is the eager chunk and
+`scheduleView.ts` is imported statically — about half a kilobyte of headroom left after a budget that
+moved once today already. The reading is behind a click, so the honest next step is to reach it with
+`await import()` the way `ruleCheckView`, `indexCoverage` and `egressTravel` are reached; it is
+recorded here rather than done in this change because the measurement belongs with whatever next
+needs the room. *Re-measure before spending it: `cd apps/web && npm run build && npm run budget`.*
+
+**And the pin caught my own comment, for the third time on this branch.** The check that the bare
+`${t.rows.length} row(s)` is gone matched the sentence explaining the fix, which quoted it. The
+comment is reworded to describe the defect rather than spell it. *A pin keyed on text matches every
+occurrence of that text, including the one in the paragraph that exists to explain the pin* — the
+same correction ELEMENTS-SILENT and FIRM-RULES-OPTIONAL each made once already, which is the
+argument for keying a pin on a code form wherever one exists.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
