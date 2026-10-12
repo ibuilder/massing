@@ -5316,6 +5316,63 @@ hour earlier for the same amount of work in `viewer/tools/`. *That is the chunk-
 from the budget note, measured a second time and on purpose* — a portal panel is lazy and a viewer
 tool is not.
 
+### ELEMENT-ORPHAN — ⛔ NOT made a gate, and the measurement is the reason *(measured 2026-10-12)*
+
+*(S — attempted in Lane J; nothing shipped, and the finding is about gate-writing rather than about
+the app)*
+
+**The motivation was three survivors in one session.** MACRO-DARK, CODE-ADOPT-DARK and BENCH-DARK
+each had a mutation live through a full test file: an element is created, configured, filled with
+children, and never reaches the page. Every assertion around it stays green, because they prove the
+content is *computed* and nothing proves it is *on screen*.
+`apps/web/src/viewer/tools/sectionButtonsWired.test.ts` guards that failure for one shape — a
+`*Buttons` record or an exported `*Button()` builder under `viewer/tools/` — and a portal panel's
+card, a `reportCenter` note and a `proforma` card are all outside its population, which is where all
+three landed. So: derive the orphan over the whole tree.
+
+**THE FINDING, and it is worth more than the gate would have been.** A regex version was written,
+measured at **2,592 element declarations over 417 files with 0 orphans**, given four use-forms each
+earned from a real false positive, and given a proof-of-reach replay of BENCH-DARK's pre-fix source.
+Thirteen assertions, all green. **Then mutating the real file showed it does not catch the real
+defect.** `portfolio.ts` declares `const card` in every one of its seven sections, the detector asked
+"is the name `card` used anywhere in this file", and a *correct* section's
+`ctx.root.appendChild(card)` vouched for the broken one. *A leaf name is not a site — and the
+synthetic replay passed precisely because a snippet contains one declaration where a file contains
+seven.* **A proof-of-reach built from a fragment proves reach into fragments.**
+
+**A second mis-stated mutation, the third today.** "The file floor stops binding" relaxed
+`toBeGreaterThanOrEqual(350)` to `(0)` and stayed green — because relaxing an assertion can never
+fail one. The mutation that matters breaks the *walk*, and that one reds.
+
+**The scope-aware rebuild got close and is recorded for whoever finishes it.** A TypeScript AST pass
+(`ts.createSourceFile`, no checker needed) binds each declaration to its enclosing block and finds
+references within it: **3,017 declarations** — 425 more than the regex saw — and **4 candidates**,
+down from 10 as each use-form was earned from a real site:
+
+| accepted form | the real site that earned it |
+|---|---|
+| appended into another node | the ordinary case |
+| returned, including inside an object literal | `return { wrap, byKey }` ×4 |
+| programmatically clicked | a detached `<a download>` ×3 |
+| used as a rendering surface | an offscreen `<canvas>` via `getContext` |
+| passed to a call | `label("Description", desc)` |
+| flowing through an array literal into a call | `railGroup("detail", "", [advWrap])` |
+
+**Why it is not shipped: two of the four remaining candidates are undiagnosed.** `portal.ts ::
+holder` is an `innerHTML` trampoline whose `firstChild` is appended, and `proforma.ts :: s` is stored
+into a map and appended through it — both legitimate and both derivable. But `register.ts :: sel` and
+`app.ts :: head` have an append **in the same block**, so the analyser should already accept them and
+does not, and I did not find out why. *That means I cannot tell "the tree is clean" from "my
+analyser is too weak", and a gate reporting a clean tree it cannot justify is the failure mode every
+entry in this list records.* The clause that is deliberately ABSENT is also worth keeping: an
+element having children (`card.appendChild(head)`) must NOT count as use, because it says children
+went in and never that the card came out — and that clause was in the first draft, where it makes the
+gate blind to the exact defect it exists for.
+
+**What is in the tree instead**: the per-site source pin BENCH-DARK added, with its limit stated.
+The honest summary is TOTAL-EXCLUDED's: a derivation recorded as a candidate to re-run, not
+installed as a check whose silence nobody has earned.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
