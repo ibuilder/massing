@@ -64,6 +64,13 @@ const SECTION_SOURCES = [
   // section precedes it. It must stay inside the `qa` run: its three controls (the survey-basis
   // read moved out of `qaSection.ts`, plus project units and project origin) mount there.
   "src/viewer/tools/projectSetupPanel.ts",
+  // LAYOUT-RENUMBER: the field-layout control moved to `tools/layoutTool.ts`, which also carries
+  // the as-installed upload the panel's own copy had always promised. SAME ORDERING CONSTRAINT as
+  // the two entries above — this file opens no `const b = section("key"` either, so it is
+  // attributed to whichever section precedes it and must stay inside the `qa` run. **This gate
+  // found the move**: measured from the list without it, the control read as `gone`, which is the
+  // both-directions property the docstring promises, kept.
+  "src/viewer/tools/layoutTool.ts",
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",
@@ -107,7 +114,12 @@ const INVENTORY: Record<string, "qa" | "analyse"> = {
   "▢ Model CI (quality gate)": "qa",
   "🔗 Coordinate clashes (grouped issues)": "qa",
   "📊 Coordination KPIs": "qa",
-  "📍 Field layout (points CSV / DXF)": "qa",
+  // RENAMED 2026-10-12, and the rename is recorded rather than worked around: LAYOUT-RENUMBER added
+  // the as-installed upload to this same control, so its label gained `· verify as-built`. The
+  // frozen inventory is a record of what existed, so a label change SHOULD turn it red — the entry
+  // is edited with the reason beside it, not matched loosely. *A gate that tolerates renames cannot
+  // tell a rename from a removal.*
+  "📍 Field layout (points CSV / DXF · verify as-built)": "qa",
   "🕸 Related elements (model graph)": "qa",
   "🧬 Property layers (IFC5 overlays)": "qa",
   "🚫 Decision-readiness (RFI-prevention)": "qa",

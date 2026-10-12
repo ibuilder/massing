@@ -19,6 +19,7 @@ import { SelectionSets } from "../selectionSets";
 import { renderRoundtripDiff } from "./roundtripDiffView";
 import { isUnrun, renderCiReport } from "./modelCiView";
 import { renderScanCard } from "./scanVerifyView";
+import { layoutButton } from "./layoutTool";
 
 /**
  * R39-DECOMP-VIEWER ② — the clash / QA tool section, out of `app.ts`.
@@ -845,25 +846,12 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
-        b.appendChild(toolBtn2("📍 Field layout (points CSV / DXF)", () => withLoading(container, "Extracting layout setout points", async () => {
-          let r;
-          try { r = await api.layoutPoints(pid); }
-          catch { toast("Field layout needs a source IFC with columns/grids", "error"); return; }
-          out.textContent = `${r.count} setout points`;
-          toast(r.count ? `${r.count} layout points ready to stake` : "no setout points found", r.count ? "info" : "success");
-          showResult("Model → field layout", (body) => {
-            body.appendChild(resultNote(`<b>${r!.count}</b> georeferenced setout points (grids + column/footing/`
-              + `opening/wall) — E/N/Z with the IFC GlobalId in each Description, ready for total stations, `
-              + `marking robots and floor printers.`, r!.count ? "ok" : "bad"));
-            if (Object.keys(r!.by_class).length) body.appendChild(kvTable(Object.entries(r!.by_class).map(([k, v]) => ({ k: k.replace("Ifc", ""), v: String(v) }))));
-            const dl = (label: string, href: string) => { const a = document.createElement("a"); a.className = "file-btn"; a.textContent = label; a.href = href; a.target = "_blank"; a.rel = "noopener"; a.style.marginRight = "6px"; return a; };
-            const row = document.createElement("div"); row.style.margin = "8px 0";
-            row.append(dl("⬇ PENZD CSV", api.layoutCsvUrl(pid, "PENZD")), dl("⬇ PNEZD CSV", api.layoutCsvUrl(pid, "PNEZD")), dl("⬇ DXF (printers)", api.layoutDxfUrl(pid)));
-            body.appendChild(row);
-            body.appendChild(resultNote("Field round-trip: stake/print these, shoot the as-installed positions "
-              + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
-          });
-        })));
+        // LAYOUT-RENUMBER — the export tool moved to `layoutTool.ts`, which also carries the
+        // as-installed UPLOAD this panel's own copy has promised since it shipped. The move is what
+        // paid for it: this file is on an exact size pin with no headroom, so the import half had
+        // nowhere to go until the export half left.
+        b.appendChild(layoutButton({ api, pid, container, toolBtn2, withLoading, toast, showResult,
+                                     resultNote, kvTable, setOut: (t) => { out.textContent = t; } }));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
           const guid = selectedGuid();
           if (!guid) { notify("select an element in 3D first", "error"); return; }

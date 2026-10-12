@@ -19,6 +19,7 @@ from __future__ import annotations
 import csv
 import io
 import math
+import re
 from typing import Any
 
 from aec_data.cells import cell as _cell
@@ -186,38 +187,140 @@ def to_dxf(pts: list[dict]) -> bytes:
         return out.getvalue()
 
 
-def _parse_measured(rows: list[dict], order: str = "PENZD") -> dict[str, tuple[float, float, float]]:
-    """Parse an as-installed measured-points list [{number|point, e, n, z}] → {number: (e,n,z)}."""
-    out: dict[str, tuple[float, float, float]] = {}
+#: An IFC GlobalId is 22 characters of base64-ish alphabet, and `points()` writes it as the last
+#: `|`-delimited field of the Description. Anchored to the end so a tag containing a pipe cannot
+#: produce a false GUID, and length-exact so a short code never matches.
+_DESC_GUID = re.compile(r"\|([0-9A-Za-z_$]{22})\s*$")
+
+
+def _measured_rows(rows: list[dict]) -> list[dict[str, Any]]:
+    """Parse as-installed shots into `[{guid, number, e, n, z}]`, keeping BOTH join keys.
+
+    The GUID is read from an explicit `guid` field or recovered from the Description the exporter
+    wrote — `to_penzd_csv` puts it in the D column precisely so the round-trip stays anchored, and
+    until 2026-10-12 nothing on the way back read it.
+    """
+    out: list[dict[str, Any]] = []
     for r in rows:
         num = str(r.get("number") or r.get("point") or r.get("Point") or "").strip()
-        if not num:
+        desc = str(r.get("description") or r.get("Description") or "")
+        guid = str(r.get("guid") or r.get("GlobalId") or "").strip()
+        if not guid:
+            hit = _DESC_GUID.search(desc)
+            guid = hit.group(1) if hit else ""
+        if not num and not guid:
             continue
         try:
-            out[num] = (float(r.get("e", r.get("Easting", 0))), float(r.get("n", r.get("Northing", 0))),
-                        float(r.get("z", r.get("Elevation", 0))))
+            e = float(r.get("e", r.get("Easting", 0)))
+            n = float(r.get("n", r.get("Northing", 0)))
+            z = float(r.get("z", r.get("Elevation", 0)))
         except (TypeError, ValueError):
             continue
+        out.append({"guid": guid, "number": num, "e": e, "n": n, "z": z})
     return out
 
 
+def _parse_measured(rows: list[dict], order: str = "PENZD") -> dict[str, tuple[float, float, float]]:
+    """`{number: (e,n,z)}` — kept for callers that only need the number map."""
+    return {r["number"]: (r["e"], r["n"], r["z"]) for r in _measured_rows(rows) if r["number"]}
+
+
 def verify(design: list[dict], measured: list[dict], tolerance_m: float = 0.02) -> dict[str, Any]:
-    """Compare as-installed shots to the design setout: match by Point-№, compute 3-D deviation, flag
-    the ones out of tolerance (each is a candidate BCF topic / field-verification issue)."""
-    m = _parse_measured(measured)
-    devs = []
-    for p in design:
-        mv = m.get(p["number"])
-        if mv is None:
+    """Compare as-installed shots to the design setout, match **by GlobalId first**, compute 3-D
+    deviation, and flag the points out of tolerance (each a candidate BCF topic / field-verification
+    issue) **beside what could not be compared at all**.
+
+    LAYOUT-RENUMBER — THE JOIN KEY WAS POSITIONAL
+    ---------------------------------------------
+    This matched on `number` alone, and `points()` assigns `number` as `P{i}` over its own iteration
+    order. So the key is a POSITION, not an identity: re-publish the model, or export with a
+    different `classes` filter, and every point is renumbered. A survey shot against last week's
+    export then matches a *different element* by the same number — and the deviation is computed
+    against the wrong design point, silently and plausibly. **That is the repository's first
+    non-negotiable, inverted** ("reference model elements by GlobalId, never by a transient id"), and
+    this module's own docstring already said *"match by Point-№ / GlobalId"*: the fix was documented
+    and never built. The Description carries the GlobalId, so the stable key was in the file the
+    whole time.
+
+    AND BOTH UNMATCHED SIDES WERE DROPPED IN SILENCE
+    ------------------------------------------------
+    A design point with no shot was `continue`; a shot matching no design point was never looked at.
+    So a survey file from the wrong floor, or one whose numbering had been regenerated, returned
+    `checked: 0`, `out_of_tolerance: []`, `max_deviation_m: 0.0` — **character-for-character what a
+    perfect as-built returns.** This is PROGRESS-DARK's defect (`capture_diff` promised "never
+    silently dropped" and silently dropped) in a module that sweep never reached; the counts are the
+    same repair, and `comparable` exists so no caller can mistake "nothing matched" for "nothing
+    wrong".
+    """
+    parsed = _measured_rows(measured)
+    by_guid: dict[str, int] = {}
+    by_number: dict[str, int] = {}
+    for i, r in enumerate(parsed):
+        if r["guid"]:
+            by_guid.setdefault(r["guid"], i)
+        if r["number"]:
+            by_number.setdefault(r["number"], i)
+
+    # TWO PASSES, so the precedence is a statement rather than a loop order. Every GUID match is
+    # taken first; only then may a number — a position — claim a remaining shot. A one-pass version
+    # lets an early design point consume by number a shot that a later one owns by GlobalId.
+    unclaimed = set(range(len(parsed)))
+    match: dict[int, tuple[int, str]] = {}
+    for di, p in enumerate(design):
+        i = by_guid.get(str(p.get("guid") or ""))
+        if i is not None and i in unclaimed:
+            match[di] = (i, "guid")
+            unclaimed.discard(i)
+    for di, p in enumerate(design):
+        if di in match:
             continue
-        d = math.dist((p["e"], p["n"], p["z"]), mv)
+        i = by_number.get(str(p.get("number") or ""))
+        if i is not None and i in unclaimed:
+            match[di] = (i, "number")
+            unclaimed.discard(i)
+
+    devs = []
+    unshot: list[str] = []
+    for di, p in enumerate(design):
+        hit = match.get(di)
+        if hit is None:
+            unshot.append(str(p.get("number") or p.get("guid") or "?"))
+            continue
+        i, on = hit
+        mv = parsed[i]
+        d = math.dist((p["e"], p["n"], p["z"]), (mv["e"], mv["n"], mv["z"]))
         devs.append({"number": p["number"], "guid": p["guid"], "ifc_class": p["ifc_class"],
                      "deviation_m": round(d, 4), "in_tolerance": d <= tolerance_m,
+                     "matched_on": on,
                      "design": {"e": p["e"], "n": p["n"], "z": p["z"]},
-                     "measured": {"e": round(mv[0], 4), "n": round(mv[1], 4), "z": round(mv[2], 4)}})
+                     "measured": {"e": round(mv["e"], 4), "n": round(mv["n"], 4),
+                                  "z": round(mv["z"], 4)}})
     out = [d for d in devs if not d["in_tolerance"]]
+    by_number_only = [d for d in devs if d["matched_on"] == "number"]
+    unmatched = [parsed[i]["number"] or parsed[i]["guid"] for i in sorted(unclaimed)]
+    n_design = len(design)
     return {"tolerance_m": tolerance_m, "checked": len(devs), "in_tolerance": len(devs) - len(out),
             "out_of_tolerance": out, "deviations": devs,
             "max_deviation_m": max((d["deviation_m"] for d in devs), default=0.0),
-            "note": "As-installed vs design setout by Point-№. Points out of tolerance should be raised "
-                    "as field-verification issues (BCF), anchored to the element GlobalId."}
+            # WHAT COULD NOT BE COMPARED, which is the half that was missing.
+            "design_points": n_design, "shots_supplied": len(parsed),
+            "matched_on_guid": len(devs) - len(by_number_only),
+            "matched_on_number": len(by_number_only),
+            "number_matched_points": [d["number"] for d in by_number_only][:200],
+            "unshot": len(unshot), "unshot_numbers": unshot[:200],
+            "unmatched_shots": len(unmatched), "unmatched_numbers": unmatched[:200],
+            "coverage_pct": round(100 * len(devs) / n_design, 1) if n_design else 0.0,
+            # `comparable` is false when nothing matched. A caller reading `out_of_tolerance == []`
+            # on an unmatched file would otherwise report a clean as-built, which is the whole defect.
+            "comparable": bool(devs),
+            "note": "As-installed vs design setout, matched by GlobalId first and by Point-№ only as a "
+                    "fallback \u2014 the number is positional (`P1..` in export order), so a number match is "
+                    "a match on where the point sat in a particular export and not on which element it "
+                    "is. Points out of tolerance should be raised as field-verification issues (BCF), "
+                    "anchored to the element GlobalId."
+                    + (f" {len(devs)} of {n_design} design point(s) were shot ("
+                       f"{len(by_number_only)} by number only); {len(unmatched)} supplied shot(s) "
+                       f"matched no design point." if n_design else " No design setout points.")
+                    + ("" if devs else " NOTHING MATCHED: this is not a clean as-built \u2014 no comparison "
+                       "was made. Check that the shots came from this model's export (the Description "
+                       "column carries the GlobalId) rather than a re-numbered or different one.")}

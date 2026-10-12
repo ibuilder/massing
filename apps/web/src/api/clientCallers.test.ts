@@ -337,7 +337,14 @@ const UNCALLED: readonly string[] = [
   // claiming it here because its three siblings found callers is how an entry goes stale in the
   // flattering direction.
   "feasibilityLotSupply", "feasibilitySellout", "holdSell",
-  "importFamilyPack", "layoutVerify", "listingReso",
+  // `layoutVerify` left this list 2026-10-12 — LAYOUT-RENUMBER: `viewer/tools/layoutTool.ts` carries
+  // the as-installed upload the field-layout panel's own copy had promised since it shipped ("shoot
+  // the as-installed positions with a total station, then upload that CSV"), and the download was
+  // where the round-trip stopped. `layoutPoints` was never on this list, which is why the gap read
+  // as closed: **the export half had a caller and the import half did not, and this list counts
+  // methods rather than round-trips.** The server had to be fixed first — it matched on the setout
+  // NUMBER, which is `P1..` in export order.
+  "importFamilyPack", "listingReso",
     // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
   "liveStream", "massingOptionRecipes", "mcpTools",
   // `myWork` STAYS and is a DELIBERATE SUPERSESSION, not a hole (recorded 2026-10-12, COLOR-UNSET

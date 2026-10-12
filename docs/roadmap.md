@@ -5663,6 +5663,86 @@ were then switched from `response["key"]` to `.get("key")` so a deleted field re
 instead of dying with a `KeyError` that blames the test: **a red build whose message misdiagnoses is
 worse than one that stays silent, because somebody acts on it.**
 
+### LAYOUT-RENUMBER — the field round-trip's join key was a POSITION, and there was no way back *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane C**; `services/api/test_layout_renumber.py`, `apps/web/src/viewer/tools/layoutTool.test.ts`)*
+
+**`layout.points()` numbers setout points `P1..` over its own iteration order**, and carries each
+element's IFC **GlobalId** in the Description — `to_penzd_csv` writes it into the D column precisely
+so the round-trip stays anchored, and `layout.py`'s docstring has always said it matches *"by Point-№
+/ GlobalId"*. **`layout.verify` matched on the number alone. The fix was documented and never
+built.**
+
+**So the join key is a position, which inverts this repository's first non-negotiable** — *"reference
+model elements by IFC GlobalId, never by transient viewer IDs"*. `P{i}` is a transient id: re-publish
+the model, or export with a different `classes` filter, and every point is renumbered.
+
+**The measured severity is worse than the predicted one, and that is recorded because the prediction
+was wrong in the flattering direction.** The gate's first draft expected a renumbered comparison to
+report a false CLEAN. Replayed on two exports of one model — the second asking only for footings,
+which is an ordinary thing to do and renumbers `P3`→`P1` — it instead compares each footing against
+the **column** shot carrying the same number, so it reports **two deviations of a full grid bay**,
+one of them on a point that never moved, while the real 100 mm displacement is nowhere in the output.
+*A fabricated 12-metre finding sends a crew out to re-survey; the real defect stays invisible.*
+Predicting a severity and measuring it are two different things.
+
+**And both unmatched sides were dropped in silence.** A design point with no shot was `continue`; a
+shot matching no design point was never looked at. A survey file from the wrong level returned
+`checked: 0`, `out_of_tolerance: []`, `max_deviation_m: 0.0` — **character-for-character what a
+perfect as-built returns.** That is PROGRESS-DARK's defect, in a module that sweep never reached:
+*a sweep is bounded by the module list somebody gave it.* The counts are the same repair, plus a
+`comparable` flag so no caller can read "nothing matched" as "nothing wrong".
+
+**The precedence is two passes, not a loop.** Every GUID match is taken before a number may claim a
+shot, because a one-pass matcher lets an early design point consume by number a shot a later point
+owns by GlobalId — the renumbering defect re-entering through the fallback added to survive it. The
+number fallback stays, and is *named* in the response and the note, because a total station that
+exports PENZ without D is a real instrument and refusing its file would be worse.
+
+## The screen half: the panel promised an upload and had none
+
+The field-layout panel has always ended *"stake/print these, shoot the as-installed positions with a
+total station, then upload that CSV to verify deviation by point number."* **There was no upload.**
+`layoutVerify` sat on the UNCALLED list while `layoutPoints` did not — so **the export half had a
+caller and the import half did not, and that list counts methods rather than round-trips.**
+
+**The extraction is what paid for it.** `qaSection.ts` was exactly on its size pin with zero
+headroom, so the import half had nowhere to go until the export half left; the two now live in
+`apps/web/src/viewer/tools/layoutTool.ts` and the pin is re-tightened to 1,261. Same refusal and same
+remedy as WALL-JOINS and the alignment panel.
+
+**The client parse found the same defect class twice more, in the code written to close it, and both
+were caught by its own tests rather than in review.** `Number("")` is `0`, so the obvious spelling of
+the coordinate check read a **missing Easting as the survey origin** and a line of prose as a shot at
+(0,0,0) — an unreadable file parsed as valid shots and reached the server. And the header sniff
+(*"some cell starts with east/north and not every cell is a number"*) consumed the single real shot
+of a headerless file whose Description read *"Easting pier"*, returning zero rows: **a survey
+silently read as empty, in the line that decides what to read.** The rule is now *a row whose
+coordinate cells are numbers is data, whatever words it contains.*
+
+**A third gate caught the extraction, and it was right twice.**
+`apps/web/src/viewer/toolsSplit.test.ts` holds a frozen inventory of every rail control and which
+side of the qa/analyse seam it sits on, measured from a list of source files — so moving the control
+to a file that list does not read reported it as **gone**, which is the both-directions property its
+docstring promises, kept. And the label changed (`· verify as-built`), which turned the inventory red
+a second time. *A gate that tolerates renames cannot tell a rename from a removal*, so the entry is
+edited with the reason beside it rather than matched loosely, and the new file is listed with the
+ordering constraint the two entries above it already record: it opens no `section("key")` of its own,
+so it is attributed to whichever file precedes it and must stay inside the `qa` run.
+
+Twenty mutations across the two halves — 10 on `layout.verify`, 10 on the tool — all red. The parse
+counts the lines it cannot read rather than dropping them, and reports whether the column order came
+from a header or was **assumed**: PENZD and PNEZD differ only in whether Easting or Northing comes
+second, so assuming the wrong one swaps every coordinate pair and produces plausible deviations in
+the wrong direction.
+
+**Left for the user: `/verified-progress/from-layout` is still dark.** It is the same check as a
+WRITE — it seeds a `field_verification` record per matched point — and has no client method at all.
+Wiring a write is a different question from surfacing a read, which is the rule that kept
+`saveMacros` and `preconSnapshot` on the UNCALLED list earlier in this branch. It now benefits from
+the fix regardless: `from_layout_verify` reads `deviations`, so a GUID-matched survey seeds the right
+elements where a number-matched one seeded whichever elements held those numbers.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

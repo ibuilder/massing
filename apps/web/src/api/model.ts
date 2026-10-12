@@ -785,10 +785,30 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   layoutDxfUrl(pid: string, classes?: string) {
     return this.url(`/projects/${pid}/layout.dxf${classes ? `?classes=${encodeURIComponent(classes)}` : ""}`);
   }
-  /** layoutVerify — as-installed total-station shots against the design setout. */
-  layoutVerify(pid: string, measured: { number: string; e: number; n: number; z: number }[], toleranceM = 0.02) {
+  /**
+   * layoutVerify — as-installed total-station shots against the design setout.
+   *
+   * `description` is the exporter's D column and carries the element's IFC GlobalId, which is the
+   * **stable** join key: `number` is `P1..` in export order, so a number match is a match on where a
+   * point sat in one particular export (LAYOUT-RENUMBER). Pass the column through unchanged and the
+   * server matches by GlobalId first.
+   *
+   * The response's second half is what could NOT be compared — `unshot`, `unmatched_shots`,
+   * `coverage_pct` — and `comparable` is false when nothing matched at all, because an unmatched
+   * file otherwise returns the response of a perfect as-built.
+   */
+  layoutVerify(pid: string,
+               measured: { number: string; e: number; n: number; z: number; description?: string }[],
+               toleranceM = 0.02) {
     return this.json<{ tolerance_m: number; checked: number; in_tolerance: number; max_deviation_m: number;
-      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
+      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[];
+      deviations: { number: string; guid: string; ifc_class: string; deviation_m: number;
+        in_tolerance: boolean; matched_on: "guid" | "number" }[];
+      design_points: number; shots_supplied: number;
+      matched_on_guid: number; matched_on_number: number; number_matched_points: string[];
+      unshot: number; unshot_numbers: string[];
+      unmatched_shots: number; unmatched_numbers: string[];
+      coverage_pct: number; comparable: boolean; note: string }>(
       `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
   }
 
