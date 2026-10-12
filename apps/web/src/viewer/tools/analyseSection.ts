@@ -5,6 +5,7 @@ import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import { codeReadinessButton } from "./codeReadiness";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { populate4dPanel } from "../fourD";
 import type { LogisticsResource } from "../../api/client";
@@ -254,6 +255,10 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
         });
+        // CODE-READY-DARK: the PRESENCE-only half of the code pre-check, beside the depth layer
+        // above it. `/elements/code-check` had no client caller, and its summary silently drops
+        // every rule whose subject class is absent from the model.
+        b.appendChild(codeReadinessButton({ toolBtn2, api, pid, container, layerMgr, toast }));
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
         // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
         const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {

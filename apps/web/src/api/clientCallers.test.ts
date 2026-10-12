@@ -298,9 +298,12 @@ const UNCALLED: readonly string[] = [
   "citedQuery", "clashFederated", "clausePlaybook",
   // `codeAdoptions` left this list 2026-10-12 — CODE-ADOPT-DARK: the Data Requirements panel now
   // resolves which code editions govern, and which of them are the jurisdiction's own rather than
-  // the national baseline. `codeCheck` STAYS: that is a different endpoint (per-element rule
-  // checks), and wiring one is no evidence about the other.
-  "clientDecisions", "codeCheck", "colorFacets",
+  // the national baseline. `codeCheck` left it the SAME DAY by its own work (CODE-READY-DARK,
+  // `viewer/tools/codeReadiness.ts`) — and the sentence here when `codeAdoptions` went said
+  // "`codeCheck` STAYS: that is a different endpoint, and wiring one is no evidence about the
+  // other." That was true and is kept, because it is why they needed two pieces of work rather
+  // than one: adjacent names on this list are adjacent in nothing else.
+  "clientDecisions", "colorFacets",
   "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",

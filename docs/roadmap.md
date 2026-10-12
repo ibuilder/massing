@@ -5090,6 +5090,49 @@ sibling in this panel already answers in plain text and is escaped at the call s
 you the shape is wrong, not that it needs a baseline entry.* It is a `headline`/`detail` pair now,
 asserted to contain no markup at all.
 
+### CODE-READY-DARK — the plan-review data check, and the rules its percentage leaves out *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane E**; `apps/web/src/viewer/tools/codeReadiness.test.ts`)*
+
+**`/projects/{pid}/elements/code-check` had no client caller.** Third item off
+`apps/web/src/api/clientCallers.test.ts`'s frozen UNCALLED list in a row, and the list's own
+instruction is the method: wire it to a screen, then delete the line. It lands beside Occupancy &
+egress rather than in a section of its own because the route's own docstring places it there —
+`codecheck_egress` is *"the depth layer above the presence-only /elements/code-check"*.
+
+**The summary excludes the rules it could not run, and says nothing about having done so.** Six
+rules ship: egress door width, wall fire rating, space floor area, space occupancy classification,
+egress stairs, element typing. A rule whose `applies` class is absent from the model is returned
+with `status: "n/a"` and then **filtered out of the numbers** — `rules` is `len(checked_rules)`, and
+`checked`, `passed` and `readiness_pct` sum over that filtered list. So a model with no `IfcSpace`
+authored — the ordinary state of an early massing — reports a readiness percentage that omits
+**both** occupant-load rules, which are the two a plan review actually turns on. Measured on that
+shape: `readiness_pct: 100`, `rules: 3`, and a `checks` array of **6**. *The numbers describe half
+the rules and the array describes all of them.*
+
+It is this session's recurring shape with the coverage **spread across the rows instead of counted
+in a field**: there is no `skipped` to read, so a consumer has to derive it — which is why the
+derivation runs over `checks`, the array the screen shows, rather than over `rules`. A fixture
+disagreeing with the server's count is in the tests for that reason.
+
+**And the isolate set is a page while the count is a total.** `fail_guids` is capped at 5,000 per
+rule and again across rules, with `failed` carrying the truth, so isolating the list while printing
+the count is TRUNC-COUNTED. The note names the shortfall — **and the isolate BUTTON's own label was
+the surviving mutation**: labelling it `failed` over a 5,000-item selection passed, because the
+warning was asserted and the control was not. *A warning and the control beside it are two claims,
+and only one was being checked.*
+
+Fourteen mutations, all red after two repairs, three of them against the **route** because the
+module's premise lives in Python: dropping the `n/a` filter, changing the cap, and genuinely
+deleting a rule each leave every fixture green. **A fourth mutation was retired rather than
+closed**: "the route drops a rule" was first written as an id RENAME, which the population count of
+six cannot see and nothing here depends on. Rewritten as a real deletion it reds. *A mutation that
+does not change the property under test is not a surviving mutation, it is a mis-stated one, and
+counting it as either would have been wrong.*
+
+Neither number is a code finding and the result says so: the route answers whether the model
+**carries** the data a plan review needs, not whether the building complies.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
