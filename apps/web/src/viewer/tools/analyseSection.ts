@@ -5,6 +5,7 @@ import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import { citedAnswerButton } from "./citedAnswer";
 import { codeReadinessButton } from "./codeReadiness";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { populate4dPanel } from "../fourD";
@@ -259,6 +260,11 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         // above it. `/elements/code-check` had no client caller, and its summary silently drops
         // every rule whose subject class is absent from the model.
         b.appendChild(codeReadinessButton({ toolBtn2, api, pid, container, layerMgr, toast }));
+        // CITED-ASK-DARK: the answer whose every claim traces to the GUIDs it came from, which no
+        // screen called. Here rather than beside the Query-select tool it extends, because
+        // `qaSection.ts` sits one line under its size pin — the ratchet's whole point is that the
+        // next feature finds another home rather than spending the last line.
+        b.appendChild(citedAnswerButton({ toolBtn2, api, pid, container, notify }));
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
         // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
         const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {

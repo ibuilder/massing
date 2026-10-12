@@ -300,7 +300,13 @@ const UNCALLED: readonly string[] = [
   // STAYS: it is a POST that creates a milestone snapshot, and wiring a WRITE is a different
   // question from surfacing a read — the same reason `saveMacros` stayed when its three siblings
   // found callers hours earlier.
-  "citedQuery", "clashFederated", "clausePlaybook",
+  // `citedQuery` left this list 2026-10-12 — CITED-ASK-DARK: `viewer/tools/citedAnswer.ts` asks a
+  // QUERY-DSL question and renders the provenance of every claim, what the answer does NOT cite,
+  // and where two sources disagree. The roadmap already recorded this method as a deliberate
+  // EXCLUSION from VERDICT-COVERAGE's population — "its product is an ANSWER whose sourcing those
+  // annotate" — which was a true answer to a different question: that reasoning was about whether
+  // it is a verdict, and said nothing about whether anything called it.
+  "clashFederated", "clausePlaybook",
   // `codeAdoptions` left this list 2026-10-12 — CODE-ADOPT-DARK: the Data Requirements panel now
   // resolves which code editions govern, and which of them are the jurisdiction's own rather than
   // the national baseline. `codeCheck` left it the SAME DAY by its own work (CODE-READY-DARK,

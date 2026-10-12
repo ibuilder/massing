@@ -5202,6 +5202,54 @@ across five lines**, which left the parser seeing **one** lane row and reporting
 and 17 unassigned items. *A markdown table row is one line, and a parser that has lost the table
 reports a confident catalogue of what it can no longer read.*
 
+### CITED-ASK-DARK — the answer whose every claim traces to its source, and nothing called it *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane E**; `apps/web/src/viewer/tools/citedAnswer.test.ts`)*
+
+**`/projects/{pid}/answer/cited-query` returns a CitedAnswer and had no client caller.** Per-claim
+citations (IFC GUID / document + revision + sheet / record ref / rule id), a `coverage` fraction,
+`fully_cited`, the **indices** of uncited claims, `source_types`, `matched`/`truncated`, and
+`conflicts` — two sources disagreeing about one target, with both values and each one's provenance.
+The route's own docstring calls it *"the first producer of the provenance contract shared by the AI
+command bar / RFI-QA / KG answers"*. For a product whose thesis is that IFC is the source of truth,
+the answer that can say *which part of this rests on what* was the one nobody could reach.
+
+**The first framing of it here was wrong, and that is the most useful thing in this entry.** It read
+as the cited upgrade to the shipped Project assistant — a tidy story, and false: the route takes a
+**QUERY-DSL selector**, not a question, and 422s on anything else. `askProject` is the
+natural-language door and degrades to a computed snapshot with no API key. Acting on the first
+reading would have replaced a working NL box with a selector box. *A plausible framing is the
+expensive kind of wrong, because nothing about it looks like a mistake* — it was caught by reading
+the route, which is the only thing that would have.
+
+**Three findings the render carries.** ① A claim cites a **sample**: `cited_query` takes
+`sample: int = 25` and the route never overrides it, so *"1,438 element(s) match"* arrives with 25
+citations — TRUNC-COUNTED with the page on the evidence side. Detected by comparing a claim's
+citations against `matched`, **never against the cap**, so passing `sample` cannot defeat it (both
+directions tested). ② A **conflict** is the sharpest thing in the response and the easiest to drop:
+an answer that renders the prose and swallows it states one side of a disagreement as fact, so it
+gets its own note and outranks every other reading. ③ `fully_cited` is a verdict and an **empty
+answer scores perfectly** — `coverage = len(cited)/len(claims) if claims else 1.0` with
+`fully_cited = not uncited`, so zero claims come back `1.0` and the server's own note says *"fully
+cited."* **Measured reach: NOT reachable through this route**, because `cited_query` always emits at
+least the match claim. It is a trap for the next producer rather than a shipped bug, and the reading
+refuses it anyway — `build` is a shared contract and `rfi_qa.py` is already a second caller, so a
+consumer of one has to be right for every producer. *Stating the bound is the point; the flattering
+version of this paragraph would have called it live.*
+
+**Where it went, and why not where it belongs.** It extends the Query-select tool in
+`apps/web/src/viewer/tools/qaSection.ts` and sits in `analyseSection.ts` instead, because qaSection
+is **one line** under its size pin — the ratchet's whole purpose is that the next feature finds
+another home rather than spending the last line.
+
+**It costs 1.0 KB of the eager shell, measured: 220.4 → 221.4 KB against the 224 KB budget raised
+one commit earlier, so 2.6 KB of headroom remains.** Recorded rather than quietly spent, because
+VE-DARK's entry raised that ceiling and the next viewer tool should know what is left. The lazy
+alternative was weighed and declined on the reasoning that entry already set down: a dynamic import
+in the click handler would cost zero shell bytes and is the right shape, and applying it to one tool
+of some forty buys a kilobyte at the price of an inconsistency the next reader has to explain. *A
+rule argued one commit ago has to survive its first inconvenient application.*
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
