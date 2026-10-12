@@ -239,7 +239,14 @@ def schedule(db: Session, pid: str, method: str = "cost-to-cost", with_model: bo
         # an engine. What was wrong was that nothing said a band existed.
         if pct_method == "units-installed" and not model.get("fully_determined", True):
             result["percent_complete_max"] = m_pct_max
-            result["earned_revenue_max"] = round(min(1.0, m_pct_max / 100.0) * contract_value, 2)
+            # MONEY-SPINE: `money.retainage` (exact Decimal multiply, ONE half-up quantize), never
+            # `round(x / 100 * amount, 2)` — `round()` is half-EVEN where an invoice rounds half
+            # away from zero, which is the penny `money.py`'s docstring records a pay application
+            # being rejected over. `services/api/test_money_spine.py` names the offending line
+            # structurally and caught this one on the first CI run after it was written: *the
+            # direction added to `roadmap-directions.md` an hour earlier said to run the suite the
+            # way CI runs it before pushing an engine change, and this was pushed without it.*
+            result["earned_revenue_max"] = money.retainage(contract_value, min(100.0, m_pct_max))
             result["poc_coverage_partial"] = True
             result["note"] += (
                 f" POC IS DRIVEN BY A PARTIAL SURVEY: {model.get('determined_elements')} of "

@@ -234,6 +234,29 @@ export interface EffectiveProp {
 }
 
 
+/**
+ * The coordination-freshness response, declared ONCE and shared by the read and the write, because
+ * `recheck` runs the same scan and returns it plus `flagged`. Two copies would be two answers the
+ * moment either grew a field — which is what `noRespelledShapes.test.ts` exists to refuse.
+ */
+export interface CoordStale {
+  from: number; to: number;
+  changed_elements: number;
+  open_coordination_issues: number;
+  /** Open topics that carry at least one element GlobalId, i.e. the ones the check can rule on. */
+  assessable: number;
+  /** Open topics with no anchors at all. NOT "fresh" — the check does not apply to them. */
+  unanchored: number;
+  unanchored_topics: { id: string; guid: string; title: string }[];
+  stale: { id: string; guid: string; title: string; changed_guids: string[];
+           already_flagged: boolean }[];
+  stale_count: number;
+  /** False when nothing changed, or when nothing could be assessed. A `stale_count` of 0 with this
+   *  false is an absence of evidence, not a clean bill. */
+  comparable: boolean;
+  note: string;
+}
+
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
@@ -921,6 +944,31 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       modified_available: boolean; property_detail_available?: boolean;
       added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
     }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
+  }
+  /**
+   * COORD-FRESH — open clash/coordination topics whose anchored elements changed between two
+   * published versions, **beside the ones the check could not rule on** (COORD-UNANCHORED).
+   *
+   * The whole test is `topic.element_guids ∩ changed`, so a topic carrying no element GlobalIds can
+   * never be stale by construction — it was folded into `open_coordination_issues` and omitted from
+   * `stale`, which reads as "still valid". `assessable` + `unanchored` sum to the open count, and
+   * `comparable` is false both when the diff found nothing and when nothing could be assessed, so
+   * the reasons for a zero stay apart.
+   */
+  coordinationStale(pid: string, a: number, b: number) {
+    return this.json<CoordStale>(`/projects/${pid}/coordination/stale?a=${a}&b=${b}`);
+  }
+  /**
+   * Flag each stale topic with a `model-changed` label and a re-verify comment.
+   *
+   * Idempotent, and **never closes a topic** — a changed element can mean the clash is gone or
+   * worse, so the coordinator decides. It writes only to what the read above ruled stale: an
+   * unanchored topic gets no label, because nothing was measured about it.
+   */
+  coordinationStaleRecheck(pid: string, a: number, b: number) {
+    return this.json<CoordStale & { flagged: number }>(
+      `/projects/${pid}/coordination/stale/recheck`,
+      { method: "POST", body: JSON.stringify({ a, b }) });
   }
   /** REVISION-DELTA — conceptual cost impact of a revision (added priced, removed counted, modified flagged). */
   versionCostDelta(pid: string, a: number, b: number) {

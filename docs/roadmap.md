@@ -5743,6 +5743,80 @@ Wiring a write is a different question from surfacing a read, which is the rule 
 the fix regardless: `from_layout_verify` reads `deviations`, so a GUID-matched survey seeds the right
 elements where a number-matched one seeded whichever elements held those numbers.
 
+### COORD-UNANCHORED — an issue with no element anchors was counted as one that did not go stale *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane B**; `services/api/test_coord_unanchored.py`, `apps/web/src/viewer/tools/coordFreshness.test.ts`)*
+
+**`coordination_fresh.stale_clashes` answers "which open coordination issues touch an element that
+changed between two published versions"**, and `/recheck` flags them for re-verification. Both routes
+were frozen in `services/api/test_route_reachability.py` as routes no screen reaches — **and they sat
+in two different sections of that file**, `/recheck` under *"newly visible, not newly unreachable…
+frozen, not judged"*, which read as a matcher artefact rather than a capability. *Two halves of one
+feature, each looking like somebody else's problem.*
+
+**The engine's whole test is `topic.element_guids ∩ changed`**, so a topic carrying **no** element
+GlobalIds can never be stale by construction: the intersection is empty however much of the model
+moved. It was therefore folded into `open_coordination_issues` and omitted from `stale` — and a
+coordinator reading *"2 of 40 open issues are stale"* concludes the other 38 are still valid. For an
+unanchored one the truth is **"this check cannot say."**
+
+Not a hypothetical shape: BCF topics created by hand, imported from another tool, or logged against a
+drawing rather than a model element routinely carry no `element_guids`, and the clash engine is only
+one of the ways such a topic is created. *A verdict whose own premise is absent for a row has not
+been reached on that row.* The open count now splits into `assessable` + `unanchored`, pinned to sum
+to it, and the unanchored topics are **named** rather than counted — anchoring them is the only
+action that makes this check apply to them next time.
+
+**`comparable` is false for two different reasons, and they get different advice.** Nothing changed
+between the versions → *pick two that differ*; nothing could be assessed → *go and anchor these
+issues*. Collapsing them sends the reader at the wrong one, which is the whole cost of an
+undifferentiated empty state. Both arms are mutation-proved.
+
+**Wiring the screen first would have shipped the defect to a user.** The routes were dark, so nothing
+was *wrong* until somebody rendered the verdict — the same sequence as four other items on this
+branch. The engine went first, and the reachability entry says so.
+
+## A second finding, from writing the gate's fixture
+
+**`coordination_fresh._CLASH_TYPES` is `("clash", "coordination")` and `schemas.TopicType` is
+`Literal["rfi", "punch", "clash", "info"]`** — so `POST /projects/{pid}/topics` **422s on
+`coordination`**. The type is not dead: `bcf_api`'s importer resolves
+`inv_type.get(topic_type, topic_type.lower())` and its `_TYPE` map has no *"Coordination"*, so a BCF
+file carrying that `topic_type` falls through to the literal string and lands in the column. *The
+engine's filter is right about where its rows come from — another tool's export — and the typed door
+simply cannot express it.* Recorded and pinned in both directions rather than "fixed" by widening
+either side, because which types the authoring API should offer is a product decision. **The fixture
+found it by trying to create one and getting a 422** — a test helper that asserted its own status
+code, which the first draft did not.
+
+## The budget refused it, and trimming was the right answer
+
+`viewer/tools/*` lands in the eager `app-*` chunk, and the shell was at 223.2 KB against a 224 KB
+ceiling after LAYOUT-RENUMBER — so a static import of `coordFreshness.ts` took it to **224.1 KB** and
+`npm run budget` refused. With 0.1 KB over, the choice was to raise the ceiling a second time on this
+branch or to trim, and **the script's own failure message names trimming first.** A tool that runs on
+a click is the right thing to defer, so the three functions load through `await import()` inside the
+handler and only the type import stays (erased, free): 223.6 KB, and the module verified into its own
+`coordFreshness-*.js` chunk by grepping the build for a string only it emits. *A ratchet that gets
+raised every time it fires is not a ratchet* — and the directions already said where a module lands
+decides whether it costs shell bytes.
+
+## Twelve mutations, two survivors, and both were the same mistake in the pins
+
+Deleting `freshnessReading(cs)` for a literal `{headline: "", detail: "", tone: "", kind: "clean"}`
+left every assertion green, because they all read `read.<field>` and those spellings survive.
+**Asserting that a value is USED is not asserting where it came from.** One line over, a pin on
+`cs.unanchored_topics` survived replacing the loop's source with `[] as typeof cs.unanchored_topics`
+— the identifier was still in the file, inside a *type annotation*. **A source pin that matches a
+name matches every mention of the name, including the ones that are not the code.** Closed by pinning
+the call and the loop header rather than the identifiers.
+
+A thirteenth was retired rather than counted: deleting the `continue` in the unanchored branch
+changes nothing, because `set() & changed` is empty and the stale test below cannot fire for that row
+anyway. *A mutation that does not change the property under test is mis-stated, not survived* — and
+the `continue` is now documented as an early exit rather than a guard, so the next reader does not
+re-derive it.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

@@ -293,7 +293,14 @@ KNOWN_UNCALLED: set[str] = {
     # changed is that the rule can now see them, each having been vouched for by a plural or a
     # prefix. Frozen, not judged — nobody has read them, which is exactly what this set records.
     "/pipeline/allocate",                       # 'allocate' was read inside 'allocated'
-    "/projects/{pid}/coordination/stale/recheck",   # 'recheck' was read inside 'editPrecheck'
+    # `/projects/{pid}/coordination/stale/recheck` left this set 2026-10-12 — COORD-UNANCHORED:
+    # `apps/web/src/viewer/tools/modelReviewPanel.ts` now offers clash freshness per version, and
+    # `coordFreshness.recheckPrompt` gates the write behind a confirm naming what it will touch.
+    # Its sibling `/coordination/stale` went in the same change; see the note beside its old entry
+    # below. **This one was in the NEWLY-VISIBLE group above, and the group's own sentence was the
+    # reason it survived**: "frozen, not judged — nobody has read them". It read as a matcher
+    # artefact rather than a capability, so the two halves of one feature sat in two different
+    # sections of this file for a month, each looking like somebody else's problem.
     "/projects/{pid}/model/columnar/aggregate",     # 'aggregate' was read inside 'aggregates'
     "/projects/{pid}/modules/{key}/aggregate",      # 'aggregate' was read inside 'aggregates'
     "/structure/recommend",                     # 'recommend' was read inside 'recommended'
@@ -319,7 +326,14 @@ KNOWN_UNCALLED: set[str] = {
     "/proforma/scenarios/{sid}/clone",
     "/projects/{pid}/accounting/journal",
     "/projects/{pid}/classify/proposals",
-    "/projects/{pid}/coordination/stale",
+    # `/projects/{pid}/coordination/stale` left this set 2026-10-12 — COORD-UNANCHORED. The engine
+    # had to be fixed before it could honestly be wired: its whole test is
+    # `topic.element_guids INTERSECT changed`, so an open topic with NO element GlobalIds can never
+    # be stale, and it was counted among the open issues that did not go stale — which reads as
+    # "still valid". `assessable` + `unanchored` now sum to the open count and `comparable` is false
+    # when nothing could be assessed. *Wiring a screen to a verdict that cannot distinguish "not
+    # stale" from "not assessed" would have shipped the defect to a user instead of leaving it
+    # dark.* See `services/api/test_coord_unanchored.py`.
     "/projects/{pid}/design/options/economics",
     "/projects/{pid}/drawing-set/references",
     "/projects/{pid}/drawings/schedule.svg",
@@ -1036,7 +1050,10 @@ check("no frozen route has quietly become called or vanished — the allowlist c
 # anyone takes this on: matching `/leaf` flags **43** further routes, and a word-boundary match
 # flags **5** (`/pipeline/allocate`, `/projects/{pid}/coordination/stale/recheck`,
 # `/projects/{pid}/model/columnar/aggregate`, `/projects/{pid}/modules/{key}/aggregate`,
-# `/structure/recommend`). Both are more accurate than what runs today; neither belongs in a release
+# `/structure/recommend`). That list is left AS MEASURED on the day it was measured, even though
+# `/coordination/stale/recheck` has since been wired: it is a record of one measurement, and
+# editing it to stay current would destroy the only evidence of what the coarse rule was hiding.
+# Both are more accurate than what runs today; neither belongs in a release
 # about signed manifests, and each needs those routes triaged rather than bulk-frozen.
 check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
       "/asset-rights/verify" not in FOUND and "/asset-rights/verify" not in KNOWN_UNCALLED,
