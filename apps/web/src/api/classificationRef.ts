@@ -22,6 +22,79 @@ type Ctor<T> = new (...args: any[]) => T;
  *  say out loud, not a thing to block.
  */
 
+/**
+ * CLASSIFY-DARK — the three `/classify/*` routes, which had no client method at all.
+ *
+ * `classify_assist.py` exists because `classification.classify(ifc_class, system)` returns the
+ * system's DEFAULT BUCKET for a class it has no entry for, and the return type cannot express the
+ * difference — so an imported model full of `IfcBuildingElementProxy` prices every one of those
+ * elements as *01 00 00 General Requirements* and reports a complete takeoff. The engine's answer is
+ * three numbers that must be read TOGETHER: what the model `declared`, what is `proposable` from
+ * evidence, and what is `unmapped`. Only the first raises `classified_pct`.
+ *
+ * **The declared shapes are here, not inline at the call site**, so a derivation over declarations
+ * can see every field — the rule `apps/web/src/api/noRespelledShapes.test.ts` and CLASH-TRUNC paid
+ * for: an inline cast is a field no audit over types can reach, which is how `truncated` went unread
+ * for months on the clash panel.
+ */
+
+/** One element's classification, or the absence of one, with the evidence for it. */
+export interface ProposalRow {
+  guid: string;
+  ifc_class: string | null;
+  name: string | null;
+  type_name: string | null;
+  /** `declared` the model asserts it · `keyword` the element's own name determines it · `class_map`
+   *  true of the CLASS and therefore identical for every element of it, right ones and wrong ones
+   *  alike · `unmapped` no code at all. */
+  basis: "declared" | "keyword" | "class_map" | "unmapped";
+  code: string | null;
+  title: string | null;
+  confidence: "medium" | "low" | null;
+  evidence: string;
+}
+
+/** The headline, and everything needed to know what it is a headline OF. */
+export interface ClassifyCoverage {
+  system: string;
+  system_name: string;
+  /** What `classification.classify` would return for an unmapped element — the thing an estimate
+   *  silently prices them as. Named on screen because it is the whole reason this engine exists. */
+  default_bucket: { code: string; title: string };
+  /** False when the caller fed the property index instead of the file: the index carries no
+   *  classification associations, so `classified_pct` is then a FLOOR, not a reading. */
+  declared_supplied: boolean;
+  total: number;
+  declared: number;
+  classified_pct: number | null;
+  proposable: number;
+  unmapped: number;
+  by_basis: Record<string, number>;
+  headline: string;
+  counts_only_declared: string;
+  unmapped_warning: string | null;
+}
+
+/** `rows` is a PAGE. `matching` is the total — the distinction TRUNC-COUNTED cost three screens. */
+export interface ClassifyProposals extends ClassifyCoverage {
+  rows: ProposalRow[];
+  returned: number;
+  matching: number;
+  truncated: boolean;
+  truncation_note: string | null;
+}
+
+/** A plan, not an application: `steps` are ordinary GUID-stable edit recipes for the caller to
+ *  apply. `skipped` carries a REASON per GUID rather than being dropped, because a plan that
+ *  silently covers 40 of the 60 elements somebody ticked is worse than one that refuses. */
+export interface ClassifyPlan {
+  system: string;
+  steps: { recipe: string; params: Record<string, unknown> }[];
+  count: number;
+  skipped: { guid: string; reason: string }[];
+  note: string;
+}
+
 /** One row of the division master. */
 export interface MfDivision { code: string; title: string; discipline: string | null }
 /** One Uniformat II element and the MasterFormat divisions it maps to. */
@@ -113,6 +186,32 @@ export function withClassification<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return (this._classRef ??= this.json<ClassificationReference>("/reference/disciplines")).then(
         ({ disciplines, masterformat_divisions, uniformat_crosswalk }) =>
           ({ disciplines, masterformat_divisions, uniformat_crosswalk }));
+    }
+
+    /** CLASSIFY-DARK: how much of the model carries a cost code, and what the rest would need.
+     *
+     *  Counts only what the model DECLARES. Derived codes are proposals and never raise the figure —
+     *  a percentage that included our own guesses would measure the guessing, not the model. */
+    classifyCoverage(pid: string, system = "masterformat") {
+      return this.json<ClassifyCoverage>(
+        `/projects/${pid}/classify/coverage?system=${encodeURIComponent(system)}`);
+    }
+    /** One row per element with its basis and evidence. `basis` filters to one kind of claim;
+     *  `class_map` rows are worth reviewing as a group because they are identical for every element
+     *  of that class. The response's `matching` is the total and `rows` is a page of it. */
+    classifyProposals(pid: string, system = "masterformat",
+                      opts: { basis?: ProposalRow["basis"]; limit?: number } = {}) {
+      const q = new URLSearchParams({ system });
+      if (opts.basis) q.set("basis", opts.basis);
+      if (opts.limit != null) q.set("limit", String(opts.limit));
+      return this.json<ClassifyProposals>(`/projects/${pid}/classify/proposals?${q}`);
+    }
+    /** Turn an explicit list of accepted GUIDs into `set_classification` recipe steps. Returns the
+     *  plan; applying it is a separate, authored act through `editBatch`. */
+    classifyPlan(pid: string, accept: string[], system = "masterformat", edition?: string) {
+      return this.json<ClassifyPlan>(`/projects/${pid}/classify/plan`, {
+        method: "POST",
+        body: JSON.stringify(edition ? { accept, system, edition } : { accept, system }) });
     }
   };
 }

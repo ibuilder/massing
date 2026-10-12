@@ -99,6 +99,15 @@ describe("the schedules screen says what it is showing", () => {
     expect(section).not.toContain("t.rows.slice(0, 60)");
   });
 
+  it("is reached LAZILY — `viewer/tools/*` is the eager chunk and a click cannot be eager", () => {
+    // Added when CLASSIFY-DARK spent the headroom this file's roadmap entry had recorded. Pinned
+    // rather than left as a convention: a static import is one autocompletion away, costs nothing
+    // locally, and only shows up as a budget failure in somebody else's change.
+    expect(section).toContain('await import("./scheduleView")');
+    expect(section, "a static import of this module puts it back in the first load")
+      .not.toMatch(/^import \{[^}]*\} from "\.\/scheduleView";$/m);
+  });
+
   it("tones a capped schedule as a warning", () => {
     expect(section).toMatch(/r\.capped \? "warn" : ""/);
   });

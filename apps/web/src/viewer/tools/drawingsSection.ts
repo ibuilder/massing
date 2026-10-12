@@ -1,9 +1,6 @@
 import type { ApiClient } from "../../api/client";
 import { toast, withLoading } from "../../ui/feedback";
 import { kvTable, resultNote, showResult } from "../../ui/result";
-import {
-  SCHEDULE_ROW_CAP, scheduleHeadHtml, scheduleReading,
-} from "./scheduleView";
 import type { CanvasModeSwitch } from "../canvasMode";
 import {
   type ViewSpec, PAGE_CATALOG, isSheetPage, railSheetOptions, readSheetPage,
@@ -122,6 +119,12 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
 
   // W11 C4: computed door / window / room schedules from the model.
   const openSchedules = async () => {
+    // Reached with `await import()` rather than statically, the way `ruleCheckView`,
+    // `indexCoverage` and `egressTravel` are reached. SCHEDULE-TRUNC's own entry recorded this as
+    // the honest next step and left it for "whatever next needs the room" — CLASSIFY-DARK is that,
+    // and spent the half-kilobyte it predicted. `viewer/tools/*` is the EAGER chunk, so a static
+    // import of a module only a click can reach is paid for by every first load.
+    const { SCHEDULE_ROW_CAP, scheduleHeadHtml, scheduleReading } = await import("./scheduleView");
     let sc;
     try { sc = await d.api.drawingSchedules(d.pid); }
     catch (e) { d.notify(`schedules failed: ${(e as Error).message}`, "error"); return; }

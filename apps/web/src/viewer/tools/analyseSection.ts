@@ -289,6 +289,29 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         // next feature finds another home rather than spending the last line.
         b.appendChild(citedAnswerButton({ toolBtn2, api, pid, container, notify }));
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
+        // CLASSIFY-DARK: all three `/classify/*` routes had no client method, and were invisible to
+        // the reachability gate in three DIFFERENT ways — `proposals` frozen in `KNOWN_UNCALLED`,
+        // `coverage` in `LEAF_COLLISION_BLIND`, and `plan` below `MIN_SEGMENT` so it appeared in no
+        // list at all. *One capability's parts in three frozen lists each read as somebody else's
+        // gap.* Whole body behind the import: this file is in the eager chunk.
+        const runClassify = (system: string) =>
+          withLoading(container, "Reading the model's classification coverage", async () => {
+            const m = await import("./classifyAssist");
+            let r;
+            try { r = await api.classifyCoverage(pid, system); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            out.textContent = `${r.classified_pct ?? "—"}% coded · ${r.unmapped} unmapped`;
+            m.renderClassifyCard(r, {
+              showResult, resultNote, kvTable, toolBtn2, esc: escapeHtml, notify,
+              isolate: (g) => { void layerMgr.isolateGuids(g); },
+              proposals: (sys, basis) => api.classifyProposals(pid, sys, { basis }),
+              plan: (accept, sys) => api.classifyPlan(pid, accept, sys),
+              apply: (steps) => api.editBatch(pid, steps).then(() => undefined),
+              reload: (sys) => { void runClassify(sys); },
+            });
+          });
+        b.appendChild(toolBtn2("🏷 Classification coverage (cost codes)",
+                               () => { void runClassify("masterformat"); }));
         // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
         const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {
           let r;

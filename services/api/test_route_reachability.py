@@ -325,7 +325,14 @@ KNOWN_UNCALLED: set[str] = {
     "/plugins/reload",
     "/proforma/scenarios/{sid}/clone",
     "/projects/{pid}/accounting/journal",
-    "/projects/{pid}/classify/proposals",
+    # `/projects/{pid}/classify/proposals` left this set 2026-10-12 — CLASSIFY-DARK. All THREE
+    # `/classify/*` routes had no client method, and the three were invisible to this gate in three
+    # DIFFERENT ways: this one frozen here, `/classify/coverage` in `LEAF_COLLISION_BLIND` below,
+    # and `POST /classify/plan` under `MIN_SEGMENT` so it appeared in no list at all.
+    # *One capability's parts in three separate records, each reading as somebody else's gap* — the
+    # same shape as the `KNOWN_UNCALLED`/`LEAF_COLLISION_BLIND`/sub-`MIN_SEGMENT` split that
+    # TURNOVER-UNGATED paid for. Wired by `apps/web/src/viewer/tools/classifyAssist.ts` through
+    # `api.classifyProposals`, with the readings asserted in its test file beside it.
     # `/projects/{pid}/coordination/stale` left this set 2026-10-12 — COORD-UNANCHORED. The engine
     # had to be fixed before it could honestly be wired: its whole test is
     # `topic.element_guids INTERSECT changed`, so an open topic with NO element GlobalIds can never
@@ -1281,6 +1288,16 @@ CONFIRMED_DARK_SHORT_LEAF = {
     #: `/schedule/eot/sourced` was frozen in KNOWN_UNCALLED above and could have been read any day.
     #: **One feature, two concealments, two different lists** — reading either alone would have
     #: wired half a claim.
+    #:
+    #: CLASSIFY-DARK, 2026-10-12, is the same shape at THREE and is the reason that paragraph is
+    #: not a curiosity. `POST /projects/{pid}/classify/plan` was never in this set either, and for
+    #: the worse of the two reasons: its leaf `plan` is under `MIN_SEGMENT`, so the main rule does
+    #: not assess it — and it is also not in `_SHORT_DARK`, because the word "plan" is written all
+    #: over this tree (`planPaneSelection`, `egressPlanUrl`, `planSteps`). *A short leaf that
+    #: collides with a common word is hidden twice: once from the rule that would have flagged it
+    #: and once from the ratchet that records what the rule cannot see.* Its two siblings were in
+    #: `KNOWN_UNCALLED` and `LEAF_COLLISION_BLIND` — three parts of one capability, three records,
+    #: and the only one with no record at all was the POST that writes.
 }
 _SHORT = {r for r in PATHS if len(_leaf(r)) < MIN_SEGMENT}
 _SHORT_DARK = {r for r in _SHORT if not leaf_is_called(_leaf(r), _CODE)}
@@ -1671,7 +1688,10 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/authoring/capabilities",
     "/projects/{pid}/carbon/elements",
     "/projects/{pid}/clash/analyze",
-    "/projects/{pid}/classify/coverage",
+    # `/projects/{pid}/classify/coverage` left this set 2026-10-12 — CLASSIFY-DARK, the second of
+    # the three (see the note in `KNOWN_UNCALLED` above). Its leaf `coverage` is a word this tree
+    # writes everywhere, so the coarse rule could never see it either way; this entry's removal is
+    # the probe below reporting a real caller, not the rule getting sharper.
     "/projects/{pid}/cost/estimate",
     "/projects/{pid}/cv-progress/ingest",
     "/projects/{pid}/cv-progress/status",

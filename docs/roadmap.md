@@ -6506,12 +6506,178 @@ moved once today already. The reading is behind a click, so the honest next step
 recorded here rather than done in this change because the measurement belongs with whatever next
 needs the room. *Re-measure before spending it: `cd apps/web && npm run build && npm run budget`.*
 
+> **DONE, by the next item that needed the room** — CLASSIFY-DARK below, same day. So the clause
+> "`scheduleView.ts` is imported statically" above is **no longer true**, and is corrected here
+> rather than left to read as current: the import is dynamic, pinned by
+> `apps/web/src/viewer/tools/scheduleView.test.ts`. **The relief was 0.2 KB, not the half-kilobyte
+> the paragraph implies** — the schedules BODY stays in `drawingsSection.ts`, which is eager, so only
+> this module's own ~100 lines moved. *Deferring a module a click reaches is not the same as
+> deferring what the click does*, which is the distinction EGRESS-TRAVEL-DARK had to pay for from
+> the other side.
+
 **And the pin caught my own comment, for the third time on this branch.** The check that the bare
 `${t.rows.length} row(s)` is gone matched the sentence explaining the fix, which quoted it. The
 comment is reworded to describe the defect rather than spell it. *A pin keyed on text matches every
 occurrence of that text, including the one in the paragraph that exists to explain the pin* — the
 same correction ELEMENTS-SILENT and FIRM-RULES-OPTIONAL each made once already, which is the
 argument for keying a pin on a code form wherever one exists.
+
+
+### CLASSIFY-DARK — one capability, three routes, three different ways of being invisible *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane C**; `apps/web/src/viewer/tools/classifyAssist.test.ts`)*
+
+`services/api/src/aec_api/classify_assist.py` exists because of a defect it states in its own first
+paragraph: `classification.classify(ifc_class, system)` returns the system's **default bucket** for a
+class it has no entry for — MasterFormat `01 00 00 General Requirements` — and the return type cannot
+express the difference. A model we authored is full of classes that *are* mapped, so it never shows.
+An imported model is full of `IfcBuildingElementProxy`, and every one of those prices as General
+Requirements while the estimate reports a complete takeoff.
+
+The engine answering that is 368 careful lines (measured, not recalled — this entry's first draft said 360, the count before this change touched it), the three routes were served, and **no client method
+anywhere in `apps/web` called any of them.** Nothing could reach it.
+
+## The reason nobody noticed is the finding
+
+`services/api/test_route_reachability.py` exists to say "this route has no caller". It said nothing,
+because the capability's three parts were invisible to it in **three unrelated ways**:
+
+| route | where it hid |
+|---|---|
+| `GET /classify/proposals` | frozen in `KNOWN_UNCALLED` — a record of what was dark when the gate was written |
+| `GET /classify/coverage` | frozen in `LEAF_COLLISION_BLIND` — the leaf `coverage` is a word this tree writes everywhere, so the rule can see it neither dark nor wired |
+| `POST /classify/plan` | **in no list at all** — the leaf `plan` is under `MIN_SEGMENT`, so the main rule skips it, *and* "plan" collides with `planPaneSelection` / `egressPlanUrl` / `planSteps`, so the short-leaf ratchet does not record it either |
+
+*One capability's parts in three separate records, each reading as somebody else's gap* — **the
+third instance of a shape this gate's own comments already record twice, both at two parts**: R40-EOT
+(`/schedule/eot` under `MIN_SEGMENT`, `/schedule/eot/sourced` frozen in `KNOWN_UNCALLED`) and the
+LEDGER-BROWSE pair (`/connections/{cid}/erp/{entity}` in the short-leaf ratchet, its QuickBooks
+sibling in neither list, believed called off the word "quickbooks" in a `<select>`). The worst-hidden
+of the three here was **the POST that writes**: a short leaf colliding with a common word is hidden
+twice, once from the rule that would have flagged it and once from the ratchet that records what the
+rule cannot see.
+
+## What the consumer had to get right, and would not have by default
+
+Three numbers only mean something together — `declared`, `proposable` (`keyword` + `class_map`) and
+`unmapped` — and `classified_pct` counts **only the first**. Render the percentage alone and the
+remainder reads as one backlog, but **accepting every proposal on offer leaves `unmapped` untouched**,
+and those are exactly the elements an estimate prices in the default bucket.
+
+That is `test_verdict_coverage.py`'s class — *the verdict is about a subset and the subset is in a
+different field* — **and that gate could not have found this one, which is worth stating rather than
+implying.** Its population is a BOOLEAN of the form `bool(A) and (all(…) | not B)`; `classified_pct`
+is a number, and an honest one: its denominator is the whole population, so it is not a subset
+fraction at all. What is subset-shaped is the *reading* a human takes from it — that `100 − pct` is
+one actionable backlog — and no derivation over the engine's source can see a mistake the engine does
+not make. **The gate was run and reports 6 subject verdicts and 0 bare consumers, unchanged by this
+item.** Widening it to "a percentage somebody might misread" would need an exemption list, and *an
+exemption list is where the next instance hides.* Four further distinctions the card is built to
+keep:
+
+- **`keyword` and `class_map` are not summed.** A keyword hit is a claim about *this* element; a
+  class-map hit is true of the CLASS, so it is identical for every element of that class — including
+  the ones it is wrong for. They are reviewed differently, so they are two rows, and the card offers
+  the class-wide set as its own review.
+- **`rows` is a page and `matching` is the total** — TRUNC-COUNTED exactly. And `matching` changes
+  UNITS with the `basis` filter: filtered, it counts what matched the filter, so the wording changes
+  with it. *A bound reported in the wrong units is worse than no bound* (NOTICE-CLOCK).
+- **`declared_supplied: false` ranks above every other non-empty reading.** It means the classification
+  associations were never read, so `0%` then means "nobody looked" — the opposite instruction to
+  "nothing is classified". It is a FLOOR, and it is toned as neither a pass nor a finding.
+- **`apply_plan` returns `count` AND `skipped`,** and the engine's own docstring says why: *a plan
+  that silently covers 40 of the 60 elements somebody ticked is worse than one that refuses, because
+  the other 20 look done.* Refusals are grouped by reason, commonest first — sixty identical
+  refusals are one line with a count, not sixty lines.
+
+## The defect my own first draft shipped, found by reading it back
+
+The card opened with one **"Review 96 element(s)"** button that fetched the proposals unfiltered.
+That is wrong twice, and the second is the serious one:
+
+- `matching` on an unfiltered request counts **every** row including `declared`, so the reading said
+  "All 100 element(s)" above a tick list of 96 — the page-versus-total confusion this item exists to
+  fix, reintroduced one layer up.
+- **`propose()` sorts `declared` FIRST** — most authoritative first, which is right for a report —
+  and the route pages the sorted list. So on a model with more elements than the page size, an
+  unfiltered request returns the declared rows and **truncates away exactly the ones a reviewer can
+  act on**. A 5,000-element model with 2,000 declared would have reported *"Showing 2000 of 5000"*
+  above an **empty** tick list.
+
+*A cap applied after a sort is a cap on whichever end the sort put last* — the `order_by(asc).limit()`
+defect from the hardening checklist, arriving through a sort nobody chose for that reason, in a
+language and a layer where nobody was looking for it. **Neither half is visible in the engine**: the
+sort is correct, the cap is correct, the honest `truncated`/`truncation_note` are all present and
+accurate. Only the request was wrong.
+
+So there is no "review everything" button. `basis` is a **required** parameter of `proposalReading`
+rather than an optional one, there is one button per basis, and a basis the model has none of is not
+offered at all. Filtering makes `matching` the reviewable count itself, so the cap can only cut the
+far end of a set that is entirely reviewable, and it is then reported in its own units. Two more
+mutations red: the fetch losing its basis, and an empty basis still offered.
+
+## The reading that ranks first, and the button it withholds
+
+Every accepted GUID is either a step or a refusal. **If `count + skipped.length` does not equal what
+was ticked, the missing elements appear in neither column** — which reads as an ordinary partial plan,
+the one outcome it must never be mistaken for. `unaccounted` is the only reading that **withholds the
+apply button**, and it is the one assertion in that file the pure readings cannot make, so it has a
+DOM test. The server dedupes with `dict.fromkeys` before planning, so the client dedupes too or the
+check fires on a double-tick.
+
+## A latent contradiction the picker exposed
+
+`GET /classifications` has carried the docstring *"Catalog for the UI picker"* since it was written.
+**The picker it names did not exist**, and the route sits in `KNOWN_UNCALLED`. It stays there, now
+with a reason: it serves `classification.CLASSIFICATIONS`, the systems that EXIST for estimate coding
+and GAEB export, which is a different question from *what will this engine propose for* — and the
+card needs the second.
+
+Asking which function answers that found the bug. `classify_assist.systems()` — docstring *"Systems
+this module will propose codes for"* — returned `sorted(cls.CLASSIFICATIONS)` and **did not subtract
+`REFUSED`**, while `_system()` checks `REFUSED` first. The two sets are disjoint today so nothing was
+wrong; add a published class map for Uniclass and `systems()` would advertise a choice every request
+for it refuses, with the refusal listing it as "known" in the same sentence. *A catalog that does not
+honour its own refusal list contradicts the function three lines below it, and nothing goes red
+because the contradiction needs a future entry to become visible.*
+
+The existing assertion was `set(ca.systems()) == set(cls.CLASSIFICATIONS)` — **true either way**, so
+it would have gone on passing. It now subtracts `REFUSED` and is probed by putting a refused name
+*into* the catalog, which is the change that would expose it, with the catalog restored and the
+restoration itself asserted.
+
+**The system picker is pinned against the server, derived rather than restated.** The card offers
+MasterFormat, DIN 276 and NRM 1 because those are the keys of `CLASSIFICATIONS` in
+`services/api/src/aec_api/classification.py`, and the test reads that file for them. *A hardcoded
+list of someone else's enum drifts the moment a fourth entry lands* — it would be served, proposable
+and unofferable, with nothing going red. Two mutations red: a fourth system offered, and a served one
+dropped. The two the engine refuses by name (Uniclass, OmniClass) are asserted absent, so the check
+cannot pass by the client offering everything.
+
+Nothing is applied by reading. The plan comes back as ordinary GUID-stable `set_classification`
+recipe steps and the card applies them as **one** `editBatch` (BATCH-DARK's lesson), so a
+classification always has an author — a code that appeared because somebody opened a report is
+indistinguishable, a week later, from one a quantity surveyor decided.
+
+The two refusals are **independent**, which is worth naming: `apply_plan` refuses a GUID it has no
+proposal for, and `services/data/src/aec_data/guards.py` refuses one that does not resolve in the
+open model — after the model opens and *before any mutation*, so a bad GUID never half-applies.
+Neither layer is the other's backstop; a plan can be perfectly accounted for and still be refused at
+the door.
+
+Six mutations red: the `unaccounted` branch deleted, the page length printed as the total, `floor`
+ranked below `unmapped`, the two proposal kinds summed into one row, the basis rank dropped from the
+review order (**fixture deliberately not in output order** — a reorder is invisible to a fixture
+already sorted), and a no-code row made tickable.
+
+**Two test assertions of my own were wrong before the mutations ran, in opposite directions.** One
+demanded the declared/proposable/unmapped split in *every* branch including `full`, where both other
+counts are zero and there is no split to state — the branch is now excluded explicitly, with the
+reason, rather than by loosening the pattern, *because a weakened assertion teaches the next reader
+to weaken it again.* The other asserted the review had rendered by looking for the "Isolate" button,
+which is correctly absent when the fixture's rows are all `keyword` — it asserts the row's own label
+now. *A fixture that cannot produce the thing you assert on makes the assertion a statement about the
+fixture.*
 
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)

@@ -41,7 +41,27 @@ check("  which is the default bucket, indistinguishable from a real answer",
 
 # --- 1. the systems it will and will not propose for ------------------------------------------------
 check("it proposes for the systems with a published class map",
-      set(ca.systems()) == set(cls.CLASSIFICATIONS), ca.systems())
+      set(ca.systems()) == set(cls.CLASSIFICATIONS) - set(ca.REFUSED), ca.systems())
+# ...AND THE SUBTRACTION IS LOAD-BEARING, which `== set(cls.CLASSIFICATIONS)` could not say: the two
+# sets are disjoint today, so that assertion passed either way and would have gone on passing while
+# `systems()` advertised a system every request for it refuses. `systems()` is what a picker offers
+# and what the "known:" list in `_system`'s own error message is built from, while `_system` checks
+# `REFUSED` first — so the contradiction needs only a future published map to become visible.
+# Probed by putting a refused name INTO the catalog, which is the change that would expose it.
+_saved = dict(cls.CLASSIFICATIONS)
+try:
+    cls.CLASSIFICATIONS["uniclass"] = cls.CLASSIFICATIONS["masterformat"]
+    check("  a refused system with a published map is NOT advertised",
+          "uniclass" not in ca.systems(), ca.systems())
+    try:
+        ca.propose([], "uniclass")
+        check("  ...and is still refused, so the two agree", False, "no exception")
+    except ca.ClassifyError:
+        check("  ...and is still refused, so the two agree", True)
+finally:
+    cls.CLASSIFICATIONS.clear()
+    cls.CLASSIFICATIONS.update(_saved)
+check("  the catalog is restored after the probe", set(cls.CLASSIFICATIONS) == set(_saved))
 for refused in ("uniclass", "Uniclass", "omniclass"):
     try:
         ca.propose([], refused)

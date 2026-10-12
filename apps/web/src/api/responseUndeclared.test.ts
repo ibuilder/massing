@@ -92,6 +92,12 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   "POST /projects/{}/model/lod/proxy",
   "GET /projects/{}/agent-packs",
   "GET /projects/{}/ai/risk-summary",
+  // Added 2026-10-12 by CLASSIFY-DARK giving the route its first client method. The handler returns
+  // `{**{k: v for k, v in result.items() if k != "rows"}, "rows": ..., "returned": ..., ...}` — the
+  // whole coverage block arrives through a comprehension, so only the five pagination keys can be
+  // named statically. The client declares the coverage fields by EXTENDING `ClassifyCoverage`,
+  // which `/classify/coverage` does declare in full, so the keys are checked — one route over.
+  "GET /projects/{}/classify/proposals",
   "GET /projects/{}/compliance/expiring",
   "GET /projects/{}/drawings/sync-status",
   "GET /projects/{}/elements/color-by",
