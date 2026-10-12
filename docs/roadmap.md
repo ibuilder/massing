@@ -5461,6 +5461,68 @@ which landed it **inside** a multi-line `import { … } from "./vendorScorecard"
 one run — but a line-based edit to a structured file is a guess about the structure, and it was wrong
 on the first file it was tried on.
 
+### COLOR-UNSET — colouring the model to find missing data, with the missing data left out *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane C**; `apps/web/src/viewer/tools/colorCoverage.test.ts`)*
+
+**`/projects/{pid}/elements/color-by` returns `total`, `colored`, `unset` and the buckets.** The
+portal's own description of the feature is *"Shade the model by any attribute to spot missing /
+inconsistent data visually"* — so the elements carrying no value ARE the product, and the one shipped
+consumer read `buckets` and nothing else.
+
+**Live where it already shipped.** `modelStatePanels.ts`'s "◎ Isolate a phase in 3D" colours by
+`Massing_Phasing.Status` and rendered the buckets alone, so a model with 40 phased elements out of
+4,000 showed four tidy phase buttons and nothing said that 99% is **unphased**. For a phasing tool
+the unphased set is the finding: the buttons are what somebody has already tagged, and the number
+that is absent is the work.
+
+**`colored === 0` and `total === 0` are kept apart, and that is the load-bearing distinction.** No
+model in the index is an absence of input and gets no tone; a loaded model where NOTHING carries the
+property is the strongest result the tool can produce, and collapsing them to one "nothing to show"
+line is the empty-versus-absent confusion this branch keeps correcting. The mutation that merges
+them reds.
+
+**The sort was the real finding, and it was found by mutation.** `bucketRows` first ordered the rows
+largest-first, which looked like an improvement; deleting the sort changed no test, because the
+categorical fixture was already descending. **A reorder is invisible to a fixture already in that
+order.** Pursued rather than waved through, because the engine's order is meaningful and meaningful
+*differently* per `kind`: categorical comes back `most_common` with `Other` appended last, so the
+sort is redundant and moves `Other` into the middle; numeric comes back as **ascending ranges**, so
+the sort scrambles the very axis the bins divide up. *A sort that is redundant on one branch and
+destructive on the other is not a presentation choice.* Fixed by deleting it and asserting the engine's order on
+both kinds, with a numeric fixture whose two orderings differ so the assertion can fail.
+
+**The picker was measured, scoped OUT, and the blocker named rather than worked around.**
+`/elements/facets-list` exists *"to drive the viewer's 'Color by…' picker"* — every attribute and
+pset/qto property present, each with its distinct-value count — and the picker in `projectPanel.ts`
+offers two hardcoded options. `colorFacets` therefore stays frozen as callerless, with the reason
+recorded beside it: the existing control is a **client-side swatch mode** (IFC class ↔ discipline),
+not a `colorBy` caller at all, so making it enumerate the model's own properties is a product change
+about how colour-by should work; and a new panel needs an entry point in
+`apps/web/src/viewer/app.ts`, which sits at its exact size pin in `services/api/test_file_sizes.py`.
+*A dark route whose door is a product decision is not the same finding as one nobody got round to,
+and the UNCALLED list cannot tell them apart — so the distinction is now written down beside the
+entry.* **Two helpers for that picker were written and then deleted**: a module that exports a
+decision nothing calls is the very class this item is about, and shipping them would have put
+another instance of it in the file documenting it.
+
+**The same triage annotated the opposite case.** `myWork` stays on that list as a **deliberate
+supersession**: `workQueue` has two app callers and its route docstring says it is *"Built ON
+`my_work` rather than beside it: a second definition of 'in my court' is how two screens come to
+disagree."* The capability is reachable; the method is the inner one. That is the case
+`test_route_reachability.py`'s docstring names — a dark route can be a DUPLICATE rather than a gap —
+and the cost of not writing it down is that the next reader wires a second answer to "what is in my
+court", which is the exact thing the route was consolidated to prevent.
+
+**One mutation was mis-run and nearly recorded as a survivor.** `perl -0pi -e 's/\Q…the other
+${r.unset}…\E/…/'` reported the test still green — because `\Q…\E` quotes metacharacters and
+**still interpolates**, so `${r.unset}` was read as a perl dereference and the pattern matched
+nothing. Re-run with `sed`, it reds. *A mutation harness that silently fails to apply reports every
+mutation as survived, which reads exactly like a weak test suite.* This branch has paid repeatedly
+for a wrong question returning a confident number; this is the first time the confident answer was
+about the TESTS rather than the code, and the only reason it was caught is that the survivor list
+had two entries and the other one turned out to be real.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

@@ -37,10 +37,11 @@
 
 import { type ApiClient } from "../../api/client";
 import { LayerManager } from "../../tools/layers";
-import { toast, withLoading } from "../../ui/feedback";
+import { escapeHtml as esc, toast, withLoading } from "../../ui/feedback";
 import { askText } from "../../ui/prompt";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { loadSelSets } from "../../tools/selectionSetsStore";
+import { bucketRows, coverageReading } from "./colorCoverage";
 
 /** LOD maturity stages, BIMForum 100 (schematic) → 500 (field-verified as-built). */
 const LODS = ["100", "200", "300", "350", "400", "500"] as const;
@@ -296,10 +297,18 @@ export async function openPhasingPanel(d: ModelStateDeps): Promise<void> {
       try {
         const r = await d.api.colorBy(d.pid, "Massing_Phasing.Status", 6);
         showResult("Isolate by phase", (b2) => {
-          if (!r.buckets.length) { b2.appendChild(resultNote("No phased elements yet.", "")); return; }
-          for (const bk of r.buckets) {
-            b2.appendChild(d.toolBtn2(`◎ ${bk.label} · ${bk.count}`,
-              () => { void d.layerMgr.isolateGuids(bk.guids); d.notify(`isolated ${bk.count} · ${bk.label}`, "success"); }));
+          // COLOR-UNSET: the engine returns `total`, `colored` and `unset` and this rendered the
+          // buckets alone — so 40 phased elements out of 4,000 showed four tidy phase buttons and
+          // nothing said that 99% is UNPHASED. For a phasing tool the unphased set is the finding.
+          const cov = coverageReading(r);
+          b2.appendChild(resultNote(esc(cov.text), cov.tone));
+          if (!r.buckets.length) {
+            b2.appendChild(resultNote("No phased elements yet — tag phases above, then come back.", ""));
+            return;
+          }
+          for (const bk of bucketRows(r)) {
+            b2.appendChild(d.toolBtn2(`◎ ${bk.k} · ${bk.v}`,
+              () => { void d.layerMgr.isolateGuids(bk.guids); d.notify(`isolated ${bk.guids.length} · ${bk.k}`, "success"); }));
           }
           b2.appendChild(d.toolBtn2("Show all", () => { void d.layerMgr.showAll?.(); }));
         });

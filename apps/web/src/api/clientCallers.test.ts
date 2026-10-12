@@ -314,6 +314,17 @@ const UNCALLED: readonly string[] = [
   // "`codeCheck` STAYS: that is a different endpoint, and wiring one is no evidence about the
   // other." That was true and is kept, because it is why they needed two pieces of work rather
   // than one: adjacent names on this list are adjacent in nothing else.
+  // `colorFacets` STAYS, and 2026-10-12 recorded WHY rather than leaving it unexplained
+  // (COLOR-UNSET). It exists "to drive the viewer's 'Color by…' picker" — every attribute and
+  // pset/qto property present, with each one's distinct-value count — and the picker in
+  // `viewer/tools/projectPanel.ts` offers two hardcoded options. The blocker is not wiring: that
+  // picker is a CLIENT-SIDE swatch mode (IFC class ↔ discipline) and not a `colorBy` caller at
+  // all, so making it enumerate the model's own properties is a product change about how colour-by
+  // works; and a new panel needs an entry point in `viewer/app.ts`, which sits at its exact size
+  // pin in `services/api/test_file_sizes.py`. What DID ship is the coverage the painter was hiding
+  // — `viewer/tools/colorCoverage.ts`, read by the phasing panel. *A dark route whose door is a
+  // product decision is not the same finding as one nobody got round to, and this list cannot tell
+  // them apart — so the distinction is written down beside the entry.*
   "clientDecisions", "colorFacets",
   "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType",
@@ -329,6 +340,14 @@ const UNCALLED: readonly string[] = [
   "importFamilyPack", "layoutVerify", "listingReso",
     // `loanCovenants` left this list 2026-09-25 — `proforma/covenantCard.ts` on Budget & Capital.
   "liveStream", "massingOptionRecipes", "mcpTools",
+  // `myWork` STAYS and is a DELIBERATE SUPERSESSION, not a hole (recorded 2026-10-12, COLOR-UNSET
+  // triage). `workQueue` has two app callers, and its own docstring says it is "Built ON `my_work`
+  // rather than beside it: a second definition of 'in my court' is how two screens come to
+  // disagree." So the capability is reachable; the method is the inner one. This is the case
+  // `test_route_reachability.py`'s docstring names — a dark route can be a DUPLICATE rather than a
+  // gap, and neither list can tell the difference — and the cost of not writing it down is that
+  // the next reader wires a second answer to "what is in my court", which is the exact thing the
+  // route was consolidated to prevent.
   "modelAdjacency", "moduleCalc", "myWork",
   // `netEffectiveRent` and `rentRollScrub` left this list 2026-09-25 — `proforma/rentRollQuality.ts`
   // renders both under the Operations rent roll. Shipped with R20, called by nothing.
