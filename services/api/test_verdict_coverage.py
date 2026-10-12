@@ -53,6 +53,41 @@ FIVE THINGS THE FIRST DRAFTS GOT WRONG, EACH MEASURED RATHER THAN REASONED ABOUT
     unrelated prose string in the same file — the opposite error, one line later. A read is `.name`,
     `["name"]` or `name:`, and nothing else.
 
+TWO BLIND SPOTS IN THE SHAPE PREDICATE, MEASURED 2026-10-12 AND DELIBERATELY NOT CLOSED
+---------------------------------------------------------------------------------------
+EVM-COVERAGE found a sixth and a seventh instance of this class by hand (`evm.model_ev`'s
+`front_loaded_flag` and `wip.model_progress`'s `flag`), and **this gate saw neither.** Both halves of
+why were measured rather than guessed:
+
+1.  **A verdict computed into a LOCAL VARIABLE is invisible.** The walk reads dict *literals* and
+    tests the value expression in place, so `{"front_loaded_flag": flag}` tests a bare `ast.Name`.
+    Measured: **11** dict values are a bare name resolving to a verdict-shaped expression in the same
+    function, against **7** the walk sees inline. Complexity is exactly what makes an author give a
+    verdict its own line, and complexity is what correlates with having coverage to report.
+2.  **The shape is `bool(A) and (all(…)|not B)`, and these are `bool(A and B and <compare>)`** — a
+    presence guard beside a magnitude threshold rather than a quantifier. Measured: **16** instances
+    of that second shape (5 inline, 11 indirect).
+
+**Neither was closed, and the measurement is the reason.** Resolving the indirection while keeping
+the shipped shape adds **0** instances to the population today — the 11 are all the second shape, so
+the reach fix alone is a precondition repair with no present effect. And admitting the second shape
+needs the coverage vocabulary widened to positively-named counts (`coverage_pct`,
+`determined_elements`, `tracked_elements`), which is lesson 1 above, in the other direction: the
+negatively-named vocabulary is tight because "untested" cannot mean anything else, and "coverage" can
+— it already matched a sprinkler's `max_coverage_m2_per_head`. *Widening a rule until it covers the
+instance in front of you is how a gate acquires an exemption list, and an exemption list is where the
+next instance hides.*
+
+What the two new sites have instead is a **declared band** — `model_percent_complete` beside
+`model_percent_complete_max`, `ev_model` beside `ev_model_max` — which is purely structural and needs
+no vocabulary at all. Measured population of `X` beside `X_max`/`X_min` across the whole API: **7
+pairs in 2 modules, every one of them introduced by EVM-COVERAGE itself.** So a band gate would guard
+only its author's own fields and would be the only check on nothing else; both consumers already pin
+both ends in their own tests (`apps/web/src/portal/panels/modelEvReading.test.ts`). *A check earns
+its place from where it is the ONLY one, not from the worst case it can be described as catching* —
+so this is written down, with its numbers, instead of built. Re-measure before building it: a third
+module declaring a band is the signal that it has stopped being prospective.
+
 WHAT THIS DOES NOT PROVE, stated because mutation-checking it is what surfaced the limit
 ----------------------------------------------------------------------------------------
 It is a SOURCE-level check: it proves the consumer reads the field somewhere in its source, not that

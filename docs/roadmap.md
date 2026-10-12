@@ -5633,6 +5633,28 @@ finding and not a test. Closed with one fixture each. And the budget card's own 
 (dropping the warn tone, dropping the `detail` line) repeated the EVM card's survivor one file over,
 which is why each consumer now carries its own render pin rather than borrowing the other's.
 
+**And the gate built for this exact class, earlier in this session, saw NEITHER site — measured, and
+deliberately not widened.** `services/api/test_verdict_coverage.py` derives the population from a
+verdict shape, and both halves of why it missed these were measured: it walks dict *literals* and
+tests the value in place, so a verdict computed into a local variable first is a bare `ast.Name` to
+it (**11** such, against **7** it sees inline); and its shape is `bool(A) and (all(…)|not B)` while
+these are `bool(A and B and <compare>)` — a presence guard beside a magnitude threshold rather than a
+quantifier (**16** instances). *Complexity is what makes an author give a verdict its own line, and
+complexity is what correlates with having coverage to report.*
+
+**Neither was closed, and the arithmetic is the reason.** Resolving the indirection while keeping the
+shipped shape adds **0** instances today — the 11 are all the second shape — so the reach fix alone
+is a precondition repair with no present effect. Admitting the second shape needs the coverage
+vocabulary widened from negatively-named fields to positively-named counts, which is that file's own
+lesson 1 running backwards: *"untested"* cannot mean anything else and *"coverage"* can, having
+already matched a sprinkler's `max_coverage_m2_per_head`. **Widening a rule until it covers the
+instance in front of you is how a gate acquires an exemption list, and an exemption list is where the
+next instance hides.** The structural alternative — a declared band, `X` beside `X_max` — measures
+**7 pairs in 2 modules, every one introduced by this item**, so it would be the only check on nothing
+but its author's own fields, which both consumers already pin. All of that is now recorded in the
+gate's docstring with the numbers and the re-measure trigger, rather than built. *A measured negative
+is a result; the cost of not writing it down is that the next reader re-derives it.*
+
 **The mutation harness itself had to be fixed mid-pass.** It counted lines matching `^FAIL`, so a
 mutation that made the gate *crash* scored zero failures and read as a survivor — three were
 mis-scored that way before the harness started reading the exit code. *A test harness is a
