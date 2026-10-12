@@ -165,9 +165,34 @@ export function withMep<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       disclaimer: string;
     }>(`/projects/${pid}/mep/pressure-loss`);
   }
-  /** NEC 392.22 cable-tray fill from authored conductors, not a supplied ratio. */
+  /** NEC 392.22 cable-tray fill from authored conductors, not a supplied ratio.
+   *
+   *  TRAY-UNCOMPUTED — this was typed `Record<string, unknown>`, and that erasure is why the
+   *  defect below outlived every audit here: `deadFieldTyped.test.ts` and its siblings start from
+   *  these declarations, so a response with no declared fields has **no population to check**.
+   *  SUPPLY-DARK named the same erasure as a finding in its own right.
+   *
+   *  **`status` has THREE values and `info` means the tray was not evaluated** — no cables
+   *  authored on its system, so `fill_ratio` is `null` and `note` says what to author. `checked`
+   *  is `len(trays)`, every tray including those; `failed` counts only the fails. A reader who
+   *  prints the two and nothing else reports "N tray(s) · 0 over fill" over a set where nothing
+   *  was computed.
+   *
+   *  `cables` is CAPPED at 20 by the engine and `conductors` is the true count — never print
+   *  `cables.length` as a conductor count (the TRUNC-COUNTED shape). */
   mepTrayFill(pid: string) {
-    return this.json<Record<string, unknown>>(`/projects/${pid}/mep/tray-fill`);
+    return this.json<{
+      checked: number; failed: number;
+      trays: {
+        guid: string; system: string; width_in: number; allowable_fill_in2: number;
+        citation: string; conductors: number; fill_ratio: number | null;
+        status: "pass" | "fail" | "info";
+        used_fill_in2?: number; note?: string;
+        /** First 20 only — `conductors` is the count. */
+        cables?: { guid: string; diameter_in: number; area_in2: number }[];
+      }[];
+      disclaimer: string;
+    }>(`/projects/${pid}/mep/tray-fill`);
   }
   /** Space-by-space cooling-load screen vs the single-number block estimate. */
   mepThermalLoads(pid: string) {

@@ -4901,6 +4901,63 @@ comment is still a surviving mutation*, so the gate expression is pinned too. Th
 a DOM test is the complement not built here, because `renderBudget` needs some fifteen api methods
 mocked to reach one line.
 
+### TRAY-UNCOMPUTED — the tray-fill screen reported a clearance over trays nothing had measured *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane E**, by the rule that cell states for CLASH-TRUNC: the defect and its repair are the
+caller in `apps/web/src/viewer/`, and the declaration it needed is Lane I's `apps/web/src/api/mep.ts`
+— a lane goes by where the wrong answer is produced. Found by a NEW derivation over the client's
+RETURN TYPES rather than its fields; `apps/web/src/viewer/tools/trayFill.test.ts`)*
+
+**The derivation: client methods whose return type ERASES the field list.** Every unread-field
+audit here — `deadFieldTyped.test.ts`, `deadFieldScope`, `noRespelledShapes` — derives its
+population from the declarations in `apps/web/src/api/`, so a method typed
+`this.json<Record<string, unknown>>` has **no population to check**. The erasure does not weaken
+those audits, it removes the subject: `status` and `fill_ratio` below were fields no derivation over
+declarations could reach. *An exempt file is still looked at; an erased type is not even a
+candidate.* SUPPLY-DARK had already named that erasure as a finding in its own right; this asks how
+many there are.
+
+Measured: **5 of 674 typed `this.json<…>` calls erase the shape.** One is a false positive of my own
+pattern (`client.enumOptions` returns `Record<string, Record<string, string[]>>`, which is a
+correctly typed map, not an erasure — *a pattern keyed on the word `Record` does not know what a map
+is*). `proforma.proformaRollover` is already frozen as uncalled by
+`apps/web/src/api/clientCallers.test.ts`, so it carries no consumer to be wrong. `authoring.runMacro`
+and `mep.mepSize` remain as declarations to tighten. **One had a live defect behind it.**
+
+**`mepTrayFill` — "10 tray(s) · 0 over fill", in green, with nothing computed.** `tray_fill` in
+`services/data/src/aec_data/mep_sizing.py` returns a **three-valued** `status` per tray, and `info`
+means *the tray was not evaluated*: no `IfcCableSegment` runs are authored on its distribution
+system, so `fill_ratio` is `null` and the engine attaches a note naming what to author. `checked` is
+`len(trays)` — every tray, those included; `failed` counts only the fails. The screen printed those
+two numbers and nothing else, toned `failed ? "bad" : "ok"`. So a model whose trays have no cables
+anywhere renders a green pass over a set where **no fill was calculated** — another instance of
+VERDICT-COVERAGE's shape and the narrowest of them: **both immediate siblings in the
+same file already render their coverage** (`${mz.info} info`, `${tl.skipped_no_area} skipped (no
+area)`), one field away. Zero trays was the empty-versus-absent sibling in the same expression —
+`0 tray(s) · 0 over fill`, green, where the only useful answer is what to author.
+
+**`conductors === 0` is NOT the uncomputed test, and that is the one line a reader gets wrong.**
+`tray_fill`'s middle branch honours a supplied `FillRatio` property with `conductors: 0` and **is**
+evaluated, pass or fail. Keyed on conductors, the fix would warn about trays that have an answer;
+`status` is the only field that separates them. Pinned as its own case.
+
+**The coverage count rests on a precondition that lives in another language**: `trays` is the whole
+list, while `cables` inside each tray is capped at 20 by the engine. A later `trays[:limit]` would
+make `uncomputed` a count over a page beside a `checked` that stayed a total — CLASH-TRUNC exactly,
+one directory over, where the guard was sound and the evidence handed to it was not. The engine's
+own source is asserted, because that change would leave every other test here green.
+
+Nine mutations, all red, the shipped render and tone reinstated among them. **The one worth
+recording is M7**: the render wrapped so it never executes, leaving the source identical. TOTAL-EXCLUDED
+recorded that limit the day before and named the DOM complement as *"not built here"* because
+`renderBudget` needs fifteen api methods mocked; this panel needs three, so it **is** built — the
+real `buildMepSection` is driven into the DOM, the result modal read back, and the two isolate
+buttons clicked. *A gate whose reach is assumed is the thing these entries are about.* The tool also
+gains what the siblings already had: a per-tray table that says **"not computed — no cables
+authored"** in words rather than a dash in a percentage column, and isolate buttons for the two sets,
+which ask for different work — a fail wants a wider tray, an uncomputed tray wants its cables
+authored.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
