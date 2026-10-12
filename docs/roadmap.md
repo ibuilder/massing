@@ -6001,7 +6001,7 @@ written four lines above the block. It matches the string literal now, quotes in
 on words matches every mention of them, the explanation of the pin included.*
 
 
-### FIRM-RULES-OPTIONAL — the firm's standards were evaluated by nothing, and a pass over three samples was stored as a badge *(✅ CLOSED 2026-10-12, slice ① of ②)*
+### FIRM-RULES-OPTIONAL — the firm's standards were evaluated by nothing, and a pass over three samples was stored as a badge *(✅ CLOSED 2026-10-12)*
 
 *(M — **Lane C**; `services/api/test_firm_rules_applied.py`, `apps/web/src/viewer/tools/ruleCheckView.test.ts`)*
 
@@ -6099,10 +6099,88 @@ between `CoordStale`'s doc comment and `CoordStale` — the exact failure `docCo
 `docStranded.test.ts` exist to catch, and the exact mistake the previous item's roadmap entry describes
 making. *A lesson written down is not a lesson learned until the next edit is made differently.*
 
-So **slice ② is the authoring surface**: a rule-library editor and a firm-standards editor
-(admin-only `PUT`). Until it lands, every rule check in the product is still a check against the
-three samples — which is now at least *said*, in the result, in the stored badge, and in the new
-"Standards that apply here" control that is this route's first door.
+So **slice ② is the authoring surface**, and it landed in the same change: `GET`/`PUT
+/projects/{pid}/rules` and `GET`/`PUT /firm/rules` now have client methods and an editor,
+`apps/web/src/portal/panels/ruleStandards.ts`, reached from the CDE / Standards panel the way the
+jurisdiction packs are. A portal panel rather than a rail tool, deliberately: `portal/panels/*` is
+lazy by construction and the eager shell had **5 bytes** of headroom.
+
+**`/firm/rules` leaving `LEAF_COLLISION_BLIND` is the ratchet coming down**, and it is the argument
+for that list existing at all: the entry could never fail a build, so the only thing that made this
+findable was that somebody had written the name down next to the reason the rule could not see it.
+Its project-level twin was in no list, and still is not — the leaf collision means nothing here can
+assess it, so the only record of its being wired is the entry beside `/rules/effective` and this
+paragraph.
+
+## Three things the editor is careful about, because the item is about exactly this confusion
+
+- **`seeded: true` renders as the samples, not as a library.** Showing the three sample rules under
+  "your rules" would reinstate the conflation slice ① removed one layer down, so the card says what
+  they are and that **saving is what adopts them** — and that firm rules are inherited and must NOT
+  be copied here, because pasting them in creates an override of every one and makes the firm's
+  library unchangeable in practice.
+- **"nothing saved for this project" and "nothing saved anywhere" are different states with the same
+  row count.** One is falling back to examples; the other is inheriting the firm's standards. They
+  are opposite situations and get opposite advice.
+- **A save REPLACES the library, so an all-rows-deleted save is refused** rather than guessed at.
+  `rbac.py` records what losing the firm library cost the last time: `PUT /firm/rules` was once
+  `require_role("admin")` on a path with no `{pid}`, which made `pid` a caller-supplied query
+  parameter — any user could create a throwaway project they owned and replace, and thereby delete,
+  the firm's standards. The platform-admin gate is explained in the panel *before* the typing rather
+  than arriving as a 403 after it, and it names the legitimate alternative: override on your own job.
+
+## A duplicate rule id is an ambiguous override, and a survivor taught how to prove the refusal
+
+`rule_library._norm` validates both selectors, caps their length and generates an id when none is
+given — and says nothing about two rules sharing one. `firm_standards.effective_rules` matches a
+project rule onto a firm rule **by id**, and `attach_provenance` maps results by id too, so two
+project rows carrying one firm rule's id both claim to override it and the last silently wins:
+*the exact "whose rule is this" ambiguity the override machinery exists to remove, arriving through
+the door that authors them.* Refused in the editor rather than the validator, because changing
+`_norm` is a behaviour change for every library already stored and the ids are typed on this screen.
+Blank ids are deliberately not flagged — the server generates one per rule, so several blanks are
+several distinct rules.
+
+**Both refusals were first covered by source pins asserting the guard was CALLED, and `if (false)`
+around the whole block passed them** — the call was still there, still in the right order, doing
+nothing. *Asserting that a decision is computed is not asserting that it is acted on.* The only way
+to assert the second is to press the button, so `ruleEditor` is exported and the test drives it:
+fill a duplicate id, click Save, and the refusal is that **nothing reached the `save` callback**.
+Four mutations red that the pins could not see: either guard disabled, the re-read dropped after a
+successful save, and a FAILED save re-reading as though it had worked.
+
+**And that behavioural test found a real defect in its first run.** Assigning the header row through
+`innerHTML` makes the browser wrap it in an implicit `<tbody>`, so `tbody tr` matched the header as
+well as the rules — invisible on screen, and not invisible to anything that counts rows or clicks a
+per-row button. An explicit `<thead>` now. *A test that drives the DOM finds things a test that
+reads the source cannot, and this one found it by trying to click a button the header does not have.*
+
+**The budget moved, 224 → 225 KB, and what it bought is worth stating precisely.** The shell went
+223.8 KB → **229,407 brotli bytes against a 229,376 limit: 31 over** — and all of it is the four
+client methods. The figure is in BYTES on purpose: the budget script rounds its display to one
+decimal, and `224.0 KB` is what both a pass and a 31-byte failure look like. *A number that decides
+a build should be written in the unit the decision is made in* — the first draft of this paragraph
+said "223.8 → 224.1", which was true of an earlier build and had already rounded to `224.0` by the
+time the change was finished. The 310-line editor cost zero shell
+bytes, because `portal/panels/*` is lazily imported by construction. That is the asymmetry
+`scripts/bundle-budget.mjs` already measures, seen from the other side: the UI was free and the four
+fetch wrappers were not. Deferring them was considered and rejected — the `ApiClient` mixins are
+composed eagerly, so the only way would be a generic request helper for a lazy panel to build URLs
+on, which is more eager bytes *and* moves URL construction outside the one place
+`services/api/test_route_reachability.py` and `apps/web/src/api/clientCallers.test.ts` both look for
+it. *Contorting the API surface to fit a byte budget costs more than the budget is worth.* The bump
+is 1 KB rather than a round-up: 220 → 224 was four, and what four bought was several releases of
+nobody deciding anything.
+
+**The escaping check in `apps/web/src/portal/panels/ruleStandards.test.ts` had to be narrowed before
+it was worth anything.** Its first draft scanned every template literal in the file and returned six
+findings — a URL path parameter, two numbers, a word and a status message, none of which reach HTML.
+*A rule applied outside the population it was reasoned about produces confident findings about code
+it has no view of*, and the exemption list it then needs is where the real instance hides. Scoped to
+the `innerHTML` assignments it needs **no exemptions**: the one legitimate unescaped value, a
+severity label from a module constant, was wrapped rather than carved out, and the card's own three
+strings moved to `textContent` — because a card that interpolates even a constant teaches the next
+editor that this is where strings go, and the next string will be a rule name off the wire.
 
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)

@@ -1128,6 +1128,35 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
         source?: string | null; overrides?: FirmRuleVersion | null }[] }>(
       `/projects/${pid}/rules/run`);
   }
+  /** FIRM-RULES-OPTIONAL slice ② — this project's own rule library, and whether it HAS one.
+   *
+   *  `seeded` is the field that matters: true means nothing is saved for this project and the three
+   *  SAMPLE rules came back instead. The route has always returned it; until slice ② there was no
+   *  client method here at all, so the library could not be read or written from the product and
+   *  every check in it ran against the fallback. */
+  rulesLibrary(pid: string) {
+    return this.json<{ rules: EffectiveRule[]; seeded: boolean }>(`/projects/${pid}/rules`);
+  }
+  /** Replace this project's rule library. Every selector is validated server-side with the same
+   *  QUERY-DSL parser a check uses, so an unrunnable rule is a 422 and NOTHING is saved. */
+  saveRules(pid: string, rules: { id: string; name: string; scope: string; require: string;
+                                  severity: string }[]) {
+    return this.json<{ saved: number; rules: EffectiveRule[] }>(
+      `/projects/${pid}/rules`, { method: "PUT", body: JSON.stringify({ rules }) });
+  }
+  /** The firm's standard rules — the ones every project inherits. */
+  firmRules() {
+    return this.json<{ rules: EffectiveRule[]; scope: string }>(`/firm/rules`);
+  }
+  /** Replace the firm library. **Platform**-admin only, and deliberately not project-admin: on a
+   *  path with no `{pid}`, `require_role("admin")` turned `pid` into a caller-supplied query
+   *  parameter, so any user could create a throwaway project they owned and replace — and thereby
+   *  DELETE — the firm's standards. A 403 here is that gate, not a bug. */
+  saveFirmRules(rules: { id: string; name: string; scope: string; require: string;
+                         severity: string }[]) {
+    return this.json<{ saved: number; rules: EffectiveRule[] }>(
+      `/firm/rules`, { method: "PUT", body: JSON.stringify({ rules }) });
+  }
   /** FIRM-RULES-OPTIONAL — the standards that apply to this project: the firm's library with this
    *  project's layered over it by rule id, every row saying which it is and what it displaced.
    *

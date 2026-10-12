@@ -1614,7 +1614,12 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/contractor-statements/portfolio",
     "/estimate/resources/catalog",
     "/families/coverage",
-    "/firm/rules",
+    # `/firm/rules` left this set 2026-10-12 — FIRM-RULES-OPTIONAL slice ②, and the ratchet coming
+    # down is the whole point of the entry having been here: it was blind because the leaf `rules`
+    # collides with `/projects/${pid}/rules/run` in the web blob, so nothing could have told anybody
+    # that the FIRM's standards had no authoring surface. `portal/panels/ruleStandards.ts` reads and
+    # writes it now. Its project-level twin, `GET`/`PUT /projects/{pid}/rules`, was never in ANY list
+    # here for the same collision — see the note on `/projects/{pid}/rules/effective` above.
     "/lifecycle/reference",
     "/metrics/budget",
     "/openbim/capabilities",

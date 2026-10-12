@@ -47,7 +47,33 @@ const DIST = join(DIST_ROOT, "assets");
 // nothing it predicts ever looks wrong.* Re-derive it, never read it — and count CODE, not
 // comments, because two of the six files that match the string only discuss it:
 //   grep -c "await import(" apps/web/src/viewer/tools/*.ts
-const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 224);
+//
+// **224 -> 225 on 2026-10-12, later the same day, and the measurement is again the point.**
+// FIRM-RULES-OPTIONAL slice (2) wired four routes that had no client method between them --
+// `GET`/`PUT /projects/{pid}/rules` and `GET`/`PUT /firm/rules` -- so the parametric rule library
+// every check in the product evaluates could finally be AUTHORED from the product. Measured: the
+// shell went 223.8 -> **224.03 KB, which is 229,407 brotli bytes against a 229,376 limit: 31 over**
+// -- and all of it is the four client methods. The figure is given in BYTES because the display
+// rounds to one decimal and "224.0 KB" is what both a pass and a 31-byte failure look like; this
+// file's own history is a chain of numbers that rotted, so the one that decides a build is written
+// in the unit the decision is made in. The editor itself,
+// `portal/panels/ruleStandards.ts` at 310 lines, cost ZERO shell bytes, because `portal/panels/*`
+// is lazily imported by construction. That is the same asymmetry the paragraph above measures,
+// seen from the other side: the UI was free and the four fetch wrappers were not.
+//
+// **What was tried before bumping, and why it was rejected.** The `ApiClient` mixins are composed
+// eagerly, so a method on one is shell bytes by construction; the only way to defer these four
+// would be to expose a generic request helper for a lazy panel to build its own URLs on -- which
+// is more eager bytes, and it would put URL construction outside the one place
+// `services/api/test_route_reachability.py` and `apps/web/src/api/clientCallers.test.ts` both look
+// for it. *Contorting the API surface to fit a byte budget costs more than the byte budget is
+// worth*, and a client method per route is the shape two gates depend on.
+//
+// **The bump is 1 KB, not a round-up to a comfortable number.** 220 -> 224 was four, and what that
+// bought was four releases of nobody deciding anything; this leaves ~0.9 KB, which is roughly one
+// more feature's worth of client methods. The next thing to land eager should pay for itself by
+// deferring, the way the three tools above now do.
+const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 225);
 
 // The eager shell = exactly what index.html loads up front: the entry chunk + its CSS, plus the split
 // first-party `app-*` chunk the entry statically imports. Everything else is a lazy chunk that doesn't

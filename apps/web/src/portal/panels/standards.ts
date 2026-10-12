@@ -181,6 +181,23 @@ export async function renderStandards(ctx: PanelContext) {
       await (await import("./jurisdictionPanel")).renderJurisdiction(ctx);
     })();
     jurCard.append(jurBtn); root.appendChild(jurCard);
+    // FIRM-RULES-OPTIONAL slice ② — the firm's own standards, and this project's. It sits beside
+    // the jurisdiction packs for the same reason those sit beside the EIR: three parties state
+    // requirements for one model — the client (EIR/BEP), the authority (packs) and the FIRM — and
+    // until slice ② the third had no authoring surface at all. `GET`/`PUT /projects/{pid}/rules`
+    // and `GET`/`PUT /firm/rules` had no client method between them, so every rule check in the
+    // product ran against the three sample rules with no way to change that.
+    const ruleCard = el("div", "dash-card"); ruleCard.style.marginBottom = "8px";
+    ruleCard.innerHTML = `<div><b>⚖ Rule standards (firm + project)</b></div>`
+      + `<div class="meta" style="margin-top:2px">The firm's parametric standards, inherited by `
+      + `every project, and this project's own layered over them by rule id. These are what `
+      + `Review → Rule check and Model CI evaluate.</div>`;
+    const ruleBtn = el("button"); ruleBtn.className = "mini-btn on"; ruleBtn.textContent = "Open";
+    ruleBtn.style.marginTop = "6px";
+    ruleBtn.onclick = () => void (async () => {
+      await (await import("./ruleStandards")).renderRuleStandards(ctx);
+    })();
+    ruleCard.append(ruleBtn); root.appendChild(ruleCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
     //
     // The card lands in a SLOT appended now rather than straight onto `root` when the read returns.
