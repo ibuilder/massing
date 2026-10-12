@@ -351,12 +351,22 @@ export function buildQaSection(d: QaDeps): void {
           let r;
           try { r = await api.modelRoundtrip(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = r.fidelity_ok ? "round-trip clean" : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
+          // THREE states, not two. `fidelity_ok` was true over an empty snapshot, and this status
+          // line prints the bare verdict with the count nowhere in it — so "round-trip clean" was
+          // the answer for a model with no products. Now that the engine guards it, the two Falses
+          // mean opposite things and `nothing_compared` is which.
+          out.textContent = r.nothing_compared ? "nothing to round-trip"
+            : r.fidelity_ok ? "round-trip clean"
+            : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
           showResult("Round-trip fidelity", (body) => {
-            body.appendChild(resultNote(r!.fidelity_ok
+            body.appendChild(resultNote(r!.nothing_compared
+              ? "<b>Nothing was compared</b> — this model carries no IfcProduct or IfcTypeProduct, so "
+                + "serialise → re-parse proved nothing. This is not a lossless result; it is an "
+                + "unrun one."
+              : r!.fidelity_ok
               ? `<b>Lossless</b> — all ${r!.element_count} elements survived serialise → re-parse with GUID, class, name, containment, type and psets intact.`
               : `<b>Not lossless</b> — ${r!.counts.missing} missing · ${r!.counts.added} added · ${r!.counts.changed} changed, of ${r!.element_count} elements.`,
-              r!.fidelity_ok ? "ok" : "bad"));
+              r!.nothing_compared ? "" : r!.fidelity_ok ? "ok" : "bad"));
             // MISSING is the one that matters most: an element that does not survive our own export
             // is data loss, and GUID stability is what every recipe and every pin depends on.
             for (const [label, guids] of [["Missing after round-trip", r!.missing], ["Appeared after round-trip", r!.added]] as const) {

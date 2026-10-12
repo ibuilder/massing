@@ -544,7 +544,12 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   }
   /** INTEROP-RT — round-trip fidelity: serialize → reparse → compare, with a single verdict. */
   modelRoundtrip(pid: string) {
-    return this.json<{ fidelity_ok: boolean; element_count: number;
+    return this.json<{ fidelity_ok: boolean;
+      /** NEGATED-VERDICT: `fidelity_ok` was `not missing and not added and not changed`, which is
+       *  True over an empty snapshot — so a model with no `IfcProduct` reported LOSSLESS. It now
+       *  requires `bool(before)`, and this says which kind of False you have. Declared, so a
+       *  derivation over declarations can see it. */
+      nothing_compared: boolean; element_count: number;
       counts: { missing: number; added: number; changed: number };
       missing: string[]; added: string[];
       changed: { guid: string; class: string; aspects: string[] }[] }>(

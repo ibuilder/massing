@@ -63,7 +63,25 @@ def reconcile(db: Session, pid: str) -> dict[str, Any]:
         "uncoded": uncoded[:200],
         "counts": {"matched": len(matched), "budget_only": len(budget_only),
                    "actuals_only": len(actuals_only), "uncoded": len(uncoded)},
-        "fully_reconciled": not actuals_only and not uncoded,
+        # RECONCILED AGAINST WHAT? This was `not actuals_only and not uncoded` — the absence of two
+        # problem lists, with nothing requiring that a cost was ever recorded. A project with a full
+        # budget and ZERO actuals has both lists empty, so it reported *fully reconciled* with
+        # `budget_only` holding every line.
+        #
+        # `apps/web/src/portal/panels/ledger.ts` found this and guarded it — and the guard is on the
+        # sum of all four counts, so it catches the all-zero project and **not** the budget-only
+        # one, which is the case a real job is in before the first invoice. So the screen printed
+        # "12 budget with no actual — fully reconciled" under a heading reading *Period close*.
+        # *A consumer-side guard protects the consumer that has it, and this is an API: every other
+        # reader, including a client's own integration, got the bare boolean.*
+        #
+        # `bool(matched)` is the evidence: at least one cost code carries both a budget and an actual.
+        # Spelled as a `bool()` call rather than the bare name so the field cannot serialise as `[]`
+        # — and that spelling is also what `services/api/test_verdict_coverage.py` recognises.
+        "fully_reconciled": bool(matched) and not actuals_only and not uncoded,
+        # Why it is False, when it is False for want of evidence rather than for a finding. Without
+        # this the two Falses are the same value and mean opposite things.
+        "nothing_reconciled_yet": not (matched or actuals_only or uncoded),
     }
 
 

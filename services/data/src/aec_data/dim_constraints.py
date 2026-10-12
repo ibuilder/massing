@@ -113,7 +113,15 @@ def solve(variables: dict[str, float], constraints: list[dict[str, Any]]) -> dic
     index = {nm: i for i, nm in enumerate(names)}
     n = len(names)
     if n == 0:
-        return {"values": {}, "dof": 0, "solved": True, "conflicts": [], "violations": [],
+        # NEGATED-VERDICT, judged as a KEEP like `model_options.identical`: a system with no
+        # variables genuinely IS solved — nothing is unsatisfied — and this branch exists precisely
+        # because somebody thought about the case and labelled it. Flipping it would report "not
+        # solved" for a sketch carrying no locks, which is a false alarm.
+        #
+        # `variable_count` is added so the basis is a FIELD rather than a sentence: `note` already
+        # said "no variables", and a note is not something a caller can branch on.
+        return {"values": {}, "variable_count": 0,
+                "dof": 0, "solved": True, "conflicts": [], "violations": [],
                 "tiers": [], "note": "no variables"}
 
     x = np.array([float(variables[nm]) for nm in names])
@@ -206,9 +214,18 @@ def solve(variables: dict[str, float], constraints: list[dict[str, Any]]) -> dic
 
     return {
         "values": {nm: round(float(x[i]), 6) for i, nm in enumerate(names)},
+        # The population the verdict below is about — see the `no variables` branch above for why
+        # `solved` is deliberately NOT guarded on it.
+        "variable_count": len(names),
         "dof": int(dof),
         # `solved` means every REQUIRED row holds and no clearance is violated. A weaker tier yielding
         # is the system working as designed, not a failure.
+        #
+        # EMPTY-IS-CLEAN: nothing unsatisfied IS solved. A system reaching here has variables (the
+        # `no variables` branch returns earlier) and may have no constraints at all, and "solved"
+        # is the honest answer for it — what a reader must not miss there is the UNDER-constraint,
+        # which `dof` reports as its own number and this flag deliberately never absorbs. Flipping
+        # it would false-alarm on every sketch carrying no locks.
         "solved": not any(c["strength"] == "required" for c in conflicts) and not violations,
         "conflicts": conflicts,
         "violations": violations,

@@ -239,15 +239,7 @@ async function renderFinanceGovernance(
     // different problems — netting them to one variance hides both.
     line.innerHTML = `<b>${c.matched}</b> matched · <b>${c.budget_only}</b> budget with no actual · `
       + `<b>${c.actuals_only}</b> actual with no budget · <b>${c.uncoded}</b> uncoded`
-      // "fully reconciled" is defined by the ABSENCE of two problem lists, not by anything having
-      // matched - fin_ingest.py returns `not actuals_only and not uncoded`. A project with no cost
-      // codes yields empty lists, so the flag is true and the line reads
-      //     0 matched - 0 budget with no actual - 0 actual with no budget - 0 uncoded - fully reconciled
-      // under a heading that says "Period close". A controller scans the verdict, not the zeros, and
-      // reads "the books tie out" where the truth is "there are no books".
-      + (!(c.matched + c.budget_only + c.actuals_only + c.uncoded)
-        ? " — no coded cost data to reconcile yet"
-        : r.fully_reconciled ? " — fully reconciled" : "");
+      + reconcileSuffix(r);
     rec.appendChild(line);
     // Actuals with no budget and uncoded actuals are the two that cost money; show those, highest
     // value first (the server already sorts them that way).
@@ -296,6 +288,52 @@ async function renderFinanceGovernance(
       }
     }
   } catch { /* lineage is context, not a blocker — a project with no imports has none */ }
+}
+
+/**
+ * What to append after the four counts — the verdict, in the units the reader needs.
+ *
+ * NEGATED-VERDICT. `fully_reconciled` used to be `not actuals_only and not uncoded` on the server:
+ * the absence of two problem lists, with nothing requiring that a cost was ever recorded. So a
+ * project with no cost codes read
+ *
+ *     0 matched · 0 budget with no actual · 0 actual with no budget · 0 uncoded — fully reconciled
+ *
+ * under a heading that says *Period close*. A controller scans the verdict, not the zeros, and reads
+ * "the books tie out" where the truth is "there are no books".
+ *
+ * **The guard this panel already carried was right about the cause and wrong about the extent**, and
+ * that is the more useful half. It tested the SUM of the four counts, so it caught the all-zero
+ * project and NOT the budget-only one — a job with a budget loaded and no invoice yet, which is
+ * every job before its first pay application. That one read
+ *
+ *     12 budget with no actual — fully reconciled
+ *
+ * and no guard here could have been expected to catch it, because the flag's DEFINITION is the
+ * server's. `fin_ingest.reconcile` now requires `bool(matched)` and reports `nothing_reconciled_yet`.
+ *
+ * The count test stays, and not as belt and braces: it is what separates "no cost data at all" from
+ * "some, and nothing matched", and reading the flag alone would collapse those back together.
+ *
+ * Pure and exported for the same reason `lineageHeading` is — a four-way decision on a money screen
+ * is a thing to assert, not a ternary chain inside a render.
+ */
+export function reconcileSuffix(r: {
+  fully_reconciled?: boolean; nothing_reconciled_yet?: boolean;
+  counts?: { matched?: number; budget_only?: number; actuals_only?: number; uncoded?: number };
+}): string {
+  const c = r.counts ?? {};
+  const any = (c.matched ?? 0) + (c.budget_only ?? 0) + (c.actuals_only ?? 0) + (c.uncoded ?? 0);
+  if (r.nothing_reconciled_yet || !any) return " — no cost actuals to reconcile yet";
+  // `!c.matched` IS TESTED BEFORE THE FLAG, and the order is the point: nothing can have reconciled
+  // when no cost code carries both a budget and an actual, whatever the flag says. So this line
+  // cannot print "fully reconciled" for the budget-only project even against a server still sending
+  // the unguarded boolean — the same two-independent-refusals shape as the classification plan,
+  // where the engine refuses a GUID it has no proposal for and the model refuses one that does not
+  // resolve. *A client that recomputes what it can does not depend on the server being fixed.*
+  if (!c.matched) return " — nothing has reconciled: no cost code carries both a budget and an actual";
+  if (r.fully_reconciled) return " — fully reconciled";
+  return "";
 }
 
 /** The Import lineage section's heading, or `null` when there is nothing to draw.

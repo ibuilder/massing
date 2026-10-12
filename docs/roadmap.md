@@ -6680,6 +6680,120 @@ now. *A fixture that cannot produce the thing you assert on makes the assertion 
 fixture.*
 
 
+### NEGATED-VERDICT — the guard's absence is the defect, so a gate keyed on the guard cannot see it *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane G**; `services/api/test_negated_verdict.py`)*
+
+`services/api/test_verdict_coverage.py` asks whether a screen reading a verdict about a SUBSET also
+reads what the engine could not evaluate. It builds its population from two shapes, and **both
+require the guard to be PRESENT** — shape 1 wants a `bool(<name>)` operand, shape 3 at least one
+plain truthiness operand. So a verdict written entirely as negations:
+
+```python
+"navigable": not dangling and not orphans and not unparseable
+```
+
+is in neither shape, and is **unconditionally `True` on empty input**. *A predicate that requires the
+guard in order to look at a site is blind to the site whose defect IS the missing guard.* That is
+`CLAUDE.md`'s seventh note arriving from a third direction: a predicate deciding what to LOOK at is
+worse than one deciding what to report, because everything it excludes is absent from its own output.
+
+Measured at **5** sites before any was touched. **They did not want the same fix, and that is the
+whole content of the item.**
+
+| site | the question | judged |
+|---|---|---|
+| `detail_refs.navigable` | can a reader navigate this set? | **FLIP** |
+| `fin_ingest.fully_reconciled` | do the books tie out? | **FLIP** |
+| `roundtrip.fidelity_ok` | does my model survive export? | **FLIP** |
+| `model_options.identical` | do these two models differ at element level? | **KEEP** |
+| `dim_constraints.solved` | are the locks satisfiable? | **KEEP** |
+
+The rule that produced that split: **flip the boolean when the clean verdict answers a question that
+was never asked; keep it and supply the population when the verdict is genuinely true of an empty
+set.** Two element-less models really do not differ, and a sketch with no locks really is solved —
+flipping those would false-alarm in the opposite direction, which is how a check teaches people to
+ignore it. *The fix for a vacuous truth is not always to make it false; sometimes it is to say what it
+is true of*, so the keeps gained `current_element_count`/`option_element_count` and `variable_count`
+instead. `dim_constraints` already said `note: "no variables"` — **a note is not something a caller
+can branch on.**
+
+## The three flips, and what each was telling a user
+
+**`detail_refs.navigable` — the test named the defect and shipped it anyway.**
+`services/api/test_detail_refs.py` asserted `navigable is True` for an empty project under the comment
+*"an empty set is navigable — vacuously, but it must not report phantom defects"*. **The empty case
+was thought about, named as vacuous, and then returned as the same boolean a cross-referenced set
+returns.** "Vacuously true" is a correct statement about logic and a wrong answer to a person: *no
+dangling reference can be found in a set that has no references*, so the absence of findings was a
+fact about the input. The second half of that comment was right and is now asserted separately —
+nothing is reported as a defect either; the state is `assessed: false` with its reason. The common
+case is not the empty project but the ordinary one: `details` and `callouts` are optional fields, so
+**any drawing register nobody has cross-referenced yet** landed in the clean case.
+
+**`fin_ingest.fully_reconciled` — a money screen, and a careful guard that was right about the cause
+and wrong about the extent.** The flag was the absence of two problem lists with nothing requiring
+that a cost was ever recorded. `apps/web/src/portal/panels/ledger.ts` **had already found this and
+guarded it**, with a comment spelling out the exact mis-reading. Its guard tests the SUM of the four
+counts — so it catches the all-zero project and **not** the budget-only one, which is every job
+before its first pay application:
+
+```
+12 budget with no actual — fully reconciled          (under a heading reading "Period close")
+```
+
+*A consumer-side guard protects the consumer that has it, and this is an API* — every other reader,
+including a client's own integration, got the bare boolean. Fixed at the engine (`bool(matched)`) and
+at the screen, where `reconcileSuffix` now tests `!matched` **before** the flag, so it cannot print
+"fully reconciled" even against a server still sending the old one. Two independent refusals, the
+same shape as the classification plan's.
+
+**`roundtrip.fidelity_ok` — "Lossless — all 0 elements survived".** The card rendered the count, so a
+reader could see it; the viewer's **status line prints the bare verdict**, where `round-trip clean`
+was the answer for a model with no `IfcProduct`. Three states now, with `nothing_compared` saying
+which `false` you have.
+
+## The gate, and why the declaration is not an exemption list
+
+For every all-negated verdict: a presence guard (after which `test_verdict_coverage.py` owns it), or
+an `EMPTY-IS-CLEAN:` declaration **with a reason** in the comment block directly above the key.
+COURT-SPLIT paid to learn that *an exemption list is where the next instance hides*; a marker at the
+site cannot hide a new one, because a new all-negated verdict arrives with no marker and reds the
+build. The marker is read from the contiguous comment block above the key and nowhere else — a marker
+three screens away would let one declaration bless every later verdict in the same `return`, which is
+an exemption list wearing a comment's clothes. A bare marker with no reason is not a declaration, and
+that is asserted.
+
+`is_all_negated` (what to LOOK at) and `verdict` (what to REPORT) are separate functions so each can
+be mutated directly — `test_unique_read_guard.py`'s first draft asserted only that its analyser still
+*reported* a site, so a mutation routing every site to "safe" passed.
+
+**The ≥2 threshold is measured, not chosen:** `And` with exactly one negated operand and no other
+operand kind measures **0**, so `>= 2` and `>= 1` are the same rule today. Five mutations red,
+including each of the three engine guards reinstated one at a time — and one of those is
+`services/data/src/aec_data/roundtrip.py`, which **the gate it extends cannot see at all** (below).
+
+## Two gaps measured rather than hedged
+
+**The bare single `"key": not X` dict value measures 36**, with the identical defect. Three read and
+confirmed: `cde.complete = not missing_core` (a CDE holding no documents is "complete"),
+`cited_answer.fully_cited = not uncited` (an answer making no claims is "fully cited"),
+`agent_packs.ok = not problems`. Not swept here, because 36 sites need 36 judgements and the table
+above is what one judgement costs — *a rule demanding 36 edits gets abandoned halfway and leaves the
+tree half-declared.* The number is the handover, not a suspicion.
+
+**And measuring this found a SCOPE gap in the gate it extends.** `test_verdict_coverage.py` scans
+`HERE / "src" / "aec_api"` only, so every subset verdict under `services/data/src/aec_data` — where
+the IFC engines live — is outside its population: **6 of the 14 it would have if it looked**
+(`qto.estimated`, `roundtrip.fidelity_ok`, `adjacency.satisfied` ×2, `adjacency.forbidden_ok`,
+`ifcpatch_lib.convertible`). 43%, and one of the six is a verdict this very item flipped, which is
+why that repair is gated here and not there. *A gate's root is a question about where somebody
+stood* — the same thing `test_schema_types_agree.py` paid for, in the same words, three weeks ago.
+Widening it is its own change with its own consumer fixes. The new gate walks `git ls-files`, which is
+how the number is known at all, and the existing gate's own population went **6 → 8** as two of the
+flips acquired guards and entered it.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

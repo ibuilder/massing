@@ -15,6 +15,12 @@ Two defects matter, and they are different problems with different owners:
 Dangling splits further, because the fix differs: an unknown SHEET is usually a typo or a sheet that
 was never issued; a known sheet with an unknown DETAIL number is usually a renumber that was not
 propagated. Collapsing them into one "broken reference" count would hide which.
+
+And there is a **third state, `assessed`**, which is not a defect and is not cleanliness either: a
+register with no details and no callouts recorded. `navigable` must not be True there — the whole
+point of this leaf is that a set "cannot be CHECKED" today, and a check that returns a pass for the
+unchecked case has not improved on that. *No dangling reference can be found in a set that has no
+references*, so the absence of findings is a fact about the input, not about the drawings.
 """
 from __future__ import annotations
 
@@ -111,6 +117,14 @@ def graph(db, pid: str) -> dict[str, Any]:
                for k, t in targets.items() if k not in pointed]
     orphans.sort(key=lambda o: (o["sheet"], o["detail"]))
 
+    # WAS THERE ANYTHING TO RULE ON? A register that records no details and no callouts has not
+    # been checked and found clean — it has not been checked. `navigable` was
+    # `not dangling and not orphans and not unparseable`, which is unconditionally True on an empty
+    # register, and `test_detail_refs.py` asserted exactly that with the word *"vacuously"* in the
+    # comment beside it. **The empty case was considered, named as vacuous, and then returned as the
+    # same boolean a cross-referenced set returns** — and no consumer can read a word in a test
+    # comment. A reader asking "is my set navigable?" was told yes by a set with no references in it.
+    assessed = bool(targets or edges or dangling or unparseable)
     return {
         "sheet_count": len(sheets),
         "detail_count": len(targets),
@@ -120,6 +134,17 @@ def graph(db, pid: str) -> dict[str, Any]:
         "dangling": dangling,
         "orphans": orphans,
         "unparseable": unparseable,
-        # a set is navigable when every callout resolves AND every detail is reachable
-        "navigable": not dangling and not orphans and not unparseable,
+        "assessed": assessed,
+        # a set is navigable when something was assessed AND every callout resolves AND every detail
+        # is reachable. `assessed` leads deliberately: it is the operand whose absence made the other
+        # three meaningless, and putting it first makes the verdict presence-guarded in the sense
+        # `services/api/test_verdict_coverage.py` can actually see.
+        "navigable": assessed and not dangling and not orphans and not unparseable,
+        # Says WHY, not just that. The second half matters more than the first: the correct response
+        # to an unchecked set is to record the callouts, not to go looking for defects that the
+        # absence of references guarantees cannot be found.
+        "unassessed_reason": None if assessed else (
+            f"{len(sheets)} sheet(s) are registered and none records a detail or a callout, so there "
+            "is nothing to cross-reference. This is an UNCHECKED set, not a clean one — no dangling "
+            "reference can be found in a set that has no references"),
     }

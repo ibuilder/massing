@@ -41,7 +41,14 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ matched: Row[]; budget_only: Row[]; actuals_only: Row[];
       uncoded: { module: string; ref: string; amount: number; vendor?: string }[];
       counts: { matched: number; budget_only: number; actuals_only: number; uncoded: number };
-      fully_reconciled: boolean }>(
+      /** `bool(matched) and not actuals_only and not uncoded` — it REQUIRES that something
+       *  reconciled. It used to be the absence of the two problem lists alone, which is true of a
+       *  project that has never recorded a cost. */
+      fully_reconciled: boolean;
+      /** Why `fully_reconciled` is false, when it is false for want of a cost rather than for a
+       *  finding. Declared so a derivation over declarations can see it — the two Falses are the
+       *  same value and mean opposite things. */
+      nothing_reconciled_yet: boolean }>(
       `/projects/${pid}/finance/reconcile`);
   }
   /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first.
