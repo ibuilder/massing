@@ -567,7 +567,7 @@ never contingent on the npm question.
 
 **What an agent working in `apps/web/src/viewer` should know.** **Seventy-nine** commits have touched that
 directory since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to
-**2,442** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
+**2,410** — largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being
 done here first. That is good and it is also divergence: every one of those commits is a change the swap will
 have to reconcile. So:
 
@@ -589,6 +589,19 @@ have to reconcile. So:
   narrative copy of a number that has a gate, and a copy is what drifts.** Read the pin, not the prose.
   The `wc -l` in the re-measure command above was also bare and would have waited on stdin — an instruction to
   verify that hangs is an instruction nobody runs twice.)*
+
+  *(**2,442 → 2,410 on 2026-10-12**, BATCH-DARK: the "Script this" window left for
+  `apps/web/src/viewer/tools/scriptThis.ts`, and this line moved in the same edit because
+  `services/api/test_claude_md_gates.py` refuses the build otherwise — which is the lesson above being
+  enforced rather than remembered. **And the commit count above was deliberately NOT re-measured, which
+  is the more useful half.** `git log --since=2026-08-06 -- apps/web/src/viewer | wc -l` returns **24**
+  in this cloud container, against the seventy-nine stated — because the checkout is **shallow** (two
+  grafts, 123 commits, oldest dated 2026-09-11), so `--since` cannot see past the graft and the small
+  number is an artefact of clone depth rather than a correction. *A re-measure that depends on the depth
+  of somebody's clone is not a measurement*, which is the same thing `services/api/test_gap_records.py`
+  had to learn when its replay used `git show` and failed only in CI. Check with
+  `git rev-list --count HEAD` and `test -f .git/shallow` before believing a history count here; the LINE
+  count is safe because `wc -l` reads the working tree.)*
 
 - **Keep shipping.** Blocking this roadmap for the extraction would make the extraction expensive and it would
   die. Landing viewer work here is the correct default.

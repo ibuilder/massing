@@ -337,7 +337,15 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/design/options/economics",
     "/projects/{pid}/drawing-set/references",
     "/projects/{pid}/drawings/schedule.svg",
-    "/projects/{pid}/edit/batch",
+    # `/projects/{pid}/edit/batch` left this set 2026-10-12 — BATCH-DARK, and this entry is the one
+    # that cost users something every day. Its own docstring names the caller it was built for —
+    # *"so a multi-step NL command undoes as a single step"* — and **three** callers looped
+    # `editIfc` once per step instead, each paying for the missing batch in a different currency:
+    # `tools/scriptThis.ts` (then inline in `app.ts`) HID the partial write behind "apply failed";
+    # the AI command bar COMPENSATED for it with a republish and said "stopped after k/n"; the
+    # dimensional-lock solver COUNTED and said "Applied k of n". *Three workarounds for one missing
+    # call, and none of the three authors found the route built for it.* Wired now in
+    # `apps/web/src/api/authoring.ts` as `editBatch`.
     # `/projects/{pid}/egress/routes` left this set 2026-10-12 — EGRESS-TRAVEL-DARK:
     # `apps/web/src/viewer/tools/analyseSection.ts` now offers routed travel distance beside the
     # Occupancy & egress tool, which `codecheck_egress.py`'s own header says EXCLUDES travel

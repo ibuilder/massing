@@ -98,6 +98,36 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
                                                         : { recipe, params, publish }) });
     }
 
+    /**
+     * S4 — apply a SEQUENCE of authoring steps as ONE version.
+     *
+     * **The route's own docstring says it exists "so a multi-step NL command undoes as a single
+     * step", and the NL command path looped `editIfc` instead.** The model opens once, every step
+     * runs in memory, one file is written, one edit-history entry is pushed, and every step is
+     * guard-prechecked before anything runs — so a bad step aborts the batch with **nothing
+     * written**. Looping single applies gave the opposite of all four: N undo entries, N opens, no
+     * lock check between steps, and a failure at step k leaving k-1 steps written to the model.
+     *
+     * `baseSource` is the COLLAB-1 optimistic lock: the source filename the plan was built against.
+     * Omitted, the batch applies to whatever the current version is — which is the single-apply
+     * behaviour, so leaving it out is no worse than today and passing it is strictly better.
+     *
+     * One thing it does NOT carry, stated because it is a real trade: the engine runs the guard
+     * precheck on every step but **no model-aware precheck**, because a step may legally reference
+     * an element a PRIOR step in the same batch creates. A single apply gets the full model
+     * precheck. What that costs is the quality of the error message, not the all-or-nothing
+     * property — a step that references something absent raises before the file is written.
+     */
+    editBatch(pid: string, steps: { recipe: string; params: Record<string, unknown> }[],
+              publish = true, baseSource?: string) {
+      return this.json<{ steps: { recipe: string; changed: number | string }[];
+        step_count: number; out: string; publish?: string }>(
+        `/projects/${pid}/edit/batch`,
+        { method: "POST", body: JSON.stringify(baseSource
+            ? { steps, publish, base_source: baseSource }
+            : { steps, publish }) });
+    }
+
     // --- Raise a 2D plan into authored walls ---
     /** 2D -> BIM raise: turn an uploaded DXF floor plan into an IFC model (walls + spaces). `preview`
      *  just parses (returns wall/room counts); otherwise registers a "2D Raise" discipline model. */

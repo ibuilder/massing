@@ -113,6 +113,19 @@ export function planApply(
   return { writes, refused };
 }
 
+/**
+ * The plan's writes as `/edit/batch` steps.
+ *
+ * BATCH-DARK. Extracted rather than written inline at the call site because of the **rename**: a
+ * write calls its recipe `op` and a batch step calls it `recipe`, and a mapping between two names
+ * for one thing is the kind of line that breaks silently — the batch would post `{op, params}`,
+ * FastAPI would see no `recipe` key, and every step would fail validation with a message about a
+ * field nobody wrote. One line, one test, and the name is checked rather than assumed.
+ */
+export function planSteps(plan: ApplyPlan): { recipe: string; params: Record<string, unknown> }[] {
+  return plan.writes.map((w) => ({ recipe: w.op, params: w.params }));
+}
+
 /** A one-line summary for the confirmation step. Names the refusals — that is the whole point. */
 export function describePlan(plan: ApplyPlan): string {
   const n = plan.writes.length;

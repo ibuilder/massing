@@ -4,7 +4,7 @@ import { type ApiClient } from "../../api/client";
 import { escapeHtml } from "../../ui/feedback";
 import { openNodeCanvas } from "../nodeCanvas";
 import { macroButton } from "./macroTool";
-import { describePlan, planApply, type ApplyPlan, type LockVariable } from "../dimLocks";
+import { describePlan, planApply, planSteps, type ApplyPlan, type LockVariable } from "../dimLocks";
 
 /**
  * R39-DECOMP-VIEWER — the advanced authoring / annotate / library section, out of `app.ts`.
@@ -247,18 +247,26 @@ function locksBtn(d: AuthoringDeps, out: HTMLElement): HTMLButtonElement {
     apply.onclick = async () => {
       if (!plan?.writes.length) return;
       apply.disabled = true;
-      let done = 0;
+      // BATCH-DARK. This looped one `editIfc` per write, which was more careful than the NL path —
+      // it counted `done` and said "Applied k of n" — but the partial write still HAPPENED, and a
+      // solved dimensional system applied halfway is a model that satisfies no constraint set at
+      // all. `/edit/batch` makes it all-or-nothing and one undo entry, so the honest message on a
+      // failure is that nothing was written. *Naming a partial write is better than hiding one and
+      // worse than not making one.*
+      const count = plan.writes.length;
       try {
-        for (const w of plan.writes) { await api.editIfc(pid, w.op, w.params, false); done++; }
+        await api.editBatch(pid, planSteps(plan), false);
         await api.publish(pid);
         const state2 = await d.waitForPublish(pid);
         if (state2 === "done") await d.loadProjectModel();
         // The refusals are repeated HERE, after applying, because this is the moment someone reads
         // it as finished. "Applied 3" alone is the silent-drop failure.
         notify(plan.refused.length
-          ? `Applied ${done} — ${plan.refused.length} could not be written: ${plan.refused.map((r) => r.variable).join(", ")}`
-          : `Applied ${done} change(s)`, plan.refused.length ? "info" : "success");
-      } catch { notify(`Applied ${done} of ${plan.writes.length} — the rest failed`, "error"); }
+          ? `Applied ${count} — ${plan.refused.length} could not be written: ${plan.refused.map((r) => r.variable).join(", ")}`
+          : `Applied ${count} change(s)`, plan.refused.length ? "info" : "success");
+      } catch (e) {
+        notify(`Nothing was applied — the batch was refused: ${(e as Error).message}`, "error");
+      }
     };
 
     out.append(rows, solveBtn, apply, result);

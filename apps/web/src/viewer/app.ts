@@ -19,6 +19,7 @@ import { mountCadBar } from "./cadBar";
 import { installViewerHook } from "./debugHook"; import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { makeVerifySection } from "./tools/verifySection";
+import { scriptThisTool } from "./tools/scriptThis";
 import { buildAnnotationSection } from "./tools/annotationSection";
 import { buildContentLibrarySection } from "./tools/contentLibrarySection";
 import { buildDetailingSection } from "./tools/detailingSection";
@@ -694,44 +695,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   toolBtn("⌨", "Script this — see the GUID-safe recipe plan behind a plain-English command, then apply", () => {
     if (!connected || !projectId) { notify("open a project to script it", "error"); return; }
-    showResult("Script this — the recipe interface", (body) => {
-      body.appendChild(resultNote("Every tool here is a <b>GUID-safe recipe</b> — the same verbs the AI "
-        + "command bar and the sandboxed <code>ifcopenshell</code> runner drive. Type what you want in plain "
-        + "English to see the exact recipe plan it maps to, then apply it. (Advanced: run sandboxed code via "
-        + "the rail's Build → 🔧 Advanced → ⚡ Run IFC code.)", ""));
-      const inp = document.createElement("input"); inp.type = "text"; inp.className = "portal-filter";
-      inp.placeholder = "✨ e.g. add a 3m wall from 0,0 to 5,0"; inp.style.cssText = "width:100%;padding:8px;box-sizing:border-box;margin-bottom:6px";
-      const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Interpret →";
-      const out = document.createElement("div"); out.style.marginTop = "8px";
-      const run = async () => {
-        const text = inp.value.trim(); if (!text) return;
-        out.innerHTML = `<div class="meta">Interpreting…</div>`;
-        let res;
-        try { res = await api.aiAuthor(projectId!, text, { selected_guids: selectedGuid ? [selectedGuid] : undefined, active_storey: activeStorey || undefined }); }
-        catch (e) { out.innerHTML = `<div class="meta">command failed: ${escapeHtml((e as Error).message)}</div>`; return; }
-        if (res.needs_clarification) { out.innerHTML = `<div class="meta">${escapeHtml(res.needs_clarification)}</div>`; return; }
-        out.innerHTML = "";
-        out.appendChild(resultNote(`Maps to <b>${res.plan.length}</b> GUID-safe recipe step(s):`, ""));
-        const pre = document.createElement("pre");
-        pre.style.cssText = "white-space:pre-wrap;font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px;overflow:auto";
-        pre.textContent = res.plan.map((s, i) => `${i + 1}. ${s.recipe}(${JSON.stringify(s.params)})`).join("\n") || "(no steps)";
-        out.appendChild(pre);
-        if (res.plan.length && !res.plan.some((s) => s.destructive)) {
-          const apply = document.createElement("button"); apply.className = "file-btn"; apply.textContent = `✓ Apply ${res.plan.length} step(s)`; apply.style.marginTop = "6px";
-          apply.onclick = () => withLoading(container, "authoring + republishing", async () => {
-            try {
-              for (let i = 0; i < res.plan.length; i++) { const s = res.plan[i]; if (!s) continue; await api.editIfc(projectId!, s.recipe, s.params, i === res.plan.length - 1); }
-              const st = await waitForPublish(projectId!);
-              if (st === "done") { await loadProjectModel(); await reloadModelPins(); notify("applied", "success"); }
-              else notify(`applied — publish ${st}`, st === "error" ? "error" : "info");
-            } catch (e) { notify(`apply failed: ${(e as Error).message}`, "error"); }
-          });
-          out.appendChild(apply);
-        }
-      };
-      go.onclick = () => void run();
-      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") void run(); });
-      body.append(inp, go, out); inp.focus();
+    // R39-DECOMP-VIEWER: the window itself is `tools/scriptThis.ts`. `selectedGuid` and
+    // `activeStorey` cross as GETTERS because this window stays open while the user picks and
+    // switches storey — a value copied here would plan every command against the selection as it
+    // was when the window opened.
+    scriptThisTool({
+      api, projectId, container, notify, showResult,
+      selectedGuid: () => selectedGuid, activeStorey: () => activeStorey,
+      waitForPublish, loadProjectModel, reloadModelPins,
     });
   });
   toolDivider();   // ── measure / visibility ──┊── collaboration ──
@@ -1693,24 +1664,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const applyAll = toolBtn2(`✓ Apply all ${res.plan.length} steps`, () =>
               withLoading(container, `authoring ${res.plan.length} steps + republishing`, async () => {
                 cmdIn.value = "";
-                let applied = 0;
+                // BATCH-DARK. The compensating republish this `catch` used to carry is GONE with
+                // the loop that needed it. Its comment named the defect exactly — "earlier edits
+                // already advanced the source IFC but their republish (deferred to the last step)
+                // never fired" — and `/edit/batch` is the route that makes it impossible: one
+                // open, one write, one history entry, nothing written if any step is refused.
                 try {
-                  for (let i = 0; i < res.plan.length; i++) {
-                    const s = res.plan[i]; if (!s) continue;
-                    await api.editIfc(projectId!, s.recipe, s.params, i === res.plan.length - 1);
-                    applied++;
-                  }
+                  await api.editBatch(projectId!,
+                    res.plan.map((s) => ({ recipe: s.recipe, params: s.params })), true);
                   const state = await waitForPublish(projectId!);
                   if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${res.plan.length} steps applied${shown ? " — shown" : ""}`, "success"); }
                   else notify(`steps authored — publish ${state}`, state === "error" ? "error" : "info");
                   await reloadModelPins();
                 } catch (err) {
-                  // a step failed mid-chain — earlier edits already advanced the source IFC but their
-                  // republish (deferred to the last step) never fired. Republish now so they're not
-                  // stranded, and report how far we got.
-                  if (applied > 0) { try { await api.publish(projectId!); await waitForPublish(projectId!); await loadProjectModel(); await reloadModelPins(); } catch { /* leave as-is */ } }
                   draftProxies.clear();
-                  notify(`apply-all stopped after ${applied}/${res.plan.length} step(s): ${(err as Error).message}`, "error");
+                  notify(`nothing was applied — the plan was refused: ${(err as Error).message}`, "error");
                 }
               }));
             applyAll.title = "Apply every step of the plan in order, republishing the model once at the end.";

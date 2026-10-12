@@ -6397,6 +6397,68 @@ Four mutations red: shape 3 withdrawn, the `unrecorded` entry withdrawn, the del
 and shape 3 relaxed to need no negation at all.
 
 
+### BATCH-DARK — three callers each paid for the same missing batch, in three different currencies *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane C**; `apps/web/src/viewer/tools/scriptThis.test.ts`, `apps/web/src/viewer/dimLocks.test.ts`)*
+
+`POST /projects/{pid}/edit/batch` applies a sequence of authoring steps as **one** version: the model
+opens once, every step runs in memory, one file is written, one edit-history entry is pushed, and
+every step is guard-prechecked **before anything runs**, so a bad step aborts the batch with nothing
+written. Its own docstring names the caller it was built for — *"so a multi-step NL command undoes as
+a single step"*. It sat in `services/api/test_route_reachability.py`'s uncalled list with **no client
+method at all**, and three callers looped `api.editIfc` once per step instead.
+
+**Each of the three paid for the missing batch in a different currency, and the spread is the
+finding:**
+
+| caller | what the loop cost | what it did about it |
+|---|---|---|
+| the "Script this" window (`app.ts`) | N undo entries, N opens, no lock between steps, **and a partial write** | nothing — `catch` said *"apply failed"* with k of n steps already in the model |
+| the AI command bar (`app.ts`) | the same | **compensated**: republished the stranded edits, then reported *"stopped after k/n"* |
+| the dimensional-lock solver (`authoringSection.ts`) | the same | **counted**: *"Applied k of n — the rest failed"* |
+
+*Three workarounds for one missing call, and none of the three authors found the route built for it.*
+The command bar's comment named the defect precisely — *"earlier edits already advanced the source IFC
+but their republish (deferred to the last step) never fired"* — so the compensating republish is
+**deleted** with the loop that needed it, which is a net simplification rather than a swap.
+
+**The worst of the three is the first**, and it is the one a user pays for: *a partial write reported
+as a failure is worse than a failure, because the reader believes nothing happened.* A dimensional
+system applied halfway satisfies no constraint set at all; a half-authored room is a model nobody
+asked for. All three now say *nothing was applied* on a refusal, and it is true.
+
+## The ratchet refused the fix, and the extraction is what paid for it
+
+`services/api/test_file_sizes.py` pins `apps/web/src/viewer/app.ts` at an exact size and it sat
+**exactly** on that pin, so the change came out nine lines over and the gate refused it — the same
+refusal WALL-JOINS, MODEL-SETUP and LAYOUT-RENUMBER record. The "Script this" window went to
+`apps/web/src/viewer/tools/scriptThis.ts` (54 lines, one entry point), app.ts 2,442 → **2,410**, and
+the pin is re-tightened to the new exact count rather than left with slack.
+
+That extraction is also what makes any of this testable: the other two call sites live inside
+`initViewerApp`, which needs a WebGL context and a Fragments worker, so they are pinned by source
+while the window is **driven** — eleven behavioural assertions including that the plan reaches the
+server as one call, that no single apply is made, and that the refusal message says nothing was
+applied.
+
+**`selectedGuid` and `activeStorey` cross as getters, not values**, and that is a behavioural test
+rather than a convention: the window stays open while the user picks and switches storey, so a value
+captured at construction would plan every command against the selection as it was when the window
+opened. Mutating the getter to a captured `null` reds.
+
+**The `op` → `recipe` rename is a function with a test, not a `.map` at the call site.** A solver
+write calls its recipe `op`; a batch step calls it `recipe`. Posting `{op, params}` makes FastAPI see
+no `recipe` key and fail every step on a field nobody wrote — the kind of one-line mapping that breaks
+silently, so it is `planSteps` in `dimLocks.ts` with four cases, including that a **refusal is never
+posted as a step**.
+
+**Two of the first four mutations were mis-stated and are not survivors.** `as never` on the return
+of `planSteps` is a type-level no-op that changes nothing at runtime, and the loop mutation was written
+badly enough to break the module, so the file did not load and the run reported a smaller suite rather
+than a failure. Re-stated — `recipe: ""`, and a real per-step loop — both red. *A mutation that does
+not change the behaviour under test is not evidence, and one that breaks the file is not either.*
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
