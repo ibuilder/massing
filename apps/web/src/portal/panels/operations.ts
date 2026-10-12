@@ -1,6 +1,9 @@
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { progressBar, groupedBar, lineChart, money as cmoney, qty, usd } from "../../ui/charts";
-import { promptModal } from "../../ui/modal";
+import { confirmModal, promptModal } from "../../ui/modal";
+import {
+  certifyAcknowledgements, certifyConfirmBody, chainRowsHtml, qualityReading,
+} from "./qualityCloseout";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
 import { renderOperateBrief } from "./operateBrief";
@@ -678,6 +681,12 @@ export async function renderTurnover(ctx: PanelContext) {
         certs = (await ctx.host.api.moduleRecords(pid, "completion_certificate"))
           .filter((r) => (r.data as { type?: string } | undefined)?.type === "Substantial");
       } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      // TURNOVER-UNGATED. Awaited here, in the same scope as the certify button, rather than
+      // arriving in a detached `.then()` — which is why the quality gate could not have been
+      // consulted by the decision even in principle. `null` on failure is its own state, reported
+      // rather than swallowed: the previous `.catch(() => {})` removed the card entirely, so an API
+      // error left the turnover tab looking like a project with no quality concerns.
+      const qt = await ctx.host.api.qualityTurnoverReadiness(pid).catch(() => null);
       // readiness
       const p = rd.punch;
       const rdiv = el("div", "dash-card"); rdiv.style.marginBottom = "8px";
@@ -687,17 +696,53 @@ export async function renderTurnover(ctx: PanelContext) {
         + `${rd.ready_for_substantial_completion ? "<span style=\"color:var(--status-good)\">ready to certify</span>" : "<span style=\"color:var(--status-warn)\">prepare a punch list first</span>"}</div>`;
       body.append(rdiv);
 
-      void ctx.host.api.qualityTurnoverReadiness(pid).then((qt) => {
-        const qdiv = el("div", "dash-card"); qdiv.style.marginBottom = "8px";
-        const qh = el("div"); qh.style.fontWeight = "600";
-        qh.textContent = "Quality evidence vs closeout";
-        const qm = el("div", "meta");
-        qm.textContent = qt.ready
-          ? "Quality evidence exists and is resolved."
-          : `${qt.outstanding_count} outstanding · ${qt.unrecorded_count} never inspected · coverage ${qt.coverage_pct}%`;
-        qdiv.append(qh, qm);
-        body.insertBefore(qdiv, rdiv.nextSibling);
-      }).catch(() => { /* quality registers may be empty */ });
+      // The reading distinguishes the four states the old caption collapsed: a failed read, no
+      // evidence attached anywhere (which printed as "0 outstanding · 0 never inspected ·
+      // coverage 0%" — indistinguishable at a glance from a clean project), unresolved findings,
+      // and elements nobody inspected.
+      const qread = qualityReading(qt);
+      const qdiv = el("div", "dash-card");
+      qdiv.style.cssText = "margin-bottom:8px"
+        + (qread.tone === "bad" ? ";border-left:3px solid var(--status-crit)"
+           : qread.tone === "warn" ? ";border-left:3px solid var(--status-warn)" : "");
+      const qh = el("div"); qh.style.fontWeight = "600";
+      qh.textContent = "Quality evidence vs closeout";
+      const qm = el("div", "meta"); qm.textContent = qread.headline;
+      const qd = el("div", "meta"); qd.style.marginTop = "2px"; qd.textContent = qread.detail;
+      qdiv.append(qh, qm, qd);
+      // ...and the count is made actionable: `/quality/chain` is the only way to see WHICH elements,
+      // and it had no client method and no screen.
+      const chainBox = el("div"); chainBox.style.marginTop = "6px";
+      if (qt) {
+        const chainBtn = el("button", "file-btn") as HTMLButtonElement;
+        chainBtn.textContent = "Which elements?";
+        chainBtn.title = "The per-element evidence chain — ITP hold points, NCRs and inspections";
+        chainBtn.onclick = () => void (async () => {
+          chainBtn.disabled = true;
+          chainBox.innerHTML = `<div class="meta">reading the evidence chain…</div>`;
+          try {
+            const ch = await ctx.host.api.qualityChain(pid);
+            // Joined into a variable BEFORE the template, not inlined: `innerHtmlGuard` scans
+            // every `${…}` inside an innerHTML assignment, nested templates included, and a bare
+            // `k`/`n` there is a sink it refuses with no baseline — correctly, since the sink's
+            // identity is the binding name and that does not move when the value does.
+            const unattached = Object.entries(ch.records_without_element)
+              .filter(([, n]) => n > 0)
+              .map(([key, n]) => `${n} ${key}`)
+              .join(" · ");
+            chainBox.innerHTML = chainRowsHtml(ch)
+              + (unattached
+                  ? `<div class="meta" style="margin-top:4px">${esc(unattached)} record(s) exist `
+                    + `but name no element, so they are in no chain at all.</div>`
+                  : "");
+          } catch (e) {
+            chainBox.innerHTML = `<div class="meta">could not read the chain: `
+              + `${esc((e as Error).message)}</div>`;
+          } finally { chainBtn.disabled = false; }
+        })();
+        qdiv.append(chainBtn, chainBox);
+      }
+      body.insertBefore(qdiv, rdiv.nextSibling);
       // substantial-completion certificate(s)
       if (!certs.length) {
         const note = el("div", "meta"); note.textContent = "No substantial-completion certificate yet.";
@@ -721,6 +766,16 @@ export async function renderTurnover(ctx: PanelContext) {
           const cbtn = el("button", "file-btn") as HTMLButtonElement; cbtn.textContent = "Architect: certify substantial completion";
           cbtn.onclick = async () => {
             if (!rd!.ready_for_substantial_completion) { toast("Prepare a punch list first", "error"); return; }
+            // TURNOVER-UNGATED. The quality gate is consulted HERE, where the decision is, rather
+            // than printed beside the button. Deliberately an acknowledgement and not a veto: G704
+            // is routinely certified with an outstanding punch list and `turnover_readiness`'s own
+            // docstring says an open NCR "does not by itself block certification", so asserting a
+            // bar here would assert a rule the engine declined to. What was missing is that the
+            // signatory was never told. Defaults to cancel.
+            const acks = certifyAcknowledgements(qt);
+            if (acks.length && !await confirmModal("Quality evidence does not support closeout",
+                                                   certifyConfirmBody(acks),
+                                                   "Certify anyway", true)) return;
             const v = await promptModal("Certify substantial completion (G704)", [
               { name: "arch", label: "Certifying Architect (name / license)", required: true },
               { name: "owner", label: "Owner signatory (optional)" },

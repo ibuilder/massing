@@ -161,6 +161,32 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
       projection?: Record<string, unknown>;
     }>(`/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics`);
   }
+  /**
+   * The per-element quality evidence chain — ITP hold/witness points, NCRs and inspections resolved
+   * against the GlobalIds their records are attached to.
+   *
+   * TURNOVER-UNGATED. `qualityTurnoverReadiness` below reports how many elements are outstanding or
+   * unrecorded; this is the only way to see WHICH, and it had no client method and no screen while
+   * `services/api/test_route_reachability.py` carried the route as uncalled. An unverified hold or
+   * witness point — the specific thing an ITP exists to stop being skipped — is named here and
+   * appeared nowhere in the app.
+   *
+   * `guids` omitted reports the elements quality records actually name; the engine refuses to walk
+   * every GlobalId in the model, because reporting `unrecorded` for tens of thousands of elements
+   * drowns the signal.
+   */
+  qualityChain(pid: string, guids?: string[]) {
+    const q = guids?.length ? `?guids=${encodeURIComponent(guids.join(","))}` : "";
+    return this.json<{
+      elements: { guid: string; status: string; status_note: string; record_count: number;
+                  open_count: number;
+                  unverified_hold_points: { id: string; ref: string; point_type?: string;
+                                            state: string }[] }[];
+      element_count: number; counts: Record<string, number>;
+      any_attached: boolean; coverage_pct: number; records_total: number;
+      records_without_element: Record<string, number>; message: string | null;
+    }>(`/projects/${pid}/quality/chain${q}`);
+  }
   /** Quality-evidence closeout: unresolved NCRs plus elements nobody inspected. */
   qualityTurnoverReadiness(pid: string) {
     return this.json<{

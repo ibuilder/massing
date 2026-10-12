@@ -371,7 +371,18 @@ KNOWN_UNCALLED: set[str] = {
     # tables passes `limit=100000`; this one route, on the one register where an omission is a
     # forfeited claim, was the exception. *Wiring a screen to that would have shipped the defect to
     # a user instead of leaving it dark.* See `services/api/test_notice_coverage.py`.
-    "/projects/{pid}/quality/chain",
+    # `/projects/{pid}/quality/chain` left this set 2026-10-12 — TURNOVER-UNGATED. The Operations
+    # turnover tab reads it behind a "Which elements?" button, which is what makes its sibling's
+    # count actionable: a reader told "42 element(s) have no quality record" could not see WHICH,
+    # and an unverified hold or witness point — the specific thing an ITP exists to stop being
+    # skipped — is named by this route and appeared nowhere in the app.
+    #
+    # Its sibling `/quality/turnover-readiness` HAS had a caller all along, and that is the sharper
+    # finding: the readiness verdict was rendered as one line in a detached `.then()` and gated
+    # nothing, while the architect's certify button checked only the punch-list readiness from a
+    # different route. *A route with a caller is not a capability that is used.* The engine needed
+    # nothing — `services/api/test_quality_chain.py` already pins that `ready` is False when no
+    # evidence is attached, which is the claim the screen was dropping.
     # `/projects/{pid}/rules/effective` left this set 2026-10-12 — FIRM-RULES-OPTIONAL. The
     # "Standards that apply here" control in `apps/web/src/viewer/tools/qaSection.ts` reads it.
     # It was the starkest kind of entry in this file: not an unfinished endpoint but the ANSWER to

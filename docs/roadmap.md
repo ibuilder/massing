@@ -6266,6 +6266,73 @@ event** before it may report anything, and the coverage keys are derived from `d
 signature rather than listed, so a fourth source cannot join the scan without joining the report.
 
 
+### TURNOVER-UNGATED — the quality gate built for G704 certification was rendered as a caption *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane C**; `apps/web/src/portal/panels/qualityCloseout.test.ts`)*
+
+**`quality_chain.turnover_readiness` exists, in its own words, as "the seam `turnover.py` never
+had".** It is careful about the one thing that matters: `ready` requires evidence to **exist** and be
+resolved, because *"an element with no quality record counts against readiness rather than for it —
+otherwise a project nobody inspected reads as perfectly clean, which is the failure this exists to
+prevent."* The engine is sound and `services/api/test_quality_chain.py` already pins every claim of
+it, including that `ready` is False when nothing is attached. **It needed nothing.**
+
+The Operations turnover tab read it, printed one line, and gated nothing on it. The architect's
+"certify substantial completion" button checked `rd.ready_for_substantial_completion` — the
+**punch-list** readiness, from a different route — and nothing else. **Structurally it could not have
+done otherwise**: the quality answer arrived in a detached `.then()`, so it was not in scope where
+the decision is made. *A gate whose verdict reaches the screen as a sentence beside the button,
+instead of as an input to it, is a caption.* This is AUTHORITY-DOWNSTREAM's shape again, on a G704
+substantial-completion certificate.
+
+## Three defects in twelve lines, each with the honest field already in the payload
+
+**① The certify action consulted the punch gate only.** Fixed as an **acknowledgement, not a veto**,
+and that distinction is load-bearing: G704 is routinely certified *with* an outstanding punch list,
+and `turnover_readiness`'s own docstring says an open NCR *"does not by itself block
+certification"*. Asserting a bar here would assert a rule the engine deliberately declined to
+assert, and would make the certificate unissuable on any project with one uninspected element. What
+was actually missing is that the signatory was never **told**, at the moment of signing, what the
+evidence does and does not support. The confirm names each item and defaults to cancel.
+
+**② `any_attached: false` rendered as zeros.** With no quality records attached anywhere the caption
+read *"0 outstanding · 0 never inspected · coverage 0%"* — which is also what a clean,
+fully-inspected project with no findings looks like at a glance. `message` is the field that says
+which it is (*"No quality record in this project is attached to an element (N record(s) exist…)"*),
+and the screen dropped it. **The empty-versus-absent defect with the fix already in the response.**
+
+**③ `.catch(() => {})` swallowed a failed read as an empty register**, removing the card entirely —
+so an API error left the turnover tab looking like a project with no quality concerns. A failed read
+is now its own state: *a question that could not be asked is not an answer of "nothing".*
+
+## And the route that made the count actionable was dark
+
+`/projects/{pid}/quality/chain` sat in `KNOWN_UNCALLED`. A reader told *"42 element(s) have no
+quality record"* could not see **which**, and an **unverified hold or witness point** — the specific
+thing an ITP exists to stop being skipped, which the engine names per element — appeared nowhere in
+the app. It is behind a "Which elements?" button now, with `records_without_element` beside it:
+NCRs and inspections that exist but name no element, and are therefore in no chain at all by
+construction.
+
+**Its sibling is the sharper half of the finding.** `/quality/turnover-readiness` has had a client
+method and a caller all along — so nothing in `services/api/test_route_reachability.py` could ever
+have reported this. *A route with a caller is not a capability that is used*, and reachability is the
+weakest thing a gate can measure about a screen.
+
+Six mutations red, and one of them is the survivor from the previous item learned: the gate
+**computed and ignored** (`if (false && …)`) fails now, because the pin asserts the branch and not
+just the call. The others: a failed read reading as nothing, no evidence reading as a clean project,
+a ready project still asking for an acknowledgement, `unrecorded` sorting below `clear`, and the
+answer going back into a detached `.then()`.
+
+**`innerHtmlGuard` caught one thing twice**, and its no-baseline rule was right both times: a bare
+destructured binding inside an `innerHTML` template, once a status count and once a nested
+`map` whose result was already escaped by the outer call. The second was the instructive one — the
+guard scans every `${…}` inside the assignment, nested templates included, so the join is hoisted
+into a variable rather than written inline. *The identity of a sink is the binding name, and that
+does not move when the value does.*
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
