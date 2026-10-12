@@ -343,6 +343,37 @@ are structurally out of reach. Note the suite environment is **happy-dom**, wher
 no `file:` scheme — a test that reads source off disk must resolve from `process.cwd()` (which is
 `apps/web`), the way `shell/roadmapLanes.test.ts` does, not via `fileURLToPath`.
 
+### A NEW backend gate file must be REGISTERED, and running it directly does not test that
+
+`services/api/run_tests.py` holds a manifest of every gate, and its first check is that the manifest
+and the files on disk agree in both directions:
+
+```
+FAIL  run_tests manifest: TESTS: test file(s) on disk not registered in TESTS (add to run_tests.py)
+```
+
+**CI runs `python services/api/run_tests.py`, not the gate files.** So a new `test_*.py` can pass
+every way you invoke it and still red the build — which is what happened on 2026-10-12: a gate was
+written, mutation-checked ten ways, run beside 36 neighbours, and reddened `API test gate` on the
+first push because nothing in that sequence reads the manifest. *Verifying a file is not verifying
+that anybody runs it* — the same shape as `test_ruff_scope`, where the lint was real and the SCOPE
+was the fiction.
+
+Register it, then re-derive both directions rather than trusting the edit:
+
+```
+cd services/api && ./.venv/bin/python - <<'EOF'
+import re, pathlib
+names = set(re.findall(r'"(test_\w+)"', pathlib.Path("run_tests.py").read_text()))
+print(sorted({p.stem for p in pathlib.Path(".").glob("test_*.py")} - names) or "all registered")
+EOF
+```
+
+And run the suite the way CI does — `PYTHONPATH="src:../data/src" ./.venv/bin/python run_tests.py`
+from `services/api` — at least once before pushing a change that adds a gate or touches an engine.
+The 32-gate derivation in the section below is the complement, not a substitute: it catches a web
+change breaking a Python gate, and it cannot catch a Python gate nobody runs.
+
 ### `npm run budget` is part of the web check, and `typecheck && lint && test && build` is not it
 
 The `Web typecheck + test + build` job also runs `npm run budget`, which fails the build when the
