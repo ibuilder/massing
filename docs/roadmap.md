@@ -5250,6 +5250,72 @@ in the click handler would cost zero shell bytes and is the right shape, and app
 of some forty buys a kilobyte at the price of an inconsistency the next reader has to explain. *A
 rule argued one commit ago has to survive its first inconvenient application.*
 
+### BENCH-DARK — the portfolio space benchmark, and the exclusion its own response did not carry *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane B** for the panel and the reading, **Lane C** for the engine counts;
+`apps/web/src/portal/panels/spaceBenchmark.test.ts`, `services/api/test_space_util.py`)*
+
+**`/benchmarks/space-utilization` compares every modelled project's m² per space against the
+portfolio median, and `spaceUtilBenchmarks` was frozen as callerless** — so a firm could not see its
+own portfolio's space efficiency at all. Portfolio scope, no `pid`, which is why it lands on the
+Portfolio panel beside the other six cross-project rollups rather than in a project screen.
+
+**The engine fix is the finding, and it lived in a sentence.** `benchmarking.space_utilization`
+opens at most 12 models and its docstring said *"the projects skipped for the cap are counted, never
+silently dropped"*. True of the cap, true of unreadable files, and **false of the third exclusion**:
+a model that opens fine and models no `IfcSpace` hit `continue` and appeared in **no count at all**.
+It is also the **common** one — a structural or massing model has no spaces — so a portfolio of ten
+of them answered `projects: 0, skipped_over_cap: 0, unreadable_models: 0`, indistinguishable from an
+empty portfolio. *Those have opposite remedies: add projects, versus model your spaces.* **A claim
+that every exclusion is counted is exactly the kind that stops being true one `continue` later.**
+
+The response now carries `no_spaces` **and `candidates`**, so the four counts **reconcile** —
+`projects + skipped_over_cap + unreadable_models + no_spaces === candidates` — which turns coverage
+from a promise a consumer must trust into a property it can CHECK. The reading does check it, and
+says *"the server's own counts do not add up, so treat this coverage as unverified"* when it fails,
+because a coverage line computed from counts that disagree is worse than none.
+
+**A median of one project is itself**, so the per-project *vs median* column refuses the comparison
+below two rows rather than printing `0%` — a comparison with nothing, dressed as agreement.
+
+Three engine mutations and thirteen web mutations, all red after one repair. The engine ones matter
+because the server-side identity is asserted in `test_space_util.py` and **the pre-fix engine was
+replayed**: removing the `no_spaces` counter, dropping `candidates`, and computing it from the
+scanned rather than the candidates each red that file, which is what proves those new assertions run
+rather than merely parse.
+
+**The survivor was the recurring one, for the third time today:** `ctx.root.appendChild(card)` →
+`void card` left every assertion green, because they prove the reading is *computed* and nothing
+proved it is *on screen*. `sectionButtonsWired.test.ts` covers that failure for tool buttons and a
+portal panel is outside its population, so the pin is the section's own closing sequence — not the
+bare append, since `card` is a local name several sections in that file share and a loose pin would
+pass on any of them. Its limit is written down beside it: a source pin cannot see a render wrapped in
+a condition that is never true, and the DOM complement is not built because this section sits inside
+`executivePortfolio().then(…)` and reaching it needs that response's full KPI shape plus six more
+stubs.
+
+**And declaring the two new fields broke a RATCHET, which is the right outcome.** The method lived
+in `apps/web/src/api/client.ts`, which sits under an extraction ratchet in
+`services/api/test_file_sizes.py`; the declaration pushed it 559 past its 554 cap. The answer to that
+is not a bigger cap — it is the move the ratchet exists to drive, so `spaceUtilBenchmarks` is now in
+`apps/web/src/api/model.ts` beside `modelSpaceUtilization`, the per-project computation it
+aggregates. Grouping there is by **what a method answers**, not by scope, which is the convention
+SCALE-SEAM's own slices state. `client.ts` is now **542**, twelve under its cap — 543 after the cut, and one line further down
+because the cut **stranded the method's doc comment**, which `apps/web/src/api/docComments.test.ts`
+and `apps/web/src/tooling/docStranded.test.ts` both refused by name: *"a comment directly above
+another comment has lost its declaration … left alone it will be read as documenting the next thing
+down."* It was sitting above `feasibilitySellout`'s own comment, one line from describing the wrong
+method. *Cutting a member is two edits, and the second one is invisible in the diff of the first.* *Tightening the cap
+to 543 is deliberately NOT done here*: each ratchet entry carries a numbered SCALE-SEAM slice
+narrative, and claiming a slice number for an incidental one-method move would step into an open
+item's numbering — the gate's own +25-line tolerance exists so a file may sit under its cap between
+slices.
+
+**It cost 0.1 KB of the eager shell** (221.4 → 221.5 KB), against the 1.0 KB CITED-ASK-DARK paid an
+hour earlier for the same amount of work in `viewer/tools/`. *That is the chunk-placement asymmetry
+from the budget note, measured a second time and on purpose* — a portal panel is lazy and a viewer
+tool is not.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

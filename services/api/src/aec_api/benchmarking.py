@@ -195,8 +195,17 @@ def space_utilization(db: Session, area_per_person: float = 10.0,
                       project_ids: set[str] | None = None, max_models: int = 12) -> dict:
     """SPACE-UTIL benchmarking — capacity/utilization across the caller's projects, computed from each
     project's OWN model (spaces are geometry, not records). Bounded: at most `max_models` models are
-    opened (newest projects first; `open_model` caches by path+mtime so repeat calls are cheap); the
-    projects skipped for the cap are counted, never silently dropped."""
+    opened (newest projects first; `open_model` caches by path+mtime so repeat calls are cheap).
+
+    **EVERY exclusion is counted and they reconcile**: `projects + skipped_over_cap +
+    unreadable_models + no_spaces == candidates`. That sentence used to read "the projects skipped
+    for the cap are counted, never silently dropped", which was true of the cap and of the unreadable
+    files and **false of the third exclusion**: a model that opens fine and models no `IfcSpace` hit
+    `continue` and appeared in none of the counts. It is also the COMMON one — a structural or
+    massing model has no spaces — so a portfolio of ten of them answered `projects: 0,
+    skipped_over_cap: 0, unreadable_models: 0`, which reads as *no projects* when the truth is *no
+    project has spaces modelled*, and those have different remedies. *A claim that every exclusion is
+    counted is exactly the kind that stops being true one `continue` later.*"""
     from aec_data.ifc_loader import open_model  # type: ignore
 
     from . import space_util
@@ -204,7 +213,7 @@ def space_utilization(db: Session, area_per_person: float = 10.0,
 
     q = db.query(Project).filter(Project.source_ifc.isnot(None)).order_by(Project.created_at.desc())
     rows = [p for p in q.all() if project_ids is None or p.id in project_ids]
-    scanned, skipped_cap, unreadable = [], 0, 0
+    scanned, skipped_cap, unreadable, no_spaces = [], 0, 0, 0
     for p in rows:
         if len(scanned) >= max_models:
             skipped_cap += 1
@@ -215,6 +224,7 @@ def space_utilization(db: Session, area_per_person: float = 10.0,
             unreadable += 1
             continue
         if not u.get("space_count"):
+            no_spaces += 1                      # readable, and models no IfcSpace — see the docstring
             continue
         top = (u.get("by_type") or [{}])[0]
         scanned.append({
@@ -228,6 +238,10 @@ def space_utilization(db: Session, area_per_person: float = 10.0,
     return {
         "area_per_person": area_per_person, "projects": len(scanned),
         "skipped_over_cap": skipped_cap, "unreadable_models": unreadable,
+        "no_spaces": no_spaces,
+        # The denominator, so a caller can state coverage instead of inferring it — and so the four
+        # counts above can be CHECKED to reconcile rather than trusted to.
+        "candidates": len(rows),
         "rows": scanned,
         "portfolio": {
             "total_area_m2": round(sum(r["total_area_m2"] for r in scanned), 1),

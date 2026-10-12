@@ -361,6 +361,31 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       by_type: Row[]; spaces: { guid: string | null; name: string; type: string; area_m2: number; capacity: number }[]; note: string;
     }>(`/projects/${pid}/model/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
   }
+  /**
+   * SPACE-UTIL benchmarking — the same question across the whole book: every modelled project's
+   * m² per space against the portfolio median, with capacity at a chosen m²/person standard.
+   *
+   * **Moved here from `client.ts` by BENCH-DARK, and the extraction ratchet is why.** Declaring
+   * `no_spaces`/`candidates` grew `client.ts` past its cap in `services/api/test_file_sizes.py`, and
+   * the answer to that is not a bigger cap — it is the move the ratchet exists to drive. It belongs
+   * beside `modelSpaceUtilization` because grouping here is by **what a method answers**, not by
+   * scope: this is the portfolio aggregate of the per-project computation directly above it.
+   *
+   * `no_spaces` is the exclusion the response did not carry until this work — a model that opens
+   * fine and models no `IfcSpace` was dropped from every count — and `candidates` is the
+   * denominator, so `projects + skipped_over_cap + unreadable_models + no_spaces === candidates` is
+   * a property a caller can CHECK rather than a promise it has to trust.
+   */
+  spaceUtilBenchmarks(areaPerPerson = 10) {
+    return this.json<{
+      area_per_person: number; projects: number; skipped_over_cap: number; unreadable_models: number;
+      no_spaces: number; candidates: number;
+      rows: { project_id: string; project: string; space_count: number; total_area_m2: number;
+        capacity: number; m2_per_space: number; top_type: string | null; top_type_area_m2: number | null }[];
+      portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
+      note: string;
+    }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
+  }
   /** SPACE-UTIL — a headcount program ({space_type: headcount}) vs the modelled inventory → the area gap. */
   modelSpaceDemand(pid: string, program: Record<string, number>, areaPerPerson = 10) {
     type Row = { type: string; headcount: number; required_m2: number; supplied_m2: number; gap_m2: number; status: string };

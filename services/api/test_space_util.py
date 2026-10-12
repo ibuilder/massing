@@ -92,6 +92,38 @@ with TestClient(app) as c:
     assert all(r["project_id"] != pid2
                for r in c.get("/benchmarks/space-utilization").json()["rows"])
 
+    # --- BENCH-DARK: every exclusion is counted, and the counts RECONCILE ------------------------
+    # The docstring claimed "the projects skipped for the cap are counted, never silently dropped",
+    # which was true of the cap and of unreadable files and FALSE of the third exclusion: a model
+    # that opens fine and models no IfcSpace hit `continue` and appeared in no count. It is also the
+    # common one, so a portfolio of structural models answered `projects: 0` with every exclusion at
+    # zero — reading as "no projects" when the truth is "no project has spaces modelled".
+    bj2 = c.get("/benchmarks/space-utilization").json()
+    for k in ("projects", "skipped_over_cap", "unreadable_models", "no_spaces", "candidates"):
+        assert isinstance(bj2[k], int), (k, bj2.get(k))
+    assert (bj2["projects"] + bj2["skipped_over_cap"] + bj2["unreadable_models"]
+            + bj2["no_spaces"]) == bj2["candidates"], bj2
+    # `pid2` has no source IFC at all, so it is not even a candidate — a project without a model is
+    # a different thing from a model without spaces, and only the second is an exclusion here.
+    assert bj2["candidates"] >= 1, bj2
+
+    # A readable model with NO IfcSpace is counted as `no_spaces`, not dropped. Built from the same
+    # minimal IFC this file already writes, minus the spaces.
+    pid3 = c.post("/projects", json={"name": "Structure only"}).json()["id"]
+    import ifcopenshell  # noqa: PLC0415 — test-local, mirrors this file's own model build
+    m3 = ifcopenshell.file(schema="IFC4")
+    m3.createIfcProject(ifcopenshell.guid.new(), Name="Structure only")
+    nospace = os.path.join(os.path.dirname(TMP), "test_space_util_nospace.ifc")
+    m3.write(nospace)
+    c.patch(f"/projects/{pid3}", json={"source_ifc": nospace})
+    bj3 = c.get("/benchmarks/space-utilization").json()
+    assert all(r["project_id"] != pid3 for r in bj3["rows"]), bj3["rows"]
+    assert bj3["no_spaces"] >= 1, bj3
+    assert (bj3["projects"] + bj3["skipped_over_cap"] + bj3["unreadable_models"]
+            + bj3["no_spaces"]) == bj3["candidates"], bj3
+    if os.path.exists(nospace):
+        os.remove(nospace)
+
 if os.path.exists(TMP):
     os.remove(TMP)
 

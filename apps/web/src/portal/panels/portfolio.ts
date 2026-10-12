@@ -1,4 +1,5 @@
 import { esc, usd } from "../../ui/charts";
+import { benchmarkRows, benchmarkScope, portfolioLine } from "./spaceBenchmark";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -339,6 +340,52 @@ export async function renderPortfolio(ctx: PanelContext) {
     // won; this answers what is in the book, how much of it historically closes, and how long it
     // takes. Weighted value uses this firm's closed history — a stage without enough samples is
     // excluded and counted, never multiplied by a textbook ladder.
+    // BENCH-DARK: the portfolio space benchmark, which no screen called. Its coverage line is the
+    // whole point — the median and the totals are over the projects whose models carry spaces, and
+    // the engine did not count that exclusion until this work.
+    void ctx.host.api.spaceUtilBenchmarks().then((sb) => {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const scope = benchmarkScope(sb);
+      const head = document.createElement("div");
+      head.innerHTML = `<b>\u23f9 Space utilisation</b> <span class="meta">${esc(scope.headline)}</span>`;
+      card.appendChild(head);
+      const why = document.createElement("div"); why.className = "meta"; why.style.marginTop = "2px";
+      why.textContent = scope.detail;
+      card.appendChild(why);
+      if (scope.tone === "warn") card.style.borderLeft = "3px solid var(--status-warn)";
+      if (sb.projects) {
+        const pl = document.createElement("div"); pl.className = "meta"; pl.style.marginTop = "4px";
+        pl.textContent = portfolioLine(sb);
+        card.appendChild(pl);
+        const tbl = document.createElement("table");
+        tbl.className = "portal-table"; tbl.style.cssText = "font-size:11px;margin-top:6px";
+        tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Project</th>`
+          + `<th scope="col" style="text-align:right">Area</th>`
+          + `<th scope="col" style="text-align:right">Spaces</th>`
+          + `<th scope="col" style="text-align:right">m\u00b2/space</th>`
+          + `<th scope="col" style="text-align:right">vs median</th>`
+          + `<th scope="col" style="text-align:right">Capacity</th>`
+          + `<th scope="col" style="text-align:left">Largest type</th></tr></thead>`;
+        const tb = document.createElement("tbody");
+        for (const r of benchmarkRows(sb)) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${esc(r.project)}</td>`
+            + `<td style="text-align:right">${esc(r.area)}</td>`
+            + `<td style="text-align:right">${esc(r.spaces)}</td>`
+            + `<td style="text-align:right">${esc(r.perSpace)}</td>`
+            + `<td style="text-align:right">${esc(r.vsMedian)}</td>`
+            + `<td style="text-align:right">${esc(r.capacity)}</td>`
+            + `<td>${esc(r.top)}</td>`;
+          tb.appendChild(tr);
+        }
+        tbl.appendChild(tb); card.appendChild(tbl);
+      }
+      const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "4px";
+      note.textContent = sb.note;
+      card.appendChild(note);
+      ctx.root.appendChild(card);
+    });
+
     void ctx.host.api.pipelineFunnel().then((fn) => {
       const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
       const w = fn.weighted;

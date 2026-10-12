@@ -345,7 +345,10 @@ const UNCALLED: readonly string[] = [
   "saveMacros", "saveViewTemplates",
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",
-  "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
+  // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each
+  // modelled project's m² per space against the portfolio median, and the engine now counts the
+  // exclusion it used to drop silently (a readable model with no IfcSpace).
+  "sharedDigestUrl", "speckleStatus", "tieredComps",
   "topicComments", "updateConnection", "verificationDeviations",
 ];
 

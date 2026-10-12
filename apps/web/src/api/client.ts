@@ -219,16 +219,6 @@ export class ApiClient extends _ApiStageB {
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
-  spaceUtilBenchmarks(areaPerPerson = 10) {
-    return this.json<{
-      area_per_person: number; projects: number; skipped_over_cap: number; unreadable_models: number;
-      rows: { project_id: string; project: string; space_count: number; total_area_m2: number;
-        capacity: number; m2_per_space: number; top_type: string | null; top_type_area_m2: number | null }[];
-      portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
-      note: string;
-    }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
-  }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
   feasibilitySellout(pid: string, body: {
