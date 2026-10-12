@@ -5415,6 +5415,52 @@ is the difference between a missing figure and a computed one*, and this is the 
 one session a helper has done exactly that (`macroTool`'s answer stub turned a cancel into a blank).
 Both are spelled out rather than shortened now.
 
+### PERMIT-BASIS-DARK — the entitlement estimate, and the field that says which permits it is about *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane B**; `apps/web/src/portal/panels/permitTimeline.test.ts`)*
+
+**`/projects/{pid}/permits/timeline` computes days-to-issue over the project's own cached permits** —
+p25 / median / p75 by jurisdiction × type × valuation band, a seasonal profile, and with a target the
+pro-forma estimate. `permitsTimeline` was frozen as callerless, so the single biggest schedule risk
+in development had no screen.
+
+**THE ESTIMATE BROADENS ITS COHORT UNTIL THE SAMPLE IS STABLE, AND THE LAST STEP HAS NO FLOOR.**
+`permit_timeline.estimate` walks `jurisdiction × type × band` → `jurisdiction × type` →
+`jurisdiction` → **`all permits`**, stopping at the first with at least `_MIN_SAMPLE` (5)
+observations — and the final cohort fires `or basis == "all permits"`, which is to say
+unconditionally. So a target in one jurisdiction for one permit type can come back with
+`basis: "all permits"` and an `expected_days` computed from every cached permit, anywhere, of any
+type.
+
+**A consumer that prints `expected_days` without `basis` reports a cross-jurisdiction median as this
+jurisdiction's entitlement duration — into the carry line of a pro forma**, because the engine's own
+note says the median *"= expected entitlement duration; p75 = the conservative carry the pro-forma
+should underwrite"*. *The engine is scrupulous — it names the cohort, returns `sample_size`, and
+explains the broadening — and everything needed to be honest was in the response with nothing reading
+it.* So `basis` is rendered as a **demotion, not a footnote**: the reading says what the number is
+ABOUT before it says the number, and the headline for a broadened cohort is literally *"NOT Austin
+multifamily's number"*.
+
+**The quieter broadening is the one worth naming.** `all permits` is obvious; dropping to
+`jurisdiction` alone is not — it *is* Austin's number and it is not multifamily's, which a reader
+comparing permit types would take at face value. The rule catches both, and the mutation that
+narrows it to the obvious case reds.
+
+Also carried: `measured` against `permit_count` — permits lacking either date are in no percentile —
+and a per-cohort `n` marked **thin** below the engine's own threshold, so a median of two is not
+presented as a rate.
+
+Thirteen mutations, all red on the first pass. **One was a direct dividend of the previous item**:
+the panel sets `3px solid var(--status-crit)` as a literal and a mutation rebuilding it as
+`var(--status-${…})` reds, because PROD-DARK had just paid to learn that a custom property assembled
+at runtime is invisible to the token check. *The lesson arrived in the test file before the defect
+could.*
+
+**And an unforced error worth recording**: the import was inserted "after the last `import` line",
+which landed it **inside** a multi-line `import { … } from "./vendorScorecard"`. `tsc` caught it in
+one run — but a line-based edit to a structured file is a guess about the structure, and it was wrong
+on the first file it was tried on.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

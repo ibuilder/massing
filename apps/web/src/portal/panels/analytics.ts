@@ -3,6 +3,7 @@ import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import { renderPlanningBrief } from "./planningBrief";
+import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
 } from "./vendorScorecard";
@@ -310,6 +311,8 @@ export async function renderRiskCost(ctx: PanelContext) {
     const carbonCompSlot = slot();
     section("Permit-submission readiness");
     const permitSlot = slot();
+    section("Entitlement duration — days to issue, and which permits the estimate is about");
+    const permitDaysSlot = slot();
     section("Takeoff pricing vs estimate");
     const priceSlot = slot();
     section("Model classification (improve QTO + carbon)");
@@ -470,6 +473,35 @@ export async function renderRiskCost(ctx: PanelContext) {
         permitSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`);
       }
     }).catch(() => { permitSlot.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
+
+    // PERMIT-BASIS-DARK: days-to-issue over the project's own cached permits. The estimate BROADENS
+    // its cohort until the sample is stable and names the one it settled on in `basis` — and the
+    // last fallback, "all permits", fires regardless of sample size. So the reading states what the
+    // number is ABOUT before it states the number. No body: the route falls back to the project's
+    // `permit` records, which is the record of authority here.
+    api.permitsTimeline(pid, {}).then((t) => {
+      const asked = {};
+      const r = estimateReading(t, asked);
+      const cov = coverageLine(t);
+      permitDaysSlot.innerHTML = `<div><b>${esc(r.headline)}</b></div>`
+        + `<div class="meta" style="margin-top:2px">${esc(r.detail)}</div>`
+        + (cov ? `<div class="meta" style="margin-top:2px">${esc(cov)}</div>` : "");
+      if (r.tone === "bad") permitDaysSlot.style.borderLeft = "3px solid var(--status-crit)";
+      else if (r.tone === "warn") permitDaysSlot.style.borderLeft = "3px solid var(--status-warn)";
+      if (r.tone === "bad" || r.tone === "warn") permitDaysSlot.style.paddingLeft = "6px";
+      const rows = groupRows(t);
+      if (rows.length) {
+        const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
+        for (const g of rows) {
+          const li = el("li");
+          li.innerHTML = `${esc(g.k)} — <span class="meta">${esc(g.v)}</span>`;
+          ul.append(li);
+        }
+        permitDaysSlot.append(ul);
+      }
+      permitDaysSlot.insertAdjacentHTML("beforeend",
+        `<div class="meta" style="margin-top:4px">${esc(t.note)}</div>`);
+    }).catch(() => { permitDaysSlot.innerHTML = `<div class="meta">No cached permit records for this project — days-to-issue needs filed and issued dates on the permit register.</div>`; });
 
     api.pricingReconcile(pid).then((r) => {
       if (!r.matched) { priceSlot.innerHTML = `<div class="meta">No priced quantities (${r.pricing_source}).</div>`; return; }

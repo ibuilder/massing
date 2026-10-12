@@ -338,7 +338,10 @@ const UNCALLED: readonly string[] = [
   // `progressActuals` left this list 2026-10-12 — PROD-DARK: the Operations panel reads the field
   // crew's STORED productivity log (an empty `actuals` list makes the route use it), and says both
   // which rows it analysed and how many groups had a planned rate to be ahead OF.
-  "pdfInfo", "permitsTimeline", "preconSnapshot",
+  // `permitsTimeline` left this list 2026-10-12 — PERMIT-BASIS-DARK: the Analytics panel reports
+  // days-to-issue AND which permits the estimate is about, because the engine broadens its cohort
+  // to "all permits" regardless of sample size and names the one it settled on in `basis`.
+  "pdfInfo", "preconSnapshot",
   "proformaRenovation", "proformaRollover",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
