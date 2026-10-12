@@ -43,13 +43,23 @@ inclusion.
 
 ## What this gate does NOT cover, measured rather than hedged
 
-The **bare single** `"key": not X` dict value measures **36**, and it has the identical defect: `not X`
-is True when nothing was examined. Three real ones, read and confirmed: `cde.complete = not
-missing_core` (a CDE holding no documents is "complete"), `cited_answer.fully_cited = not uncited` (an
-answer making no claims is "fully cited"), `agent_packs.ok = not problems`. They are NOT swept here
-because 36 sites need 36 judgements and the table above is what a judgement costs — *a rule demanding
-36 edits gets abandoned halfway and leaves the tree half-declared*, COURT-SPLIT again. The number is
-recorded so the next reader inherits a measurement instead of a suspicion.
+The **bare single** `"key": not X` dict value measures **36 syntactically, and that is not the defect
+count** — a distinction found by trying to use the number rather than by reading it again. Resolving
+each negand to its binding gives **24** whose negand is a COLLECTION (where "empty" can mean *nothing
+was examined*) and **12** whose negand is a SCALAR — `not too_new`, `not is_stale`, `not flat_plate`,
+`not args.no_quality_gate` — for which the emptiness question does not arise at all. Five of the 24
+already carry a sibling count in the same literal, so **18** need a judgement. *Presenting a
+syntactic count as a defect count overstates in the flattering direction*, which is the one direction
+a measurement is least likely to be challenged in.
+
+**The split is structural, and that is the transferable part.** Separating `not findings` from `not
+is_stale` by NAME needs a list of findings-ish words — the instrument the eighteenth note warns
+against, because a rule needing an exemption list has the wrong population. Resolving the negand to a
+list literal, comprehension, type annotation or `.append()` call needs no list. Not swept here
+because 18 judgements is a sweep of its own and the table above is what one costs — *a rule demanding
+18 edits gets abandoned halfway and leaves the tree half-declared*, COURT-SPLIT again. Three
+confirmed live: `cde.complete = not missing_core`, `docmanager.complete = not missing`,
+`px.ready = not blockers`.
 
 **And measuring this one found a SCOPE gap in the gate it extends.** `test_verdict_coverage.py` scans
 `HERE / "src" / "aec_api"` only, so every subset verdict in `services/data/src/aec_data` — where the
@@ -294,5 +304,6 @@ if _fails:
 print(f"negated_verdict: all checks passed — {len(found)} all-negated verdict(s), every one carrying "
       f"a declared reason why an empty population is clean. Three siblings were FLIPPED rather than "
       f"declared (detail_refs.navigable, fin_ingest.fully_reconciled, roundtrip.fidelity_ok) and have "
-      f"left this population by acquiring a guard. The bare single `not X` dict value, measured at 36, "
-      f"is NOT covered here and is recorded in this file's docstring with three confirmed instances.")
+      f"left this population by acquiring a guard. The bare single `not X` dict value is NOT covered "
+      f"here: 36 syntactically, of which 24 have a COLLECTION negand and 18 of those need a "
+      f"judgement — the docstring has the split and why a syntactic count is not a defect count.")

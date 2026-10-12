@@ -6801,12 +6801,33 @@ recover a name the first run had already printed and thrown away.
 
 ## Two gaps measured rather than hedged
 
-**The bare single `"key": not X` dict value measures 36**, with the identical defect. Three read and
-confirmed: `cde.complete = not missing_core` (a CDE holding no documents is "complete"),
-`cited_answer.fully_cited = not uncited` (an answer making no claims is "fully cited"),
-`agent_packs.ok = not problems`. Not swept here, because 36 sites need 36 judgements and the table
-above is what one judgement costs — *a rule demanding 36 edits gets abandoned halfway and leaves the
-tree half-declared.* The number is the handover, not a suspicion.
+**The bare single `"key": not X` dict value measures 36 syntactically — and 36 is the wrong number
+to hand over, which was found by trying to use it.** This paragraph first read *"measures 36, with the
+identical defect"*, and that presents a **syntactic count as a defect count**, in the direction that
+flatters the finding. Resolving each negand to its binding splits it:
+
+| | |
+|---|---|
+| **24** | the negand is a COLLECTION — "empty" can mean *nothing was examined*, so the defect is possible |
+| **12** | the negand is a SCALAR (`not too_new`, `not is_stale`, `not flat_plate`, `not args.no_quality_gate`) — the emptiness question does not arise and no coverage would help |
+
+Of the 24, five already supply coverage through a sibling count in the same literal (`agent_packs` →
+`pack_count`/`tool_count`, `cited_answer` → `citation_count`, `sov_build` → `element_total`,
+`supply_chain.ok` → `total`, `test_fit` → `occupant_load_total`), leaving **18** to judge. Several of
+those are keeps on the merits: `lod.using_default = not targets` is *correct* when empty — no targets
+IS the default — and `guards.ok`/`nlauthor.ok` validate an input that was definitely supplied, so no
+errors genuinely means valid.
+
+**The discriminator is structural and that is why it is worth having.** Separating `not findings` from
+`not is_stale` by NAME needs a list of findings-ish words, which is the instrument this gate's own
+eighteenth-note lesson warns against; resolving the negand to a list literal, comprehension,
+annotation or `.append()` call needs no list at all. *A smaller number is not the point — a derivable
+one is.*
+
+Not swept here, because 18 sites need 18 judgements and the table above is what one judgement costs
+— *a rule demanding 18 edits gets abandoned halfway and leaves the tree half-declared.* Three were
+read and confirmed as live: `cde.complete = not missing_core` (a CDE holding no documents is
+"complete"), `docmanager.complete = not missing`, `px.ready = not blockers`.
 
 **And measuring this found a SCOPE gap in the gate it extends.** `test_verdict_coverage.py` scans
 `HERE / "src" / "aec_api"` only, so every subset verdict under `services/data/src/aec_data` — where
