@@ -4,6 +4,7 @@ import { promptModal } from "../../ui/modal";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
 import { renderOperateBrief } from "./operateBrief";
+import { productivityRows, productivityScope, provenanceLine } from "./productivity";
 
 /**
  * Operations & facility panels, extracted from portal.ts (portal.ts decomposition).
@@ -131,6 +132,43 @@ export async function renderOperations(ctx: PanelContext) {
           + `<div class="meta" style="margin-top:4px">${esc(tw.dpp.note)}</div>`;
         body.append(tc);
       } catch { /* twin data optional */ }
+
+      // PROD-DARK: the crew productivity loop, which no screen called. An empty `actuals` list makes
+      // the route analyse the project's STORED Productivity Actuals records, so this reads the field
+      // crew's own log rather than supplying a payload — and `source` says which, because a
+      // productivity figure whose provenance is unstated is a number somebody takes to a meeting.
+      try {
+        const pa = await ctx.host.api.progressActuals(pid, []);
+        const scope = productivityScope(pa);
+        const pc = el("div", "dash-card"); pc.style.marginTop = "8px";
+        // The whole token, never `var(--status-${…})`. `apps/web/src/shell/cssVars.test.ts` refused
+        // the interpolated form by name: a custom property assembled at runtime is invisible to any
+        // check that the token exists, so a typo in either branch produces no border and no error.
+        if (scope.tone === "bad") pc.style.borderLeft = "3px solid var(--status-crit)";
+        else if (scope.tone === "warn") pc.style.borderLeft = "3px solid var(--status-warn)";
+        pc.innerHTML = `<div><b>\u{1F477} Crew productivity</b> <span class="meta">${esc(scope.headline)}</span></div>`
+          + `<div class="meta" style="margin-top:2px">${esc(scope.detail)}</div>`;
+        const prov = provenanceLine(pa.source);
+        if (prov) {
+          pc.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:2px">${esc(prov)}</div>`);
+        }
+        if (pa.group_count) {
+          const rows = productivityRows(pa).map((r) =>
+            `<tr><td>${esc(r.group)}</td><td class="num">${esc(r.rate)}</td>`
+            + `<td class="num">${esc(r.utilization)}</td>`
+            + `<td class="num"${r.strong ? ' style="font-weight:700"' : ""}>${esc(r.vsPlanned)}</td>`
+            + `<td class="num">${esc(r.complete)}</td><td class="num">${esc(r.remaining)}</td></tr>`).join("");
+          pc.insertAdjacentHTML("beforeend",
+            `<table class="fin-table" style="width:100%;font-size:12px;margin-top:6px">`
+            + `<thead><tr><th scope="col" style="text-align:left">Activity</th>`
+            + `<th scope="col" class="num">Rate</th><th scope="col" class="num">Util</th>`
+            + `<th scope="col" class="num">vs planned</th><th scope="col" class="num">Complete</th>`
+            + `<th scope="col" class="num">Remaining</th></tr></thead><tbody>${rows}</tbody></table>`);
+        }
+        pc.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="margin-top:4px">${esc(pa.note)}</div>`);
+        body.append(pc);
+      } catch { /* productivity log optional */ }
     };
     await load();
   }

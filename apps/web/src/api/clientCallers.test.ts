@@ -335,8 +335,11 @@ const UNCALLED: readonly string[] = [
   // `normalizeT12` left this list 2026-09-25 — `proforma/t12Card.ts`. Its tie-out is a gate that
   // could not fail without a caller supplying stated totals; see T12-SELFTIE in that file's header.
   "parcelsDataStatus",
+  // `progressActuals` left this list 2026-10-12 — PROD-DARK: the Operations panel reads the field
+  // crew's STORED productivity log (an empty `actuals` list makes the route use it), and says both
+  // which rows it analysed and how many groups had a planned rate to be ahead OF.
   "pdfInfo", "permitsTimeline", "preconSnapshot",
-  "proformaRenovation", "proformaRollover", "progressActuals",
+  "proformaRenovation", "proformaRollover",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.

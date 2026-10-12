@@ -5373,6 +5373,48 @@ gate blind to the exact defect it exists for.
 The honest summary is TOTAL-EXCLUDED's: a derivation recorded as a candidate to re-run, not
 installed as a check whose silence nobody has earned.
 
+### PROD-DARK — the crew productivity loop, and the two things an ahead/behind read means nothing without *(✅ CLOSED 2026-10-12)*
+
+*(S — **Lane B**; `apps/web/src/portal/panels/productivity.test.ts`)*
+
+**`/projects/{pid}/progress/actuals` rolls installed quantities into an installed rate (qty ÷
+productive hours) and crew utilisation (productive ÷ productive + idle) per activity group, compares
+each against its planned rate, and projects the remaining hours at the current rate.**
+`progressActuals` was frozen as callerless, so the field crew's own productivity record had no
+screen at all. It renders on the Operations panel, where the field data already lives.
+
+**① The tally counts only the groups that HAD a baseline.** `planned_compared` is
+`ahead + on_track + behind` and it sits beside `group_count` precisely because they differ: a group
+with no planned rate gets `status: null` and is in neither count. So **"0 behind" over twelve groups
+none of which has a planned rate is not a job running to plan — it is a job with no plan to run
+to**, and the remedies are opposite: record the rates, versus relax. The engine was already honest;
+the screen is where this gets dropped, which is where it has been dropped eight times this session.
+
+**② The rows may not be the ones you passed.** With an empty `actuals` list the route analyses the
+project's stored Productivity Actuals records instead — *"so the loop runs off the record of
+authority, not a one-shot payload"* — and `source` names which. The panel passes `[]` deliberately,
+to read the crew's own log, and renders the provenance: *a productivity figure whose source is
+unstated is a number somebody takes to a progress meeting.* The client type's own comment already
+called `source` *"the one key the type did not name"*; now something reads it.
+
+There is deliberately **no portfolio rate**, because the engine says why: *"rates are compared within
+a group only — units differ across trades, so no cross-trade rate is summed."* `overall_utilization`
+is an hours ratio, which is unit-free and does roll up, so that one is shown.
+
+Thirteen mutations, all red on the first pass — the append pin included this time, after three
+sessions of learning it.
+
+**Two of this repo's gates caught real defects in the first draft, and one of them was a test
+helper.** `apps/web/src/shell/cssVars.test.ts` refused ``var(--status-${tone === "bad" ? "crit" :
+"warn"})``: a custom property assembled at runtime is invisible to any check that the token exists,
+so a typo in either branch produces no border and no error. Both tokens are literal now. And the
+test's own `group()` factory wrote `installed_rate: over.installed_rate ?? 3`, which **collapses an
+explicit `null` into the default** — so the case for *"the engine could not compute a rate"* silently
+exercised a rate of 3. *A factory that cannot express `null` cannot test a module whose whole subject
+is the difference between a missing figure and a computed one*, and this is the **second** time in
+one session a helper has done exactly that (`macroTool`'s answer stub turned a cancel into a blank).
+Both are spelled out rather than shortened now.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
