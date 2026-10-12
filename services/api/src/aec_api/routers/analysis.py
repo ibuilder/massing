@@ -891,7 +891,15 @@ def egress_routes(pid: str, elevation: float = 0.0, max_travel_m: float = Query(
     from .. import egress_route
     ifc_path = _source_ifc(db, pid)
     try:
-        return egress_route.analyze(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell)
+        # EGRESS-TRAVEL-DARK — `with_paths=False`, and `_exits_xy` stripped. Both are the SVG's
+        # WORKING DATA and this is the JSON summary: `plan_svg` calls `analyze` itself with
+        # `with_paths=True` and is the only consumer of either. Shipping them here cost a caller that
+        # wants "which spaces are over the limit" one polyline per space of up to `_path_from`'s
+        # 4,000 points — on a 200-space floor plate, several hundred thousand coordinate pairs in a
+        # viewer-role GET, with no cap across spaces. The drawing is at `/egress/plan.svg`.
+        res = egress_route.analyze(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell,
+                                   with_paths=False)
+        return {k: v for k, v in res.items() if not k.startswith("_")}
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 

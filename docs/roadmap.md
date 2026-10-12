@@ -5842,6 +5842,90 @@ anyway. *A mutation that does not change the property under test is mis-stated, 
 the `continue` is now documented as an early exit rather than a guard, so the next reader does not
 re-derive it.
 
+### EGRESS-TRAVEL-DARK — IBC 1017 travel distance had no door, and the JSON shipped the drawing *(✅ CLOSED 2026-10-12)*
+
+*(M — **Lane C**; `services/api/test_egress_payload.py`, `apps/web/src/viewer/tools/egressTravel.test.ts`)*
+
+**`/projects/{pid}/egress/routes` and `/projects/{pid}/egress/plan.svg` were both frozen as routes no
+screen reaches — in two different lists in `services/api/test_route_reachability.py`.** One was in
+`KNOWN_UNCALLED` (no client method), the other in the blind-spot set, so **each half of one
+life-safety capability read as somebody else's gap.** They came off together, which is the only way
+either could.
+
+**The contrast is the finding, and getting it right took a correction.** My first reading of this was
+that the app ships a *straight-line* travel check and not the routed one. It does not:
+`codecheck_egress.py` states in its own header that *"travel-distance / performance-based egress are
+out of scope"*, so the live Occupancy & egress tool covers occupant load, egress **width**, door
+widths and the two-exit rule — and travel distance appears nowhere in it. The only travel number
+elsewhere in the tree is `test_fit.egress_screen`'s `plate_w / (2 · stairs) + plate_d / 2`, a formula
+over an idealised rectangle for the massing stage, which labels itself approximate and **has a
+screen** (`proforma/testfitTab.ts`). So: *a parametric estimate over a rectangle was reachable and
+the measurement against the actual model was not.* Both halves of that are pinned in the gate,
+because it is exactly the kind of claim that rots.
+
+**The engine needed nothing.** It is one of the most careful in the tree: it refuses rather than
+routing to an arbitrary door when none is marked `IsExternal`, keeps `unreachable` out of
+`over_limit` because a space with no route is a worse finding than a distant one, reports the
+straight-line distance beside the routed one so the understatement is visible *per space*, and states
+the grid resolution instead of implying it away. Four items in a row have needed an engine fix before
+the screen; this one did not, and saying so is worth as much as a fix.
+
+## What the route DID need: it was shipping the drawing's working data
+
+`analyze` returns a `path` polyline **per space**, traced cell by cell. One path is capped at
+`_path_from`'s `limit=4000` points; **nothing caps the number of paths.** On a 200-space plate at the
+default 0.3 m grid that is hundreds of thousands of coordinate pairs in a single viewer-role GET —
+plus `_exits_xy`, an underscore-prefixed internal, in a public payload. **`plan_svg` calls `analyze`
+itself with `with_paths=True` and is the only consumer of either**, so the JSON summary was paying
+for a drawing it does not draw. It now asks for no paths and strips `_`-prefixed keys; the polylines'
+surface is the SVG, which the screen links.
+
+**The gate's careful half is the refusal.** Stripping changes the shape of a *successful* response,
+and the engine's refusals are responses too: `routed: false` carries `note` and little else, and a
+filter that dropped it would turn *"no exterior door is marked"* into an empty object a consumer
+renders as a clean building. Both refusal branches are asserted through the transform, the pre-fix
+payload is replayed and must carry a polyline per space before the gate reports, and the route's
+source is pinned — *a replay is only evidence while it still matches what ships.*
+
+## Thirteen mutations, one survivor, and it was the previous item's lesson repeated
+
+Deleting the distance tiebreaker from `worstSpaces` changed no test, because the fixture's two
+over-limit spaces were listed 95 m then 70 m — **already the output order.** That is
+LAYOUT-RENUMBER's bucket-sort survivor one item later: *a reorder is invisible to a fixture already
+in that order.* The fixture now lists them ascending and the mutation reds. A fourteenth was retired
+rather than counted: adding a comment beside the dynamic `import()` changes no behaviour.
+
+**One assertion of mine reddened on correct code**, and it is the cheaper version of the same
+mistake: I asserted the plan SVG `startswith("<svg")` without looking, and the document opens with an
+XML declaration. *A shape asserted without being measured reds on the truth.*
+
+**The module is dynamically imported by construction — and that was still not enough.** `viewer/tools/*`
+lands in the eager chunk, so the reading was deferred when it was written. The shell still came back
+at **exactly 224.0 KB** against a 224 KB ceiling: the panel's thirty-odd lines of *card-building*
+were the cost, not the reading. *Deferring the decision and keeping the rendering is half a lazy
+module.* `renderEgressCard` now lives inside the imported module and takes the host's primitives,
+leaving `analyseSection.ts` with a button label, the import and one call — 223.8 KB, and the test
+pins that this file holds no `egressRows`/`worstSpaces`/`findingGuids` call at all, which is a
+stronger assertion than "the import is dynamic".
+
+**A third gate caught the drawing link, and the fix was to make the code say what it means.**
+`ui/hrefGuard.test.ts` flagged `a.href = d.planUrl` — a URL field read off a data object, which is
+the shape every real instance of that defect has had. It was safe here (the host passes
+`api.egressPlanUrl(pid)`), but *safe by argument*, which is exactly the standard that gate exists to
+raise: its docstring records that a draft able to see through one more hop flagged eleven safe sites,
+and **a gate that cries wolf eleven times is one people switch off.** So the dep is now the builder
+(`planUrl: () => string`) and the sink is `d.planUrl()` — an `…Url(` call, which its safe list
+already accepts, with the provenance visible at the sink instead of a reader trusting a string
+further up. *Satisfying a narrow gate by making the code say what it means beats exempting the line.*
+
+**And two doc-comment gates caught a mistake in how I inserted the client type.** `_egressQuery`'s
+docstring landed directly beneath `EgressRoutes`'s, with no declaration between them, and an earlier
+draft had both of them wedged between `withJurisdiction`'s comment and the thing it describes. Three
+doc comments in a row document whatever is at the bottom. *A comment inserted by anchoring on the
+next declaration lands above that declaration's comment, not above the declaration* — the structural
+cousin of the line-based import edit that landed inside a multi-line `import` block earlier on this
+branch.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

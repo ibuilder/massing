@@ -338,7 +338,12 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/drawing-set/references",
     "/projects/{pid}/drawings/schedule.svg",
     "/projects/{pid}/edit/batch",
-    "/projects/{pid}/egress/routes",
+    # `/projects/{pid}/egress/routes` left this set 2026-10-12 — EGRESS-TRAVEL-DARK:
+    # `apps/web/src/viewer/tools/analyseSection.ts` now offers routed travel distance beside the
+    # Occupancy & egress tool, which `codecheck_egress.py`'s own header says EXCLUDES travel
+    # distance. Its `/egress/plan.svg` sibling left the blind-spot list below in the same change,
+    # and that is the point: they were in two different lists, so each half of one life-safety
+    # capability read as somebody else's gap. *Neither list can see the other's half.*
     "/projects/{pid}/elements/freshness",
     "/projects/{pid}/market/exists",
     "/projects/{pid}/model/ensure",
@@ -1608,7 +1613,10 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/drawings/plan.dxf",
     "/projects/{pid}/drawings/section.dxf",
     "/projects/{pid}/drawings/stream",
-    "/projects/{pid}/egress/plan.svg",
+    # `/projects/{pid}/egress/plan.svg` left this set 2026-10-12 — EGRESS-TRAVEL-DARK. It is the
+    # surface for the per-space polylines, which the JSON summary at `/egress/routes` deliberately
+    # no longer ships: one path per space at up to 4,000 points each, uncapped across spaces, in a
+    # viewer-role GET that wants counts. See `services/api/test_egress_payload.py`.
     "/projects/{pid}/elements/properties",
     "/projects/{pid}/envelope/check",
     "/projects/{pid}/lod/matrix",

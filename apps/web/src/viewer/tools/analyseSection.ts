@@ -216,6 +216,29 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             }
           });
         })));
+        // EGRESS-TRAVEL-DARK — IBC 1017 travel distance, which the tool ABOVE deliberately excludes
+        // ("travel-distance / performance-based egress are out of scope", codecheck_egress.py). It
+        // sits here, immediately after it, because the two together are what a plan reviewer needs
+        // and the gap between them was invisible while one had a button and the other did not.
+        // EGRESS-TRAVEL-DARK — IBC 1017 travel distance, which the tool ABOVE deliberately
+        // excludes ("travel-distance / performance-based egress are out of scope",
+        // codecheck_egress.py). It sits here, immediately after it, because the two together are
+        // what a plan reviewer needs and the gap between them was invisible while one had a button
+        // and the other did not. The card is rendered INSIDE the lazily-imported module: this file
+        // is in the eager chunk and the thirty lines of card-building were what put the shell over
+        // its budget, not the reading.
+        b.appendChild(toolBtn2("🚪 Travel distance to exit (IBC 1017, routed)", () =>
+          withLoading(container, "Routing travel distance over the floor plate", async () => {
+            const { egressReading, renderEgressCard } = await import("./egressTravel");
+            let r;
+            try { r = await api.egressRoutes(pid); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            out.textContent = egressReading(r).kind === "refused" ? "not routed"
+              : `${(r.over_limit ?? 0) + (r.unreachable ?? 0)} egress finding(s)`;
+            renderEgressCard(r, { showResult, resultNote, kvTable, toolBtn2, esc: escapeHtml,
+                                  isolate: (g) => { void layerMgr.isolateGuids(g); },
+                                  planUrl: () => api.egressPlanUrl(pid) });
+          })));
         const runCodeAnalysis = (jur: string) => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
           let r;
           try { r = await api.codeAnalysis(pid, jur ? { jurisdiction: jur } : {}); }
