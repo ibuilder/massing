@@ -1507,7 +1507,61 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `ctx.mods` so the picker costs no extra fetch.
 
   **The stored-standard sweep is now 8 standards, 1 unwritable** — `macros`, where a macro editor
-  remains separate work.
+  remains separate work. *(That last one closed on 2026-10-13 under MACRO-CAPTURE below, and the
+  sentence is kept as written because it was the reading on the day: what closed it was not an
+  editor.)*
+
+- ✅ ⭐ **MACRO-CAPTURE — the last unwritable stored standard, closed by a capture rather than by
+  the editor everyone had priced** *(S — `apps/web/src/viewer/tools/recipeMacroCapture.ts`;
+  **CLOSED 2026-10-13**; gated by `apps/web/src/viewer/tools/recipeMacroCapture.test.ts` and
+  `services/api/test_stored_standard_writable.py`)*
+
+  `saveMacros` was the last callerless method of RECIPE-MACROS and the last open member of
+  `test_stored_standard_writable.py`'s register. MACRO-DARK wired its three siblings on 2026-10-12
+  and left this one with the reason written down: *"a macro EDITOR is a separate piece of work, and
+  claiming it here because its three siblings found callers is how an entry goes stale in the
+  flattering direction."*
+
+  **That reason was right and it is not what closed it.** RECIPE-LOG-DARK made the edit-recipe log
+  readable, and a log entry is already `{recipe, params}` — which is a macro step, with the
+  parameters being the half nothing else in this product kept. So the writer arrived as a **capture
+  of edits that had already happened**, from a screen built for something else, and the editor
+  nobody wrote is still unwritten. *An estimate of what a gap costs is an estimate about one way of
+  closing it*, and the register's own note now says so beside the row.
+
+  ### Four rules, three of them refusals
+
+  **① An elided entry cannot become a step.** `replay_plan` already refuses one rather than calling
+  a recipe with a descriptor that resembles the original argument. A capture that did not refuse
+  would write that descriptor into a **saved** macro, where it outlives the log and gets run by
+  somebody who never saw the log. *The same refusal, moved one step further from the evidence,
+  matters more rather than less.* Refusals are returned per entry, not thrown: a capture of 9 where
+  2 are elided is a useful capture of 7, and the screen names the two.
+
+  **② The starter set must not be silently adopted.** `GET /macros` falls back to `STARTER_MACROS`
+  and says so in `seeded`; `PUT /macros` **replaces the whole library**. Appending to what the list
+  returned and saving it would persist the shipped examples as this firm's standards with nothing
+  saying so — the empty-versus-absent confusion this branch keeps correcting, in its most expensive
+  form, because the result is *stored*. When `seeded` is true the save carries the new macro alone,
+  and the screen says which of the two happened.
+
+  **③ A parameter is per-OCCURRENCE, not per-value.** Replacing a captured literal with `${name}` is
+  what makes the macro runnable somewhere else — and the coordinate `0` occurs all over a step list,
+  so an offer keyed on the VALUE would rewrite unrelated zeros in unrelated steps. Each offer is one
+  leaf at one path in one step. Two leaves may share a name — that is how `"end": ["${x}", 0]` is
+  built — but **only when they hold the same value**: one name over two different values would
+  substitute one of them where the other was, silently, so it is a refusal with both values quoted.
+
+  **④ The captured value becomes the default, which carries the TYPE.** `macros._subst` preserves the
+  raw type when a value is exactly `"${name}"`, and `macroTool.coerceArg` types the user's answer
+  from the declared `default` — *"a param with no typed default therefore goes as a string"*. So
+  every captured parameter is declared with its captured value, which keeps the macro runnable
+  unchanged AND gives the prompt its type. It is also why only **scalar** leaves are offered: a list
+  default would be prompted as text and arrive as a string.
+
+  The 422 is rendered verbatim, because it names the step and the recipe and that is the only thing
+  that tells a user what to change; and the saved count comes from the server's echoed library rather
+  than from what was sent, since the validator normalizes and mints the id.
 
 - ✅ ⭐ **RECIPE-LOG-DARK — the replayable artifact recorded everything and nothing could read it,
   and its own top-line verdict was unsound in two ways** *(M —

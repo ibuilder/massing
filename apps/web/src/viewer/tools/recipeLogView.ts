@@ -72,6 +72,15 @@ import { kvTable, resultNote } from "../../ui/result";
  * renders `elided` and `history` on **every** answer, which is what `test_verdict_coverage.py`
  * demands of a consumer and what the `# COVERAGE:` declarations beside the verdict point at.
  *
+ * ## It is also the door onto `saveMacros`
+ *
+ * `./recipeMacroCapture` turns a contiguous slice of the log into a saved macro, which closes the
+ * last callerless method of RECIPE-MACROS and the last unwritable member of
+ * `services/api/test_stored_standard_writable.py`'s register. A log entry is already a macro step:
+ * `{recipe, params}`, and the parameters are the half nothing else in this product kept. Its four
+ * rules are in its own header; the one that belongs here is that an **elided** entry is refused
+ * there too, because a saved macro outlives the log it came from.
+ *
  * ## Where it is mounted, which took three tries
  *
  * Not the authoring section, which is where the capability belongs by SUBJECT: that section sets
@@ -341,5 +350,24 @@ export function renderRecipeLog(body: HTMLElement, d: RecipeLogDeps, page: Recip
   });
   diffWrap.append(ia, ib, diffBtn);
 
-  body.append(exportBtn, planBtn, diffWrap, out);
+  // MACRO-CAPTURE — this reader is the door onto `saveMacros`, the last callerless method of
+  // RECIPE-MACROS, because a log entry IS a macro step: `{recipe, params}`, and the parameters are
+  // the half nothing else in this product kept. Dynamically imported for the same reason this whole
+  // file is: the shell sits at its Brotli cap, and a capture screen is opened by a fraction of the
+  // people who open the reader.
+  const captureBtn = d.toolBtn2("\u29c9 Capture a macro from these edits", async () => {
+    out.textContent = "reading\u2026";
+    try {
+      // The EXPORT, not this page: a macro is a sequence, and the page is newest-first and may be
+      // filtered to one recipe. The library comes too, because `PUT /macros` replaces it WHOLE and
+      // `seeded` is what says whether the list in hand is the firm's or the shipped starter set —
+      // appending to the second and saving it would adopt the shipped examples as their standards.
+      const [x, lib] = await Promise.all([d.api.recipeLogExport(d.pid), d.api.listMacros(d.pid)]);
+      const mod = await import("./recipeMacroCapture");
+      mod.renderMacroCapture(out, { api: d.api, pid: d.pid, toolBtn2: d.toolBtn2, notify: d.notify },
+                             x.entries, { macros: lib.macros, seeded: lib.seeded });
+    } catch (e) { out.textContent = `could not start a capture: ${(e as Error).message}`; }
+  });
+
+  body.append(exportBtn, planBtn, captureBtn, diffWrap, out);
 }

@@ -35,14 +35,14 @@ template matches, a client method whose enclosing name cannot be determined — 
 reds the build. All three were candidates to be silently dropped, and *a predicate that decides what
 to LOOK at is more dangerous than one that decides what to report.*
 
-### Three are still unwritable, and they are NAMED rather than exempted
+### All four are now writable, and the record of how each got there is the point
 
 | module | write route | client method | state |
 |---|---|---|---|
 | `clause_playbook` | PUT …/contracts/playbook | `saveClausePlaybook` | **FIXED 2026-10-13** — the editor is the fourth tab of Risk Review |
 | `view_templates` | PUT …/view-templates | `saveViewTemplates` | **FIXED 2026-10-13** — `portal/panels/viewTemplates.ts`, under the graphics card it makes non-empty |
 | `workflow_config` | PUT …/workflow/{key} | `saveProjectWorkflow` | **FIXED 2026-10-13** — `portal/panels/workflowConfig.ts`, in the module-metadata panel |
-| `macros` | PUT …/macros | `saveMacros` | **OPEN** |
+| `macros` | PUT …/macros | `saveMacros` | **FIXED 2026-10-13** — MACRO-CAPTURE, from the edit-recipe log reader rather than from an editor |
 
 **`view_templates` is the instance that argues hardest for this gate's existence**, because it was
 the one with READERS. Two screens consumed it — `qaSection.ts` lists and *applies* a template,
@@ -55,6 +55,14 @@ side of it.*
 `UNCALLED`: this file's job is to stop the set growing silently, not to forbid the commit that lands
 an engine before its editor. Removing a line is the fix; adding one is a deliberate act that says "I
 am shipping another standard nobody can write", and it belongs in the commit message.
+
+**`macros` closed in a way the table could not have predicted, and that is worth recording.** It
+was the last one open, and when its three siblings found callers on 2026-10-12 the reason it stayed
+was written down: *"a macro EDITOR is a separate piece of work."* True, and it is not what closed it.
+RECIPE-LOG-DARK made the edit-recipe log readable, and a log entry is already `{recipe, params}` —
+which is a macro step. So the writer arrived as a **capture** of edits that had already happened,
+from a screen built for a different purpose, and the editor nobody wrote is still unwritten. *An
+estimate of what a gap costs is an estimate about one way of closing it.*
 
 **`workflow_config` is the instance worth the most.** It has **no client method at all**, so it
 cannot appear on `UNCALLED` — you cannot be on a list of unreachable client methods if nobody ever
@@ -98,10 +106,10 @@ class Unclassified(Exception):
 
 
 #: Standards whose write half has no reachable caller. DOWN-ONLY: delete a line when you wire one.
-OPEN_STANDARDS: dict[str, str] = {
-    "macros": "saveMacros has no app caller — the recipe-macro library falls back to a starter set "
-              "and nothing can save over it",
-}
+#: EMPTY since 2026-10-13, and that is the state to defend rather than a milestone to celebrate:
+#: this file exists so the set cannot grow in silence, and an empty dict is the only value for which
+#: every member of the population is checked by the rule rather than by a line of prose.
+OPEN_STANDARDS: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -383,4 +391,5 @@ if FAILED:
     print(f"stored_standard_writable: {len(FAILED)} FAILED — {FAILED}")
     sys.exit(1)
 print(f"stored_standard_writable: all checks passed — {len(_STANDARDS)} standards, "
-      f"{len(_BAD)} unwritable (all named in OPEN_STANDARDS)")
+      + (f"{len(_BAD)} unwritable (all named in OPEN_STANDARDS)" if _BAD
+         else "every one of them writable from a screen"))

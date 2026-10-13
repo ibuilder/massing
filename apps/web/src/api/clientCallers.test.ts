@@ -402,9 +402,14 @@ const UNCALLED: readonly string[] = [
   // `panels/standards.ts` measures its graphics, and both printed "No view templates saved" on every
   // project that has ever existed. The editor is `portal/panels/viewTemplates.ts`, under the
   // graphics card it makes non-empty. The population is derived by
-  // `services/api/test_stored_standard_writable.py`; `saveMacros` is still on its open list and
-  // still here, for the reason given above.
-  "saveMacros",
+  // `services/api/test_stored_standard_writable.py`. `saveMacros` left this list 2026-10-13 —
+  // MACRO-CAPTURE: `viewer/tools/recipeMacroCapture.ts`, reached from the edit-recipe log reader,
+  // turns a slice of the log into a saved macro. It was the LAST member of that register's open
+  // list, which is now empty. The reason it stayed when its three siblings found callers on
+  // 2026-10-12 was written down then and was right: *"a macro EDITOR is a separate piece of work,
+  // and claiming it here because its three siblings found callers is how an entry goes stale in the
+  // flattering direction."* What made it cheap in the end was RECIPE-LOG-DARK rather than any
+  // editor — the inputs already existed, and a log entry IS a macro step.
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase",
   // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each
