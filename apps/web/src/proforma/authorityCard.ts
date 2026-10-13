@@ -180,6 +180,94 @@ export function entriesFromRead(a: Authority): AuthorityEntryWire[] {
   }));
 }
 
+/** What a row was LOADED with — the baseline the control compares against and archives from. */
+export interface SupersedeBaseline {
+  document: string;
+  as_of: string;
+  freshness_days: number | null;
+  reviewer: string | null;
+}
+
+/**
+ * Record that `base.document` has been superseded by the authoritative row's new document.
+ *
+ * **THE CHAIN IS THE RECORD, and the first version of this file said the opposite.** `assess()`
+ * computes `superseded_still_active` as
+ * `{name for r in rows for name in r["supersedes"]}` and then flags any row that is
+ * `authoritative` and whose document is in that set — so it reads the **`supersedes` lists** and
+ * never looks at the archival rows at all. The comment here claimed *"the archival row is what
+ * `assess()` actually reads"*, which is inverted, and that inversion is why the undo below was
+ * written to over-reach: *if the chain is decorative, pruning it looks free.* It is not decorative;
+ * it is the only thing the gate can see.
+ *
+ * The archival row is the ARCHIVE — `deal_authority.py`'s own premise, *"an older file is archived
+ * rather than merely older"* — so the superseded document survives in the stored table with its own
+ * date instead of vanishing when its name is overwritten. It carries `authoritative: false` so it
+ * cannot itself trip the check it exists beside.
+ *
+ * **A chain could only ever be built through the raw PUT.** The editor preserved one it was handed
+ * and never created one — the same class `reviewer` was in before it got an input. Review proposed
+ * inferring it, archiving the loaded row whenever its document name changes, and that was declined
+ * on the merits: a typo correction would permanently record a prior document that never existed, in
+ * a table an investment committee reads, and `superseded_still_active` would then report a finding
+ * about a file nobody ever held. *A fabricated supersession is worse than an absent one, because
+ * the absent one is silent and the fabricated one is evidence.* So the user STATES it.
+ *
+ * It takes the paint-time BASELINE rather than looking the old row up in `rows`, because by the time
+ * the editor calls this the live row has already been rewritten with the new name — so a lookup for
+ * the old document finds nothing and the archival row silently inherits the REPLACEMENT's date,
+ * with no reviewer and no freshness override. That was the shipped behaviour and two tests asserted
+ * the opposite, passing only because their fixture left the date field untouched. *A test that
+ * supplies the thing under test cannot notice that the caller never supplies it.*
+ */
+export function withSupersede(rows: readonly AuthorityEntryWire[], factType: string,
+                              base: SupersedeBaseline): AuthorityEntryWire[] {
+  const out = rows.map((r) => ({ ...r, supersedes: [...(r.supersedes ?? [])] }));
+  const live = out.find((r) => r.fact_type === factType && r.authoritative !== false);
+  if (!live || !base.document || live.document === base.document) return out;
+  if (!live.supersedes.includes(base.document)) live.supersedes.push(base.document);
+  // Deduped so the stored table does not grow a row per keystroke — `sync()` runs on every input
+  // event. NOT because a duplicate would be "counted twice": `superseded_names` is a set, so it
+  // could not be. That rationale was impossible and it was the tell for the inversion above.
+  const already = out.some((r) => r.fact_type === factType && r.authoritative === false
+    && r.document === base.document);
+  if (!already) {
+    out.push({
+      fact_type: factType, document: base.document,
+      as_of: base.as_of || live.as_of,
+      freshness_days: base.freshness_days,
+      authoritative: false, supersedes: [],
+      reviewer: base.reviewer,
+    });
+  }
+  return out;
+}
+
+/**
+ * Undo `withSupersede` for `document` on ONE fact type.
+ *
+ * **Scoped to `factType` on both halves, and only ever called for a supersession this session
+ * declared.** The first version was neither, and both gaps were real:
+ *
+ *   * its `map` stripped the name from EVERY row's chain while its `filter` was fact-type scoped, so
+ *     undoing the rent roll's supersession of a document also cleared that name from the tax row's
+ *     chain;
+ *   * and the editor called it on every unticked `sync()`, including when nothing had been renamed —
+ *     so on a table already in the `superseded_still_active` state, typing a **reviewer name** and
+ *     saving pruned the chain that carried the finding, and the gate went green with a superseded
+ *     document still authoritative. *An undo that runs when nothing was done is a delete.*
+ */
+export function withoutSupersede(rows: readonly AuthorityEntryWire[], factType: string,
+                                 document: string): AuthorityEntryWire[] {
+  if (!document) return rows.map((r) => ({ ...r, supersedes: [...(r.supersedes ?? [])] }));
+  return rows
+    .filter((r) => !(r.fact_type === factType && r.authoritative === false
+      && r.document === document))
+    .map((r) => (r.fact_type === factType
+      ? { ...r, supersedes: (r.supersedes ?? []).filter((x) => x !== document) }
+      : { ...r, supersedes: [...(r.supersedes ?? [])] }));
+}
+
 export interface AuthorityCtx {
   api: ApiClient;
   projectId: () => string | null | undefined;
@@ -209,12 +297,28 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
     editor.replaceChildren();
     const table = document.createElement("table"); table.className = "fin-table";
     table.innerHTML = `<tr class="fin-sub"><td>Fact type</td><td>document</td><td>as of</td>`
-      + `<td class="num">freshness</td><td>reviewed by</td><td></td></tr>`;
+      + `<td class="num">freshness</td><td>reviewed by</td><td></td><td></td></tr>`;
     for (const [key, lab, days, required] of FACT_TYPES) {
       // `authoritative !== false`, not just `fact_type` — an archival row for a fact whose
       // authoritative document has been removed would otherwise be loaded into the form and then
       // saved back as authoritative, which is the `superseded_still_active` state the gate blocks.
       const row = rows.find((r) => r.fact_type === key && r.authoritative !== false);
+      // Captured at PAINT, from the stored row — not read back off the input. The control's whole
+      // job is comparing what is typed against what was LOADED, and an input's value is the first
+      // thing to stop being that. The DATE, REVIEWER and FRESHNESS come with it, because the
+      // archival row has to carry the superseded document's own, and by the time `sync()` runs the
+      // live row has already been rewritten with the new name.
+      const base: SupersedeBaseline = {
+        document: row?.document ?? "",
+        as_of: row?.as_of ?? "",
+        freshness_days: row?.freshness_days ?? null,
+        reviewer: row?.reviewer ?? null,
+      };
+      const was = base.document;
+      // Has THIS control written a supersession into `rows`? The undo may remove only what the
+      // control added — a chain entry and an archival row loaded from the server belong to whoever
+      // declared them, and unticking a box the person only just ticked must not reach them.
+      let declaredHere = false;
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.innerHTML = `${esc(lab)}${required ? ` <span class="meta">required</span>` : ""}`;
@@ -244,36 +348,101 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
       // doing the preserving.
       rev.placeholder = "reviewed by"; rev.value = row?.reviewer ?? "";
       revCell.appendChild(rev);
+      // AUTHORITY-SUPERSEDE — the explicit control. It appears only once the typed name differs
+      // from a non-empty loaded one, because a first declaration supersedes nothing and a typo
+      // correction must not be offered as a supersession at all.
+      const supCell = document.createElement("td");
+      const sup = document.createElement("input");
+      sup.type = "checkbox";
+      sup.dataset.supersede = key;
+      const supLabel = document.createElement("label");
+      supLabel.className = "meta";
+      supLabel.style.whiteSpace = "nowrap";
+      supLabel.append(sup, document.createTextNode(" supersedes"));
+      supCell.appendChild(supLabel);
+      const refreshSup = () => {
+        const typed = doc.value.trim();
+        const offerable = !!was && !!typed && typed !== was;
+        supLabel.hidden = !offerable;
+        if (!offerable && sup.checked) sup.checked = false;
+        supLabel.title = offerable
+          ? `Record “${was}” as superseded by “${typed}”. It is archived rather than deleted, which `
+            + `is what the gate above reads to catch a superseded document still being `
+            + `underwritten from. Leave this unticked if you are correcting a typo.`
+          : "";
+      };
       const clearCell = document.createElement("td");
       const clear = document.createElement("button");
       clear.className = "tool-btn"; clear.textContent = "✕"; clear.title = "Remove this declaration";
-      clear.onclick = () => { doc.value = ""; date.value = ""; fresh.value = ""; rev.value = ""; };
+      // ONE handler, and that is a correctness fix rather than tidying. This was
+      // `clear.onclick = (wipe the inputs)` plus a separate `clear.addEventListener("click", sync)`,
+      // which depends on the two firing in registration order — and **happy-dom fires the
+      // addEventListener listener BEFORE `onclick`**, the reverse of what the DOM spec's
+      // "event handlers are listeners registered at assignment time" rule gives. So the sync ran
+      // against the values the person was clearing and nothing synced after they were cleared: the
+      // ✕ re-applied the supersession it was cancelling. *Two handlers on one click is an ordering
+      // assumption, and this one was wrong in the environment the tests run in.*
+      clear.onclick = () => {
+        doc.value = ""; date.value = ""; fresh.value = ""; rev.value = "";
+        refreshSup();
+        sync();
+      };
       clearCell.appendChild(clear);
 
       const sync = () => {
         const i = rows.findIndex((r) => r.fact_type === key && r.authoritative !== false);
         const prev = i >= 0 ? rows[i] : undefined;
+        const typed = doc.value.trim();
         // A row with no document is not declared at all — sending an empty one would be refused by
         // `validate()`, which requires a document name and a real date on every entry. Removing it
         // drops ONLY the authoritative row; archival rows for the same fact type stay, which is
         // what "this document is no longer the one to underwrite from" should mean.
-        if (!doc.value.trim()) { if (i >= 0) rows.splice(i, 1); return; }
-        const entry: AuthorityEntryWire = {
-          fact_type: key, document: doc.value.trim(), as_of: date.value,
-          freshness_days: fresh.value.trim() === "" ? null : Number(fresh.value),
-          authoritative: true,
-          // CARRIED THROUGH, not rebuilt. `sync()` constructed a fresh object, so `supersedes` was
-          // dropped from every row the person touched while rows they left alone kept theirs — the
-          // worst available shape, because the loss is proportional to how much they edited.
-          supersedes: prev?.supersedes ?? [],
-          reviewer: rev.value.trim() || null,
-        };
-        if (i >= 0) rows[i] = entry; else rows.push(entry);
-      };
-      for (const input of [doc, date, fresh, rev]) input.onchange = sync;
-      clear.addEventListener("click", sync);
+        //
+        // **It no longer RETURNS here**, and that was a defect: clearing the document with ✕ after
+        // ticking the box skipped the bookkeeping below, so a cancelled supersession persisted as an
+        // archival row that was no longer visible in the form and could not be removed from it. *An
+        // early return past the undo leaves exactly the fabricated record this control exists not to
+        // create.*
+        if (!typed) {
+          if (i >= 0) rows.splice(i, 1);
+        } else {
+          const entry: AuthorityEntryWire = {
+            fact_type: key, document: typed, as_of: date.value,
+            freshness_days: fresh.value.trim() === "" ? null : Number(fresh.value),
+            authoritative: true,
+            // CARRIED THROUGH, not rebuilt. `sync()` constructed a fresh object, so `supersedes` was
+            // dropped from every row the person touched while rows they left alone kept theirs — the
+            // worst available shape, because the loss is proportional to how much they edited.
+            supersedes: prev?.supersedes ?? [],
+            reviewer: rev.value.trim() || null,
+          };
+          if (i >= 0) rows[i] = entry; else rows.push(entry);
+        }
 
-      tr.append(name, docCell, dateCell, freshCell, revCell, clearCell);
+        // Applied AFTER the live row is in place, because `withSupersede` reads it to decide.
+        //
+        // **The undo runs ONLY when this control had declared something.** It used to run on every
+        // unticked pass, which meant editing an unrelated field — a reviewer name — pruned the
+        // chain for the loaded document from the whole table. On a project already in the
+        // `superseded_still_active` state that is the blocking finding itself, since `assess()`
+        // reads chains: the gate went green with a superseded document still authoritative. *The
+        // two directions are not symmetric, and writing them as if they were is what made an edit
+        // into a delete.*
+        const renamed = !!was && !!typed && typed !== was;
+        if (renamed && sup.checked) {
+          rows.splice(0, rows.length, ...withSupersede(rows, key, base));
+          declaredHere = true;
+        } else if (declaredHere) {
+          rows.splice(0, rows.length, ...withoutSupersede(rows, key, was));
+          declaredHere = false;
+        }
+      };
+      refreshSup();
+      doc.addEventListener("input", refreshSup);
+      sup.addEventListener("change", sync);
+      for (const input of [doc, date, fresh, rev]) input.onchange = sync;
+
+      tr.append(name, docCell, dateCell, freshCell, revCell, supCell, clearCell);
       table.appendChild(tr);
     }
     editor.appendChild(table);
@@ -285,7 +454,11 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
     editor.appendChild(actions);
     editor.insertAdjacentHTML("beforeend", meta(
       `Exactly one authoritative document per fact type — the server refuses two, and refuses any `
-      + `entry without a date, because an undated document cannot be judged fresh or stale.`));
+      + `entry without a date, because an undated document cannot be judged fresh or stale. `
+      + `<strong>supersedes</strong> appears when you replace a document's name: tick it to archive `
+      + `the old one as superseded, which is what the gate above reads to catch a superseded `
+      + `document still being underwritten from. Leave it unticked when you are fixing a typo — a `
+      + `supersession this table records is a prior document a committee will believe existed.`));
 
     save.onclick = async () => {
       const pid = ctx.projectId();
@@ -308,6 +481,14 @@ export function renderAuthorityCard(root: HTMLElement, ctx: AuthorityCtx): HTMLE
         // The PUT returns the REASSESSMENT, so the gate on screen is the gate for what was just
         // saved. Re-fetching would race the write and could show the previous verdict.
         renderAuthority(out, res.assessment);
+        // RE-ANCHOR THE EDITOR on what was actually stored. `was` and `base` are captured when a
+        // row is painted, and nothing repainted after a save — so a SECOND rename in the same
+        // session still compared against the document loaded at open: A→B then B→C stored
+        // "C supersedes A" and lost B entirely, with the box still showing ticked against a name
+        // that was now the stored one. `rows` IS what was just PUT, so repainting from it is both
+        // correct and free, and it resets each row's `declaredHere` so the undo cannot reach a
+        // supersession this save has made permanent.
+        paint();
         ctx.setStatus(res.assessment.gate.passes
           ? "authority sufficient to underwrite" : "authority blocked");
       } catch (e) {

@@ -4664,8 +4664,12 @@ three weeks earlier, with "needs a decision" doing the parking this time instead
   roadmap's list of items needing the user's call, and this item was never on it — so the heading
   and the register disagreed for a month about the same fact. Measured afterwards, with the heading
   now corrected: **a decision claim in an item's own heading matches exactly two items,
-  PORTAL-TXN-DARK and AUTHORITY-SUPERSEDE, and both ARE on the register.** So the two agree
-  everywhere else, and this is **deliberately not made a gate** — a population of two that already
+  PORTAL-TXN-DARK and AUTHORITY-SUPERSEDE, and both ARE on the register.** *(That was the count on
+  2026-10-11 and is kept as the measurement it was. AUTHORITY-SUPERSEDE closed on 2026-10-13 — by
+  the same re-derivation this paragraph is about — so the population is **one** today. A measurement
+  carries its date; rewriting it to today's number would destroy the record of what two agreeing
+  items did and did not pay for.)* So the two agree everywhere else, and this is **deliberately not
+  made a gate** — a population of two that already
   agrees, against one instance found by reading, does not pay for the restructuring a gate would
   need first: the register is a prose sentence whose parentheticals name NON-members (it records
   AUTHORITY-DOWNSTREAM *leaving* the list, which any code-shaped extraction reads as joining it), and
@@ -7445,7 +7449,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK · AUTHORITY-SUPERSEDE (all seven need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped, and AUTHORITY-SUPERSEDE joined it the same day out of the review of that work. **The count went six → seven, not back to seven**: closing a parked item and opening one are separate events, and a bare number records neither) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK (all six need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped, and AUTHORITY-SUPERSEDE joined it the same day out of the review of that work, taking the count six → seven rather than back to seven, because closing a parked item and opening one are separate events and a bare number records neither. **AUTHORITY-SUPERSEDE then left on 2026-10-13, seven → six, and the reason is worth more than the count**: its own entry had already argued the implicit form away and named the explicit one as the fix, so the "decision" it was parked on was one the entry had taken. *An item parked on a decision stays parked until somebody re-derives whether the decision is still open* — the third item on this list to leave that way) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**
@@ -9342,12 +9346,12 @@ refute one, so this goes first even though it is the least visible.
   passed. `t12Card.test.ts` proves the card FIRES it; `proforma.render.test.ts` now proves the
   caller acts. *A hook tested only at its source is a hook nobody has shown is connected.*
 
-- 🟡 **AUTHORITY-SUPERSEDE — the supersedes chain cannot be built from any screen**
-  *(XS — Lane B; **OPEN — needs the user's call on implicit vs explicit**; raised 2026-10-11 by
-  review of AUTHORITY-REPLACE)*
+- ✅ **AUTHORITY-SUPERSEDE — the supersedes chain could not be built from any screen**
+  *(XS — Lane B; raised 2026-10-11 by review of AUTHORITY-REPLACE, **CLOSED 2026-10-13** with the
+  EXPLICIT form this entry already preferred — `apps/web/src/proforma/authorityCard.test.ts`)*
 
   `deal_authority.py`'s premise is that *"an older file is archived rather than merely older"*, and
-  `assess()` reads those archival rows to compute `superseded_still_active` — the check that catches
+  `assess()` reads the `supersedes` chains to compute `superseded_still_active` — the check that catches
   a superseded document still being underwritten from. **Today a chain can only be built through the
   raw PUT.** The editor preserves one it was handed and never creates one, which is the same class
   as `reviewer` was before this branch gave it an input.
@@ -9356,7 +9360,82 @@ refute one, so this goes first even though it is the least visible.
   — a typo correction would permanently record a prior document that never existed, and the
   authority table is read by a committee. **The explicit form is a "supersede the previous document"
   control that appears when the name changes**, so the user states the supersession rather than
-  having it guessed. Which of implicit, explicit or neither to ship is a product decision.
+  having it guessed.
+
+  **Shipped as the explicit form, which this entry had already chosen** — "which of implicit,
+  explicit or neither" read as three live options, and the paragraph above had argued two of them
+  away on the merits. *An entry that names its preferred variant and then calls the choice open is
+  parked on a decision it has made*, the same shape PREFAB-FREEZE-RACE's heading cost a month to.
+  What was genuinely the user's call is the one this does not take: there is still no inference, so a
+  rename with the box unticked records nothing.
+
+  A `supersedes` checkbox per row, hidden until the typed name differs from a **non-empty** loaded
+  one — a first declaration supersedes nothing, and offering the control on one would invite a
+  record of a document that never existed. `withSupersede` writes **both halves**: the chain entry on
+  the live row and an archival row carrying the superseded document's own date, reviewer and
+  freshness.
+
+  ## THE FIRST VERSION WAS WRONG IN SIX WAYS, AND ONE WRONG SENTENCE CAUSED THREE OF THEM
+
+  **`assess()` reads the CHAIN, not the archival row**, and the comment in `authorityCard.ts` said
+  the opposite. The engine computes `superseded_names = {name for r in rows for name in
+  r["supersedes"]}` and then flags any row that is authoritative and whose document is in that set —
+  so the `supersedes` lists are the only half the gate can see, and the archival row is the
+  *archive*, carrying the file forward with `authoritative: false` so it cannot trip the check it
+  sits beside. *If the chain is decorative, pruning it looks free* — which is exactly how the undo
+  came to be written as a sweep. The dedupe rationale beside it was the tell: it claimed a second
+  archival row would be "counted twice", which a **set** cannot do.
+
+  | | |
+  |---|---|
+  | **HIGH** — the undo ran on **every** unticked `sync()`, renamed or not | On a project already in the `superseded_still_active` state, typing a **reviewer name** and pressing Save pruned the chain carrying the finding. The gate went green with a superseded document still authoritative. *An undo that runs when nothing was done is a delete* — and the two directions are not symmetric, which writing them as a matched pair hid |
+  | **HIGH** — the archival row took the **replacement's** date and dropped the old reviewer | `sync()` rewrites the live row with the new name *before* calling the rule, so the rule's lookup for the old document found nothing. It takes the paint-time BASELINE now |
+  | MEDIUM — `was` was paint-time and nothing repainted after Save | A→B then B→C in one session stored "C supersedes A" and lost B, with the box still ticked against a name that was now the stored one. The save re-anchors from what was PUT |
+  | MEDIUM — the empty-document path `return`ed before the undo | Tick, then ✕, persisted a cancelled supersession the form no longer showed and could not remove — *the fabricated record this control exists not to create* |
+  | MEDIUM — the undo's archival `filter` was fact-type scoped and its chain `map` was not | Undoing one row's supersession cleared that document name from every other fact type's chain, and two files in a data room really can share a name |
+
+  **Two tests asserted the correct archival date and passed on the broken code**, because their
+  fixture still contained the old row and never changed the date field — so the replacement's date
+  happened to equal the right answer. *A test that supplies the thing under test cannot notice that
+  the caller never supplies it*, which is why that HIGH is now also driven end to end through the
+  real editor, with the date changed as a person replacing a document would change it.
+
+  **And the regression test for the worst finding passed when that finding was reinstated.** Its
+  first draft put the chain on a different fact type's row — so once the undo was scoped (the last
+  row above), the unconditional call stopped losing anything in that scenario and the test went green
+  on the broken code. *A regression test written against one defect can be satisfied by the fix for
+  another, and then it is testing nothing.* Found by mutation, not by reading; the loss now happens
+  inside the fact type being edited, which is also the realistic shape — a document superseded
+  earlier and since re-declared authoritative.
+
+  **The wrong sentence was in THREE places, and fixing the code fixed one of them.** The rewrite
+  left the old docstring sitting above the new one, so the file shipped the correction and the
+  inversion together — and the stranded copy was the one a reader meets first.
+  `apps/web/src/tooling/docStranded.test.ts` caught it, on its fourth firing this session, while
+  looking for **orphanhood** rather than for the claim; the other two copies were in the test file's
+  own header and in this entry, and only a grep found those. *A claim corrected where it is acted on
+  is still live wherever it was quoted*, which is the same propagation the "ten personas" count paid
+  for two commits earlier — and the gate that found it could only ever have found the copy that
+  happened to be misplaced.
+
+  **A sixth cause was an ordering assumption the test environment does not share.** The ✕ button had
+  `onclick` wipe the inputs and a separate `addEventListener("click", sync)`, which depends on the
+  two firing in registration order. **happy-dom fires the listener first**, so the sync ran against
+  the values being cleared and nothing synced after them. One handler now. *Two handlers on one
+  click is an ordering assumption, and the tests run where it is wrong.*
+
+  **The load-bearing test is the one that drives the PUT.** Eleven tests exercise the rule over an
+  array and four the checkbox's behaviour, and not one of them would notice `sync()` forgetting to
+  call the rule — *a card that offers a control and sends nothing is this item's own defect wearing a
+  new face*. So one test types a new name, ticks the box, clicks Save and reads the captured body,
+  and four more drive each finding above through the real card. Ten mutations, all red.
+
+  **Three DOM tests failed identically on the first run and the code was correct.** The harness took
+  `querySelectorAll(…).find(placeholder === "document name")` and typed into `offering`'s input —
+  `rent_roll` is the SECOND of ten fact types — so the message was *"expected true to be false"*
+  about the control rather than "you are editing another row". *A selector that is merely plausible
+  fails as a defect report about the thing it was pointed at.* Scoped to the row now, derived from
+  the control's own `data-supersede`.
 - ✅ **WS-BTN-SELECT — the room strip marked the room you came FROM, on every path but one**
   *(S — Lane A; SHIPPED 2026-10-11, `apps/web/src/shell/roomMarking.test.ts`)*
 
