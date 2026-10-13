@@ -1175,6 +1175,76 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `panels/aiassist.ts` (the contract-type picker, where an unknown value is now left alone rather
   than silently selecting nothing).
 
+- ✅ ⭐ **HOLDSELL-UNMEASURED — "sell" was recommended when the arithmetic could not be done**
+  *(S — `services/api/src/aec_api/hold_sell.py` + `apps/web/src/proforma/holdSellCard.ts`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_cre_tier3.py` and
+  `apps/web/src/proforma/holdSellCard.test.ts`)*
+
+  `hold_sell.analyze` answers the question an asset manager is actually asked — *"does another year
+  of this beat the cheque today"* — as the IRR of **incremental** cash flows against the net proceeds
+  declined by not selling, with cap drift an explicit input because *"a bet nobody wrote down is the
+  one that loses money"*. It is a careful engine and `_irr` is careful too: it returns `None` when the
+  flows never change sign, rather than guessing.
+
+  **The verdict read that refusal as a failure.** `beats_hurdle` is
+  `bool(irr is not None and irr >= hurdle_rate)`, `clearing` filters on it, and `recommendation` was
+  `"hold" if clearing else "sell"`. For an **over-levered** asset the cause is structural rather than
+  exotic: net proceeds today are negative, so `flows[0] = -today_net` is positive, every later flow is
+  non-negative, and there is no root to find.
+
+  | measured — NOI 500k at a 6% cap against a 9M loan | |
+  |---|---|
+  | `sell_now.net_proceeds` | **−833,333** — selling today costs money |
+  | `incremental_irr` | `[-0.912, null, null, null, null]` — **4 of 5 periods unevaluable** |
+  | `recommendation` | **`"sell"`** |
+  | `note` | *"No hold period inside the horizon clears the hurdle on these assumptions."* |
+
+  *It recommended selling an asset whose sale requires writing a cheque, on the strength of four
+  measurements that were never taken* — and `best_year` reported the only period that computed, at
+  −91%, as the best one.
+
+  **Fixed with a third state and a coverage block**, exactly as `codecheck_egress` keeps `na` and
+  `soft_clash` keeps `untested`: `hold` survives a partial measurement because one clearing period is
+  positive evidence by itself; `sell` does not, because it is a claim about *every* period. `coverage`
+  carries `hold_periods`, `measured`, `unevaluable_years` and the reason — naming, when the cause is
+  the obvious one, that an asset whose debt exceeds its net sale value is a recapitalisation question
+  rather than a hold/sell one. The note stops asserting what it cannot know.
+
+  **The discrimination is what makes the third state safe, and the assertion protecting it was
+  already in the tree.** `test_cre_tier3.py` has asserted since R20 that an unreachable hurdle returns
+  `"sell"` and says so plainly — so routing every negative answer to `unmeasured` reds that line.
+  Both mutations were run: removing the third state fails with `AssertionError: sell` on the
+  over-levered case, and over-correcting fails on the fully-measured one. *A fix in one direction is
+  only sound if something refuses the fix in the other, and here the engine's original author had
+  already written it.*
+
+  **The ENGINE had to be fixed before the card existed**, and that ordering is the finding.
+  `ApiClient.holdSell()` was callerless, so wiring it first would have shipped the confident-wrong
+  verdict to somebody holding an underwater asset. *A callerless method is not always a missing
+  screen; sometimes it is a verdict nobody has yet had to look at.* The card is on the **Asset Mgmt**
+  tab, after the reserve study and the capital plan — by the time the disposition question is asked,
+  those are the capex a hold has to fund — prefilled from the live deal, and it renders the coverage
+  on **every** answer, including the complete one, because a card that printed it only when short
+  would train a reader to read silence as completeness.
+
+  ### Why `test_verdict_coverage.py` was NOT widened — measured, not assumed
+
+  Both admitted shapes require an `ast.BoolOp`/`And`; this was a ternary, so the eighteenth gate could
+  not see it. Widening was measured before being rejected:
+
+  | rule | population |
+  |---|---|
+  | dict value is a ternary between two string literals on a bare name | **43** |
+  | …narrowed to a test bound to a FILTERED comprehension | **4** |
+
+  Of those four: **two are `codecheck_egress`, which is exemplary** — each ternary sits inside an
+  `if envelope:` / `"na" if not doors else …` that keeps a third `na` state, exactly as this fix now
+  does; one is a prose note with an empty branch; one was this defect. **A gate on the shape would cry
+  wolf three times out of four, and the guard that makes the sound ones sound is an enclosing
+  statement a structural detector cannot see.** *`hold_sell` was the only member of its own shape
+  lacking the guard every neighbour had, which is the argument for fixing it rather than gating it* —
+  and recording the 43 is what stops the next reader spending a day building the checker.
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*

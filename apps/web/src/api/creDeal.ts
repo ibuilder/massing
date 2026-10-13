@@ -247,10 +247,19 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       sell_now: { gross_sale: number; selling_costs: number; loan_payoff: number;
         net_proceeds: number; exit_cap: number };
       hurdle_rate: number; assumptions: Record<string, number>;
-      years: { hold_years: number; exit_cap: number; noi_at_exit: number;
-        net_proceeds_at_exit: number; incremental_irr: number | null; beats_hurdle: boolean }[];
-      breakeven_hold_years: number | null; recommendation: "hold" | "sell";
-      best_year: unknown; note: string }>(
+      years: { hold_years: number; exit_cap: number; noi_at_exit: number; gross_sale: number;
+        loan_payoff: number; net_proceeds_at_exit: number; incremental_irr: number | null;
+        beats_hurdle: boolean }[];
+      // HOLDSELL-UNMEASURED — the COVERAGE of `recommendation`, `breakeven_hold_years` and
+      // `best_year` alike: all three are computed over the hold periods whose IRR exists, and an
+      // over-levered asset has none. `"unmeasured"` is a THIRD state and is deliberately not
+      // foldable into either call — a reader who sees "sell" acts on it.
+      coverage: { hold_periods: number; measured: number; unevaluable_years: number[];
+        reason: string | null };
+      breakeven_hold_years: number | null;
+      recommendation: "hold" | "sell" | "unmeasured";
+      best_year: { hold_years: number; incremental_irr: number | null } | null;
+      note: string }>(
       `/projects/${pid}/hold-sell`,
       { method: "POST", body: JSON.stringify({ inputs, hurdle_rate: hurdleRate,
                                                max_years: maxYears }) });

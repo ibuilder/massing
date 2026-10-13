@@ -48,6 +48,35 @@ assert amort["years"][4]["net_proceeds_at_exit"] > h["years"][4]["net_proceeds_a
 capex = hold_sell.analyze({**BASE, "capex_per_year": 300_000}, hurdle_rate=0.12)
 assert capex["years"][4]["incremental_irr"] < h["years"][4]["incremental_irr"]
 
+# HOLDSELL-UNMEASURED — an OVER-LEVERED asset cannot be measured at all, and "sell" is not the answer.
+# `flows[0] = -today_net`, so when the debt exceeds the net sale value that flow is POSITIVE, every
+# later flow is non-negative, and `_irr` correctly finds no root. The verdict used to read those
+# refusals as failures and recommend selling an asset whose sale requires writing a cheque.
+under = hold_sell.analyze({"noi_annual": 500_000, "exit_cap_now": 0.06, "selling_cost_pct": 0.02,
+                           "loan_balance_now": 9_000_000, "noi_growth_pct": 3.0},
+                          hurdle_rate=0.12, max_years=5)
+assert under["computable"] is True                      # the inputs ARE present; the framing is what fails
+assert under["sell_now"]["net_proceeds"] < 0, under["sell_now"]
+assert under["coverage"]["hold_periods"] == 5
+assert 0 < len(under["coverage"]["unevaluable_years"]) <= 5, under["coverage"]
+assert under["coverage"]["measured"] == 5 - len(under["coverage"]["unevaluable_years"])
+assert under["recommendation"] == "unmeasured", under["recommendation"]
+assert "could not be measured" in under["note"]
+# and it must STOP asserting the thing it cannot know
+assert "clears the hurdle" not in under["note"], under["note"]
+assert "no net proceeds" in (under["coverage"]["reason"] or ""), under["coverage"]
+
+# THE DISCRIMINATION: a FULLY measured horizon where nothing clears still says "sell", plainly. The
+# third state is not a catch-all — without this, routing every negative answer to "unmeasured" would
+# pass the assertions above and destroy the engine's actual verdict.
+assert impossible["coverage"]["measured"] == len(impossible["years"]), impossible["coverage"]
+assert impossible["coverage"]["unevaluable_years"] == []
+assert impossible["coverage"]["reason"] is None
+assert impossible["recommendation"] == "sell"
+assert "clears the hurdle" in impossible["note"]
+# the ordinary hold case reports complete coverage too, so a reader can tell partial from complete
+assert h["coverage"]["measured"] == len(h["years"]) and not h["coverage"]["unevaluable_years"]
+
 # =========================== CRE-CLAUSE =============================================================
 assert len(cp.STARTER_CLAUSES) >= 10
 assert all(c.get("refuse") for c in cp.STARTER_CLAUSES)       # every starter clause has a red line

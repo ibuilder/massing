@@ -11,6 +11,7 @@ import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from
 import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderDecisionGateCard } from "./decisionGateCard";
+import { renderHoldSellCard } from "./holdSellCard";
 import { renderRentRollQuality } from "./rentRollQuality";
 import {
   governanceReading, IMMUTABLE_STATES, renderGovernanceCard, type ReviewAction, type ReviewStatus,
@@ -824,6 +825,23 @@ export class ProformaUI {
         note.textContent = rec.note; cout.appendChild(note);
       }
     } catch (e) { cout.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+
+    // --- hold versus sell -----------------------------------------------------------------------
+    // HOLDSELL-UNMEASURED. This tab is hold-phase stewardship, and the disposition question belongs
+    // at its end rather than with the underwriting: by the time it is asked, the reserve study and
+    // the capital plan above are the capex a hold has to fund. `holdSell` was callerless.
+    renderHoldSellCard(host, {
+      api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      // Prefilled from the LIVE deal, so an asset manager is not retyping the underwriting — the
+      // exit cap and the selling cost are assumptions already on the form, and the NOI is what the
+      // solve produced. A missing value is left blank rather than defaulted to zero: a zero NOI is
+      // the one input the engine refuses on, and inventing it would turn a blank form into a refusal.
+      prefill: () => ({
+        noi: this.lastResult?.operations?.stabilized_noi_annual ?? null,
+        cap: this.a.exit.exit_cap ?? null,
+        sellingCostPct: this.a.exit.selling_cost_pct ?? null,
+      }),
+    });
   }
 
   /** Investors tab: cap table, capital calls / distributions, per-investor statement. */

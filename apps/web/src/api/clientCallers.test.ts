@@ -346,7 +346,13 @@ const UNCALLED: readonly string[] = [
   // reachable by nothing. `saveMacros` STAYS: a macro EDITOR is a separate piece of work, and
   // claiming it here because its three siblings found callers is how an entry goes stale in the
   // flattering direction.
-  "feasibilityLotSupply", "feasibilitySellout", "holdSell",
+  // `holdSell` left this list 2026-10-13 — HOLDSELL-UNMEASURED, and the ENGINE had to be fixed
+  // first. Its `recommendation` was `"hold" if clearing else "sell"` over hold periods whose IRR
+  // could not be computed, which for an over-levered asset is most of the horizon — so wiring a card
+  // would have shipped "sell" to somebody holding an asset whose sale requires writing a cheque.
+  // *A callerless method is not always a missing screen; sometimes it is a verdict nobody has yet
+  // had to look at.* `proforma/holdSellCard.ts` on the Asset Mgmt tab.
+  "feasibilityLotSupply", "feasibilitySellout",
   // `layoutVerify` left this list 2026-10-12 — LAYOUT-RENUMBER: `viewer/tools/layoutTool.ts` carries
   // the as-installed upload the field-layout panel's own copy had promised since it shipped ("shoot
   // the as-installed positions with a total station, then upload that CSV"), and the download was
