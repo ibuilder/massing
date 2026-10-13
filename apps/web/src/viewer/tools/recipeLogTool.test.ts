@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RecipeLogEntry, RecipeLogExport, RecipeLogPage } from "../../api/types";
-import type { RecipeLogDeps } from "./recipeLogTool";
+import { recipeLogButton, type RecipeLogDeps } from "./recipeLogTool";
 import {
-  diffNote, elidedParams, entryRows, logNote, paramsCell, planHtml, recipeLogButton, replayNote,
-} from "./recipeLogTool";
+  diffNote, elidedParams, entryRows, logNote, paramsCell, planHtml, replayNote,
+} from "./recipeLogView";
 
 /**
  * RECIPE-LOG-DARK — the door onto the edit-recipe log, and the two unsound claims wiring it exposed.
@@ -224,7 +224,16 @@ describe("the plan is a plan", () => {
 
 /** ---- the flow, driven through the real button ----------------------------------------------- */
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
+/** Two turns, not one.
+ *
+ *  `recipeLogButton` awaits `import("./recipeLogView")` before it opens the overlay — the shell is
+ *  at its Brotli budget, so the reader's body is lazy — and a dynamic import resolves on a later
+ *  turn than the fetch it follows. A single-tick flush left `document.body` empty and would have
+ *  reported the whole reader as unrendered. */
+const flush = async () => {
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+};
 const btn = (text: string) =>
   [...document.querySelectorAll("button")].find((b) => b.textContent?.includes(text));
 const noteTexts = () => [...document.querySelectorAll(".result-note")].map((n) => n.textContent ?? "");

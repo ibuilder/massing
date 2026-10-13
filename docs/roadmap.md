@@ -1581,6 +1581,27 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   names `POST /projects/{pid}/edit/batch`; it is rendered verbatim. The 422 that refuses to replay an
   elided entry is rendered verbatim too — that refusal is the capability.
 
+  ### CI caught a gate I had not run, and the distinction is the lesson
+
+  The reader shipped as one module and took the app shell to **226.2 KB** against the 225 KB Brotli
+  cap in `apps/web/scripts/bundle-budget.mjs` — red on `Web typecheck + test + build`, after a local
+  pass that included `npx vitest run src/tooling`: **43 bundle-budget TESTS, all green**. *A test
+  about a budget is not the budget*, and they are two different commands — the tests check the
+  script's arithmetic, `npm run budget` checks the artifact. (And `npm run budget` reads `dist/`, so
+  running it without rebuilding first re-reports the previous build's number, which is how the first
+  attempt at this fix looked like no fix at all.)
+
+  Fixed by splitting rather than by raising the cap: `recipeLogTool.ts` keeps the **button**, which
+  cannot be lazy because it is appended when the tools panel is built, and
+  `apps/web/src/viewer/tools/recipeLogView.ts` holds everything a click needs, behind
+  `await import()`. 226.2 → **224.9 KB**. The budget's own message offers both remedies and the
+  deliberate note for choosing this one is that the shell is what every visitor downloads before
+  anything renders, while a provenance reader is opened by one user in a hundred. The import is
+  awaited AFTER the fetch succeeds and BEFORE the overlay opens, so a 409 costs no chunk download
+  and no empty reader; and the reader's own test needed a two-turn flush, because a dynamic import
+  resolves a turn later than the fetch it follows and a one-tick flush reported the whole screen as
+  unrendered.
+
   ### Where it mounts took three tries, and the second one is the useful note
 
   Not the authoring section, which is where it belongs by SUBJECT: that section sets
