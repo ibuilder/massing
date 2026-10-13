@@ -5,7 +5,8 @@ import { sealIdentity } from "./api/assetRights";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import {
-  buildRoomTabs, markActiveRoom, renderLiveRefusal, renderRoomTabs, roomForWorkspace,
+  buildRoomTabs, markActiveRoom, orderRoomTabs, personaRooms, renderLiveRefusal, renderRoomTabs,
+  roomForWorkspace,
 } from "./shell/roomTabs";
 import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
@@ -800,10 +801,15 @@ async function openStudioTab() {
  * Rooms name themselves, so they are the source. Workspaces with no room tab (`model`, `drawings`)
  * have no rendered name to borrow, and a capitalised key is an honest rendering of the key rather
  * than a second table that can drift away from the first.
+ *
+ * The `?? querySelector(".ws-btn[data-ws]")` that survived that fix as a "documented fallback" is
+ * gone with the rest of WS-BTN-DEAD. It could never fire — `data-ws` has no writer anywhere in the
+ * tree — so what it documented was a shell that does not exist, and the capitalised key below was
+ * always the real fallback. *A fallback to something unrenderable is not a fallback, it is a line
+ * that makes the next reader believe in a second strip.*
  */
 function wsLabel(key: string): string {
-  const tab = document.querySelector<HTMLElement>(`[data-room="${key}"]`)
-    ?? document.querySelector<HTMLElement>(`.ws-btn[data-ws="${key}"]`);
+  const tab = document.querySelector<HTMLElement>(`[data-room="${key}"]`);
   const named = (tab?.textContent || "").trim();
   return named || key.charAt(0).toUpperCase() + key.slice(1);
 }
@@ -965,9 +971,20 @@ function paintPinnedRail() {
 }
 
 let roomTabsActive = "model";
+/**
+ * The room order the open persona asks for — canonical until a persona has been applied.
+ *
+ * STATE rather than a read of `PERSONAS` inside `paintRoomTabs`, and not for style: the first
+ * `paintRoomTabs` call runs ~30 lines ABOVE the `const PERSONAS` declaration, so reading it from in
+ * here would be a temporal-dead-zone `ReferenceError` on boot. `applyPersona` pushes instead.
+ */
+let personaRoomOrder: readonly string[] | null = null;
+
 function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
-  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount, notifLive), roomTabsActive, goToRoom);
+  const tabs = buildRoomTabs(null, workQueueCount, notifLive);
+  renderRoomTabs(wsEl, personaRoomOrder ? orderRoomTabs(tabs, personaRoomOrder) : tabs,
+                 roomTabsActive, goToRoom);
   renderLiveRefusal(liveRefusedEl, notifLive?.refused ?? null, () => notifStream?.retry());
 }
 
@@ -1095,7 +1112,14 @@ const PERSONAS: Record<string, PersonaCfg> = {
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
 function applyPersona(p: string, goHome = false) {
   const cfg = PERSONAS[p] ?? PERSONAS.all ?? { ws: null, rail: null, home: "model" };
-  document.querySelectorAll<HTMLButtonElement>(".ws-btn").forEach((b) => { b.hidden = !!cfg.ws && !cfg.ws.includes(b.dataset.ws!); });
+  // WS-BTN-DEAD — this line used to read
+  //   `querySelectorAll(".ws-btn").forEach((b) => b.hidden = !cfg.ws.includes(b.dataset.ws))`
+  // over a class nothing renders and an attribute nothing in the tree SETS, so every persona's `ws`
+  // allowlist had no effect from the day the room spine landed. The rule is `personaRooms`, in
+  // `spine.ts` beside the table it reads, and it WEIGHTS the strip rather than filtering it — see
+  // its docstring for the measurement that rules filtering out (3 of 7 rooms, Work hidden from all).
+  personaRoomOrder = personaRooms(cfg.ws);
+  paintRoomTabs();
   document.querySelectorAll<HTMLButtonElement>(".rail-btn").forEach((b) => { b.hidden = !!cfg.rail && !cfg.rail.includes(b.dataset.rail!); });
   // ...and a cluster heading follows its items. A label over nothing is worse than no label: it says
   // a section exists and then does not deliver it.
@@ -2007,24 +2031,32 @@ async function applyCapabilities() {
  * Found while wiring FIELD-STREAM-POISON's `refused` state into it — a new state routed into a
  * function that never runs is the most expensive kind of dead code, because it tests clean.
  *
- * **THE CLASS IS WIDER THAN THIS FUNCTION AND IS NOT FIXED HERE.** `.ws-btn` is still queried from
- * three other places in this file — a documented fallback at `roomLabel`, and two
- * `querySelectorAll(".ws-btn")` loops that iterate an empty NodeList — and six rules in
- * `style.css` still style it. **`data-ws` is never SET anywhere in the tree**, only read, which is
- * the shortest proof that none of it can work.
+ * **THE CLASS WAS WIDER THAN THIS FUNCTION, and WS-BTN-DEAD closed the rest of it.** When this
+ * docstring was written `.ws-btn` was still queried from three other places in this file — a
+ * "documented fallback" at `wsLabel` and two `querySelectorAll(".ws-btn")` loops over an empty
+ * NodeList — with six rules in `style.css` styling it and `.ws-btn.active` sitting in
+ * `ACCENT_ALLOWED`. **`data-ws` was never SET anywhere in the tree**, only read, which was the
+ * shortest proof that none of it could work. All of it is gone, and
+ * `shell/wsBtnGone.test.ts` now fails the build if the class returns to any of those positions.
  *
- * One of those loops is `applyPersona`, so **all ten personas declare a `ws` allowlist that has
- * never had any effect**: every room shows to everyone. It filters `.ws-btn` and `.rail-btn` in two
- * adjacent lines and `.rail-btn` really is rendered, so half the function demonstrably works and a
+ * One of those loops was `applyPersona`, so **every persona that declares a `ws` allowlist had one
+ * with no effect**: every room showed to everyone. It filtered `.ws-btn` and `.rail-btn` in two
+ * adjacent lines and `.rail-btn` really is rendered, so half the function demonstrably worked and a
  * reader who switches persona and watches the rail change concludes the whole thing does. *A dead
  * branch beside a live one is not read as dead.*
  *
- * Recorded as WS-BTN-DEAD in `docs/roadmap.md` with that measurement, because untangling it is a
- * shell change and this is a notification-stream slice — and because the persona half is a
- * behavioural question (rooms replaced workspaces, so "which rooms does a subcontractor see" has to
- * be answered before `buildRoomTabs` can take a persona) rather than a rename. *Fixing the instance
- * in front of you is not closing the class — and saying which one you did is the difference between
- * a fix and a claim.*
+ * **"all ten personas" is what this docstring said, and `PERSONAS` has eight** — seven of them
+ * declaring a list, since `all` declares `null`. The wrong count was written here, copied into
+ * WS-BTN-DEAD's roadmap entry and copied again into NOTIF-BADGE-DEAD's, so three documents asserted
+ * it and no reader had cause to doubt a number three places agreed on. *A number nobody measures is
+ * a number that propagates, and agreement between copies is not evidence.*
+ *
+ * The persona half was left open as a behavioural question — rooms replaced workspaces, so "which
+ * rooms does a subcontractor see" looked like it had to be answered before `buildRoomTabs` could
+ * take a persona. **It did not: `orderRooms` had already answered it in its own docstring**
+ * (*weighting rather than filtering*), and the filtering reading turns out to be measurably wrong
+ * — see `personaRooms`. *A question left open for a product decision is worth re-deriving before
+ * it is asked, because the architecture may have answered it already.*
  *
  * It now owns STATE and repaints through `paintRoomTabs`, rather than reaching into the DOM for an
  * element the strip rebuilds on every render. The count and the refusal land on the room

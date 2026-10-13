@@ -7040,6 +7040,7 @@ directory per invocation that nothing in the repo could notice. Seven had accumu
 being written.
 
 
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the
@@ -9208,7 +9209,7 @@ refute one, so this goes first even though it is the least visible.
 
   **`initNav` makes it a FIRST-LOAD defect rather than a corner case.** Module scope marks the room
   derived from `localStorage("workspace") || "model"` — `design` for a fresh profile — and `initNav`
-  then calls `setWorkspace(cfg.home)`, which for six of the ten personas is `construction` or
+  then calls `setWorkspace(cfg.home)`, which for five of the eight personas is `construction` or
   `developer`. A GC opening the app for the first time saw the Schedule room's content under a strip
   stating `aria-selected="true"` on Design. The attribute exists, in `renderRoomTabs`' own words,
   *"so the active room is stated rather than only coloured"* — and **stating it wrongly is worse than
@@ -9279,18 +9280,74 @@ refute one, so this goes first even though it is the least visible.
   (sticky room, workspace) pairs a caller can actually produce. *A property test that passes on the
   defect was measuring a neighbouring property, and its stronger-sounding name hid that.* Seven
   mutations, all red, including the shipped pre-fix rule reinstated.
-- 🟡 **WS-BTN-DEAD — `.ws-btn` is queried from two places and rendered by none**
-  *(XS — Lane A; **OPEN**, measured 2026-10-11 while closing NOTIF-BADGE-DEAD; re-measured the same
-  day on closing WS-BTN-SELECT, which took the third of the four sites)*
+- ✅ **WS-BTN-DEAD — `.ws-btn` was queried from four places and rendered by none** *(XS — Lane A;
+  measured 2026-10-11 while closing NOTIF-BADGE-DEAD, re-measured on closing WS-BTN-SELECT,
+  **CLOSED 2026-10-13** with `apps/web/src/shell/personaRooms.test.ts` and
+  `apps/web/src/shell/wsBtnGone.test.ts`)*
 
-  Two of the four are now fixed (above, and WS-BTN-SELECT). The rest, measured:
+  All four sites are gone, and the class cannot come back: `wsBtnGone.test.ts` walks every shipped
+  `.ts`/`.css` under `apps/web/src` plus `index.html` and fails the build on `ws-btn`, `data-ws`,
+  `.ws-badge` or `dataset.ws` outside a comment. What each site was:
 
-  | site | what it does today |
+  | site | what it did |
   |---|---|
-  | `apps/web/src/main.ts` `wsLabel` | a documented `??` fallback after the `[data-room]` lookup — harmless, and the only deliberate one *(the entry said `roomLabel`, which is not what the function is called)* |
-  | `apps/web/src/main.ts` `applyPersona`'s `querySelectorAll(".ws-btn")` | iterates an empty NodeList, so **all ten personas declare a `ws` allowlist that has never had any effect** — every room shows to everyone. The remaining behavioural question, and the reason this stays open |
-  | `apps/web/src/style.css` | six rules still style the class |
-  | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` sits in `ACCENT_ALLOWED`, so a contrast contract is being asserted over a selector nothing renders. **`colorContract.test.ts` checks the allowlist against the stylesheet in BOTH directions and neither against the DOM** — which is exactly how a dead selector comes to sit in both and look doubly attested |
+  | `apps/web/src/main.ts` `wsLabel` | a documented `??` fallback after the `[data-room]` lookup — *"harmless, and the only deliberate one"*, which is how it survived the fix that found the same mistake in the same function. **A fallback to something unrenderable is not a fallback**: it could never fire, so what it documented was a shell that does not exist, and the capitalised key below it was always the real fallback |
+  | `apps/web/src/main.ts` `applyPersona`'s `querySelectorAll(".ws-btn")` | iterated an empty NodeList, so **every persona that declares a `ws` allowlist had one with no effect** — every room showed to everyone. Replaced by `personaRooms`, below |
+  | `apps/web/src/style.css` | six rules styling the class and a `.ws-badge` nothing builds |
+  | `apps/web/src/ui/colorContract.ts` | `.ws-btn.active` in `ACCENT_ALLOWED`, a contrast contract asserted over a selector nothing renders. **`colorContract.test.ts` checks the allowlist against the stylesheet in BOTH directions and neither against the DOM** — which is exactly how a dead selector comes to sit in both and look doubly attested. *Two checks over the same dead pair read as two witnesses* |
+
+  **"all ten personas" — three documents said it and `PERSONAS` has EIGHT**, seven of them declaring
+  a list, since `all` declares `null`. The number was written in `main.ts`'s `connectNotifications`
+  docstring, copied into this entry, and copied again into NOTIF-BADGE-DEAD's two screens up, whose
+  *"six of the ten personas"* was wrong in both halves — it is **five of the eight**. *A number nobody
+  measures is a number that propagates, and agreement between three copies is not evidence; it is one
+  measurement cited three times.* `personaRooms.test.ts` now derives the population from the shipped
+  literal and refuses a parse that matches nothing, because a parse that silently matches nothing
+  reports a clean tree in the same words as a clean tree.
+
+  **THE BEHAVIOURAL QUESTION WAS ALREADY ANSWERED, ONE FILE AWAY.** This entry parked the persona
+  half on a product decision — *"rooms replaced workspaces, so 'which rooms does a subcontractor
+  see' has to be answered before `buildRoomTabs` can take a persona"*. It did not need answering:
+  `orderRooms` in `apps/web/src/shell/spine.ts` states the spine's position in its own docstring —
+  ***weighting rather than filtering***, because *"a room that disappears is a room the user has to
+  relearn where to find"* — and `WORKSPACE_ROOM` three lines above it states it again (*"It does not
+  hide rooms: a PM who needs the model still has Model, one click away"*). *An item parked on a
+  decision stays parked until somebody re-derives whether the decision is still open*, which is the
+  lesson SCHEMA-STALE paid for and this one re-paid.
+
+  **And the filtering reading is measurably wrong, which is why the measurement is an assertion
+  rather than this paragraph.** Mapping the seven declared `ws` lists through `preselectedRoom` and
+  hiding the rest reaches **three of the seven rooms across the whole product**: `planning`, `cost`,
+  `operate` and `work` are named by no persona, `engineer` comes out at **one** room of seven, and
+  every role loses **Work** — the only room that carries a count, and the one the design calls a
+  summons rather than a dashboard. *A filter derived from a table that collapses seven workspaces
+  onto four rooms cannot be a room allowlist.* So `personaRooms` returns **all** of `ROOM_IDS`,
+  always, with the persona's own rooms first in canonical order; `orderRoomTabs` is a `map` and a
+  `sort` with no `filter` anywhere, so the property *a persona cannot shorten the strip* holds at
+  both layers rather than only at the one that currently decides. Four mutations, all red: the
+  filtering `personaRooms`, a dropping `orderRoomTabs`, a `paintRoomTabs` that ignores the order,
+  and the dead query reinstated.
+
+  **Two checks in this change red on comments explaining the very deletion they were checking** —
+  `wsBtnGone` on a `style.css` block-comment continuation line, `personaRooms` on the comment
+  quoting the line it replaced. `apps/web/src/shell/roomMarking.test.ts` had written that lesson
+  down four days earlier, in the same directory (*"a check that cannot tell an explanation from the
+  thing it explains reds hardest on the commit that fixes the defect"*). *A lesson written next to
+  the check that learned it does not transfer to the next check by being true.* Both strip comment
+  lines now, and `wsBtnGone` keeps the failure as evidence: a planted USE must be found **and** a
+  planted PROSE line must not, so it is positional rather than the string ban it would be easy to
+  mistake it for — the record of what this cost is the most valuable thing the episode produced.
+
+  **`roomMarking.test.ts`'s precondition then red with a message blaming the wrong cause**, and that
+  is the sharpest finding here. It asserted `.ws-btn` still appeared in `main.ts`'s code, labelled
+  *"did this file stop looking?"* — and that set empties for TWO reasons: the derivation breaks, or
+  the class is finally deleted. Its own comment two lines up claimed *"closing the persona half does
+  not red this file"*, reasoning about the half it expected rather than the class going entirely.
+  *A precondition written as a fact about today's tree is a prediction.* It is a planted canary now,
+  the repair `test_scratch_ignored.py` made when it stopped naming the pattern it probed, and the
+  defect `apps/web/src/api/clientCallers.test.ts` recorded as *"an entry leaves that set for two
+  reasons and the message asserted one"*. **Three gates in this repository have now made the same
+  mistake**, each after the previous one documented it.
 
   **The third direction — allowlist against the DOM — was measured 2026-10-11 and DELIBERATELY NOT
   BUILT, and the measurement is the reason.** `ACCENT_ALLOWED` holds **26 entries, of which exactly
@@ -9330,12 +9387,29 @@ refute one, so this goes first even though it is the least visible.
   the tree; it is only ever read, in three places. The attribute the filter keys on has no writer,
   which is a shorter proof than counting the queries.
 
-  **Left open on purpose rather than swept into the slice that found it.** Deleting the styles while
-  a live query remains would make the next reader's job harder, not easier, and the persona
-  one is a behavioural question — rooms replaced workspaces, so "which rooms does a subcontractor
-  see" has to be answered before `buildRoomTabs` can take a persona — rather than a rename.
-  *Fixing the instance in front of you is not closing the class — and saying which one you did is
-  the difference between a fix and a claim.*
+  **AND A FOURTH GATE WAS FAIL-OPEN, found on the way past.**
+  `services/api/test_roadmap_status.py` — the gate whose entire subject is *a marker that stopped
+  being true* — knew `✅ ◧ 🟡 ⭐` and not `⛔`, `❌` or a `~~struck~~` code, so those headings did not
+  match its bullet regex **at all**: `marked_open` answered NO, and the loop reads
+  `if not marked_open(code): PASS("closed, and its gate agrees"); continue`. A registered item
+  marked ⛔ would therefore have printed PASS **with its gate never run**. Measured: **163 headings
+  with the wide list against 158** — QUALITY-ROOM, R22-PHOTO-CV, R23-PICKING, R43-CRUD-FRAGMENTS,
+  SRI. `services/api/test_gap_records.py` had already paid for the identical miss in its own
+  population (*twelve items, same four markers*), and the lesson it recorded is that the repair is
+  **not** the wider list — *"a hand-widened list is a list somebody stopped widening"* — so a
+  LOOSE-versus-STRICT parity check sits beside it, deriving the same headings by shape.
+  **Its first draft was not a check**: both arms read `MARKERS`, so restoring the narrow list left
+  the counts equal at 123 and the gate green — *a parity check between two derivations that share a
+  failure mode is not a check*, which is `services/api/test_schema_types_agree.py`'s sentence,
+  arriving for the second time. The independence is a fixture now (an unknown `🔶` must be found by
+  shape and missed by the marker list), and all three mutations red: narrow list, dropped `~~`
+  handling, and the shared derivation.
+
+  **It was left open on purpose for two days rather than swept into the slice that found it**, and
+  that was right: deleting the styles while a live query remained would have made the next reader's
+  job harder, not easier. *Fixing the instance in front of you is not closing the class — and
+  saying which one you did is the difference between a fix and a claim.* What closed it is the whole
+  class at once plus a gate, not a fifth instance.
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; a package is
   now SCHEDULABLE — only the deployment decision below is left.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above

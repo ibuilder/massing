@@ -49,14 +49,37 @@ def check(label: str, ok: bool, detail: str = "") -> None:
         FAILED.append(label)
 
 
+#: The markers a heading may carry before its bold code. **The first four were the whole list, and
+#: it was blind to five live headings** — `⛔`, `❌` and a `~~struck~~` code made the bullet regex
+#: fail to match at all, so `marked_open` returned False and the loop below filed the item under
+#: *"closed, and its gate agrees"*. **Fail-open, in the file whose entire subject is a marker that
+#: stopped being true**: a registered item marked ⛔ would have reported PASS with its gate never
+#: consulted. Measured on 2026-10-13 while closing WS-BTN-DEAD: 163 headings with the wide list
+#: against 158 with the narrow one — QUALITY-ROOM, R22-PHOTO-CV, R23-PICKING, R43-CRUD-FRAGMENTS
+#: and SRI. `test_gap_records.py` paid for exactly this (*"a population smaller than it looks
+#: reports a clean tree in exactly the same words as a clean tree"*) and its repair was not the
+#: wider list — *"a hand-widened list is a list somebody stopped widening"* — but the parity check
+#: below it, which found `❌` after `⛔` and `~~` had been added by hand from the same measurement.
+MARKERS = ("✅", "◧", "🟡", "⭐", "⛔", "❌")
+
+#: What a heading's bold span looks like when it is an item CODE rather than prose. Load-bearing for
+#: the parity check only: without it the loose derivation also matches `**done**`, `**settled**` and
+#: `**HTML-escapes**` from mid-prose bullets, and the two sides disagree by three for a reason that
+#: has nothing to do with markers.
+_CODE_SHAPE = re.compile(r"^[A-Z][A-Z0-9]*(?:[-.][A-Z0-9]+)*$")
+
+
 def marked_open(code: str) -> bool:
     """Whether `code` still heads a bullet the roadmap counts as open.
 
     Mirrors `roadmapLanes.test.ts`: a bullet carrying ✅ is shipped-but-not-yet-archived and is not
     work anyone can pick up. Matched on the item's own heading line, not on every mention — the codes
     are referenced all over the file in prose and in the lane table.
+
+    A `~~struck~~` code counts as a heading too: struck means withdrawn, which is a status, and a
+    status this cannot see is a status it reports as absent.
     """
-    pat = re.compile(rf"^\s*[-*] (?:(?:✅|◧|🟡|⭐)️? )*\*\*{re.escape(code)}\b", re.M)
+    pat = re.compile(rf"^\s*[-*] (?:(?:{'|'.join(MARKERS)})️? )*\*\*(?:~~)?{re.escape(code)}\b", re.M)
     return any("✅" not in m.group(0) for m in pat.finditer(ROADMAP))
 
 
@@ -164,6 +187,52 @@ check("SELF-TEST: ...and NO to a bare prose mention — the codes appear all ove
 check("SELF-TEST: ...and YES against the REAL roadmap for a code known to be open, so the three "
       "synthetic arms above cannot be passing on a shape the live file has drifted away from",
       marked_open("SCALE-SEAM"), "SCALE-SEAM heads an open bullet")
+check("SELF-TEST: ...and YES to a ⛔ bullet and to a ~~struck~~ code — the two shapes the narrow "
+      "marker list could not match at all, which made `marked_open` answer NO and the loop file "
+      "them as closed with their gate never run",
+      _marked_open_on("- ⛔ **SYNTH-CODE — refused** *(Lane G)*\n")
+      and _marked_open_on("- 🟡 **~~SYNTH-CODE~~ — withdrawn** *(Lane G)*\n"),
+      "fail-OPEN, not fail-closed: the narrow list's miss was indistinguishable from a clean bill")
+
+
+def _headings(markers_first: bool, text: str | None = None) -> set[str]:
+    """Item codes heading a bullet, derived two ways — STRICT by marker list, LOOSE by shape.
+
+    The LOOSE arm accepts any run of non-word tokens before the bold span, so it cannot be narrowed
+    by a marker nobody added to `MARKERS`. If the two disagree, the marker list has stopped
+    describing the file — which is the only way this gate's population can shrink silently.
+    """
+    lead = rf"(?:(?:{'|'.join(MARKERS)})️? )*" if markers_first else r"(?:[^\w\s*]\S*\s+)*"
+    pat = re.compile(rf"^\s*[-*] {lead}\*\*(?:~~)?([A-Za-z][\w.-]*)", re.M)
+    return {m.group(1) for m in pat.finditer(text if text is not None else ROADMAP)
+            if _CODE_SHAPE.match(m.group(1))}
+
+
+#: **The parity check below was not a check, and mutation is the only reason that is known.** Its
+#: first draft derived the LOOSE arm from `MARKERS` too, so routing both arms through the same
+#: alternation left the counts equal at 123 and the gate GREEN with the narrow list restored — the
+#: defect `test_schema_types_agree.py` names in as many words: *a parity check between two
+#: derivations that share a failure mode is not a check*. The guard is this fixture, not a sentence:
+#: a marker nobody has ever added must be found by the loose arm and MISSED by the strict one, which
+#: is false the instant the loose arm starts reading the marker list.
+_SYNTH_UNKNOWN_MARKER = "- 🔶 **SYNTH-CODE — a marker nobody has added** *(Lane G)*\n"
+
+check("SELF-TEST: the two parity derivations are INDEPENDENT — an unknown marker is found by shape "
+      "and missed by the marker list, so the check below cannot pass by sharing a failure mode",
+      _headings(False, _SYNTH_UNKNOWN_MARKER) == {"SYNTH-CODE"}
+      and _headings(True, _SYNTH_UNKNOWN_MARKER) == set(),
+      f"loose={sorted(_headings(False, _SYNTH_UNKNOWN_MARKER))}, "
+      f"strict={sorted(_headings(True, _SYNTH_UNKNOWN_MARKER))}")
+
+_strict, _loose = _headings(True), _headings(False)
+check("PARITY: the marker list still reaches every heading a shape-based derivation finds — a "
+      "hand-widened list is a list somebody stopped widening",
+      _strict == _loose,
+      f"{len(_strict)} by marker vs {len(_loose)} by shape; "
+      f"loose-only={sorted(_loose - _strict)}, strict-only={sorted(_strict - _loose)}")
+check("PARITY precondition: both derivations found a real population, so agreeing on nothing is "
+      "not how the check above passes",
+      len(_strict) > 100, f"{len(_strict)} item headings")
 
 for code, (done, what) in DONE_WHEN.items():
     if not marked_open(code):

@@ -58,6 +58,39 @@ export function orderRooms(rooms: RoomDef[], workspace: string | null | undefine
   return [...head, ...rooms.filter((r) => r.id !== first)];
 }
 
+/**
+ * The room strip's ORDER for a persona, derived from the workspaces that persona is seated in.
+ *
+ * **WS-BTN-DEAD's open half, and the behavioural question it was left open for is answered three
+ * paragraphs above this one.** `applyPersona` filtered `.ws-btn`, a class nothing renders, so for
+ * as long as the room spine has shipped every persona's `ws` allowlist has had no effect at all —
+ * every room showed to everyone. The roadmap recorded the remainder as a product decision
+ * (*"which rooms does a subcontractor see"*), and it is not one: `orderRooms` already states the
+ * spine's position in its own docstring — ***weighting rather than filtering*** — because *"a room
+ * that disappears is a room the user has to relearn where to find"*.
+ *
+ * **Measured before trusting that, because the filtering reading is the one a reader reaches for.**
+ * Mapping each persona's `ws` list through `preselectedRoom` and HIDING the rest reaches **3 of the
+ * 7 rooms across all seven personas that declare a list**: `planning`, `cost`, `operate` and
+ * `work` are named by none of them, `engineer` comes out at one room of seven, and every persona
+ * loses **Work** — the one room the design calls a summons and the only one that carries a count.
+ * *A filter derived from a table that collapses seven workspaces onto four rooms cannot be a room
+ * allowlist*, and the three-of-seven number is asserted in `personaRooms.test.ts` so the next reader
+ * does not have to re-derive why this weights.
+ *
+ * So the allowlist keeps its meaning — these are the workspaces this role is seated in — and the
+ * strip puts their rooms first. `ws` of `null` (the `all` persona) is canonical order, which is also
+ * what every caller gets before a persona has been applied.
+ *
+ * Returns **all** of `ROOM_IDS`, always. That is the invariant worth more than the ordering, and
+ * `roomTabs.test.ts` asserts it over every persona rather than trusting this sentence.
+ */
+export function personaRooms(ws: readonly string[] | null | undefined): readonly string[] {
+  if (!ws?.length) return ROOM_IDS;
+  const seated = new Set(ws.map(preselectedRoom));
+  return [...ROOM_IDS.filter((r) => seated.has(r)), ...ROOM_IDS.filter((r) => !seated.has(r))];
+}
+
 export interface SpineState {
   alloc: RoomAllocation;
   /** Modules the API could not place. Must be empty; surfaced rather than swallowed. */

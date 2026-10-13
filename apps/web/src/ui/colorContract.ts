@@ -34,7 +34,9 @@
  */
 export const ACCENT_ALLOWED: string[] = [
   // selection — "this is the one you picked"
-  ".ws-btn.active",
+  // (`.ws-btn.active` sat here until WS-BTN-DEAD: a contrast contract asserted over a selector
+  //  nothing renders, attested in BOTH directions by `colorContract.test.ts` because the rule it
+  //  checked against was equally dead. *Two checks over the same dead pair read as two witnesses.*)
   ".rail-btn.active",
   ".pnav-item.active",
   // R26-INSPECTOR ② — the selected Inspector tab. Same meaning as every other `.active` above:

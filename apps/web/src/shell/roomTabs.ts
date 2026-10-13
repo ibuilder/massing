@@ -62,8 +62,25 @@ export function buildRoomTabs(rooms?: readonly RoomDef[] | null, workCount?: num
   });
 }
 
+/**
+ * Reorder a built strip, putting the ids in `order` first and keeping everything else behind them.
+ *
+ * **Total by construction** — a `map` and a `sort`, never a `filter` — because the thing a persona
+ * must not be able to do to this strip is shorten it. `personaRooms` is the only caller and already
+ * returns all seven ids; this function would preserve the strip even if it stopped doing so, which
+ * is the point of putting the property here rather than only there. An id `order` does not mention
+ * keeps its existing position relative to the other unmentioned ones.
+ */
+export function orderRoomTabs(tabs: readonly RoomTab[], order: readonly string[]): RoomTab[] {
+  const rank = new Map(order.map((id, i) => [id, i]));
+  return tabs
+    .map((t, i) => [t, rank.get(t.id) ?? order.length + i] as const)
+    .sort((a, b) => a[1] - b[1])
+    .map(([t]) => t);
+}
+
 /** Which tab a legacy workspace key belongs to, so a deep link into `?ws=construction` still lands. */
-export { preselectedRoom as roomForWorkspace } from "./spine";
+export { personaRooms, preselectedRoom as roomForWorkspace } from "./spine";
 
 /**
  * Mark `active` as the selected room in an ALREADY-RENDERED strip, and return how many tabs it
@@ -71,8 +88,8 @@ export { preselectedRoom as roomForWorkspace } from "./spine";
  *
  * Split out of `renderRoomTabs` for WS-BTN-SELECT: navigating by any path other than a tab click
  * left the strip marking the room the user had come FROM, `aria-selected="true"` included. The
- * marking belonged to a loop in `main.ts` that toggled `.ws-btn`, a class nothing renders, so there
- * was no marking at all — see `main.ts` `setWorkspace` and WS-BTN-DEAD.
+ * marking belonged to a loop in `main.ts` that toggled `.ws-btn`, a class nothing rendered, so there
+ * was no marking at all — see `main.ts` `setWorkspace`. The class itself is gone with WS-BTN-DEAD.
  *
  * `renderRoomTabs` now calls this rather than setting the two attributes itself, so there is ONE
  * statement anywhere of what "selected" looks like in the DOM. Two copies would have been two

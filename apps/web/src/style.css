@@ -137,13 +137,15 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .cmdk-kbd { font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; opacity: .7; background: var(--panel2); }
 @media (max-width: 560px) { #cmdk-btn .cmdk-kbd { display: none; } }
 
-/* workspace switcher (segmented control) */
+/* the room strip (segmented control). `#workspaces` is the HOST id and is live; the six
+ * `.ws-btn` / `.ws-badge` rules that used to sit here styled a class nothing renders and a badge
+ * nothing builds — the tabs are `.room-tab`, with `.room-tab-count` and `.room-tab-live`.
+ * Removed with WS-BTN-DEAD; `shell/wsBtnGone.test.ts` fails the build if either comes back.
+ * (Every line of this comment starts with `*` because that gate's prose test is deliberately
+ *  per-LINE and conservative: a continuation line is indistinguishable from code to it, and it
+ *  red on this very block on its first run. Failing closed costs a reword; the alternative
+ *  costs the gate.) */
 #workspaces { display: inline-flex; gap: 2px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 2px; margin-left: 6px; }
-.ws-btn { background: transparent; border: none; color: var(--muted); font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
-.ws-btn:hover { color: var(--text); }
-.ws-btn.active { background: var(--accent); color: #fff; }
-.ws-btn { position: relative; }
-.ws-badge { margin-left: 5px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; border-radius: 8px; background: #e2554a; color: #fff; display: inline-block; }
 
 /* stage holds the three workspaces; only the active one shows */
 #stage { grid-area: stage; position: relative; min-height: 0; }
@@ -801,7 +803,6 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
      horizontally instead of wrapping 5 tabs onto two cramped lines */
   #workspaces { margin-left: 0; flex: 1 0 100%; order: 5; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   #workspaces::-webkit-scrollbar { display: none; }
-  .ws-btn { padding: 8px 14px; min-height: 40px; flex: 0 0 auto; white-space: nowrap; }
   /* tappable ~36px touch targets for the header controls (was 22–28px tall) without ballooning rows */
   #topbar .file-btn, #topbar .menu-btn, #topbar #cmdk-btn, #topbar #persona,
   #topbar .tool-btn, #rail-toggle { min-height: 36px; display: inline-flex; align-items: center; }

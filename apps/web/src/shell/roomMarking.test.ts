@@ -10,7 +10,7 @@
  *
  * **`initNav` makes it a first-load defect, not a corner case.** Module scope marks the room derived
  * from `localStorage("workspace") || "model"` — `design` for a fresh profile — and `initNav` then
- * calls `setWorkspace(cfg.home)`, which for six of the ten personas is `construction` or
+ * calls `setWorkspace(cfg.home)`, which for five of the eight personas is `construction` or
  * `developer`. A GC opening the app for the first time therefore saw the Schedule room's content
  * under a strip stating `aria-selected="true"` on Design. The attribute exists, in
  * `renderRoomTabs`' own words, "so the active room is stated rather than only coloured"; stating it
@@ -256,23 +256,29 @@ describe("main.ts really calls them — the reproduction above is not the eviden
   });
 
   it("THE DEAD LOOP IS GONE: no `.ws-btn` query sets aria-selected any more", () => {
-    // The two remaining `.ws-btn` reads are WS-BTN-DEAD's, and neither marks anything: a documented
-    // `??` fallback in `wsLabel`, and `applyPersona`'s hide loop, which is blocked on a behavioural
-    // question (which rooms a subcontractor sees) rather than a rename. Asserted as "none of them
-    // marks" rather than "there are two", so closing the persona half does not red this file.
-    //
     // CODE lines only, and the first draft of this assertion did not do that — it red on the
     // comment in `setWorkspace` that explains the deletion, which mentions both `.ws-btn` and
     // `aria-selected` by name. *A check that cannot tell an explanation from the thing it explains
     // reds hardest on the commit that fixes the defect.* Four lines of lookahead, because the loop
     // this replaces spanned four.
-    const code = MAIN.split("\n").map((l) => (/^\s*(\/\/|\*|\/\*)/.test(l) ? "" : l));
-    expect(code.filter((l) => l.includes(".ws-btn")).length,
-           "no .ws-btn read left in code at all — did this file stop looking?").toBeGreaterThan(0);
-    code.forEach((line, i) => {
-      if (!line.includes(".ws-btn")) return;
-      const window = code.slice(i, i + 5).join("\n");
-      expect(window, window).not.toContain("aria-selected");
-    });
+    const strip = (t: string) => t.split("\n").map((l) => (/^\s*(\/\/|\*|\/\*)/.test(l) ? "" : l));
+    const marks = (lines: string[]) => lines.filter(
+      (l, i) => l.includes(".ws-btn") && lines.slice(i, i + 5).join("\n").includes("aria-selected"));
+
+    // THE PRECONDITION IS A PLANTED CANARY, NOT A COUNT OF THE LIVE FILE. It used to read
+    // `expect(code.filter((l) => l.includes(".ws-btn")).length).toBeGreaterThan(0)` with the message
+    // *"did this file stop looking?"* — and that set empties for TWO reasons: the derivation broke,
+    // or `.ws-btn` was finally deleted from `main.ts` altogether. **WS-BTN-DEAD deleted it, and this
+    // red with a message blaming the wrong cause** — the exact failure `clientCallers.test.ts`
+    // recorded (*"an entry leaves that set for two reasons and the message asserted one"*) and the
+    // one `test_scratch_ignored.py` answered by DERIVING its canary instead of naming it. The
+    // comment two lines above the old assertion even claimed closing the persona half "does not red
+    // this file": it reasoned about the half it expected, not about the class going entirely.
+    // *A precondition written as a fact about today's tree is a prediction, and it was wrong.*
+    expect(marks(strip('document.querySelectorAll(".ws-btn").forEach((b) => {\n'
+                       + '  b.setAttribute("aria-selected", String(on));\n});'))).toHaveLength(1);
+    expect(marks(strip(' * a loop over `.ws-btn` that set `aria-selected` — deleted'))).toEqual([]);
+
+    expect(marks(strip(MAIN))).toEqual([]);
   });
 });
