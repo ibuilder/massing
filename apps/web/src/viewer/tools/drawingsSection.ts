@@ -255,7 +255,26 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
   });
   sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
     + "linework from the model geometry, the other half of the drawing set alongside plans.";
+  // DETAIL-REFS-DARK — can a reader follow the callouts in this set? The card body is in
+  // `./detailRefsCard`, behind `await import()`, because `viewer/tools/*` is the app-shell chunk and
+  // it sits at its Brotli cap: the button has to be eager because the rail is built up front, and
+  // nothing else does. The overlay opens only after the fetch succeeds, so a failure is a toast
+  // rather than an empty card — the same shape `recipeLogTool.ts` settled on.
+  // The label lost "(dangling & orphan)" to 8 BYTES. That is the measured overage after the overlay
+  // moved into the lazy module — `node --input-type=module` over the brotli'd shell assets put the
+  // total at 225.008 KB against 225.000 — and the parenthetical repeats what the title says one
+  // hover away. *Trimming my own prose is the right price for a shared allowance*: the budget's
+  // message offers "bump BUNDLE_BUDGET_KB deliberately with a note" and taking that for a feature
+  // of mine, when nineteen characters would do, is how a shared ceiling becomes a formality.
+  const refsBtn = d.toolBtn2("⇄ Detail references", async () => {
+    const card = await import("./detailRefsCard");
+    await card.openDetailRefsCard({ api: d.api, pid: d.pid, container: d.container, notify: d.notify });
+  });
+  refsBtn.title = "Callouts pointing at details that do not exist, and details nothing points at. "
+    + "A set with no callouts recorded reads as UNCHECKED, never as clean.";
+
   // Returned in rail order. Picker first so Issue/PDF/Place all read the same stored size.
   // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the occasional one.
-  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, schedCsvBtn, manualBtn, sectBtn];
+  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn,
+          schedCsvBtn, manualBtn, sectBtn, refsBtn];
 }

@@ -1511,6 +1511,75 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **VERDICT-UNOWNED — one floor over three causes, and two of the six were capabilities
+  nobody had built** *(S — `services/api/test_verdict_coverage.py` +
+  `apps/web/src/viewer/tools/detailRefsCard.ts`; **CLOSED 2026-10-13**)*
+
+  VERDICT-OWNER shipped `unowned_verdicts()` a few hours earlier with a flat floor — *"no NEW subset
+  verdict is unreachable to the consumer rule (6 unowned)"*. Resolving each of the six showed the
+  number was **three unrelated facts added together**, so *"nobody has built the screen" was
+  indistinguishable from "no screen should ever own this"*, and a newly dark capability could have
+  taken a resolved verdict's place with the total unchanged.
+
+  | cause | count | what it is |
+  |---|---|---|
+  | `nested` | 3 | the verdict lives in a SUB-dict, so `top` holds the sub-dict's keys and no client method declares them at top level — structurally unresolvable **however reachable the capability is**. `adjacency.forbidden_ok` under `"program"`, `adjacency.satisfied` twice in per-rule dicts |
+  | `no-spa` | 1 | `perf_budget.within_budget`, off `GET /metrics/budget` behind the metrics bearer key. The reader is a monitoring scrape; no client method will ever own it |
+  | `dark` | 2 | `detail_refs.navigable` and `fived.complete` — both routes frozen in `test_route_reachability.UNREACHABLE_ROUTES`. **The only cause that is work** |
+
+  Each cause now carries its own floor: `nested` and `no-spa` are states to hold, `dark` is a ratchet
+  that goes to zero. `nested` is **derived** — one walk records whether a verdict's dict sits inside
+  another dict's value, rather than a second pass to be kept in agreement with the first, because
+  this file's own header says *a parity check between two derivations that share a failure mode is
+  not a check*. `no-spa` is **declared** at the site, because whether a response reaches a browser or
+  a scrape is a fact about the product and not about the syntax — COURT-SPLIT's rule, bounded to the
+  one place it is load-bearing.
+
+  ### DETAIL-REFS-DARK, the half of it that is a feature
+
+  `detail_refs.graph` builds the section↔detail cross-reference graph of an issued set: callouts
+  pointing at details that do not exist, and details nothing points at. The card keeps the engine's
+  **split by reason**, because `sheet_not_in_set` and `detail_not_on_sheet` are one count to a reader
+  and two different afternoons — a typo or an unissued sheet versus a renumber nobody propagated, and
+  for the second the engine hands over `available`, the numbers that ARE on that sheet, which is the
+  only field that says what to do next.
+
+  **It could not have been wired a month ago, and that is the ordering lesson.** `navigable` was
+  `not dangling and not orphans and not unparseable` — True on a register with no references at all —
+  and `test_detail_refs.py` asserted exactly that with the word *"vacuously"* in the comment beside
+  it. *The empty case was considered, named as vacuous, and then returned as the same boolean a
+  cross-referenced set returns*, and no consumer can read a word in a test comment. NEGATED-VERDICT
+  put `assessed` in front of the verdict first, so the card renders **three** states; a card written
+  before that would have shown "navigable ✓" to somebody whose set had never been checked. It is the
+  second time this branch has let a verdict's repair decide the order of two pieces of work — the
+  first being `/coordination/stale`, whose freeze entry carries the same sentence.
+
+  One more thing the card does not do: `reference_count` is resolved + dangling, and `edges` is the
+  resolved half, so the ratio is rendered from the engine's two numbers. Printing `edges.length`
+  beside the word "references" is TRUNC-COUNTED at field level.
+
+  **`fived.complete` stays dark, named rather than quietly counted.** It is served by
+  `POST /projects/{pid}/cost/estimate`, which takes a `rules` body — so it needs a rules source
+  rather than a read-only card, and that is ESTIMATE-DARK below rather than work smuggled into this
+  item. The `dark` floor is therefore a ratchet at **1**; lower it to 0 when that lands.
+
+- 🟡 **ESTIMATE-DARK — the rules-based cost estimate, and the verdict nobody reads** *(M — Lane E;
+  found 2026-10-13 by VERDICT-UNOWNED's classification)*
+
+  `POST /projects/{pid}/cost/estimate` is frozen in `test_route_reachability.UNREACHABLE_ROUTES` and
+  is the last `dark` entry in `test_verdict_coverage`'s unowned bucket. Its `complete` is already the
+  careful kind — `bool(out) and not unpriced_count and not missing and not no_rate_count`, with the
+  comment beside it naming why a matched element with no rate is *"neither priced nor unpriced"* and
+  an estimate carrying any of them is not complete either, *"the total would be short by an amount
+  nobody stated"*. Four coverage counts, a guarded verdict, and no reader.
+
+  **Why it is M and not S**: the route takes a `rules` body, so a screen needs a rules source — the
+  rule library is authorable (`rule_library`, writable since FIRM-RULES-OPTIONAL) but nothing yet
+  binds a stored rule set to this estimate, and inventing a default here would ship a cost number
+  computed from rules the user never chose. *A dark route whose door needs a second capability is not
+  the same finding as one nobody got round to*, which is the distinction `clientCallers.test.ts`
+  records beside `colorFacets` for the same reason.
+
 - ✅ ⭐ **QUANT-VACUOUS — the verdict shape two neighbouring gates excluded from opposite
   directions** *(S — `services/api/test_quant_vacuous.py`; **CLOSED 2026-10-13**)*
 
@@ -8443,7 +8512,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/preconReadings.ts`, `apps/web/src/preconReadings.test.ts` *(claimed 2026-10-12 by VE-DARK — the readings over the three preconstruction money registers, rendered by `reportCenter.ts` which this cell already owns. The unowned-file ratchet is how it surfaced and a row here is the remedy it names. **A MARKDOWN TABLE ROW IS ONE LINE**: the first draft of this claim wrapped it across five, which left the parser seeing **one** lane row and reporting 555 unowned files and 17 unassigned items — a confident catalogue of a table it could no longer read)*, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* · ESTIMATE-DARK *(the rules-based cost estimate: `POST /projects/{pid}/cost/estimate` is frozen unreachable and its `complete` verdict, guarded on four coverage counts, is read by nobody. M rather than S because the route takes a `rules` body and nothing yet binds a stored rule set to it — inventing a default would ship a cost computed from rules the user never chose. Here because the deliverable is the card; the engine half is Lane C.)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |

@@ -1381,3 +1381,61 @@ export interface RecipeReplayPlan {
   count: number;
   note: string;
 }
+
+/** One section↔detail cross-reference. A RESOLVED edge and a DANGLING one are the same shape; the
+ *  `reason` is present only on the dangling ones, and it is the field that decides what to do. */
+export interface DetailRefEdge {
+  from_sheet: string;
+  to_sheet: string;
+  detail: string;
+  /** `detail/sheet`, the form a callout is written in on a drawing. */
+  label: string;
+  /** `sheet_not_in_set` — a typo, or a sheet never issued. `detail_not_on_sheet` — almost always a
+   *  renumber that was not propagated, which is why the engine splits them: the fix differs. */
+  reason?: "sheet_not_in_set" | "detail_not_on_sheet";
+  /** The detail numbers that ARE on the target sheet — only on `detail_not_on_sheet`, and the
+   *  shortest route to the right number. Capped at 20 by the engine. */
+  available?: string[];
+}
+
+/** A detail nothing points at. Not an error on its own — but a detail nobody can reach is a detail
+ *  nobody will look at, and in an issued set that is usually a deleted callout. */
+export interface DetailRefOrphan {
+  sheet: string;
+  detail: string;
+  title: string;
+  scale: string;
+}
+
+/** A callout whose text could not be parsed as a reference at all. */
+export interface DetailRefUnparseable {
+  from_sheet: string;
+  text: string;
+}
+
+/**
+ * `GET /projects/{pid}/drawing-set/references` — the cross-reference graph of an issued set.
+ *
+ * `navigable` is `assessed and not dangling and not orphans and not unparseable`, and **`assessed`
+ * leads deliberately**: NEGATED-VERDICT found this verdict reporting `True` on a register with no
+ * references at all, with `test_detail_refs.py` asserting exactly that beside the word *"vacuously"*.
+ * A reader asking "is my set navigable?" was told yes by a set that had never been checked. So
+ * `assessed` is the declared coverage (`# COVERAGE: assessed` at the engine) and a consumer that
+ * renders the verdict without it is reported by `services/api/test_verdict_coverage.py`.
+ */
+export interface DetailRefGraph {
+  sheet_count: number;
+  detail_count: number;
+  /** Resolved + dangling. Not `edges.length` — that is the resolved half only. */
+  reference_count: number;
+  resolved: number;
+  edges: DetailRefEdge[];
+  dangling: DetailRefEdge[];
+  orphans: DetailRefOrphan[];
+  unparseable: DetailRefUnparseable[];
+  /** Was there anything to rule on? False means UNCHECKED, which is not the same as clean. */
+  assessed: boolean;
+  navigable: boolean;
+  /** The engine's own sentence for why nothing could be assessed. Render it verbatim. */
+  unassessed_reason: string | null;
+}

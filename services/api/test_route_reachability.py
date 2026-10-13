@@ -365,7 +365,17 @@ KNOWN_UNCALLED: set[str] = {
     # stale" from "not assessed" would have shipped the defect to a user instead of leaving it
     # dark.* See `services/api/test_coord_unanchored.py`.
     "/projects/{pid}/design/options/economics",
-    "/projects/{pid}/drawing-set/references",
+    # `/projects/{pid}/drawing-set/references` left this set 2026-10-13 — DETAIL-REFS-DARK.
+    # `apps/web/src/viewer/tools/detailRefsCard.ts`, from the Drawings rail, renders the
+    # cross-reference graph: dangling callouts split by WHY (a sheet not in the set versus a sheet
+    # missing the number, which are two different afternoons) and orphan details. **It could not
+    # have been wired a month ago**: `navigable` was `not dangling and not orphans and not
+    # unparseable`, True on a register with no references at all, and `test_detail_refs.py` asserted
+    # that with the word "vacuously" beside it. NEGATED-VERDICT put `assessed` in front of the
+    # verdict first. *Wiring a screen to a verdict that cannot distinguish "navigable" from "never
+    # checked" would have shipped the defect to a user instead of leaving it dark* — the same
+    # sentence this set already carries for `/coordination/stale`, and the second time it decided
+    # the order of two pieces of work.
     # `/projects/{pid}/drawings/schedule.svg` left this set 2026-10-12 — SCHEDULE-TRUNC, and it
     # came off as the ESCAPE from a different defect rather than for its own sake. The Schedules
     # button in `apps/web/src/viewer/tools/drawingsSection.ts` has always named this route in its

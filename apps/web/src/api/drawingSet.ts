@@ -9,7 +9,7 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
-import type { PreflightSummary } from "./types";
+import type { DetailRefGraph, PreflightSummary } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -74,6 +74,23 @@ export function withDrawingSet<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ delta_count: number; by_instrument: Record<string, number>;
       revisions: { sheet_number: string; discipline: string; rev: string; date: string; description: string; instrument: { type: string; ref: string } | null }[] }>(
       `/projects/${pid}/drawing-set/revisions`);
+  }
+  /**
+   * DETAIL-REFS-DARK — the section↔detail cross-reference graph of an issued set.
+   *
+   * `dangling` is a callout pointing at a detail that does not exist: the reader follows it and
+   * finds nothing. `orphans` is a detail nothing points at. The engine splits dangling ones BY
+   * REASON because the fix differs — an unknown sheet is a typo or an unissued sheet, while a known
+   * sheet missing the detail number is almost always a renumber that was not propagated.
+   *
+   * This is the first client method the route has had. It was frozen in
+   * `test_route_reachability.UNREACHABLE_ROUTES`, and it is one of the two verdicts
+   * `test_verdict_coverage`'s unowned bucket was counting as "dark" — a count that also held three
+   * nested verdicts and one operator surface, so the only number a reader could act on mixed three
+   * unrelated facts.
+   */
+  detailReferences(pid: string) {
+    return this.json<DetailRefGraph>(`/projects/${pid}/drawing-set/references`);
   }
   /** URL of a drawing-transmittal PDF for the current set (recipients comma-separated). */
   drawingTransmittalUrl(pid: string, to = "", note = "") {

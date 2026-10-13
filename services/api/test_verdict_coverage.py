@@ -140,6 +140,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 HERE = Path(__file__).resolve().parent
 API = HERE / "src" / "aec_api"
@@ -273,7 +274,66 @@ def keys_deep(node: ast.Dict) -> set[str]:
     return out
 
 
-def engine_verdicts() -> list[tuple[str, str, set[str], set[str]]]:
+class Verdict(NamedTuple):
+    """One subset verdict and what the rules below need about it.
+
+    `nested` is here because `unowned_verdicts` was counting three unrelated things as one. A
+    NamedTuple rather than a fifth tuple slot so the field has a name at every use site: the
+    positional form that preceded it read `for mod, verdict, top, _deep in …`, and a fifth
+    underscore would have been the least legible way to add a meaning.
+    """
+    mod: str
+    verdict: str
+    #: Keys of the dict the verdict LIVES IN, minus the verdict. For a sub-structure verdict these
+    #: are the row's keys, which is why `nested` has to be carried: no client method declares them at
+    #: top level, so the owner rule cannot resolve one however reachable the capability is.
+    top: set[str]
+    deep: set[str]
+    #: True when the verdict's dict is NOT handed back by a `return` — see `response_root_ids`, and
+    #: note that this explains an unowned verdict and never excuses looking one up: `qto.estimated`
+    #: is nested and owned.
+    nested: bool
+
+
+def response_root_ids(tree: ast.AST) -> set[int]:
+    """Every `ast.Dict` that a `return` hands back directly — the shape a client method describes.
+
+    **The first draft of this asked a different question and got two of four answers wrong.** It
+    collected dicts nested inside another dict's VALUE, which catches `adjacency.forbidden_ok` (under
+    `"program"`) and misses `adjacency.satisfied`, built as a row in `results.append({…})` and
+    embedded afterwards — parent `Call`, not `Dict`. Measured ancestors, rather than assumed ones,
+    separate them: of the four unowned verdicts, two sit under a `Return` and two do not.
+
+    **And the ONE measurement that mattered says this cannot be a global classifier.**
+    `qto.estimated` has parent `Dict` and **is owned** — so "nested" does not imply unownable, and a
+    rule applied to every verdict would have moved an owned one into an explanatory bucket. The owner
+    lookup stays the authority; this only explains the ones it could not resolve, and
+    `unowned_verdicts` is the only caller for that reason. *A rule applied outside the population it
+    was reasoned about does not degrade gracefully* — `test_gap_records` in one line.
+
+    An `IfExp` or `BoolOp` as the returned value is handled rather than assumed absent (measured at
+    0 today): its branches are returned just as directly, and leaving them out would call a response
+    root a sub-structure, which fails OPEN.
+    """
+    roots: set[int] = set()
+
+    def claim(node: ast.expr | None) -> None:
+        if isinstance(node, ast.Dict):
+            roots.add(id(node))
+        elif isinstance(node, ast.IfExp):
+            claim(node.body)
+            claim(node.orelse)
+        elif isinstance(node, ast.BoolOp):
+            for part in node.values:
+                claim(part)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Return):
+            claim(node.value)
+    return roots
+
+
+def engine_verdicts() -> list[Verdict]:
     """Every subset verdict across BOTH engine roots, labelled by package so the two cannot collide.
 
     Separate from `subset_verdicts` so each root can still be walked alone — the preconditions below
@@ -281,19 +341,20 @@ def engine_verdicts() -> list[tuple[str, str, set[str], set[str]]]:
     """
     out = []
     for root in ENGINE_ROOTS:
-        for mod, verdict, top, deep in subset_verdicts(root):
-            out.append((f"{root.name}/{mod}", verdict, top, deep))
+        for v in subset_verdicts(root):
+            out.append(v._replace(mod=f"{root.name}/{v.mod}"))
     return out
 
 
-def subset_verdicts(root: Path) -> list[tuple[str, str, set[str], set[str]]]:
-    """`(module, verdict, top-level siblings, all siblings)` for every subset verdict under `root`."""
+def subset_verdicts(root: Path) -> list[Verdict]:
+    """Every subset verdict under `root`, with its siblings and whether its dict is nested."""
     out = []
     for path in sorted(root.rglob("*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:  # pragma: no cover — a syntax error reds the suite elsewhere
             continue
+        roots = response_root_ids(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Dict):
                 continue
@@ -302,8 +363,9 @@ def subset_verdicts(root: Path) -> list[tuple[str, str, set[str], set[str]]]:
                    if isinstance(k, ast.Constant) and isinstance(k.value, str)}
             for k, v in zip(node.keys, node.values):
                 if isinstance(k, ast.Constant) and isinstance(k.value, str) and is_subset_verdict(v):
-                    out.append((str(path.relative_to(root)), k.value,
-                                top - {k.value}, deep - {k.value}))
+                    out.append(Verdict(str(path.relative_to(root)), k.value,
+                                       top - {k.value}, deep - {k.value},
+                                       id(node) not in roots))
     return out
 
 
@@ -409,16 +471,38 @@ def client_methods() -> dict[str, set[str]]:
     return out
 
 
-def unowned_verdicts(methods: dict[str, set[str]]) -> list[tuple[str, str]]:
-    """`(module, verdict)` for every subset verdict no client method can be matched to.
+def unowned_verdicts(methods: dict[str, set[str]]) -> list[tuple[str, str, str]]:
+    """`(module, verdict, cause)` for every subset verdict no client method can be matched to.
 
     The consumer loop below cannot rule on these AT ALL: with no owner there is no call site to look
-    for, so the loop appends nothing and the verdict reads as checked. Counted here so the headline
-    can state what it examined instead of what exists — the same repair `test_gap_records` needed
-    when a registry's silence read as a clean bill.
+    for, so the loop appends nothing and the verdict reads as checked.
+
+    **The CAUSE is the point, and its absence was a defect in the first version of this function.**
+    It returned a flat list and the check beside it floored the length at six — which counted three
+    unrelated things as one, so *"nobody has built the screen" was indistinguishable from "no screen
+    should ever own this"*, and the only number a reader could act on was a total that mixed them.
+    Measured, the six were:
+
+    | cause | count | what it means |
+    |---|---|---|
+    | `nested` | 3 | the verdict lives in a SUB-dict (`adjacency.forbidden_ok` under `"program"`, `adjacency.satisfied` twice in per-rule dicts), so `top` holds the sub-dict's keys and no client method declares them at top level. Structurally unresolvable **however reachable the capability is** |
+    | `no-spa` | 1 | declared at the site: the response is not served to a browser. `perf_budget.within_budget` comes off `GET /metrics/budget` behind the metrics bearer key, read by a monitoring scrape |
+    | `dark` | 2 | `detail_refs.navigable` and `fived.complete` — both routes frozen in `test_route_reachability.UNREACHABLE_ROUTES`. The only cause that is work |
+
+    So each cause carries its own floor. `nested` and `no-spa` are states to hold; `dark` is a
+    ratchet that goes to zero, and a flat count let it hide behind the other two.
     """
-    return [(mod, verdict) for mod, verdict, top, _deep in engine_verdicts()
-            if not [n for n, d in methods.items() if verdict in d and len(top & d) >= 3]]
+    out: list[tuple[str, str, str]] = []
+    for mod, verdict, top, _deep, nested in engine_verdicts():
+        if [n for n, d in methods.items() if verdict in d and len(top & d) >= 3]:
+            continue
+        if nested:
+            out.append((mod, verdict, "nested"))
+        elif declared_no_spa(mod, verdict):
+            out.append((mod, verdict, "no-spa"))
+        else:
+            out.append((mod, verdict, "dark"))
+    return out
 
 
 def reads(src: str, name: str) -> bool:
@@ -529,31 +613,64 @@ def web_files() -> list[Path]:
 #: It is self-checking — the declared name must BE a sibling key of that verdict's dict, so a typo
 #: is a failure rather than a silent exemption.
 _COVERAGE_DECL = re.compile(r"#\s*COVERAGE:\s*([A-Za-z_][A-Za-z0-9_]*)")
+#: `# NO-SPA-CONSUMER: <reason>` — see `declared_no_spa`. The reason is captured, not just matched,
+#: because an empty one is refused.
+_NO_SPA_DECL = re.compile(r"#\s*NO-SPA-CONSUMER:\s*(.*)$")
+
+
+def site_block(mod: str, verdict: str) -> list[str]:
+    """The verdict's own line plus the contiguous comment block above it, for every occurrence.
+
+    Extracted so the two markers read from ONE place. A second copy of this walk is how
+    `# COVERAGE:` and `# NO-SPA-CONSUMER:` would come to disagree about where a declaration may sit,
+    and the whole value of declaring at the site is that the rule for finding it is not itself a
+    thing to remember.
+    """
+    root = next((r for r in ENGINE_ROOTS if mod.startswith(r.name + "/")), None)
+    if root is None:
+        return []
+    try:
+        lines = (root.parent / mod).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        if f'"{verdict}":' not in line:
+            continue
+        out.append(line)
+        j = i - 1
+        while j >= 0 and lines[j].lstrip().startswith("#"):
+            out.append(lines[j])
+            j -= 1
+    return out
 
 
 def declared_coverage(mod: str, verdict: str) -> set[str]:
     """Coverage field names declared at the verdict's site in `mod`."""
-    root = next((r for r in ENGINE_ROOTS if mod.startswith(r.name + "/")), None)
-    if root is None:
-        return set()
-    path = root.parent / mod
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return set()
     out: set[str] = set()
-    for i, line in enumerate(lines):
-        if f'"{verdict}":' not in line:
-            continue
-        # the verdict's own line, then upward through the contiguous comment block above it
-        block = [line]
-        j = i - 1
-        while j >= 0 and lines[j].lstrip().startswith("#"):
-            block.append(lines[j])
-            j -= 1
-        for b in block:
-            out |= {m.group(1) for m in _COVERAGE_DECL.finditer(b)}
+    for b in site_block(mod, verdict):
+        out |= {m.group(1) for m in _COVERAGE_DECL.finditer(b)}
     return out
+
+
+def declared_no_spa(mod: str, verdict: str) -> str | None:
+    """The `NO-SPA-CONSUMER:` reason at the verdict's site, or None.
+
+    The author writing down that this verdict is **not served to a browser**, so no client method
+    will ever own it and the consumer rule has nothing to rule on. It cannot be derived: whether a
+    response reaches a screen or a monitoring scrape is a fact about the product, not about the
+    syntax — `perf_budget.within_budget` comes off `GET /metrics/budget` behind the metrics bearer
+    key, and nothing in the engine says so. *A premise that cannot be checked has already drifted;
+    the only repair is to stop inferring it and DECLARE it* — COURT-SPLIT, bounded here to the one
+    site where the declaration is load-bearing.
+
+    A bare marker with no reason is not a reason, exactly as in `test_negated_verdict.py`.
+    """
+    for b in site_block(mod, verdict):
+        m = _NO_SPA_DECL.search(b)
+        if m:
+            return m.group(1).strip() or None
+    return None
 
 
 def bare_consumers(sources=None):
@@ -568,7 +685,7 @@ def bare_consumers(sources=None):
         (str(p.relative_to(WEB)), p.read_text(encoding="utf-8"), p) for p in web_files()]
     files = [(f + (None,))[:3] for f in files]      # the replay passes (label, src) pairs
     out = []
-    for mod, verdict, top, deep in engine_verdicts():
+    for mod, verdict, top, deep, _nested in engine_verdicts():
         coverage = sorted(k for k in deep if COVERAGE_NAME.match(k))
         coverage += sorted(declared_coverage(mod, verdict) - set(coverage))
         if not coverage:
@@ -609,7 +726,7 @@ def unnameable_coverage() -> list[tuple[str, str, list[str]]]:
     headline counted verdicts it had never looked at.
     """
     out = []
-    for mod, verdict, _top, deep in engine_verdicts():
+    for mod, verdict, _top, deep, _nested in engine_verdicts():
         if any(COVERAGE_NAME.match(k) for k in deep):
             continue
         if declared_coverage(mod, verdict) & deep:
@@ -625,7 +742,7 @@ def misdeclared_coverage() -> list[tuple[str, str, list[str]]]:
     between a declaration and an exemption list.
     """
     out = []
-    for mod, verdict, _top, deep in engine_verdicts():
+    for mod, verdict, _top, deep, _nested in engine_verdicts():
         bad = sorted(declared_coverage(mod, verdict) - deep)
         if bad:
             out.append((mod, verdict, bad))
@@ -705,13 +822,39 @@ check(f"every bare response type name resolves ({len(UNRESOLVED_TYPES)} unresolv
 # "(N verdicts)" asserted for all 15 while examining 9. VERDICT-OWNER in `docs/roadmap.md` owns
 # closing the remaining six; this floor makes a SEVENTH a build failure rather than a silence.
 _UNOWNED = unowned_verdicts(_METHODS)
-check(f"no NEW subset verdict is unreachable to the consumer rule ({len(_UNOWNED)} unowned)",
+_BY_CAUSE = {c: [(m, v) for m, v, cc in _UNOWNED if cc == c] for c in ("nested", "no-spa", "dark")}
+
+# THREE FLOORS, because the three causes are three different facts and only one of them is work.
+# A single floor of six — which is what this file shipped first — let a newly dark capability take
+# the place of a nested verdict somebody had resolved, with the total unchanged.
+# A RATCHET at 1, not a tolerance. `fived.complete` is the one left: it is served by
+# `POST /projects/{pid}/cost/estimate`, which takes a `rules` body — so wiring it needs a rules
+# source rather than a read-only card, and that is ESTIMATE-DARK in `docs/roadmap.md` rather than a
+# line of work hidden inside this one. Lower this to 0 when it lands; never raise it.
+check(f"no NEW subset verdict is DARK — no owner, not nested, not declared "
+      f"({len(_BY_CAUSE['dark'])})",
+      len(_BY_CAUSE["dark"]) <= 1,
+      f"{_BY_CAUSE['dark']} — the capability is unreachable from any screen. Wire it "
+      "(`services/api/test_verdict_reachable.py` is the gate for the route half), or declare "
+      "`# NO-SPA-CONSUMER: <reason>` at the site if it is genuinely not a browser surface")
+check(f"  ...and the nested verdicts are still just the known {len(_BY_CAUSE['nested'])}",
+      len(_BY_CAUSE["nested"]) <= 3,
+      f"{_BY_CAUSE['nested']} — a verdict in a sub-dict cannot be owner-resolved by this rule, so "
+      "its consumer is unchecked here. Its own consumer test is the complement; this floor only "
+      "stops the set growing unnoticed")
+check(f"  ...and every `NO-SPA-CONSUMER:` declaration is still needed ({len(_BY_CAUSE['no-spa'])})",
+      len(_BY_CAUSE["no-spa"]) <= 1,
+      f"{_BY_CAUSE['no-spa']} — more verdicts now declare they have no browser consumer than the "
+      "one measured. That is a product change worth noticing, not a lint")
+check("the old flat floor still holds too",
       len(_UNOWNED) <= 6,
-      f"{_UNOWNED} — a verdict with no resolvable owner method is one this file counts and never "
+      f"{_UNOWNED} — kept as a TOTAL beside the three causes, because a cause this function does "
+      "not yet know would land in `dark` and the per-cause floors would then be the only thing "
+      "looking. A verdict with no resolvable owner method is one this file counts and never "
       "looks at. Either the capability is dark (wire it, and `test_verdict_reachable.py` is the "
       "gate for that) or its owner's response type cannot be resolved here")
 
-_NAMES = {(m, v) for m, v, _, _ in _VERDICTS}
+_NAMES = {(m, v) for m, v, _top, _deep, _nested in _VERDICTS}
 # Labels carry the package now, because two roots can hold the same filename. Rewritten rather
 # than matched loosely: a suffix match would let `aec_data/covenants.py` satisfy a claim about
 # `aec_api/covenants.py`, and the point of this set is that the walk reaches a NAMED file.
@@ -950,7 +1093,9 @@ check("  ...and every `# COVERAGE:` declaration names a REAL sibling of its verd
 # to look for, so this rule is silent about them by construction, and a parenthetical naming the
 # larger number is how that silence read as a result.
 check(f"every consumer of a subset verdict also reads its coverage "
-      f"({len(_VERDICTS) - len(_UNOWNED)} of {len(_VERDICTS)} verdicts have an owner to check)",
+      f"({len(_VERDICTS) - len(_UNOWNED)} of {len(_VERDICTS)} verdicts have an owner to check; "
+      f"{len(_BY_CAUSE['nested'])} nested, {len(_BY_CAUSE['no-spa'])} with no browser consumer, "
+      f"{len(_BY_CAUSE['dark'])} dark)",
       not _BARE,
       f"{len(_BARE)}: {_DETAIL} — the verdict is true of what the engine could evaluate, and a "
       "screen that shows it without the size of what it could not turns an absence of inputs into "
@@ -961,5 +1106,7 @@ if FAILED:
     print(f"verdict_coverage: {len(FAILED)} FAILED — {FAILED}")
     sys.exit(1)
 print(f"verdict_coverage: all checks passed — {len(_VERDICTS)} subset verdict(s) "
-      f"({len(_UNOWNED)} with no owner method, so unexamined by the consumer rule), "
+      f"({len(_UNOWNED)} with no owner method, so unexamined by the consumer rule: "
+      f"{len(_BY_CAUSE['nested'])} nested + {len(_BY_CAUSE['no-spa'])} no-SPA + "
+      f"{len(_BY_CAUSE['dark'])} dark), "
       f"{len(_METHODS)} client methods, 0 consumers reading a verdict without its coverage")

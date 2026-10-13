@@ -102,6 +102,17 @@ with TestClient(app) as c:
     assert g0b["navigable"] is False, g0b
     assert "1 sheet(s) are registered" in (g0b["unassessed_reason"] or ""), g0b
 
+    # THE INVARIANT A CONSUMER LEANS ON, asserted here because it is this engine's to keep.
+    # `assessed` is `bool(targets or edges or dangling or unparseable)`, so an unassessed graph
+    # cannot carry a finding — and `apps/web/src/viewer/tools/detailRefsCard.ts` relies on exactly
+    # that: it gates each findings table on its own length and has NO separate unassessed branch,
+    # after a mutation showed such a branch was unreachable and therefore untested. If this ever
+    # stops holding, the card would present findings from a set it also calls UNCHECKED.
+    for g in (g0, g0b):
+        assert g["assessed"] is False, g
+        assert not g["dangling"] and not g["orphans"] and not g["unparseable"], g
+        assert g["reference_count"] == 0 and g["resolved"] == 0, g
+
     # A-201 is a wall section calling out three details; A-501 carries two of them.
     mk(c, P, "A-201", callouts=[{"ref": "12/A-501"}, {"ref": "13/A-501"}, {"ref": "99/A-501"},
                                 {"ref": "4/A-999"}, {"ref": "see arch"}])
