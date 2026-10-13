@@ -6824,9 +6824,38 @@ eighteenth-note lesson warns against; resolving the negand to a list literal, co
 annotation or `.append()` call needs no list at all. *A smaller number is not the point — a derivable
 one is.*
 
-Not swept in that change, because 18 sites need 18 judgements and the table above is what one
-judgement costs — *a rule demanding 18 edits gets abandoned halfway and leaves the tree
-half-declared.*
+**SWEPT 2026-10-13, and it is a clean negative: 1 of 18.** All 18 were read. Seventeen are correct
+by construction and the reasons fall into three kinds — a **fixed population** (`option_object`
+diffs against the `AXES` constant, `family_packs` and `cde` against constant tables, so "empty" can
+only mean "all present"), a **validated supplied input** (`naming`, `guards` ×2, `nlauthor`,
+`photo_cv` — the thing being checked definitely exists, so no findings genuinely means valid), and
+**emptiness IS the meaning** (`lod.using_default = not targets` is *correct* when empty). Three are
+soft, where the basis is reported but not counted and no consumer currently reads them:
+`model_qa.clean` (a per-element check where one of the checks is `IfcSpace`-only), `uploads.complete`
+(zero declared chunks), `procurement_gate.can_bid`.
+
+*So "bare `not`" was never the population.* 36 → 24 → 18 → 1, and the one was `docmanager.complete`.
+
+## The sharper rule it suggested, and why it was NOT built
+
+The real defect's population came from `REQUIRED_BY_PHASE.get(phase.upper(), [])` — **a lookup keyed
+on caller input with an empty default**, where everything the lookup does not know yields an empty
+collection for a verdict to negate. That is a far higher-precision shape than "bare `not`", so it was
+measured. It fails on both counts:
+
+* **Precision.** Matching a verdict whose operands come from such a lookup returns 10 sites, of which
+  **9 are not verdicts at all** — `cost_code = d.get('data', {}).get('cost_code') or ''` and its
+  kind, value-coalescing expressions that happen to be `BoolOp`s.
+* **Reach, which is the decisive one.** `docmanager.complete` is **not in the 10**. The lookup sits
+  inside `folder_template.phase_checklist`, one function call and one module away, so a
+  same-function AST rule cannot see it. *The rule cannot find the single instance it was derived
+  from.*
+
+Recorded rather than shipped, because *derive the population AND prove the derivation reaches it* —
+and here the proof of reach fails. A gate whose population is 90% noise and which misses its own
+motivating case would be worse than the prose: it would print a clean bill on the next instance and
+carry the authority of a check while doing it. What would make it work is cross-module resolution of
+the collection's provenance, which is a different and much larger instrument.
 
 **And the three it named as "confirmed live" were named from their NAMES. Two were wrong** — see
 BARE-NEGATED below, which read them. `cde.complete` computes `missing_core` against the fixed
