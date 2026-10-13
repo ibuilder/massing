@@ -525,7 +525,12 @@ KNOWN_UNCALLED: set[str] = {
     # `demo/` for `project-package` (one hit, and it builds `/project-package.pdf`, a different
     # route) and for `/workflow/` (zero hits).
     "/projects/{pid}/project-package/contents",
-    "/projects/{pid}/workflow/{key}",
+    # `/projects/{pid}/workflow/{key}` LEFT this list 2026-10-13 — WORKFLOW-DARK. The note above
+    # grepped `/workflow/` and found ZERO hits outside `vendor/`, which was true and is the measurement
+    # that mattered: `projectWorkflow`, `saveProjectWorkflow` and `resetProjectWorkflow` in
+    # `apps/web/src/api/modules.ts` now build it, and `portal/panels/workflowConfig.ts` is the editor.
+    # All three verbs of one surface arrived with no client method at all, which is why this route
+    # could sit here while `clientCallers.test.ts` had nothing to say about it either.
     # PORTAL-TXN-DARK (2026-10-13) — frozen for a reason this list has not carried before: **their
     # caller is not in `apps/web` and never can be.** Both are the public, token-authenticated write
     # routes a CLIENT posts to, and a client has no account; the surface that serves them is
@@ -932,7 +937,9 @@ check("  and the exclusion is LOAD-BEARING: counting the vendored tree would vou
 #: it is two, and two is small enough that a DIFFERENT pair silently swapping in would leave every
 #: check on this page green. So the pair is written down: if the vendored tree starts vouching for
 #: something else, that is a new fact about the exclusion and it must be read, not absorbed.
-_VENDOR_VOUCHED = {"/projects/{pid}/project-package/contents", "/projects/{pid}/workflow/{key}"}
+#: `/projects/{pid}/workflow/{key}` left this set with WORKFLOW-DARK (2026-10-13): it is wired now,
+#: so it is no longer vouched for by anything, vendored or otherwise.
+_VENDOR_VOUCHED = {"/projects/{pid}/project-package/contents"}
 check("  ...and it vouches for exactly the two routes REACH-VENDOR named",
       FOUND - _with_vendor == _VENDOR_VOUCHED,
       f"vendor vouches for {sorted(FOUND - _with_vendor)}, recorded {sorted(_VENDOR_VOUCHED)} — "

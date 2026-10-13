@@ -94,4 +94,20 @@ export async function renderModuleGraph(ctx: PanelContext) {
   };
   sel.onchange = () => void load();
   void load();
+
+  // --- WORKFLOW-DARK: per-project workflow overrides -------------------------------------------
+  // A workflow override is module METADATA and this is the module-metadata panel: the graph above
+  // answers how modules wire to EACH OTHER, this answers how one module's states wire to each
+  // other. It also already holds `ctx.mods`, so the picker costs no extra fetch.
+  const pid = ctx.host.projectId();
+  const wf = document.createElement("div"); wf.className = "dash-card"; wf.style.marginTop = "12px";
+  wf.innerHTML = `<div class="section-title">⚙ Workflow overrides (this project)</div>`;
+  const wfBody = document.createElement("div");
+  wf.appendChild(wfBody); root.appendChild(wf);
+  if (!pid) {
+    wfBody.innerHTML = `<div class="meta">Open or save a project to override a module workflow.</div>`;
+  } else {
+    const { renderWorkflowConfig } = await import("./workflowConfig");
+    renderWorkflowConfig(ctx, wfBody, pid);
+  }
 }

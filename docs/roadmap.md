@@ -1449,6 +1449,66 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   for a gate rather than better. *A measurement that happens to support the conclusion it was taken
   for is the one to re-take.*
 
+- ✅ ⭐ **WORKFLOW-DARK — a firm could not configure its own module workflow, and the refusal that
+  protects records had never reached a user** *(M —
+  `apps/web/src/portal/panels/workflowConfig.ts` + `services/api/src/aec_api/workflow_config.py`;
+  **CLOSED 2026-10-13**; gated by `apps/web/src/portal/panels/workflowConfig.test.ts` and
+  `services/api/test_stored_standard_writable.py`)*
+
+  `workflow_config` (WFE-3) exists because module workflows ship as `module.json` defaults that are
+  *"sensible for most jobs, wrong for some"*: one owner wants a second approval before a change order
+  executes, another runs submittals without a consultant review. An override rewires which of a
+  module's **declared** states connect — it may never invent new ones — and it is a per-project blob
+  with no migration.
+
+  **All three routes had no client method.** Not one frozen name, not a half-built pair: the whole
+  three-verb surface was server-only, which is why it sat in `test_route_reachability`'s uncalled
+  list while `clientCallers.test.ts` had nothing to say about it at all. It was the last member of
+  `test_stored_standard_writable`'s open record with *no declared method*, and the gate's own note
+  called it the instance worth the most for exactly that reason.
+
+  ### The refusal is the capability
+
+  `validate()` counts the live records each change would trap and `save()` **refuses** rather than
+  reporting a warning:
+
+  > a stranded record looks identical to a record nobody has got to yet, so it goes unnoticed for as
+  > long as anyone is willing to wait.
+
+  The shape of the bug it prevents is a submittal sitting in review for three weeks because somebody
+  removed the only transition out. That 422 names the states and the counts — *"2 in 'review'"* — and
+  it had never reached a user, so the editor renders it **verbatim**: "save failed" would throw away
+  the entire content of the refusal.
+
+  ### What the route hands over, and what the screen does with it
+
+  `GET …/workflow/{key}` returns `shipped_transitions` **and** `record_counts`, and its own docstring
+  says the counts are there *"because that is what constrains any change you make"*. The server was
+  handing a UI precisely what an editor needs and there was no editor. So: each state renders with
+  the records standing in it, the diff against the shipped workflow answers "what did I change",
+  and the three refusals are mirrored client-side — stranding, duplicate `(from, action)`, undeclared
+  state — so a problem is visible before the round trip.
+
+  **The mirror is a convenience and the server stays the authority**, which is why
+  `workflowConfig.test.ts` reads `workflow_config.py` off disk and asserts all three rules are still
+  spelled there: a mirror that outlives what it mirrors enforces a standard nobody holds, and every
+  other test would still pass. The subtlest of the three is the one that is easiest to drop:
+  stranding EXCLUDES states the shipped workflow also treats as terminal, because *"a genuinely
+  terminal state SHOULD have no exit"* — without it the editor warns about every `closed` state in
+  the product. Mutation-checked by deleting that condition: the test reds with `{ closed: 9 }`.
+
+  **`party` and `requires` are carried through by spread**, not rebuilt. `save` replaces the whole
+  list and this editor authors neither field, so a fresh object would delete them from every
+  transition touched and only those — AUTHORITY-SUPERSEDE's shape for the fourth time, and the fourth
+  editor in this session written against it from the start rather than after.
+
+  The screen is the module-relations panel: the graph above answers how modules wire to **each
+  other**, this answers how one module's states wire to each other, and that panel already holds
+  `ctx.mods` so the picker costs no extra fetch.
+
+  **The stored-standard sweep is now 8 standards, 1 unwritable** — `macros`, where a macro editor
+  remains separate work.
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*

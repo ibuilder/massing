@@ -113,6 +113,14 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   "POST /projects/{}/model/equipment/spec-check",
   "POST /projects/{}/proforma/solve",
   "POST /projects/{}/progress/actuals",
+  // Added 2026-10-13 by WORKFLOW-DARK giving `PUT /projects/{pid}/workflow/{key}` its first client
+  // method: the route returns `{"module": key, "saved": len(...), **result}`, where `result` is
+  // `workflow_config.validate`'s dict, so only `module` and `saved` can be named statically. Same
+  // arrival as `/cost/datasets/import` above — *this gate can only see a route that HAS a typed call
+  // site, so wiring a dark route is what makes its response comparable at all*, and the entry is the
+  // price of the comparison rather than a defect. The declared type enumerates `validate`'s six keys,
+  // which is complete against today's engine and unverifiable by a static walk over the literal.
+  "PUT /projects/{}/workflow/{}",
 ];
 
 /** A route path as the SERVER writes it, or null when it genuinely cannot be known statically. */

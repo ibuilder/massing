@@ -41,8 +41,8 @@ to LOOK at is more dangerous than one that decides what to report.*
 |---|---|---|---|
 | `clause_playbook` | PUT …/contracts/playbook | `saveClausePlaybook` | **FIXED 2026-10-13** — the editor is the fourth tab of Risk Review |
 | `view_templates` | PUT …/view-templates | `saveViewTemplates` | **FIXED 2026-10-13** — `portal/panels/viewTemplates.ts`, under the graphics card it makes non-empty |
+| `workflow_config` | PUT …/workflow/{key} | `saveProjectWorkflow` | **FIXED 2026-10-13** — `portal/panels/workflowConfig.ts`, in the module-metadata panel |
 | `macros` | PUT …/macros | `saveMacros` | **OPEN** |
-| `workflow_config` | PUT …/workflow/{key} | *none declared* | **OPEN** — and invisible to the gate next door |
 
 **`view_templates` is the instance that argues hardest for this gate's existence**, because it was
 the one with READERS. Two screens consumed it — `qaSection.ts` lists and *applies* a template,
@@ -101,8 +101,6 @@ class Unclassified(Exception):
 OPEN_STANDARDS: dict[str, str] = {
     "macros": "saveMacros has no app caller — the recipe-macro library falls back to a starter set "
               "and nothing can save over it",
-    "workflow_config": "no client method declares PUT /projects/{pid}/workflow/{key} at all, so the "
-                       "per-module workflow is server-only (also frozen in test_route_reachability)",
 }
 
 
