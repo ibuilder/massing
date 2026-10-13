@@ -1573,12 +1573,26 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   an estimate carrying any of them is not complete either, *"the total would be short by an amount
   nobody stated"*. Four coverage counts, a guarded verdict, and no reader.
 
-  **Why it is M and not S**: the route takes a `rules` body, so a screen needs a rules source — the
-  rule library is authorable (`rule_library`, writable since FIRM-RULES-OPTIONAL) but nothing yet
-  binds a stored rule set to this estimate, and inventing a default here would ship a cost number
-  computed from rules the user never chose. *A dark route whose door needs a second capability is not
-  the same finding as one nobody got round to*, which is the distinction `clientCallers.test.ts`
-  records beside `colorFacets` for the same reason.
+  **Why it is M and not S, measured rather than assumed.** The route takes a `rules` body and
+  **nothing in this product stores a cost rule set**. `fived.validate_rules` wants
+  `{selector, code, basis, rate | rate_from: "vintage"}` — a QUERY-DSL selector bound to a cost code
+  and a rate. `rule_library` is authorable and is **not** a candidate: it stores model-CHECK rules,
+  `{scope, require, severity}`, *"two QUERY-DSL selector strings plus a severity"*. Both are
+  "rules" and both are QUERY-DSL, and they are different vocabularies answering different questions
+  — *adjacent names are adjacent in nothing else*, which is the distinction
+  `apps/web/src/api/clientCallers.test.ts` records beside `codeCheck` and `codeAdoptions`. **The
+  first draft of this entry said the rule library was the natural source**, which would have sent
+  the next reader at a file that cannot supply the shape.
+
+  So a door needs a cost-rule source that does not exist yet, and inventing a default would ship a
+  number computed from rules the user never chose. *A dark route whose door needs a second capability
+  is not the same finding as one nobody got round to.*
+
+  **It is two routes, not one.** `POST /projects/{pid}/cost/sov` shares `_run_estimate` with it —
+  deliberately, so *"the schedule of values can never be built from a different estimate than the one
+  the estimate endpoint returns"* — and is equally callerless. The only SOV path with a caller today
+  is `/cost/sov/from-budget`, which builds from the budget rather than from rules, so it needs none
+  of this. Whatever supplies the rules unblocks both.
 
 - ✅ ⭐ **QUANT-VACUOUS — the verdict shape two neighbouring gates excluded from opposite
   directions** *(S — `services/api/test_quant_vacuous.py`; **CLOSED 2026-10-13**)*
