@@ -1511,6 +1511,93 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **QUANT-VACUOUS — the verdict shape two neighbouring gates excluded from opposite
+  directions** *(S — `services/api/test_quant_vacuous.py`; **CLOSED 2026-10-13**)*
+
+  `recipe_log.export()` answered `"replayable": all(not r["params_elided"] for r in entries)`, which
+  is `True` over an empty sequence. RECIPE-LOG-DARK fixed the site; this is the sweep and the gate,
+  and **the reason it needed a new gate is the finding**:
+
+  * `services/api/test_negated_verdict.py` requires `ast.BoolOp` with `And` and explicitly refuses a
+    `Call` operand. A bare `all(…)` is a Call.
+  * `services/api/test_verdict_coverage.py` requires a presence guard to be **present** —
+    `bool(X) and all(…)` — in order to look at the site at all. The missing guard *is* the defect.
+
+  *A predicate that decides what to LOOK at is more dangerous than one that decides what to report*,
+  and here the two most closely related gates excluded one shape from opposite directions: one for
+  being a Call, the other for lacking the very thing it was missing.
+
+  ### The sweep is a clean negative on symptoms, and that is measured rather than hoped
+
+  Ten quantifier dict-verdicts exist across all **1,438** tracked `.py`. Six already carry a presence
+  guard (`covenants.clean`, `perf_budget.within_budget`, `schedule_options.is_baseline`,
+  `dim_constraints.solved`, `ifcpatch_lib.convertible`, `qto.estimated`). Of the four that do not,
+  **every one is structurally non-empty, traced to the line that guarantees it**:
+
+  | site | why empty cannot happen |
+  |---|---|
+  | `financials` · `balanced` | `hold_years = max(1, …)`, so the loop always appends a year-end |
+  | `underwrite` · `ok` | the branch above appends an info flag when `flags` is empty |
+  | `edit` · `all_satisfied` | `allocation` comes from `program`, refused non-empty with a `raise` |
+  | `mep_sizing` · `all_within_budget` | `rs` filters `runs` for a name taken from a set comprehension over `runs` |
+
+  So all four are **declared**, not flipped. *The fix for a vacuous truth is not always to make it
+  false* — NEGATED-VERDICT's own conclusion — and flipping any of these would raise a false alarm on
+  correct input, which is how a check teaches people to ignore it. The marker is
+  `EMPTY-IS-CLEAN:`, **shared with `test_negated_verdict.py` on purpose** so a site moving between
+  the two populations does not need its declaration rewritten; the gate asserts that file still
+  declares the same marker, so a rename reds rather than silently voiding every declaration.
+
+  **The shared marker turned out to be load-bearing on its first run, which is evidence rather than
+  a design claim.** The gate reports *five* declarations where four were written: `dim_constraints`
+  · `solved` already carried an `EMPTY-IS-CLEAN:` reason, written for NEGATED-VERDICT, which deemed
+  it a KEEP. It is **not** guarded — `not any(…) and not violations` has no presence operand, both
+  halves being negations — so without the shared marker this gate would have redded on code the
+  sibling gate had already ruled on and deliberately left alone. Proved by deleting that one comment:
+  the build reds, naming `dim_constraints.py:229`. *Two gates asking one question of two syntaxes
+  must accept one declaration, or the second one taxes the first one's conclusions.*
+
+  A fifth site needs nothing: `cde.exchange_acceptance.completeness` iterates a literal three-tuple,
+  and **the exemption is derived** by resolving the comprehension's iterable rather than by naming
+  the site. A comprehension with more than one `for` is not exempted, because the second iterable may
+  be the empty one. `any(…)` alone and `not all(…)` are outside the population entirely — both are
+  FALSE over empty input, so they cannot carry this defect, and admitting them would have doubled the
+  population with correct code.
+
+  ### A dry run against the live tree found two defects in the gate before it existed
+
+  Worth the paragraph because neither would have failed any test I had written, and both are the same
+  class the gate is about.
+
+  The first draft named three "source roots", and **`services/converter` is JavaScript** — six
+  tracked files, zero `.py` — so its own precondition *"every root contributed files"* could never
+  pass. The second: that per-root count was keyed on `Path.name`, and `services/api/src` and
+  `services/data/src` **share the name `src`**, so the dict held two entries for three roots and one
+  root's count silently overwrote another's. *A root asserted to contribute, that cannot, and a
+  count that cannot distinguish two of the three things it counts.*
+
+  Both are gone rather than fixed, because the root list was never load-bearing: measured across
+  every tracked `.py`, **all ten sites are under `services/{api,data}/src` and there are zero
+  elsewhere**, and all 1,438 parse as Python 3 — the three IronPython 2.7 scripts under
+  `integrations/pyrevit/` included. So the gate scans everything and has no root list and no
+  exclusion list to be wrong about.
+
+  **And `git ls-files` must be `-z`.** Three pyrevit paths contain spaces (`Open in
+  Massing.pushbutton`), so splitting the output on whitespace yields **1,443** "paths" where there
+  are 1,438: five phantoms invented from three real files, which are themselves lost. The precondition
+  for it is derived from the defect rather than from the number — it asserts a space-containing path
+  is *present*, because a check on the total would have passed at 1,443.
+
+  ### Mutation-proved, both halves
+
+  Every declaration is load-bearing: deleting any one of the five reds the build naming that site and
+  no other. And the gate's own rules red their own self-tests — removing the literal-iterable
+  exemption reports `cde.completeness` and reds the derivation check; making `verdict()` return `"ok"`
+  unconditionally reds the proof-of-reach, which is the `test_unique_read_guard` lesson (*reporting a
+  site and classifying it are two different questions*, so the classifier is a separate function that
+  can be mutated alone); swapping `all`/`any` reds the proof-of-reach and three more; and splitting
+  `git ls-files` on whitespace reds three preconditions at once.
+
 - ✅ ⭐ **MACRO-CAPTURE — the last unwritable stored standard, closed by a capture rather than by
   the editor everyone had priced** *(S — `apps/web/src/viewer/tools/recipeMacroCapture.ts`;
   **CLOSED 2026-10-13**; gated by `apps/web/src/viewer/tools/recipeMacroCapture.test.ts` and

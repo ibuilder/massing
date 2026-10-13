@@ -651,6 +651,10 @@ def program_fit(model: ifcopenshell.file, program: dict, item: str = "desk") -> 
             "departments": sorted(allocation.values(), key=lambda a: -a["headcount"]),
             "seats_placed": placed_total,
             "seats_asked": sum(n for _, n in asks),
+            # EMPTY-IS-CLEAN: `allocation` cannot be empty. It is built from `asks`, which is
+            # built from `program` — and `program` is refused at the top of this function with
+            # `raise ValueError("program must be a non-empty {department: headcount} map")`, so
+            # there is always at least one department to satisfy. QUANT-VACUOUS.
             "all_satisfied": all(a["satisfied"] for a in allocation.values()),
             "unallocated_spaces": [{"guid": r["guid"], "name": r["name"],
                                     "capacity": r["capacity"]}

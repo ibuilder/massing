@@ -202,6 +202,9 @@ def pressure_loss(model, *, duct_friction_max: float = _DUCT_FRICTION_MAX,
                         "loss_unit": "in_wg" if rs[0]["kind"] == "duct" else "ft_head",
                         "index_run": {"guid": index["guid"], "loss": index["loss"],
                                       "friction_rate": index["friction_rate"]},
+                        # EMPTY-IS-CLEAN: `rs` cannot be empty. `sysname` comes from a set
+                        # comprehension over `runs`, and `rs` filters `runs` for that same name, so
+                        # at least one run matches every name this loop visits. QUANT-VACUOUS.
                         "all_within_budget": all(r["status"] == "pass" for r in rs)})
     runs.sort(key=lambda r: (0 if r["status"] == "fail" else 1, -r["loss"]))
     return {

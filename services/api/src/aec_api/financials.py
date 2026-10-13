@@ -242,8 +242,14 @@ def statements(solve: dict, assumptions: dict) -> dict[str, Any]:
                         "niit_rate": float(tax["niit_rate"]), "recapture_rate": float(tax["recapture_rate"]),
                         "land": _r(land), "depreciable_basis": _r(building_basis)},
         "income_statement": income_statement,
-        "balance_sheet": {"by_year": balance_sheets,
-                          "balanced": all(b["balanced"] for b in balance_sheets)},
+        "balance_sheet": {
+            "by_year": balance_sheets,
+            # EMPTY-IS-CLEAN: `balance_sheets` cannot be empty. `hold_years` is
+            # `max(1, int(round(float(timing["hold_years"]))))` above, and the loop that builds this
+            # list runs `for y in range(hold_years)` — so it always appends at least one year-end.
+            # QUANT-VACUOUS: declared rather than guarded because `bool(balance_sheets) and ...`
+            # would read as a possibility the arithmetic above has already excluded.
+            "balanced": all(b["balanced"] for b in balance_sheets)},
         "cash_flow_statement": cash_flow_statement,
         "tax": {"depreciation_by_year": depr, "annual": years, "sale": stax,
                 "suspended_loss_at_sale": _r(suspended_loss)},
