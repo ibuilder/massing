@@ -91,6 +91,7 @@ def compare(before: dict[str, dict], after: dict[str, dict]) -> dict[str, Any]:
     # this leaf exists to answer is *does what we author survive serialization*, and over zero
     # elements that question was not answered. `bool(before)` is the evidence.
     return {
+        # COVERAGE: nothing_compared
         "fidelity_ok": bool(before) and not missing and not added and not changed,
         # False for want of a model, rather than for a discrepancy. Two Falses, opposite meanings.
         "nothing_compared": not before,

@@ -56,7 +56,18 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/documents/health`);
   }
   documentsPhaseGaps(pid: string, phase: string) {
-    return this.json<{ phase: string; missing: number; complete: boolean;
+    return this.json<{ phase: string; missing: number;
+      /** `bool(items) and not missing` — it REQUIRES a recognised phase. It used to be
+       *  `not missing` over a checklist that is EMPTY for a phase the server does not know, so
+       *  `?phase=NONSENSE` answered `true`. */
+      complete: boolean;
+      /** False when the phase is not one the checklist covers. Declared so a derivation over
+       *  declarations can see it — `services/api/test_verdict_coverage.py` reads this as
+       *  `complete`'s coverage, and a consumer rendering the verdict without it is reported bare. */
+      known_phase: boolean;
+      known_phases: string[];
+      /** The refusal, with the known phases named, so a caller can fix the call from it alone. */
+      refused: string | null;
       items: { folder: string; description: string; present: boolean }[] }>(
       `/projects/${pid}/documents/phase-gaps?phase=${encodeURIComponent(phase)}`);
   }

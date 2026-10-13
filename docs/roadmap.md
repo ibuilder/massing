@@ -6916,6 +6916,101 @@ The other three mutations: the engine's refusal removed (reds), the route's 422 
 independently of the engine's), and the strip tolerance removed (reds on `"CD "`).
 
 
+### VERDICT-ROOT — the coverage gate counted 15 verdicts and ruled on 5 *(✅ CLOSED 2026-10-13)*
+
+*(M — **Lane G**; `services/api/test_verdict_coverage.py`)*
+
+Set out to widen the gate's scan root: it read `HERE / "src" / "aec_api"` only, so the IFC engines in
+`services/data/src/aec_data` were outside its population — **6 of the 14** it has when it looks at
+both. Widening it was a **clean negative**: 8 → 15 verdicts, 0 new bare consumers.
+
+**Measuring what the widening BOUGHT is what found the real defect.** `bare_consumers` opened with
+
+```python
+coverage = sorted(k for k in deep if COVERAGE_NAME.match(k))
+if not coverage:
+    continue
+```
+
+and "coverage" meant *a sibling whose **name** matches the vocabulary*. **8 of 15 verdicts had no
+such sibling, so the rule never looked at them** — while the summary line read *"0 consumers reading
+a verdict without its coverage (15 verdicts)"*. It was ruling on **5**.
+
+Among the 8 were **all three verdicts NEGATED-VERDICT flipped three commits earlier the same night**.
+Their coverage fields are `assessed`, `nothing_reconciled_yet` and `nothing_compared`; the vocabulary
+knows none of them. *The class's own gate could not see the repairs made for the class.*
+
+## Four causes, four different lessons
+
+**① The skip was fail-open.** *A predicate that decides what to LOOK at is more dangerous than one
+that decides what to report* — the fourth instance in these notes. It is now its own `check`, kept
+apart from the consumer rule so each can be mutated alone. Folding it in was tried first and it
+appended once per verdict regardless of the `sources` handed in, breaking all three fixture-based
+self-tests: the measured proof that *does every verdict name its coverage* and *does every consumer
+read it* are different questions.
+
+**② One vocabulary, two opposite polarities, one of them reasoned about.** Its own note says widening
+"makes the consumer check easier to satisfy" — true where the verdict is already ruled on. But a
+**missing** entry did not make the rule stricter; it removed the verdict from the ruled-on set
+entirely. The same narrowness that protects polarity 1 silently voids polarity 2, and adding names to
+fix the second loosens the first for every verdict at once. So the repair is a **site declaration**,
+`# COVERAGE: <field>`, which loosens nothing — and is self-checking, because the declared name must
+BE a sibling key of that verdict's dict. A typo reds; that is the whole difference between a
+declaration and an exemption.
+
+**③ The regex, in the most literal available form of the house lesson.** Two of twelve stems carried
+`\w*` — `unrecorded\w*` and `skipped\w*`, exactly the two some verdict needed on the day they were
+written — and ten did not. So `unmeasured_count`, `untested_count` and `uncovered_pct` did not match,
+and `perf_budget.within_budget`, whose coverage field is named `unmeasured_count`, **this
+vocabulary's own word with a suffix**, was skipped on that inconsistency. *A hand-widened list is a
+list somebody stopped widening*: the wildcard was applied per entry, as needed, and never
+generalised. Normalising it is a repair, not a widening — a consumer reading `untested_pct` is
+reading the coverage.
+
+**④ The delegation hop was blind twice, and the second blindness hid the first repair.** Its own
+docstring says *"a detector keyed on where the read usually sits cannot see a read that moved, and
+this repository moves them on purpose"* — and it knew the static named import and neither dynamic
+form, though the bundle budget and the size ratchet between them push every click-driven card behind
+`await import()`. Separately, `_HOLDER` required `const x = await ….m(` in ONE statement, while the
+house idiom for a fetch that handles its own failure is two:
+
+```ts
+let r;
+try { r = await api.modelRoundtrip(pid); }
+```
+
+so `holders` came back empty and the hop returned before looking at a single import. The dynamic
+spellings were added first and `qaSection.ts` was **still** reported bare, because the hop never got
+that far. Three spellings and the optional declarator now, with six self-tests — four positive, two
+negative (a package must not be followed; an imported binding not called with THIS response must not
+bless anything).
+
+## What it then found, with the rule finally reaching all 15
+
+- **`portal/panels/documents.ts`** rendered `complete ? "all present ✅"` with no reference to
+  `known_phase`. Not live — the value comes from a `<select>` of server-supplied phases and the route
+  422s on anything else — but `complete` was `not missing` over a checklist that is EMPTY for an
+  unrecognised phase, so a free-text phase input or a stale client would print *all present* over
+  nothing. Third independent refusal, two lines.
+- **`adjacency.forbidden_ok` was a real engine gap, not a naming one.** It is guarded on `forbidden`
+  — the pairs the program declares — and **no sibling reported how many that was**, so a consumer
+  could not tell "no forbidden adjacencies were declared" from "every one is respected".
+  `required_total` is the other population and would have been the wrong thing to read.
+  `forbidden_total` is new.
+
+Five mutations red: the `\w*` removed (perf_budget goes unnameable), `_HOLDER`'s declarator required
+again, the dynamic spellings removed, a declaration naming a non-sibling, and the DATA root broken —
+that last one caught by a precondition that counts **per root**, because `rglob` over a missing
+directory yields nothing and raises nothing, and a merged walk cannot make that check on itself.
+*A gate's root is a question about where somebody stood*, which `test_schema_types_agree.py` paid for
+in the same words.
+
+**And the self-tests' own fixture directory is swept**, with the sweep asserted. It lives under the
+system temp, so no `.gitignore` would ever cover it and `git status` would never show it — one
+directory per invocation that nothing in the repo could notice. Seven had accumulated while this was
+being written.
+
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

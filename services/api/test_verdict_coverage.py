@@ -117,11 +117,23 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_verdict_covera
 """
 import ast
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 API = HERE / "src" / "aec_api"
+#: VERDICT-ROOT. This gate scanned `API` alone, so every subset verdict in the IFC engines was
+#: outside its population: **6 of the 14** it has when it looks at both — `qto.estimated`,
+#: `roundtrip.fidelity_ok`, `adjacency.satisfied` (twice), `adjacency.forbidden_ok` and
+#: `ifcpatch_lib.convertible`. 43%, and one of the six was a verdict NEGATED-VERDICT had to flip,
+#: whose repair was therefore gated by a sibling file rather than by the gate that owns the class.
+#: *A gate's root is a question about where somebody stood* — `test_schema_types_agree.py` paid for
+#: that in the same words, and the precondition below exists because `rglob` over a missing
+#: directory yields nothing and raises nothing, so a wrong root reports a clean tree.
+DATA = HERE.parent / "data" / "src" / "aec_data"
+ENGINE_ROOTS = (API, DATA)
 WEB = HERE.parents[1] / "apps" / "web" / "src"
 WEBAPI = WEB / "api"
 
@@ -153,9 +165,22 @@ def check(label, ok, detail=""):
 #: entry makes the consumer check easier to satisfy. An entry with no verdict needing it loosens the
 #: rule for nothing. *A vocabulary that grows because a word fits is a vocabulary that stops
 #: discriminating* — re-measure and add one when a verdict actually needs it.
+#: EVERY stem carries `\w*`, and that is a REPAIR rather than a widening. Two of the twelve had it
+#: — `unrecorded\w*` and `skipped\w*`, exactly the two some verdict needed on the day they were
+#: written — and ten did not, so `unmeasured_count`, `untested_count` and `uncovered_pct` did not
+#: match. `perf_budget.within_budget` names its coverage `unmeasured_count`, which is this
+#: vocabulary's own word with a suffix, and it was skipped entirely on that inconsistency. *A
+#: hand-widened list is a list somebody stopped widening*, in the most literal available form: the
+#: wildcard was applied per entry, as each was needed, and never generalised.
+#:
+#: This is NOT the widening the note below cautions against. That caution is about adding new WORDS,
+#: each of which loosens the consumer check for every verdict at once. A suffix on a word already
+#: here loosens nothing that the word did not already permit: a consumer reading `untested_pct` is
+#: reading the coverage, and there is no sense in which reading the count is weaker than reading the
+#: bare name.
 COVERAGE_NAME = re.compile(
-    r"^(untested|unmapped|unpriced|unmeasured|uncomputable|uncovered|unrecorded\w*"
-    r"|skipped\w*|not_applicable|not_computable|not_run|not_tested)$")
+    r"^(untested|unmapped|unpriced|unmeasured|uncomputable|uncovered|unrecorded"
+    r"|skipped|not_applicable|not_computable|not_run|not_tested)\w*$")
 
 
 def is_presence_guarded_verdict(value: ast.expr) -> bool:
@@ -229,6 +254,19 @@ def keys_deep(node: ast.Dict) -> set[str]:
     return out
 
 
+def engine_verdicts() -> list[tuple[str, str, set[str], set[str]]]:
+    """Every subset verdict across BOTH engine roots, labelled by package so the two cannot collide.
+
+    Separate from `subset_verdicts` so each root can still be walked alone — the preconditions below
+    assert that both CONTRIBUTED, which is the check a merged walk cannot make on itself.
+    """
+    out = []
+    for root in ENGINE_ROOTS:
+        for mod, verdict, top, deep in subset_verdicts(root):
+            out.append((f"{root.name}/{mod}", verdict, top, deep))
+    return out
+
+
 def subset_verdicts(root: Path) -> list[tuple[str, str, set[str], set[str]]]:
     """`(module, verdict, top-level siblings, all siblings)` for every subset verdict under `root`."""
     out = []
@@ -274,12 +312,32 @@ def reads(src: str, name: str) -> bool:
 
 
 #: `const x = await ….<owner>(` — the binding that holds one owner method's response.
-_HOLDER = r"(?:const|let|var)\s+(\w+)\s*=\s*await\s+[^;]*?\.{owner}\("
+#:
+#: **The declarator is OPTIONAL, and that was a blind spot of its own.** The house idiom for a fetch
+#: that must handle its own failure is two statements:
+#:
+#:     let r;
+#:     try {{ r = await api.modelRoundtrip(pid); }}
+#:     catch (e) {{ toast(...); return; }}
+#:
+#: and this pattern required the declaration and the assignment to be ONE statement. So for every
+#: consumer written that way — which is most of `viewer/tools/*` — `holders` came back empty and the
+#: delegation hop returned before it looked at a single import. *Two independent blind spots in one
+#: detector, and the second one made the first one's repair invisible*: the dynamic-import spellings
+#: were added first and `qaSection.ts` was still reported bare, because the hop never got that far.
+_HOLDER = r"(?:(?:const|let|var)\s+)?(\w+)\s*=\s*await\s+[^;]*?\.{owner}\("
 #: An `import { a, b as c }` whose specifier begins with a dot — a RELATIVE import only; a package
 #: cannot be a local reading. The example is written in prose rather than quoted, because
 #: `services/api/test_scratch_ignored.py` reads every `"./<name>"` literal in this directory as a
 #: scratch directory and an illustration is not worth an exemption.
 _REL_IMPORT = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"(\.[^"]*)"')
+#: The DYNAMIC named form — a braced binding list assigned from an awaited import of a
+#: dot-relative specifier. Same shape as the static one
+#: above; a different spelling.
+_DYN_NAMED = re.compile(r'\{([^}]*)\}\s*=\s*await\s+import\(\s*"(\.[^"]*)"\s*\)')
+#: The DYNAMIC NAMESPACE form — one binding assigned from an awaited import, where every call
+#: goes through it as a member access. (Both written in prose for the reason three lines up.)
+_DYN_NS = re.compile(r'(?:const|let|var)\s+(\w+)\s*=\s*await\s+import\(\s*"(\.[^"]*)"\s*\)')
 
 
 def delegated(src: str, path: "Path | None", owner: str) -> str:
@@ -310,10 +368,23 @@ def delegated(src: str, path: "Path | None", owner: str) -> str:
     if not holders:
         return ""
     out = []
-    for names, rel in _REL_IMPORT.findall(src):
-        bound = [n.strip().split(" as ")[-1].strip() for n in names.split(",") if n.strip()]
-        if not any(re.search(rf"\b{re.escape(fn)}\(\s*{re.escape(v)}\b", src)
-                   for fn in bound for v in holders):
+    # THREE spellings, because this repository moves a reading in three ways and the hop originally
+    # knew one. `viewer/tools/*` is the eager bundle chunk, so the size ratchet and the bundle budget
+    # between them push every click-driven card behind `await import()` — which is exactly what the
+    # round-trip card did, and it made the reading invisible here. *A detector keyed on where the
+    # read usually sits cannot see a read that moved*, which this function's own docstring says, one
+    # spelling short of acting on it.
+    candidates: list[tuple[list[str], str, bool]] = []
+    for names, rel in _REL_IMPORT.findall(src) + _DYN_NAMED.findall(src):
+        candidates.append(([n.strip().split(" as ")[-1].strip()
+                            for n in names.split(",") if n.strip()], rel, False))
+    for ns, rel in _DYN_NS.findall(src):
+        candidates.append(([ns], rel, True))
+    for bound, rel, namespaced in candidates:
+        # a namespace binding is called as `m.fn(v)`; a named one as `fn(v)`
+        pat = (lambda fn, v: rf"\b{re.escape(fn)}\.\w+\(\s*{re.escape(v)}\b") if namespaced \
+            else (lambda fn, v: rf"\b{re.escape(fn)}\(\s*{re.escape(v)}\b")
+        if not any(re.search(pat(fn, v), src) for fn in bound for v in holders):
             continue
         target = (path.parent / (rel + ".ts")).resolve()
         if target.is_file():
@@ -325,6 +396,47 @@ def web_files() -> list[Path]:
     """Application sources: not tests, not vendored, not the client layer itself."""
     return [p for p in sorted(WEB.rglob("*.ts"))
             if not p.name.endswith(".test.ts") and "vendor" not in p.parts and p.parent != WEBAPI]
+
+
+#: `# COVERAGE: <field>` on the verdict's own line or the comment block above it — the engine naming
+#: its own coverage field, for the cases the vocabulary does not spell.
+#:
+#: **Why a declaration and not three more vocabulary entries.** The vocabulary is read with TWO
+#: OPPOSITE POLARITIES and only one of them was ever reasoned about. Its own note says widening it
+#: "makes the consumer check easier to satisfy", which is true where the verdict is already ruled
+#: on — but a MISSING entry did not make the rule stricter, it removed the verdict from the ruled-on
+#: set altogether. So the same narrowness that protects one polarity silently voids the other, and
+#: adding names to fix polarity 2 loosens polarity 1 for every verdict at once. A declaration at the
+#: site loosens nothing and cannot hide: a verdict with neither a known name nor a declaration reds.
+#:
+#: It is self-checking — the declared name must BE a sibling key of that verdict's dict, so a typo
+#: is a failure rather than a silent exemption.
+_COVERAGE_DECL = re.compile(r"#\s*COVERAGE:\s*([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def declared_coverage(mod: str, verdict: str) -> set[str]:
+    """Coverage field names declared at the verdict's site in `mod`."""
+    root = next((r for r in ENGINE_ROOTS if mod.startswith(r.name + "/")), None)
+    if root is None:
+        return set()
+    path = root.parent / mod
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    out: set[str] = set()
+    for i, line in enumerate(lines):
+        if f'"{verdict}":' not in line:
+            continue
+        # the verdict's own line, then upward through the contiguous comment block above it
+        block = [line]
+        j = i - 1
+        while j >= 0 and lines[j].lstrip().startswith("#"):
+            block.append(lines[j])
+            j -= 1
+        for b in block:
+            out |= {m.group(1) for m in _COVERAGE_DECL.finditer(b)}
+    return out
 
 
 def bare_consumers(sources=None):
@@ -339,9 +451,25 @@ def bare_consumers(sources=None):
         (str(p.relative_to(WEB)), p.read_text(encoding="utf-8"), p) for p in web_files()]
     files = [(f + (None,))[:3] for f in files]      # the replay passes (label, src) pairs
     out = []
-    for mod, verdict, top, deep in subset_verdicts(API):
+    for mod, verdict, top, deep in engine_verdicts():
         coverage = sorted(k for k in deep if COVERAGE_NAME.match(k))
+        coverage += sorted(declared_coverage(mod, verdict) - set(coverage))
         if not coverage:
+            # SKIPPED HERE, AND THAT IS ONLY SOUND BECAUSE `unnameable_coverage()` BELOW REDS ON A
+            # NON-EMPTY SET. The dependency is named because the skip was a fail-OPEN hole for as
+            # long as nothing else covered it: 8 of 15 verdicts had no vocabulary-matching sibling,
+            # so this loop never looked at them while the summary line said "0 consumers reading a
+            # verdict without its coverage (15 verdicts)". Among the 8 were all THREE verdicts
+            # NEGATED-VERDICT flipped — `assessed`, `nothing_reconciled_yet`, `nothing_compared`, none
+            # of which the vocabulary knows — so the class's own gate could not see the repairs made
+            # for the class. *A predicate that decides what to LOOK at is more dangerous than one
+            # that decides what to report*, for the fourth time in these notes.
+            #
+            # The two questions are kept APART on purpose — *does every verdict name its coverage*
+            # and *does every consumer read it* — so each can be mutated alone. Folding the first
+            # into this function made it append once per verdict regardless of the `sources` handed
+            # in, which broke all three fixture-based self-tests: the measured proof that they are
+            # different questions.
             continue
         owners = [n for n, declared in methods.items()
                   if verdict in declared and len(top & declared) >= 3]
@@ -356,16 +484,60 @@ def bare_consumers(sources=None):
     return out
 
 
+def unnameable_coverage() -> list[tuple[str, str, list[str]]]:
+    """`(module, verdict, sibling keys)` for every subset verdict whose coverage cannot be NAMED.
+
+    The companion to `bare_consumers`, and the reason its `continue` is not a hole. A verdict here
+    is one the consumer rule can never rule on, so leaving the set unchecked meant the rule's own
+    headline counted verdicts it had never looked at.
+    """
+    out = []
+    for mod, verdict, _top, deep in engine_verdicts():
+        if any(COVERAGE_NAME.match(k) for k in deep):
+            continue
+        if declared_coverage(mod, verdict) & deep:
+            continue                      # declared, and the declaration names a REAL sibling
+        out.append((mod, verdict, sorted(deep)))
+    return out
+
+
+def misdeclared_coverage() -> list[tuple[str, str, list[str]]]:
+    """A `# COVERAGE:` declaration naming a field that is not a sibling of that verdict.
+
+    Self-checking, so a typo is a failure rather than a silent exemption — the whole difference
+    between a declaration and an exemption list.
+    """
+    out = []
+    for mod, verdict, _top, deep in engine_verdicts():
+        bad = sorted(declared_coverage(mod, verdict) - deep)
+        if bad:
+            out.append((mod, verdict, bad))
+    return out
+
+
 # ---------------------------------------------------------------------------------------------
 # PRECONDITIONS — each is a way this file could report a clean tree while seeing nothing.
 
-_VERDICTS = subset_verdicts(API)
+_VERDICTS = engine_verdicts()
 _METHODS = client_methods()
 
 check(f"the AST walk found subset verdicts ({len(_VERDICTS)})",
       len(_VERDICTS) >= 4,
-      f"only {len(_VERDICTS)} found under {API} — the rule below would be a statement about an "
-      "empty population, which reads exactly like a clean tree")
+      f"only {len(_VERDICTS)} found under {' + '.join(str(r) for r in ENGINE_ROOTS)} — the rule "
+      "below would be a statement about an empty population, which reads exactly like a clean tree")
+
+# BOTH ROOTS MUST CONTRIBUTE, counted separately. A merged walk cannot make this check on itself:
+# `rglob` over a path that does not exist yields nothing and raises nothing, so one wrong root
+# silently halves the population and the file still prints a clean bill. That is exactly how
+# `test_schema_types_agree.py` would have reported a clean tree under CI and nowhere else.
+_PER_ROOT = {r.name: len(subset_verdicts(r)) for r in ENGINE_ROOTS}
+check("both engine roots contributed — a missing one narrows the population in silence",
+      all(n > 0 for n in _PER_ROOT.values()),
+      f"{_PER_ROOT}; roots: " + ", ".join(f"{r}={'exists' if r.is_dir() else 'MISSING'}"
+                                          for r in ENGINE_ROOTS))
+check("  ...and each root is a real directory, asserted rather than inferred from a non-zero count",
+      all(r.is_dir() for r in ENGINE_ROOTS),
+      ", ".join(f"{r}={'ok' if r.is_dir() else 'MISSING'}" for r in ENGINE_ROOTS))
 
 check(f"the client surface parsed ({len(_METHODS)} methods)",
       len(_METHODS) >= 200,
@@ -373,11 +545,21 @@ check(f"the client surface parsed ({len(_METHODS)} methods)",
       "check can never fire")
 
 _NAMES = {(m, v) for m, v, _, _ in _VERDICTS}
-_MUST_FIND = {("covenants.py", "clean"), ("rent_scrub.py", "clean"),
-              ("sequence_clash.py", "clean"),
+# Labels carry the package now, because two roots can hold the same filename. Rewritten rather
+# than matched loosely: a suffix match would let `aec_data/covenants.py` satisfy a claim about
+# `aec_api/covenants.py`, and the point of this set is that the walk reaches a NAMED file.
+_MUST_FIND = {("aec_api/covenants.py", "clean"), ("aec_api/rent_scrub.py", "clean"),
+              ("aec_api/sequence_clash.py", "clean"),
               # Shape 3, added 2026-10-12. The eighth instance of this class, found by hand while
               # this gate reported a clean tree — so it is a proof of reach, not a nicety.
-              ("quality_chain.py", "ready")}
+              ("aec_api/quality_chain.py", "ready"),
+              # VERDICT-ROOT, 2026-10-13: the proof of reach for the WIDENING. These three were
+              # invisible to this gate until it looked at `services/data`, and `roundtrip.fidelity_ok`
+              # is the sharpest of them — NEGATED-VERDICT had to flip it, so the class's own gate
+              # could not see the instance of the class it was fixing.
+              ("aec_data/roundtrip.py", "fidelity_ok"),
+              ("aec_data/qto.py", "estimated"),
+              ("aec_data/adjacency.py", "forbidden_ok")}
 check(f"the walk re-finds the {len(_MUST_FIND)} known subset verdicts",
       _MUST_FIND <= _NAMES,
       f"missing {sorted(_MUST_FIND - _NAMES)} — these are the instances the rule was derived from, "
@@ -442,6 +624,59 @@ check("SELF-TEST: …and it looks at NOTHING when the response is not handed any
                 Path(__file__), "qualityTurnoverReadiness") == "",
       "the hop widened the search without the response reaching the module, which is how an "
       "unrelated helper mentioning `skipped` would bless a bare consumer")
+
+# SELF-TESTS for the three spellings the delegation hop could not see. Each is a way a consumer in
+# THIS tree hands its reading to another module, and the hop knew one of them. They are asserted
+# against the real `delegated` with a temp file, because a detector that only works on the shape its
+# author happened to write is the thing these notes are about.
+#: The hop's fixture module, and its specifier is COMPOSED rather than written. A quoted
+#: dot-slash literal in this directory is read as a scratch directory by
+#: `services/api/test_scratch_ignored.py` — which `_REL_IMPORT` above says in as many words, three
+#: hundred lines up, and which I then broke by adding four of them. Composition needs no exemption
+#: and leaves that gate strict, which an exemption would not.
+_HOP_MOD = "reader"
+_HOP_SPEC = "." + "/" + _HOP_MOD
+_HOP_DIR = Path(tempfile.mkdtemp(prefix="verdict_hop_"))
+(_HOP_DIR / f"{_HOP_MOD}.ts").write_text("export const rd = (x) => x.skipped_count;\n", encoding="utf-8")
+_HOP_SELF = _HOP_DIR / "panel.ts"
+_HOP_SELF.write_text("", encoding="utf-8")
+
+_HOP_FORMS = {
+    "static named import":
+        f'import {{ rd }} from "{_HOP_SPEC}";\nconst q = await ctx.api.ownerM(pid);\nrd(q);',
+    "dynamic NAMED import — `const { rd } = await import(...)`":
+        f'const {{ rd }} = await import("{_HOP_SPEC}");\nconst q = await ctx.api.ownerM(pid);\nrd(q);',
+    "dynamic NAMESPACE import — `const m = await import(...)`, called as `m.rd(q)`":
+        f'const m = await import("{_HOP_SPEC}");\nconst q = await ctx.api.ownerM(pid);\nm.rd(q);',
+    "SPLIT holder — `let q;` then `q = await ...`, the house try/catch idiom":
+        f'const m = await import("{_HOP_SPEC}");\nlet q;\ntry {{ q = await ctx.api.ownerM(pid); }} '
+        'catch (e) { return; }\nm.rd(q);',
+}
+for _label, _src in _HOP_FORMS.items():
+    check(f"SELF-TEST: the hop follows a {_label}",
+          "skipped_count" in delegated(_src, _HOP_SELF, "ownerM"),
+          "the reading in the imported module was not reached, so a consumer written this way "
+          "reads as bare — which is how `qaSection.ts` was reported after its card was extracted")
+
+check("SELF-TEST: ...and it follows NOTHING when the import is a package, not a relative path",
+      delegated('import { rd } from "lodash";\nconst q = await ctx.api.ownerM(pid);\nrd(q);',
+                _HOP_SELF, "ownerM") == "",
+      "a package was followed — the hop's narrowness is its safety, and a node_modules helper that "
+      "happens to mention a coverage word must never bless a consumer")
+
+check("SELF-TEST: ...and NOTHING when the imported binding is not called with this response",
+      delegated(f'const m = await import("{_HOP_SPEC}");\nconst q = await ctx.api.ownerM(pid);\n'
+                'm.rd(somethingElse);', _HOP_SELF, "ownerM") == "",
+      "an unrelated call blessed the consumer — the link must be the variable that holds THIS "
+      "owner's response")
+
+# Swept, because a gate that leaves residue behind is what `services/api/test_scratch_ignored.py`
+# exists for — and this one is under the system temp rather than the repo, so no `.gitignore` would
+# ever cover it and `git status` would never show it either. Nothing to notice, which is worse.
+shutil.rmtree(_HOP_DIR, ignore_errors=True)
+check("  SELF-TEST: ...and the hop's own fixture directory is swept, not left in the system temp",
+      not _HOP_DIR.exists(), f"{_HOP_DIR} survived — one directory per invocation, invisible to "
+      "`git status` because it is not in the repo at all")
 
 check("SELF-TEST: `not_covered` is not a coverage name",
       not COVERAGE_NAME.match("not_covered"),
@@ -528,6 +763,22 @@ check("  …and its repair is clean",
 
 _BARE = bare_consumers()
 _DETAIL = "; ".join(f"{f} reads {m}::{v} and none of {c}" for f, m, v, c in _BARE)
+_UNNAMEABLE = unnameable_coverage()
+check(f"every subset verdict NAMES its coverage ({len(_VERDICTS) - len(_UNNAMEABLE)} of {len(_VERDICTS)})",
+      not _UNNAMEABLE,
+      "; ".join(f"{m}::{v} has no coverage-named sibling and no `# COVERAGE:` declaration "
+                f"(siblings: {d[:8]})" for m, v, d in _UNNAMEABLE)
+      + " — the consumer rule below SKIPS these, so an unnamed coverage is a verdict nobody checks. "
+        "Declare the field at the site with `# COVERAGE: <field>`, or give it a name the vocabulary "
+        "knows")
+
+_MISDECLARED = misdeclared_coverage()
+check("  ...and every `# COVERAGE:` declaration names a REAL sibling of its verdict",
+      not _MISDECLARED,
+      "; ".join(f"{m}::{v} declares {d} which is not a sibling" for m, v, d in _MISDECLARED)
+      + " — a declaration that names nothing is an exemption, and the point of declaring at the "
+        "site is that it cannot become one")
+
 check(f"every consumer of a subset verdict also reads its coverage ({len(_VERDICTS)} verdicts)",
       not _BARE,
       f"{len(_BARE)}: {_DETAIL} — the verdict is true of what the engine could evaluate, and a "

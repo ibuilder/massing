@@ -78,6 +78,7 @@ def reconcile(db: Session, pid: str) -> dict[str, Any]:
         # `bool(matched)` is the evidence: at least one cost code carries both a budget and an actual.
         # Spelled as a `bool()` call rather than the bare name so the field cannot serialise as `[]`
         # — and that spelling is also what `services/api/test_verdict_coverage.py` recognises.
+        # COVERAGE: nothing_reconciled_yet
         "fully_reconciled": bool(matched) and not actuals_only and not uncoded,
         # Why it is False, when it is False for want of evidence rather than for a finding. Without
         # this the two Falses are the same value and mean opposite things.

@@ -315,4 +315,5 @@ def phase_gaps(pid: str, phase: str) -> dict[str, Any]:
             # the assertion fires with the right diagnosis instead of this field going quietly wrong.
             # *A check earns its place from where it is the ONLY one*, and here it is the only thing
             # standing between a one-line table edit and a false "complete".
+            # COVERAGE: known_phase
             "complete": bool(items) and not missing}

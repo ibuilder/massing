@@ -223,6 +223,19 @@ export async function renderDocuments(ctx: PanelContext) {
       const g = await api.documentsPhaseGaps(pid, phaseSel.value);
       right.innerHTML = "";
       const h = el("div"); h.style.cssText = "font-weight:600;margin-bottom:6px";
+      // `known_phase` is read, and a THIRD refusal rather than padding. It cannot be false today:
+      // the value comes from a `<select>` of server-supplied phases and the route 422s on anything
+      // else. But `complete` was `not missing` over a checklist that is EMPTY for an unrecognised
+      // phase, so the day a free-text phase input lands — or a stale client sends an old name —
+      // this heading would read "all present ✅" over nothing. *A guard protects the consumer that
+      // has it*, and this is the consumer.
+      if (!g.known_phase) {
+        h.textContent = `${g.phase || "(no phase)"} is not a design phase this checklist covers`;
+        const why = el("div", "meta");
+        why.textContent = g.refused || `Known phases: ${(g.known_phases || []).join(", ")}`;
+        right.append(h, why);
+        return;
+      }
       h.textContent = `${g.phase} required documents — ${g.complete ? "all present ✅" : `${g.missing} missing`}`;
       const tb = el("table", "portal-table") as HTMLTableElement; tb.style.cssText = "width:100%;font-size:12px";
       tb.innerHTML = "<thead><tr><th scope=\"col\">Folder</th><th scope=\"col\">Needs</th>"

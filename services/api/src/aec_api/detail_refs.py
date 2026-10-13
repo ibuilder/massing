@@ -139,6 +139,7 @@ def graph(db, pid: str) -> dict[str, Any]:
         # is reachable. `assessed` leads deliberately: it is the operand whose absence made the other
         # three meaningless, and putting it first makes the verdict presence-guarded in the sense
         # `services/api/test_verdict_coverage.py` can actually see.
+        # COVERAGE: assessed
         "navigable": assessed and not dangling and not orphans and not unparseable,
         # Says WHY, not just that. The second half matters more than the first: the correct response
         # to an unchecked set is to record the callouts, not to go looking for defects that the
