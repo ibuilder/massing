@@ -294,6 +294,52 @@ export interface RuleProvenance {
   note: string;
 }
 
+/** VIEW-TEMPLATES / R21-VG-OVERRIDES — a graphic override is a PARTIAL, and that is load-bearing.
+ *  `view_templates._norm_override` says so: a rule naming only a colour must leave the weight and
+ *  pattern beneath it exactly as the object style had them, because a full replacement would
+ *  silently flatten the cut/projection weight distinction it knows nothing about. Every member is
+ *  therefore optional, and an override that sets NOTHING is refused by the server rather than stored
+ *  as an empty one. `weight` is millimetres on the sheet (0.05–4.0). */
+export interface GraphicOverride {
+  color?: string;
+  weight?: number;
+  pattern?: string;
+  halftone?: boolean;
+}
+
+/** One stacked colour rule. Later rules win. `color` is REQUIRED — the server keeps it required so
+ *  every template saved before R21 still validates and still resolves identically. */
+export interface ViewTemplateRule {
+  selector: string;
+  color: string;
+  /** Which side of the view plane this rule paints. Defaults to `both` server-side. */
+  applies?: "both" | "cut" | "projection";
+  weight?: number;
+  pattern?: string;
+  halftone?: boolean;
+}
+
+/** A stored view template, as `GET /projects/{pid}/view-templates` returns it. */
+export interface ViewTemplate {
+  id: string;
+  name: string;
+  hide_classes: string[];
+  isolate: string | null;
+  rules: ViewTemplateRule[];
+  /** Per-IFC-class graphics, keyed lowercase. Absent when the template sets none. */
+  object_styles?: Record<string, { cut?: GraphicOverride; projection?: GraphicOverride }>;
+}
+
+/** A template on the way IN: the server assigns `id` when it is omitted. */
+export interface ViewTemplateDraft {
+  id?: string;
+  name: string;
+  hide_classes?: string[];
+  isolate?: string | null;
+  rules?: ViewTemplateRule[];
+  object_styles?: ViewTemplate["object_styles"];
+}
+
 export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   return class Model extends Base {
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
@@ -894,20 +940,29 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
   }
 
-  /** viewTemplates — reusable layered view presets (class visibility, isolate, stacked colors). */
+  /** viewTemplates — reusable layered view presets (class visibility, isolate, stacked colors).
+   *
+   *  VIEWTPL-DARK declared the shape the server actually stores. The rule type was
+   *  `{ selector, color }` and `view_templates._norm` has validated and stored **`applies`** —
+   *  `both` / `cut` / `projection` — plus optional `weight`, `pattern` and `halftone` since
+   *  R21-VG-OVERRIDES, and `object_styles` was undeclared entirely. `applies` is the cut-versus-seen
+   *  axis that module calls *"the single distinction that separates a drawing from a dump"*: with it
+   *  undeclared, no editor could offer it and no reader could resolve it, whatever the server held.
+   *  Same class as CLASH-TRUNC's `truncated` — a field no property access can reach is invisible to
+   *  every derivation over declarations. */
   viewTemplates(pid: string) {
-    return this.json<{ templates: { id: string; name: string; hide_classes: string[];
-      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
-      `/projects/${pid}/view-templates`);
+    return this.json<{ templates: ViewTemplate[] }>(`/projects/${pid}/view-templates`);
   }
   /** saveViewTemplates — replace the project's saved view-template list. */
-  saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
-    isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
+  saveViewTemplates(pid: string, templates: ViewTemplateDraft[]) {
     // The route validates and NORMALISES every template before writing (ids assigned, colors and
     // selectors canonicalised) and returns the stored form as `templates`. Declaring only `saved`
     // left a caller with no way to learn what was actually persisted except by re-reading it.
-    return this.json<{ saved: number; templates: { id: string; name: string; hide_classes: string[];
-      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
+    //
+    // It REPLACES the whole list, which is why `ViewTemplateDraft` carries `object_styles` and the
+    // rule-level overrides even though the editor does not author them: a caller that sends a
+    // narrower object deletes them, and only on the templates somebody touched.
+    return this.json<{ saved: number; templates: ViewTemplate[] }>(
       `/projects/${pid}/view-templates`,
       { method: "PUT", body: JSON.stringify({ templates }) });
   }

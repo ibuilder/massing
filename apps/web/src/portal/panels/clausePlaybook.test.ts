@@ -222,6 +222,26 @@ describe("renderClausePlaybook", () => {
     expect(accepts[0]).toBe("ours");       // the firm's own wording survived the seed
   });
 
+  it("shows each clause's STORED severity in its dropdown", async () => {
+    // The assertion that was missing when this panel shipped. `option.selected` inside an append
+    // loop lands one index early in happy-dom, so a severity dropdown built that way renders the
+    // wrong value and every other test here still passes. *A property nothing asserts is a property
+    // that ships broken.*
+    const { c, body } = ctx({
+      clausePlaybook: vi.fn().mockResolvedValue({
+        playbook: { subcontract: [
+          { clause: "Indemnity", severity: "high", accept: "", negotiate: "", refuse: "x", fallback: "" },
+          { clause: "Retainage", severity: "low", accept: "", negotiate: "", refuse: "y", fallback: "" },
+        ] },
+        starter: STARTER, positions: [] }),
+    });
+    await renderClausePlaybook(c, body, "p1");
+    const sels = Array.from(body.querySelectorAll("select"));
+    // the first is the contract-type picker, then one per clause row
+    expect(sels[0]!.value).toBe("subcontract");
+    expect(sels.slice(1).map((s) => s.value)).toEqual(["high", "low"]);
+  });
+
   it("reports a failed load as a reason, never as an empty standard", async () => {
     const { c, body } = ctx({
       clausePlaybook: vi.fn().mockRejectedValue(new Error("403 forbidden")),

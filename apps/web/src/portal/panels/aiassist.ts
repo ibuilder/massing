@@ -579,8 +579,12 @@ export async function renderAiAssist(ctx: PanelContext) {
         typeSel.innerHTML = "";
         for (const t of names) {
           const o = document.createElement("option"); o.value = t; o.textContent = t;
-          o.selected = t === "subcontract"; typeSel.appendChild(o);
+          typeSel.appendChild(o);
         }
+        // `select.value`, never `option.selected` — see the note in panels/clausePlaybook.ts. An
+        // unknown value is ignored by the setter, so a project with no "subcontract" type keeps the
+        // first option rather than silently selecting nothing.
+        if (names.includes("subcontract")) typeSel.value = "subcontract";
         // NOT hidden when empty, and not silently defaulted either: an absent playbook is the
         // state the user has to be told about, and the button below says what to do.
         typeSel.disabled = names.length === 0;

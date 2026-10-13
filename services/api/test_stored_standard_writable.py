@@ -40,9 +40,16 @@ to LOOK at is more dangerous than one that decides what to report.*
 | module | write route | client method | state |
 |---|---|---|---|
 | `clause_playbook` | PUT …/contracts/playbook | `saveClausePlaybook` | **FIXED 2026-10-13** — the editor is the fourth tab of Risk Review |
+| `view_templates` | PUT …/view-templates | `saveViewTemplates` | **FIXED 2026-10-13** — `portal/panels/viewTemplates.ts`, under the graphics card it makes non-empty |
 | `macros` | PUT …/macros | `saveMacros` | **OPEN** |
-| `view_templates` | PUT …/view-templates | `saveViewTemplates` | **OPEN** |
 | `workflow_config` | PUT …/workflow/{key} | *none declared* | **OPEN** — and invisible to the gate next door |
+
+**`view_templates` is the instance that argues hardest for this gate's existence**, because it was
+the one with READERS. Two screens consumed it — `qaSection.ts` lists and *applies* a template,
+`panels/standards.ts` measures its graphics — so every per-method and per-route check it touched came
+back satisfied, while both screens printed "No view templates saved" on every project that has ever
+existed. *A capability with a reachable reader and no writer passes every gate that asks about one
+side of it.*
 
 `OPEN_STANDARDS` below is a **down-only record**, the same shape and for the same reason as
 `UNCALLED`: this file's job is to stop the set growing silently, not to forbid the commit that lands
@@ -94,8 +101,6 @@ class Unclassified(Exception):
 OPEN_STANDARDS: dict[str, str] = {
     "macros": "saveMacros has no app caller — the recipe-macro library falls back to a starter set "
               "and nothing can save over it",
-    "view_templates": "saveViewTemplates has no app caller — view templates can be listed and never "
-                      "authored",
     "workflow_config": "no client method declares PUT /projects/{pid}/workflow/{key} at all, so the "
                        "per-module workflow is server-only (also frozen in test_route_reachability)",
 }

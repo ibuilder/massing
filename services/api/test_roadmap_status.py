@@ -126,6 +126,13 @@ DONE_WHEN = {
         lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
         "test_stored_standard_writable reports every unwritable project standard accounted for, and "
         "clause_playbook is no longer among them"),
+    #: Same gate, same needle, different item — and deliberately not a count. Both items are about
+    #: one standard each leaving that gate's open list; a predicate reading "2 unwritable" would mark
+    #: BOTH as regressed the day `macros` is wired.
+    "VIEWTPL-DARK": (
+        lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
+        "test_stored_standard_writable reports every unwritable project standard accounted for, and "
+        "view_templates is no longer among them"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug

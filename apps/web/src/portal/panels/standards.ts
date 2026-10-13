@@ -4,6 +4,7 @@ import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
+import { renderViewTemplates } from "./viewTemplates";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -806,18 +807,28 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         sp.appendChild(m);
     }).catch(fail(sp));
 
+    // VIEWTPL-DARK — this card read `viewTemplateGraphics` for the first saved template and printed
+    // "No view templates saved." on every project that has ever existed, because `saveViewTemplates`
+    // had no caller anywhere in the app. The editor goes here, under the reading it makes possible:
+    // a graphics measurement over a template nobody could create was a card that could only ever
+    // report its own emptiness.
     const vg = section("👁 View-template graphics");
+    const vgRead = el("div", "meta");
+    const vgEdit = el("div"); vgEdit.style.marginTop = "6px";
+    vg.textContent = ""; vg.append(vgRead, vgEdit);
     void ctx.host.api.viewTemplates(pid).then(async (vt) => {
-        vg.textContent = "";
         const first = vt.templates[0];
-        const m = el("div", "meta");
-        if (!first) { m.textContent = "No view templates saved."; vg.appendChild(m); return; }
+        if (!first) {
+          vgRead.textContent = "No view templates saved yet — write one below and the viewer's QA "
+            + "section can apply it.";
+          return;
+        }
         const g = await ctx.host.api.viewTemplateGraphics(pid, first.id);
         const n = g.visible_count;
-        m.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
+        vgRead.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
           + (n != null ? ` · ${n} visible` : "");
-        vg.appendChild(m);
-    }).catch(fail(vg));
+    }).catch((e: Error) => { vgRead.textContent = `failed: ${esc(e.message)}`; });
+    void renderViewTemplates(ctx, vgEdit, pid);
 
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {

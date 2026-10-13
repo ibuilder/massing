@@ -130,12 +130,13 @@ export async function renderClausePlaybook(ctx: PanelContext, body: HTMLElement,
     sel.innerHTML = "";
     for (const t of typeNames(draft)) {
       const o = document.createElement("option"); o.value = t; o.textContent = t;
-      o.selected = t === active; sel.appendChild(o);
+      sel.appendChild(o);
     }
     if (!sel.options.length) {
       const o = document.createElement("option"); o.value = active; o.textContent = active;
       sel.appendChild(o);
     }
+    sel.value = active;    // see the note beside the severity select — never `option.selected`
   };
 
   const paint = () => {
@@ -171,10 +172,18 @@ export async function renderClausePlaybook(ctx: PanelContext, body: HTMLElement,
       name.style.cssText = "flex:1 1 180px;font-weight:600";
       name.oninput = () => { r.clause = name.value; };
       const sev = document.createElement("select"); sev.className = "portal-filter";
+      // SET `select.value`, NEVER `option.selected`, and this was MEASURED rather than preferred:
+      // in happy-dom, assigning `o.selected` inside an append loop lands on `selectedIndex` ONE
+      // BEFORE the intended option (probed directly: marking index 2 yields index 1). A real
+      // browser follows the spec and would be right, so this may cost nothing in production — but
+      // every test in this repo runs in happy-dom, so a dropdown asserted that way is asserted
+      // against the wrong value, and `select.value` is unambiguous in both. *The pattern was already
+      // in three files and only one test asserted the property, which is why two of them shipped.*
       for (const s of SEVERITIES) {
         const o = document.createElement("option"); o.value = s; o.textContent = s;
-        o.selected = (r.severity || "medium") === s; sev.appendChild(o);
+        sev.appendChild(o);
       }
+      sev.value = r.severity || "medium";
       sev.onchange = () => { r.severity = sev.value; paint(); };
       const del = document.createElement("button"); del.className = "selset-del";
       del.textContent = "✕"; del.title = "Remove this clause from the standard";

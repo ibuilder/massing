@@ -390,7 +390,15 @@ const UNCALLED: readonly string[] = [
   // method records the one link of a severed chain that happens to exist.* Driven by
   // `apps/web/src/proforma/scenarioGovernance.ts` from the Overview tab.
   "reviseDrawing", "runClash",
-  "saveMacros", "saveViewTemplates",
+  // `saveViewTemplates` left this list 2026-10-13 — VIEWTPL-DARK. It is the fourth stored project
+  // STANDARD this session found with a reachable reader and no writer, and the first one where TWO
+  // screens were already consuming it: `qaSection.ts` lists and APPLIES a template,
+  // `panels/standards.ts` measures its graphics, and both printed "No view templates saved" on every
+  // project that has ever existed. The editor is `portal/panels/viewTemplates.ts`, under the
+  // graphics card it makes non-empty. The population is derived by
+  // `services/api/test_stored_standard_writable.py`; `saveMacros` is still on its open list and
+  // still here, for the reason given above.
+  "saveMacros",
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase",
   // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each

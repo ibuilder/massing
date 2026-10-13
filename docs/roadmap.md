@@ -1111,6 +1111,70 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   is right costs more than one that stays silent, because the next person loosens it rather than
   reading it.*
 
+- ✅ ⭐ **VIEWTPL-DARK — two screens applied and measured view templates, and nothing could save
+  one** *(M — `apps/web/src/portal/panels/viewTemplates.ts` + `apps/web/src/api/model.ts`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_stored_standard_writable.py` and
+  `apps/web/src/portal/panels/viewTemplates.test.ts`)*
+
+  `services/api/src/aec_api/view_templates.py` resolves a saved template against a model
+  deterministically — a class-visibility matrix, an optional QUERY-DSL isolate scope, stacked colour
+  rules, and per-category **object styles** whose cut side is heavier than its projection side, which
+  that module calls *"the single distinction that separates a drawing from a dump"*.
+
+  **It had READERS, and that is why nothing caught it.** `apps/web/src/viewer/tools/qaSection.ts`
+  lists templates and APPLIES one, with a comment reading *"Both halves were unreachable… A saved
+  view nobody can apply is a stored preference with no effect"* — and ending *"unlike the template
+  WRITE endpoints"*, so the author knew. `apps/web/src/portal/panels/standards.ts` reads
+  `viewTemplateGraphics` for the first template. Both printed **"No view templates saved"** on every
+  project that has ever existed, because `saveViewTemplates` had no caller anywhere in the app.
+  *A capability with a reachable reader and no writer passes every gate that asks about one side of
+  it* — the route read as called, the read method read as called, and the write method sat on
+  `clientCallers.test.ts`'s list as one more stray name.
+
+  ### Three layers, and the second would have survived a naive fix
+
+  | | |
+  |---|---|
+  | nothing could author a template | the editor ships here |
+  | the client declared `rules: { selector, color }` | the server validates and stores **`applies`** (`both` / `cut` / `projection`) plus `weight`, `pattern`, `halftone` |
+  | `object_styles` was undeclared entirely | declared now, and **preserved** rather than authored |
+
+  `applies` is the cut-versus-seen axis R21-VG-OVERRIDES exists for. With it undeclared, **no editor
+  could have offered it and no reader could have resolved it**, whatever the server held — the same
+  class as CLASH-TRUNC's `truncated`: a field no property access can reach is invisible to every
+  derivation over declarations.
+
+  ### The defect this editor could most easily have shipped, designed against before any code
+
+  `save` **replaces the whole list**. So a payload built from a fresh object deletes every graphic
+  fact this editor does not author — object styles, per-rule weights and patterns — **and only on the
+  templates the user touched**, which is precisely the shape AUTHORITY-SUPERSEDE paid for: *the loss
+  is proportional to how much they edited.* Every draft here starts as a spread of the stored
+  template, the preserved counts are **rendered on screen** (`N object-style categories and M
+  rule-level overrides`) because a round trip that dropped them would otherwise look identical to one
+  that kept them, and the assertion was written before the code.
+
+  Authoring `object_styles` per IFC class is a **second slice**, said out loud rather than implied —
+  the panel names what it preserves and does not pretend to cover it.
+
+  ### A cross-file finding the gate's own test flushed out: `option.selected` is not `select.value`
+
+  The test *"offers the cut / projection scope"* failed, and probing it directly measured why: **in
+  happy-dom, assigning `option.selected` inside an append loop lands on `selectedIndex` ONE BEFORE
+  the intended option** — marking index 2 yields index 1. A real browser follows the spec and would
+  be right, so this may cost nothing in production; but **every test in this repo runs in happy-dom**,
+  so a dropdown built that way is asserted against the wrong value, and `select.value` is unambiguous
+  in both.
+
+  **The pattern was in three files and only one test asserted the property, which is why two of them
+  shipped hours earlier in `f4c0d61d`.** Mutation-checked rather than reasoned about: reinstating the
+  shipped form renders a clause stored as **`low` severity as `medium`**, in the clause-playbook
+  editor, on screen. *A property nothing asserts is a property that ships broken* — and the two that
+  shipped were in the files whose tests were written first, which is the flattering direction.
+  Fixed in `panels/viewTemplates.ts`, `panels/clausePlaybook.ts` (both selects) and
+  `panels/aiassist.ts` (the contract-type picker, where an unknown value is now left alone rather
+  than silently selecting nothing).
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*
