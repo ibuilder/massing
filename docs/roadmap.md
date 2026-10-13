@@ -1234,8 +1234,9 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 
   | rule | population |
   |---|---|
-  | dict value is a ternary between two string literals on a bare name | **43** |
-  | …narrowed to a test bound to a FILTERED comprehension | **4** |
+  | dict value is a ternary between two string literals on a bare name | **42** |
+  | …plus the NESTED form the same predicate cannot see | **+9 (51 in all)** |
+  | …the two-branch form narrowed to a test bound to a FILTERED comprehension | **4** |
 
   Of those four: **two are `codecheck_egress`, which is exemplary** — each ternary sits inside an
   `if envelope:` / `"na" if not doors else …` that keeps a third `na` state, exactly as this fix now
@@ -1243,7 +1244,26 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   wolf three times out of four, and the guard that makes the sound ones sound is an enclosing
   statement a structural detector cannot see.** *`hold_sell` was the only member of its own shape
   lacking the guard every neighbour had, which is the argument for fixing it rather than gating it* —
-  and recording the 43 is what stops the next reader spending a day building the checker.
+  and recording the population is what stops the next reader spending a day building the checker.
+
+  ⚠️ **TWO CORRECTIONS TO THE NUMBERS ABOVE, both mine and both found within the hour** *(2026-10-13,
+  while triaging `drawing_qa`)*. The commit that closed this item says **43**; re-running the same
+  predicate returns **42**. The number was taken by counting a printed list by eye instead of from the
+  counter that produced it — which is the correction `services/api/test_file_sizes.py` already records
+  in its own notes, *"take the number from the reader that enforces it"*, arriving here by the same
+  door.
+
+  **The second is the one worth the entry.** The predicate required BOTH branches to be string
+  constants, and a NESTED ternary's `orelse` is another `IfExp` — so `'HOLD' if crit else 'REVIEW' if
+  findings else 'CLEAN'` was structurally invisible to the measurement I used to argue the shape was
+  not worth gating. Nine more exist. *A predicate that decides what to LOOK at, for the third time in
+  one session, and this time it was mine and it was in the committed record.*
+
+  **The conclusion is unchanged and better supported**: three of the nine are `codecheck_egress`'s
+  `"na" if not X else …`, the guarded form, so the measured ratio of noise to findings got worse for a
+  gate rather than better. But one of the nine is `drawing_qa.verdict`, which is a real instance —
+  see DRAWQA-DARK. *A measurement that happens to support the conclusion it was taken for is the one
+  to re-take.*
 
 - ✅ ⭐ **PROVENANCE-DARK — ten engines reach a verdict, two of them for nobody, and the two gates
   that should have said so are silent for different reasons** *(M —
@@ -1338,6 +1358,96 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
 
   **Still open:** `drawing_qa` — `GET /projects/{pid}/drawing-set/qa` computes a drawing-set QA review
   and its verdict for nobody. Named in the gate's down-only record rather than exempted.
+
+- ✅ ⭐ **DRAWQA-UNMEASURED — the pre-issuance gate called a half-run review a pass, and the gate I
+  shipped to find this had a false positive in it** *(S —
+  `services/api/src/aec_api/preflight.py` + `services/api/test_verdict_reachable.py`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_issuance.py` and that file's own self-tests)*
+
+  ### The defect
+
+  `drawing_qa.review` runs four check groups, and the last two — model cross-checks (plans per
+  storey, schedule sheets versus model counts) and discipline coverage — need a loaded model. When it
+  will not open the engine says so, honestly, in `model_crosschecks`: *"model not loaded —
+  cross-checks skipped"*. Its verdict is
+  `"HOLD" if crit else ("REVIEW" if findings else "CLEAN")`, so a register with no duplicates and no
+  numbering gaps comes back **CLEAN** over half a review.
+
+  `preflight.summary` runs that review as check 4 of the pre-issuance gate and **dropped the
+  coverage**: `CLEAN` mapped to `pass`, with a detail reading *"12 sheets, no findings"*. So the one
+  gate in this product whose pass **releases a drawing set** counted a review that never looked at
+  plans-per-storey, schedule-versus-model counts or discipline coverage. The coverage now travels
+  with the check (`coverage`), the detail names what did not run, and a partial review is a
+  **warning** — deliberately not a failure, because `ready = not blocking` counts only `fail` and
+  refusing to issue because a model would not open would be inventing a refusal. What it must not do
+  is read as a pass.
+
+  ### THE GATE FROM ONE COMMIT EARLIER WAS WRONG, and the correction is worth more than the fix
+
+  `test_verdict_reachable`'s `OPEN_VERDICTS` named `drawing_qa` and said its verdict was *"computed
+  for nobody"*. **That was false.** `preflight.summary` calls `drawing_qa.review`, maps the verdict
+  into the checklist, and `apps/web/src/reportCenter.ts` renders every check behind the 🚦 Pre-flight
+  button — the `↗` deep link to this engine's own route included. The reach is **two hops**, route
+  handler → `preflight` → `drawing_qa`, and the walk resolves one.
+
+  **It was wrong in the direction that INVENTS WORK, and it nearly did.** A client method and a
+  "drawingQa.ts" card were drafted against that false claim before the two-hop reach was found — a
+  card for a verdict the pre-flight panel already renders, which would have shipped as a duplicate
+  surface and read in the record as an item closed. *The correction did not cost work, it saved it;
+  a checker that is wrong toward more findings is the hardest kind to argue with, because doing what
+  it says feels like diligence.* This is the failure that file's predicate self-test
+  was written to catch. That self-test covered the one-hop SIBLING miss
+  (`condition_checks.check_all`), the case already thought of. *A self-test that covers the instance
+  you thought of is not a self-test of the property*, which is the same sentence `test_route_shadow`
+  had to learn about its `:path` assertion, arriving one layer up.
+
+  **And the obvious correction is worse than the bug.** Measured before choosing:
+
+  | predicate | result |
+  |---|---|
+  | one hop (route handler → engine) | **false DARK** on `drawing_qa` |
+  | unbounded transitive closure | `drawing_qa` reached by **17 more routes**, among them `DELETE …/share-tokens/{token}` and `GET /mcp/tools` |
+
+  The MCP dispatcher calls everything by design, so a closure vouches for everything and the gate
+  stops saying anything. **And a depth limit picked so the answer comes out right is fitting the rule
+  to the conclusion** — tuned on today's tree and silently wrong on tomorrow's.
+
+  So the one-hop walk stays, because *does a route reach this engine directly* is the sound question,
+  and an indirect reach became a **declared** entry whose **call edge the gate verifies by AST**:
+  delete `preflight`'s call and the build reds. Same repair COURT-PRIMARY made for the same reason —
+  *a premise that cannot be checked has already drifted; the only repair is to stop inferring it and
+  DECLARE it.* The regression test is the assertion the first version did not have: an engine with a
+  declared indirect reach is a dead DOOR, never dark, and removing its declaration must flip it back.
+
+  **`OPEN_VERDICTS` is now empty**, and `drawing_qa` sits in `OPEN_DOORS`: its conclusion is
+  reachable, its own route still has no client method. *A reachable conclusion and a dead door are
+  different facts about one engine*, which is why that file keeps two lists.
+
+  One reach it deliberately does not try to see: the preflight check emits a `link` to
+  `/projects/{pid}/drawing-set/qa` and the client opens it with `api.url(c.link)`. A URL built by the
+  server and rendered by the client is not a client method, and **guessing at it is how a
+  reachability rule starts vouching for things** — so it is written down in the record rather than
+  detected.
+
+  ### Two numeric corrections to the HOLDSELL-UNMEASURED entry, both mine
+
+  Found while triaging this one, and landing here because the pushed commit message cannot be
+  amended. That entry says the ternary-verdict shape measures **43**; re-running the same predicate
+  returns **42** — the number was taken by counting a printed list by eye rather than from the
+  counter that produced it, which `services/api/test_file_sizes.py` already records in its own notes
+  as *"take the number from the reader that enforces it"*.
+
+  **The second is the one worth the paragraph.** That predicate required BOTH branches to be string
+  constants, and a NESTED ternary's `orelse` is another `IfExp` — so
+  `'HOLD' if crit else 'REVIEW' if findings else 'CLEAN'`, the verdict this very item is about, was
+  structurally invisible to the measurement used to argue the shape was not worth gating. **Nine more
+  exist.** *A predicate that decides what to LOOK at, for the third time in one session, and this
+  time it was mine and it was in the committed record.*
+
+  The conclusion survives and is better supported: three of the nine are `codecheck_egress`'s
+  `"na" if not X else …`, the guarded form, so the measured ratio of noise to findings got **worse**
+  for a gate rather than better. *A measurement that happens to support the conclusion it was taken
+  for is the one to re-take.*
 
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by

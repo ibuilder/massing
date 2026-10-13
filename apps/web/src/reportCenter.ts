@@ -260,6 +260,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
           for (const c of g.checks) {
             const line = document.createElement("div"); line.className = "meta"; line.style.margin = "2px 0";
             line.textContent = `${STATUS_ICON[c.status] ?? "•"} ${c.label} — ${c.detail}`;
+            // DRAWQA-UNMEASURED: when a check evaluated less than everything it says so in
+            // `coverage`, and it is rendered as its own marked line rather than left inside the
+            // detail sentence — a reader who has seen the icon has already stopped reading the prose.
+            if (c.coverage && c.coverage.trim().toLowerCase() !== "ok") {
+              const cov = document.createElement("div"); cov.className = "meta";
+              cov.style.cssText = "margin:0 0 2px 18px;color:var(--status-warn)";
+              cov.textContent = `partial: ${c.coverage}`;
+              line.appendChild(cov);
+            }
             if (c.link) {
               const a = document.createElement("a"); a.href = api.url(c.link); a.target = "_blank"; a.rel = "noopener";
               a.textContent = " ↗"; a.title = `Open ${c.link}`; line.appendChild(a);

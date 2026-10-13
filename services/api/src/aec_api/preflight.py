@@ -87,15 +87,36 @@ def issuance_gate(db, pid: str, model, elements: list[dict] | None,
         if dq.get("sheet_count"):
             sev = dq.get("by_severity", {})
             verdict = dq.get("verdict", "CLEAN")
+            # DRAWQA-UNMEASURED — the COVERAGE of that verdict, which this check used to drop.
+            #
+            # `drawing_qa` runs four groups and the last two — model cross-checks (plans per storey,
+            # schedule sheets versus model counts) and discipline coverage — need a loaded model. When
+            # it will not open the engine says so in `model_crosschecks` and returns CLEAN on the
+            # register alone. This check mapped that to `_PASS` with a detail reading "N sheets, no
+            # findings", so **the pre-issuance gate counted a review that skipped half its checks as
+            # a clean one** — in the one place where a pass releases a drawing set.
+            #
+            # A partial review is a WARNING and deliberately not a FAILURE: `ready = not blocking`
+            # counts only `_FAIL`, and refusing to issue because a model would not open would be
+            # inventing a refusal. What it must not do is read as a pass.
+            partial = str(dq.get("model_crosschecks") or "").strip().lower() != "ok"
+            detail = (f"{dq.get('finding_count', 0)} finding(s) across "
+                      f"{dq.get('sheet_count', 0)} sheets "
+                      f"({sev.get('critical', 0)} critical · {sev.get('major', 0)} major · "
+                      f"{sev.get('minor', 0)} minor)"
+                      if dq.get("finding_count") else
+                      f"{dq.get('sheet_count', 0)} sheets, no findings")
+            if partial:
+                detail += (f" — register checks only: {dq.get('model_crosschecks')}, so the model "
+                           "cross-checks and discipline coverage did not run")
             checks.append({"key": "drawing_qa", "label": "Drawing-set QA",
-                           "status": _FAIL if verdict == "HOLD" else _WARN if verdict == "REVIEW" else _PASS,
-                           "detail": (f"{dq.get('finding_count', 0)} finding(s) across "
-                                      f"{dq.get('sheet_count', 0)} sheets "
-                                      f"({sev.get('critical', 0)} critical · {sev.get('major', 0)} major · "
-                                      f"{sev.get('minor', 0)} minor)"
-                                      if dq.get("finding_count") else
-                                      f"{dq.get('sheet_count', 0)} sheets, no findings"),
+                           "status": (_FAIL if verdict == "HOLD" else _WARN if verdict == "REVIEW"
+                                      else _WARN if partial else _PASS),
+                           "detail": detail,
                            "count": dq.get("finding_count", 0),
+                           # The coverage travels with the check, so a consumer can render it without
+                           # re-deriving it from the detail string.
+                           "coverage": dq.get("model_crosschecks"),
                            "link": f"/projects/{pid}/drawing-set/qa"})
     except Exception:                                  # noqa: BLE001
         pass

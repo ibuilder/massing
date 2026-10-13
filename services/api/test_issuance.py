@@ -76,6 +76,19 @@ with TestClient(app) as c:
     assert gate["ready"] is False and "open_issues" in [x["key"] for x in gate["checks"] if x["status"] == "fail"], gate
     # every check deep-links to its tool
     assert all("link" in x for x in gate["checks"]), gate["checks"]
+    # DRAWQA-UNMEASURED — the drawing-set QA check carries the COVERAGE of its own verdict.
+    # `drawing_qa` runs four groups and the last two need a loaded model; this project has sheets and
+    # no model, so the review is register-only. It used to report `pass` with "N sheets, no findings"
+    # — the gate that releases a drawing set counting a review that skipped half its checks.
+    dqc = next(x for x in gate["checks"] if x["key"] == "drawing_qa")
+    assert dqc["coverage"] and "cross-checks skipped" in dqc["coverage"], dqc
+    assert dqc["status"] == "warn", dqc          # NOT pass: a partial review must not read as clean
+    assert "register checks only" in dqc["detail"], dqc
+    assert "did not run" in dqc["detail"], dqc
+    # …and a WARNING rather than a FAILURE, deliberately: `ready = not blocking` counts only `fail`,
+    # and refusing to issue because a model would not open would be inventing a refusal. The HOLD
+    # above comes from `open_issues`, which is what must still be the blocking one.
+    assert dqc["key"] not in [x["key"] for x in gate["checks"] if x["status"] == "fail"], gate
     blocked = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Construction", "enforce": True}, headers=HDR)
     assert blocked.status_code == 409 and "open_issues" in blocked.text, blocked.text
     # without enforcement it issues, but the HOLD verdict is stamped for the record

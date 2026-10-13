@@ -74,16 +74,34 @@ class Unclassified(Exception):
 
 
 #: Engines whose verdict no screen can reach. DOWN-ONLY: delete a line when you wire one.
-OPEN_VERDICTS: dict[str, str] = {
-    "drawing_qa": "GET /projects/{pid}/drawing-set/qa has no client method — the drawing-set QA "
-                  "review and its verdict are computed for nobody",
-}
+#:
+#: ⚠️ **IT SHIPPED WITH A FALSE POSITIVE IN IT, and the correction is the most useful thing in this
+#: file.** The first version named `drawing_qa` here and said its verdict was "computed for nobody".
+#: That was **false**: `preflight.summary` calls `drawing_qa.review`, maps the verdict into the
+#: pre-issuance checklist, and `reportCenter.ts` renders every check of that list. The reach is TWO
+#: hops — route handler → `preflight` → `drawing_qa` — and `routes_for` resolves one, so a reach
+#: through a non-router module is invisible to it.
+#:
+#: **It was wrong in the direction that INVENTS WORK**, which is the failure the predicate self-test
+#: below was written to catch — and that self-test only covered the case already thought of, the
+#: one-hop SIBLING miss (`condition_checks.check_all`). *A self-test that covers the instance you
+#: thought of is not a self-test of the property.*
+OPEN_VERDICTS: dict[str, str] = {}
 #: `provenance_report` was here until PROVENANCE-DARK wired `projectAdmissibility`; it moved to
-#: OPEN_DOORS, which is the move this file's two lists exist to distinguish.
+#: OPEN_DOORS, which is the move this file's two lists exist to distinguish. `drawing_qa` left for
+#: the opposite reason: it was never dark.
 #: Routes that reach a reachable engine by a door nothing calls. Dead surface, not a dark capability.
 OPEN_DOORS: dict[str, str] = {
     "rfi_qa": "POST /projects/{pid}/ai/audit has no client method; the engine is reachable through "
               "POST /projects/{pid}/rfi/qa (rfiQa)",
+    #: Its own route has no client method, while its CONCLUSION is reachable through `preflight` —
+    #: see INDIRECT_REACH. The route is still opened in the UI, from the `link` the preflight check
+    #: emits, which is a reach this file cannot see and deliberately does not try to: a URL built by
+    #: the server and rendered by the client is not a client method, and guessing at it is how a
+    #: reachability rule starts vouching for things.
+    "drawing_qa": "GET /projects/{pid}/drawing-set/qa has no client method; the verdict is reachable "
+                  "through GET /projects/{pid}/preflight, which renders it as check 4 of the "
+                  "pre-issuance gate",
     #: The STATELESS sibling, and it stays dark deliberately rather than for want of effort: its body
     #: is `{assumptions_provenance, estimate_ledger, agent_answers}`, each the OUTPUT of another
     #: engine, and the SPA has no reason to assemble three leg results client-side when
@@ -92,6 +110,30 @@ OPEN_DOORS: dict[str, str] = {
     "provenance_report": "POST /proforma/provenance/admissibility has no client method; the engine is "
                          "reachable through GET /projects/{pid}/provenance/admissibility "
                          "(projectAdmissibility), which gathers the three legs server-side",
+}
+
+
+#: Engines whose conclusion reaches a screen only THROUGH another engine: module -> (via, route).
+#:
+#: **Declared rather than inferred, and the reason is a measurement.** An unbounded transitive
+#: closure over the engine call graph reports `drawing_qa` as reached by **17 more routes**, among
+#: them `DELETE /projects/{pid}/share-tokens/{token}` and `GET /mcp/tools` — the MCP dispatcher calls
+#: everything by design, so a closure vouches for everything and the gate stops saying anything. And
+#: a DEPTH LIMIT picked so the answer comes out right is fitting the rule to the conclusion, which is
+#: worse than either: it would be tuned on today's tree and silently wrong on tomorrow's.
+#:
+#: So the one-hop walk stays — it is the sound question, *does a route reach this engine directly* —
+#: and an indirect reach is a claim somebody checked, with the CALL EDGE verified by AST below. A
+#: recorded indirect reach therefore cannot rot into a false clearance: delete the call and the gate
+#: reds. Same repair COURT-PRIMARY made for the same reason — *a premise that cannot be checked has
+#: already drifted; the only repair is to stop inferring it and DECLARE it.*
+INDIRECT_REACH: dict[str, tuple[str, str]] = {
+    #: `preflight.summary` runs the review as check 4 of the pre-issuance gate, maps HOLD/REVIEW/CLEAN
+    #: onto fail/warn/pass, and emits a `link` back to this engine's own route;
+    #: `apps/web/src/reportCenter.ts` renders every check behind the 🚦 Pre-flight button, the ↗ link
+    #: included. The engine's own route still has no client METHOD, which is why it also appears in
+    #: OPEN_DOORS — a reachable conclusion and a dead door are different facts about one engine.
+    "drawing_qa": ("preflight", "GET /projects/{pid}/preflight"),
 }
 
 
@@ -176,6 +218,21 @@ def routes_for(modules: set[str], *, functions: dict[str, set[str]] | None = Non
     return found
 
 
+def calls_module(path: Path, target: str) -> bool:
+    """Does this module call `<target>.something(...)`, under any import alias?
+
+    The verifier behind `INDIRECT_REACH`: a declared indirect reach is only as good as the edge it
+    names, and an edge nobody checks is the prose this gate exists to replace.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names = {k for k, v in _aliases(tree).items() if v == target}
+    if not names:
+        return False
+    return any(isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+               and isinstance(c.func.value, ast.Name) and c.func.value.id in names
+               for c in ast.walk(tree))
+
+
 def verdict_functions(path: Path) -> set[str]:
     """The functions of one module that build a dict with a `"verdict"` key — the NARROW population."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -248,7 +305,10 @@ def verdict(mods: dict[str, set[tuple[str, str]]], uncalled: set[str],
             else:
                 blocked.append(f"{verb} {path}" + (f" ({', '.join(sorted(found))} uncalled)"
                                                    if found else " (no client method)"))
-        if not live:
+        if not live and mod in INDIRECT_REACH:
+            # Its conclusion reaches a screen through another engine; the door is still dead.
+            doors[mod] = "; ".join(blocked) + f" — reached via {INDIRECT_REACH[mod][0]}"
+        elif not live:
             dark[mod] = "; ".join(blocked)
         elif blocked:
             doors[mod] = "; ".join(blocked)
@@ -287,7 +347,39 @@ check("the MODULE-level predicate is load-bearing: a function-level one loses en
       "changed, re-derive which rule is right before touching the one below; a checker that reports "
       "a healthy capability as dark invents work")
 
+# EVERY DECLARED INDIRECT REACH MUST STILL EXIST. Added with the correction above: the first version
+# of this file had no such table and no such check, and asserted a dark engine that was not dark.
+for _mod, (_via, _route) in sorted(INDIRECT_REACH.items()):
+    _via_path = next((r / f"{_via}.py" for r in ENGINE_ROOTS if (r / f"{_via}.py").exists()), None)
+    check(f"the declared indirect reach {_mod} <- {_via} still exists",
+          _via_path is not None and calls_module(_via_path, _mod),
+          f"{_via}.py does not call `{_mod}` — the claim that {_mod}'s verdict reaches a screen "
+          f"through it is now false, and this file would clear it on a reach that is gone")
+    check(f"…and {_via}'s own route {_route} is reachable",
+          any((v, pth) in _WIDE.get(_via, set()) for v, pth in [tuple(_route.split(" ", 1))]),
+          f"{_route} is not among the routes reaching {_via}: {sorted(_WIDE.get(_via, []))}")
+# …and the edge verifier must say NO to a module that does not call the target, or it says yes to all.
+check("the edge verifier refuses an edge that does not exist",
+      not calls_module(next(r / "preflight.py" for r in ENGINE_ROOTS if (r / "preflight.py").exists()),
+                       "clause_playbook"),
+      "calls_module vouched for an edge preflight.py does not have")
+
 _DARK, _DOORS = verdict(_WIDE, _UNCALLED)
+
+# MUTATION 0 — the correction's own regression test. An engine with a DECLARED indirect reach must be
+# reported as a dead DOOR, never as dark; removing its entry must flip it back. This is the assertion
+# the first version of this file did not have, and its absence is what let a false positive ship.
+_no_decl = {k: v for k, v in INDIRECT_REACH.items() if k != "drawing_qa"}
+_saved = dict(INDIRECT_REACH)
+INDIRECT_REACH.clear(); INDIRECT_REACH.update(_no_decl)
+_d0, _o0 = verdict({"drawing_qa": _WIDE["drawing_qa"]}, _UNCALLED)
+INDIRECT_REACH.clear(); INDIRECT_REACH.update(_saved)
+_d0b, _o0b = verdict({"drawing_qa": _WIDE["drawing_qa"]}, _UNCALLED)
+check("a declared indirect reach moves an engine from DARK to a dead door, and only that",
+      "drawing_qa" in _d0 and not _d0b and "drawing_qa" in _o0b
+      and "reached via preflight" in _o0b["drawing_qa"],
+      f"without the declaration: dark={sorted(_d0)}; with it: dark={sorted(_d0b)} doors={sorted(_o0b)}")
+
 
 # MUTATION 1 — an engine whose every door loses its client method must be reported DARK.
 check("an engine with no reachable door is reported dark",

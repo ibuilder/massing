@@ -701,6 +701,14 @@ export interface PreflightCheck {
   count?: number;
   guids?: string[];
   link?: string | null;
+  /** DRAWQA-UNMEASURED — what the check was able to evaluate, when that is not everything.
+   *
+   *  `drawing_qa` runs four groups and the last two need a loaded model; when it will not open the
+   *  engine returns CLEAN over the register alone and says so here. DECLARED AND RENDERED in the same
+   *  change, deliberately: a field added to a response and read by nobody is the DEAD-FIELD class
+   *  this document tracks, and adding one in the commit that corrects a reachability gate would be a
+   *  poor joke. */
+  coverage?: string | null;
 }
 
 /** The pre-flight issuance gate — PASS/HOLD verdict + deep-linked checklist. */
