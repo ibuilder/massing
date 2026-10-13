@@ -110,6 +110,13 @@ DONE_WHEN = {
     "SCHEMA-UNGENERATED": (
         lambda: _gate_says("test_schema_types_agree.py", "all declared, 0 declared-but-gone"),
         "test_schema_types_agree reports every served (path, method) declared in schema.d.ts"),
+    #: Same discipline, same day the item closed. The needle is "0 unreachable" and NOT the route or
+    #: hook counts beside it: both move the moment somebody adds a public write route or a control,
+    #: which is the normal work this gate exists to watch.
+    "PORTAL-TXN-DARK": (
+        lambda: _gate_says("test_portal_public_reach.py", "0 unreachable"),
+        "test_portal_public_reach reports every public /shared/{token} write route reachable from "
+        "the page it serves"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug

@@ -19272,14 +19272,18 @@ export interface paths {
         };
         /**
          * List Share Tokens
-         * @description List the project's share tokens with their view counts (editor only).
+         * @description List the project's share tokens with their view counts (editor only). The responses and
+         *     messages those tokens sent back are a separate feed: GET /projects/{pid}/client-decisions.
          */
         get: operations["list_share_tokens_projects__pid__share_tokens_get"];
         put?: never;
         /**
          * Create Share Token
-         * @description Mint a revocable, read-only share token for the project (owner/editor only). The returned token
-         *     string is the shareable credential — anyone with it can read the project's readiness digest.
+         * @description Mint a revocable share token for the project (owner/editor only). The returned token string is
+         *     the shareable credential — anyone with it can read the project's readiness digest, and can answer
+         *     back: the holder may record responses on shared items (approve / acknowledge / decline) and post
+         *     messages to the project team, both whitelisted and hard-capped per link. READ-ONLY describes what
+         *     the token DISCLOSES, not what the holder can do with it.
          *     `show_payments: true` is the explicit OPT-IN for THIS token's digest to carry the owner-invoice
          *     payment schedule (display only); the default digest exposes no financials.
          *
@@ -21624,8 +21628,10 @@ export interface paths {
         };
         /**
          * Shared Page
-         * @description PUBLIC (no auth) — a self-contained read-only HTML page rendering the share digest (the same
-         *     curated readiness data as the .json digest). All values are HTML-escaped. Unknown/revoked → 404.
+         * @description PUBLIC (no auth) — a self-contained HTML page rendering the share digest (the same curated
+         *     readiness data as the .json digest), plus the controls that reach the two public write routes
+         *     below: a response (approve / acknowledge / decline) and a message to the project team. All values
+         *     are HTML-escaped and nothing is interpolated into its script. Unknown/revoked → 404.
          */
         get: operations["shared_page_shared__token__get"];
         put?: never;

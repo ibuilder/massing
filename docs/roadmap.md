@@ -886,38 +886,110 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   the whole point of SCOPE-EMPTY was to make "nothing is quantified" distinguishable from "there is
   nothing to quantify", which `number` asserts cannot happen.
 
-- 🟡 **PORTAL-TXN-DARK — the client-decision loop is unreachable at BOTH ends**
-  *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/`; **OPEN — the write half
-  needs the user's call**; measured 2026-09-25)*
+- ✅ **PORTAL-TXN-DARK — the client-decision loop, built behind the token rather than on the page**
+  *(M — `services/api/src/aec_api/client_portal.py` + `apps/web/src/portal/panels/masterBuilder.ts`;
+  **CLOSED 2026-10-13**; measured 2026-09-25, re-measured on the day it was taken)*
 
-  `POST /shared/{token}/decision` is complete and careful: public by design, inputs whitelisted and
-  length-capped, a hard per-token decision cap, unknown or revoked token → 404. It records a
-  timestamped **approve / acknowledge / decline** and is explicit that it is *"NOT a payment and NOT
-  an e-signature of record"*. **Nothing can reach it, and nothing can read what it stores.**
+  `POST /shared/{token}/decision` and `POST /shared/{token}/comment` were complete and careful —
+  public by design, inputs whitelisted and length-capped, a hard per-token cap, unknown or revoked
+  token → 404, and explicit that a decision is *"NOT a payment and NOT an e-signature of record"*.
+  **Nothing could reach either one.** The page a client opens, `client_portal.to_html`, had no
+  `<form`, no `<button`, no `fetch(` and no mention of either path — while its conversation card
+  ended with *"Messages posted through this link reach the project team; their replies appear
+  here."* *A surface can carry the sentence describing a capability it does not have, and the
+  sentence is what a reviewer reads.*
 
-  | | |
+  **Shipped:** the page now carries a response control (approve / acknowledge / decline, with an
+  optional name and note) and a message box, both posting to those two routes; the owner's end is a
+  **Client responses** card in the Master Builder panel reading `clientDecisions`. The gate is
+  `services/api/test_portal_public_reach.py`, and `services/api/test_portal_txn.py` drives both
+  paths over HTTP for a token that has done neither thing before.
+
+  ### THREE OF THIS ENTRY'S OWN MEASUREMENTS WERE WRONG, and every one made the work sound cheaper
+
+  | this entry said | measured 2026-10-13 |
   |---|---|
-  | the page a client actually sees (`GET /shared/{token}`) | **read-only HTML** — grepped: no `<form`, no `<button`, no `fetch(`, no mention of `/decision` |
-  | `sharedDecision` (the SPA's recipient method) | callerless |
-  | `clientDecisions` (the owner's feed) | callerless |
+  | two callerless methods on the seam (`sharedDecision`, `clientDecisions`) | **four** — `sharedDigestUrl` and `sharedComment` as well; only `sharedPageUrl` had a caller |
+  | *"nothing can read what it stores"* | **half wrong** — `digest()` has always called `_activity_for_token` and the page has always rendered a "Your activity" card, so the RECIPIENT could read their own decisions. No OWNER-side screen could |
+  | the write half *"needs the user's call"* on a security posture | the posture was crossed in **phases 1 and 3**, when both routes shipped public. A control on the page adds no URL and no capability |
 
-  So this is not a callerless method, it is **a whole transaction with neither end built** — the
-  reason both methods sit in the freeze list, which reading either one alone would not have
-  explained. *Two callerless methods on the same seam are one missing feature, not two missing
-  buttons.*
+  **The third is the one that cost nine weeks, and it is a shape worth naming.** The entry parked
+  itself on *may interactive elements go on a public, unauthenticated HTML surface?* — a real
+  question, asked at the wrong layer. The routes had already answered it: they are public, reachable
+  with `curl` by anyone holding the token, and the page's own copy already promised one of them
+  worked. *A decision can be parked at the layer that cannot take it while the layer that could has
+  already taken it* — and from the outside, a cautious parking note reads identically either way.
 
-  **Deliberately not built in this pass, and the reason is the write half.** Giving the client a way
-  to decide means putting interactive elements on a **public, unauthenticated HTML surface** whose
-  docstring currently promises every value is escaped and the page is read-only. That is a security
-  posture, not a layout choice, and changing it is the user's call. **Building only the owner's feed
-  would be decoration** — a panel empty by construction on every project, because nothing can write
-  a decision. *Half a loop is worse than none, because the empty screen reads as "no client has
-  decided anything" rather than as "no client can".*
+  ### Two of the four callerless methods could never have had a caller here
 
-  What a decision would need if it is built: the form on the public page (or an SPA route behind the
-  token), the owner's feed panel, and a statement of what the record is for — the endpoint already
-  says what it is *not*.
+  `sharedComment` and `sharedDecision` are **deleted**, not wired. The person who posts to those
+  routes has no account and arrives from a link in an email, so the surface that serves them is a
+  server-rendered page; an SPA method for either could not have had an SPA caller at any point, for
+  any amount of work. Both sat in `clientCallers.test.ts`'s freeze list for months, reading exactly
+  like a screen somebody still owed. *A callerless method whose only legitimate caller could never
+  be this program is not an unbuilt feature; it is a method on the wrong side of a seam* — and a
+  permanent entry in a list of unfinished work is indistinguishable from a backlog item, so nobody
+  ever finishes it. That freeze list now records a third reason a line may leave it, beside "wired"
+  and ROUTE-SHADOW's "the route was wrong".
 
+  So the entry's *"two callerless methods on the same seam are one missing feature, not two missing
+  buttons"* was half right: the feature was missing, and these two were never going to be the half
+  of it that lived in the SPA.
+
+  ### A fourth defect, found while building the form
+
+  The conversation card rendered **only when the thread was non-empty** — so the invitation to write,
+  and the promise that a message reaches the team, were shown only to clients who had already
+  written one. *An empty thread is the state in which an invitation is the content.* It renders
+  unconditionally now, and `test_portal_txn.py`'s assertion is inverted from the one it shipped
+  with, which asserted the defect as the intent.
+
+  ### No `show_decisions` opt-in, deliberately, unlike `show_payments` / `show_model`
+
+  Those two gate a **disclosure** — a token carrying financials or geometry reveals more than one
+  that does not, so the owner must ask for it, and the backend's rule is that granting one never
+  implies the other. A response form reveals nothing; it accepts input the endpoint already accepts
+  from the same credential. A per-token opt-OUT would need a column and a migration, and is a
+  product decision rather than a cleanup.
+
+  ### What the gate derives, and what it admits it cannot see
+
+  Arm 1 derives the public write routes under `/shared/{token}` from the routers by AST — so a third
+  one added tomorrow is either reachable from the page or reds the build — and runs in both
+  directions, because a page posting to a path no router serves is a 404 nobody sees until a client
+  clicks. Arm 2 is a **different question**: every hook the page's script reaches for must be
+  declared in the page's markup. Script and markup are written in two functions and nothing else
+  ties them, so renaming `id="comment-send"` leaves a page that renders, looks complete and does
+  nothing — which arm 1 cannot see, since it only reads the script.
+
+  The hook population is derived with **no exemption list**: a kebab-case literal (lowercase, one or
+  more hyphens, no `/`, `[`, space or `_`) is an id or an attribute name, and every other literal
+  the script holds is excluded by its SHAPE — a verb (`"click"`), a header (`"Content-Type"`), a
+  media type (`"application/json"`), a selector (`"button[data-action]"`), a path (`"/decision"`) or
+  an English sentence. Measured: 11 hooks, 0 false positives. *A rule that needs an exemption list
+  is a rule whose population is wrong.*
+
+  Arm 3 is why `_PAGE_JS` is a module constant rather than part of the f-string that builds the page:
+  `esc()` is an HTML escaper, so a value escaped with it is **not** safe inside a `<script>`, and the
+  only sound rule is that nothing is ever interpolated there. The script takes no token either — it
+  derives its endpoints from `location.pathname`, so the credential is never copied into the markup.
+  The arm asserts the constant is a plain string and that the module never formats it, and it is
+  asserted in both directions so a parser that answers yes to everything fails.
+
+  **And it says plainly what it cannot do.** It reads the rendered page, so it proves the control is
+  THERE; wrapping the whole script in `if (false)` passes. That is the same bargain
+  `test_route_reachability` makes for URL literals and `test_verdict_coverage` for a coverage render,
+  and the complement is the HTTP test next door. Written down in the gate rather than discovered by
+  somebody later.
+
+  The owner's feed prints a **bound, not a total**: the route returns a desc-limited page and no
+  count, so 200 rows means *at least* 200 — a project may hold 200 responses per link across 50
+  links. The header reads `200+` and the footer names the page. TRUNC-COUNTED has shipped here three
+  times; the fix is cheaper than the finding.
+
+  **Still frozen, with a reason:** `sharedDigestUrl` has no caller. It builds the public JSON digest
+  URL, which is owner-side useful for an integration and belongs to nothing on screen — unlike the
+  two deleted above, it is on the right side of the seam and simply unbuilt.
 
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
@@ -7561,7 +7633,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY · R32-TAXONOMY-LIFECYCLE · PORTAL-TXN-DARK (all six need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped, and AUTHORITY-SUPERSEDE joined it the same day out of the review of that work, taking the count six → seven rather than back to seven, because closing a parked item and opening one are separate events and a bare number records neither. **AUTHORITY-SUPERSEDE then left on 2026-10-13, seven → six, and the reason is worth more than the count**: its own entry had already argued the implicit form away and named the explicit one as the fix, so the "decision" it was parked on was one the entry had taken. *An item parked on a decision stays parked until somebody re-derives whether the decision is still open* — the third item on this list to leave that way) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call; AUTHORITY-DOWNSTREAM left this list 2026-10-11 — the call was made and it shipped, and AUTHORITY-SUPERSEDE joined it the same day out of the review of that work, taking the count six → seven rather than back to seven, because closing a parked item and opening one are separate events and a bare number records neither. **AUTHORITY-SUPERSEDE then left on 2026-10-13, seven → six, and the reason is worth more than the count**: its own entry had already argued the implicit form away and named the explicit one as the fix, so the "decision" it was parked on was one the entry had taken. *An item parked on a decision stays parked until somebody re-derives whether the decision is still open* — the third item on this list to leave that way. **PORTAL-TXN-DARK left on 2026-10-13, seven → six → five, and it is the sharpest instance yet**: the decision it was parked on — *may interactive elements go on a public, unauthenticated page?* — had already been taken one layer DOWN, by `POST /shared/{token}/decision` and `/comment` shipping public in PORTAL-TXN phases 1 and 3, and the page was already *promising* the comment loop worked. Putting a control on the page added no URL, no credential and no capability. *A decision can be parked at the layer that cannot take it, while the layer that could has already taken it* — and the parking note reads just as cautious either way) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**

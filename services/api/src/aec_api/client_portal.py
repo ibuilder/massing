@@ -227,9 +227,14 @@ def digest(db: Session, token: str) -> dict[str, Any]:
         "conversation": thread_for_token(db, token),
         **({"payment_schedule": _payment_schedule(db, row.project_id)} if row.show_payments else {}),
         "shared_label": row.label,
-        "note": "Read-only shared project digest — high-level readiness only. No record-level data, "
-                "GUIDs, financial detail, or personal information is exposed. Not a substitute for the "
-                "project record of authority.",
+        # PORTAL-TXN-DARK: "Read-only" was the first two words here and it is now wrong of the PAGE,
+        # which carries a response control and a message box. It was never a claim about the holder's
+        # abilities anyway — the two public write routes predate it — so the sentence states what it
+        # always meant: read-only is a bound on what this token DISCLOSES.
+        "note": "Shared project digest — high-level readiness only, and no record-level data, GUIDs, "
+                "financial detail or personal information is exposed. Responses and messages you send "
+                "here reach the project team; neither is a substitute for the project record of "
+                "authority.",
     }
 
 
@@ -382,9 +387,138 @@ def _activity_for_token(db: Session, token: str, limit: int = 20) -> list[dict[s
     return [_decision_row(d) for d in rows]
 
 
+# PORTAL-TXN-DARK — the page's own script, and the ONE reason it is a module constant rather than part
+# of the f-string that builds the page: a JS body is full of `{`, so holding it in an f-string would
+# either break the format or invite a `{value}` to be interpolated into a SCRIPT context one day.
+# `esc()` is an HTML escaper; a value escaped with it is NOT safe inside a script, so the safe rule is
+# that nothing is ever interpolated here. This constant has no placeholders and is never formatted.
+#
+# It also takes no token. The page is served at `/shared/<token>`, so the script derives its own
+# endpoints from `location.pathname` — the credential is in the URL already and is never copied into
+# the markup, so there is nothing for an injection to reach even if the rule above were broken.
+_PAGE_JS = """
+(function () {
+  var base = location.pathname.replace(/\\/+$/, "");
+  function post(path, body, btn, msg) {
+    btn.disabled = true;
+    msg.textContent = "Sending\\u2026";
+    fetch(base + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = null; try { j = JSON.parse(t); } catch (e) { j = null; }
+        return { ok: r.ok, j: j };
+      });
+    }).then(function (o) {
+      if (!o.ok) {
+        msg.textContent = (o.j && o.j.detail) || "That could not be recorded. Ask the project team for a fresh link.";
+        btn.disabled = false;
+        return;
+      }
+      msg.textContent = "Recorded \\u2014 refreshing\\u2026";
+      location.reload();
+    }).catch(function () {
+      msg.textContent = "Network error \\u2014 nothing was recorded. Please try again.";
+      btn.disabled = false;
+    });
+  }
+  function val(id) {
+    var el = document.getElementById(id);
+    return el && el.value && el.value.trim() ? el.value.trim() : undefined;
+  }
+  var dec = document.getElementById("decision-form");
+  if (dec) {
+    var dmsg = document.getElementById("decision-msg");
+    Array.prototype.forEach.call(dec.querySelectorAll("button[data-action]"), function (btn) {
+      btn.addEventListener("click", function () {
+        post("/decision", {
+          item_type: dec.getAttribute("data-item-type"),
+          item_ref: dec.getAttribute("data-item-ref"),
+          action: btn.getAttribute("data-action"),
+          client_name: val("decision-name"),
+          note: val("decision-note")
+        }, btn, dmsg);
+      });
+    });
+  }
+  var send = document.getElementById("comment-send");
+  if (send) {
+    var cmsg = document.getElementById("comment-msg");
+    send.addEventListener("click", function () {
+      var text = val("comment-text");
+      if (!text) { cmsg.textContent = "Type a message first."; return; }
+      post("/comment", { text: text, client_name: val("comment-name") }, send, cmsg);
+    });
+  }
+})();
+"""
+
+
+def _decision_html(d: dict[str, Any], esc) -> str:
+    """The client's response control — approve / acknowledge / decline on the digest they are reading.
+
+    **`item_ref` is derived from the digest on screen**, so the record says what was *seen*
+    (`Readiness digest — 62% (5/8 steps ready)`) rather than a constant that would collapse every
+    response a project ever receives into one indistinguishable row. A client who approves a 62%
+    digest has not approved the 88% one.
+
+    It travels as a `data-` attribute rather than being resolved server-side on POST, and the
+    endpoint being PUBLIC is why that costs nothing: anyone holding the token could already post any
+    `item_ref` with `curl`, before this page existed. `record_decision` is explicit that what it
+    stores is a client attestation and *"NOT a payment and NOT an e-signature of record"* — the page
+    supplies a good default, and the record's authority is exactly what it was.
+    """
+    pct = d.get("readiness_pct") or 0
+    ref = f"Readiness digest — {pct}% ({d.get('ready_steps')}/{d.get('step_count')} steps ready)"
+    ref = ref[:_CAPS["item_ref"]]
+    name_cap, note_cap = _CAPS["client_name"], _CAPS["note"]
+    return (
+        '<div class="card" id="decision-form" data-item-type="digest" '
+        f'data-item-ref="{esc(ref)}">'
+        '<b>Your response</b>'
+        f'<div class="muted" style="margin-top:2px">On: {esc(ref)}</div>'
+        f'<input class="f" id="decision-name" maxlength="{name_cap}" placeholder="your name (optional)">'
+        f'<textarea class="f" id="decision-note" maxlength="{note_cap}" '
+        'placeholder="note for the project team (optional)"></textarea>'
+        '<div class="row">'
+        '<button class="act yes" type="button" data-action="approved">✓ Approve</button>'
+        '<button class="act" type="button" data-action="acknowledged">👁 Acknowledge</button>'
+        '<button class="act no" type="button" data-action="declined">✕ Decline</button></div>'
+        '<div class="muted" id="decision-msg" style="margin-top:6px" role="status"></div>'
+        '<div class="muted" style="margin-top:6px">Timestamped and sent to the project team. This is '
+        'a response to a status summary — not a payment, and not an e-signature of record.</div></div>')
+
+
 def to_html(d: dict[str, Any]) -> str:
-    """Render a digest() result as a self-contained, escaped read-only HTML page (the public share page).
-    Every dynamic value is HTML-escaped — the page is served to unauthenticated visitors."""
+    """Render a digest() result as the public share page — a self-contained HTML page that a recipient
+    with no account opens from a link.
+
+    Every dynamic value is HTML-escaped; the page is served to unauthenticated visitors. `esc()`
+    quotes `"` and `'` as well as `<`/`>`, so an escaped value is safe in an attribute as well as in
+    text, which `data-item-ref` relies on. Nothing is ever interpolated into the `<script>` — see
+    `_PAGE_JS`, which exists to make that structural.
+
+    ### It is no longer read-only, and PORTAL-TXN-DARK is why
+    This docstring promised a *"read-only"* page while two PUBLIC write routes —
+    `POST /shared/{token}/decision` and `POST /shared/{token}/comment` — sat behind the same token
+    with nothing able to reach them, and `_conversation_html` told the client *"messages posted
+    through this link reach the project team"* on a page that could not post one. **The page is now
+    the write surface those routes were built for**, and the promise it makes is one it can keep.
+
+    **It adds no public capability.** Both routes were already unauthenticated, input-whitelisted,
+    length-capped and per-token capped, and reachable with `curl` by anyone holding the token. What
+    changes is that a client can exercise them; the set of URLs an attacker can reach is identical.
+    No endpoint was added.
+
+    **And no `show_decisions` opt-in, unlike `show_payments` / `show_model`.** Those gate a
+    DISCLOSURE — a token carrying financials or geometry reveals more than one that does not, so the
+    owner must ask for it, and the backend's rule is that granting one never implies the other. A
+    response form reveals nothing; it accepts input the endpoint already accepts from the same
+    credential. A per-token opt-OUT is a column and a migration, and a product decision rather than
+    a cleanup.
+    """
     import html as _html
 
     def esc(v: Any) -> str:
@@ -412,9 +546,18 @@ def to_html(d: dict[str, Any]) -> str:
         "background:#f7f7f8;color:#111827}main{max-width:640px;margin:0 auto;padding:28px 20px}"
         ".card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:14px 0}"
         "h1{font-size:20px;margin:0 0 2px}.muted{color:#6b7280;font-size:13px}"
-        "ul{list-style:none;padding:0;margin:8px 0 0}</style></head><body><main>"
+        "ul{list-style:none;padding:0;margin:8px 0 0}"
+        "input.f,textarea.f{font:inherit;width:100%;box-sizing:border-box;border:1px solid #d1d5db;"
+        "border-radius:8px;padding:7px 9px;margin:4px 0;background:#fff;color:inherit}"
+        "textarea.f{min-height:64px;resize:vertical}"
+        ".row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}"
+        "button.act{font:inherit;cursor:pointer;border:1px solid #d1d5db;background:#fff;"
+        "border-radius:8px;padding:6px 12px;color:inherit}"
+        "button.act:hover{background:#f3f4f6}button.act[disabled]{opacity:.5;cursor:default}"
+        "button.act.yes{border-color:#1a7f37;color:#1a7f37}"
+        "button.act.no{border-color:#b3261e;color:#b3261e}</style></head><body><main>"
         f"<h1>{esc(d.get('project') or 'Project')}</h1>"
-        f"<div class=\"muted\">Project readiness{juris} · read-only shared digest</div>"
+        f"<div class=\"muted\">Project readiness{juris} · shared project digest</div>"
         "<div class=\"card\">"
         f"<div style=\"display:flex;justify-content:space-between;align-items:baseline\"><b>Readiness</b>"
         f"<span style=\"font-size:26px;font-weight:800;color:#2563eb\">{esc(pct)}%</span></div>"
@@ -422,6 +565,7 @@ def to_html(d: dict[str, Any]) -> str:
         f"<div class=\"muted\" style=\"margin-top:6px\">{esc(d.get('ready_steps'))}/"
         f"{esc(d.get('step_count'))} steps ready · {esc(d.get('gap_steps'))} gap(s)</div></div>"
         f"<div class=\"card\"><b>Master Builder Protocol</b><ul>{rows}</ul></div>"
+        + _decision_html(d, esc)
         + (
             "<div class=\"card\"><b>Your activity</b><ul>"
             + "".join(
@@ -434,14 +578,21 @@ def to_html(d: dict[str, Any]) -> str:
                 for a in d.get("activity", []))
             + "</ul></div>" if d.get("activity") else "")
         + (_payments_html(d["payment_schedule"], esc) if d.get("payment_schedule") else "")
-        + (_conversation_html(d["conversation"], esc) if d.get("conversation") else "")
+        + _conversation_html(d.get("conversation") or [], esc)
         + f"<div class=\"muted\">{esc(d.get('note'))}</div>"
+        + f"<script>{_PAGE_JS}</script>"
         "</main></body></html>")
 
 
 def _conversation_html(thread: list, esc) -> str:
     """The escaped conversation card (PORTAL-TXN phase 3) — client comments + the team's replies on
-    the token's feedback topic, oldest→newest."""
+    the token's feedback topic, oldest→newest, and the form that posts one.
+
+    **Rendered unconditionally, which is a fix and not a layout preference.** It used to render only
+    when the thread was non-empty, so the sentence inviting the client to write — and promising the
+    message reaches the team — appeared only to a client who had already written one. An empty
+    thread is precisely the state in which an invitation is the content.
+    """
     rows = "".join(
         '<li style="margin:8px 0">'
         f'<div style="display:flex;gap:8px;align-items:baseline"><b style="font-size:13px">'
@@ -449,9 +600,17 @@ def _conversation_html(thread: list, esc) -> str:
         f'<span class="muted">{esc((c.get("created_at") or "")[:16].replace("T", " "))}</span></div>'
         f'<div style="margin-top:2px;white-space:pre-wrap">{esc(c.get("text"))}</div></li>'
         for c in thread)
-    return ('<div class="card"><b>Conversation</b><ul>' + rows
-            + '</ul><div class="muted">Messages posted through this link reach the project team; '
-              'their replies appear here.</div></div>')
+    empty = '' if thread else '<div class="muted" style="margin-top:6px">No messages yet.</div>'
+    return ('<div class="card"><b>Conversation</b><ul>' + rows + '</ul>' + empty
+            + f'<textarea class="f" id="comment-text" maxlength="{_COMMENT_CAP}" '
+              'placeholder="message the project team…"></textarea>'
+            + f'<input class="f" id="comment-name" maxlength="{_CAPS["client_name"]}" '
+              'placeholder="your name (optional)">'
+            + '<div class="row"><button class="act" type="button" id="comment-send">Send message'
+              '</button></div>'
+            + '<div class="muted" id="comment-msg" style="margin-top:6px" role="status"></div>'
+            + '<div class="muted" style="margin-top:6px">Messages posted through this link reach the '
+              'project team; their replies appear here.</div></div>')
 
 
 def _payments_html(ps: dict, esc) -> str:

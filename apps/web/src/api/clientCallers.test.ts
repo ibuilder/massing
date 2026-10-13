@@ -277,6 +277,16 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: "0 line(s)" when the API key was simply unset. Both lowered the number. The complementary check
 //: is to call the endpoint with the arguments the caller actually sends and look at the response.
 //:
+//:
+//: A THIRD WAY A LINE LEAVES, and it is not "wired" or "the route was wrong": the method was on the
+//: WRONG SIDE OF A SEAM. PORTAL-TXN-DARK deleted `sharedComment` and `sharedDecision`, which posted
+//: to two public token-authenticated write routes. The person who posts to those has no account and
+//: arrives from a link in an email, so their surface is a server-rendered page — an SPA method for
+//: either could never have had a caller HERE, at any point, for any amount of work. Both sat frozen
+//: for months reading as "a screen somebody still owes", which is the cost: *a permanent entry in a
+//: list of unfinished work is indistinguishable from a backlog item, and nobody ever finishes it.*
+//: The `gone` branch below is what distinguishes removal from wiring, and it earned its keep twice.
+
 //: HOW TO CHANGE THIS LIST. Wire a method to a screen, then DELETE its line. If you delete the
 //: wrong one the gate says so by name. Do not add a line without saying in the commit why another
 //: unreachable endpoint is worth shipping.
@@ -325,7 +335,7 @@ const UNCALLED: readonly string[] = [
   // — `viewer/tools/colorCoverage.ts`, read by the phasing panel. *A dark route whose door is a
   // product decision is not the same finding as one nobody got round to, and this list cannot tell
   // them apart — so the distinction is written down beside the entry.*
-  "clientDecisions", "colorFacets",
+  "colorFacets",
   "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
@@ -382,7 +392,7 @@ const UNCALLED: readonly string[] = [
   "reviseDrawing", "runClash", "saveClausePlaybook",
   "saveMacros", "saveViewTemplates",
   "scopeRegister", "securitiesPackage", "sendDigest",
-  "setLod", "setPhase", "sharedComment", "sharedDecision",
+  "setLod", "setPhase",
   // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each
   // modelled project's m² per space against the portfolio median, and the engine now counts the
   // exclusion it used to drop silently (a readable model with no IfcSpace).
