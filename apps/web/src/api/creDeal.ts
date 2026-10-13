@@ -223,6 +223,22 @@ export interface SupplyIndexResult {
   note: string;
 }
 
+/** CRE-CLAUSE — one clause position in the firm's playbook.
+ *
+ *  `refuse` is REQUIRED and the server says why: *"a clause with no red line is not a standard"*.
+ *  `negotiate` and `fallback` are optional because `STARTER_CLAUSES` ships without them — the
+ *  starter states what we accept and what we refuse, and the middle ground is the firm's to write.
+ *  `validate()` fills both with "" on a stored row, so a read from `playbook` finds them present
+ *  and a read from `starter` may not; one shape covers both and the reader coalesces. */
+export interface ClausePosition {
+  clause: string;
+  severity: string;
+  accept: string;
+  negotiate?: string;
+  refuse: string;
+  fallback?: string;
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -239,14 +255,20 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: JSON.stringify({ inputs, hurdle_rate: hurdleRate,
                                                max_years: maxYears }) });
   }
-  /** CRE-CLAUSE — the clause-position playbook (a clause with no red line is not a standard). */
+  /** CRE-CLAUSE — the clause-position playbook (a clause with no red line is not a standard).
+   *
+   *  CLAUSE-DARK typed `starter` and the save body, which were `unknown[]` and `unknown`. That is
+   *  not a cosmetic change: `starter` is `clause_playbook.STARTER_CLAUSES`, the ten curated
+   *  money clauses this screen seeds from, and an `unknown[]` cannot be read without a cast — the
+   *  same way `truncated` went unread for months in CLASH-TRUNC. A field no property access can
+   *  resolve is invisible to every derivation over declarations. */
   clausePlaybook(pid: string) {
-    return this.json<{ playbook: Record<string, { clause: string; severity: string; accept: string;
-      negotiate: string; refuse: string; fallback: string }[]>;
-      starter: unknown[]; positions: string[] }>(`/projects/${pid}/contracts/playbook`);
+    return this.json<{ playbook: Record<string, ClausePosition[]>;
+      starter: ClausePosition[]; positions: string[] }>(`/projects/${pid}/contracts/playbook`);
   }
-  saveClausePlaybook(pid: string, playbook: unknown) {
-    return this.json<{ playbook: unknown }>(`/projects/${pid}/contracts/playbook`,
+  saveClausePlaybook(pid: string, playbook: Record<string, ClausePosition[]>) {
+    return this.json<{ playbook: Record<string, ClausePosition[]> }>(
+      `/projects/${pid}/contracts/playbook`,
       { method: "PUT", body: JSON.stringify({ playbook }) });
   }
   /** CRE-CLAUSE — record a review against the PLAYBOOK (distinct from the AI `reviewContract`

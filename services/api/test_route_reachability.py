@@ -514,6 +514,25 @@ KNOWN_UNCALLED: set[str] = {
     # route) and for `/workflow/` (zero hits).
     "/projects/{pid}/project-package/contents",
     "/projects/{pid}/workflow/{key}",
+    # PORTAL-TXN-DARK (2026-10-13) — frozen for a reason this list has not carried before: **their
+    # caller is not in `apps/web` and never can be.** Both are the public, token-authenticated write
+    # routes a CLIENT posts to, and a client has no account; the surface that serves them is
+    # `client_portal.to_html`, a server-rendered page whose script posts to
+    # `location.pathname + "/decision"` and `+ "/comment"`. This gate's population is the web tree,
+    # so that caller is invisible to it by construction.
+    #
+    # They became visible to it by LEAVING: `sharedComment` and `sharedDecision` were deleted from
+    # `apps/web/src/api/clientPortal.ts` in the same change, because an SPA method for a route only
+    # a no-account recipient posts to could never have had an SPA caller — so the URL literals that
+    # had been vouching for these two routes went with them. *The entries that vouched for these
+    # routes were themselves unreachable, which is a vouching that proves nothing* — this gate read
+    # "called" while `clientCallers.test.ts` read the method as unreachable, for a year.
+    #
+    # NOT a blind spot and NOT unexamined debt: `services/api/test_portal_public_reach.py` derives
+    # the public write routes under `/shared/{token}` and asserts the served page posts to every one
+    # of them, in both directions. That gate is the reason these two may be frozen here.
+    "/shared/{token}/comment",
+    "/shared/{token}/decision",
 }
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

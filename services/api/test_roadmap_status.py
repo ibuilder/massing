@@ -117,6 +117,15 @@ DONE_WHEN = {
         lambda: _gate_says("test_portal_public_reach.py", "0 unreachable"),
         "test_portal_public_reach reports every public /shared/{token} write route reachable from "
         "the page it serves"),
+    #: The needle is "all named in OPEN_STANDARDS", not "0 unwritable" — three standards are still
+    #: unwritable and the item is closed for the one it was about. *A predicate that demands the
+    #: whole sweep be finished cannot mark the slice that shipped*, and writing one that reads "3
+    #: unwritable" would go stale the day one of them is wired, in the direction that says the item
+    #: regressed.
+    "CLAUSE-DARK": (
+        lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
+        "test_stored_standard_writable reports every unwritable project standard accounted for, and "
+        "clause_playbook is no longer among them"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug

@@ -316,7 +316,7 @@ const UNCALLED: readonly string[] = [
   // EXCLUSION from VERDICT-COVERAGE's population — "its product is an ANSWER whose sourcing those
   // annotate" — which was a true answer to a different question: that reasoning was about whether
   // it is a verdict, and said nothing about whether anything called it.
-  "clashFederated", "clausePlaybook",
+  "clashFederated",
   // `codeAdoptions` left this list 2026-10-12 — CODE-ADOPT-DARK: the Data Requirements panel now
   // resolves which code editions govern, and which of them are the jurisdiction's own rather than
   // the national baseline. `codeCheck` left it the SAME DAY by its own work (CODE-READY-DARK,
@@ -389,7 +389,7 @@ const UNCALLED: readonly string[] = [
   // names the clone never reached a user, and nothing ever needed either door. *A frozen callerless
   // method records the one link of a severed chain that happens to exist.* Driven by
   // `apps/web/src/proforma/scenarioGovernance.ts` from the Overview tab.
-  "reviseDrawing", "runClash", "saveClausePlaybook",
+  "reviseDrawing", "runClash",
   "saveMacros", "saveViewTemplates",
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase",

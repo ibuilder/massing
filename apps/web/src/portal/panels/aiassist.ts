@@ -3,6 +3,7 @@ import { citationEl } from "./citationControl";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { money as cmoney, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
+import { renderClausePlaybook } from "./clausePlaybook";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -29,12 +30,19 @@ export function renderRiskReview(ctx: PanelContext) {
 
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px";
     const body = el("div"); root.append(tabs, body);
-    const TABS: [string, string][] = [["contract", "🛡 Contract risk"], ["scope", "🔍 Scope gaps"], ["ask", "💬 Ask a doc"]];
+    // CLAUSE-DARK added the fourth tab, and the placement is the point. The contract-risk tab scores
+    // a reading against the clause playbook and refuses with "store a playbook first"; until this
+    // tab existed, nothing in the product could store one, so that refusal was the only answer the
+    // control could ever give. *A refusal is only honest if its remedy is reachable* — so the remedy
+    // is one tab away from the refusal, and the refusal names it.
+    const TABS: [string, string][] = [["contract", "🛡 Contract risk"], ["scope", "🔍 Scope gaps"],
+      ["ask", "💬 Ask a doc"], ["playbook", "📕 Clause playbook"]];
     let active = "contract";
 
     const render = () => {
       body.innerHTML = "";
       [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i]?.[0] === active));
+      if (active === "playbook") { void renderClausePlaybook(ctx, body, pid); return; }
       const fileInp = el("input") as HTMLInputElement; fileInp.type = "file"; fileInp.accept = ".pdf,.txt";
       fileInp.style.cssText = "display:block;margin:4px 0";
       const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
@@ -559,11 +567,38 @@ export async function renderAiAssist(ctx: PanelContext) {
       const pb = document.createElement("button"); pb.className = "file-btn";
       pb.textContent = "📕 Playbook positions";
       pb.title = "Standard position and fallback for each flagged clause";
+      // CLAUSE-DARK: the contract type was HARDCODED `"subcontract"`, while the playbook is keyed by
+      // whatever type names the firm writes. So a firm whose standard is stored under "trade
+      // contract" or "design services" got `no_playbook` with a playbook sitting right there, and
+      // the reason named a type it had never used. The types come from the store now, which is also
+      // the only way this screen can offer them before a refusal lists them.
+      const typeSel = document.createElement("select"); typeSel.className = "portal-filter";
+      typeSel.style.cssText = "font-size:12px;margin-right:6px";
+      typeSel.title = "Which contract type's standard to score this reading against";
+      const setTypes = (names: readonly string[]) => {
+        typeSel.innerHTML = "";
+        for (const t of names) {
+          const o = document.createElement("option"); o.value = t; o.textContent = t;
+          o.selected = t === "subcontract"; typeSel.appendChild(o);
+        }
+        // NOT hidden when empty, and not silently defaulted either: an absent playbook is the
+        // state the user has to be told about, and the button below says what to do.
+        typeSel.disabled = names.length === 0;
+        if (!names.length) {
+          const o = document.createElement("option");
+          o.textContent = "no playbook stored"; typeSel.appendChild(o);
+        }
+      };
+      setTypes([]);
+      void ctx.host.api.clausePlaybook(pid)
+        .then((w) => setTypes(Object.keys(w.playbook ?? {}).sort()))
+        .catch(() => undefined);     // the button's own refusal path reports it; this is a prefill
       const pbOut = document.createElement("div"); pbOut.className = "meta"; pbOut.style.marginTop = "4px";
       pb.onclick = async () => {
         pb.disabled = true; pbOut.textContent = "reading the playbook…";
         try {
-          const cp = await ctx.host.api.reviewContractClauses(pid, "subcontract", r.findings);
+          const ctype = typeSel.disabled ? "subcontract" : (typeSel.value || "subcontract");
+          const cp = await ctx.host.api.reviewContractClauses(pid, ctype, r.findings);
           const rows = (cp.clauses ?? []).map((c: Record<string, unknown>) =>
             `<li><b>${esc(String(c.clause ?? c.category ?? ""))}</b> — ${esc(String(c.our_position ?? c.position ?? "no stated position"))}`
             + (c.fallback ? ` <span class="meta">fallback: ${esc(String(c.fallback))}</span>` : "") + `</li>`);
@@ -575,7 +610,10 @@ export async function renderAiAssist(ctx: PanelContext) {
           // never consulted. The response carried the cause and the UI discarded it.
           const verdict = String((cp as Record<string, unknown>).verdict ?? "");
           if (verdict === "no_playbook") {
-            pbOut.innerHTML = `<b>No clause playbook is stored for this contract type.</b> <span class="meta">${esc(String((cp as Record<string, unknown>).reason ?? ""))} — this is not the playbook agreeing with the contract; there is nothing to compare against yet.</span>`;
+            // CLAUSE-DARK: the sentence now names where to fix it. This refusal was unanswerable
+            // for the whole life of the feature — nothing in the product could store a playbook —
+            // so a reader was told to do something with no door to it anywhere.
+            pbOut.innerHTML = `<b>No clause playbook is stored for this contract type.</b> <span class="meta">${esc(String((cp as Record<string, unknown>).reason ?? ""))} — this is not the playbook agreeing with the contract; there is nothing to compare against yet. Write the standard on the <b>📕 Clause playbook</b> tab, then run this again.</span>`;
           } else {
             pbOut.innerHTML = rows.length
               ? `<ul style="margin:4px 0 0 16px">${rows.join("")}</ul>`
@@ -585,7 +623,10 @@ export async function renderAiAssist(ctx: PanelContext) {
         pb.disabled = false;
       };
       const wrap = document.createElement("div"); wrap.style.marginTop = "8px";
-      wrap.append(pb, pbOut); out.appendChild(wrap);
+      const bar = document.createElement("div");
+      bar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+      bar.append(typeSel, pb);
+      wrap.append(bar, pbOut); out.appendChild(wrap);
     }
   }
 

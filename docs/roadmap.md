@@ -936,6 +936,16 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   buttons"* was half right: the feature was missing, and these two were never going to be the half
   of it that lived in the SPA.
 
+  **Deleting them made TWO ROUTES newly report as unreachable, and that is the sharper finding.**
+  `test_route_reachability` reads the web tree for URL literals, and the only place
+  `/shared/{token}/decision` and `/shared/{token}/comment` were written was inside those two dead
+  methods. So that gate read both routes as **called** for a year while `clientCallers.test.ts` read
+  their only caller as **unreachable** — *a route vouched for by an unreachable caller is vouched for
+  by nothing, and the two gates held opposite answers about one seam without ever being compared.*
+  Both are frozen there now with the structural reason (their caller is a server-rendered page, so it
+  is outside that gate's population by construction) and a pointer to
+  `services/api/test_portal_public_reach.py`, which is the gate that can actually see it.
+
   ### A fourth defect, found while building the form
 
   The conversation card rendered **only when the thread was non-empty** — so the invitation to write,
@@ -990,6 +1000,116 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   **Still frozen, with a reason:** `sharedDigestUrl` has no caller. It builds the public JSON digest
   URL, which is owner-side useful for an integration and belongs to nothing on screen — unlike the
   two deleted above, it is on the right side of the seam and simply unbuilt.
+
+- ✅ ⭐ **CLAUSE-DARK — the clause playbook could be consulted and never written, and it is one of
+  four** *(M — `apps/web/src/portal/panels/clausePlaybook.ts` + `services/api/src/aec_api/clause_playbook.py`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_stored_standard_writable.py` and
+  `apps/web/src/portal/panels/clausePlaybook.test.ts`)*
+
+  `clause_playbook.py` has shipped a complete, validated standard since R20: per contract type, for
+  each clause that costs money, the position we **accept**, the position we **negotiate**, the
+  position we **refuse**, a severity and a fallback — plus ten curated starter clauses, and a review
+  that reports every playbook clause a reading never addressed as `not_reviewed` rather than assumed
+  fine. It even refuses to read the contract itself, on the stated ground that *"an LLM guess about
+  an indemnity is exactly the kind of confident wrongness this platform refuses to ship."*
+
+  **`reviewContractClauses` HAS a caller** — the "📕 Playbook positions" control on the contract-risk
+  tab — so the review engine was reachable. And `from_project` returns `verdict: "no_playbook"`
+  whenever the store is empty, with a note naming the remedy: *"Store a playbook first — reviewing
+  without a written standard is the problem this feature exists to fix."* **Nothing in this product
+  could store one.** Both methods that could (`clausePlaybook`, `saveClausePlaybook`) sat on
+  `clientCallers.test.ts`'s unreachable list, so that refusal was the ONLY answer that button could
+  ever give, on every project that has ever existed.
+
+  *A refusal is only honest if its remedy is reachable* — and nothing was checking the remedy,
+  because every gate here asks about one side. `test_route_reachability` asks whether a ROUTE is
+  called; `clientCallers.test.ts` asks whether a CLIENT METHOD is called; **neither asks whether a
+  capability's read and write halves are both reachable.** A standard you can consult and cannot
+  author is not a feature with a missing button, it is an engine whose input can never arrive.
+
+  **Shipped:** the editor is the fourth tab of Risk Review — deliberately the same panel as the
+  control that refuses, so the remedy is one tab away and the refusal now names it by label.
+  Seeding from the starter standard is **non-destructive** (only clauses this type does not already
+  name, deduped case-insensitively exactly as `validate()` dedupes, so a seed can never produce the
+  duplicate it would then be refused for), a type somebody created and left empty is dropped rather
+  than sent, and the server's 422 is shown **verbatim** because it names the contract type and the
+  clause to fix.
+
+  **No completeness verdict is rendered, only coverage** — clauses, how many carry a red line, how
+  many have a fallback, how many are high severity, and a warning naming the gaps. The temptation
+  was a green "your standard is complete" badge; there is no such property, and a verdict over a
+  subset with no coverage beside it is the defect this repository has now found eighteen times.
+
+  ### A SECOND DEFECT at the same call site, and it would have survived the first fix
+
+  The contract type was **hardcoded `"subcontract"`**, while the playbook is keyed by whatever type
+  names a firm writes. So a firm storing its standard under "trade contract" or "design services"
+  would have got `no_playbook` with a playbook sitting right there, and a reason naming a type it had
+  never used. The types come from the store now. *Wiring the write half without this would have
+  produced a worse bug than the one it fixed: a refusal that is wrong rather than merely unanswerable.*
+
+  Also typed: `starter` was `unknown[]` and the save body `unknown`. That is not cosmetic — `starter`
+  IS the ten curated clauses this screen seeds from, and **an `unknown[]` cannot be read without a
+  cast**, which is exactly how `truncated` went unread for months in CLASH-TRUNC. A field no property
+  access can resolve is invisible to every derivation over declarations.
+
+  ### THE SWEEP: 8 project standards, 4 of them unwritable
+
+  The gate derives the population by AST — a module with a top-level `load`/`save` pair over
+  `storage`, i.e. one stored standard per project — and resolves each one's write route and client
+  method. It is not a list in the file, so a ninth standard is in scope the day it lands.
+
+  | module | write route | client method | state |
+  |---|---|---|---|
+  | `clause_playbook` | PUT …/contracts/playbook | `saveClausePlaybook` | **FIXED here** |
+  | `deal_authority` | PUT …/deal-room/authority | `saveDealAuthority` | ok — AUTHORITY-DARK |
+  | `rule_library` | PUT …/rules | `saveRules` | ok — FIRM-RULES-OPTIONAL ② |
+  | `shared_params` | PUT …/shared-params | `saveSharedParams` | ok |
+  | `smart_views` | PUT …/smart-views | `smartViewsSave` | ok |
+  | `macros` | PUT …/macros | `saveMacros` | **OPEN** |
+  | `view_templates` | PUT …/view-templates | `saveViewTemplates` | **OPEN** |
+  | `workflow_config` | PUT …/workflow/{key} | *none declared* | **OPEN** |
+
+  Two of those three were already on `clientCallers.test.ts`'s list as individual names. **The
+  grouping is the finding**: read one at a time they are three unrelated missing buttons; derived as
+  one population they are three firm standards an engine refuses without. Named in a down-only
+  record rather than exempted, the same shape and for the same reason as `UNCALLED` — the gate's job
+  is to stop the set growing silently, not to forbid the commit that lands an engine before its
+  editor.
+
+  **`workflow_config` is worth the most, and it is the one no existing gate could see.** It has **no
+  client method at all**, so it cannot appear on a list of unreachable client methods — *you cannot
+  be on a register of unreachable methods if nobody ever declared one, and the absence of a member
+  reads exactly like a clean bill.* `test_route_reachability.py` does freeze that URL from the server
+  side, which is why this is recorded rather than newly discovered; neither gate, alone, would have
+  said "the per-module workflow is server-only".
+
+  ### What the gate's own drafts cost, both of them a spelling
+
+  **It missed 2 of the 8 and FAILED CLOSED, which is the only reason this note exists.** The first
+  draft matched `<module>.save(` on the bare module name; `authoring.py` writes
+  `from .. import macros as mac` and `standards.py` `from .. import view_templates as vt`, both
+  inside the handler, so the attribute's value is `mac` / `vt` and nothing spelled `macros` appears
+  in the call at all. *A defect the analyser cannot spell is invisible to it and reads exactly like
+  an absent one* — the same failure `test_gap_records` paid for. It raised `Unclassified` and named
+  the two modules; a version that had returned "no write route, so nothing to check" would have
+  reported the tree clean **and taken the two worst instances out of the population on the way.**
+
+  **And the client-method matcher attributed a READER as a writer.** `api/client.ts` declares
+  `sharedParams` immediately above `saveSharedParams`, so a fixed five-line window from the GET's
+  path literal reached the PUT's `method: "PUT"`. It was harmless *because the real writer was also
+  found* — which is the point: a window that spills into the next declaration produces a confident
+  wrong attribution that stays invisible for as long as something else happens to be right. Bounded
+  at the next method declaration now.
+
+  The cross-lane tripwire in `clausePlaybook.test.ts` reads `clause_playbook.py` off disk and asserts
+  the server still requires a red line and still dedupes case-insensitively — because `rowGaps` and
+  `seedFrom` exist to enforce exactly those two rules, and if either left the server the helpers
+  would be enforcing a standard nobody holds while every other test still passed. **Its first draft
+  reds on a correct tree**: it matched the whole sentence *"a clause with no red line is not a
+  standard"*, which the server wraps across two source lines. *A tripwire that fails on a tree that
+  is right costs more than one that stays silent, because the next person loosens it rather than
+  reading it.*
 
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
