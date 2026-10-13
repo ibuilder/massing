@@ -7,6 +7,7 @@ import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { citedAnswerButton } from "./citedAnswer";
 import { codeReadinessButton } from "./codeReadiness";
+import { recipeLogButton } from "./recipeLogTool";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { populate4dPanel } from "../fourD";
 import type { LogisticsResource } from "../../api/client";
@@ -429,6 +430,15 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         qaBtn.onclick = askQa;
         qaInput.onkeydown = (e) => { if (e.key === "Enter") askQa(); };
         qaWrap.append(qaInput, qaBtn);
+        // RECIPE-LOG-DARK — the edit-recipe log reader. Two placements were wrong before this one.
+        // The authoring section is where the capability belongs by SUBJECT, and it sets
+        // `dataset.cap = "edit"` on its whole group, while `/recipes/log` is VIEWER-gated: mounting
+        // it there makes a read reachable for everyone who does not need it and nobody who does.
+        // `qaSection.ts` is the right gate and sits at its extraction ratchet in
+        // `services/api/test_file_sizes.py`, and **a ratchet is not raised to accommodate a mount**.
+        // Both sections render under the same "Analyze & Coordinate" heading, so the user-visible
+        // home is the same one either way.
+        b.appendChild(recipeLogButton({ api, pid, notify, toolBtn2 }));
         b.appendChild(qaWrap);
         b.appendChild(out);
 }

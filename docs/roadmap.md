@@ -1509,6 +1509,145 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   **The stored-standard sweep is now 8 standards, 1 unwritable** — `macros`, where a macro editor
   remains separate work.
 
+- ✅ ⭐ **RECIPE-LOG-DARK — the replayable artifact recorded everything and nothing could read it,
+  and its own top-line verdict was unsound in two ways** *(M —
+  `apps/web/src/viewer/tools/recipeLogTool.ts` + `services/api/src/aec_api/recipe_log.py`;
+  **CLOSED 2026-10-13**; gated by `apps/web/src/viewer/tools/recipeLogTool.test.ts`,
+  `services/api/test_recipe_log.py` and `services/api/test_verdict_coverage.py`)*
+
+  `recipe_log` (R23-RECIPE-ARTIFACT) is the only place in this product that keeps an edit's
+  **inputs**. Its header says why that mattered: the audit log records an edit's *outputs* and the
+  undo stack records *file paths*, so before it existed *"you cannot replay an operation you did not
+  record the arguments to, cannot diff two edits whose arguments you never kept, and cannot export a
+  provenance trail that says only 'something called add_wall happened'"*. It is wired at four capture
+  sites in `services/api/src/aec_api/routers/authoring.py` and has run on every authored edit since.
+  **All four of its read routes had no client method at all.**
+
+  ### Four routes, four different silences, and not one of them a gate being wrong
+
+  Measured with `test_route_reachability.py`'s own helpers rather than assumed:
+
+  | route | why nothing flagged it |
+  |---|---|
+  | `GET …/recipes/log` | leaf `log` is 3 characters, under that gate's `MIN_SEGMENT` — honestly **unjudged**, not judged clean |
+  | `GET …/recipes/diff` | leaf `diff` is 4, same bucket |
+  | `GET …/recipes/export` | frozen in `LEAF_COLLISION_BLIND` — `export` collides with web-tree vocabulary |
+  | `POST …/recipes/replay-plan` | frozen in `UNREACHABLE_ROUTES`, which records "this was looked at", never "this is safe" |
+
+  And `apps/web/src/api/clientCallers.test.ts` was structurally unable to see any of the four,
+  because **no client method was ever declared** — that gate asks whether a declared method has a
+  caller, so a capability with no method is not in its population. *A gate for each side of a seam is
+  not a gate for the seam*: one asks "is the route called", the other "is the method called", and
+  neither asks "is the capability reachable".
+
+  ### `replayable` was wrong about an empty project and wrong about a real one
+
+  Found while wiring the reader, which is the argument for wiring it. `export()` answered
+  `"replayable": all(not r["params_elided"] for r in entries)`, and:
+
+  1. **`all()` over an empty sequence is `True`** — a project that had never been authored reported
+     *replayable*. That is NEGATED-VERDICT's class in a shape no gate covered: that sweep's
+     population is `BoolOp`/`And`, and a bare `all(…)` **Call** is in neither shape.
+  2. **The log is a RING.** `record()` kept `[-500:]` and said so in no payload, so a project past
+     the cap reported *replayable* while the edits needed to rebuild it had already been discarded.
+
+  **The second is the worse one and it is the one a reader meets**, because it is wrong about a real
+  populated project rather than an empty one — and the file could not even say whether it had
+  forgotten anything: `len(entries) == _MAX` reads identically for "exactly 500 edits, none lost" and
+  "500 kept, an unknown number dropped". So the drops are **counted** at `record()` now, which is
+  what turns an inference into a fact, and `_load` names the counter explicitly because it REBUILDS
+  the document — a key it does not name is discarded on the next `_save`, and the counter would have
+  reset to zero on every append with nothing failing.
+
+  `replay_coverage.history` carries **`unknown`** as a real third state for logs written before the
+  counter existed. *Folding that into either answer would be a guess, and the flattering guess is the
+  one that makes a partial history read as a whole one.*
+
+  **The name decided the shape of the fix.** A field called `replayable`, on an artifact whose stated
+  purpose is replay against a fresh IFC, is read as *can I rebuild this model* — so it answers that
+  end to end (`bool(entries) and not elided and history == "complete"`), and the narrower fact that
+  every entry the log HOLDS is faithful is `replay_coverage.replayable_entries`. One verdict answering
+  two questions is how a truncated history reads as a whole one. All three halves are
+  mutation-proved: dropping the presence guard reds the empty-log check, dropping the history clause
+  reds the ring and legacy checks, and not carrying the counter through `_load` reds five.
+
+  ### Why the reader does not apply the plan
+
+  `replay_plan()` returns a plan by design — *"re-running edits is exactly the kind of thing that
+  should have one author and one audit row, and a log that could re-run itself would have neither"*.
+  So the plan is shown and this panel does not apply it, which is a decision rather than an
+  unfinished edge: applying a project's own log back onto that project re-runs the edits and
+  **duplicates** everything they created. The target is a different model, and the engine's `note`
+  names `POST /projects/{pid}/edit/batch`; it is rendered verbatim. The 422 that refuses to replay an
+  elided entry is rendered verbatim too — that refusal is the capability.
+
+  ### Where it mounts took three tries, and the second one is the useful note
+
+  Not the authoring section, which is where it belongs by SUBJECT: that section sets
+  `dataset.cap = "edit"` on its whole group while `/recipes/log` is **viewer**-gated, so mounting it
+  there makes a read reachable for everyone who does not need it and nobody who does. Then
+  `apps/web/src/viewer/tools/qaSection.ts`, which has the right gate — and `test_file_sizes.py`
+  refused it, because that file sits **exactly at** its extraction ratchet and eleven lines of mount
+  and comment put it at 1,238 against a pin of 1,229. *A ratchet is not raised to accommodate a
+  mount*, and the pin's own note says lowering it is the only direction. So
+  `apps/web/src/viewer/tools/analyseSection.ts`, which renders under the same "Analyze & Coordinate"
+  heading, making the user-visible home the same one either way.
+
+- ✅ **VERDICT-OWNER — the coverage gate counted 15 verdicts and examined 8 of them** *(S — Lane J;
+  **CLOSED 2026-10-13** for the resolvable half; gated by `services/api/test_verdict_coverage.py`)*
+
+  `bare_consumers` resolves a verdict's owner by looking for a client method that declares the
+  verdict's name among its response fields, and the field scan read only INLINE type literals. So a
+  method whose response is a **named** type — `this.json<RecipeLogExport>(…)` — declared almost
+  nothing, had no owner, and every consumer of its verdict went unexamined **while the headline
+  counted the verdict as checked**. Measured: **67 of 634** methods declared fewer than three field
+  names, `documents.preflight` among them; **7 of 15** verdicts had no resolvable owner at all.
+
+  *The parenthetical is what made it invisible.* `"every consumer of a subset verdict also reads its
+  coverage (15 verdicts)"` prints a count of the population beside a result computed over part of it,
+  which is `test_gap_records`'s lesson in a different file: **a registry reports on what it contains,
+  and its silence is indistinguishable from a clean bill.** The line now names the EXAMINED
+  population, and `unowned_verdicts()` is floored so a seventh unowned verdict reds the build.
+
+  Named-type resolution is **unconditional**, and that was measured rather than chosen: resolving
+  only the thin methods and resolving all of them give **the same owner table for all 15 verdicts**
+  (40 of 634 methods get a different field set, no verdict changes owner), so the conditional form
+  bought a threshold and no behaviour. It gains exactly one owner — `ifcpatch_lib.convertible` →
+  `modelSetup` — whose single consumer already reads its coverage: *a clean negative on symptoms and
+  a real one on exposure.* Resolution is by NAME, which is the conflation hazard
+  `apps/web/src/api/responseUndeclared.test.ts` records (`MassingMetrics` is declared twice in this
+  tree, as an API response and as an unrelated vendor schema), so a precondition asserts no name is
+  declared twice inside `api/` — 209 types, 0 duplicates — and the lookup's reach AND its effect are
+  both floored, because a lookup that resolves 83 types and adds no fields would satisfy only the
+  first.
+
+  **Still open: the 6 verdicts with no owner for the OTHER reason** — `detail_refs.navigable`,
+  `fived.complete`, `perf_budget.within_budget` and `adjacency` ×3. Those are a reachability
+  question, which is `services/api/test_verdict_reachable.py`'s subject, and they are ranked here so
+  the floor above is a ratchet rather than a resting place.
+
+- 🟡 **VERDICT-NAMEREAD — the coverage gate matches the consumer's read by NAME, so another
+  response's field of the same name satisfies it** *(S — Lane J; found 2026-10-13 by mutating
+  RECIPE-LOG-DARK's own consumer; **no live instance**)*
+
+  The consumer check searches the whole consumer source for the coverage field's name.
+  `apps/web/src/viewer/tools/recipeLogTool.ts` reads three responses of one capability — the log
+  page, the export and a diff — and **all three carry `elided`**, so deleting every read of the
+  EXPORT's coverage left `p.elided` and `d.elided` in place and `test_verdict_coverage.py` still
+  passed. That is the hazard `apps/web/src/api/responseUndeclared.test.ts` records from the other
+  direction: *a field NAME can live on two types*, which is why its own client half resolves through
+  the TypeScript checker instead of scanning.
+
+  **Measured before being written down, and the measurement is why it is not built yet**: 11
+  consumer/verdict pairs today, **8** reading their coverage off the variable that HOLDS the owner's
+  response and **3** taking the response as a parameter (`proforma/covenantCard.ts`,
+  `proforma/rentRollQuality.ts`, `proforma/decisionGateCard.ts`). A holder-scoped rule would have to
+  generalise the delegation machinery to cover those three or it would red three correct files, and
+  *a check that reds correct code is how a gate teaches people to ignore it.* Zero live instances, so
+  this is exposure rather than a defect. The complement that does hold today is the consumer's own
+  test: `apps/web/src/viewer/tools/recipeLogTool.test.ts` asserts the export's coverage is rendered
+  on every answer, mutation-proved.
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*
@@ -8147,7 +8286,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* · VERDICT-NAMEREAD *(exposure, no live instance: `test_verdict_coverage.py`'s consumer read is matched by NAME anywhere in the file, so another response's field of the same name satisfies it. Measured at 11 consumer/verdict pairs — 8 holder-scoped, 3 taking the response as a parameter — which is why the holder-scoped rule is not built yet: it would red three correct files. Here rather than Lane C because the subject is the GATE, not the engine it rules on.)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·

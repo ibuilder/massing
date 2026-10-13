@@ -79,7 +79,8 @@
  *  sibling's private member — that has to move into HttpCore first.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { AssemblyRow, EditMacro, GroupRow, TypeDetail, TypeRow } from "./types";
+import type { AssemblyRow, EditMacro, GroupRow, RecipeDiff, RecipeLogExport, RecipeLogPage,
+  RecipeReplayPlan, TypeDetail, TypeRow } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -494,6 +495,41 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: fd, headers: this.authHeaders() });
     if (!r.ok) throw new HttpError((await r.text()) || `HTTP ${r.status}`, r.status);
     return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
+  }
+  // --- R23-RECIPE-ARTIFACT: the edit-recipe log ------------------------------------------------
+  //
+  // RECIPE-LOG-DARK — these four are the FIRST client methods this capability has ever had. It has
+  // recorded the recipe, parameters, actor and time of every authored edit since it shipped, and all
+  // four read routes were invisible to both reachability gates at once: `test_route_reachability.py`
+  // by leaf length (`log`, `diff` are under its `MIN_SEGMENT`) and by two explicit freezes, and
+  // `apps/web/src/api/clientCallers.test.ts` because a method that does not exist is not in its
+  // population. *A gate for each side of a seam is not a gate for the seam.*
+  /**
+   * The log, newest first. `recipe` narrows SERVER-SIDE on purpose: `total`, `elided` and the ring
+   * `note` are answers about the filtered set, and filtering the page in hand would print the
+   * unfiltered total beside a filtered list.
+   */
+  recipeLog(pid: string, opts: { limit?: number; offset?: number; recipe?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
+    const qs = q.toString();
+    return this.json<RecipeLogPage>(`/projects/${pid}/recipes/log${qs ? `?${qs}` : ""}`);
+  }
+  /** The whole log as a portable document, **oldest first** — the provenance artifact. Carries
+   *  `replayable` AND `replay_coverage`; the boolean alone is a claim about a window. */
+  recipeLogExport(pid: string) {
+    return this.json<RecipeLogExport>(`/projects/${pid}/recipes/export`);
+  }
+  /** Compare two entries by index in the EXPORT (oldest-first) order — not the page order. */
+  recipeDiff(pid: string, a: number, b: number) {
+    return this.json<RecipeDiff>(`/projects/${pid}/recipes/diff?a=${a}&b=${b}`);
+  }
+  /** Ordered `{recipe, params}` steps to re-run the logged edits against ANOTHER model. A plan: it
+   *  does not execute, and it 422s rather than replay an entry whose parameters were elided.
+   *  `indices` omitted means the whole log. */
+  recipeReplayPlan(pid: string, indices?: number[]) {
+    return this.json<RecipeReplayPlan>(`/projects/${pid}/recipes/replay-plan`,
+      { method: "POST", body: JSON.stringify(indices ? { indices } : {}) });
   }
   };
 }

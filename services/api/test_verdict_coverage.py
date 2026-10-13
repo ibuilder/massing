@@ -104,6 +104,25 @@ its place from where it is the ONLY one, not from the worst case it can be descr
 so this is written down, with its numbers, instead of built. Re-measure before building it: a third
 module declaring a band is the signal that it has stopped being prospective.
 
+A SECOND THING IT DOES NOT PROVE, found the same way, by RECIPE-LOG-DARK
+------------------------------------------------------------------------
+The consumer read is matched by NAME, anywhere in the consumer's source. So a DIFFERENT response's
+identically-named field, in the same file, satisfies it. `viewer/tools/recipeLogTool.ts` reads three
+responses of one capability — the log page, the export and a diff — and all three carry `elided`, so
+deleting every read of the EXPORT's coverage left `p.elided` and `d.elided` in place and this file
+still passed. That is the hazard `apps/web/src/api/responseUndeclared.test.ts` records from the other
+direction: *a field NAME can live on two types*, which is why its own client half resolves through the
+TypeScript checker instead of scanning.
+
+**Measured before being written down, and there is no live instance**: 11 consumer/verdict pairs
+today, 8 of which read their coverage off the variable that HOLDS the owner's response and 3 of which
+take the response as a parameter (the `proforma/*Card.ts` modules — `covenantCard`, `rentRollQuality`,
+`decisionGateCard`), so a holder-scoped rule would have to generalise the delegation machinery to
+cover them or it would red three correct files. Not built for that reason, and recorded rather than
+left as a surprise: VERDICT-NAMEREAD in `docs/roadmap.md` owns it. The complement, as ever, is the
+consumer's own test — `apps/web/src/viewer/tools/recipeLogTool.test.ts` asserts the export's coverage
+is rendered on every answer, with mutations.
+
 WHAT THIS DOES NOT PROVE, stated because mutation-checking it is what surfaced the limit
 ----------------------------------------------------------------------------------------
 It is a SOURCE-level check: it proves the consumer reads the field somewhere in its source, not that
@@ -288,8 +307,83 @@ def subset_verdicts(root: Path) -> list[tuple[str, str, set[str], set[str]]]:
     return out
 
 
+def _brace_block(src: str, at: int) -> str:
+    """The brace-matched `{…}` at or after `at`. A nested literal is why this is not a regex."""
+    try:
+        i = src.index("{", at)
+    except ValueError:
+        return ""
+    depth = 0
+    for j in range(i, len(src)):
+        if src[j] == "{":
+            depth += 1
+        elif src[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[i:j + 1]
+    return ""
+
+
+_API_IFACE = re.compile(r"export interface (\w+)\b[^{]*\{")
+#: An object-shaped alias — `export type X = Y & {…}`. The `[^;{]*` cannot cross a `;`, so a union of
+#: string literals has no match and is correctly absent rather than resolved to nothing.
+_API_TYPE_OBJ = re.compile(r"export type (\w+)\s*=\s*[^;{]*\{")
+_FIELD = re.compile(r"\b(\w+)\s*\??\s*:")
+#: Non-greedy, so `Record<string, string[]>` stops at the LAST `>` before the call paren rather than
+#: the first `>` inside the type.
+_TYPE_ARG = re.compile(r"this\.json<(.*?)>\(", re.S)
+
+
+def api_type_decls() -> dict[str, list[tuple[str, str]]]:
+    """`{name: [(file, body), …]}` for every object type exported from `apps/web/src/api/`."""
+    out: dict[str, list[tuple[str, str]]] = {}
+    for path in sorted(WEBAPI.glob("*.ts")):
+        if path.name.endswith(".test.ts") or path.name == "schema.d.ts":
+            continue
+        src = path.read_text(encoding="utf-8")
+        for rx in (_API_IFACE, _API_TYPE_OBJ):
+            for m in rx.finditer(src):
+                body = _brace_block(src, m.start())
+                if body:
+                    out.setdefault(m.group(1), []).append((path.name, body))
+    return out
+
+
+#: Methods whose `this.json<T>` argument is a BARE type name this file could not find a declaration
+#: for, as `(file, method, name)`. Reported rather than silently treated as zero fields. An array or
+#: `Record<…>` argument is not in here: it is not a name, and it cannot own a dict-keyed verdict.
+UNRESOLVED_TYPES: list[tuple[str, str, str]] = []
+#: Methods whose response type WAS resolved by name. Counted so the lookup's reach is asserted — a
+#: lookup that always misses leaves every named-type method at its pre-fix field set and this file
+#: prints the same clean bill it printed before the repair.
+RESOLVED_TYPES: list[tuple[str, str, str]] = []
+
+
 def client_methods() -> dict[str, set[str]]:
-    """`{method: declared response field names}` for every `ApiClient` method that fetches JSON."""
+    """`{method: declared response field names}` for every `ApiClient` method that fetches JSON.
+
+    **The field scan alone was a blind spot, and it was a fail-OPEN one.** `bare_consumers` resolves
+    a verdict's owner by looking for a method that declares the verdict's name, so a method whose
+    response is a NAMED type — `this.json<RecipeLogExport>(…)` — declared almost nothing here, had
+    no owner, and every consumer of its verdict went unexamined while the headline below counted the
+    verdict as checked. Measured at **67 of 634 methods** declaring fewer than three field names,
+    `documents.preflight` among them. *A predicate that decides what to LOOK at is more dangerous
+    than one that decides what to report*, and the parenthetical "(N verdicts)" is what made it
+    invisible: a count of the population, printed beside a result computed over part of it.
+
+    Resolution is UNCONDITIONAL rather than a fallback for the thin ones, because the two were
+    measured against each other: 40 of the 634 methods get a different field set, and **the owner
+    table for all 15 verdicts is identical either way** — so the conditional form bought a threshold
+    and no behaviour. It gains exactly one owner (`ifcpatch_lib.convertible` → `modelSetup`), whose
+    one consumer already reads its coverage: a clean negative on symptoms, a real one on exposure.
+
+    Name resolution is the hazard `responseUndeclared.test.ts` records — `MassingMetrics` is declared
+    twice in this tree, as an API response and as an unrelated vendor schema — so the precondition
+    below asserts no name is declared twice INSIDE `api/`, which is the only directory read here.
+    """
+    decls = api_type_decls()
+    UNRESOLVED_TYPES.clear()
+    RESOLVED_TYPES.clear()
     out: dict[str, set[str]] = {}
     for path in sorted(WEBAPI.glob("*.ts")):
         if path.name.endswith(".test.ts") or path.name == "schema.d.ts":
@@ -300,8 +394,31 @@ def client_methods() -> dict[str, set[str]]:
             end = src.find("\n  }", start)
             if end < 0 or "this.json<" not in src[start:end]:
                 continue
-            out[m.group(1)] = set(re.findall(r"\b(\w+)\s*\??\s*:", src[start:end]))
+            body = src[start:end]
+            fields = set(_FIELD.findall(body))
+            ta = _TYPE_ARG.search(body)
+            name = ta.group(1).strip() if ta else ""
+            if re.fullmatch(r"\w+", name):
+                if name in decls:
+                    RESOLVED_TYPES.append((path.name, m.group(1), name))
+                    for _file, decl in decls[name]:
+                        fields |= set(_FIELD.findall(decl))
+                else:
+                    UNRESOLVED_TYPES.append((path.name, m.group(1), name))
+            out[m.group(1)] = fields
     return out
+
+
+def unowned_verdicts(methods: dict[str, set[str]]) -> list[tuple[str, str]]:
+    """`(module, verdict)` for every subset verdict no client method can be matched to.
+
+    The consumer loop below cannot rule on these AT ALL: with no owner there is no call site to look
+    for, so the loop appends nothing and the verdict reads as checked. Counted here so the headline
+    can state what it examined instead of what exists — the same repair `test_gap_records` needed
+    when a registry's silence read as a clean bill.
+    """
+    return [(mod, verdict) for mod, verdict, top, _deep in engine_verdicts()
+            if not [n for n, d in methods.items() if verdict in d and len(top & d) >= 3]]
 
 
 def reads(src: str, name: str) -> bool:
@@ -544,6 +661,56 @@ check(f"the client surface parsed ({len(_METHODS)} methods)",
       f"only {len(_METHODS)} client methods parsed out of {WEBAPI} — with no owners the consumer "
       "check can never fire")
 
+# A NAMED response type is resolved by NAME, which is the conflation hazard
+# `apps/web/src/api/responseUndeclared.test.ts` records: `MassingMetrics` is declared twice in this
+# tree, once as an API response and once as an unrelated vendor schema with no field in common.
+# Resolving by name is sound here only because `api/` holds one declaration per name — asserted, not
+# assumed, because a second one would union two unrelated field sets and could name an owner that
+# does not serve the verdict at all.
+_DECLS = api_type_decls()
+_DUPED = {n: [f for f, _b in v] for n, v in _DECLS.items() if len(v) > 1}
+check(f"no response type name is declared twice inside api/ ({len(_DECLS)} types)",
+      not _DUPED,
+      f"{_DUPED} — resolving a type by NAME unions every declaration of it, so two unrelated "
+      "shapes under one name can name an owner that does not serve this verdict. Rename one, or "
+      "resolve through the TypeScript checker the way responseUndeclared.test.ts does")
+
+# The lookup has to actually RESOLVE something, or the repair above is decorative: one that always
+# misses leaves every named-type method at its pre-fix field set and this file prints the same clean
+# bill it printed before. Two floors, because they fail differently — the first is the lookup's
+# reach, the second is its EFFECT, and a lookup resolving 83 types that adds no fields would satisfy
+# only the first. Measured today: 83 resolved, 609 methods at three or more fields against 567
+# before the repair.
+check(f"the named-type lookup reaches the client surface ({len(RESOLVED_TYPES)} types resolved)",
+      len(RESOLVED_TYPES) >= 70,
+      f"only {len(RESOLVED_TYPES)} response types resolved by name out of {len(_METHODS)} methods — "
+      "the lookup is finding nothing and the owner table is the pre-fix one")
+_RICH = sum(1 for fields in _METHODS.values() if len(fields) >= 3)
+check(f"  ...and it changes the owner table's input ({_RICH} methods with ≥3 declared fields)",
+      _RICH >= 600,
+      f"{_RICH} of {len(_METHODS)} methods declare three or more fields; before the named-type "
+      "lookup this was 567, so a number at or below it means the resolution added nothing")
+
+# UNRESOLVABLE type arguments are REPORTED, not folded into "declared nothing". Most are arrays and
+# `Record<…>` responses, which cannot own a dict-keyed verdict at all; the number is floored so a
+# rise — a new named type this file cannot find — is visible rather than silent.
+check(f"every bare response type name resolves ({len(UNRESOLVED_TYPES)} unresolved)",
+      not UNRESOLVED_TYPES,
+      f"{UNRESOLVED_TYPES} — a bare type name that resolves to nothing is a method with no owner, "
+      "and a verdict with no owner is one this file cannot rule on. Export the type from api/, or "
+      "record why it cannot be")
+
+# WHAT THIS FILE CANNOT RULE ON, counted. With no owner there is no call site to look for, so the
+# consumer loop appends nothing and the verdict reads as checked — which is what the headline's
+# "(N verdicts)" asserted for all 15 while examining 9. VERDICT-OWNER in `docs/roadmap.md` owns
+# closing the remaining six; this floor makes a SEVENTH a build failure rather than a silence.
+_UNOWNED = unowned_verdicts(_METHODS)
+check(f"no NEW subset verdict is unreachable to the consumer rule ({len(_UNOWNED)} unowned)",
+      len(_UNOWNED) <= 6,
+      f"{_UNOWNED} — a verdict with no resolvable owner method is one this file counts and never "
+      "looks at. Either the capability is dark (wire it, and `test_verdict_reachable.py` is the "
+      "gate for that) or its owner's response type cannot be resolved here")
+
 _NAMES = {(m, v) for m, v, _, _ in _VERDICTS}
 # Labels carry the package now, because two roots can hold the same filename. Rewritten rather
 # than matched loosely: a suffix match would let `aec_data/covenants.py` satisfy a claim about
@@ -779,7 +946,11 @@ check("  ...and every `# COVERAGE:` declaration names a REAL sibling of its verd
       + " — a declaration that names nothing is an exemption, and the point of declaring at the "
         "site is that it cannot become one")
 
-check(f"every consumer of a subset verdict also reads its coverage ({len(_VERDICTS)} verdicts)",
+# The count is the EXAMINED population, not the whole one. `_UNOWNED` verdicts have no call site
+# to look for, so this rule is silent about them by construction, and a parenthetical naming the
+# larger number is how that silence read as a result.
+check(f"every consumer of a subset verdict also reads its coverage "
+      f"({len(_VERDICTS) - len(_UNOWNED)} of {len(_VERDICTS)} verdicts have an owner to check)",
       not _BARE,
       f"{len(_BARE)}: {_DETAIL} — the verdict is true of what the engine could evaluate, and a "
       "screen that shows it without the size of what it could not turns an absence of inputs into "
@@ -789,5 +960,6 @@ print()
 if FAILED:
     print(f"verdict_coverage: {len(FAILED)} FAILED — {FAILED}")
     sys.exit(1)
-print(f"verdict_coverage: all checks passed — {len(_VERDICTS)} subset verdict(s), "
+print(f"verdict_coverage: all checks passed — {len(_VERDICTS)} subset verdict(s) "
+      f"({len(_UNOWNED)} with no owner method, so unexamined by the consumer rule), "
       f"{len(_METHODS)} client methods, 0 consumers reading a verdict without its coverage")

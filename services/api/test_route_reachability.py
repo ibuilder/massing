@@ -294,7 +294,11 @@ KNOWN_UNCALLED: set[str] = {
     # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
     # `/projects/{pid}/provenance/admissibility` left here 2026-10-13 — PROVENANCE-DARK wired
     # `projectAdmissibility` and the admissibility card on the Underwriting tab. This one IS called.
-    "/projects/{pid}/recipes/replay-plan",
+    # `/projects/{pid}/recipes/replay-plan` left this set 2026-10-13 — RECIPE-LOG-DARK. Wired to
+    # `recipeReplayPlan`, which the provenance reader calls to BUILD a plan and never to apply one:
+    # the engine returns steps for `POST /edit/batch` on purpose, so that a replay carries one author
+    # and one audit row the way the original edit did. Its 422 — the refusal to replay an entry whose
+    # parameters were elided — is rendered verbatim, which is the whole capability.
     # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
     "/projects/{pid}/verified-progress/from-layout",
     # `/view-templates/{tid}/graphics` left here in v0.3.1138 — Model Analysis reads cut vs projection.
@@ -1786,7 +1790,13 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/productivity/summary",
     "/projects/{pid}/progress/reconciliation",
     "/projects/{pid}/properties/index",
-    "/projects/{pid}/recipes/export",
+    # `/projects/{pid}/recipes/export` left this set 2026-10-13 — RECIPE-LOG-DARK. The provenance
+    # reader in `apps/web/src/viewer/tools/recipeLogTool.ts` calls `recipeLogExport`, so the leaf
+    # collision is no longer what is holding it: it IS called. Its three siblings were silent in
+    # three DIFFERENT ways — `log` and `diff` fell under `MIN_SEGMENT`, `replay-plan` was frozen in
+    # `UNREACHABLE_ROUTES` — and `clientCallers.test.ts` could see none of the four, because the
+    # capability had no client method at all and a method that does not exist is not in its
+    # population. *A gate for each side of a seam is not a gate for the seam.*
     "/projects/{pid}/reports/catalog",
     "/projects/{pid}/review/contract",
     "/projects/{pid}/review/scope",

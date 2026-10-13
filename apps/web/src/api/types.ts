@@ -1282,3 +1282,102 @@ export type NeedsEditIfc = HttpCore & {
   editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish?: boolean,
           wantGuid?: string): Promise<{ recipe: string; changed: number | string; published: unknown }>;
 };
+
+/**
+ * R23-RECIPE-ARTIFACT — one entry in a project's edit-recipe log.
+ *
+ * The log is the only place in this product that keeps an edit's **inputs**: the audit log records
+ * an edit's outputs and the undo stack records file paths, so before it existed no replay, diff or
+ * provenance trail was possible. Declared here rather than inline on the mixin because both the
+ * mixin and `viewer/tools/recipeLogTool.ts` read the shape, and `api/noRespelledShapes.test.ts`
+ * reds a second declaration of the same name — one definition cannot drift from itself.
+ */
+export interface RecipeLogEntry {
+  recipe: string;
+  /** The recipe's arguments. A value replaced by `{ __elided__: true, … }` was too large to store
+   *  (or its key looked like a credential), which is what `params_elided` reports. */
+  params: Record<string, unknown>;
+  /** Any value elided ⇒ this entry **cannot be replayed faithfully**, and `replay-plan` refuses it
+   *  by name rather than calling the recipe with a descriptor that resembles the argument. */
+  params_elided: boolean;
+  actor: string | null;
+  at: string | null;
+  /** Basenames, not paths — the log is exported, and a server filesystem layout is not something to
+   *  hand out. */
+  source_in: string | null;
+  source_out: string | null;
+  outputs?: unknown;
+  /** Present when the edit arrived as one step of a `/edit/batch`. */
+  batch?: string;
+}
+
+/** `GET /projects/{pid}/recipes/log` — newest first, and a PAGE: `returned` is not `total`. */
+export interface RecipeLogPage {
+  version: number;
+  total: number;
+  returned: number;
+  offset: number;
+  entries: RecipeLogEntry[];
+  /** Distinct recipe names across the WHOLE log, for narrowing — not just this page. */
+  recipes: string[];
+  elided: number;
+  bounded_at: number;
+  /** The engine's own ring warning, or null. Render it verbatim: it is the one sentence that says
+   *  history has been dropped. */
+  note: string | null;
+}
+
+/**
+ * `GET /projects/{pid}/recipes/export` — the whole log, OLDEST first, as the provenance artifact.
+ *
+ * `replayable` and `replay_coverage` are two different claims and both are needed. The first is
+ * about the entries the log HOLDS; the second says whether it holds all of them, because the log is
+ * a ring bounded at `bounded_at`. Reading the boolean alone is the CLASH-TRUNC defect — a guard is
+ * only as sound as the evidence it is handed — and `services/api/test_verdict_coverage.py` is the
+ * gate that enforces a consumer reading the coverage.
+ */
+export interface RecipeLogExport {
+  version: number;
+  project: string;
+  order: "oldest_first";
+  count: number;
+  entries: RecipeLogEntry[];
+  elided: number;
+  replayable: boolean;
+  replay_coverage: {
+    entries: number;
+    elided: number;
+    replayable_entries: number;
+    /** Entries the ring has dropped, counted since the counter existed. */
+    dropped: number;
+    /** `unknown` is a real third state, not a default: a log written before the drop counter cannot
+     *  distinguish "exactly `bounded_at` edits, none lost" from "that many kept, an unknown number
+     *  dropped", and folding it into either answer would be a guess. */
+    history: "complete" | "truncated" | "unknown";
+    reason: string;
+  };
+  bounded_at: number;
+}
+
+/** `GET /projects/{pid}/recipes/diff` — two entries of the SAME recipe, compared field by field.
+ *  `comparable: false` carries the engine's reason; everything after it is absent in that case. */
+export interface RecipeDiff {
+  comparable: boolean;
+  reason?: string;
+  recipe?: string;
+  changed?: { param: string; before: unknown; after: unknown }[];
+  unchanged?: string[];
+  identical?: boolean;
+  elided?: boolean;
+  /** Why a diff over elided parameters means less than it looks: a descriptor compares by hash, so
+   *  an unchanged one means the value was identical and a changed one only means it differed. */
+  elided_warning?: string | null;
+}
+
+/** `POST /projects/{pid}/recipes/replay-plan` — a PLAN, not an execution. Apply through
+ *  `POST /projects/{pid}/edit/batch`, which is what `note` says and why this carries no result. */
+export interface RecipeReplayPlan {
+  steps: { recipe: string; params: Record<string, unknown> }[];
+  count: number;
+  note: string;
+}

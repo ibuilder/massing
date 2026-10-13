@@ -312,6 +312,103 @@ try:
 except rl.ReplayError:
     check("  replay refuses the wholesale-elided entry", True)
 
+# --- 9. the replay VERDICT, which was unsound in two independent ways -----------------------------
+# `export()` answered `"replayable": all(not r["params_elided"] for r in entries)`. Both defects are
+# reproduced here as the two cases a reader actually meets, because a test over a short, complete,
+# un-elided log passes on the defect and on the fix alike — which is why it had one for months.
+EMPTY = "verdict-empty"
+ex = rl.export(EMPTY)
+# DEFECT 1: `all()` over an empty sequence is True, so a project that had never been authored
+# reported *replayable*. NEGATED-VERDICT's class in a shape no gate covered: the vacuity sweep's
+# population is `BoolOp`/`And` and a bare `all(...)` Call is in neither shape.
+check("an EMPTY log is not replayable \u2014 it has nothing to replay",
+      ex["replayable"] is False, ex["replayable"])
+check("  and all([]) is True, which is why nothing failed before",
+      all(not r.get("params_elided") for r in []) is True)
+check("  the reason says so rather than leaving the False unexplained",
+      "nothing has been logged" in ex["replay_coverage"]["reason"], ex["replay_coverage"]["reason"])
+check("  an empty log's HISTORY is complete \u2014 nothing happened and nothing was lost",
+      ex["replay_coverage"]["history"] == "complete")
+
+SHORT = "verdict-short"
+rl.record(SHORT, [rl.entry("add_wall", {"i": i}, actor="a", source_in="a", source_out="b")
+                  for i in range(3)])
+ex = rl.export(SHORT)
+check("a populated, un-elided, complete log IS replayable", ex["replayable"] is True)
+check("  with its coverage stated beside it, not instead of it",
+      ex["replay_coverage"] == {"entries": 3, "elided": 0, "replayable_entries": 3, "dropped": 0,
+                                "history": "complete",
+                                "reason": "every entry kept its parameters, and none have been "
+                                          "dropped"}, ex["replay_coverage"])
+
+# DEFECT 2, and the worse one: it is wrong about a REAL populated project. The log is a ring, and
+# `record` discarded the oldest entries while reporting success — so the edits needed to rebuild the
+# model were gone and every entry that remained was individually faithful.
+RING = "verdict-ring"
+over = rl._MAX + 7
+rl.record(RING, [rl.entry("add_wall", {"i": i}, actor="a", source_in="a", source_out="b")
+                 for i in range(over)])
+ex = rl.export(RING)
+check(f"the ring kept {rl._MAX} of {over} entries", ex["count"] == rl._MAX, ex["count"])
+check("  and COUNTED what it dropped, which nothing did before",
+      ex["replay_coverage"]["dropped"] == 7, ex["replay_coverage"]["dropped"])
+check("  so the history reads truncated", ex["replay_coverage"]["history"] == "truncated")
+check("  every KEPT entry is still faithful \u2014 that is the narrower fact",
+      ex["replay_coverage"]["replayable_entries"] == rl._MAX and ex["elided"] == 0)
+check("  and the model is NOT replayable from them, which is what the field is named for",
+      ex["replayable"] is False, ex["replayable"])
+check("  the reason names the drop rather than the elision count",
+      "older entr(ies) have been dropped" in ex["replay_coverage"]["reason"],
+      ex["replay_coverage"]["reason"])
+check("  the paged log's note carries the same number",
+      f"{7} older edit(s) have been dropped" in (rl.log(RING)["note"] or ""),
+      rl.log(RING)["note"])
+
+# The counter survives a reload. `_load` REBUILDS the document rather than returning the parsed one,
+# so a key it does not name is discarded on the next `_save` — the counter would have reset to zero
+# on every append, with nothing failing.
+rl.record(RING, [rl.entry("add_wall", {"i": 9999}, actor="a", source_in="a", source_out="b")])
+check("  the drop counter accumulates across appends rather than resetting",
+      rl.export(RING)["replay_coverage"]["dropped"] == 8,
+      rl.export(RING)["replay_coverage"]["dropped"])
+
+# The THIRD state, which is not a default. A log written before the counter existed cannot tell
+# "exactly _MAX edits, none lost" from "_MAX kept, an unknown number dropped", and folding that into
+# either answer is a guess — the flattering one makes a partial history read as a whole one.
+OLD = "verdict-legacy"
+rl.record(OLD, [rl.entry("add_wall", {"i": i}, actor="a", source_in="a", source_out="b")
+                for i in range(rl._MAX)])
+raw = json.loads(storage.get(rl._key(OLD)).decode("utf-8"))
+raw.pop("dropped", None)                        # exactly what a pre-counter file looks like
+storage.put(rl._key(OLD), json.dumps(raw).encode("utf-8"))
+ex = rl.export(OLD)
+check("a full log with NO drop counter reports history 'unknown', not complete and not truncated",
+      ex["replay_coverage"]["history"] == "unknown", ex["replay_coverage"]["history"])
+check("  and is therefore not replayable \u2014 an unknown loss is not a known absence of loss",
+      ex["replayable"] is False)
+check("  while its note hedges instead of asserting a drop it cannot support",
+      "is not recorded for this log" in (rl.log(OLD)["note"] or ""), rl.log(OLD)["note"])
+
+# A non-integer in an optional counter is not an unreadable file, and must not become a 409 on every
+# read. Every refusal in section 5 is about a document that genuinely cannot be parsed.
+raw["dropped"] = "many"
+storage.put(rl._key(OLD), json.dumps(raw).encode("utf-8"))
+check("a garbage drop counter reads as 0 rather than raising",
+      rl.export(OLD)["replay_coverage"]["dropped"] == 0)
+
+# An elided entry is reported as the elision, not as a drop: the two reasons rank, and elision is the
+# one that says *this specific edit cannot be reproduced*.
+MIX = "verdict-mixed"
+rl.record(MIX, [rl.entry("add_wall", {"start": [0, 0]}, actor="a", source_in="a", source_out="b"),
+                rl.entry("mesh", {"v": "x" * (rl._MAX_VALUE + 1)}, actor="a", source_in="a",
+                         source_out="b")])
+ex = rl.export(MIX)
+check("an elided entry makes the log not replayable", ex["replayable"] is False)
+check("  and the reason names the elision, which outranks every other cause",
+      "elided for size" in ex["replay_coverage"]["reason"], ex["replay_coverage"]["reason"])
+check("  with the faithful remainder still counted",
+      ex["replay_coverage"]["replayable_entries"] == 1, ex["replay_coverage"])
+
 shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
 
 print()
