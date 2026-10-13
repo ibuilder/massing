@@ -2167,18 +2167,10 @@ export interface paths {
          *     reconciliation. That design is what keeps a forged callback from executing a contract, and it is
          *     worth stating because the obvious fear is the wrong one.
          *
-         *     The real exposure was the audit table itself. This wrote a row per request with
-         *     caller-controlled `submission_id`, `event` and `signer` of unbounded length, from the internet,
-         *     unauthenticated and unthrottled. That is write access to the record the platform relies on to say
-         *     who did what: flood it and real entries are buried in noise (and the table grows without limit),
-         *     which is indistinguishable from tampering when someone later needs the trail. An audit log an
-         *     anonymous caller can write to is not an audit log.
-         *
-         *     So: verify an HMAC-SHA256 signature over the RAW body when a secret is configured, throttle per
-         *     caller, and bound every stored string. When no secret is set the endpoint stays open, because
-         *     silently dropping callbacks would break an operator who is relying on it today — but it is then
-         *     only rate-limited and bounded, and `signature_verified` records which posture produced the row so
-         *     an unverified entry can never be read as a verified one.
+         *     An HMAC-SHA256 signature over the raw body is verified when a webhook secret is configured, the
+         *     endpoint is throttled per caller, every stored string is bounded, and `signature_verified`
+         *     records which posture produced the row — so an unverified entry can never be read as a verified
+         *     one.
          */
         post: operations["esign_webhook_esign_webhook_post"];
         delete?: never;
@@ -3214,13 +3206,6 @@ export interface paths {
          *     2. The `api-key` identity is refused outright — a machine credential has no person behind it.
          *     3. `license_id` selects one of the CALLER'S OWN verified licences (`GET /licenses/mine`) and the
          *        seal text is built server-side from that row. An expired licence refuses with 409.
-         *
-         *     History, because the shape recurs: this route originally guarded with `Depends(current_user)`,
-         *     which identifies without authorising — an anonymous caller could upload any PDF and receive it
-         *     bearing a rendered PE or RA seal with a name and licence number of their choosing, verified end to
-         *     end. Gating it fixed anonymity but not impersonation, because `profile` was still free text; and
-         *     binding to the account would still not have fixed automation, because a token is not a person.
-         *     Each fix looked complete and left the next layer open.
          */
         post: operations["pdf_seal_pdf_seal_post"];
         delete?: never;
@@ -3608,7 +3593,7 @@ export interface paths {
         put?: never;
         /**
          * Compare
-         * @description Side-by-side metrics for several scenarios.
+         * @description Side-by-side metrics for several scenarios the caller may read.
          */
         post: operations["compare_proforma_compare_post"];
         delete?: never;
@@ -4007,15 +3992,9 @@ export interface paths {
         put?: never;
         /**
          * Share Scenario
-         * @description Grant an LP (or any party) read access to this scenario.
+         * @description Grant an LP (or any party) read access to this scenario. Requires `editor` on the project.
          *
-         *     **The body's `user` is the person being GRANTED access; `actor` is the person doing the
-         *     granting.** They were the same parameter until 2026-08-13, and there was no `current_user`
-         *     dependency at all — so the route had no notion of who was calling, and any authenticated caller
-         *     could share any scenario with anyone. Sharing is a write, so it takes the write guard.
-         *
-         *     The wire key stays `user` via `alias`, so no caller changes; only the code stops conflating two
-         *     different people under one name.
+         *     The body's `user` is the person being GRANTED access; the caller is the person granting.
          */
         post: operations["share_scenario_proforma_scenarios__sid__share_post"];
         delete?: never;
@@ -30501,9 +30480,14 @@ export interface operations {
     compare_proforma_compare_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-user"?: string | null;
+                authorization?: string | null;
+            };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                aec_token?: string | null;
+            };
         };
         requestBody: {
             content: {

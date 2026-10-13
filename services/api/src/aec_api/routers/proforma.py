@@ -1002,8 +1002,21 @@ class ScenarioIn(BaseModel):
 def create_scenario(body: ScenarioIn, db: Session = Depends(get_db),
                     user: str = Depends(current_user)):
     """Save a solve as a named scenario. Requires a role on `project_id` when one is given."""
-    if body.project_id and rbac.RBAC_ON and rbac.role_for(db, body.project_id, user) is None:
-        raise HTTPException(403, "you do not have a role on that project")
+    # `is not None`, not truthiness. `project_id: ""` IS a supplied project id and the truthiness
+    # test skipped the check for it — contradicting this route's own docstring. It was not a
+    # cross-tenant write (`bool("")` is false in `_can_read` too, so the row ends up readable by
+    # nobody) but it stored an unmanageable row through a guard that had been told to refuse it.
+    # *A guard keyed on truthiness refuses the values a guard keyed on presence would admit, and
+    # admits one it was asked to refuse.*
+    if body.project_id is not None:
+        if not body.project_id:
+            raise HTTPException(422, "project_id must be a real project id, or omitted entirely")
+        # `rbac.authorize_pid`, not a hand-rolled `role_for(...) is None` — it is the named helper
+        # for a project id that arrives in the BODY, it carries the `_role_gate` tag so other gates
+        # can see it, and it raises the same 403 with the role in the message. `"viewer"` is the
+        # lowest rank in `ROLE_ORDER`, so this is exactly the "any role on the project" the
+        # hand-rolled check performed — a behaviour-preserving swap, not a new floor.
+        rbac.authorize_pid(db, user, body.project_id, "viewer")
     result = solve(body.assumptions.model_dump())
     s = Scenario(name=body.name, project_id=body.project_id,
                  assumptions=body.assumptions.model_dump(), result=result)
@@ -1031,8 +1044,17 @@ def _readable_scenarios(db: Session, rows: list[Scenario], user: str) -> list[Sc
     differs — and reusing one filter for both would have been the mirror of the `_can_read`/
     `_can_write` conflation this file's guards already exist to avoid.
 
-    The `api-key` identity is unaffected: `role_for` returns `"admin"` for it on every project, as it
-    already did for the eight `{sid}` routes, so server-to-server callers see the whole list.
+    The `api-key` identity sees every ATTACHED scenario: `role_for` returns `"admin"` for it on every
+    project before any query, as it already did for the eight `{sid}` routes.
+
+    **It does NOT see unattached ones, and an earlier version of this docstring claimed it did.**
+    `bool(pid)` below short-circuits before `role_for` is called, so the `api-key` admin path is
+    never reached for a row with `project_id: None` — the exact rows the paragraph below uses to
+    justify the policy. The gate's fixture could not catch the false claim because all three of its
+    rows are attached. *A comment and a test can agree with each other and not with the code, and
+    the fixture that omits the case is what lets them.* Stated rather than silently fixed: making
+    `api-key` an exception here would give one identity a view no project role can reproduce, which
+    is a product decision about scratch scenarios and not a cleanup.
 
     **An UNATTACHED scenario (`project_id: None`) is readable by nobody under RBAC, and that is not
     new policy — it is the existing policy finally applied to the collection.** `_can_read` below
@@ -1042,8 +1064,9 @@ def _readable_scenarios(db: Session, rows: list[Scenario], user: str) -> list[Sc
     showing every caller's scratch work to every caller and showing none of it, and the eight routes
     that were already right had made that choice. Measured first — no client path creates one: the
     web app's save button refuses when no project is open, so `createScenario` is never called with
-    a null id, and the API/script case keeps working because `api-key` sees everything. *Giving an
-    unattached scenario an owner is a schema change and a product decision, not a cleanup.*
+    a null id. *Giving an unattached scenario an owner is a schema change and a product decision,
+    not a cleanup* — and until that decision is taken, a pre-existing unattached row is listable by
+    nobody, `api-key` included. It remains reachable by id for anyone in its `shared_with`.
     """
     if not rbac.RBAC_ON:
         return list(rows)
@@ -1091,7 +1114,7 @@ def _can_read(db: Session, s: Scenario, user: str) -> bool:
     return False
 
 
-def _can_write(db: Session, s: Scenario, user: str) -> bool:
+def _can_write(db: Session, s: Scenario, user: str, min_role: str = "viewer") -> bool:
     """Write permission. **Deliberately NOT `_can_read`.**
 
     `_can_read` admits anyone in `shared_with` — that is how an LP sees a scenario they were sent.
@@ -1100,13 +1123,28 @@ def _can_write(db: Session, s: Scenario, user: str) -> bool:
     quiet way to grant the second while auditing only the first.
 
     Write therefore requires an actual project role, which is what `role_for` answers.
+
+    **`min_role` exists because "an actual project role" was too coarse, and this commit's own
+    change made the coarseness reach further.** Until 2026-10-13 this returned true for ANY role, so
+    `ROLE_ORDER` was never consulted: a **viewer** could approve and publish the IC-committed
+    underwriting basis — signing it with their own name in the audit row — and could `POST .../share`
+    to grant a *permanent* read of the deal's financials to an arbitrary identity string. Compare
+    `put_dev_budget` and `put_property` in this same file, which have always required `editor`.
+    Wiring the review workflow to buttons (FIN-GOV-DARK) made the first reachable from the UI, and
+    `_readable_scenarios` made a viewer-issued `shared_with` grant surface in a non-member's
+    collection listing — a path that did not exist while the collection route showed everything to
+    everyone. *A pre-existing coarse guard becomes mine the moment my change widens what it admits.*
     """
     if not rbac.RBAC_ON:
         return True
-    return bool(s.project_id and rbac.role_for(db, s.project_id, user) is not None)
+    if not s.project_id:
+        return False
+    role = rbac.role_for(db, s.project_id, user)
+    return role is not None and rbac.ROLE_ORDER.get(role, -1) >= rbac.ROLE_ORDER[min_role]
 
 
-def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False) -> Scenario:
+def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False,
+                  min_role: str = "viewer") -> Scenario:
     """Fetch a scenario and authorise the caller, in one place.
 
     Added 2026-08-13. `_can_read` already existed and was called by **2 of the 8** `{sid}` routes:
@@ -1123,8 +1161,8 @@ def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False) -> S
     if not s:
         raise HTTPException(404, "scenario not found")
     if write:
-        if not _can_write(db, s, user):
-            raise HTTPException(403, "you do not have write access to this scenario")
+        if not _can_write(db, s, user, min_role):
+            raise HTTPException(403, f"this scenario needs {min_role} on its project")
     elif not _can_read(db, s, user):
         raise HTTPException(403, "not shared with you")
     return s
@@ -1185,17 +1223,26 @@ def _scenario_lock_key(sid: str) -> str:
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
 def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
                    db: Session = Depends(get_db), actor: str = Depends(current_user)):
-    """Grant an LP (or any party) read access to this scenario.
+    """Grant an LP (or any party) read access to this scenario. Requires `editor` on the project.
 
-    **The body's `user` is the person being GRANTED access; `actor` is the person doing the
-    granting.** They were the same parameter until 2026-08-13, and there was no `current_user`
-    dependency at all — so the route had no notion of who was calling, and any authenticated caller
-    could share any scenario with anyone. Sharing is a write, so it takes the write guard.
-
-    The wire key stays `user` via `alias`, so no caller changes; only the code stops conflating two
-    different people under one name.
+    The body's `user` is the person being GRANTED access; the caller is the person granting.
     """
-    s = _scenario_for(sid, db, actor, write=True)
+    # A ROUTE DOCSTRING IS A PUBLIC SURFACE — the policy stated above `create_scenario`, applied
+    # here, where it should have been applied first. Until 2026-10-13 this docstring published, to
+    # `/docs` and to the committed `apps/web/src/api/schema.d.ts`, the sentence *"there was no
+    # `current_user` dependency at all — so the route had no notion of who was calling, and any
+    # authenticated caller could share any scenario with anyone"*. That is a map of a closed hole,
+    # handed to every reader of the API docs and to anyone probing a deployment that has not taken
+    # the patch. *The worst instance of a rule's violation was in the same file as the rule*, which
+    # is what happens when a policy is written while fixing one instance of the thing it forbids.
+    #
+    # The history itself is worth keeping, here: `user` and `actor` were the SAME parameter until
+    # 2026-08-13, so the route could not tell the grantee from the granter. The wire key stays
+    # `user` via `alias`, so no caller changes; only the code stopped conflating two people.
+    # `editor`: this grants an arbitrary identity string a PERMANENT read of the deal's
+    # financials, and `_readable_scenarios` now surfaces that grant in the grantee's collection
+    # listing. Handing out access is an administrative act, not a participant's.
+    s = _scenario_for(sid, db, actor, write=True, min_role="editor")
     # RMW-SHARE (gap G-10). `sorted(set(existing + [target]))` is a set union over a value this
     # request read, so two grants issued at once both build their list from the same pre-image and
     # the later commit drops the earlier grant. **Neither caller can tell**: the response echoes the
@@ -1225,7 +1272,8 @@ def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
 def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
                     user: str = Depends(current_user)):
     from .. import audit, fin_gov
-    s = _scenario_for(sid, db, user, write=True)
+    # `editor`: editing a saved scenario's assumptions is authoring.
+    s = _scenario_for(sid, db, user, write=True, min_role="editor")
     if s.is_locked:
         raise HTTPException(409, "scenario is locked")
     if (getattr(s, "review_status", None) or "draft") in fin_gov.IMMUTABLE_STATES:
@@ -1273,7 +1321,8 @@ def clone_scenario(sid: str, name: str = Body(..., embed=True), db: Session = De
     # result says so through `resolved: false`, and the caller tells the user to open it and save.
     # *A fix that re-solves must not make the operation it protects conditional on the solve.*
     from .. import audit
-    s = _scenario_for(sid, db, user, write=True)
+    # `editor`: a clone writes a new row into the project.
+    s = _scenario_for(sid, db, user, write=True, min_role="editor")
     try:
         result = solve(s.assumptions) if s.assumptions else None
     except Exception:                       # noqa: BLE001 — any solve failure, not a taxonomy of them
@@ -1300,7 +1349,8 @@ def review_scenario(sid: str, action: str = Body(..., embed=True),
     """FIN-GOV: move a scenario through draft → in_review → approved → published
     (reject/reopen walk back to draft). Approved/published assumptions are immutable in place."""
     from .. import audit, fin_gov
-    s = _scenario_for(sid, db, user, write=True)
+    # `reviewer`: this is literally what the `reviewer` rank is for — approve/publish commits the underwriting basis a committee reads.
+    s = _scenario_for(sid, db, user, write=True, min_role="reviewer")
     try:
         out = fin_gov.review_scenario(s, action, user, note)
     except KeyError as e:
@@ -1408,10 +1458,31 @@ def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db),
     Schedule-of-Values records on a GC project, then produce the AIA G702/G703 pay app —
     so the IRR you underwrote and the lender draw run off the SAME cost tree."""
     s = _scenario_for(sid, db, user, write=True)
+    pid = body.project_id
+    # SEC-SCENARIO-COMPARE: `_scenario_for` above authorises the SCENARIO — the thing the caller
+    # already owns — and the DESTINATION project arrives in the request BODY and was never
+    # authorised at all. The next three statements delete every SOV row for `pid` and rewrite them
+    # from this scenario's cost tree, and SOV is what the AIA G702/G703 pay application is computed
+    # from — i.e. what a lender draws against. So an editor on any one project could destroy
+    # another tenant's schedule of values, substitute their own numbers, and read back the victim's
+    # G702/G703 totals in the response. *A route that authorises one of the two objects it touches
+    # reads as guarded, and the guard that is present is the one a reviewer finds first.*
+    #
+    # `rbac.authorize_pid` exists for exactly this shape and says so in its own docstring — a
+    # project id in the body is outside `require_role` (which resolves `pid` from the path or query)
+    # and outside `test_route_authz` (which walks `/projects/{pid}` routes) at once. `editor`,
+    # because this REPLACES the project's schedule of values rather than reading it.
+    #
+    # **BEFORE the module check below, which it used to follow.** With `sov` absent the route
+    # answered `409 "SOV module not loaded"` to a caller with no role on `pid` — telling an
+    # unauthorised stranger about the server's configuration, and proving the authorisation was not
+    # the first thing the route did. *Authorise before answering anything at all, including "this
+    # feature is off".* Found because the behavioural probe in `test_body_pid_authz.py` got a 409
+    # where it demanded a 403: the static gate could not see the ordering, only the presence.
+    rbac.authorize_pid(db, user, pid, "editor")
     if "sov" not in me.TABLES:
         raise HTTPException(409, "SOV module not loaded")
     fc = reforecast(s.assumptions, [a.model_dump() for a in body.actuals], body.as_of_month)
-    pid = body.project_id
     # replace any prior SOV for this project so re-running is idempotent
     db.execute(delete(me.TABLES["sov"]).where(me.TABLES["sov"].c.project_id == pid))
     db.commit()
@@ -1489,13 +1560,24 @@ def portfolio(db: Session = Depends(get_db), user: str = Depends(rbac.current_us
     }
 
 
+# SEC-SCENARIO-COMPARE: this route had NO authorisation of any kind — no `current_user`, no
+# `_can_read`, no project scoping — and returned each requested scenario's `returns` AND
+# `sources_uses`, which is strictly MORE financial data than the `list_scenarios` leak closed one
+# commit earlier. It was also a batch existence oracle: `if s and s.result` silently drops unknown
+# ids, so one request told a caller exactly which of N scenario ids exist.
+#
+# `_readable_scenarios` rather than a per-row `_can_read`, because that is the same question the
+# collection route asks and the memo keeps it one membership query per distinct project. The drop
+# stays silent on purpose: an unreadable id and an absent one now both vanish, so closing the leak
+# does not leave the oracle behind.
 @router.post("/proforma/compare")
-def compare(ids: list[str] = Body(...), db: Session = Depends(get_db)):
-    """Side-by-side metrics for several scenarios."""
+def compare(ids: list[str] = Body(...), db: Session = Depends(get_db),
+            user: str = Depends(current_user)):
+    """Side-by-side metrics for several scenarios the caller may read."""
+    found = [sc for sc in (db.get(Scenario, sid) for sid in ids) if sc is not None]
     out = []
-    for sid in ids:
-        s = db.get(Scenario, sid)
-        if s and s.result:
+    for s in _readable_scenarios(db, found, user):
+        if s.result:
             out.append({"id": s.id, "name": s.name, "returns": s.result.get("returns"),
                         "sources_uses": s.result.get("sources_uses")})
     return out

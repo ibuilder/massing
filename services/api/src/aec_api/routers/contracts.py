@@ -223,19 +223,28 @@ async def esign_webhook(request: Request, db: Session = Depends(get_db),
     reconciliation. That design is what keeps a forged callback from executing a contract, and it is
     worth stating because the obvious fear is the wrong one.
 
-    The real exposure was the audit table itself. This wrote a row per request with
-    caller-controlled `submission_id`, `event` and `signer` of unbounded length, from the internet,
-    unauthenticated and unthrottled. That is write access to the record the platform relies on to say
-    who did what: flood it and real entries are buried in noise (and the table grows without limit),
-    which is indistinguishable from tampering when someone later needs the trail. An audit log an
-    anonymous caller can write to is not an audit log.
-
-    So: verify an HMAC-SHA256 signature over the RAW body when a secret is configured, throttle per
-    caller, and bound every stored string. When no secret is set the endpoint stays open, because
-    silently dropping callbacks would break an operator who is relying on it today — but it is then
-    only rate-limited and bounded, and `signature_verified` records which posture produced the row so
-    an unverified entry can never be read as a verified one.
+    An HMAC-SHA256 signature over the raw body is verified when a webhook secret is configured, the
+    endpoint is throttled per caller, every stored string is bounded, and `signature_verified`
+    records which posture produced the row — so an unverified entry can never be read as a verified
+    one.
     """
+    # A ROUTE DOCSTRING IS A PUBLIC SURFACE: FastAPI publishes it as the operation `description`, so
+    # it reaches `/docs`, the OpenAPI JSON and the committed `apps/web/src/api/schema.d.ts`. What
+    # used to be here told the internet which configuration leaves this endpoint open, on a route
+    # that is anonymous by necessity. *An operator's deployment posture is not the API's
+    # documentation*, and "when no secret is set" is a probe instruction when published and a
+    # maintainer's note when not.
+    #
+    # The reasoning, kept: the real exposure was the audit table, not contract execution. Nothing
+    # here marks a contract signed — it records a normalized completion for reconciliation — so a
+    # forged callback cannot execute anything, which is why the obvious fear is the wrong one. What
+    # it DID do was write a row per request with caller-controlled `submission_id`, `event` and
+    # `signer` of unbounded length, from the internet, unauthenticated and unthrottled: flood it and
+    # real entries are buried in noise while the table grows without limit, which is
+    # indistinguishable from tampering when somebody later needs the trail. *An audit log an
+    # anonymous caller can write to is not an audit log.* Without a secret configured the endpoint
+    # still answers, because silently dropping callbacks would break an operator relying on it
+    # today — it is then rate-limited and bounded, and the row says so.
     raw = await request.body()
     if len(raw) > 64 * 1024:                       # a completion callback is ~1 KB; refuse a bulk write
         raise HTTPException(413, "webhook payload too large")

@@ -7205,6 +7205,118 @@ reach, one here and not there is a button that 404s. Deriving it at runtime was 
 is worse — the route does not publish the table, and an endpoint to describe a five-row constant is
 more surface than the constant.
 
+
+### SEC-SCENARIO-COMPARE — the gate I shipped claiming completeness could not spell the defect *(✅ CLOSED 2026-10-13)*
+
+*(S — **Lane D**; `services/api/test_scenario_authz.py`, `services/api/test_body_pid_authz.py`)*
+
+SEC-SCENARIO-LIST closed one collection-route leak and shipped a gate whose commit message said its
+population was now *"every route in that file which reads or writes the `Scenario` model"*. **That
+claim was false, and an independent security pass over the same diff found two cross-tenant holes
+inside the file the gate watches.**
+
+| | |
+|---|---|
+| **HIGH** `POST /proforma/compare` | **no authorisation of any kind** — no `current_user`, no `_can_read`, no project scoping. Any authenticated caller posted a list of scenario ids and got each one's `returns` **and `sources_uses`** — strictly MORE financial data than the leak closed one commit earlier. Reproduced: equity IRR 0.3216, equity multiple 1.857, NPV 1,026,550.26, total uses 5,055,522.86 from a project the caller had no role on. Also a batch **existence oracle**, since `if s and s.result` silently dropped unknown ids |
+| **HIGH** `POST .../draw-package` | `_scenario_for(write=True)` authorised the SCENARIO — the thing the caller already owns — and took its DESTINATION project from `body.project_id`, unauthorised. It then deleted every SOV row for that project and rewrote them from this scenario's cost tree. **SOV is what the AIA G702/G703 pay application is computed from**, i.e. what a lender draws against: destroy, forge and disclose in one call. Reproduced: a victim's 3 SOV rows became the attacker's 2, and the response returned the victim's G702 totals |
+
+## The gate was blind because of a comma
+
+`_touches_model` matched `"Scenario("`, `"Scenario)"`, `"Scenario."` and `"_scenario_for"`.
+`ast.unparse` renders a primary-key fetch as `db.get(Scenario, sid)` — `Scenario` followed by a
+**comma** — so `compare` sat outside the population while the gate reported the tree clean.
+Measured: population 10, with **three** routes mentioning `Scenario` outside it.
+
+**And every one of the five proof-of-reach fixtures used `db.query(Scenario)` or `_scenario_for`.**
+*The one spelling the analyser could not see was the one spelling no fixture used*, so the
+self-checks confirmed a reach the rule did not have — a fixture set drawn from the same habit as the
+rule cannot find the habit's blind spot. The rule is a word-boundary match now, with a `db.get`
+fixture, and the population is 13.
+
+**A second gate had already filed that route as unreadable, in a different vocabulary.**
+`POST /proforma/compare` sits in `services/api/test_route_reachability.py`'s
+`LEAF_COLLISION_BLIND` — the acknowledged list of routes whose leaf segment collides with
+another's, so the URL-literal rule cannot tell whether anything calls them. It has **no client
+method at all**: a dark route *and* an unauthorised one. *Two gates, two different kinds of silence
+about the same route — one could not spell it, the other had written down that it could not see it —
+and a reader of either would have concluded somebody else was covering it.* That is the
+`CLASSIFY-DARK` shape exactly: one capability's parts in separate records, each reading as another
+record's gap.
+
+## And `AUTHORISERS` is per-FUNCTION, which is why it called `draw_package` guarded
+
+`any(a in body for a in AUTHORISERS)` asks whether a route authorises **something**. `draw_package`
+authorises one of the two objects it touches, and the authorised one is the one a reviewer finds
+first. *A gate that asks whether a route authorises something cannot tell you whether it authorises
+everything it touches.* The repair is a second, per-OBJECT derivation: every route reading a project
+id out of its request body must call `rbac.authorize_pid` — the helper whose own docstring exists
+for this shape, because a body id is outside `require_role` (which resolves `pid` from path or
+query) and outside `test_route_authz` (which walks `/projects/{pid}`) at once. Population 2, both
+now guarded, and the check's own fixture proves `_scenario_for` alone does **not** satisfy it.
+
+**`AUTHORISERS` has now learned three mechanisms the hard way** — `member_project_ids`, then
+`role_for`, then `authorize_pid`, each after it condemned or cleared a route wrongly. *A gate that
+names its authorisers learns each one by being wrong about it once*, which is the argument for the
+per-object check rather than a longer list.
+
+## Authorise before answering anything, including "this feature is off"
+
+The `authorize_pid` call first went in **after** `draw_package`'s `if "sov" not in me.TABLES: 409`,
+so on a server without that module an unauthorised stranger got *"SOV module not loaded"* — the
+server's configuration, handed to someone with no role on the project, and proof the authorisation
+was not the route's first act. Found because the behavioural probe demanded 403 and got 409: **the
+static gate can see that a guard is present and never that it is reached.**
+
+## Three more, each smaller and each mine in some part
+
+* **`_can_write` returned true for ANY project role**, so `ROLE_ORDER` was never consulted: a
+  **viewer** could approve and publish the IC-committed underwriting basis — signing it with their
+  own name in the audit row — and could grant a *permanent* read of the deal's financials to an
+  arbitrary identity string. Pre-existing, and FIN-GOV-DARK wired the first to buttons while
+  `_readable_scenarios` made a viewer-issued grant surface in a non-member's collection listing. *A
+  coarse guard becomes mine the moment my change widens what it admits.* Floors now: `reviewer` to
+  review, `editor` to share, clone or edit, asserted behaviourally because a static check sees only
+  that a guard is called, never what rank it demands.
+* **`create_scenario`'s guard was keyed on truthiness**, so `project_id: ""` — a supplied id — skipped
+  the role check and stored a row readable by nobody. `is not None` now, and it routes through
+  `authorize_pid` rather than a hand-rolled `role_for` copy, at `viewer`, which is the same "any
+  role" the hand-rolled check performed.
+* **`_readable_scenarios`' docstring claimed the `api-key` identity still sees unattached
+  scenarios, and it does not.** `bool(pid)` short-circuits before `role_for`, so the admin path is
+  never reached for exactly the rows the policy change affects — and the gate's fixture could not
+  catch the false claim because all three of its rows are attached. *A comment and a test can agree
+  with each other and not with the code, and the fixture that omits the case is what lets them.*
+
+## The public-surface policy, applied to the file that states it
+
+`create_scenario`'s comment says *"the audience for why this guard exists is the next maintainer,
+not the internet"*. It was applied to one docstring and **not to its neighbour 170 lines below**:
+`share_scenario` published, to `/docs` and to the committed `apps/web/src/api/schema.d.ts`, the
+sentence *"there was no `current_user` dependency at all … any authenticated caller could share any
+scenario with anyone"*. Two more were worse in kind — `/pdf/seal` published a three-step history of
+**incomplete fixes to a professional-seal forgery path**, and `/esign/webhook` published which
+configuration leaves an anonymous-by-necessity endpoint open. All three moved to `#` comments and
+verified absent from the regenerated types. *A defect history is the most valuable thing a
+maintainer can read and the most useful thing an attacker can read, and a route docstring hands it
+to both.*
+
+**The cosmetic half is deliberately NOT gated, and the measurement is why.** The criterion that
+matters — "narrates a security defect" — is a judgement, and every derivation measured over the 924
+route docstrings in `routers/` either over-reports or needs an exemption list: a dated-history
+clause flags **21**, a 900-character cap flags **56**, and most of both are legitimate. The one
+objective signal, a source-file citation, is **12** — and my first measurement of it said 6, because
+the pattern required a `services/`/`apps/` prefix and bare module names like `eot.py` escaped. *A
+list somebody stopped widening, for the third time this session.* Filed with its real number rather
+than gated on a proxy, because `CLASSIFY-DARK` already paid for the alternative: *a gate that cannot
+be made precise is not a smaller gate, it is a confident wrong instruction.*
+
+**And automating the cosmetic fix damaged four files.** A script that moved docstring lines matching
+the pattern into comments truncated a sentence in `pdf_info` and mangled `mcp_tool_catalog`'s
+docstring into something that still parsed and still published the path. Reverted; the three
+security narratives were done by hand. *A mechanism that is merely plausible produces confident
+wrong output, which is the same lesson the fixture guesses in this session's other two items taught
+— and the second time today an automated edit had to be undone rather than reviewed.*
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

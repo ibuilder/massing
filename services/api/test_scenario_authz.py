@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
 import sys
 
 ROUTER = pathlib.Path(__file__).parent / "src" / "aec_api" / "routers" / "proforma.py"
@@ -202,7 +203,7 @@ finally:
 #: unauthorised**, which is the right answer from a list that did not yet name the mechanism the
 #: repair was forced to use.
 AUTHORISERS = ("_scenario_for", "_can_read", "_can_write", "require_role", "_readable_scenarios",
-               "member_project_ids", "role_for")
+               "member_project_ids", "role_for", "authorize_pid")
 
 
 def _code_of(fn) -> str:
@@ -231,9 +232,26 @@ def _code_of(fn) -> str:
     return ast.unparse(ast.fix_missing_locations(stripped))
 
 
+#: Does this route handle `Scenario` rows at all?
+#:
+#: **A WORD-BOUNDARY match, because the four-spelling list missed the one spelling nobody used.**
+#: The first version checked `"Scenario("`, `"Scenario)"`, `"Scenario."` and `"_scenario_for"`, and
+#: `ast.unparse` renders a primary-key fetch as `db.get(Scenario, sid)` — `Scenario` followed by a
+#: **comma**, which none of the four match. So `POST /proforma/compare`, which fetched arbitrary
+#: caller-supplied scenario ids with **no authorisation of any kind** and returned their `returns`
+#: and `sources_uses`, sat outside this gate's population while the commit that introduced the
+#: population claimed it was *"every route that touches the `Scenario` model"*.
+#:
+#: **And all five proof-of-reach fixtures used `db.query(Scenario)` or `_scenario_for`** — so the
+#: one spelling the analyser could not see was the one spelling no fixture exercised, and the
+#: self-checks confirmed a reach the rule did not have. *A defect the analyser cannot spell is
+#: invisible to it and reads exactly like an absent one*, which `test_gap_records.py` recorded, and
+#: a fixture set drawn from the same habit as the rule cannot find the habit's blind spot.
+_MODEL_RE = re.compile(r"\bScenario\b")
+
+
 def _touches_model(body: str) -> bool:
-    return ("Scenario(" in body or "Scenario)" in body or "Scenario." in body
-            or "_scenario_for" in body)
+    return bool(_MODEL_RE.search(body)) or "_scenario_for" in body
 
 
 def _route_decorators(fn) -> list:
@@ -295,6 +313,19 @@ _GUARDED = "\n".join([
     "def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):",
     "    return _scenario_for(sid, db, user)",
 ])
+#: The shipped `POST /proforma/compare`, which the four-spelling `_touches_model` could not see.
+#: `db.get(Scenario, sid)` is a primary-key fetch of a caller-supplied id — the spelling no other
+#: fixture here uses, which is why it was the one that got through.
+_PRE_FIX_COMPARE = "\n".join([
+    '@router.post("/proforma/compare")',
+    "def compare(ids: list[str] = Body(...), db: Session = Depends(get_db)):",
+    "    out = []",
+    "    for sid in ids:",
+    "        s = db.get(Scenario, sid)",
+    "        if s and s.result:",
+    '            out.append({"id": s.id, "returns": s.result.get("returns")})',
+    "    return out",
+])
 #: Scoped by `member_project_ids` rather than `_can_read` — the two portfolio routes the first draft
 #: of AUTHORISERS would have told somebody to "fix".
 _PORTFOLIO_SHAPE = "\n".join([
@@ -350,6 +381,9 @@ check("PROOF OF REACH: ...and the shipped `create_scenario` too — a collection
 check("PROOF OF REACH: ...and a route whose DOCSTRING names a guard it does not use is still "
       "reported — the regression this file already paid for once, now pinned",
       _unauthorised_in(_PROSE_ONLY) == ["list_scenarios"], str(_unauthorised_in(_PROSE_ONLY)))
+check("PROOF OF REACH: ...and the shipped `compare`, whose `db.get(Scenario, sid)` the "
+      "four-spelling rule could not see at all",
+      _unauthorised_in(_PRE_FIX_COMPARE) == ["compare"], str(_unauthorised_in(_PRE_FIX_COMPARE)))
 check("...and a route that DOES authorise comes back clean, so the rule is not simply 'everything'",
       _unauthorised_in(_GUARDED) == [], "a guarded route must not be reported")
 check("...and so does one scoped by `member_project_ids` rather than `_can_read`",
@@ -391,6 +425,82 @@ try:
           len(_readable_scenarios(_DB(), rows, "anyone")) == 3)
 finally:
     rbac.RBAC_ON, rbac.role_for = _orig_on2, _orig_role2
+
+# --- 7. a project id from the BODY must be authorised SEPARATELY ----------------------------------
+# **`AUTHORISERS` is a per-FUNCTION substring test, and that is why section 5 cannot catch this
+# class.** `draw_package` calls `_scenario_for(sid, db, user, write=True)` — authorising the
+# scenario, which the caller already owns — and then takes its DESTINATION project from
+# `body.project_id` and never authorises it at all, deleting every SOV row for that project and
+# rewriting them from this scenario's cost tree. SOV is what the AIA G702/G703 pay application is
+# computed from, so an editor on any one project could destroy another tenant's schedule of values,
+# substitute their own numbers, and read the victim's G702 totals back out of the response.
+#
+# Section 5 reported that route as authorised, because one authorised object masks a second
+# unauthorised one. *A gate that asks whether a route authorises SOMETHING cannot tell you whether
+# it authorises EVERYTHING IT TOUCHES* — so this check is per-OBJECT: every route that reads a
+# project id out of its request body must call `rbac.authorize_pid`, the helper whose own docstring
+# exists for this shape (a body id is outside `require_role`, which resolves `pid` from the path or
+# query, and outside `test_route_authz`, which walks `/projects/{pid}` routes — both at once).
+#
+# `{pid}` paths are excluded because `require_role` covers them, and that exclusion is checked
+# below rather than trusted.
+_BODY_PID = re.compile(r"\bbody\.(?:project_id|pid)\b")
+
+
+def _body_pid_gaps(src: str) -> list[str]:
+    """Routes reading a body-supplied project id without `authorize_pid`. The verdict, mutable."""
+    out: list[str] = []
+    for f in ast.walk(ast.parse(src)):
+        if not isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        rs = _route_decorators(f)
+        if not rs:
+            continue
+        arg = rs[0].args[0] if rs[0].args else None
+        if "{pid}" in str(getattr(arg, "value", "")):
+            continue
+        b = _code_of(f)
+        if _BODY_PID.search(b) and "authorize_pid" not in b:
+            out.append(f.name)
+    return out
+
+
+_PRE_FIX_DRAW = "\n".join([
+    '@router.post("/proforma/scenarios/{sid}/draw-package")',
+    "def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db),",
+    "                 user: str = Depends(current_user)):",
+    "    s = _scenario_for(sid, db, user, write=True)",
+    "    pid = body.project_id",
+    '    db.execute(delete(me.TABLES["sov"]).where(me.TABLES["sov"].c.project_id == pid))',
+    "    db.commit()",
+    "    return cost_engine.g702(db, pid, app_no=body.app_no)",
+])
+_PATH_PID_OK = "\n".join([
+    '@router.post("/projects/{pid}/thing")',
+    "def thing(pid: str, body: ThingIn, db: Session = Depends(get_db),",
+    '           _: str = Depends(require_role("editor"))):',
+    "    return me.create_record(db, 'thing', body.project_id, {}, 'x', 'GC')",
+])
+
+check("PROOF OF REACH: the shipped `draw_package` is re-found as an unauthorised body pid — the "
+      "route section 5 reports as GUARDED, because `_scenario_for` masks it",
+      _body_pid_gaps(_PRE_FIX_DRAW) == ["draw_package"], str(_body_pid_gaps(_PRE_FIX_DRAW)))
+check("...and a `{pid}` PATH route is not reported, since `require_role` resolves that one",
+      _body_pid_gaps(_PATH_PID_OK) == [], str(_body_pid_gaps(_PATH_PID_OK)))
+check("...and `_scenario_for` alone does NOT satisfy this check — the masking is the whole point",
+      "authorize_pid" not in _PRE_FIX_DRAW and _body_pid_gaps(_PRE_FIX_DRAW) != [],
+      "a route authorising one object must still be reported for the other")
+
+_gaps = _body_pid_gaps(ROUTER.read_text(encoding="utf-8"))
+check("every route taking a project id from its BODY authorises it with `rbac.authorize_pid`",
+      not _gaps, "; ".join(_gaps) or "all body-pid routes call authorize_pid")
+
+# Silence is not a signal: this check must have a population, or it passes by finding nothing.
+_bodied = [f.name for f in ast.walk(tree)
+           if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and _route_decorators(f)
+           and _BODY_PID.search(_code_of(f))]
+check("...and the body-pid population is not empty", len(_bodied) >= 2,
+      f"{len(_bodied)} route(s) read a body-supplied project id: {sorted(_bodied)}")
 
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
