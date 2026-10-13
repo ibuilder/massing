@@ -183,7 +183,18 @@ KNOWN_UNCALLED: set[str] = {
     # it names has been superseded. *Third time, third syntactic category -- a route path, an
     # identifier, and now a string-literal union member. The categories are not a list anyone can
     # finish, which is the argument for the rot check rather than for a naming rule.*
-    "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
+    "/proforma/entitlement-risk",
+    # `/proforma/provenance/admissibility` LEFT this list 2026-10-13 (PROVENANCE-DARK) and **not
+    # because anything calls it** — which is the whole point of the entry. `projectAdmissibility`
+    # wired the SIBLING route `/projects/{pid}/provenance/admissibility`, and the two share the leaf
+    # `admissibility`, so this rule now reads the stateless POST as called. *Wiring one route made
+    # its sibling invisible to a leaf-based check* — a live demonstration of the coarseness this
+    # file's own `MIN_SEGMENT` note documents from the other end.
+    #
+    # It is NOT reachable: nothing builds that URL. `services/api/test_verdict_reachable.py` matches
+    # the full templated path, so it still sees it, and records it in that file's `OPEN_DOORS` with
+    # the reason it stays dark on purpose — its body is three other engines' outputs, which the SPA
+    # has no reason to assemble when the project route gathers them server-side.
     # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
     # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as
     # uncalled had become a false claim. This gate caught it on the merge, which is the
@@ -281,7 +292,8 @@ KNOWN_UNCALLED: set[str] = {
     # send-RFQ button on a transient grouping would have had nothing to send for. *A dark route can
     # be dark because the route that feeds it is.*
     # `/project-package.pdf` left here in v0.3.1137 — Exports opens `projectPackagePdfUrl`.
-    "/projects/{pid}/provenance/admissibility",
+    # `/projects/{pid}/provenance/admissibility` left here 2026-10-13 — PROVENANCE-DARK wired
+    # `projectAdmissibility` and the admissibility card on the Underwriting tab. This one IS called.
     "/projects/{pid}/recipes/replay-plan",
     # `/rules/space-pack` left here in v0.3.1137 — Model Analysis reads the stored pack.
     "/projects/{pid}/verified-progress/from-layout",
@@ -1685,6 +1697,18 @@ for _r in LEAF_COLLISION_DARK:
 # `projects` and 44 for `status`). Each one needs a read.
 LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/admin/baseline",
+    # PROVENANCE-DARK (2026-10-13). It joined this set the moment its SIBLING was wired: the two
+    # routes share the leaf `admissibility`, so `projectAdmissibility` building
+    # `/projects/{pid}/provenance/admissibility` makes THIS rule read the stateless POST as called.
+    # *Wiring one route made its sibling invisible to a leaf-based check* — the coarseness this
+    # file's `MIN_SEGMENT` note documents from the other end, arriving from this one.
+    #
+    # It is genuinely unreachable and deliberately so: its body is `{assumptions_provenance,
+    # estimate_ledger, agent_answers}`, each another engine's OUTPUT, and the SPA has no reason to
+    # assemble three leg results when the project route gathers them server-side.
+    # `services/api/test_verdict_reachable.py` matches the full templated path, so it still sees this
+    # door and records it in that file's `OPEN_DOORS` with that reason.
+    "/proforma/provenance/admissibility",
     "/admin/licenses",
     "/admin/licenses/{lid}",
     "/asset-rights/verify",

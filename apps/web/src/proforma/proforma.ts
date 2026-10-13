@@ -8,6 +8,7 @@ import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
+import { renderAdmissibilityCard } from "./admissibilityCard";
 import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderDecisionGateCard } from "./decisionGateCard";
@@ -184,6 +185,13 @@ export class ProformaUI {
       // The authority table is the gate on whether any figure on this tab should be trusted, so it
       // sits with the underwriting rather than beside one of the things it governs.
       renderAuthorityCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
+      // PROVENANCE-DARK: immediately before the decision gate, because the gate's FIRST check is
+      // `sourced` — citation coverage against a floor — and this is the three-leg provenance verdict
+      // that answers the same family of question at the deal level. Reading them in this order is
+      // the order an IC reads them: can the record be cited, then is the package ready.
+      renderAdmissibilityCard(uwSec, {
         api: this.api, projectId: this.projectId, setStatus: this.setStatus,
       });
       // Last on the tab, because it is the gate over everything above it: the readiness check reads

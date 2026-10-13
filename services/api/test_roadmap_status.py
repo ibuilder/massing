@@ -133,6 +133,13 @@ DONE_WHEN = {
         lambda: _gate_says("test_stored_standard_writable.py", "all named in OPEN_STANDARDS"),
         "test_stored_standard_writable reports every unwritable project standard accounted for, and "
         "view_templates is no longer among them"),
+    #: The needle is "(all named)" and not a count, for the third time and the same reason: the item
+    #: closed for ONE engine, `drawing_qa` is still dark, and a predicate reading "2 dark" would mark
+    #: this item regressed the day somebody wires it.
+    "PROVENANCE-DARK": (
+        lambda: _gate_says("test_verdict_reachable.py", "(all named)"),
+        "test_verdict_reachable reports every unreadable verdict accounted for, and "
+        "provenance_report's conclusion is reachable"),
 }
 
 #: Genuinely open, with a measurement that should say so. The negative control: without it, a bug

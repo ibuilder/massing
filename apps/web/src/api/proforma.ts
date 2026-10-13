@@ -160,6 +160,39 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/proforma/scenarios/${encodeURIComponent(sid)}/provenance${q}`);
   }
 
+  /** R22-PROVENANCE — **is this deal's output admissible in an IC memo or a claim?**
+   *
+   *  Three legs, never blended: the scenario's material assumptions, the basis-of-estimate ledger,
+   *  and the recorded agent answers. `provenance_report` is explicit that there is deliberately no
+   *  single score, because *"a single percentage lets a well-cited proforma hide an uncited
+   *  estimate, and a memo is not admissible because it scored well"*.
+   *
+   *  **Four leg statuses, and the pair that matters is `no_data` versus `not_captured`:** "you have
+   *  not filled this in" and "this system has nowhere to put it" send a reader to completely
+   *  different places — one fills a field, the other changes a schema — so a consumer that renders
+   *  them alike destroys the distinction the engine was built around.
+   *
+   *  **`uncited` is CAPPED at the engine's `MAX_NAMED` (25) while `uncited_count` is the total**, so
+   *  a reader of the list alone undercounts. The engine's own reason line says the items are *"named
+   *  below rather than counted: a count gets quoted in a memo, a list gets fixed"* — which is the
+   *  argument for naming them AND for saying when the naming stops.
+   *
+   *  PROVENANCE-DARK: this route and its stateless sibling both had NO client method, so the verdict
+   *  was computed for nobody. `services/api/test_verdict_reachable.py` is the gate.
+   */
+  projectAdmissibility(pid: string, scenarioId?: string) {
+    const q = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
+    return this.json<{
+      verdict: "admissible" | "blocked" | "incomplete";
+      reason: string;
+      legs: { leg: string; status: "cited" | "has_uncited" | "no_data" | "not_captured";
+        counted: number; uncited_count?: number; uncited?: string[]; note?: string }[];
+      legs_with_data: string[]; legs_absent: string[]; legs_not_captured: string[];
+      blocking_legs: string[]; uncited_total: number;
+      project_id: string; scenario_id: string | null; note: string;
+    }>(`/projects/${pid}/provenance/admissibility${q}`);
+  }
+
   /** Bridge underwriting → construction draws: the scenario's cost tree becomes Schedule-of-Values
    *  records, and out come the AIA G702/G703.
    *

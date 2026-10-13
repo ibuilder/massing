@@ -1245,6 +1245,100 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   lacking the guard every neighbour had, which is the argument for fixing it rather than gating it* —
   and recording the 43 is what stops the next reader spending a day building the checker.
 
+- ✅ ⭐ **PROVENANCE-DARK — ten engines reach a verdict, two of them for nobody, and the two gates
+  that should have said so are silent for different reasons** *(M —
+  `apps/web/src/proforma/admissibilityCard.ts` + `services/api/src/aec_api/provenance_report.py`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_verdict_reachable.py` and
+  `apps/web/src/proforma/admissibilityCard.test.ts`)*
+
+  `provenance_report` answers the question the whole R22 ring exists for — **is this deal's output
+  admissible in an IC memo or a claim?** — across three legs that are never blended, because *"a
+  single percentage lets a well-cited proforma hide an uncited estimate, and a memo is not admissible
+  because it scored well"*. It keeps **four** leg statuses and makes `no_data` deliberately distinct
+  from `not_captured`, on the stated ground that *"'you have not filled this in' and 'this system has
+  nowhere to put it' send a reader to completely different places"*. **Both of its routes had no
+  client method**, so none of it was reachable.
+
+  ### The derived population, and the gap it sits in
+
+  Ten modules across the two engine roots build a dict carrying a `"verdict"` key. Measured:
+
+  | | |
+  |---|---|
+  | verdict engines | **10** |
+  | fully reachable | 7 |
+  | **dark** — no reachable door at all | **2** (`provenance_report`, `drawing_qa`) |
+  | reachable, with a door nothing calls | 1 (`rfi_qa`) |
+
+  **Neither existing gate could have said so, and neither is at fault.**
+  `services/api/test_route_reachability.py` **declines to rule** on `GET /projects/{pid}/drawing-set/qa`:
+  its `MIN_SEGMENT` is 5 and the leaf is `qa`, two characters, so the route sits in that file's
+  bounded sub-`MIN_SEGMENT` population — the set it says honestly that it cannot judge, rather than
+  one it judged clean. `apps/web/src/api/clientCallers.test.ts` **cannot see any of them**, because a
+  route with no client method cannot appear on a list of unreachable client *methods* — the
+  `workflow_config` lesson from CLAUSE-DARK, now with three more instances. *The capability falls
+  through the gap between a documented coarseness and a structural blind spot, and a gate for each
+  side of a seam is not a gate for the seam.*
+
+  So this file asks the third question: not *is the route called* and not *is the method called*, but
+  **is this engine's conclusion reachable from a screen at all.**
+
+  ### The gate's own first draft reported two healthy capabilities as dark
+
+  It asked whether a route handler calls the engine's **verdict function** by name — and `design.py`
+  calls `condition_checks.check_all`, `benchmarking.py` calls `vendor_memory.vendor_memory`, both
+  siblings of the function holding the dict. **A function-level predicate under-counted the reachable
+  set by two**, which is the flattering direction for a checker: it invents work, and work invented
+  by a gate gets done. Both predicates are implemented and a self-test asserts they **disagree on
+  exactly those two**, so the module-level rule cannot be quietly narrowed back by anybody who finds
+  it loose. *Derive the population AND prove which derivation is right — a checker that is wrong in
+  the direction of more findings is the hardest kind to argue with.*
+
+  ### One live door spares the engine; a dead sibling is reported apart
+
+  `rfi_qa` serves `POST …/rfi/qa` (reachable) and `POST …/ai/audit` (no client method). The
+  conclusion IS reachable; one of two doors is not. Folding those together would let a genuinely dark
+  engine hide behind a sibling route, so the gate keeps two records and the mutations prove both
+  directions: one live door clears the engine while still naming the dead one, and a **declared but
+  uncalled** method is not a door — which is CLAUSE-DARK replayed, since a presence check would have
+  called `clausePlaybook` live for the months nothing called it.
+
+  **`POST /proforma/provenance/admissibility` stays dark on purpose**, and that is a decision rather
+  than a remainder: its body is `{assumptions_provenance, estimate_ledger, agent_answers}`, each the
+  OUTPUT of another engine, and the SPA has no reason to assemble three leg results client-side when
+  the project route gathers them server-side. *A client method for it would be a caller invented to
+  satisfy a gate* — so it is recorded as a dead door instead.
+
+  ### What the card had to preserve, and a fourth TRUNC-COUNTED
+
+  The card renders `no_data` and `not_captured` with **different words, different colours and
+  different next steps** — one fills a field, the other changes a schema. Mutation-checked by
+  collapsing them to one answer: two independent arms red, the pure-function comparison and the
+  rendered output. `incomplete` renders as **"INCOMPLETE — not a pass"**, because the engine reaches
+  it exactly when every leg holding data is clean and some leg holds nothing: *"an absent leg is not
+  a clean one, and calling this admissible would let an empty estimate pass as a documented one."*
+
+  And the engine caps `uncited` at `MAX_NAMED` (25) while keeping `uncited_count` as the total, so
+  printing the list's length would show a leg with 48 uncited items as having 25. The card prints
+  **"naming 25 of 48"** — and nothing when the list is complete, because "naming 3 of 3" is noise
+  that makes the real bound harder to notice. Fourth instance of that class in this document.
+
+  ### Wiring one route made its sibling invisible, and the gates said so in order
+
+  Closing this reproduced the gap it is about, live. `test_route_reachability` matches a route's LAST
+  STATIC SEGMENT, and both admissibility routes end in `admissibility` — so the moment
+  `projectAdmissibility` built `/projects/{pid}/provenance/admissibility`, that rule began reading the
+  stateless POST as **called**. Its rot check caught the pair immediately (*"if it now has a caller,
+  delete the entry"*), and when the POST was unfrozen its blind-spot ratchet caught it again and named
+  the right home: *"this rule cannot see these at all"*. It is in `LEAF_COLLISION_BLIND` now, with the
+  reason — not in the uncalled list, which would have been a lie, and not deleted, which would have
+  been a silence. **`test_verdict_reachable` matches the full templated path, so it still sees that
+  door**, which is the clearest possible argument for the new gate: *a coarseness that is documented
+  is still a coarseness, and the route that walks into it is the one next door to the fix.*
+
+  **Still open:** `drawing_qa` — `GET /projects/{pid}/drawing-set/qa` computes a drawing-set QA review
+  and its verdict for nobody. Named in the gate's down-only record rather than exempted.
+
 - ✅ **CI-LATEST-DARK — the badge is stored so it need not be recomputed, and recomputing it was the
   only way to see it** *(XS — Lane E; **CLOSED 2026-09-25**; gated by
   `apps/web/src/viewer/tools/modelCiView.test.ts`)*
