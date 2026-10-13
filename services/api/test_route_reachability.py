@@ -323,7 +323,14 @@ KNOWN_UNCALLED: set[str] = {
     "/classifications",
     "/estimate/labor/rates",
     "/plugins/reload",
-    "/proforma/scenarios/{sid}/clone",
+    # `/proforma/scenarios/{sid}/clone` left this set 2026-10-13 — FIN-GOV-DARK. It is the remedy
+    # `update_scenario`'s own 409 names (*"immutable in place — clone a revision to iterate"*), and
+    # the reason nobody noticed it was dark is that the EDIT path was dark too: no client method for
+    # `PUT /proforma/scenarios/{sid}` either, so the 409 never reached a user, so nothing ever asked
+    # for the clone. **This set cannot see that half at all** — the PUT shares its leaf with the GET
+    # and the DELETE-free `{sid}` family, so a URL-literal rule reads the path as called whatever
+    # verb the caller uses. *A per-PATH reachability rule is blind to a missing VERB, and the missing
+    # verb was what made the frozen entry here look like a lone gap rather than a severed chain.*
     "/projects/{pid}/accounting/journal",
     # `/projects/{pid}/classify/proposals` left this set 2026-10-12 — CLASSIFY-DARK. All THREE
     # `/classify/*` routes had no client method, and the three were invisible to this gate in three

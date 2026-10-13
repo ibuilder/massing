@@ -7041,6 +7041,166 @@ being written.
 
 
 
+### SEC-SCENARIO-LIST — four authz gates, three reasonable exclusions, one hole nobody owned *(✅ CLOSED 2026-10-13)*
+
+*(S — **Lane D**; `services/api/test_scenario_authz.py`)*
+
+`GET /proforma/scenarios` had **no authorisation of any kind**. With RBAC on,
+`?project_id=<another project's>` returned that project's scenario names, review states and solved
+returns — equity IRR, equity multiple, yield on cost, NPV — to any authenticated caller; with no
+`project_id` it returned **the entire table**. `POST /proforma/scenarios` was wrong in the other
+direction: **no `current_user` dependency at all**, so it had no notion of who was calling while
+taking `project_id` from the body — any authenticated caller could write a scenario into any
+project.
+
+`_can_read` already existed, and `services/api/test_scenario_authz.py` exists *because* six of the
+eight `{sid}` routes once skipped it. The collection route serving the same data in bulk called
+neither it nor anything else.
+
+## The finding is the POPULATION, and it was that gate's own predicate
+
+That file walks `proforma.py` and reads `if "{sid}" not in str(path): continue`, so a collection
+route is outside it by construction — and its docstring celebrates *"`_can_read` already existed and
+was called by 2 of the 8 `{sid}` routes"*, where the 8 is the predicate's own output. **A predicate
+that decides what to LOOK at is more dangerous than one that decides what to report**, for the fifth
+recorded time in this repository, and here it was inside the gate that the fix had been written
+into.
+
+| gate | why it could not see this |
+|---|---|
+| `services/api/test_scenario_authz.py` | `{sid}` routes only |
+| `services/api/test_route_authz.py` | `/projects/{pid}` routes only; there is no `{pid}` in this path |
+| `services/api/test_global_authz.py` | skips anything under `main._PROTECTED_PREFIXES`, and `/proforma` is in it — but that list enforces **authentication** only, which is why every route *looked* guarded. It also considers MUTATING methods, so the GET was outside twice |
+| `services/api/test_body_pid_authz.py` | a behavioural test for one route, `/test-fit/optimize` — the same body-`pid` mechanism, found once and not swept |
+
+*Three exclusions that are each individually defensible compose into a hole nobody owns* — the shape
+`services/api/test_schema_types_agree.py` recorded as *"seven exemptions and no owner is how an
+artifact stops being checked by anybody."*
+
+## The replacement derives the population from what the handler TOUCHES
+
+Every route in `proforma.py` that reads or writes the `Scenario` model, by AST — 10 routes, against
+the 8 the path-shape predicate found — so the next collection route is in scope the day it is added.
+The gate asserts the new derivation is **strictly wider** than the old one, because a rewrite that
+reproduces the predicate it replaces is the same gate wearing a new docstring.
+
+**Its first draft reported FOUR unauthorised routes and two of them were sound.**
+`GET /proforma/portfolio` and `/proforma/portfolio/compare` scope with
+`rbac.member_project_ids(db, user)`, which the authoriser list did not name — a *stricter* filter
+than `_can_read`, since it does not admit `shared_with`. Had it shipped as drafted, its instruction
+would have been "add a guard" to the two routes R46 ⑥ built `services/api/test_portfolio_authz.py`
+for. *A gate that names its authorisers can only see the ones somebody remembered*, and measuring
+before asserting is the only reason that is a footnote rather than a commit.
+
+## An unattached scenario is now readable by nobody, and that is the OLD policy finally applied
+
+`project_id: None` is scratch work the API allows, and `_can_read` returns False for one unless the
+caller is in `shared_with` — so `GET /proforma/scenarios/{sid}` has always 403'd it under RBAC. The
+list was the only route that showed it, to everyone. There is no `created_by` column on `Scenario`,
+so there is nothing to scope one BY: the choice was between showing every caller's scratch work to
+every caller and showing none of it, and the eight routes that were already right had made that
+choice. Measured before accepting the consequence — **no client path creates one**: the web app's
+save button refuses when no project is open, so `createScenario` is never called with a null id, and
+the API/script case keeps working because `api-key` sees everything. *Giving an unattached scenario
+an owner is a schema change and a product decision, not a cleanup.*
+
+## Why the list uses `_can_read` and the portfolio does not
+
+The difference is `shared_with`. A roll-up must not blend a scenario an LP was merely sent into
+another tenant's totals; a LIST of scenarios is exactly where that LP needs to see it. **Same data,
+two correct answers, because the question differs** — and reusing one filter for both would have been
+the mirror of the `_can_read`/`_can_write` conflation those guards already exist to avoid.
+
+Both halves are proved by reach: the two shipped handlers are frozen as source in the gate and must
+**both** be re-found as unauthorised before it may report, because a collection read and a
+cross-project write are two defects and re-finding one is not re-finding both. The filter itself is
+exercised behaviourally — a member sees one row, a stranger none, an LP only the row shared with
+them — since a static check that an authoriser is *mentioned* is not a check that it *excludes*
+anybody, which is `services/api/test_pid_lock_pgxproc.py`'s lesson one layer up.
+
+
+### FIN-GOV-DARK — the scenario governance workflow shipped complete and could be driven from nowhere *(✅ CLOSED 2026-10-13)*
+
+*(M — **Lane D**; `apps/web/src/proforma/scenarioGovernance.test.ts`, `services/api/test_scenario_authz.py`)*
+
+`services/api/src/aec_api/fin_gov.py` is a five-transition state machine — draft → in_review →
+approved → published, with reject and reopen walking back — `Scenario` carries `review_status`,
+`reviewed_by`, `reviewed_at` and `review_note`, `review_scenario` audits every move, and
+`update_scenario` refuses an edit to a committed row with *"scenario is approved and immutable in
+place — clone a revision to iterate"*. `models.py` says the same beside the column. **None of it
+could be driven from the app.**
+
+| route | before |
+|---|---|
+| `POST /proforma/scenarios/{sid}/review` | `ApiClient.reviewScenario` existed and was frozen in `apps/web/src/api/clientCallers.test.ts`'s callerless list |
+| `PUT /proforma/scenarios/{sid}` | **no client method at all** — a saved scenario could never be edited |
+| `POST /proforma/scenarios/{sid}/clone` | **no client method at all**, and frozen in `services/api/test_route_reachability.py` |
+| `review_status` on the list route | returned by the server, declared nowhere in the client |
+
+## The three compose into ONE defect, and that is why nothing looked absent
+
+Because the EDIT path was missing, the 409 never reached a user; because the 409 never reached a
+user, nobody ever needed the clone; because nobody needed the clone, its frozen entry read as a
+route written ahead of its screen rather than as the far end of a severed chain. **A missing door is
+invisible when the corridor to it is also missing.**
+
+Each of the three records says so one layer too low. `clientCallers.test.ts` froze `reviewScenario`
+as "callerless" — true, and it names the one link of the chain that happened to exist.
+`test_route_reachability` froze the clone under a comment reading *"this set records what nobody has
+read"* — also true. **And that gate cannot see the other half at all**: `PUT /proforma/scenarios/{sid}`
+shares its path with the GET, and the gate is **path-keyed** — every entry in every one of its lists
+is a bare path with no method, and `r.methods` appears nowhere in the file — so a URL literal
+anywhere in the client marks the path reached for all seven verbs. Measured, not inferred: that path
+sits in none of its exception lists, and the gate was green throughout the period when no client
+method issued a PUT to it. *A per-PATH reachability rule is blind to a missing VERB*, and the missing
+verb is what made the frozen clone entry look like a lone gap.
+
+## The clone returned a result it had never computed
+
+`clone_scenario` did `Scenario(..., result=s.result)`. The assumptions are identical at clone time,
+so the figure is not arbitrary — and it is not the clone's either: a stored `result` is a cached
+computation with no record of what produced it, and `solve()` is **not a pure function of the
+assumptions**. With no `timing.start_date` it falls back to `date.today()`, so a copy carries a
+number computed on a different day, and nothing in the schema can say so (there is no `solved_at`
+and no `result_stale`). It now re-solves — <100 ms, by this module's own docstring — and returns
+`resolved` so the caller states which it has rather than asserting it.
+
+**And cloning was the one governance write with no audit row.** `review_scenario` audits, the
+assumption change log audits, and the move a user makes *because the system refused their edit* —
+the one a reviewer most wants to find — left no trace. It writes `scenario.cloned` with the parent
+id and the state it was cloned FROM.
+
+**The solve is GUARDED, and review is what found that.** Cloning used to compute nothing, so a row
+whose stored assumptions this build can no longer solve — a required field added to `Assumptions`
+after it was saved — could always be cloned. Letting `solve()` raise turns that into a **500 on the
+one operation the governance design offers as the way forward from a committed scenario**; reinstated
+as a mutation, the failure is `KeyError: 'hold_years'` escaping to the route. The fallback is `None`,
+never the parent's `result`, so a revision with no result says so through `resolved: false` and the
+card tells the user to open it and save. *A fix that re-solves must not make the operation it
+protects conditional on the solve.* And `resolved` alone does not witness the re-solve — it only says
+the clone HAS a result, which a copy also does — so the test pokes the parent's stored result to a
+value `solve()` cannot produce and asserts the clone replaced it: **an assertion on the field a fix
+added tests the field, not the fix.**
+
+## `returns: null` is three states, and the screen has to keep them apart
+
+`list_scenarios` sends `(s.result or {}).get("returns")`, so `null` arrives both for a row that was
+never solved and for one that solved to no returns. On a screen whose job is saying which scenario
+is the committed one, rendering both as "—" states a fact the data does not carry.
+`returnsReading` returns `unsolved` / `no_returns` / `solved`, and `governanceReading.committed` is
+`null` on an empty register rather than `false` — an unsaved project and an uncommitted one are
+different answers, which is `services/api/test_negated_verdict.py`'s rule applied at the consumer.
+
+## The transition table is declared in TS and gated against the Python
+
+A UI offering review buttons must know which are legal from a state, and that table is
+`fin_gov.REVIEW_ACTIONS`. Copying it is this repository's most-repeated finding, so
+`scenarioGovernance.test.ts` parses `REVIEW_ACTIONS` and `IMMUTABLE_STATES` out of the Python and
+asserts agreement **in both directions**: a transition there and not here is a button nobody can
+reach, one here and not there is a button that 404s. Deriving it at runtime was the alternative and
+is worse — the route does not publish the table, and an endpoint to describe a five-row constant is
+more surface than the constant.
+
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
 - ✅ **RMW-LOCKGAP — all twelve IFC-authoring routes now derive a model version under the

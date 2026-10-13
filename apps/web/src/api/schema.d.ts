@@ -3844,10 +3844,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Scenarios */
+        /**
+         * List Scenarios
+         * @description Saved scenarios the caller may read, with their solved returns, oldest→newest.
+         */
         get: operations["list_scenarios_proforma_scenarios_get"];
         put?: never;
-        /** Create Scenario */
+        /**
+         * Create Scenario
+         * @description Save a solve as a named scenario. Requires a role on `project_id` when one is given.
+         */
         post: operations["create_scenario_proforma_scenarios_post"];
         delete?: never;
         options?: never;
@@ -3882,7 +3888,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Clone Scenario */
+        /**
+         * Clone Scenario
+         * @description Revise a scenario by copying it as a new draft, re-solved and audited.
+         *
+         *     This is the governance design's only forward path from a committed scenario: `update_scenario`
+         *     refuses an edit to an `approved`/`published` row, and `published` is terminal. The copy is
+         *     SOLVED rather than inherited, so `resolved` says whether this revision has a result it computed.
+         */
         post: operations["clone_scenario_proforma_scenarios__sid__clone_post"];
         delete?: never;
         options?: never;
@@ -7800,6 +7813,8 @@ export interface paths {
         /**
          * Documents Phase Gaps
          * @description Required-document gaps for a design phase (AIA SD / DD / CD / CA / CLOSEOUT).
+         *
+         *     An unrecognised `phase` is a 422 and never a result.
          */
         get: operations["documents_phase_gaps_projects__pid__documents_phase_gaps_get"];
         put?: never;
@@ -30827,9 +30842,14 @@ export interface operations {
             query?: {
                 project_id?: string | null;
             };
-            header?: never;
+            header?: {
+                "x-user"?: string | null;
+                authorization?: string | null;
+            };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                aec_token?: string | null;
+            };
         };
         requestBody?: never;
         responses: {
@@ -30856,9 +30876,14 @@ export interface operations {
     create_scenario_proforma_scenarios_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-user"?: string | null;
+                authorization?: string | null;
+            };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                aec_token?: string | null;
+            };
         };
         requestBody: {
             content: {
@@ -50884,7 +50909,6 @@ export interface operations {
                 weekend?: string | null;
                 /** @description comma-separated YYYY-MM-DD public holidays */
                 holidays?: string | null;
-                limit?: number;
             };
             header?: {
                 "x-user"?: string | null;

@@ -373,7 +373,13 @@ const UNCALLED: readonly string[] = [
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
   "reviewPost",
-  "reviewScenario", "reviseDrawing", "runClash", "saveClausePlaybook",
+  // `reviewScenario` left this list 2026-10-13 — FIN-GOV-DARK. It had been frozen here as a method
+  // written ahead of its screen, and that reading was one layer too low: `PUT .../{sid}` and
+  // `POST .../{sid}/clone` had NO client method at all, so the edit path was missing, the 409 that
+  // names the clone never reached a user, and nothing ever needed either door. *A frozen callerless
+  // method records the one link of a severed chain that happens to exist.* Driven by
+  // `apps/web/src/proforma/scenarioGovernance.ts` from the Overview tab.
+  "reviseDrawing", "runClash", "saveClausePlaybook",
   "saveMacros", "saveViewTemplates",
   "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",

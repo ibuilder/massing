@@ -12,6 +12,9 @@ import { renderAuthorityCard } from "./authorityCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderDecisionGateCard } from "./decisionGateCard";
 import { renderRentRollQuality } from "./rentRollQuality";
+import {
+  governanceReading, IMMUTABLE_STATES, renderGovernanceCard, type ReviewAction, type ReviewStatus,
+} from "./scenarioGovernance";
 import { renderSupplyCard } from "./supplyCard";
 import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
@@ -1868,6 +1871,86 @@ export class ProformaUI {
       `<table class="sens-table">${head}${rows}</table>` + torn;
   }
 
+  /**
+   * Load the project's scenarios and drive the FIN-GOV review workflow (FIN-GOV-DARK).
+   *
+   * **Every action re-fetches rather than patching the row in place.** A review action can change
+   * what the OTHER rows may do — publishing one is the moment "not committed" becomes "committed",
+   * and `multiple_published` is a warning about the set, not about a row — so a local mutation
+   * would leave the summary line describing the state before the click. The list is small and the
+   * fetch is one request.
+   *
+   * A failure is REPORTED, never swallowed into an empty card: the 409 from an edit or an illegal
+   * transition is the server explaining the governance rule, and it is the most useful sentence this
+   * screen can show. An unreachable list leaves the previous render standing with the reason beside
+   * it, because a card that empties itself on a network blip reads as "this project has no
+   * scenarios".
+   */
+  private async renderScenarioGovernance(host: HTMLElement, pid: string): Promise<void> {
+    let rows;
+    try {
+      rows = await this.api.listScenarios(pid);
+    } catch (e) {
+      // Replace, never append. `again()` re-enters this function with the SAME host after every
+      // action, so an appending error path stacks one message per failed retry — and the second
+      // copy reads as a second fault. The previous render is not kept here either: this branch runs
+      // only when the list could not be read at all, so leaving stale rows under a fresh error
+      // would show a record that may no longer be true beside the news that it could not be read.
+      host.innerHTML = "";
+      const why = document.createElement("div");
+      why.className = "meta";
+      why.style.color = "var(--status-warn)";
+      why.textContent = `could not load the scenario record: ${(e as Error).message}`;
+      host.appendChild(why);
+      return;
+    }
+    const reading = governanceReading(rows.map((r) => ({
+      id: r.id, name: r.name,
+      review_status: (r.review_status || "draft") as ReviewStatus,
+      returns: r.returns ?? null,
+    })));
+    const again = () => void this.renderScenarioGovernance(host, pid);
+    renderGovernanceCard(host, reading, {
+      review: (sid: string, action: ReviewAction) => void (async () => {
+        try {
+          const out = await this.api.reviewScenario(sid, action);
+          this.setStatus(`scenario is now ${out.review_status}`
+            + (IMMUTABLE_STATES.includes(out.review_status as ReviewStatus)
+              ? " — its assumptions are immutable in place; use Revise to iterate" : ""));
+        } catch (e) { this.setStatus(`${action} refused: ${(e as Error).message}`); }
+        again();
+      })(),
+      clone: (sid: string, name: string) => void (async () => {
+        try {
+          const c = await this.api.cloneScenario(sid, name);
+          // `resolved` is the server saying it computed this revision's result rather than copying
+          // the parent's. Reported because a revision showing returns it never solved was the
+          // defect half of FIN-GOV-DARK, and a silent fix teaches nobody which number they have.
+          const irr = c.returns?.equity_irr;
+          this.setStatus(`revised as “${c.name}” (draft)`
+            + (c.resolved
+              ? ` — re-solved: ${irr != null ? `${(irr * 100).toFixed(1)}% equity IRR` : "no returns"}`
+              : " — not solved; open it and save to solve"));
+        } catch (e) { this.setStatus(`revise failed: ${(e as Error).message}`); }
+        again();
+      })(),
+      updateFromCurrent: (sid: string, name: string) => void (async () => {
+        try {
+          const out = await this.api.updateScenario(sid, name, pid, this.a);
+          // `changed_assumptions` is the route's own diff, and an EMPTY list is a distinct outcome:
+          // the save succeeded and nothing differed. Reporting both as "saved" would tell somebody
+          // their edit landed when the panel was already showing exactly what was stored.
+          this.setStatus(out.changed_assumptions.length
+            ? `“${name}” updated and re-solved — changed: ${out.changed_assumptions.join(", ")}`
+            : `“${name}” already matched the solve on screen — nothing changed`);
+        } catch (e) { this.setStatus(`update refused: ${(e as Error).message}`); }
+        again();
+      })(),
+      askName: (suggested: string) =>
+        askText("Revise scenario", { label: "Name this revision:", value: suggested }),
+    });
+  }
+
   /** Developer command center (Overview tab) — the executive landing, mirroring the GC dashboard:
    *  an "on returns & on cost" health band + KPI cards + capital-stack drawdown + Sources & Uses +
    *  underwriting guardrails. Re-rendered on every solve. */
@@ -1905,6 +1988,15 @@ export class ProformaUI {
     tools.append(save, Object.assign(document.createElement("span"), { className: "meta",
       textContent: pid ? "Saved scenarios roll into the Portfolio's developer returns." : "Open a project to save scenarios." }));
     host.appendChild(tools);
+
+    // FIN-GOV-DARK — the review workflow, which shipped on the server and was reachable from
+    // nowhere. Placed directly under the save button because this is where a scenario is BORN: the
+    // thing a developer does after saving one is submit it, and the thing they do to a committed one
+    // is revise it. See `scenarioGovernance.ts` for why the three dark routes are one defect.
+    const gov = document.createElement("div");
+    gov.id = "pf-scenario-gov";
+    host.appendChild(gov);
+    if (pid) void this.renderScenarioGovernance(gov, pid);
 
     // KPI cards
     const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";

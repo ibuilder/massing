@@ -87,12 +87,53 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
         method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
 
-  /** Saved proforma scenarios for a project (with their solved returns), oldest→newest. */
+  /** Saved proforma scenarios for a project (with their solved returns), oldest→newest.
+   *
+   *  **`review_status` was returned by the route and declared nowhere here**, so the FIN-GOV state
+   *  machine — draft → in_review → approved → published — was invisible to every screen and to
+   *  every unread-field audit in this tree, which all start from the declared interfaces. It is the
+   *  field that decides whether a scenario may still be edited at all (`update_scenario` 409s on
+   *  `approved`/`published`), so a list without it cannot show which row is the committed one.
+   *
+   *  `returns: null` means the row has no solved result, which is NOT "it solved to nothing" — see
+   *  `cloneScenario`. */
   listScenarios(projectId: string) {
     return this.json<{ id: string; name: string; project_id: string | null;
+      review_status: "draft" | "in_review" | "approved" | "published";
       returns: { equity_irr?: number | null; equity_multiple?: number | null; project_irr?: number | null;
         yield_on_cost?: number | null; npv?: number | null } | null }[]>(
       `/proforma/scenarios?project_id=${encodeURIComponent(projectId)}`);
+  }
+
+  /**
+   * FIN-GOV — revise a committed scenario by cloning it.
+   *
+   * **This is the remedy `update_scenario`'s own 409 names** — *"scenario is approved and immutable
+   * in place — clone a revision to iterate"* — and it had no client method, so the refusal pointed
+   * at a door the app did not have. `models.py` says the same thing beside the column: *"Approved/
+   * published assumptions are immutable in place — clone a revision to iterate."* Cloning is not a
+   * convenience here; it is the governance design's only forward path from `published`, which
+   * `fin_gov.REVIEW_ACTIONS` makes terminal.
+   *
+   * The clone comes back in `draft` with a result it SOLVED, not the parent's stored one.
+   */
+  cloneScenario(sid: string, name: string) {
+    return this.json<{ id: string; name: string; cloned_from: string;
+      review_status: string; resolved: boolean;
+      returns: { equity_irr?: number | null; equity_multiple?: number | null;
+        project_irr?: number | null; yield_on_cost?: number | null; npv?: number | null } | null }>(
+      `/proforma/scenarios/${encodeURIComponent(sid)}/clone`,
+      { method: "POST", body: JSON.stringify({ name }) });
+  }
+
+  /** Edit a saved scenario's assumptions. The route re-solves and returns the changed paths.
+   *
+   *  409 when the scenario is locked, or when its `review_status` is `approved`/`published` — the
+   *  caller's move then is `cloneScenario`, which is what the 409 text says. */
+  updateScenario(sid: string, name: string, projectId: string | null, assumptions: unknown) {
+    return this.json<{ id: string; name: string; result: unknown; changed_assumptions: string[] }>(
+      `/proforma/scenarios/${encodeURIComponent(sid)}`,
+      { method: "PUT", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
 
   /**
