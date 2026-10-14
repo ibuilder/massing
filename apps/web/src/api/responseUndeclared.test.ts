@@ -133,7 +133,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // list above: this gate compares a route's top-level keys, so the root `spec_sections` was
   // visible to it and the nested one was not — the same root-only blind spot MC-UNDEFINED records.
   "GET /projects/{}/cap-table": ["pipeline_commitment", "workflow_in_use"],
-  "GET /projects/{}/change-orders/log": ["by_state", "change_events_by_scope", "rejected_value"],
+  // **CLOSED 2026-10-14 under CO-REJECTED, and `rejected_value` was the arithmetic.** `total_value`
+  // counts every COR raised, REJECTED ONES INCLUDED, while `total_schedule_days` already excluded
+  // their days — the same refusal, two treatments, one function. The report printed four of the five
+  // money figures, so on a four-COR fixture it read **total $575,000** beside pending/approved/
+  // executed of $175,000, and the $400,000 residue was the refused COR with no name on the screen.
+  // *A total whose own parts do not sum to it leaves the reader to invent the difference*, and on a
+  // change-order report the invented difference reads as exposure.
+  // `services/api/test_refusal_readers.py` gained this as instance 6 — it said it *"covers the
+  // remaining five and is the gate that keeps the class from re-opening"*, over a hand-made list,
+  // and **26 of 139 modules declare a refusal-shaped state.**
   // `support_unscheduled` — the 4D pairs with no date to clash on.
   "GET /projects/{}/clash/sequence": ["support_unscheduled"],
   // **CLOSED 2026-10-14 under COMPTIER-DARK.** `requested` is the band for the field the `field`

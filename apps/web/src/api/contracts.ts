@@ -230,12 +230,30 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
   }
 
-  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
+  /** coLog — CO value pipeline (pending/approved/executed), reason mix, schedule exposure.
+   *
+   *  CO-REJECTED declared the rest. `total_value` is **every** COR raised, rejected ones included,
+   *  so it is a volume-of-change figure and not exposure — and it was printed beside `pending`,
+   *  `approved` and `executed` with no fourth term to explain the gap. Measured on a four-COR
+   *  fixture: total $575,000, those three $175,000, and a $400,000 residue that is the rejected COR
+   *  and had no name on the screen. `live_value` is the figure a report wants; `rejected_value`,
+   *  `by_state` and the two schedule-day figures are what make the arithmetic auditable. */
   coLog(pid: string) {
-    return this.json<{ co_count: number; total_value: number; pending_value: number;
-      approved_value: number; executed_value: number; total_schedule_days: number;
+    return this.json<{ co_count: number; total_value: number;
+      /** `total_value` minus the rejected CORs — what is or may become money. */
+      live_value?: number;
+      pending_value: number;
+      approved_value: number; executed_value: number;
+      /** CORs the owner refused. In `total_value`, out of `live_value`. */
+      rejected_value?: number;
+      /** EXCLUDES the rejected CORs' days, which is the opposite treatment to `total_value` and
+       *  the reason both figures are now published with their refusal named. */
+      total_schedule_days: number;
+      rejected_schedule_days?: number;
       change_events_open: number; change_event_rom_exposure: number;
+      by_state?: Record<string, number>;
       by_reason: Record<string, number>; ball_in_court: Record<string, number>;
+      change_events_by_scope?: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
   }
   };

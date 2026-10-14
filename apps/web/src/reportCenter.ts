@@ -36,6 +36,7 @@ import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
 import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
 import { showResult } from "./ui/result";
+import { coHeadline, coReconciles, coScheduleNote, coStateRows, rejectedShareNote } from "./coLogReadings";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
  *  interactive project tools & analytics (drawing-set register + issuance + pre-flight gate,
@@ -643,7 +644,18 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("💲 Change-order log", () => showResult("Change-order log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.coLog(pid); body.innerHTML = `<div class="meta">${s.co_count} COs · total ${money(s.total_value)} · pending ${money(s.pending_value)} · approved ${money(s.approved_value)} · <b>executed ${money(s.executed_value)}</b> · ${s.total_schedule_days} sched days · CE ROM exposure ${money(s.change_event_rom_exposure)}</div>`;
+    // CO-REJECTED. This printed `total_value` beside pending/approved/executed — four of five
+    // figures — so the rejected CORs were inside the total and named nowhere: $575k total against
+    // $175k of named states on a four-COR fixture. The LIVE figure leads now and the refusal is
+    // named, with the response's own arithmetic checked rather than presented.
+    try { const s = await api.coLog(pid);
+      const bad = coReconciles(s) === false;
+      body.innerHTML = `<div class="meta">${escapeHtml(coHeadline(s))} · ${escapeHtml(coScheduleNote(s))} · CE ROM exposure ${money(s.change_event_rom_exposure)}</div>`;
+      const share = rejectedShareNote(s);
+      if (share) body.insertAdjacentHTML("beforeend", `<div class="meta" style="color:var(--status-warn)">${escapeHtml(share)}</div>`);
+      if (bad) body.insertAdjacentHTML("beforeend", `<div class="meta" style="color:var(--status-crit)">The server's change-order figures do not reconcile — live ≠ pending + approved + executed, or total ≠ live + rejected. Treat the decomposition above as approximate.</div>`);
+      const states = coStateRows(s);
+      if (states.length) body.insertAdjacentHTML("beforeend", `<div class="meta">By state: ${states.map((x) => `${escapeHtml(x.state)} ${x.count}`).join(" · ")}</div>`);
       table(body, ["Ref", "Subject", "State", "Ball in court", "Reason", "Amount"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.state ?? "", r.ball_in_court ?? "", r.reason ?? "", money(r.amount)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
