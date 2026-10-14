@@ -634,11 +634,19 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
         budget = dict(p.dev_budget or dvb.starter_budget())
         lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
         priced = round(sum(by_disc.values()), 2)
+        # WHICH BASIS WON, SAID RATHER THAN INFERRED. `estimate_from_takeoff` recommends the GFA
+        # benchmark over the element sum when they diverge, and the two are different claims about
+        # the project: a per-discipline breakdown a GC could bid, or one benchmark lump. The route
+        # knew which branch it took and the response did not carry it, so a caller had to compare
+        # `sum(by_discipline)` against `hard_cost` with the server's own 2% tolerance restated on
+        # the client — *a rule duplicated across the wire is a rule that will drift.*
         if by_disc and abs(priced - total) <= max(1.0, total * 0.02):   # lines reconcile to the total
+            basis = "per_discipline"
             for disc, amt in sorted(by_disc.items(), key=lambda x: -x[1]):
                 lines.append({"category": "hard", "description": f"Construction — {disc} (model takeoff)",
                               "unit_cost": amt, "quantity": 1, "cost_code": ""})
         else:                                                        # GFA-benchmark won → one lump line
+            basis = "gfa_benchmark"
             lines.append({"category": "hard", "description": "Construction — model takeoff (synced)",
                           "unit_cost": total, "quantity": 1, "cost_code": ""})
         budget["lines"] = lines
@@ -650,6 +658,14 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     db.commit()
     from .. import cost_db as _cdb
     return {"synced": True, "source": "model_estimate", "hard_cost": total, "by_discipline": by_disc,
+            # `per_discipline`: the committed hard cost IS the sum of the priced element lines, and
+            # the breakdown below is that sum. `gfa_benchmark`: the element sum and the GFA benchmark
+            # diverged, the benchmark was recommended, and ONE lump line was written — so
+            # `by_discipline` is still the element pricing and no longer adds up to `hard_cost`.
+            # Reading the breakdown as a decomposition of the committed number is wrong on that
+            # branch, and nothing in the payload said so.
+            "basis": basis,
+            "discipline_total": round(sum(by_disc.values()), 2),
             "cost_vintage": (_cdb.dataset_dict(ds) if ds else None), "cost_adjustment": adjustment,
             "budget": budget, "summary": dvb.summarize(budget)}
 

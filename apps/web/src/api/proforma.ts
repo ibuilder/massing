@@ -246,6 +246,37 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(
       `/projects/${pid}/dev-budget/sync-gmp`, { method: "POST" });
   }
+  /**
+   * MODELSYNC-DARK — set the developer hard cost from the **model takeoff**, priced through the
+   * project's pinned cost vintage.
+   *
+   * The route's own docstring: *"one click ties the underwriting to the real IFC quantities × unit
+   * rates … instead of a flat GFA×$/sf assumption … Closes the model↔proforma disconnect."* That
+   * disconnect is this product's central claim, and the route that closes it had **no caller
+   * anywhere** — frozen in `services/api/test_route_reachability.py`'s `KNOWN_UNCALLED` since
+   * 2026-08-20, while its sibling `syncGmpToHard` has had a button since it shipped.
+   *
+   * `basis` is what makes the answer readable, and the server now states it: on `gfa_benchmark` the
+   * route wrote ONE lump line because the element sum and the GFA benchmark diverged, so
+   * `by_discipline` is the element pricing and **does not add up to `hard_cost`**. The reading is
+   * `apps/web/src/proforma/modelSyncCard.ts`; it refuses to assume `per_discipline` when the key is
+   * absent, because that is the one assumption that would silently bless a mismatched table.
+   *
+   * Two distinct 409s: no accessible source IFC (load a model), and a republication landing while
+   * the takeoff ran (press it again). Only the second is retryable, and the status code cannot tell
+   * them apart — `syncFailure` matches the server's sentence.
+   */
+  syncBudgetFromModel(pid: string) {
+    return this.json<{ synced: boolean; source: string; hard_cost: number;
+      by_discipline: Record<string, number>;
+      basis?: "per_discipline" | "gfa_benchmark"; discipline_total?: number;
+      cost_vintage?: { name?: string; year?: number | null; region?: string | null } | null;
+      cost_adjustment?: { combined_factor?: number; location_factor?: number;
+                          escalation_factor?: number; note?: string } | null;
+      budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
+      summary: DevBudgetSummary }>(
+      `/projects/${pid}/dev-budget/sync-from-model`, { method: "POST" });
+  }
   /** Developer construction draw schedule sourced from the GC cost-loaded schedule + actual billed. */
   constructionDraws(pid: string) {
     return this.json<{ projected_total: number; months: number; peak_month_cost: number;

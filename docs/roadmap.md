@@ -1511,6 +1511,58 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **MODELSYNC-DARK — the one route that ties the underwriting to the IFC takeoff had no
+  caller, and the test covering it described a branch it never reached** *(M —
+  `apps/web/src/proforma/modelSyncCard.ts`,
+  `services/api/src/aec_api/routers/proforma.py`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/proforma/modelSyncCard.test.ts` and a new phase in `services/api/test_dev_budget.py`)*
+
+  `POST /projects/{pid}/dev-budget/sync-from-model` says in its own docstring: *"one click ties the
+  underwriting to the real IFC quantities × unit rates (priced through the project's pinned cost
+  vintage), instead of a flat GFA×$/sf assumption … Closes the model↔proforma disconnect."* **That
+  disconnect is the central claim of this product** — IFC as the source of truth, feasibility
+  derived from it rather than guessed — and the route that closes it was reachable from nothing,
+  while its sibling `sync-gmp` has had a button in the same card since it shipped. Frozen in
+  `KNOWN_UNCALLED` since 2026-08-20, under the entry that says *"a ratchet records 'this was looked
+  at', never 'this is safe'"*. Eight weeks is how long a freeze takes to start reading as the second
+  thing.
+
+  **The server was missing the key that makes the answer readable, and I added it rather than
+  re-deriving it on the client.** `estimate_from_takeoff` recommends the GFA benchmark over the
+  element sum when the two diverge, and the route then writes ONE lump line instead of the
+  per-discipline breakdown — so `by_discipline` is still the element pricing and **no longer
+  decomposes `hard_cost`**. The route knew which branch it took and the response did not carry it,
+  so a caller's only way to tell was to restate the server's own 2% tolerance across the wire. *A
+  rule duplicated across the wire is a rule that will drift.* `basis` and `discipline_total` are in
+  the payload now.
+
+  **Measuring that is what corrected a comment in the shipped test.** `test_dev_budget.py` asserted
+  *"the hard lines are now model-derived (per-discipline `model takeoff` lines)"* over a fixture
+  that takes the **benchmark** branch: the blank 20m model carries two walls and a column, so the
+  elements price at **$19,952** against a **$2,178,613** GFA benchmark — a 109× gap. Both existing
+  assertions pass on the lump line anyway, because `"Construction — model takeoff (synced)"`
+  contains `"model takeoff"` and a single line reconciles to the total by construction. *An
+  assertion that holds on both branches documents neither, and its comment then names whichever one
+  the author had in mind.* The basis is pinned EXACTLY now, not `in (...)`, so a richer fixture
+  making the element sum win has to be read rather than passing quietly.
+
+  **My own first draft of the new phase was vacuous in the same way** — `if body["basis"] ==
+  "per_discipline":` over a fixture that never takes it — and mutation found it: forcing the label
+  to `per_discipline` on the benchmark branch went red, which is how I learned which branch the
+  fixture was on. The assertions now pin the **branch condition** rather than the label: a
+  `gfa_benchmark` whose breakdown *does* reconcile would mean the label and the decision had come
+  apart.
+
+  The card reads the answer before printing it — which basis won (and `undefined` is answered as
+  "not stated", never assumed to be the reassuring one), which vintage and region priced it, and
+  whether a location/escalation factor applied (a `combined_factor` of exactly `1` is an ANSWER, not
+  an absence). **The two 409s stay apart**: no accessible source IFC means load a model, a
+  republication landing mid-takeoff means press it again, and only the second is retryable — the
+  button relabels itself to `⟳ Re-run against the current model`. The status code cannot tell them
+  apart, so the match is on the server's own sentence. And the click closes the loop the way the GMP
+  button does, flowing the synced cost into the proforma assumptions and re-solving, so it reaches
+  Sources & Uses and the returns rather than stopping at the line-item budget.
+
 - ✅ ⭐ **VERSION-VALUES — the diff has computed `FireRating: 1HR → 2HR` since VERSION-COMPARE, and
   the compare card printed `FireRating`** *(S — `apps/web/src/viewer/tools/versionDiffRead.ts`;
   **CLOSED 2026-10-14**; gated by `apps/web/src/viewer/tools/versionDiffRead.test.ts` and two new

@@ -7,6 +7,7 @@ import { provenanceLine } from "./provenanceLine";
 import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
+import { basisNote, disciplineRows, SYNC_CSS, syncFailure, vintageNote } from "./modelSyncCard";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderAdmissibilityCard } from "./admissibilityCard";
 import { renderAuthorityCard } from "./authorityCard";
@@ -1379,6 +1380,59 @@ export class ProformaUI {
       }).catch(() => { recon.style.display = "none"; });   // no GMP / endpoint absent → hide quietly
     };
     refreshRecon();
+
+    // MODELSYNC-DARK — the other side of the same question, and the one this product is actually
+    // about. `sync-gmp` ties the underwriting to the GC's number; this ties it to the MODEL:
+    // IFC quantities × unit rates through the project's pinned cost vintage, instead of a flat
+    // GFA×$/sf assumption. Its route docstring calls it "the model↔proforma disconnect" and it had
+    // no caller anywhere in the app, frozen as uncalled since 2026-08-20 while its sibling has had
+    // a button since it shipped.
+    //
+    // Always offered, never gated on "is there a model": the route answers 409 with a sentence that
+    // says which refusal it is, and `syncFailure` keeps the two apart — a disabled button would
+    // have to guess at the same condition from a different screen's data.
+    const msync = document.createElement("div");
+    msync.style.cssText = "margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
+    host.insertBefore(msync, body);
+    msync.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">`
+      + `<span class="meta">🧮 Hard cost from the <b>model takeoff</b> — IFC quantities × unit rates `
+      + `at the project's cost vintage, rather than a GFA×$/sf assumption.</span>`
+      + `<button class="tool-btn" id="pf-sync-model">⤵ Set hard cost = model takeoff</button></div>`
+      + `<div id="pf-sync-model-out"></div>`;
+    const msOut = msync.querySelector<HTMLElement>("#pf-sync-model-out")!;
+    const msBtn = msync.querySelector<HTMLButtonElement>("#pf-sync-model")!;
+    msBtn.onclick = async () => {
+      msBtn.disabled = true; msBtn.textContent = "taking off the model…";
+      msOut.innerHTML = `<div class="meta">reading the IFC and pricing it — this can take a while on a large model.</div>`;
+      try {
+        const r = await this.api.syncBudgetFromModel(pid);
+        // WHAT THE NUMBER MEANS, before the number. On the benchmark branch `by_discipline` is the
+        // element pricing and does NOT decompose the committed cost, and nothing but `basis` says so.
+        const bn = basisNote(r);
+        const rows = disciplineRows(r);
+        msOut.innerHTML = `<div style="margin-top:4px"><b>${money(r.hard_cost)}</b> committed as the construction hard cost.</div>`
+          + `<div class="meta" style="margin-top:2px;color:${escapeHtml(SYNC_CSS[bn.tone])}">${escapeHtml(bn.text)}</div>`
+          + `<div class="meta" style="margin-top:2px">${escapeHtml(vintageNote(r))}</div>`
+          + (rows.length
+            ? `<table class="portal-table" style="width:100%;font-size:11px;margin-top:4px">`
+              + `<thead><tr><th scope="col" style="text-align:left">Discipline</th><th scope="col">Element pricing</th></tr></thead><tbody>`
+              + rows.map((d) => `<tr><td>${escapeHtml(d.discipline)}</td>`
+                + `<td style="text-align:right">${money(d.amount)}</td></tr>`).join("")
+              + `</tbody></table>`
+            : "");
+        // close the loop the same way the GMP button does, so the synced cost reaches Sources &
+        // Uses and the returns rather than stopping at the line-item budget.
+        const cl = await this.api.devBudgetCostLines(pid);
+        (this.a as { cost_lines: unknown[] }).cost_lines = cl.cost_lines.map((c) => ({ ...c, start_month: 0, end_month: 0 }));
+        this.setStatus(`hard cost synced from the model takeoff → applied to proforma (${money(cl.summary.grand_total)} uses)`);
+        this.render(); void this.solve();
+      } catch (e) {
+        const f = syncFailure((e as Error).message);
+        msOut.innerHTML = `<div class="meta" style="margin-top:4px;color:${escapeHtml(SYNC_CSS.warn)}">${escapeHtml(f.text)}</div>`;
+        msBtn.disabled = false;
+        msBtn.textContent = f.retryable ? "⟳ Re-run against the current model" : "⤵ Set hard cost = model takeoff";
+      }
+    };
 
     // R35-DEAL-MEMORY — the firm's OWN realised $/SF, beside the hard cost being entered.
     //

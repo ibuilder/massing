@@ -207,7 +207,12 @@ KNOWN_UNCALLED: set[str] = {
     # reads the sourced rules. Leaving it frozen would have claimed it was still unreachable.
     # "/projects/{pid}/code/amendments" REMOVED v0.3.1137 — Model Analysis shows the local overlay.
     # "/projects/{pid}/cost-vintage" REMOVED v0.3.1137 — Budget reports the resolved vintage.
-    "/projects/{pid}/dev-budget/sync-from-model",
+    # "/projects/{pid}/dev-budget/sync-from-model" REMOVED 2026-10-14 — MODELSYNC-DARK. The
+    # Cost-budget card now has "⤵ Set hard cost = model takeoff" beside the GMP button that
+    # has been there since its sibling shipped. This was the route whose own docstring says it
+    # "closes the model↔proforma disconnect" — the central claim of the product — and it was
+    # reachable from nothing for the eight weeks this entry recorded it as looked-at. *A freeze
+    # says "this was looked at", and the longer one sits the more it reads as "this is fine".*
     # "/projects/{pid}/documents/file-model" REMOVED v0.3.1137 — Documents files source.ifc on demand.
     # "/projects/{pid}/documents/model-history" REMOVED v0.3.1137 — Documents lists filed revisions.
     # --- 2026-08-20: MASKED BY THE GENERATED TYPES, not newly broken -----------------------------

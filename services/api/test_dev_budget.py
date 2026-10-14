@@ -131,13 +131,43 @@ with TestClient(app) as c:
     assert sr.status_code == 200, sr.text[:200]
     body = sr.json()
     assert body["synced"] and body["source"] == "model_estimate" and body["hard_cost"] > 0, body
-    # the hard lines are now model-derived (per-discipline "model takeoff" lines), soft/acq untouched
+    # the hard lines are model-derived ("model takeoff" lines), soft/acq untouched
     hard_lines = [ln for ln in body["budget"]["lines"] if ln["category"] == "hard"]
     assert hard_lines and all("model takeoff" in ln["description"].lower() for ln in hard_lines), hard_lines
     assert any(ln["category"] == "soft" for ln in body["budget"]["lines"]), "soft lines preserved"
     # the hard subtotal reconciles to the estimate total it reported
     hard_subtotal = round(sum(ln["unit_cost"] * ln.get("quantity", 1) for ln in hard_lines), 2)
     assert abs(hard_subtotal - body["hard_cost"]) <= max(1.0, body["hard_cost"] * 0.02), (hard_subtotal, body["hard_cost"])
+
+    # --- MODELSYNC-DARK: WHICH BASIS, stated rather than re-derived on the client -----------------
+    # `estimate_from_takeoff` recommends the GFA benchmark over the element sum when the two
+    # diverge, and the route then writes ONE lump line instead of the per-discipline breakdown — so
+    # `by_discipline` is still the element pricing and no longer decomposes `hard_cost`. The only
+    # way a caller could tell was to restate the server's own 2% tolerance, and *a rule duplicated
+    # across the wire is a rule that will drift.*
+    #
+    # **THIS FIXTURE TAKES THE BENCHMARK BRANCH, AND MEASURING THAT CORRECTED THE COMMENT ABOVE.**
+    # It used to read "per-discipline `model takeoff` lines", describing a branch it never reaches:
+    # the blank 20m model carries two walls and a column, so the elements price at ~$20k against a
+    # ~$2.18M GFA benchmark — a 109x gap — and the benchmark wins. Both pre-existing assertions pass
+    # on the lump line anyway ("Construction — model takeoff (synced)" contains "model takeoff", and
+    # a single line reconciles to the total by construction). *An assertion that holds on both
+    # branches documents neither, and its comment then names whichever one the author had in mind.*
+    #
+    # Pinned EXACTLY rather than `in (...)`: a branch-agnostic assertion is what let the comment
+    # drift, and if a richer fixture ever makes the element sum win, this must go red and be read
+    # rather than passing quietly under a sentence about the other branch.
+    assert body["basis"] == "gfa_benchmark", (body["basis"], body["hard_cost"], body["discipline_total"])
+    assert len(hard_lines) == 1, hard_lines                    # one lump line is what the branch writes
+    # THE BRANCH CONDITION ITSELF, asserted — not just the label the route put on it. The benchmark
+    # branch is chosen precisely BECAUSE the breakdown does not reconcile, so a `gfa_benchmark` whose
+    # breakdown does reconcile would mean the label and the decision had come apart.
+    assert abs(body["discipline_total"] - body["hard_cost"]) > max(1.0, body["hard_cost"] * 0.02), body
+    # `discipline_total` is the SUM OF THE BREAKDOWN, never a copy of hard_cost — the one shortcut
+    # that would make the client's "does this decompose?" question unanswerable.
+    assert body["discipline_total"] == round(sum(body["by_discipline"].values()), 2), body
+    assert body["by_discipline"], "the element pricing is reported on BOTH branches"
+
 
 print(f"DEV-BUDGET OK - line totals + per-category contingency + grand ${s['grand_total']:,.0f}; "
       f"hard {s['hard_pct']*100:.0f}% / soft {s['soft_pct']*100:.0f}%; cost_lines reconcile; "
