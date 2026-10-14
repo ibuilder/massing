@@ -208,8 +208,6 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `services/api/test_refusal_readers.py` gained this as instance 6 — it said it *"covers the
   // remaining five and is the gate that keeps the class from re-opening"*, over a hand-made list,
   // and **26 of 139 modules declare a refusal-shaped state.**
-  // `support_unscheduled` — the 4D pairs with no date to clash on.
-  "GET /projects/{}/clash/sequence": ["support_unscheduled"],
   // **CLOSED 2026-10-14 under COMPTIER-DARK.** `requested` is the band for the field the `field`
   // parameter exists to choose, so the one statistic the route is parameterised on was unreachable
   // from TypeScript; `excluded_comparables` is the appraiser's own decision, which the engine names
@@ -493,6 +491,12 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   "POST /projects/{}/ai/draft-rfi",
   "POST /projects/{}/ai/estimate",
   "POST /projects/{}/ai/triage-rfi",
+  // ESTIMATE-DARK brought this route into the population by giving it a client method: it had none
+  // until a cost rule set could be stored, so the gate had nothing to compare against. It is a
+  // lower bound because the handler is `{"estimate_lines": …, **sov_build.from_estimate(…)}` — one
+  // named key over a spread of the engine's whole return. `CostSov` declares both halves, so the
+  // named key is checked and the spread is only ever a floor.
+  "POST /projects/{}/cost/sov",
   "POST /projects/{}/cost/tm",
   "POST /projects/{}/edit/graph",
   "POST /projects/{}/model/equipment/spec-check",

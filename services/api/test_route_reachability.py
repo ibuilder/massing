@@ -1902,7 +1902,11 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     # the three (see the note in `KNOWN_UNCALLED` above). Its leaf `coverage` is a word this tree
     # writes everywhere, so the coarse rule could never see it either way; this entry's removal is
     # the probe below reporting a real caller, not the rule getting sharper.
-    "/projects/{pid}/cost/estimate",
+    # `/projects/{pid}/cost/estimate` left this set 2026-10-14 — ESTIMATE-DARK. The blocker was
+    # never a missing screen: the route takes a `rules` body and nothing in this product stored a
+    # cost rule set, so a card would have had to invent one. `aec_api.cost_rules` is that store and
+    # `apps/web/src/portal/panels/pricedEstimate.ts` is the caller. `/cost/sov` shares
+    # `_run_estimate` with it and was unblocked by the same change.
     # `/projects/{pid}/cv-progress/status` left this set 2026-10-13 — CV-BRIDGE-DARK.
     # `apps/web/src/portal/panels/cvBridge.ts`, a card in the Schedule panel, reads it.
     #

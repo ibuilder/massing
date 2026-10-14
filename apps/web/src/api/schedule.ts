@@ -101,21 +101,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   sequenceClash(pid: string, minOverlapDays = 1, crewThreshold = 0) {
     const q = new URLSearchParams({ min_overlap_days: String(minOverlapDays),
                                     crew_threshold: String(crewThreshold) });
-    return this.json<{
-      analyzed: number; skipped_count: number; locations: number;
-      skipped: { id?: string; name: string; reason: string }[];
-      findings: { location: string; overlap_days: number; combined_crew: number;
-        a: { id?: string; name: string; trade: string };
-        b: { id?: string; name: string; trade: string };
-        window: { start: string; finish: string } }[];
-      finding_count: number; support_checked: boolean; support_pairs: number;
-      support_finding_count: number;
-      support_findings: { kind: string; grade: string;
-        support: { guid: string; id?: string; name: string; trade: string; start: string; finish: string };
-        supported: { guid: string; id?: string; name: string; trade: string; start: string; finish: string } }[];
-      support_unscheduled_count: number; clean: boolean; note: string; not_covered: string;
-      bound_activities: number;
-    }>(`/projects/${pid}/clash/sequence?${q}`);
+    return this.json<SequenceClashResult>(`/projects/${pid}/clash/sequence?${q}`);
   }
   /** RESOURCE-LEVEL-2 — APPLY one leveling round: shift over-allocated activities forward within
    *  their CPM float (finish never moves). Mutates the schedule — gate behind an explicit confirm. */
@@ -892,6 +878,114 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     });
   }
   };
+}
+
+/** One activity the sequence check could not read at all, with the engine's own reason. */
+export interface SequenceSkipped {
+  id?: string;
+  name: string;
+  /** `no location` · `missing start or finish` · `finish before start` — each one a missing field
+   *  on a schedule activity, which is what makes the gap fixable rather than merely reported. */
+  reason: string;
+}
+
+/** Two trades in one location in one window. */
+export interface SequenceSpaceFinding {
+  location: string;
+  overlap_days: number;
+  combined_crew: number;
+  a: { id?: string; name: string; trade: string };
+  b: { id?: string; name: string; trade: string };
+  window: { start: string; finish: string };
+}
+
+export interface SequenceSupportEnd {
+  guid: string;
+  id?: string;
+  name: string;
+  trade: string;
+  start: string;
+  finish: string;
+}
+
+/** An element scheduled to go in before the thing the IFC says holds it up. */
+export interface SequenceSupportFinding {
+  kind: string;
+  /** `structural` (IfcRelConnectsStructuralMember) or `assembly` (RelAggregates parent-before-part).
+   *  Never an unstated `IfcRelConnectsElements` join — Relating/Related is authoring order. */
+  grade: string;
+  support: SequenceSupportEnd;
+  supported: SequenceSupportEnd;
+}
+
+/** A directed support pair the schedule could not DATE, and which end was missing.
+ *
+ *  **Undeclared until SEQ-UNSCHED, which is why nothing could name the pairs.** The count was
+ *  declared and rendered; the list was not, so the panel could say *34 pair(s) missing a dated
+ *  binding* and nothing more — and the actionable half is WHICH 34, because each one is a GUID a
+ *  planner can bind to an activity. */
+export interface SequenceUnscheduledPair {
+  /** GlobalId of the supporting element. */
+  support: string;
+  /** GlobalId of the supported element. */
+  supported: string;
+  grade: string;
+  /** `support`, `supported`, or both — whichever end has no dated activity bound to it. */
+  missing: string[];
+}
+
+/** R21-4D-CLASH — space contention plus install-before-support.
+ *
+ *  **`clean` is a verdict over two populations with different coverage, and only one of them bars
+ *  it.** An unreadable activity (`skipped`) bars `clean`; a support pair with no dated activity
+ *  (`support_unscheduled`) does not. The engine states why in `clean_scope` and the asymmetry is
+ *  deliberate — `skipped` is a row of the schedule the caller asked about, while an unscheduled
+ *  pair is a relation in the MODEL that the schedule simply does not reach, and folding every one
+ *  of those in would make `clean` permanently false on any real project.
+ *
+ *  What follows for a consumer is that **`clean` alone is not an answer**: measured on a one-
+ *  activity schedule against two directed pairs, the route returns `clean: true` with
+ *  `support_evaluated: 0` — the support half ruled on nothing and the verdict says clean. Read
+ *  `support_evaluated` beside it, which is what `apps/web/src/viewer/tools/sequenceClashRead.ts`
+ *  exists to do. */
+export interface SequenceClashResult {
+  /** Activities that had a location and both dates — the population `clean` is over. */
+  analyzed: number;
+  skipped: SequenceSkipped[];
+  skipped_count: number;
+  locations: number;
+  findings: SequenceSpaceFinding[];
+  finding_count: number;
+  /** False only when the caller passed no `support_pairs` at all. This route always passes a list
+   *  (empty when there is no source IFC), so a model with no relations is distinguishable from a
+   *  caller that never asked. */
+  support_checked: boolean;
+  /** Directed pairs the IFC licensed — the denominator of the support question. */
+  support_pairs: number;
+  /** Pairs both of whose ends had a dated activity. `support_pairs` minus
+   *  `support_unscheduled_count`, published rather than left as arithmetic because this is the
+   *  number that says how much of the support question was actually asked. */
+  support_evaluated: number;
+  support_findings: SequenceSupportFinding[];
+  support_finding_count: number;
+  /** Capped at `sequence_clash.MAX_UNSCHEDULED_REPORTED` (200). The COUNT below is exact. */
+  support_unscheduled: SequenceUnscheduledPair[];
+  support_unscheduled_count: number;
+  support_unscheduled_truncated: boolean;
+  /** True of the activities that were readable AND the pairs that could be dated. Never print it
+   *  bare — see the interface doc above. */
+  clean: boolean;
+  note: string;
+  /** What this call does NOT check: unstated `IfcRelConnectsElements` joins, and the support half
+   *  entirely when no pairs were supplied. */
+  not_covered: string;
+  /** The engine's own statement of which populations `clean` ruled on, and why the two coverage
+   *  gaps are treated differently. */
+  clean_scope: string;
+  /** Activities carrying at least one `element_guids` entry — how many could be checked today if
+   *  the support relationship existed. Zero means the binding is unpopulated on this project,
+   *  which is a different problem from the engine being unable to use it. */
+  bound_activities: number;
 }
 
 /** Where two consecutive trade lines come closest, and by how much.

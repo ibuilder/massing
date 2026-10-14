@@ -314,7 +314,11 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // that states the better action gets the better action.* CAPTABLE-PIPELINE then took it from
     // 5,983 to 5,976 by naming `capTable`'s response — whose `rows` had been
     // `Record<string, unknown>[]`, the OPAQUE bucket, so its row fields were in neither population.
-    // PREFIX-RANKED took it to 5,931/558 the same way, by naming `/portfolio/risk`.
+    // PREFIX-RANKED took it to 5,931/558 the same way, by naming `/portfolio/risk`, and
+    // SEQ-UNSCHED to 5,883/557 by naming `/clash/sequence` — 48 keys out of ONE call site, which
+    // is why the site count is a second assertion rather than the only one: a route whose response
+    // nests four record shapes contributes one site and fifty keys, and a ceiling on sites alone
+    // would have scored that conversion at almost nothing.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -343,9 +347,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_931);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_883);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(558);
+      .toBeLessThanOrEqual(557);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

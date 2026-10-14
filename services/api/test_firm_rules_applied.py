@@ -44,6 +44,16 @@ library would read clean. The second arm covers the only such helper shape that 
 `rule_library.STARTER_RULES` may be referenced from exactly two functions, `applicable_rules` (which
 labels it) and `rules_get` (which flags it as `seeded`). A third reference reds and forces a read.
 
+**SCOPED TO MODULES THAT CAN SEE `rule_library`, since 2026-10-14.** The arm matched the bare
+identifier `STARTER_RULES` anywhere in the tree, and `aec_api/cost_rules.py` redded it on the day it
+was born — a COST rule set naming its own starter rates, which is a different vocabulary answering a
+different question. *A rule applied outside the population it was reasoned about does not degrade
+gracefully; it produces confident findings about code it has no view of.* The PRINCIPLE does carry
+over, and is honoured there by a different mechanism: a cost estimate has no `skip` state, so
+instead of folding a sample result away, the route carries `rules_seeded` beside the total and the
+screen refuses to present it as the firm's number. *A total computed from rates nobody chose is the
+same claim as a clean result over rules nobody adopted.*
+
 Run: cd services/api && PYTHONPATH="src:../data/src" ./.venv/bin/python test_firm_rules_applied.py
 """
 import ast
@@ -234,6 +244,55 @@ def tree_bodies():
             yield (f"{path.relative_to(SRC)}::{name}", src)
 
 
+def modules_seeing_library() -> set[str]:
+    """Modules that could NAME `rule_library`'s sample set at all.
+
+    **The second arm below matched the bare identifier `STARTER_RULES` anywhere in the tree**, which
+    is a rule about `rule_library`'s samples applied to a population it has no view of. It redded on
+    the day `cost_rules.py` was born: a COST rule set — a selector bound to a cost code and a rate,
+    a different vocabulary answering a different question — named its own starter set and this gate
+    reported it as a third reference to the model-check samples. *A rule applied outside the
+    population it was reasoned about does not degrade gracefully; it produces confident findings
+    about code it cannot see.*
+
+    The narrowing is airtight in the safe direction and deliberately coarse: a module that never
+    mentions `rule_library` cannot be naming ITS samples, however the import is spelled — as a
+    module (`from . import rule_library`), as a name (`from .rule_library import STARTER_RULES`) or
+    inside a function, which is this codebase's house style. A module that does mention it stays in
+    the population on the bare identifier alone, so moving the reference behind an import hides
+    nothing.
+    """
+    out = set()
+    for path in sorted(SRC.rglob("*.py")):
+        if path.name == "firm_standards.py":
+            continue
+        try:
+            tree = _strip_docstrings(ast.parse(path.read_text(encoding="utf-8")))
+        except SyntaxError:
+            out.add(str(path.relative_to(SRC)))        # unparseable: fail CLOSED, stay in scope
+            continue
+        # CODE ONLY. A raw text match put `cost_rules.py` in scope on its own DOCSTRING, which
+        # names `rule_library` four times to explain why it is the deliberate NON-candidate — so the
+        # prose arguing the two are different vocabularies was read as evidence that they are the
+        # same one. `ast.unparse` emits no comments and `_strip_docstrings` drops the rest, which is
+        # the identical correction the first arm already carries ten lines of self-test for. *A gate
+        # that reads prose as code will be defeated by the sentence explaining it.*
+        if "rule_library" in ast.unparse(tree):
+            out.add(str(path.relative_to(SRC)))
+    return out
+
+
+def sample_referencing(body_of, sees: set[str]) -> list[str]:
+    """Functions naming the model-check sample set, scoped to modules that can see it.
+
+    A separate function so it can be mutated directly. Asserting that the ARM reports something is
+    not asserting that it reports the right thing — the mistake `test_unique_read_guard`'s own first
+    draft made one layer up.
+    """
+    return sorted({label for label, src in body_of
+                   if "STARTER_RULES" in src and label.split("::")[0] in sees})
+
+
 bodies = list(tree_bodies())
 ok(len(bodies) > 500, f"the walk found functions to rule on ({len(bodies)})")
 ok(sum(1 for _, s in bodies if "rule_library.run(" in s) >= 2,
@@ -302,10 +361,26 @@ def actual(pid, idx):
 # Covers the sweep's stated blind spot from the other end: a function that loads the library through
 # a helper would read clean above. Two functions may name the samples, each for a reason, and a
 # third reds.
-referencing = sorted({label for label, src in bodies if "STARTER_RULES" in src})
+_SEES_LIB = modules_seeing_library()
+ok("routers/standards.py" in _SEES_LIB,
+   "the module holding the one permitted reference is not in the scoped population, so this arm "
+   f"would pass over an empty set — {sorted(_SEES_LIB)[:5]}")
+ok("cost_rules.py" not in _SEES_LIB,
+   "the COST rule store reads as able to see the model-check samples, which it cannot — the "
+   "scoping is matching something other than a reference to `rule_library`")
+referencing = sample_referencing(bodies, _SEES_LIB)
 ok(referencing == ["routers/standards.py::rules_get"],
    "outside `firm_standards`, the sample set is referenced only by the LISTING that flags it as "
    f"`seeded` — got {referencing}")
+
+# The narrowing must not open a hole: a module that CAN see the library is still caught on the bare
+# identifier, and one that cannot is still ignored. Both arms, because asserting only the first
+# would pass a scoping rule that excluded everything.
+_SCOPE_PROBE = [("rule_library.py::third", "return STARTER_RULES"),
+                ("cost_rules.py::effective", "return STARTER_RULES")]
+ok(sample_referencing(_SCOPE_PROBE, {"rule_library.py"}) == ["rule_library.py::third"],
+   "the scoped arm either lost a reference from a module that CAN see the samples, or kept one "
+   "from a module that cannot — it must do exactly one of those and it must be the second")
 ok("STARTER_RULES" in (SRC / "firm_standards.py").read_text(encoding="utf-8"),
    "...and by `applicable_rules`, which labels every sample row `starter`")
 

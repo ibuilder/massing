@@ -152,6 +152,43 @@ gap_sup = sq.analyze([
 ], support_pairs=[("COL", "BEAM", "structural")])
 assert gap_sup["support_finding_count"] == 0
 assert gap_sup["support_unscheduled_count"] == 1, gap_sup["support_unscheduled"]
+# SEQ-UNSCHED — and `clean` is TRUE here, which is the whole of the finding. The support half ruled
+# on none of its pairs and the verdict reports clean, because an unreachable support pair does not
+# bar `clean` while an unreadable activity does. That asymmetry is deliberate (see `_CLEAN_SCOPE`:
+# `skipped` is a row of the schedule the caller asked about, an unscheduled pair is a relation in
+# the MODEL the schedule does not reach, and folding those in makes `clean` permanently false). It
+# is pinned here so a future change to `clean` has to argue with this line rather than slip past it.
+assert gap_sup["clean"] is True, "the asymmetry is deliberate — read `_CLEAN_SCOPE` before flipping it"
+assert gap_sup["support_evaluated"] == 0, gap_sup["support_evaluated"]
+assert gap_sup["support_pairs"] == 1
+# ...so the COVERAGE must be computable from the response alone, because that is what the consumer
+# has to qualify the verdict with. A reader that can see `clean` and not `support_evaluated` has no
+# way to know the support half answered nothing.
+assert "coverage travels beside the verdict" in gap_sup["clean_scope"]
+assert gap_sup["support_evaluated"] == gap_sup["support_pairs"] - gap_sup["support_unscheduled_count"]
+# The pair itself is reportable, and names which END is undated: the count says there is work, the
+# GUIDs say where it is, and `missing` says which of the two bindings to add.
+assert gap_sup["support_unscheduled"][0]["missing"] == ["support"], gap_sup["support_unscheduled"]
+assert gap_sup["support_unscheduled"][0]["support"] == "COL"
+assert gap_sup["support_unscheduled"][0]["supported"] == "BEAM"
+
+# the unscheduled LIST is capped and the COUNT is not — a cap that rescaled its own denominator
+# would be the TRUNC-COUNTED defect. Its population is the MODEL's relation graph, not the
+# schedule, so on a whole-building model it is the large list and it had no bound at all.
+cap = sq.MAX_UNSCHEDULED_REPORTED
+over = sq.analyze([
+    {"id": "beam", "data": {"name": "Beam", "location": "L1", "trade": "Steel",
+                            "start": "2026-08-01", "finish": "2026-08-05"},
+     "element_guids": ["BEAM"]},
+], support_pairs=[(f"COL{i}", "BEAM", "structural") for i in range(cap + 300)])
+assert over["support_pairs"] == cap + 300
+assert over["support_unscheduled_count"] == cap + 300, "the count must be exact under the cap"
+assert len(over["support_unscheduled"]) == cap, len(over["support_unscheduled"])
+assert over["support_unscheduled_truncated"] is True
+assert over["support_evaluated"] == 0
+# and the flag is FALSE when the cap did not bite, so a consumer can tell a complete list from a
+# page of one without comparing two numbers and guessing which way the inequality runs
+assert gap_sup["support_unscheduled_truncated"] is False
 # RelAggregates parent-before-part uses the same comparison
 asm = sq.analyze([
     {"id": "part", "data": {"name": "Beam", "location": "L1", "trade": "Steel",

@@ -39,6 +39,215 @@ type Ctor<T> = new (...args: any[]) => T;
 export type LienWaiverKind = "conditional_progress" | "unconditional_progress"
   | "conditional_final" | "unconditional_final";
 
+/** ESTIMATE-DARK — one rule in the project's stored cost rule set.
+ *
+ *  A QUERY-DSL selector bound to a cost code, a basis and a rate. `fived.validate_rules` is the
+ *  authority on the shape and `cost_rules.save` calls it, so a set that stores is a set that prices.
+ *
+ *  **Not the model-check rule library.** That stores `{scope, require, severity}` — two selectors
+ *  and a severity, answering *does the model comply*. These answer *what does the model cost*. */
+export interface CostRule {
+  /** QUERY-DSL — which elements this rule prices, e.g. `IfcWall & storey=L1`. */
+  selector: string;
+  /** The cost code the matched elements roll up into. */
+  code: string;
+  /** `length` · `area` · `volume` · `weight` · `count` — which measured quantity the rate multiplies. */
+  basis: string;
+  /** The rate, when `rate_from` is `quoted`. Zero and meaningless when it is `vintage`. */
+  unit_cost: number;
+  /** `quoted` — the number on this rule. `vintage` — the project's pinned cost database, which is a
+   *  different and better provenance, and a rule that asks for one it cannot have is REFUSED rather
+   *  than quietly priced from somewhere else. */
+  rate_from: string;
+  description: string;
+}
+
+/** The stored set, and whether it is the starter set rather than the firm's own. */
+export interface CostRuleSet {
+  rules: CostRule[];
+  /** True when nothing has been saved for this project, so these are placeholders. **An estimate
+   *  priced from a seeded set is not the firm's number** and no screen may present it as one. */
+  seeded: boolean;
+}
+
+/** What a save stored. `rules` comes back NORMALISED by the server's own validator, so an editor
+ *  that redraws from this response shows what will actually be priced rather than what was typed. */
+export interface CostRuleSaveResult {
+  saved: number;
+  rules: CostRule[];
+}
+
+/** One priced line: a cost code, a summed quantity, a rate, and the provenance of both. */
+export interface CostEstimateLine {
+  code: string;
+  description: string;
+  basis: string;
+  unit_cost: number;
+  quantity: number;
+  amount: number;
+  /** GlobalIds rolled into this line — the elements it prices, so a line is selectable. */
+  guids: string[];
+  rule: number;
+  /** `declared` (the model's own Qto) · `computed` (measured off the mesh) · `override` · `unknown`
+   *  · `mixed`. A line is only `declared` when EVERY element in it was. */
+  quantity_source: string;
+  /** `quoted` · `vintage` · `mixed` — the other half of the multiplication. */
+  rate_source: string;
+}
+
+/** A rule matched the element and the model had no quantity for that basis.
+ *
+ *  *"A rate with nothing to multiply is not a cost of nothing, it is an unknown cost."* */
+export interface CostMissingQuantity {
+  guid: string;
+  code: string;
+  basis: string;
+}
+
+/** A `vintage` rule matched and the installed cost database has no rate for the class.
+ *
+ *  **The third state, and it needs its own name**: the rule found the element, so it is not
+ *  unpriced; there is no number, so it is not priced either. Recorded against the RULE that wanted
+ *  the rate, so the fix is actionable — either the vintage needs that class or the rule should quote
+ *  a rate. */
+export interface CostNoRate {
+  guid: string;
+  code: string;
+  rule: number;
+  ifc_class: string;
+}
+
+/** R25 — the rules-based estimate, with the four counts that say what `total` leaves out.
+ *
+ *  **`complete` is `bool(lines) and not unpriced_count and not missing_quantity_count and not
+ *  no_rate_count`** — a subset verdict in `services/api/test_verdict_coverage.py`'s sense, and the
+ *  engine's own note is blunter than any caption a screen would write: *"`total` covers the priced
+ *  lines only. With unpriced elements or missing quantities it is a floor, not an estimate."*
+ *  Read `coverage_pct` and the three gap counts beside it; `apps/web/src/portal/panels/costEstimateRead.ts`
+ *  is where that is done once. */
+export interface CostEstimate {
+  lines: CostEstimateLine[];
+  line_count: number;
+  /** Exact per-element facts, so a diff can attribute a change without inventing an element's share
+   *  of a line. Keyed by GlobalId. */
+  by_element: Record<string, { code: string; basis: string; quantity: number; unit_cost: number;
+    amount: number; rate_source: string; quantity_source: string }>;
+  total: number;
+  /** Elements a rule ASSIGNED a rate to — **not** elements that reached a line.** An element here
+   *  can still land in `missing_quantity`, so this is the matched population and `coverage_pct` is
+   *  over it. Reading it as "priced" overstates by exactly `missing_quantity_count`. */
+  priced_count: number;
+  /** GlobalIds no rule matched at all. **Capped at 5000 with `unpriced_count` exact.** */
+  unpriced: string[];
+  unpriced_count: number;
+  missing_quantity: CostMissingQuantity[];
+  missing_quantity_count: number;
+  /** **Capped at 5000 with `no_rate_count` exact.** */
+  no_rate: CostNoRate[];
+  no_rate_count: number;
+  vintage_rate_lines: number;
+  /** The pinned cost database's own metadata — year, region, escalation. Null when none is pinned,
+   *  which is a valid state and the reason a `vintage` rule can land in `no_rate`. */
+  vintage: { year?: number; region?: string; index?: number; escalation_pct?: number } | null;
+  /** How much of the total rests on quantities this platform MEASURED rather than the model
+   *  declared. Not a fault — a model often carries no Qto pset — but it is the number an estimator
+   *  wants before signing, and it is invisible unless it is stated. */
+  computed_quantity_lines: number;
+  computed_quantity_amount: number;
+  coverage_pct: number;
+  complete: boolean;
+  note: string;
+  /** **Whose rules priced this.** True when the project has saved none, so the rates are the
+   *  starter set's placeholders.
+   *
+   *  Added by the ROUTE, not by `fived.estimate` — the engine receives a list of rules and a list
+   *  does not say who wrote it. It matters because `complete` is a verdict about coverage of the
+   *  MODEL and is silent on the rates, so a **complete estimate over rates nobody chose** is
+   *  reachable, and it is the most confident wrong number this route can produce. */
+  rules_seeded?: boolean;
+  /** How many rules priced it — the set's size, not the line count. */
+  rule_count?: number;
+}
+
+/** One schedule-of-values item: a group of estimate lines billed as one line.
+ *
+ *  Ordered by COST CODE, not by amount — *"an estimate sorts by amount because the reader is
+ *  hunting for what dominates the cost; a schedule of values is read down the trades by someone
+ *  checking that nothing is absent, and re-sorting it by size makes an omission invisible."* */
+export interface SovItem {
+  item_no: string;
+  /** The largest merged line names the item; `(+n more)` when the merged lines disagree, because
+   *  silently showing one description for five kinds of work reads as a complete scope statement. */
+  description: string;
+  cost_code: string;
+  scheduled_value: number;
+  estimate_amount: number;
+  markup_amount: number;
+  merged_lines: number;
+  guids: string[];
+  element_count: number;
+  /** `mixed` when the merged lines disagree — the same collapse rule the estimate applies within a
+   *  line, for the same reason. */
+  quantity_source: string;
+  rate_source: string;
+  basis: string;
+}
+
+/** Scope the SOV does NOT cover, grouped by why. Listed rather than dropped. */
+export interface SovExcluded {
+  /** `unpriced` · `no rate` · `missing quantity`. */
+  reason: string;
+  count: number;
+  /** Capped at 200; `count` is exact. */
+  guids: string[];
+}
+
+/** R27-SOV-LOOP — the schedule of values built FROM the estimate rather than re-keyed from it.
+ *
+ *  **Three fields decide whether this is billable, and the route's own docstring says to read them
+ *  before using the result.**
+ *
+ *  * `covers_whole_model` — false whenever any scope could not be priced. *"A schedule of values
+ *    that covers only what happened to price is smaller than the job and looks complete, because
+ *    every line in it is correct."*
+ *  * `at_cost` — true when no markup was supplied: correct for cost-plus, **an under-bill on lump
+ *    sum**. Stated either way so the default cannot be mistaken for a decision.
+ *  * `reconciles` — proves the regrouping lost no money, **not** that the estimate was right.
+ *    `reconciles_by_element` is the second, independent accumulation: the estimate builds
+ *    `by_element` in a separate pass from `lines`, so totalling each is two routes to the same
+ *    money and agreement catches a regrouping that lost or double-counted an element.
+ *
+ *  The response does **not** carry the estimate object — only `estimate_lines` and
+ *  `estimate_total`. A caller holding the estimate it asked for can compare that total and find
+ *  out whether the rule set moved underneath it. */
+export interface CostSov {
+  items: SovItem[];
+  item_count: number;
+  /** `code` · `division` · `line`. */
+  grouping: string;
+  markup_pct: number;
+  at_cost: boolean;
+  /** The estimate's own `line_count`, before grouping merged any of them. */
+  estimate_lines: number;
+  estimate_total: number;
+  sov_total: number;
+  /** Rounding placed on the largest item so the G703 column foots, reported so it can be audited.
+   *  *"Dropping it leaves a G703 whose column does not foot, which is a rejection."* */
+  residual_applied: number;
+  reconciles: boolean;
+  reconciles_by_element: boolean;
+  element_total: number;
+  /** A GlobalId reaching two items would be billed twice. The estimate assigns each element to one
+   *  line, so this should be impossible — *"which is precisely why it is checked rather than
+   *  assumed."* */
+  duplicate_guids: string[];
+  excluded: SovExcluded[];
+  covers_whole_model: boolean;
+  /** Items beyond the cap, dropped from `items` and counted here. */
+  truncated: number;
+  note: string;
+}
+
 export interface LienWaiverParties {
   claimant?: string;
   customer?: string;
@@ -348,6 +557,36 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ total: number; months: number; loaded_activities: number; peak_month_cost: number;
       series: { month: string; cost: number; cumulative: number; pct: number }[] }>(
       `/projects/${pid}/budget/cashflow`);
+  }
+  /** ESTIMATE-DARK — the project's stored cost rule set (the starter set until one is saved). */
+  costRules(pid: string) {
+    return this.json<CostRuleSet>(`/projects/${pid}/cost/rules`);
+  }
+  /** Replace the project's cost rule set. Every selector is validated through the SAME
+   *  `fived.validate_rules` the estimate runs, so a bad rule rejects the whole save with 422 rather
+   *  than storing a set that prices nothing. */
+  saveCostRules(pid: string, rules: CostRule[]) {
+    return this.json<CostRuleSaveResult>(`/projects/${pid}/cost/rules`, {
+      method: "PUT", body: JSON.stringify({ rules }),
+    });
+  }
+  /** R25 — price the model from the stored (or supplied) cost rules.
+   *
+   *  `rules` omitted means *use the project's stored set*, which is the only form a screen should
+   *  normally send: the server resolves it through `cost_rules.effective` so this and the SOV below
+   *  can never price from two different sets. Quantities are MEASURED from the model; a supplied
+   *  `quantities` map overrides a measured number rather than being the only source of one, and
+   *  every line reports which it used. */
+  costEstimate(pid: string, body: { rules?: CostRule[]; quantities?: Record<string, Record<string, number>> } = {}) {
+    return this.json<CostEstimate>(`/projects/${pid}/cost/estimate`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+  }
+  /** The schedule of values from the same estimate, plus markup. */
+  costSov(pid: string, body: { rules?: CostRule[]; markup_pct?: number } = {}) {
+    return this.json<CostSov>(`/projects/${pid}/cost/sov`, {
+      method: "POST", body: JSON.stringify(body),
+    });
   }
   /** Seed the owner pay-app SOV from the GMP budget lines (idempotent unless replace). */
   sovFromBudget(pid: string, replace = false) {

@@ -6698,6 +6698,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{pid}/cost/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost Rules Get
+         * @description ESTIMATE-DARK — the project's stored cost rule set (the starter set until one is saved).
+         *
+         *     Each rule is a QUERY-DSL selector bound to a cost code, a basis and a rate. `seeded` says the
+         *     set is the starter one, which is a fact about PROVENANCE rather than content: an estimate priced
+         *     from placeholder rates is not the firm's number, and nothing downstream can work that out from
+         *     the rules themselves.
+         */
+        get: operations["cost_rules_get_projects__pid__cost_rules_get"];
+        /**
+         * Cost Rules Put
+         * @description Replace the project's cost rule set.
+         *
+         *     Validated through `fived.validate_rules` — the SAME function `/cost/estimate` runs — so a set
+         *     that stores is a set that prices, and a bad selector rejects the whole save with 422 rather than
+         *     persisting half a rule set that would price part of the model at rates nobody finished choosing.
+         */
+        put: operations["cost_rules_put_projects__pid__cost_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{pid}/cost/sov": {
         parameters: {
             query?: never;
@@ -22220,6 +22253,13 @@ export interface components {
             /** B */
             b: number;
         };
+        /** Body_cost_rules_put_projects__pid__cost_rules_put */
+        Body_cost_rules_put_projects__pid__cost_rules_put: {
+            /** Rules */
+            rules: {
+                [key: string]: unknown;
+            }[];
+        };
         /** Body_create_user_auth_users_post */
         Body_create_user_auth_users_post: {
             /** Username */
@@ -36090,6 +36130,82 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cost_rules_get_projects__pid__cost_rules_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                pid: string;
+            };
+            cookie?: {
+                aec_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cost_rules_put_projects__pid__cost_rules_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                pid: string;
+            };
+            cookie?: {
+                aec_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Body_cost_rules_put_projects__pid__cost_rules_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

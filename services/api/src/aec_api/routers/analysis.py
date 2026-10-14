@@ -472,8 +472,64 @@ def _run_estimate(pid: str, body: dict) -> dict:
                 vintage_rates, vintage_meta = rates or {}, meta
     except Exception:                    # noqa: BLE001 — no cost database installed is a valid state
         vintage_rates, vintage_meta = {}, None
-    return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources,
-                          vintage_rates=vintage_rates, vintage=vintage_meta)
+    # ESTIMATE-DARK: the rule set. A caller may still send its own — an estimator legitimately
+    # prices a what-if without saving it — but an ABSENT `rules` now means *use the project's
+    # stored set* rather than *price nothing*, which is what it meant for as long as nothing could
+    # store one. Resolved through `cost_rules.effective` so this and `/cost/sov` cannot price from
+    # two different sets, the same reason they share this function at all.
+    from .. import cost_rules
+    sent = body.get("rules")
+    if sent:
+        rules, seeded = list(sent), False
+    else:
+        rules, seeded = cost_rules.effective(pid)
+    out = fived.estimate(_idx_for(pid), rules, measured, sources=sources,
+                         vintage_rates=vintage_rates, vintage=vintage_meta)
+    # WHERE THE RULES CAME FROM, which `fived.estimate` cannot know — it receives a list, and a
+    # list does not say who wrote it. `complete` is a verdict about coverage of the MODEL and is
+    # silent on whether anybody chose the rates, so a complete estimate over the starter set is
+    # reachable and is the most confident wrong number this route can produce. The flag travels with
+    # the total so a screen cannot lose it.
+    out["rules_seeded"] = seeded
+    out["rule_count"] = len(rules)
+    return out
+
+
+@router.get("/projects/{pid}/cost/rules")
+def cost_rules_get(pid: str, db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """ESTIMATE-DARK — the project's stored cost rule set (the starter set until one is saved).
+
+    Each rule is a QUERY-DSL selector bound to a cost code, a basis and a rate. `seeded` says the
+    set is the starter one, which is a fact about PROVENANCE rather than content: an estimate priced
+    from placeholder rates is not the firm's number, and nothing downstream can work that out from
+    the rules themselves.
+    """
+    from .. import cost_rules
+    from .standards import _project
+    _project(db, pid)
+    rules, seeded = cost_rules.effective(pid)
+    return {"rules": rules, "seeded": seeded}
+
+
+@router.put("/projects/{pid}/cost/rules")
+def cost_rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
+                   db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's cost rule set.
+
+    Validated through `fived.validate_rules` — the SAME function `/cost/estimate` runs — so a set
+    that stores is a set that prices, and a bad selector rejects the whole save with 422 rather than
+    persisting half a rule set that would price part of the model at rates nobody finished choosing.
+    """
+    from .. import cost_rules
+    from ..query_dsl import QueryError
+    from .standards import _project
+    _project(db, pid)
+    try:
+        saved = cost_rules.save(pid, rules)
+    except QueryError as e:
+        raise HTTPException(422, str(e)) from None
+    return {"saved": len(saved), "rules": saved}
 
 
 @router.post("/projects/{pid}/cost/sov")

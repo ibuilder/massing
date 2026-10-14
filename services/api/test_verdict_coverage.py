@@ -527,6 +527,56 @@ def reads(src: str, name: str) -> bool:
 #: detector, and the second one made the first one's repair invisible*: the dynamic-import spellings
 #: were added first and `qaSection.ts` was still reported bare, because the hop never got that far.
 _HOLDER = r"(?:(?:const|let|var)\s+)?(\w+)\s*=\s*await\s+[^;]*?\.{owner}\("
+#: The FOURTH holder spelling, and the first one found by a consumer the hop had already blessed as
+#: bare: an ARRAY DESTRUCTURE of `Promise.all`, `[a, b] = await Promise.all([api.x(p), api.y(p)])`.
+#: `_HOLDER` requires a bare identifier immediately before `= await`, and here that character is a
+#: `]`, so the hop found no holder at all and degraded to the file-local rule. **Measured at 20
+#: sites across this tree** — it is an ordinary way to write a card that needs two responses, not a
+#: one-off, so the three spellings above were three of four.
+_PALL = re.compile(r"\[([^\]]*)\]\s*=\s*await\s+Promise\.all\(\s*\[(.*?)\]\s*\)", re.S)
+
+
+def _split_top(args: str) -> list[str]:
+    """Split an argument list on TOP-LEVEL commas only.
+
+    `api.listRecords(pid, "x")` contains a comma that is not an element boundary, so splitting on
+    every comma shifts every later index by one — and the whole point of reading this positionally is
+    that the index is what ties a name to a call.
+    """
+    out, depth, cur = [], 0, []
+    for ch in args:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+            continue
+        cur.append(ch)
+    out.append("".join(cur))
+    return out
+
+
+def _pall_holders(src: str, owner: str) -> set[str]:
+    """Names bound to `.<owner>(...)` by an array destructure of `Promise.all`.
+
+    **POSITIONAL, not "every name in the pattern".** Taking the whole pattern would let a verdict be
+    blessed through a variable holding somebody ELSE'S response — `[rules, est] = …` would make a
+    read of the rule set count as a read of the estimate's coverage. The hop's narrowness is its
+    safety, and a widening that cannot be wrong is a widening that cannot be useful.
+    """
+    out: set[str] = set()
+    call = re.compile(rf"\.{re.escape(owner)}\(")
+    for names, args in _PALL.findall(src):
+        parts = _split_top(args)
+        bound = [n.strip() for n in names.split(",")]
+        for i, a in enumerate(parts):
+            if not call.search(a) or i >= len(bound):
+                continue
+            if re.fullmatch(r"\w+", bound[i]):
+                out.add(bound[i])
+    return out
 #: An `import { a, b as c }` whose specifier begins with a dot — a RELATIVE import only; a package
 #: cannot be a local reading. The example is written in prose rather than quoted, because
 #: `services/api/test_scratch_ignored.py` reads every `"./<name>"` literal in this directory as a
@@ -566,6 +616,7 @@ def delegated(src: str, path: "Path | None", owner: str) -> str:
     if path is None:
         return ""
     holders = set(re.findall(_HOLDER.format(owner=re.escape(owner)), src))
+    holders |= _pall_holders(src, owner)
     if not holders:
         return ""
     out = []
@@ -961,6 +1012,9 @@ _HOP_FORMS = {
     "SPLIT holder — `let q;` then `q = await ...`, the house try/catch idiom":
         f'const m = await import("{_HOP_SPEC}");\nlet q;\ntry {{ q = await ctx.api.ownerM(pid); }} '
         'catch (e) { return; }\nm.rd(q);',
+    "Promise.all DESTRUCTURE — `[a, q] = await Promise.all([…, api.ownerM(p)])`":
+        f'import {{ rd }} from "{_HOP_SPEC}";\nlet a, q;\n'
+        '[a, q] = await Promise.all([ctx.api.other(pid, "x"), ctx.api.ownerM(pid)]);\nrd(q);',
 }
 for _label, _src in _HOP_FORMS.items():
     check(f"SELF-TEST: the hop follows a {_label}",
@@ -973,6 +1027,19 @@ check("SELF-TEST: ...and it follows NOTHING when the import is a package, not a 
                 _HOP_SELF, "ownerM") == "",
       "a package was followed — the hop's narrowness is its safety, and a node_modules helper that "
       "happens to mention a coverage word must never bless a consumer")
+
+# The positional half, asserted on its own: the gain above is only sound if the hop binds the
+# owner's call to the name at ITS index and not to every name in the pattern.
+check("SELF-TEST: ...and the Promise.all hop is POSITIONAL, not any-name-in-the-pattern",
+      _pall_holders('[a, q] = await Promise.all([ctx.api.other(pid, "x"), ctx.api.ownerM(pid)]);',
+                    "ownerM") == {"q"},
+      "the destructure hop bound the wrong name — a read of some other response would then count "
+      "as a read of this verdict's coverage, which is the one thing the hop may never do")
+check("SELF-TEST: ...and a comma INSIDE an argument list does not shift the index",
+      _pall_holders('[a, q] = await Promise.all([ctx.api.other(pid, "x", 1), ctx.api.ownerM(pid)]);',
+                    "ownerM") == {"q"},
+      "splitting on every comma instead of top-level ones shifted the positions, so the name bound "
+      "to the owner's call was read off the wrong index")
 
 check("SELF-TEST: ...and NOTHING when the imported binding is not called with this response",
       delegated(f'const m = await import("{_HOP_SPEC}");\nconst q = await ctx.api.ownerM(pid);\n'

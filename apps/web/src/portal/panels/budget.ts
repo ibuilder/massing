@@ -6,6 +6,7 @@ import type { LienWaiverKind } from "../../api/cost";
 import type { PanelContext } from "../panelContext";
 import { basisNote, factorClaim, summary, trustNote } from "./costCalibration";
 import { renderCostBrief } from "./costBrief";
+import { pricedEstimateButton } from "./pricedEstimate";
 import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
 import { readiness, WAIVER_CSS, WAIVER_KINDS, waiverFields } from "./lienWaiverRead";
@@ -550,7 +551,13 @@ export async function renderBudget(ctx: PanelContext) {
         + (s.usable ? `<div class="meta" style="margin-top:4px">${esc(trustNote(s.trust, c))}</div>` : ""));
     } catch (err) { fillEst(`<div class="meta">Calibration unavailable: ${(err as Error).message}</div>`); }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, schedBtn, boeBtn, wipBtn, calBtn, dxfLabel);
+  // ESTIMATE-DARK. Third in the row and beside its two siblings on purpose: the conceptual
+  // estimate prices IFC classes off the cost database, the resource-based one builds each
+  // class up from labour/material/equipment, and neither lets a firm say what its OWN walls
+  // cost. This one runs the project's own selectors at its own rates, and shares the drawer
+  // so the three bases can be read against each other.
+  const prBtn = pricedEstimateButton(ctx, pid, estDrawer);
+  estRow.append(emBtn, rbBtn, prBtn, bandBtn, cbsBtn, flBtn, buyBtn, schedBtn, boeBtn, wipBtn, calBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);

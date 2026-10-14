@@ -1545,6 +1545,87 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **SEQ-UNSCHED — the sequence-clash rail printed a bare `clean`, in green, over a support
+  check that dated none of its pairs** *(S — Lane E —
+  `apps/web/src/viewer/tools/sequenceClashRead.ts`, `apps/web/src/viewer/tools/analyseSection.ts`,
+  `apps/web/src/api/schedule.ts`, `services/api/src/aec_api/sequence_clash.py`; **CLOSED
+  2026-10-14**; gated by `apps/web/src/viewer/tools/sequenceClashRead.test.ts` and the pins added to
+  `services/api/test_sequence_clash.py`)*
+
+  `GET /projects/{pid}/clash/sequence` answers two questions and returns one `clean`. **Space
+  contention** is over the schedule: an activity with no location or no dates is `skipped`, and
+  `skipped` bars `clean`. **Install-before-support** is over the model's directed relation graph: a
+  pair with no dated activity on either end lands in `support_unscheduled`, and that does **not**
+  bar `clean`. Measured against the engine on one dated activity and two directed pairs:
+
+  | `support_pairs` | `support_evaluated` | `support_findings` | `skipped` | `clean` | rail as shipped | note tone as shipped |
+  |---|---|---|---|---|---|---|
+  | 2 | **0** | 0 | 0 | **`true`** | `clean` | `ok` — `var(--status-good)` |
+
+  So the support half ruled on **none** of its pairs and the screen said clean, in green, with no
+  qualifier of any kind on the rail.
+
+  **The asymmetry in the engine is correct, and that is the interesting part.** Folding every
+  unreachable relation into `clean` would be the obvious fix and it is the wrong one: element-level
+  schedule binding is sparse on every real project, so `clean` would be permanently false and the
+  verdict would report nothing at all. *A verdict that can never be true is as useless as one that
+  is always true, and only the second kind gets noticed.* So the engine keeps the asymmetry and now
+  **states** it — `_CLEAN_SCOPE` says which populations `clean` ruled on and why the two coverage
+  gaps are treated differently — and publishes `support_evaluated`, which is the number a consumer
+  needs and the one thing the response did not carry. The old response made coverage derivable only
+  as `support_pairs − support_unscheduled_count`, and *a number nobody has to name is a number
+  nobody reads.*
+
+  **`services/api/test_verdict_coverage.py` passes this consumer, and passed it before this
+  change — and it was blind to it twice over.** Measured by running the gate's own derivations:
+
+  - **Its coverage vocabulary never saw the support half at all.** `COVERAGE_NAME` is anchored at
+    the START of the field name, so it matched `skipped` and `skipped_count` and not
+    `support_unscheduled_count`. The gate's picture of this verdict's coverage was the schedule
+    half alone. *A coverage field whose name is qualified by its subject is invisible to a
+    vocabulary anchored at the front of the name* — and widening that vocabulary is the move the
+    gate's own header argues against, which is why it offers a `# COVERAGE:` declaration instead.
+    The declaration is now at the verdict site.
+  - **The declaration does not close the hole, which is the part worth writing down.** The consumer
+    rule asks whether the reader NAMES a coverage key anywhere in the file, and the shipped panel
+    named `support_unscheduled_count` — three lines under the verdict, in a body note the headline
+    and the tone never consulted. *A coverage number rendered somewhere on the screen is not a
+    coverage number read BY the verdict*, and no rule over which identifiers a file mentions can
+    tell those apart. **An ALL-rather-than-ANY rule would not have caught it either**, measured:
+    3 verdicts carry more than one coverage key, and on this one the shipped consumer read every
+    scalar among them. *Fixing the arity of a rule that is asking the wrong question produces a
+    stricter rule and no new findings.*
+
+  So the limit is recorded rather than converted into a rule: what would catch it is dataflow from
+  a coverage field into a tone or headline expression, and the population that rule would red on is
+  unmeasured. **No ordinal is claimed for the blind spot.** The gate's limits were numbered once and
+  the numbering has not held — one is titled "the third blind spot" and two more were filed after
+  it — so this one sits beside them under its own name. *A count of a gate's known limits is a
+  number with no gate on it.* What is new is how it was found: **by reading a consumer the gate had
+  already blessed**, rather than by mutating the gate.
+
+  The second half is the pairs. `support_unscheduled` was undeclared on the client type — the last
+  entry in `apps/web/src/api/responseUndeclared.test.ts`'s `KNOWN_GAPS` for this route — so the
+  panel could say *34 pair(s) missing a dated binding* and no more. **The actionable half is WHICH
+  34**: each entry is two GlobalIds plus which end is undated, so the table names them, marks the
+  undated end, and offers an isolate across both ends of every pair. Both ends and not just the
+  undated one, because a pair is only actionable as a pair — seeing the dated support beside the
+  undated element is how a planner recognises the binding that is missing.
+
+  **And the list had no bound at all.** Its population is the model's relation graph (every licensed
+  structural join plus every `RelAggregates` parent-before-part), not the schedule, so on a
+  whole-building model it is the large list in the response and nothing capped it; `skipped`, beside
+  it, has always been bounded by `MAX_ACTIVITIES`. It is capped at 200 now with the **count taken
+  before the slice**, and `support_unscheduled_truncated` says when the cap bit — so a consumer can
+  tell a complete list from a page of one without comparing two numbers and guessing which way the
+  inequality runs.
+
+  Declaring the response as named interfaces took the inline-declaration ceiling in
+  `apps/web/src/api/deadFieldTyped.test.ts` to **5,883 keys / 557 sites** — 48 keys out of a single
+  call site, which is why that gate asserts the key count and the site count separately: a route
+  whose response nests four record shapes contributes one site and fifty keys, and a ceiling on
+  sites alone would have scored this conversion at almost nothing.
+
 - ✅ ⭐ **PREFIX-RANKED — a portfolio risk heading reported 0 high over a portfolio with a
   high-severity risk in it, because the sweep is bounded before any scoring** *(S —
   `apps/web/src/portal/panels/portfolioScope.ts`, `apps/web/src/api/risk.ts`,
@@ -3532,8 +3613,10 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   writes become the capture record, which gets the timestamps for free and bounds the scope to
   projects using that bridge.
 
-- 🟡 **ESTIMATE-DARK — the rules-based cost estimate, and the verdict nobody reads** *(M — Lane E;
-  found 2026-10-13 by VERDICT-UNOWNED's classification)*
+- ✅ ⭐ **ESTIMATE-DARK — the rules-based cost estimate, and the verdict nobody reads** *(M —
+  **Lane B** for the card, Lane C for the store, Lane G for the routes, Lane I for the client; found
+  2026-10-13 by VERDICT-UNOWNED's classification, **CLOSED 2026-10-14**; gated by
+  `services/api/test_cost_rules.py` and `apps/web/src/portal/panels/costEstimateRead.test.ts`)*
 
   `POST /projects/{pid}/cost/estimate` is frozen in `test_route_reachability.UNREACHABLE_ROUTES` and
   is the last `dark` entry in `test_verdict_coverage`'s unowned bucket. Its `complete` is already the
@@ -3562,6 +3645,130 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   the estimate endpoint returns"* — and is equally callerless. The only SOV path with a caller today
   is `/cost/sov/from-budget`, which builds from the budget rather than from rules, so it needs none
   of this. Whatever supplies the rules unblocks both.
+
+  ### What closed it: a stored cost rule set, and a second coverage axis that only then existed
+
+  `services/api/src/aec_api/cost_rules.py` is the store — one JSON blob per project, mirroring
+  `rule_library`'s mechanics (validate-all-before-write, a bounded size, a starter set) with its own
+  vocabulary. **Validation is not duplicated**: `save()` calls `fived.validate_rules`, the function
+  `/cost/estimate` runs, so a set that stores is a set that prices and the 422 cannot arrive two
+  screens from the person who can fix it. The bound is `fived.MAX_RULES` by reference rather than
+  restated, for the same reason.
+
+  An **absent `rules` body now means "use the project's stored set"**, where it used to mean "price
+  nothing" — resolved through `cost_rules.effective`, which both routes call, so the schedule of
+  values cannot be billed against a different estimate than the one the estimate endpoint returns.
+  `apps/web/src/portal/panels/pricedEstimate.ts` is the caller: a third button in the budget panel's
+  existing "📐 Estimate from the model" card, **beside its two siblings on purpose** — the
+  conceptual estimate prices IFC classes off the cost database, the resource-based one builds each
+  class up from labour/material/equipment, and neither lets a firm say what its own walls cost.
+  Three estimates of one model with visibly different bases is a comparison an estimator can use.
+  The same card edits the rules and renders the schedule of values, which closed `/cost/sov` too.
+
+  **THE FINDING IS THE SECOND AXIS, AND IT DID NOT EXIST UNTIL THE STORE DID.** `complete` is a
+  verdict about coverage of the MODEL — no unpriced element, no missing quantity, no element a
+  `vintage` rule could not rate. It is silent on whether anybody chose the RATES, and it has to be:
+  the rules arrive as a list and a list does not say who wrote it. The store seeds a starter set so
+  a new project is not an empty box, so **a confident total over placeholder rates became
+  reachable** — measured through the route, not described:
+
+  | | total | `complete` | `rules_seeded` | `coverage_pct` |
+  |---|---|---|---|---|
+  | starter set, model of walls and doors | $4,810 | **`true`** | **`true`** | 100% |
+
+  *That is the most dangerous output this route has, because it is the confident one*, and a screen
+  reading `complete` alone cannot tell it from the firm's own number. So the ROUTE carries
+  `rules_seeded` out of the store and beside the total, and the reading refuses `ok` and refuses a
+  bare total while it is set. **Asserting each half of a conjunction is not asserting the
+  conjunction** — everything else proved the two axes separately, and that table is the state the
+  screen must not present as finished.
+
+  ### Three more things measurement changed, each in the direction of less confidence
+
+  **The SOV response was INVENTED in the first draft and the typechecker caught it.** `CostSov` was
+  written as `{lines, subtotal, markup, total, estimate}` from the shape an SOV "obviously" has. The
+  real one is `{estimate_lines, **sov_build.from_estimate(…)}` — `items` in COST-CODE order (*"an
+  estimate sorts by amount because the reader is hunting for what dominates the cost; a schedule of
+  values is read down the trades by someone checking that nothing is absent"*), `at_cost`,
+  `covers_whole_model`, `reconciles`, `reconciles_by_element`, `residual_applied`,
+  `duplicate_guids`, `truncated`. **Its route docstring says, in as many words, to read three of
+  them before using the result** — so the SOV has its own verdict set, and all of it is rendered.
+  *An engine that names its own preconditions has done the hard half; a consumer that prints the
+  total and not the preconditions undoes it.*
+
+  **"The selector is validated" is worth much less than it sounds.** Measured against
+  `query_dsl.parse`: it refuses an EMPTY query and essentially nothing else — `"(((("`,
+  `"IfcWall &"`, `"=b"`, `"!"` and `"a>b>c"` all parse. So the check is non-emptiness plus a length
+  bound, and **a typo'd property name saves cleanly and then matches nothing.** No save-time check
+  can catch that, which leaves the estimate as the only honest place it shows up: the card now names
+  which rules put nothing in the estimate, separating *the cost database had no rate for it* (the
+  response carries the rule index for that case) from *priced nothing*, because the two have
+  different fixes and telling a user their selector is wrong when the database is the gap is a
+  message that gets acted on.
+
+  **And the estimate prices the PROPERTY INDEX, not the source IFC.** `_run_estimate` runs
+  `fived.estimate(_idx_for(pid), …)`, and `_idx_for` reads `{pid}/props.json` — an index a client
+  uploads. A project with a perfectly good model and no index prices nothing, and the response is
+  *indistinguishable* from "no rule matched anything" unless you notice `unpriced_count` is also
+  zero, because `unpriced` is derived over the index itself. The first draft of the test built a
+  real IFC, got `total: 0 · coverage_pct: 0 · unpriced_count: 0`, and the only honest reading of
+  that was "there was nothing to match against". *Two very different states that differ only in a
+  number nobody prints* — now derived as `noModelIndex`, with a headline that says the model is not
+  indexed and a note that names the fix.
+
+  ### It also found a fourth blind spot in `services/api/test_verdict_coverage.py`, and closed it
+
+  That gate reported this new card as a bare consumer, correctly — and then could not see the fix,
+  because the reading lives in a sibling module and the panel fetches with
+  `[set, est] = await Promise.all([…])`. Its holder pattern requires a bare identifier immediately
+  before `= await`, and there that character is a `]`, so it found no holder at all and fell back to
+  the file-local rule. **Measured at 20 sites across this tree**: the destructure is an ordinary way
+  to write a card that needs two responses, so the hop's "three spellings" were three of four. The
+  fourth is now followed **positionally** — the owner's call is bound to the name at ITS index, not
+  to every name in the pattern, because the looser rule would let a read of the rule set count as a
+  read of the estimate's coverage, and *a widening that cannot be wrong is a widening that cannot be
+  useful*. Two self-tests pin it, one of them on a comma inside an argument list, which shifts every
+  later index if the split is naive.
+
+  **Two limits of that gate remain open and are recorded rather than built.** It links a reading
+  through an imported binding called with the holder as its FIRST argument, so a renderer taking
+  `(host, response)` is not followed; and it cannot follow a response through a local function's
+  parameter at all. Both need intra-file dataflow. What closed the finding here is that the panel
+  names `unpriced_count` itself, in the status line a reader sees after the call — which is where
+  that number belongs anyway.
+
+  ### And a SIXTH gate found a defect in its own population, which the new store surfaced
+
+  `services/api/test_firm_rules_applied.py` reds when a third function references
+  `rule_library.STARTER_RULES` — the FIRM-RULES-OPTIONAL rule that *a clean result over rules nobody
+  adopted is a `skip`, not a pass*. It fired on `cost_rules.effective` **on the day that module was
+  born**, because the arm matched the bare identifier `STARTER_RULES` anywhere in the tree and a cost
+  rule set is a different vocabulary answering a different question. *A rule applied outside the
+  population it was reasoned about does not degrade gracefully; it produces confident findings about
+  code it has no view of* — the same lesson `services/api/test_gap_records.py` paid for when it ruled
+  on records it could not see.
+
+  The arm is scoped now to modules that can REACH `rule_library` at all, which is airtight in the
+  narrowing direction and leaves no hole: a module that does mention it is still caught on the bare
+  identifier, so moving a reference behind an import hides nothing. **And the first draft of that
+  scoping was defeated by prose.** A raw text match put `cost_rules.py` in scope on its own
+  DOCSTRING, which names `rule_library` four times to explain why it is the deliberate
+  non-candidate — so *the sentence arguing the two are different vocabularies was read as evidence
+  that they are the same one.* It reads `ast.unparse(_strip_docstrings(...))` now, which is the
+  identical correction that file's FIRST arm already carried ten lines of self-test for. The scoped
+  population went from fifty-odd modules to four.
+
+  **The principle carries over and is honoured by a different mechanism**, which is why the fix was
+  the gate and not the code: a cost estimate has no `skip` state — a total is a number or it is
+  nothing — so instead of folding a sample result away, the route carries `rules_seeded` beside the
+  total and the screen refuses to present it as the firm's. *A total computed from rates nobody chose
+  is the same claim as a clean result over rules nobody adopted.*
+
+  Also measured: a re-wrapped response is invisible to the hop. An earlier draft built
+  `{...est, rules_seeded: set.seeded}` client-side, which was both a guess at a server fact and a
+  new object the hop could no longer track. **A re-wrapped response is invisible to any derivation
+  that tracks the original** — the same lesson `apps/web/src/api/noRespelledShapes.test.ts` records
+  one level up, at the type.
 
 - ✅ ⭐ **QUANT-VACUOUS — the verdict shape two neighbouring gates excluded from opposite
   directions** *(S — `services/api/test_quant_vacuous.py`; **CLOSED 2026-10-13**)*
@@ -10495,7 +10702,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/preconReadings.ts`, `apps/web/src/preconReadings.test.ts`, `apps/web/src/coLogReadings.ts`, `apps/web/src/coLogReadings.test.ts`, `apps/web/src/reviseReadings.ts`, `apps/web/src/reviseReadings.test.ts` *(the two `reviseReadings` files claimed 2026-10-14 by REVISE-DARK — readings over the drawing revision a `reportCenter.ts` form now issues, the fourth pair to arrive at the top level of `apps/web/src` and be claimed here by the ratchet rather than by anybody noticing)* *(the two `coLogReadings` files claimed 2026-10-14 by CO-REJECTED, for the same reason and by the same route as the `preconReadings` pair beside them: readings over a money register that `reportCenter.ts` renders, surfaced by the unowned-file ratchet, remedied with a row here rather than a bigger ceiling. **The ratchet is the only thing that asks the question** — a new top-level file under `apps/web/src` is owned by nothing until somebody says so, and nothing else in the tree notices)* *(claimed 2026-10-12 by VE-DARK — the readings over the three preconstruction money registers, rendered by `reportCenter.ts` which this cell already owns. The unowned-file ratchet is how it surfaced and a row here is the remedy it names. **A MARKDOWN TABLE ROW IS ONE LINE**: the first draft of this claim wrapped it across five, which left the parser seeing **one** lane row and reporting 555 unowned files and 17 unassigned items — a confident catalogue of a table it could no longer read)*, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* · WF-SPLIT *(the distribution split follows commitments while the waterfall runs on contributed capital — `distwaterfall.py` is this cell's, and the open part is a term the operating agreement decides rather than code. Lane C and not E: the first draft of the entry said Lane E because the SCREEN that renders the disagreement is a proforma card, and lanes go by the directory the work touches — the same correction this table's Lane E cell had to make once before)* · FLOW-BUFFER *(`schedule_locations.py` never sets `LinearTask.buffer_days`, so the flowline runs tight everywhere and the engine's `LOB.OVERLAP` branch is unreachable from the product. Lane C because the carrying-through is the adapter's; the input control that would drive it is Lane B's, and the lane goes by where the load-bearing change lands)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* · ESTIMATE-DARK *(the rules-based cost estimate: `POST /projects/{pid}/cost/estimate` is frozen unreachable and its `complete` verdict, guarded on four coverage counts, is read by nobody. M rather than S because the route takes a `rules` body and nothing yet binds a stored rule set to it — inventing a default would ship a cost computed from rules the user never chose. Here because the deliverable is the card; the engine half is Lane C.)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* *(**ESTIMATE-DARK left this cell 2026-10-14, closed, and its pointer was wrong in the usual way.** The cell said *"here because the deliverable is the card"* and this lane owns the viewer — the card landed in `portal/panels/`, beside the two sibling estimates it exists to be compared with and in the lazy chunk, which the shell's 1.9 KB of headroom also required. *Lanes go by the directory the work touches*, for the fourth time in this table. The M was right and the reason was right: the blocker was a store, not a screen.)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | CAPTURE-SESSION *(filed 2026-10-14. The deliverable when unblocked is a two-picker card, which is Lane B's, and the BLOCKER is a register this product does not have: a capture record carrying a date, a GUID set and a source. Filed here rather than with the card, because `progress/capture-diff` already exists in Lane G and its client method already exists in Lane I — the only missing piece is the register definition, and this cell owns those. *A lane goes by where the missing thing is, not by where the screen would go* — the correction Lane E's cell had to make twice, once for SITE-1 and once for UX-3.)* |

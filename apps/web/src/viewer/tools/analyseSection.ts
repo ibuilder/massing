@@ -6,6 +6,10 @@ import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { citedAnswerButton } from "./citedAnswer";
+import {
+  sequenceCoverage, sequenceHeadline, sequenceTone, supportCoverageNote,
+  unscheduledGuids, unscheduledPageNote, unscheduledRows,
+} from "./sequenceClashRead";
 import { codeReadinessButton } from "./codeReadiness";
 import { recipeLogButton } from "./recipeLogTool";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
@@ -135,23 +139,23 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
           let r;
           try { r = await api.sequenceClash(pid); }
           catch { toast("Needs a project with a schedule", "error"); return; }
-          const n = r.finding_count + r.support_finding_count;
-          // `clean` is true of the activities the engine COULD analyse — it skips any with no
-          // location, no dates, or finish before start. Saying "clean" over a schedule where most
-          // activities were skipped states a result about a sample as though it were the whole.
-          // `services/api/test_verdict_coverage.py` is the gate; this line is what it found.
-          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}`
-            : r.clean ? (r.skipped_count ? `clean of ${r.analyzed} · ${r.skipped_count} not checked` : "clean")
-            : "checked";
+          // `clean` is true of the activities the engine COULD analyse AND the support pairs it
+          // could DATE — two populations with different coverage, and until SEQ-UNSCHED only the
+          // first reached this line. `sequenceClashRead` holds both, with the measured fixture:
+          // 2 pairs, 0 dated, `clean: true` printed here as a bare "clean" in green.
+          out.textContent = sequenceHeadline(r);
           showResult("Sequence clash — space contention + install-before-support", (body) => {
             body.appendChild(resultNote(
               `${r!.analyzed} dated locatable activit${r!.analyzed === 1 ? "y" : "ies"} · `
               + `<b>${r!.finding_count}</b> space contention · <b>${r!.support_finding_count}</b> install-before-support`
-              + (r!.support_unscheduled_count ? ` · ${r!.support_unscheduled_count} pair(s) missing a dated binding` : "")
+              + (r!.support_pairs
+                ? ` · support dated on <b>${r!.support_evaluated}</b> of ${r!.support_pairs} pair(s)`
+                : "")
               + `.`,
-              // Not "ok" while activities went unchecked: a green note over a tenth of the schedule
-              // is the appearance of a result rather than one.
-              n ? "bad" : (r!.clean && !r!.skipped_count ? "ok" : "")));
+              // Green requires BOTH populations complete. As shipped this read
+              // `clean && !skipped_count`, so a project whose every support pair was undated
+              // painted var(--status-good) under the word "clean".
+              sequenceTone(r!)));
             if (r!.skipped_count) {
               // The engine names WHY each one was skipped, which makes the gap fixable rather than
               // merely reported — every reason is a missing field on a schedule activity.
@@ -183,7 +187,27 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
                   () => { void layerMgr.isolateGuids(guids); }));
               }
             }
+            // The pairs the support half could not reach, and WHICH GUIDs they are: the count was
+            // already on screen and a count says there is work without saying where it is.
+            const cover = supportCoverageNote(r!);
+            if (cover) {
+              body.appendChild(resultNote(escapeHtml(cover),
+                sequenceCoverage(r!).supportVacuous ? "warn" : ""));
+              const rows = unscheduledRows(r!);
+              if (rows.length) body.appendChild(kvTable(rows));
+              const page = unscheduledPageNote(r!);
+              if (page) body.appendChild(resultNote(escapeHtml(page), ""));
+              const undated = unscheduledGuids(r!);
+              if (undated.length) {
+                body.appendChild(toolBtn2(`◎ Isolate ${undated.length} element(s) in undated pairs`,
+                  () => { void layerMgr.isolateGuids(undated); }));
+              }
+            }
             body.appendChild(resultNote(r!.not_covered, ""));
+            // The engine's own account of which populations `clean` ruled on. Rendered rather than
+            // paraphrased — the asymmetry between `skipped` and `support_unscheduled` is a design
+            // decision and the engine is where it is decided.
+            body.appendChild(resultNote(escapeHtml(r!.clean_scope), ""));
           });
         })));
         b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
