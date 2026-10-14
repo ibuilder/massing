@@ -181,8 +181,13 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/prequal/coi-expiry": ["soon_days"],
   "GET /projects/{}/procurement/gate": ["note"],
   "GET /projects/{}/schedule/flowline": ["interferences", "issues"],
-  // `data_date` — without it, every date verdict on this payload is relative to nothing.
-  "GET /projects/{}/schedule/health": ["activity_count", "data_date", "issues", "relationship_count"],
+  // **CLOSED 2026-10-14 under SCHEDHEALTH-PARITY.** All four declared and rendered. Three of them
+  // were also MISSING FROM BOTH of the engine's refusal shapes, while its own docstring promised
+  // "every key the assessed shape carries is present and empty, so a caller reading `checks` or
+  // `failed` does not need to special-case this" — and the test asserting that had SUBTRACTED
+  // exactly those keys from its comparison and kept the universal label. *This gate cannot see a
+  // key that is absent only on a branch, because it compares one shape.* Fourth limit of the
+  // instrument in a day.
   "GET /projects/{}/standards/check": ["supported"],
   // **CLOSED 2026-10-14 under VERSION-VALUES, and the top-level keys were the smaller half.** Both
   // are declared and rendered now. What this gate could NOT see is that `from` and `to` were

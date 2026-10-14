@@ -323,6 +323,24 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       optimisable: boolean | null; assessed: number; skipped: number; failed: number;
       checks: { number: number; name: string; status: "pass" | "fail" | "skipped"; value: number | null;
                 threshold: string; detail: string; offenders: string[]; offender_count: number }[];
+      /**
+       * SCHEDHEALTH-PARITY — these four were undeclared, and three of them were also absent from
+       * both of the engine's refusal shapes while its docstring promised *"every key the assessed
+       * shape carries is present"*. The test asserting that had SUBTRACTED them from the
+       * comparison and kept the universal label.
+       *
+       * `data_date` is the load-bearing one: every DCMA check that reads a date reads it relative
+       * to this, so a grade shown without it is a verdict relative to nothing — the same finding
+       * SCHED-STATUS-DARK recorded one route over. `cycle` is the actionable half of the loop
+       * refusal and was dropped by the only screen that calls this.
+       */
+      activity_count: number; relationship_count: number; data_date: string | null;
+      /** `massingplan.core.issues.Issue.to_dict()` — one thing the engine could not do as asked. */
+      issues: { severity: string; code: string; message: string; action: string;
+                table: string | null; row_key: string | null; field: string | null;
+                raw_value: string | null }[];
+      /** Present only on the cyclic refusal: the activity ids that form the loop. */
+      cycle?: string[];
     }>(`/projects/${pid}/schedule/health`);
   }
 

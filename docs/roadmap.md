@@ -1511,6 +1511,59 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **SCHEDHEALTH-PARITY — the DCMA grade was relative to a data date nothing showed, the loop
+  refusal threw away the loop, and the test guarding the key parity had subtracted the keys it did
+  not hold** *(S — `services/api/src/aec_api/schedule_health.py`,
+  `apps/web/src/portal/panels/scheduleHealthRead.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/scheduleHealthRead.test.ts` and a rewritten parity check in
+  `services/api/test_schedule_health.py`)*
+
+  `schedule_health.health` is careful about its three states, and its `_unavailable` docstring says
+  so: *"Every key the assessed shape carries is present and empty, so a caller reading `checks` or
+  `failed` does not need to special-case this — but `grade` and `score` are `None`, not `"F"` and
+  `0`. A zero that means 'we did not measure' is indistinguishable from a zero that means 'this is
+  terrible', and only one of those should make somebody's afternoon worse."*
+
+  **That paragraph was false for three keys.** `activity_count`, `relationship_count` and
+  `data_date` are in the assessed shape and were in neither refusal, so a caller written against
+  the sentence read `undefined` for all three on exactly the two branches the sentence covers.
+
+  **And the test asserting it had subtracted them.** The check read
+  `set(x) >= set(r) - {"activity_count", "relationship_count", "data_date", "optimisable"}` under
+  the label *"every unavailable shape carries the FULL key set, so a caller need not special-case
+  it"*. *A check that excludes the exceptions and keeps the universal label is a check that reports
+  what it was told to report.* It was also `>=` rather than `==` — containment, not equality —
+  which is the ROWKEY-SUPERSET shape, **in this same subsystem**, where "a test named for an
+  equality asserted a containment and the key added last was the one missing." The contract is now
+  stated exactly and in both directions: a refusal is the assessed shape **plus `reason`**, plus
+  `cycle` when the refusal is a loop. Nothing subtracted.
+
+  **The cyclic branch had the values in hand and passed none of them.** At the `except
+  ScheduleCycleError` it holds `len(tasks)`, `len(links)` and the data date, and returned only the
+  sentence — so a planner told *"the logic contains a loop"* could not see that the loop sits in a
+  340-activity, 512-relationship network as of a stated date, which is the context that decides
+  fix-or-rebuild. *Refusing to grade is not a reason to withhold what was measured before the
+  refusal.* They are explicit parameters of `_unavailable` now rather than left to `**extra`,
+  because a keyword a caller may forget is exactly how the gap arose.
+
+  **Three things the only screen that calls this did not read.** `data_date` — every DCMA check that
+  reads a date reads it relative to this, so a grade shown without it is a verdict relative to
+  nothing, the finding SCHED-STATUS-DARK recorded one route over. `cycle` — the activities forming
+  the loop, which is the only actionable thing in that refusal; *the refusal was the useful half and
+  the reason was the part that got rendered.* And `issues` — `build_network` reports unresolvable
+  predecessor tokens rather than dropping them, because *"the old engine discarded them, so a typo
+  in a predecessor field produced a schedule with a missing dependency and no indication anywhere"*;
+  the indication existed and reached no screen. The reading keeps warnings rather than filtering to
+  errors, since that typo is reported as a warning, and sorts an unknown severity LAST rather than
+  letting `undefined` rank ahead of a real error.
+
+  **What this says about the seeded ratchet, for the fourth time in a day.** Its entry listed all
+  four keys as undeclared, which was true — and could not say that three of them were also absent
+  on two branches, because the gate compares ONE shape. The four limits found today, all by reading
+  the route rather than the list: a union read as its intersection, a root-only comparison blind to
+  a nested shape, a declared key whose value was permanently null, and now a key present on one
+  branch and absent on two.
+
 - ✅ ⭐ **PERMIT-BLIND — the permit pre-check's code edition was null on every call it has ever
   served, and its four declarations were never passed by anything** *(M —
   `services/api/src/aec_api/permit_check.py`, `apps/web/src/portal/panels/permitReading.ts`;

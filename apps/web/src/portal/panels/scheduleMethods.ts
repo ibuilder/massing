@@ -21,6 +21,8 @@
  */
 import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
+import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
+  from "./scheduleHealthRead";
 import type { PanelContext } from "../panelContext";
 import { programmeBars } from "./programmeGantt";
 
@@ -95,6 +97,36 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
       { label: "failed", value: `${r.failed}` },
       { label: "skipped", value: `${r.skipped}`, hint: "excluded from the score" },
     ] : []);
+    // SCHEDHEALTH-PARITY. `render` returns early on a refusal having printed the reason alone, so
+    // everything below is appended AFTER it — and the three things appended are exactly what the
+    // refusals were carrying and nothing read: the network this is about, the data date every date
+    // check is relative to, and the loop members. *The refusal was the useful half and the reason
+    // was the part that got rendered.*
+    const line = (text: string, css?: string) => {
+      const d = document.createElement("div"); d.className = "meta";
+      d.style.cssText = `margin-top:2px${css ? `;color:${css}` : ""}`;
+      d.textContent = text;                        // textContent: activity refs are user data
+      hOut.appendChild(d);
+    };
+    const scope = scopeLine(r);
+    if (scope) line(scope);
+    const dd = dataDateNote(r);
+    if (dd) line(dd.text, HEALTH_CSS[dd.tone]);
+    const loop = cycleRows(r);
+    if (loop.length) {
+      // The activities that form the loop, which is the only actionable thing in this refusal.
+      line(`Loop: ${loop.join(" → ")} → ${loop[0]}`, HEALTH_CSS.warn);
+    }
+    const issues = issueRows(r);
+    if (issues.length) {
+      line("Network issues the engine reported rather than dropping:");
+      for (const i of issues) {
+        line(`${i.severity} · ${i.message}${i.where ? ` (${i.where})` : ""} — ${i.action}`,
+             HEALTH_CSS[i.tone]);
+      }
+      const page = issuePageNote(issues.length, (r.issues ?? []).length);
+      if (page) line(page);
+    }
     if (r.available) {
       const fails = r.checks.filter((c) => c.status === "fail");
       if (fails.length) {
