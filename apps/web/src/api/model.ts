@@ -181,6 +181,52 @@ import type { ViewerLoadTiming, ProjectPulse, PropLayer, ModelCiReport, NeedsEdi
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** BASIS-UNREAD — one envelope assembly as `envelope.check_assembly` rules on it.
+ *
+ *  Every thermal field is OPTIONAL and which ones arrive depends on the verdict, so the type says
+ *  so rather than flattening it: an assembly the engine could not rule on carries `issue` and no
+ *  requirement at all; an opaque one carries the R pair; a fenestration one the U pair. */
+export interface EnvelopeAssemblyCheck {
+  name: string;
+  element_type: string;
+  /** `null` when the engine could not evaluate it — `issue` then says which input was missing. */
+  compliant: boolean | null;
+  /** Why there is no verdict. Present exactly when `compliant` is `null`. */
+  issue?: string;
+  /** The zone the check ran under — already narrowed to 1–8, or `null` if unreadable. */
+  climate_zone?: number | null;
+  r_value?: number | null;
+  u_factor?: number | null;
+  /** Opaque assemblies: IECC 2021 prescriptive minimum, and what the assembly provides. */
+  required_min_r?: number;
+  provided_r?: number | null;
+  /** Fenestration: IECC 2021 prescriptive maximum, and what the assembly provides. */
+  required_max_u?: number;
+  provided_u?: number | null;
+  /** Signed as HEADROOM in both directions — `provided_r - required` for opaque,
+   *  `required - provided_u` for fenestration — so positive is compliant by that much. */
+  margin?: number;
+}
+
+/** BASIS-UNREAD — `GET /projects/{pid}/envelope/audit`.
+ *
+ *  `checked` is the assemblies the engine could RULE on and `total` is every assembly registered;
+ *  `compliance_pct` is over the former. The two diverge the moment somebody registers an assembly
+ *  before dimensioning it, which is the normal order of work. */
+export interface EnvelopeAudit {
+  /** Every `envelope_assembly` record in the project. */
+  total: number;
+  /** Those with a readable climate zone AND a readable R or U — the population the verdict covers. */
+  checked: number;
+  compliant: number;
+  /** Of `checked`, never of `total`. `null` when nothing was evaluable. */
+  compliance_pct: number | null;
+  results: EnvelopeAssemblyCheck[];
+  /** The engine's own statement of what the numbers mean: which tables, and that it is a first-pass
+   *  screen rather than a stamped energy model. */
+  note: string;
+}
+
 /** MODEL-SETUP — the whole-model setup state behind `modelSetup()`.
  *
  *  Named rather than inline because `apps/web/src/viewer/tools/projectSetupPanel.ts` REDRAWS its two
@@ -1178,11 +1224,16 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
       `/projects/${pid}/lod/assessment`);
   }
-  /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict. */
+  /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict.
+   *
+   *  BASIS-UNREAD. `checked` counts only the assemblies the engine could RULE on; `total` is every
+   *  assembly registered, and `compliance_pct` is over the former. An assembly with no climate zone
+   *  or no R/U carries an `issue` saying which, and no verdict — so a register of 40 rows where 4
+   *  are dimensioned reports `4/4` at `100%`. The per-assembly `required_min_r`/`provided_r` (opaque)
+   *  and `required_max_u`/`provided_u` (fenestration) are what makes a FAIL actionable, and `margin`
+   *  is signed as headroom in both directions: positive is compliant by that much. */
   envelopeAudit(pid: string) {
-    return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
-      results: { name: string; element_type: string; compliant: boolean | null }[] }>(
-      `/projects/${pid}/envelope/audit`);
+    return this.json<EnvelopeAudit>(`/projects/${pid}/envelope/audit`);
   }
 
   // --- How does this project get its source model? Upload, the paid RVT bridge, and whether that bridge is available ---

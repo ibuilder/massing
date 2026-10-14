@@ -8,6 +8,7 @@ import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
 import { renderOperateBrief } from "./operateBrief";
 import { productivityRows, productivityScope, provenanceLine } from "./productivity";
+import { punchMentionNote } from "./statedBasis";
 
 /**
  * Operations & facility panels, extracted from portal.ts (portal.ts decomposition).
@@ -657,9 +658,15 @@ export async function renderTurnover(ctx: PanelContext) {
             try {
               const dz = await ctx.host.api.cxDossier(pid, a.dataset.sys || "");
               const box = el("div", "dash-card"); box.style.cssText = "margin:6px 0";
+              // BASIS-UNREAD. The punchlist module has no system field, so `open_punch_mentions`
+              // is a SUBSTRING match on description/location — `cx.dossier` says so in `note`,
+              // which was declared on the client type and read by nothing while the count rendered
+              // in `--status-warn` as though it were an assignment.
+              const punch = punchMentionNote(dz.system, dz.open_punch_mentions, dz.note);
               box.innerHTML = `<div class="meta"><b>${esc(dz.system)}</b> — ${dz.asset_count} asset(s) · `
                 + `${dz.accepted}/${dz.test_count} tests accepted (${dz.complete_pct}%)`
                 + (dz.open_punch_mentions ? ` · <span style="color:var(--status-warn)">${dz.open_punch_mentions} open punch mention(s)</span>` : "") + `</div>`
+                + (punch ? `<div class="meta">${esc(punch)}</div>` : "")
                 + (Object.keys(dz.expected_values).length
                   ? `<div class="meta">FPT expected: ${Object.entries(dz.expected_values).slice(0, 8)
                     .map(([k, v]) => `${esc(k)}=${esc(String(v))}`).join(" · ")}</div>` : "")

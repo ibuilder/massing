@@ -112,6 +112,42 @@ const CONTROL = "GET /projects/{}/verification/coverage";
  *  boilerplate 480 characters long, so the warning was past the cut on every render there has ever
  *  been. *The first defect this gate found was its own author's, and the gate found it in hours.*
  */
+/** Routes whose client type names some properties AND carries a string index signature, so a key
+ *  the server sends type-checks whether or not anybody named it. Pinned exactly: adding one is a
+ *  declaration escape hatch and should be a decision, not a drift. Measured at 4.
+ *
+ *  Three of the four have no disagreement to report. The fourth is `BY_INDEX_SIGNATURE` below. */
+const INDEXED_ROUTES = [
+  "GET /connections/{}/{}/{}",
+  "GET /projects/{}/drawings/sheet-regions",
+  "GET /projects/{}/vitals",
+  "POST /projects/{}/proforma/renovation",
+];
+
+/** Keys the server sends that the client declares THROUGH a string index signature rather than by
+ *  name — so they type-check, and `getPropertiesOfType` cannot see them.
+ *
+ *  **This is not a backlog and that is why it is not in `KNOWN_GAPS`.** That list's own header says
+ *  it exists "to shrink as they are fixed rather than rotting into a freeze-list nobody re-checked"
+ *  and says to "delete an entry when you have READ the engine and declared what it sends" — and
+ *  these cannot shrink, because the index signature is the chosen declaration and naming the six
+ *  keys individually would *contradict* it. An entry no action can remove is the freeze-list that
+ *  header warns about, arriving by a door the header did not anticipate.
+ *
+ *  Each entry is asserted to still BE index-signature-declared, so it cannot outlive its reason —
+ *  the same shape as `EXEMPT` above. Delete the index signature and these become real gaps. */
+const BY_INDEX_SIGNATURE: Record<string, { keys: string[]; why: string }> = {
+  // `VitalsPayload` is `{ order: string[]; [key: string]: Vital | string[] | undefined }`. The six
+  // keys ARE the vitals, and the set is data-driven: `aec_api.vitals` builds it from the literal
+  // `["lod", "area", "cost_sf", "float", "irr", "health"]` and `apps/web/src/shell/vitalsBar.ts`
+  // renders by iterating `data.order` rather than by reaching for a field, so no named property
+  // would be read even if one existed.
+  "GET /projects/{}/vitals": {
+    keys: ["area", "cost_sf", "float", "health", "irr", "lod"],
+    why: "the vitals set is data-driven — the server sends `order` and the bar iterates it",
+  },
+};
+
 const KNOWN_GAPS: Record<string, string[]> = {
   // **CLOSED 2026-10-14 under UNITRATE-BASIS.** The three keys were the three sentences that say
   // what the median is worth — and `limitation` is literally an instruction the screen was not
@@ -179,7 +215,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `services/api/test_refusal_readers.py` already proved the engine honours the refusal, including
   // `live_count + len(refused) == entitlement_count` — *its subject was the engine, and nothing
   // asked the same question of the reader.*
-  "GET /projects/{}/envelope/audit": ["note"],
+  // **CLOSED 2026-10-14 under BASIS-UNREAD, and `note` was the smallest part of it.** The engine's
+  // sentence — *"Representative prescriptive values — a first-pass screen, not a stamped energy
+  // model"* — was unreachable from TypeScript, and so were `required_min_r`/`provided_r`,
+  // `required_max_u`/`provided_u`, `margin` and the per-assembly `issue`, none of which this gate
+  // could see: they are NESTED on `results[]`, and this gate compares a route's TOP-LEVEL keys.
+  // *The one key it could see was the one with the least consequence.* The live defect was in two
+  // keys that were both declared: `checked` is the assemblies the engine could rule on and `total`
+  // is every one registered, and the card read the first and never the second — `4/4 assemblies
+  // compliant (100.0%)` over a 40-row register, measured; and with `checked` at 0 the card took an
+  // empty-state branch reading **"no envelope assemblies registered"** over forty of them.
   "GET /projects/{}/estimate/resource-based": ["source"],
   "GET /projects/{}/feasibility/compare": ["error"],
   "GET /projects/{}/info-requirements/cascade": ["children", "nodes"],
@@ -253,7 +298,11 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/view-templates/{}/graphics": [
     "cut_count", "graphics", "hidden_count", "name", "note", "template",
   ],
-  "GET /projects/{}/vitals": ["area", "cost_sf", "float", "health", "irr", "lod"],
+  // **MOVED 2026-10-14 to `BY_INDEX_SIGNATURE`, which is a reclassification and not a fix.** The
+  // six keys are declared — through `VitalsPayload`'s string index signature, which
+  // `getPropertiesOfType` does not report. *An entry no action can remove is a freeze-list entry,
+  // and this list's header is written against exactly that.* The derivation that identifies the
+  // bucket is pinned at 4 routes and each entry's index signature is now asserted.
   "GET /rooms": ["note"],
   "POST /connections/{}/query": ["limit"],
   "POST /projects/{}/drawing-set/generate": ["register"],
@@ -456,7 +505,8 @@ export function methodOf(arg: ts.Expression | undefined): string {
   return found ?? "GET";
 }
 
-interface Site { rel: string; line: number; key: string; keys: string[]; opaque: boolean }
+interface Site { rel: string; line: number; key: string; keys: string[]; opaque: boolean;
+                 indexed: boolean }
 interface Unresolved { rel: string; line: number; why: string }
 
 /** Walk one program's api call sites. Separated from the program build so the self-tests below can
@@ -517,7 +567,22 @@ export function extract(program: ts.Program, root: string, relBase = root):
           const opaque = keys.length === 0 && parts.every((part) =>
             !!(checker.getIndexTypeOfType(part, ts.IndexKind.String)
               ?? checker.getIndexTypeOfType(part, ts.IndexKind.Number)));
-          rows.push({ rel, line, key: `${method} ${raw.split("?")[0]}`, keys, opaque });
+          // THE THIRD BUCKET, and it is the one `KNOWN_GAPS` mis-filed: a type that NAMES some
+          // properties *and* carries a string index signature. `VitalsPayload` is
+          // `{ order: string[]; [key: string]: Vital | string[] | undefined }`, so `keys` is
+          // `["order"]` — not zero, therefore not `opaque` — while every other key the server
+          // sends type-checks through the index signature. Those keys are reported as undeclared
+          // and **declaring them is not the fix**: the index signature IS the declaration, chosen
+          // because the vitals set is data-driven (`vitalsBar.ts` iterates `data.order`).
+          //
+          // STRING only. `ts.IndexKind.Number` matches every array-returning route — an array
+          // carries a number index AND all 35 `Array.prototype` members as named properties —
+          // which measured at a large fraction of the surface and says nothing about declaration.
+          // *A predicate that decides what to LOOK at is more dangerous than one that decides what
+          // to report*, so this one only labels; the comparison still runs.
+          const indexed = parts.every((part) =>
+            !!checker.getIndexTypeOfType(part, ts.IndexKind.String));
+          rows.push({ rel, line, key: `${method} ${raw.split("?")[0]}`, keys, opaque, indexed });
         }
       }
       ts.forEachChild(node, visit);
@@ -562,10 +627,14 @@ describe("RESPONSE-UNDECLARED", () => {
 
   const declared = new Map<string, Set<string>>();
   const opaque = new Set<string>();
+  const indexed = new Set<string>();
   for (const r of rows) {
     if (!declared.has(r.key)) declared.set(r.key, new Set());
     for (const k of r.keys) declared.get(r.key)!.add(k);
     if (r.opaque) opaque.add(r.key);
+    // ANY call site, as with `opaque`: one declaration carrying an escape hatch is enough for a
+    // key to arrive, type-check, and still be invisible to the field audits.
+    if (r.indexed && r.keys.length > 0) indexed.add(r.key);
   }
 
   // RESPKEY-DELEGATED: a route that hands off to an engine is now comparable too. `literal` alone
@@ -620,9 +689,25 @@ describe("RESPONSE-UNDECLARED", () => {
       + "derivation is broken, not the product").toEqual([]);
   }, 120_000);
 
+  it("every route declared through a string index signature is tracked as one", () => {
+    expect([...indexed].sort(), "a client type both NAMES properties and carries a string index "
+      + "signature, so any key the server sends type-checks unnamed. If you ADDED one, record it "
+      + "here and say why the escape hatch is right; if you REMOVED one, delete it.")
+      .toEqual([...INDEXED_ROUTES].sort());
+    // and each BY_INDEX_SIGNATURE entry's reason must still hold — remove the index signature and
+    // its keys become real gaps that belong in KNOWN_GAPS, loudly.
+    for (const route of Object.keys(BY_INDEX_SIGNATURE))
+      expect(indexed.has(route), `BY_INDEX_SIGNATURE names ${route}, whose client type no longer `
+        + `carries a string index signature — its keys are undeclared now, not index-declared`)
+        .toBe(true);
+  }, 120_000);
+
   it("the tree's undeclared keys are exactly the known ones", () => {
     const actual = Object.fromEntries([...gaps.entries()].sort());
-    const known = Object.fromEntries(Object.entries(KNOWN_GAPS).map(([k, v]) => [k, [...v].sort()]).sort());
+    const known = Object.fromEntries([
+      ...Object.entries(KNOWN_GAPS).map(([k, v]) => [k, [...v].sort()] as const),
+      ...Object.entries(BY_INDEX_SIGNATURE).map(([k, v]) => [k, [...v.keys].sort()] as const),
+    ].sort());
     expect(actual, "a route's response keys and its client declaration disagree. If you ADDED a key "
       + "to a route, declare it on the client type too; if you FIXED one, delete it from KNOWN_GAPS.")
       .toEqual(known);
@@ -680,6 +765,31 @@ describe("RESPONSE-UNDECLARED", () => {
     const row = extract(mixed.program, mixed.root).rows[0]!;
     expect(row.opaque).toBe(false);
     expect(row.keys).toEqual(["a"]);
+  });
+
+  it("separates an index signature from opacity — a named property beside one is NOT opaque", () => {
+    // The third bucket, on synthetic source where the answer is known. `opaque` and `indexed` are
+    // different questions about the same declaration and the real tree only exhibits one of the
+    // four combinations, so the tree pin alone could not tell them apart.
+    const mixed = syntheticProgram(
+      "interface V { order: string[]; [k: string]: unknown }\ndeclare const c: any;\n"
+      + "function f() { return c.json<V>(\"/x\"); }\n");
+    const row = extract(mixed.program, mixed.root).rows[0]!;
+    expect(row.keys).toEqual(["order"]);
+    expect(row.indexed).toBe(true);
+    expect(row.opaque, "a type that names a property is not opaque, index signature or not")
+      .toBe(false);
+    // and the negative: a plain interface is neither.
+    const plain = syntheticProgram(
+      "interface A { a: number }\ndeclare const c: any;\n"
+      + "function f() { return c.json<A>(\"/x\"); }\n");
+    expect(extract(plain.program, plain.root).rows[0]!.indexed).toBe(false);
+    // A NUMBER index signature is not a declaration escape hatch for a key — it is what every
+    // array has, alongside 35 `Array.prototype` members, and matching it swept the surface.
+    const arr = syntheticProgram(
+      "interface N { [k: number]: string }\ndeclare const c: any;\n"
+      + "function f() { return c.json<N>(\"/x\"); }\n");
+    expect(extract(arr.program, arr.root).rows[0]!.indexed).toBe(false);
   });
 
   it("accepts a BACKSLASHED root, which is what `path.resolve` returns on Windows", () => {

@@ -1545,6 +1545,79 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **BASIS-UNREAD — `4/4 assemblies compliant (100.0%)` over four of forty, and with `checked` at
+  zero the same card denied the register existed** *(S —
+  `apps/web/src/portal/panels/statedBasis.ts`, `apps/web/src/api/model.ts`,
+  `apps/web/src/portal/panels/standards.ts`, `apps/web/src/portal/panels/operations.ts`; **CLOSED
+  2026-10-14**; gated by `apps/web/src/portal/panels/statedBasis.test.ts`, and the key gap closed in
+  `apps/web/src/api/responseUndeclared.test.ts`)*
+
+  `envelope.audit` counts an assembly as `checked` only once it can RULE on it — a readable IECC
+  climate zone AND a readable R-value or U-factor — while `total` is every assembly registered, and
+  `compliance_pct` is over the first. The envelope card read `compliant`, `checked` and
+  `compliance_pct`, and **never `total`**. Measured against a live server on a forty-row register
+  where four rows are dimensioned:
+
+  | registered | checked | headline as shipped |
+  |---|---|---|
+  | 40 | 4 | `4/4 assemblies compliant (100.0%)` |
+  | 40 | 0 | `no envelope assemblies registered` |
+
+  **The second row is the worse defect and it is the quieter one.** `a.checked` is falsy, so the card
+  took its empty-state branch and reported *no assemblies registered* over forty of them — not a
+  number missing a qualifier but a flat denial that the data exists, indistinguishable from a
+  genuinely empty project. A reader acts on "nothing is registered" by registering something; the
+  forty rows are already there, waiting for a climate zone. *An empty-state branch keyed on the
+  EVALUABLE count reports the wrong absence*, and `climate_zone` and `element_type` are both
+  optional fields on the module, so registering before dimensioning is the normal order of work
+  rather than misuse.
+
+  **The basis was unreachable, not merely unrendered.** `note` was undeclared on the client type, so
+  no TypeScript could reach the engine's own sentence: *"Opaque assemblies vs IECC 2021 minimum R;
+  fenestration vs maximum U, by climate zone. Representative prescriptive values — a first-pass
+  screen, not a stamped energy model."* That sentence is the difference between a screen and a
+  submittal, and an unqualified `100% compliant` on an envelope tab is exactly what somebody
+  forwards to a plan reviewer.
+
+  **And the five numbers that make a FAIL actionable were computed and undeclared.**
+  `required_min_r`/`provided_r`, `required_max_u`/`provided_u` and `margin` are all produced per
+  assembly, so the table could only ever print `PASS`, `FAIL` or `—`. *A FAIL with no requirement
+  beside it tells a designer there is a problem and not what to change.* `margin` is signed as
+  headroom in both families, which is why one column carries both: `FAIL — short 5 R` for a zone-6
+  roof at R-25, `FAIL — short 0.12 U` for a zone-5 skylight at U-0.62.
+
+  **The 20-row cap kept the wrong rows, which is the same mistake one layer down.**
+  `results.slice(0, 20)` is register order, and on the measured register 16 of the first 20 rows were
+  the ones with no verdict. The cap stays — a 500-row table is its own defect — but the page is
+  ordered failures, then unevaluable, then passes, **and says so**: a re-ordered page presented as
+  the first N rows is a second silent claim stacked on the truncation. The coverage count is taken
+  from the ROLLUP and the reasons from the rows, which are two populations the moment the server
+  pages `results` — it does not today, and TRUNC-COUNTED is three screens that printed the length of
+  a page as a total, so the shortfall is declared rather than quietly rescaling the denominator.
+
+  **The commissioning dossier is the second half, and its note was declared and simply unread.**
+  `cx.dossier` says it itself — *"Punch mentions are a substring match on description/location (the
+  punchlist module has no system field)"* — while `open_punch_mentions` rendered in
+  `var(--status-warn)` with no caveat at all. A count of punch items whose TEXT mentions a system is
+  not a count of items against that system, and the warning colour asserts the second.
+  `cx/matrix`'s note was read and deliberately left: *"system × phase completion — cells carry
+  total/tested/accepted/pass/fail"* is a column LABEL, and rendering it would be padding.
+
+  **One finding is about the gate rather than the product, and it was found by closing an entry
+  beside it.** `GET /projects/{}/vitals` sat in `KNOWN_GAPS` with six keys that **no action can
+  remove**: they are declared through `VitalsPayload`'s string index signature, which
+  `checker.getPropertiesOfType` does not report, and naming them individually would contradict the
+  declaration — the vitals set is data-driven and `apps/web/src/shell/vitalsBar.ts` renders by
+  iterating `data.order`. That list's own header says it exists *"to shrink as they are fixed rather
+  than rotting into a freeze-list nobody re-checked"*. *An entry no action can remove is the
+  freeze-list that header warns about, arriving through a door the header did not anticipate.* It is
+  now `BY_INDEX_SIGNATURE`, a separate bucket whose reason is ASSERTED — delete the index signature
+  and the build reds, proved by mutation in both arms — alongside a pin of the four routes in the
+  tree declared this way. **The widening had to be measured first:** matching
+  `ts.IndexKind.Number` as well sweeps every array-returning route, because an array carries a
+  number index *and* all 35 `Array.prototype` members as named properties, and it says nothing about
+  declaration.
+
 - ✅ ⭐ **FLOW-CLEAR — the flowline card's own subtitle promised the one thing it did not render, and
   the adapter had already thrown four fifths of it away** *(S —
   `apps/web/src/portal/panels/flowlineRead.ts`,

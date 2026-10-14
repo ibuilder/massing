@@ -6,6 +6,8 @@ import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
 import { bandRows, ceilingDiffers, complianceRows, infoScoreLine, limitingRows, readability,
   TONE_CSS } from "./lodCoverage";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
+import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote,
+  envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
 import { renderViewTemplates } from "./viewTemplates";
 import type { PanelContext } from "../panelContext";
 
@@ -900,13 +902,30 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     const env = section("🧱 Envelope compliance (IECC)");
     void ctx.host.api.envelopeAudit(pid).then((a) => {
         env.textContent = "";
-        const m = el("div", "meta");
-        m.textContent = a.checked ? `${a.compliant}/${a.checked} assemblies compliant (${a.compliance_pct}%)`
-            : "no envelope assemblies registered";
-        env.appendChild(m);
-        if (a.results.length) env.appendChild(table(["Assembly", "Type", "Result"],
-            a.results.slice(0, 20).map((x) => [x.name, x.element_type,
-                x.compliant == null ? "—" : (x.compliant ? "PASS" : "FAIL")])));
+        // BASIS-UNREAD. `checked` is the assemblies the engine could RULE on and `total` is every
+        // one registered; this card read the first and never the second, so `4/4 assemblies
+        // compliant (100.0%)` was a measured headline over a 40-row register, and `checked === 0`
+        // fell to an empty-state branch reading "no envelope assemblies registered" over forty of
+        // them. `apps/web/src/portal/panels/statedBasis.ts` holds the readings and the measurement.
+        const note = (text: string, tone = "") => {
+            const n = el("div", "meta"); n.textContent = text;
+            if (tone) n.style.color = tone;
+            env.appendChild(n);
+        };
+        const head = envelopeHeadline(a);
+        note(head.text, BASIS_TONE[head.tone]);
+        const cov = envelopeCoverageNote(a);
+        if (cov) note(cov, BASIS_TONE.warn);
+        if (a.results.length) {
+            // `Required / provided` is what makes a FAIL actionable — the engine computes the IECC
+            // minimum and the margin for every assembly and the table could only say "FAIL".
+            env.appendChild(table(["Assembly", "Type", "Zone", "Required / provided", "Result"],
+                assemblyRows(a).map((x) => [x.name, x.type, x.zone, x.requirement, x.result])));
+            const page = assemblyPageNote(a);
+            if (page) note(page);
+        }
+        const basis = envelopeBasisNote(a);
+        if (basis) note(basis);
     }).catch(fail(env));
 
     const mep = section("🌀 MEP off the model");
