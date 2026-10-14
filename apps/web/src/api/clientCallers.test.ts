@@ -403,7 +403,10 @@ const UNCALLED: readonly string[] = [
   // names the clone never reached a user, and nothing ever needed either door. *A frozen callerless
   // method records the one link of a severed chain that happens to exist.* Driven by
   // `apps/web/src/proforma/scenarioGovernance.ts` from the Overview tab.
-  "reviseDrawing", "runClash",
+  // REVISE-DARK closed 2026-10-14: `reviseDrawing` left this set because `reportCenter.ts` grew an
+  // "Issue a revision" form. The register was readable and the write was not, so an AIA revision
+  // could be SEEN and never ISSUED.
+  "runClash",
   // `saveViewTemplates` left this list 2026-10-13 — VIEWTPL-DARK. It is the fourth stored project
   // STANDARD this session found with a reachable reader and no writer, and the first one where TWO
   // screens were already consuming it: `qaSection.ts` lists and APPLIES a template,

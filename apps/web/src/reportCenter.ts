@@ -37,6 +37,10 @@ import { askText } from "./ui/prompt";
 import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
 import { showResult } from "./ui/result";
 import { coHeadline, coReconciles, coScheduleNote, coStateRows, rejectedShareNote } from "./coLogReadings";
+import {
+  INSTRUMENTS, TONE_CSS as REV_TONE, carryReconciles, carryVerdict, nextRev, revisionLine,
+  sheetOptions,
+} from "./reviseReadings";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
  *  interactive project tools & analytics (drawing-set register + issuance + pre-flight gate,
@@ -343,6 +347,81 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
               [r.sheet_number, r.rev ?? "", r.date ?? "", r.description ?? "", r.instrument ? `${r.instrument.type ?? ""} ${r.instrument.ref ?? ""}`.trim() : ""]));
           }
         } catch { /* revisions optional */ }
+
+        // --- REVISE-DARK: issue a revision ---------------------------------------------------
+        //
+        // `reviseDrawing` sat in `clientCallers.test.ts`'s frozen callerless set: the register above
+        // could be READ and a revision could never be ISSUED, so the AIA revision discipline had no
+        // door. The picker is built from the module records rather than the register, because
+        // `drawingset.register` carries `ref` and `sheet_number` and no record id, and this route is
+        // keyed by the id. `apps/web/src/reviseReadings.ts` holds the readings.
+        try {
+          const dwgRecs = await api.moduleRecords(pid, "drawing");
+          const opts = sheetOptions(dwgRecs);
+          if (opts.length) {
+            const wrap = document.createElement("div"); wrap.style.margin = "10px 0 4px";
+            wrap.innerHTML = `<div class="section-title">Issue a revision</div>`
+              + `<div class="meta">Records an AIA revision delta on one sheet, bumps its revision, `
+              + `and tags that sheet's markups carried-forward for re-check.</div>`;
+            const fr = document.createElement("div");
+            fr.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0";
+            const sheetSel = document.createElement("select"); sheetSel.className = "portal-filter";
+            for (const o of opts) {
+              const el = document.createElement("option"); el.value = o.id; el.textContent = o.label;
+              sheetSel.appendChild(el);
+            }
+            const revIn = document.createElement("input"); revIn.className = "portal-filter";
+            revIn.placeholder = "rev"; revIn.size = 5; revIn.required = true;
+            // A SUGGESTION, refreshed when the sheet changes. `_rev_key` ranks alpha and numeric
+            // revisions separately, so `nextRev` returns "" rather than guessing wrong and
+            // reordering which revision counts as current.
+            const suggest = () => {
+              const cur = opts.find((o) => o.id === sheetSel.value);
+              revIn.value = cur ? nextRev(cur.revision) : "";
+            };
+            suggest(); sheetSel.onchange = suggest;
+            const descIn = document.createElement("input"); descIn.className = "portal-filter";
+            descIn.placeholder = "description"; descIn.style.flex = "1"; descIn.style.minWidth = "160px";
+            const dateIn = document.createElement("input"); dateIn.className = "portal-filter";
+            dateIn.type = "date"; dateIn.value = new Date().toISOString().slice(0, 10);
+            const instSel = document.createElement("select"); instSel.className = "portal-filter";
+            for (const i of INSTRUMENTS) {
+              const el = document.createElement("option"); el.value = i;
+              el.textContent = i || "no instrument"; instSel.appendChild(el);
+            }
+            const refIn = document.createElement("input"); refIn.className = "portal-filter";
+            refIn.placeholder = "instrument ref"; refIn.size = 12;
+            const btn = document.createElement("button"); btn.className = "file-btn";
+            btn.textContent = "Issue revision";
+            const out = document.createElement("div"); out.style.margin = "4px 0";
+            btn.onclick = async () => {
+              const rev = revIn.value.trim();
+              if (!rev) { toast("A revision identifier is required", "error"); revIn.focus(); return; }
+              btn.disabled = true;
+              try {
+                const r = await api.reviseDrawing(pid, sheetSel.value, {
+                  rev, description: descIn.value.trim(), date: dateIn.value || undefined,
+                  instrument_type: instSel.value || undefined,
+                  instrument_ref: refIn.value.trim() || undefined,
+                });
+                // The slip-sheet verdict is rendered beside the revision, never folded into it:
+                // the tagging can fail while the revision stands, and that is the whole item.
+                const v = carryVerdict(r);
+                const mismatch = carryReconciles(r);
+                out.innerHTML = `<div class="meta">${escapeHtml(revisionLine(r))}</div>`
+                  + `<div class="meta" style="color:${REV_TONE[v.tone]}">${escapeHtml(v.text)}</div>`
+                  + (mismatch
+                    ? `<div class="meta" style="color:${REV_TONE.crit}">${escapeHtml(mismatch)}</div>`
+                    : "");
+                toast(`Rev ${r.revision} recorded`, "success");
+                await load();
+              } catch (e) { toast((e as Error).message, "error"); }
+              btn.disabled = false;
+            };
+            fr.append(sheetSel, revIn, descIn, dateIn, instSel, refIn, btn);
+            wrap.append(fr, out); body.appendChild(wrap);
+          }
+        } catch { /* the drawing register is optional on a project with no sheets */ }
 
         body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:10px">Sheet index</div>`);
         table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));

@@ -14,6 +14,29 @@ import type { SheetLayout } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** REVISE-DARK — what recording a sheet revision reports back.
+ *
+ *  Slip-sheeting tags every existing markup on that sheet `carried_from` so a reviewer re-checks it
+ *  against the revised sheet. The tagging is deliberately wrapped so it can never block a revision,
+ *  which means it can FAIL while the revision lands — so the three markup fields are a verdict plus
+ *  its coverage, not one number. Named rather than inline so the fields are visible to the audits
+ *  built on these declarations (DEADFIELD-INLINE). */
+export interface RevisionResult {
+  drawing_id: string;
+  revision: string;
+  /** Every delta on this sheet, including the one just recorded. */
+  delta_count: number;
+  /** Markups whose carried-forward tag was COMMITTED. Zero when the tagging failed. */
+  markups_carried: number;
+  /** Markups the tagging attempted. Equals `markups_carried` on success. */
+  markups_to_carry: number;
+  /** The exception TYPE when the tagging did not land, `null` when it did. The revision is
+   *  recorded either way: a reviewer seeing untagged markups on a revised sheet has no way to
+   *  know they are stale unless this is rendered. */
+  markups_carry_failed: string | null;
+}
+
+
 export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class DrawingSheets extends Base {
   /** The sheet layout `takeoff2d` scopes against — viewport rectangles plus the page↔world affine
@@ -27,7 +50,7 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
-    return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
+    return this.json<RevisionResult>(
       `/projects/${pid}/drawings/${drawingId}/revise`, { method: "POST", body: JSON.stringify(body) });
   }
   /** W11 C4: computed door / window / room schedules from the model. */

@@ -327,7 +327,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /rooms": ["note"],
   "POST /connections/{}/query": ["limit"],
   "POST /projects/{}/drawing-set/generate": ["register"],
-  "POST /projects/{}/drawings/{}/revise": ["markups_carried"],
+  // **CLOSED 2026-10-14 under REVISE-DARK, and the key was WRONG as well as undeclared.**
+  // Slip-sheeting tags every markup on the revised sheet `carried_from` so a reviewer re-checks it,
+  // and `revise_sheet` incremented the counter in the loop while `db.commit()` sat inside the
+  // `except Exception: pass` that exists so tagging can never block a revision. Measured by
+  // injecting a failure on that commit: `201 {"revision":"1","delta_count":1,"markups_carried":3}`
+  // with **0 of 3 markups actually tagged**. *A count computed before the write that persists it is
+  // a count of intentions*, and it ran in the reassuring direction on the one operation where a
+  // stale markup is the hazard. The count now follows the commit, `markups_to_carry` and
+  // `markups_carry_failed` are published beside it, and the partial mutations are rolled back
+  // rather than left pending. The whole route was also callerless — see `clientCallers.test.ts`.
   // **CLOSED 2026-10-14 under ESTIMATE-BASIS.** Five of the six were the BASIS — `region`, `year`,
   // `height_factor`, `soft_cost_pct` and `note` — and a $/SF total shown without them cannot be
   // reconciled against anything; `note` is also where the engine says the estimate is Class 5,

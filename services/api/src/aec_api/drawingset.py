@@ -198,7 +198,20 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
         # MARKUP-2a (slip-sheet): every existing markup on this sheet now predates the new revision — tag
         # it `carried_from` so reviewers verify it against the revised sheet. Markups keep rendering (a
         # located comment is never dropped); the tag is the honest "carried forward — re-check" state.
-        carried = 0
+        # REVISE-DARK. `carried` used to be incremented in the loop and returned whatever the loop
+        # reached, while `db.commit()` sat INSIDE the `except Exception: pass` below. Measured by
+        # injecting a failure on this commit: the response came back
+        # `201 {"revision": "1", "delta_count": 1, "markups_carried": 3}` with **0 of 3 markups
+        # actually tagged**. The revision landing anyway is correct and deliberate; claiming the
+        # carried-forward flags are in place when they are not is backwards on a slip-sheet, where
+        # that flag is the entire point — the reviewer is told to re-check and the marks say nothing.
+        #
+        # So the count is taken AFTER the commit returns, the attempted count is published beside
+        # it, and the partial mutations are rolled back rather than left pending in a session that
+        # some later commit in the same request could flush. *A count computed before the write that
+        # persists it is a count of intentions.*
+        attempted = carried = 0
+        carry_failed: str | None = None
         try:
             from .models import DrawingMarkup
             base = str(data.get("sheet_number") or data.get("number") or rec.get("ref") or "").strip()
@@ -210,13 +223,21 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
                     if d2.get("rev") != str(rev) and "carried_from" not in d2:
                         d2["carried_from"] = str(d2.get("rev") or old_rev or "prior")
                         m.data = d2
-                        carried += 1
-                if carried:
+                        attempted += 1
+                if attempted:
                     db.commit()
-        except Exception:                                # noqa: BLE001 — tagging must never block a revision
-            pass
+                    carried = attempted
+        except Exception as exc:                         # noqa: BLE001 — tagging must never block a revision
+            # The TYPE, not the message: a caller needs to know the tagging did not land and which
+            # failure it was, and the message can carry row content.
+            carry_failed = type(exc).__name__
+            try:
+                db.rollback()
+            except Exception:                            # noqa: BLE001 — a failed rollback is not the caller's problem
+                pass
         return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs),
-                "markups_carried": carried}
+                "markups_carried": carried, "markups_to_carry": attempted,
+                "markups_carry_failed": carry_failed}
 
 
 def revisions(db, pid: str) -> dict[str, Any]:

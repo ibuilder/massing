@@ -46,6 +46,21 @@ TWO LESSONS, PAID FOR
        This is why the list above is asserted rather than described. A date-stamped sentence about
        the tree is a fact with a short shelf life; a test is a fact that re-checks itself.
 
+IT ASKS GIT, SO IT FAILS ON AN UNCOMMITTED TREE — AND THAT IS NOT A DEFECT IN THE TREE
+    `git ls-files` lists TRACKED paths, so a file that exists on disk and has never been `git add`ed
+    is a MISS here even though the citation is perfectly good. On 2026-10-14 a full backend suite
+    came back 735/736 with this as the only failure: it was started while two newly written files —
+    cited in a roadmap entry in the same change — were still untracked, and the commit landed six
+    minutes later. Reproduced deliberately afterwards by citing an untracked file: the output is the
+    same single line, `FAILED: every gate the standing docs name resolves to a tracked file`.
+
+    Two things follow. **Run the suite against a tree with nothing untracked** (`git add -A` is
+    enough — staged counts), or this one check fails for a reason that evaporates on commit and
+    costs somebody a hunt. And asking git rather than the filesystem stays correct: an untracked
+    file is not in the repository, so a doc that cites one is making a claim about a tree nobody
+    else has. The alternative — `Path.exists()` — would pass locally and fail in CI, which is the
+    worse way round.
+
 SCOPE — WHY MORE THAN ONE DOC
     The first version of this test read CLAUDE.md alone. That was the same defect one level up: a
     gate scoped to a single file, passing green while the document beside it goes unchecked. As of
