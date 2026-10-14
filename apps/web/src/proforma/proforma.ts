@@ -26,6 +26,9 @@ import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
 import { degenerate, drawScope, histogram, probReading, undefinedNote } from "./mcRead";
 import { type Tone, TONE_CSS, basisLine, investorRows, returnsLine, splitNote, uncalledNote } from "./waterfallRead";
+import {
+  TONE_CSS as CAP_TONE, commitColumnTotal, commitHeadline, ownershipRows, workflowNote,
+} from "./capTableRead";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -884,15 +887,27 @@ export class ProformaUI {
       }
       if (ct.investor_count === 0) { host.insertAdjacentHTML("beforeend", `<div class="meta">No investors yet — add them under Construction ▸ Capital ▸ Investors.</div>`); return; }
       const cc = document.createElement("div"); cc.className = "fin-card";
-      const rows = ct.rows.map((r: any) => `<tr><td>${escapeHtml(String(r.investor ?? ""))}</td>`
-        + `<td class="num">${money(r.commitment)}</td><td class="num">${r.ownership_pct}%</td>`
+      // CAPTABLE-PIPELINE. The rows were `Record<string, unknown>` and cast to `any` here, so the
+      // per-row `counts_toward_ownership` and `status` the engine deliberately carries were never
+      // read — and the Commit column summed to $16,000,000 under a Total row of $6,000,000, the
+      // $10,000,000 difference being the undeclared `pipeline_commitment`. Measured on a live
+      // server. `apps/web/src/proforma/capTableRead.ts` holds the readings.
+      const head = commitHeadline(ct, money);
+      const wfNote = workflowNote(ct);
+      const colTotal = commitColumnTotal(ct, money);
+      const rows = ownershipRows(ct).map((r) => `<tr><td>${escapeHtml(r.investor)}</td>`
+        + `<td style="color:${CAP_TONE[r.tone]}">${escapeHtml(r.state)}</td>`
+        + `<td class="num">${money(r.commitment)}</td><td class="num">${escapeHtml(r.pct)}</td>`
         + `<td class="num">${money(r.unreturned)}</td>`
-        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, String(r.id))}">⬇</a>`
-        + ` <button class="file-btn" style="padding:1px 6px;font-size:11px" data-share="${r.id}" title="Mint a no-login link to this investor's statement">🔗</button></td></tr>`).join("");
+        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, r.id)}">⬇</a>`
+        + ` <button class="file-btn" style="padding:1px 6px;font-size:11px" data-share="${escapeHtml(r.id)}" title="Mint a no-login link to this investor's statement">🔗</button></td></tr>`).join("");
       cc.innerHTML = `<div class="section-title">Investor cap table</div>`
-        + `<table class="fin-table"><tr><th style="text-align:left">Investor</th><th>Commit</th><th>Own %</th><th>Unreturned</th><th>Stmt</th></tr>`
-        + rows + `<tr class="fin-total"><td>Total</td><td class="num">${money(ct.total_commitment)}</td><td></td>`
-        + `<td class="num">${money(ct.total_unreturned)}</td><td></td></tr></table>`;
+        + `<div class="meta" style="color:${CAP_TONE[head.tone]}">${escapeHtml(head.text)}</div>`
+        + (wfNote ? `<div class="meta">${escapeHtml(wfNote)}</div>` : "")
+        + `<table class="fin-table"><tr><th style="text-align:left">Investor</th><th style="text-align:left">State</th><th>Commit</th><th>Own %</th><th>Unreturned</th><th>Stmt</th></tr>`
+        + rows + `<tr class="fin-total"><td>Committed</td><td></td><td class="num">${money(ct.total_commitment)}</td><td></td>`
+        + `<td class="num">${money(ct.total_unreturned)}</td><td></td></tr></table>`
+        + (colTotal ? `<div class="meta">${escapeHtml(colTotal)}</div>` : "");
       const tools = document.createElement("div"); tools.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px";
       const amt = document.createElement("input"); amt.type = "number"; amt.placeholder = "Amount"; amt.setAttribute("aria-label", "Capital call / distribution amount"); amt.style.cssText = "width:120px;padding:4px";
       const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "6px";

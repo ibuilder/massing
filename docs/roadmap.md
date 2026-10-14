@@ -1545,6 +1545,51 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **CAPTABLE-PIPELINE — the Commit column summed to $16,000,000 under its own Total row of
+  $6,000,000** *(S — `apps/web/src/proforma/capTableRead.ts`, `apps/web/src/api/finance.ts`,
+  `apps/web/src/proforma/proforma.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/proforma/capTableRead.test.ts` and new assertions in
+  `services/api/test_cap_table_state.py`)*
+
+  `capital.cap_table` is careful and documents itself at length: only COMMITTED capital owns
+  anything, so a `prospect` row stays visible at 0% with its money reported separately as
+  `pipeline_commitment` — *"so the interest is still on screen, just not as ownership."* The
+  Investors tab rendered Investor / Commit / Own % / Unreturned under a Total row of
+  `total_commitment`, which EXCLUDES the pipeline. Measured on the engine's own docstring scenario:
+
+  | investor | commitment | own % | `counts_toward_ownership` | status |
+  |---|---|---|---|---|
+  | Real LP | 6,000,000 | 100.0 | true | committed |
+  | Big Prospect | **10,000,000** | 0.0 | **false** | prospect |
+
+  Commit column **$16,000,000**; Total row **$6,000,000**. *A total whose own parts do not sum to it
+  leaves the reader to invent the difference* — CO-REJECTED, on equity instead of change orders, and
+  on the one table where the invented difference reads as dilution.
+
+  **The whole row surface was OPAQUE, which is why no gate here could see it.** `capTable` declared
+  `rows: Record<string, unknown>[]` — the bucket `apps/web/src/api/deadFieldTyped.test.ts` calls
+  opaque because it names nothing, and which `apps/web/src/api/responseUndeclared.test.ts` skips
+  outright — so `counts_toward_ownership` and `status` were in neither population, and the consumer
+  cast to `any`. The engine carries that flag on the row *deliberately*: **"seven call sites read
+  this table, and a rule re-derived seven times is a rule that disagrees with itself somewhere."*
+  *An opaque row type is a field list nobody can audit and every consumer must guess at.*
+
+  **`workflow_in_use` is why a 0% row needs reading twice.** `investor` declares
+  `initial: prospect`, so on a project where nobody ran `commit` EVERY investor is a prospect; the
+  engine's rule is that until one leaves that state it carries no information and everyone counts,
+  and once one has, it means *not committed* and the state is evidence. The same 0%/100% arithmetic
+  therefore has two opposite readings and the screen could state neither.
+
+  **This was a pure consumer fix and the backend assertions prove why.**
+  `services/api/test_cap_table_state.py` already asserted all three keys across four fixtures — the
+  engine was proven right and nothing asked whether the two totals add up to the column they sit
+  under. That relation is pinned now, in both directions: the column equals
+  `total_commitment + pipeline_commitment`, and the split follows `counts_toward_ownership` exactly,
+  so a screen can group by the flag rather than re-deriving the rule.
+
+  The inline ceiling moved again with it — **5,983/560 → 5,976/559** — because naming this response
+  was the action that made the row fields auditable at all.
+
 - ✅ ⭐ **LOD-TARGET-INERT — the register's only REQUIRED field is not a matching key, and the stage
   defaults the response promises were never applied** *(M — `services/api/src/aec_api/lod.py`,
   `apps/web/src/portal/panels/lodCoverage.ts`, `apps/web/src/api/model.ts`,

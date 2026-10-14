@@ -16,6 +16,58 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** CAPTABLE-PIPELINE — one investor row, as `capital.cap_table` builds it.
+ *
+ *  This was `Record<string, unknown>` — the OPAQUE bucket in
+ *  `apps/web/src/api/deadFieldTyped.test.ts`, which names nothing, so every field the engine
+ *  carefully computes per row was outside every audit built on these declarations AND outside the
+ *  response-key gate. `proforma.ts` cast the rows to `any` and read four of them. */
+export interface CapTableRow {
+  id?: string;
+  ref?: string;
+  investor?: string;
+  investor_class: string;
+  entity_type?: string;
+  commitment: number;
+  /** Whether this row's commitment is inside `total_commitment`. Carried on the ROW rather than
+   *  re-derived, deliberately — the engine's own note: "seven call sites read this table, and a
+   *  rule re-derived seven times is a rule that disagrees with itself somewhere." */
+  counts_toward_ownership: boolean;
+  /** 0 for a row that does not count toward ownership — which is NOT the same as a committed
+   *  investor who happens to hold nothing. */
+  ownership_pct: number;
+  contributed: number;
+  distributed: number;
+  unreturned: number;
+  /** `prospect` · `committed` · `funded` · `exited`, from the investor register's workflow. */
+  status?: string;
+}
+
+/** CAPTABLE-PIPELINE — `GET /projects/{pid}/cap-table`.
+ *
+ *  `total_commitment` is COMMITTED capital — the denominator ownership is computed against — and
+ *  `pipeline_commitment` is the uncommitted interest beside it. Both were needed to reconcile the
+ *  screen's own Commit column, and only the first was declared: measured at a column of $16,000,000
+ *  under a total of $6,000,000. */
+export interface CapTable {
+  investor_count: number;
+  total_commitment: number;
+  /** Commitment from rows that do NOT count toward ownership. The engine keeps those rows visible
+   *  at 0% rather than dropping them, so the column includes money the total excludes. */
+  pipeline_commitment: number;
+  /** Has anyone used the investor workflow on this project? Until somebody leaves the stamped
+   *  initial `prospect` state it carries no information and EVERY row counts; once one has,
+   *  `prospect` means "not committed" and the state is evidence. Without this a 0% row cannot be
+   *  told from an artefact of nobody having run the workflow. */
+  workflow_in_use: boolean;
+  total_contributed: number;
+  total_distributed: number;
+  total_unreturned: number;
+  by_class: Record<string, number>;
+  rows: CapTableRow[];
+}
+
+
 /** One investor's slice of a waterfall scenario, with BOTH shares of it.
  *
  *  `distribution` is allocated pro-rata to `commitment_share`, and the waterfall above it may have
@@ -131,9 +183,7 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   /** Investor cap table — ownership by commitment + contributed/distributed totals. */
   capTable(pid: string) {
-    return this.json<{ investor_count: number; total_commitment: number; total_contributed: number;
-      total_distributed: number; total_unreturned: number; by_class: Record<string, number>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/cap-table`);
+    return this.json<CapTable>(`/projects/${pid}/cap-table`);
   }
   /** The syndication package — the cap table serialized to a neutral investor-platform schema. Always
    * available offline; this is the payload the capital-markets connector pushes. */

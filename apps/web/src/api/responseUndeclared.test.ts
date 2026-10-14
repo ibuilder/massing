@@ -168,7 +168,25 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // The per-discipline `spec_sections` on each `covered` entry was undeclared too and is NOT in the
   // list above: this gate compares a route's top-level keys, so the root `spec_sections` was
   // visible to it and the nested one was not — the same root-only blind spot MC-UNDEFINED records.
-  "GET /projects/{}/cap-table": ["pipeline_commitment", "workflow_in_use"],
+  // **CLOSED 2026-10-14 under CAPTABLE-PIPELINE, and the two keys were the reconciliation of an
+  // EQUITY table.** `total_commitment` is committed capital — the denominator ownership is computed
+  // against — and `pipeline_commitment` is the uncommitted interest the engine keeps on screen at
+  // 0% rather than dropping. The Investors tab rendered a Commit column of `row.commitment` under a
+  // Total row of `total_commitment`, so on the engine's own docstring scenario the column summed to
+  // **$16,000,000** under a total of **$6,000,000** — measured live. *A total whose own parts do
+  // not sum to it leaves the reader to invent the difference*, which is CO-REJECTED on equity
+  // instead of change orders, and on the one table where the invented difference reads as dilution.
+  //
+  // `workflow_in_use` is the engine's own distinction and a 0% row means two different things
+  // without it: `investor` stamps `initial: prospect`, so until somebody runs `commit` that state
+  // carries no information and EVERY row counts.
+  //
+  // **Nothing could see the row surface at all**: `rows` was declared `Record<string, unknown>[]`,
+  // the OPAQUE bucket in `apps/web/src/api/deadFieldTyped.test.ts` (it names nothing), so
+  // `counts_toward_ownership` and `status` — which the engine carries on the row *deliberately*,
+  // because "seven call sites read this table" — were outside every audit here, and this gate skips
+  // an opaque route. The consumer then cast to `any`. *An opaque row type is a field list nobody can
+  // audit and every consumer must guess at.* Both are named interfaces now.
   // **CLOSED 2026-10-14 under CO-REJECTED, and `rejected_value` was the arithmetic.** `total_value`
   // counts every COR raised, REJECTED ONES INCLUDED, while `total_schedule_days` already excluded
   // their days — the same refusal, two treatments, one function. The report printed four of the five
