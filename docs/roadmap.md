@@ -1511,6 +1511,45 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ **ROWKEY-SUPERSET — a test named for an equality asserted a containment, and the key added
+  last was the one missing** *(XS — `services/api/src/aec_api/schedule_status.py`;
+  **CLOSED 2026-10-14**; gated by `services/api/test_schedule_status.py`)*
+
+  `schedule_status` emits one row per activity from **three** branches — the real `_row`, the
+  `unknown` blank, and the no-data-date blank — and keeps `_ROW_KEYS` so all three carry the same
+  shape. The reason is in its own comment: *"a row that is missing eight keys the others have makes
+  `row["days_overdue"]` a KeyError the moment one dateless activity appears, which is a trap for
+  every consumer rather than a fact about the row."*
+
+  **`future_actual_ignored` went into `_row` and not into the list.** Measured: 15 keys against 14,
+  and `row["future_actual_ignored"]` raises `KeyError` on the first dateless activity. *A
+  hand-maintained enumeration is only as good as the discipline of adding to it, and the key added
+  LAST is the one that is missing* — the same shape as STAKEHOLDER-MEDIUM's hardcoded four quadrant
+  names, except here the enumeration **is** the guard, so bypassing it bypasses the protection.
+
+  ### The test for it existed, had the right name, and passed
+
+  `test_every_row_carries_the_same_keys_whatever_branch_produced_it` asserted
+  `keys[0] >= keys[1] and keys[1] >= set(_ROW_KEYS) | {...}`. A **superset** is satisfied by the
+  normal row carrying a key the blank row lacks. Measured on the shipped code: superset `True`,
+  equality `False`. *A test named for an equality that asserts a containment passes in precisely
+  the state it exists to exclude* — `test_pid_lock_pgxproc`'s lesson arriving as one comparison
+  operator.
+
+  **And `>=` is the natural thing to write**, which is the part worth keeping: TWO different
+  requirements were chained into one assertion — *the branches agree with each other* and *every
+  branch meets this floor* — and the weaker swallows the stronger. They are separate assertions
+  now, and the agreement is checked over all three producers rather than the two that were compared.
+
+  Three mutations, and the second is the evidence rather than a claim: removing the key again reds
+  the equality arm (`['future_actual_ignored']`); **removing it AND reinstating the old `>=`
+  assertions PASSES**, which is what demonstrates the hole; and adding a brand-new key to `_row`
+  alone reds too (`['brand_new_key']`), so the guard catches the class and not just the instance.
+
+  The defect was latent only because nothing consumes `/projects/{pid}/schedule/status` — it is
+  frozen in `test_route_reachability`. *The first consumer is what would have made it live*, which
+  is why this landed before the wiring rather than with it.
+
 - ✅ ⭐ **STAKEHOLDER-MEDIUM — a 2×2 grid over a three-level scale, printing "monitor with minimal
   effort" about parties nobody had assessed** *(S — `services/api/src/aec_api/stakeholder.py` +
   `apps/web/src/portal/panels/stakeholderGrid.ts`; **CLOSED 2026-10-13**; gated by

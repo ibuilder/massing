@@ -66,9 +66,25 @@ def _ref(a: dict[str, Any]) -> str:
 #: Every key a row carries. The unknown/no-data-date branches emit these too, filled with None: a row
 #: that is missing eight keys the others have makes `row["days_overdue"]` a KeyError the moment one
 #: dateless activity appears, which is a trap for every consumer rather than a fact about the row.
+#:
+#: **THE LIST IS NOT THE GUARD — the EQUALITY is**, and that distinction cost a shipped defect.
+#: `services/api/test_schedule_status.py` has a test named
+#: `test_every_row_carries_the_same_keys_whatever_branch_produced_it`, and it asserted
+#: `keys[0] >= keys[1]`: a SUPERSET, which is satisfied by the normal row carrying a key the blank
+#: row lacks. *A test named for an equality that asserts a containment passes in precisely the
+#: state it exists to exclude*, and `>=` is the natural thing to write when two different
+#: requirements — "the branches agree" and "every branch meets this floor" — get chained into one
+#: assertion. They are separate assertions now, over all THREE row producers.
 _ROW_KEYS = ("planned_start", "planned_finish", "actual_start", "actual_finish", "expected_finish",
              "late_to_start", "days_late_to_start", "overdue", "days_overdue",
-             "actual_slip_days", "forecast_slip_days")
+             "actual_slip_days", "forecast_slip_days",
+             # ROWKEY-SUPERSET (2026-10-14). `future_actual_ignored` was added to `_row` and NOT
+             # here, so a blank row did not carry it: 15 keys against 14, and
+             # `row["future_actual_ignored"]` raised `KeyError` on the first dateless activity —
+             # exactly the trap the paragraph above says this list exists to prevent, in the key
+             # added AFTER the list was written. *A hand-maintained enumeration is only as good as
+             # the discipline of adding to it, and the key added last is the one that is missing.*
+             "future_actual_ignored")
 
 
 def _blank(ref: str, state: str, detail: str) -> dict[str, Any]:
