@@ -125,9 +125,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/clash/sequence": ["support_unscheduled"],
   // `excluded_comparables` — the comps a valuation did NOT use.
   "GET /projects/{}/comps/tiered": ["excluded_comparables", "requested"],
-  "GET /projects/{}/cost/lien-waiver": [
-    "application_no", "claimant", "customer", "exceptions", "signature_block", "through_date",
-  ],
+  // **CLOSED 2026-10-14 under LIEN-PLACEHOLDER, and this was the highest-stakes entry in the
+  // list.** The six undeclared keys were every field that says WHO is releasing WHAT, through WHEN,
+  // and what is carved out — `claimant`, `customer`, `through_date`, `application_no`, `exceptions`,
+  // `signature_block` — on a STATUTORY lien waiver. The screen declared `amount` and showed it in a
+  // status line, and *the amount is the least legally consequential number in a release.*
+  //
+  // The gap also sat beside something no key comparison could reach: the routes take `claimant`,
+  // `customer` and `through_date` and nothing passed them, so the PDF a subcontractor would sign
+  // read `[Claimant]`, `[Customer]`, `[Owner]` and `through [date]` literally — measured end to
+  // end against a live server.
   "GET /projects/{}/cx/matrix": ["note"],
   // `orphans` — documents attached to nothing.
   "GET /projects/{}/documents/health": ["note", "orphans"],

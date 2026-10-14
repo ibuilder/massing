@@ -25,6 +25,38 @@ import type { ModuleRecord, ResolveAction } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/**
+ * LIEN-PLACEHOLDER — the parties a statutory release names, and the bound it runs through.
+ *
+ * Both lien-waiver routes have always taken `claimant`, `customer` and `through_date`, and nothing
+ * passed any of them, so every waiver this product produced rendered `[Claimant]`, `[Customer]`,
+ * `[Owner]` and `through [date]` literally — in the JSON and in the downloadable PDF alike,
+ * measured end to end. They are one object rather than three positional arguments because the two
+ * routes must be given the SAME values: a preview the reader approved and a PDF built from
+ * different inputs is the defect OPTION-BOARD-DARK records one domain over, and here the artifact
+ * is a legal release rather than a deck.
+ */
+export type LienWaiverKind = "conditional_progress" | "unconditional_progress"
+  | "conditional_final" | "unconditional_final";
+
+export interface LienWaiverParties {
+  claimant?: string;
+  customer?: string;
+  /** The date a PROGRESS release covers work through. A final release covers everything. */
+  through_date?: string;
+}
+
+/** One query builder for both routes, so the preview and the PDF cannot disagree. */
+export function lienWaiverQuery(kind: string, appNo: number, parties: LienWaiverParties): string {
+  const q = new URLSearchParams({ kind, app_no: String(appNo) });
+  // Empty strings are omitted rather than sent: the server treats "" as "not given" and
+  // substitutes the placeholder either way, so sending it is the same thing said twice.
+  if (parties.claimant) q.set("claimant", parties.claimant);
+  if (parties.customer) q.set("customer", parties.customer);
+  if (parties.through_date) q.set("through_date", parties.through_date);
+  return q.toString();
+}
+
 /** What one T&M pricing run did, and what it deliberately did not do. */
 export interface TmPricingReport {
   /** Rows whose blank rate the register supplied. */
@@ -132,17 +164,32 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       drifted_count: number; largest_drift: number; total_change_orders: number; note: string;
     }>(`/projects/${pid}/commercial-drift`);
   }
-  /** Statutory lien waiver / release fields for a pay application (C1). */
-  lienWaiver(pid: string, kind: "conditional_progress" | "unconditional_progress"
-      | "conditional_final" | "unconditional_final" = "conditional_progress", appNo = 1) {
-    const q = new URLSearchParams({ kind, app_no: String(appNo) });
+  /**
+   * Statutory lien waiver / release fields for a pay application (C1).
+   *
+   * **The six fields added here are the document.** This declared `kind`, `title`, `conditional`,
+   * `final`, `amount`, `body`, `notice` and `project_name` — and dropped `claimant`, `customer`,
+   * `through_date`, `application_no`, `exceptions` and `signature_block`, which is every field that
+   * says WHO is releasing WHAT, through WHEN, and what is carved out. The amount is the least
+   * legally consequential number in a release; what binds is its scope.
+   *
+   * Read `lienWaiverRead.readiness()` before offering the PDF. A release still reading `[Claimant]`
+   * is not a draft, it is an unfinished legal instrument that looks like a form.
+   */
+  lienWaiver(pid: string, kind: LienWaiverKind = "conditional_progress", appNo = 1,
+             parties: LienWaiverParties = {}) {
     return this.json<{
       kind: string; title: string; conditional: boolean; final: boolean;
       amount: number; body: string; notice: string; project_name: string;
-    }>(`/projects/${pid}/cost/lien-waiver?${q.toString()}`);
+      claimant: string; customer: string; through_date: string; application_no: number;
+      exceptions: string;
+      signature_block: { claimant_title: string; date: string };
+    }>(`/projects/${pid}/cost/lien-waiver?${lienWaiverQuery(kind, appNo, parties)}`);
   }
-  lienWaiverPdfUrl(pid: string, kind = "conditional_progress", appNo = 1) {
-    return this.url(`/projects/${pid}/cost/lien-waiver.pdf?kind=${encodeURIComponent(kind)}&app_no=${appNo}`);
+  /** The same document as a PDF. Takes the same parties, through the same query builder. */
+  lienWaiverPdfUrl(pid: string, kind = "conditional_progress", appNo = 1,
+                   parties: LienWaiverParties = {}) {
+    return this.url(`/projects/${pid}/cost/lien-waiver.pdf?${lienWaiverQuery(kind, appNo, parties)}`);
   }
   /** Installed cost-database vintages plus what the offline importer can build. */
   costDatasets() {

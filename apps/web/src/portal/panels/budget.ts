@@ -2,11 +2,13 @@ import { groupedBar, money as cmoney, esc, usd } from "../../ui/charts";
 import { installableNote } from "../../account/costVintage";
 import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
+import type { LienWaiverKind } from "../../api/cost";
 import type { PanelContext } from "../panelContext";
 import { basisNote, factorClaim, summary, trustNote } from "./costCalibration";
 import { renderCostBrief } from "./costBrief";
 import { payAppReviewModal } from "./payAppReviewPanel";
 import { rfqConfirm, rfqGate, rfqSummary, saveConfirm, saveGate, saveSummary, type SavedPackage } from "./buyoutKeep";
+import { readiness, WAIVER_CSS, WAIVER_KINDS, waiverFields } from "./lienWaiverRead";
 import { modelProgressReading } from "./modelEvReading";
 
 /**
@@ -742,22 +744,90 @@ export async function renderBudget(ctx: PanelContext) {
       } catch (e) { ctx.host.setStatus(`close failed: ${(e as Error).message}`); }
     };
     brow.append(seedBtn, reviewBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
+    // LIEN-PLACEHOLDER. This was two controls: a button that fetched the waiver and set a status
+    // line to "<title> — $<amount>", and an anchor straight to the PDF. Neither passed `claimant`,
+    // `customer` or `through_date`, which the routes have always taken — so the PDF a subcontractor
+    // would be handed to sign read "[Claimant]", "[Customer]", "[Owner]" and "through [date]"
+    // literally, and the screen showed the amount being released with none of the scope of the
+    // release. *The amount is the least legally consequential number in a lien waiver.*
+    //
+    // The PDF link is WITHHELD until no placeholder survives in the server's own text. A PDF is
+    // something somebody signs; an unfinished one with square brackets in it is worse than no PDF,
+    // because it reads as a form rather than as a bug.
     const lwRow = document.createElement("div");
     lwRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px";
-    const lwBtn = document.createElement("button"); lwBtn.className = "tool-btn";
-    lwBtn.textContent = "Lien waiver (JSON)";
-    lwBtn.onclick = async () => {
-      try {
-        const lw = await ctx.host.api.lienWaiver(pid);
-        ctx.host.setStatus(`${lw.title} — $${Math.round(lw.amount).toLocaleString()}`);
-      } catch (e) { ctx.host.setStatus(`lien waiver failed: ${(e as Error).message}`); }
+    const lwKind = document.createElement("select"); lwKind.className = "portal-filter";
+    lwKind.setAttribute("aria-label", "Waiver form");
+    for (const k of WAIVER_KINDS) {
+      const o = document.createElement("option"); o.value = k.value; o.textContent = k.label;
+      lwKind.appendChild(o);
+    }
+    const mk = (ph: string, label: string, size: number) => {
+      const i = document.createElement("input"); i.className = "portal-filter";
+      i.placeholder = ph; i.size = size; i.setAttribute("aria-label", label);
+      return i;
     };
+    const lwClaimant = mk("claimant (your firm)", "Claimant", 20);
+    const lwCustomer = mk("customer / owner", "Customer or owner", 18);
+    const lwThrough = mk("through (YYYY-MM-DD)", "Covers work through", 16);
+    const lwApp = mk("app #", "Pay application number", 5); lwApp.value = "1";
+    const lwBtn = document.createElement("button"); lwBtn.className = "tool-btn";
+    lwBtn.textContent = "Build the release";
     const lwPdf = document.createElement("a"); lwPdf.className = "tool-btn";
-    lwPdf.textContent = "⬇ Lien waiver (PDF)";
-    lwPdf.href = ctx.host.api.lienWaiverPdfUrl(pid);
+    lwPdf.textContent = "⬇ PDF";
     lwPdf.target = "_blank"; lwPdf.rel = "noopener";
-    lwRow.append(lwBtn, lwPdf);
+    const setPdfBlocked = (why: string) => {
+      lwPdf.removeAttribute("href");
+      lwPdf.setAttribute("aria-disabled", "true");
+      lwPdf.style.opacity = "0.45"; lwPdf.style.pointerEvents = "none";
+      lwPdf.title = why;
+    };
+    setPdfBlocked("Build the release first — the PDF is withheld until every field is filled");
+    const lwOut = document.createElement("div"); lwOut.style.marginTop = "4px";
+    lwBtn.onclick = async () => {
+      const parties = { claimant: lwClaimant.value.trim(), customer: lwCustomer.value.trim(),
+                        through_date: lwThrough.value.trim() };
+      const appNo = Math.max(1, Number(lwApp.value) || 1);
+      const kind = lwKind.value as LienWaiverKind;
+      lwOut.textContent = "building…";
+      try {
+        const lw = await ctx.host.api.lienWaiver(pid, kind, appNo, parties);
+        const r = readiness(lw);
+        // THE SAME INPUTS, through the same query builder, so the preview a reader approved and the
+        // PDF they download cannot be two different documents.
+        if (r.ready) {
+          lwPdf.href = ctx.host.api.lienWaiverPdfUrl(pid, kind, appNo, parties);
+          lwPdf.removeAttribute("aria-disabled");
+          lwPdf.style.opacity = ""; lwPdf.style.pointerEvents = "";
+          lwPdf.title = "Download this release as a PDF";
+        } else {
+          setPdfBlocked(r.text);
+        }
+        lwOut.innerHTML = `<div class="meta" style="color:${esc(WAIVER_CSS[r.tone])}">${esc(r.text)}</div>`
+          + `<table class="portal-table" style="width:100%;font-size:11px;margin-top:4px"><tbody>`
+          + waiverFields(lw).map((f) => `<tr><td>${esc(f.label)}</td>`
+            + `<td style="text-align:right">${esc(f.value)}</td></tr>`).join("")
+          + `</tbody></table>`
+          + `<div class="meta" style="margin-top:4px;white-space:pre-wrap">${esc(lw.notice)}</div>`
+          + `<div style="margin-top:4px;font-size:11px;white-space:pre-wrap">${esc(lw.body)}</div>`
+          // THE EXCEPTIONS, which were undeclared and unrendered. A release without its carve-out
+          // on screen is a release the signer reads as unconditional.
+          + (lw.exceptions ? `<div class="meta" style="margin-top:4px"><b>Exceptions:</b> ${esc(lw.exceptions)}</div>` : "")
+          + (lw.signature_block
+            ? `<div class="meta" style="margin-top:4px">Signature: ${esc(lw.signature_block.claimant_title || "")}`
+              + ` · ${esc(lw.signature_block.date || "")}</div>`
+            : "");
+        ctx.host.setStatus(r.ready
+          ? `${lw.title} ready — $${Math.round(lw.amount).toLocaleString()} released`
+          : `${lw.title} NOT ready to sign`);
+      } catch (e) {
+        setPdfBlocked("the release could not be built");
+        lwOut.textContent = `lien waiver failed: ${(e as Error).message}`;
+      }
+    };
+    lwRow.append(lwKind, lwClaimant, lwCustomer, lwThrough, lwApp, lwBtn, lwPdf);
     billing.appendChild(lwRow);
+    billing.appendChild(lwOut);
     billing.appendChild(Object.assign(document.createElement("div"), { className: "meta",
       textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values. Lien waiver amount follows current payment due." }));
     ctx.root.appendChild(billing);

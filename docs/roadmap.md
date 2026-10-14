@@ -1511,6 +1511,55 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **LIEN-PLACEHOLDER — the statutory lien waiver was downloadable as a PDF reading
+  `[Claimant]`, `[Customer]`, `[Owner]` and `through [date]`, and the only screen that produced it
+  showed a title and a dollar amount** *(M — `apps/web/src/portal/panels/lienWaiverRead.ts`,
+  `apps/web/src/api/cost.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/lienWaiverRead.test.ts` and a new phase in `services/api/test_cost.py`)*
+
+  A lien waiver is not a report. It is a **release of mechanics-lien, stop-payment-notice and
+  payment-bond rights**, in most US states on a statutory form whose wording is prescribed, and
+  `cost.lien_waiver` builds one properly: the title, the statutory `notice`, the release `body`, the
+  `exceptions` carve-out, the `through_date` a progress release is bounded by, and a
+  `signature_block`. Both routes take `claimant`, `customer` and `through_date` so the body can name
+  them.
+
+  **The client passed none of the three, and the screen rendered none of the document.** Measured end
+  to end against a live server: a GET with no parameters returns *"Upon receipt by the undersigned of
+  a check from [Customer] in the sum of $0.00 payable to [Claimant] …"*, and the PDF route — which
+  defaults the same parameters to `""` — puts `[Claimant] [Customer] [Owner] [date]` on the page. The
+  button was labelled "Lien waiver (JSON)" and set a status line to `"<title> — $<amount>"`.
+  **`amount` was the only field of the six it needed that the client type declared**, and *the amount
+  is the least legally consequential number in a release.* What binds is what is released, from whom,
+  through when, and what is excepted — and `claimant`, `customer`, `through_date`, `application_no`,
+  `exceptions` and `signature_block` were every one of them undeclared.
+
+  **The guard is a refusal, not a warning.** `readiness` reports NOT ready while any placeholder
+  survives, and the card **withholds the PDF link** until none does. A PDF is an artifact somebody
+  signs; an unfinished one with square brackets in it is worse than no PDF, because it reads as a
+  form rather than as a bug. *A document that is not ready must not be downloadable as if it were.*
+  And it is the SERVER's composed text that decides, not the client's own inputs: a check of the
+  boxes would pass a document whose wording introduced a new placeholder, which is asserted.
+
+  Three details earned their place. The placeholders deduplicate by **field**, because `[Customer]`
+  and `[Owner]` are filled by one input and reporting two missing fields for one empty box sends a
+  reader looking for a box that does not exist. The scan reads the `notice` as well as the `body`,
+  since the statutory notice is prescribed text that may name the claimant. And the through-date row
+  appears only on a **progress** release, where it is the whole bound — the release covers work
+  furnished through that date and nothing after — while a final release covers everything and the row
+  would be a blank nobody should try to fill.
+
+  **Both routes now share one query builder**, so the preview a reader approved and the PDF they
+  download cannot be two different documents — the OPTION-BOARD-DARK lesson, one domain over, where
+  the artifact is a legal release rather than a deck.
+
+  The backend phase asserts the behaviour on **both** sides: with the parties given, no bracket
+  survives on any of the four forms, and the PDF is checked as extracted TEXT rather than as bytes;
+  without them the brackets are there, asserted rather than described, because *a guard whose trigger
+  condition is untested is a guard nobody knows still fires.* The existing block passed the parties
+  and never checked that passing them works; the existing PDF assertion passed none and checked only
+  that the bytes began `%PDF-`.
+
 - ✅ ⭐ **SCHEDHEALTH-PARITY — the DCMA grade was relative to a data date nothing showed, the loop
   refusal threw away the loop, and the test guarding the key parity had subtracted the keys it did
   not hold** *(S — `services/api/src/aec_api/schedule_health.py`,
