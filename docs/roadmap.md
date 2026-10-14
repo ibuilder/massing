@@ -1598,37 +1598,55 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   exposure, which conflates *released by an unconditional waiver* with *not paid yet* — the engine
   calls both `clear`, right as a lien verdict and wrong as a summary.
 
-- 🟡 ⭐ **DEADFIELD-INLINE — the dead-field gate's population is a third of the client's response
-  surface, and its 269 reads as a statement about all of it** *(M — Lane I —
-  `apps/web/src/api/deadFieldTyped.test.ts`; **MEASURED, NOT YET GATED** — the widening is a 4.5×
-  ratchet and wants its own change)*
+- ✅ ⭐ **DEADFIELD-INLINE — the dead-field gate's population was a third of the client's response
+  surface, and its number read as a statement about all of it** *(M — Lane I —
+  `apps/web/src/api/deadFieldTyped.test.ts`; **CLOSED 2026-10-14**; four mutations, each named
+  below)*
 
-  `deadFieldTyped` resolves every read through the TypeScript checker, which is sound, and builds
-  its population by walking **exported interface declarations** under `apps/web/src/api/` —
-  `collect` is reached only from `ts.isInterfaceDeclaration(n) && export`. Measured 2026-10-14:
-  **562 of 706 `this.json<T>` call sites declare their response as an inline type literal**, 139 by
-  reference, 5 otherwise; 7 exported type-literal aliases and 1 non-exported interface are excluded
-  too.
+  `deadFieldTyped` resolves every read through the TypeScript checker, which is sound, and built its
+  population by walking **exported interface declarations** under `apps/web/src/api/` — `collect`
+  was reached only from `ts.isInterfaceDeclaration(n) && export`. Measured 2026-10-14: **562 of 706
+  `this.json<T>` call sites declare their response as an inline type literal**, 139 by reference, 5
+  otherwise.
 
   | | named interfaces | inline `this.json<{…}>` |
   |---|---|---|
   | declared field keys | 2,604 | **5,999** |
   | no typed reader outside the declaring file | 909 | 2,696 |
-  | sound candidates (also no string-literal reader, not dynamically read) | **269** | **1,203** |
+  | also no string-literal reader | 432 | **1,200** |
 
-  So the number the gate reports is about 30% of the surface, and WAIVER-FLAT's `status` and
-  `waived_conditional` sat in the other 70% — declared, read by nobody, and flattening a three-state
-  verdict on a money screen. *A population derived from one declaration FORM is a population that
+  So the number the gate reported was about 30% of the surface, and WAIVER-FLAT's `status` and
+  `waived_conditional` sat in the other 70% — declared, read by nobody, and flattening a
+  three-state release verdict on a money screen. *A population derived from one declaration FORM
   reports confidently on whatever happens to use that form.*
 
-  **Why it is filed rather than fixed in the same change:** widening adds 1,203 sound candidates
-  against the 269 reported today, and COURT-SPLIT paid to learn that a rule demanding hundreds of
-  edits gets abandoned halfway and leaves the tree half-declared. The shape that would work is to
-  widen `collect` to inline type literals so the population is the whole surface, keep today's
-  SOUND assertion scoped to the named keys, and ratchet the inline population and its sound count
-  separately — the instrument `roadmapLanes`' unowned-file ceiling already uses here, so converting
-  a response type from inline to named visibly shrinks the blind spot and adding to it costs an
-  explicit number change rather than nothing.
+  **What shipped is the widening plus a SEPARATION, and the separation is the load-bearing half.**
+  Folding 5,999 keys into the existing bands leaves every assertion green — `typedUnread` goes
+  909 → 3,605 against a `< 60% of population` band that becomes 42% — *while changing what the
+  partition is a partition OF*, which is the quietest way for a check to stop meaning what it says.
+  So the walk labels where each key came from, the partition assertions are scoped to NAMED keys,
+  and the inline bucket gets its own ceiling. Two exported type-literal `type X = { … }` aliases'
+  worth of keys came in with it (+46 keys, +14 unread): as named and as shared as an interface, and
+  excluded only for being a different node kind.
+
+  **A ceiling, not a pin, and it ratchets one way.** Naming a response type moves its keys into the
+  named bucket and lowers the number; a new inline-declared route raises it and has to say why. The
+  failure message states both options, because the useful action is the first one and a gate that
+  only says "number went up" gets the second.
+
+  **The vacuity guard carries more weight here than usual and that is worth naming.** A ceiling is
+  satisfied by a walk that finds NOTHING, and *a shrinking blind spot is exactly what progress looks
+  like* — so a broken walk would read as the work being done. Floors on the key count, the call-site
+  count and the unread count come before the ceiling, and a bleed check asserts the two buckets stay
+  disjoint. Mutations: deleting the inline branch reds the vacuity guard; forcing `isInline` false
+  reds it too; forcing `isInline` true reds **both** the inline check and the named partition, which
+  is the proof the buckets are genuinely separated; and adding one three-field inline response reds
+  the ceiling at 6,002 against 5,999 with the message naming the file count.
+
+  **Widening the scope did not widen the RULE, deliberately.** The 1,200 inline sound candidates are
+  not seeded as findings — COURT-SPLIT paid to learn that a rule demanding hundreds of edits gets
+  abandoned halfway and leaves the tree half-declared. What is gated is the SIZE of the blind spot,
+  which is the thing nothing in this tree made visible.
 
 - ✅ ⭐ **BASIS-UNREAD — `4/4 assemblies compliant (100.0%)` over four of forty, and with `checked` at
   zero the same card denied the register existed** *(S —
@@ -10253,7 +10271,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | CAPTURE-SESSION *(filed 2026-10-14. The deliverable when unblocked is a two-picker card, which is Lane B's, and the BLOCKER is a register this product does not have: a capture record carrying a date, a GUID set and a source. Filed here rather than with the card, because `progress/capture-diff` already exists in Lane G and its client method already exists in Lane I — the only missing piece is the register definition, and this cell owns those. *A lane goes by where the missing thing is, not by where the screen would go* — the correction Lane E's cell had to make twice, once for SITE-1 and once for UX-3.)* |
-| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* · DEADFIELD-INLINE *(the dead-field gate's population is a third of the client's response surface — 562 of 706 `this.json<T>` call sites declare their response inline, outside a walk that reads exported interface declarations only. Lane I and not B: the work is in `apps/web/src/api/deadFieldTyped.test.ts`, and the panels that benefit are only where the symptoms show — lanes go by the directory the change lands in, the correction WF-SPLIT had to make in the Lane C cell above)* |
+| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* · DEADFIELD-INLINE *(**CLOSED** 2026-10-14 — the dead-field gate's population was a third of the client's response surface: 562 of 706 `this.json<T>` call sites declare their response inline, outside a walk that read exported interface declarations only, so 5,999 of 8,649 declared field keys were invisible to every audit built on those declarations. The walk now takes all three declaration forms, the partition assertions are scoped to NAMED keys so their meaning does not shift, and the inline bucket has its own one-way ceiling. Lane I and not B: the work is in `apps/web/src/api/deadFieldTyped.test.ts`, and the panels that benefit are only where the symptoms show — lanes go by the directory the change lands in, the same correction the Lane C cell above had to make)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* · VERDICT-NAMEREAD *(exposure, no live instance: `test_verdict_coverage.py`'s consumer read is matched by NAME anywhere in the file, so another response's field of the same name satisfies it. Measured at 11 consumer/verdict pairs — 8 holder-scoped, 3 taking the response as a parameter — which is why the holder-scoped rule is not built yet: it would red three correct files. Here rather than Lane C because the subject is the GATE, not the engine it rules on.)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

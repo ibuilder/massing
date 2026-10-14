@@ -56,6 +56,12 @@ const isApiDecl = (f: string) =>
   f.startsWith(API) && !f.endsWith("schema.d.ts") && !f.endsWith(".test.ts");
 const isTest = (f: string) => f.endsWith(".test.ts") || f.endsWith(".test.tsx");
 
+/** Prefix marking a key that came from an inline `this.json<{…}>` type argument rather than a named
+ *  declaration. Deliberately dot-free: the partition below splits keys on "." to get the declaring
+ *  shape and the leaf field name, and a prefix carrying a dot would break both. */
+const INLINE = "INLINE:";
+const isInline = (k: string) => k.startsWith(INLINE);
+
 /** One typed derivation over the whole program. Built once — `createProgram` is the expensive part. */
 function derive() {
   const cfgPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists, "tsconfig.json");
@@ -82,12 +88,48 @@ function derive() {
         collect(t.elementType.members, `${key}[]`, file);
     }
   };
+  // DEADFIELD-INLINE. Until 2026-10-14 this walk took EXPORTED INTERFACE declarations and nothing
+  // else, and the population that came out was reported as the axis's number. Measured: 562 of 706
+  // `this.json<T>` call sites declare their response as an inline type literal rather than by
+  // reference, so **5,999 of the tree's 8,603 declared response-field keys were outside the
+  // population entirely** — 2,696 of them with no typed reader, 1,203 sound candidates against the
+  // 269 this file reported. WAIVER-FLAT's `status` and `waived_conditional` sat in exactly that
+  // gap: declared on the client type, read by nothing, and flattening a three-state release verdict
+  // into one column on a lien screen.
+  //
+  // *A population derived from one declaration FORM reports confidently on whatever happens to use
+  // that form.* The walk now takes three forms and labels where each key came from, because the two
+  // buckets are not interchangeable: a named interface is a shape somebody intends to share, and an
+  // inline type literal is one route's response. The partition assertions below stay scoped to
+  // NAMED keys so their meaning does not shift under them, and the inline bucket gets its own
+  // ratchet — converting a response type from inline to named lowers it, and adding to the blind
+  // spot costs an explicit number change rather than nothing.
   for (const sf of program.getSourceFiles()) {
     if (!isApiDecl(sf.fileName)) continue;
+    const base = sf.fileName.split("/").pop()!.replace(/\.ts$/, "");
     const visit = (n: ts.Node): void => {
-      if (ts.isInterfaceDeclaration(n)
-          && n.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword))
+      const exported = ts.canHaveModifiers(n)
+        && !!ts.getModifiers(n)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (ts.isInterfaceDeclaration(n) && exported)
         collect(n.members, n.name.text, sf.fileName);
+      // An exported `type X = { … }` is as named and as shared as an interface, and was excluded
+      // for being a different node kind. Seven in the tree.
+      else if (ts.isTypeAliasDeclaration(n) && exported && ts.isTypeLiteralNode(n.type))
+        collect(n.type.members, n.name.text, sf.fileName);
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)
+          && String(n.expression.name.escapedText || "") === "json"
+          && n.typeArguments?.length === 1) {
+        // `escapedText`, not `getText()`: a synthesized node from a .d.ts has no source file and
+        // `getText()` throws on it, which killed the first draft of the measurement.
+        const ta = n.typeArguments[0]!;
+        const line = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+        // No dot in the prefix, so `k.split(".")[0]` still yields one token and `leaf()` still
+        // yields the field name — both are relied on by the partition below.
+        const label = `${INLINE}${base}:${line}`;
+        if (ts.isTypeLiteralNode(ta)) collect(ta.members, label, sf.fileName);
+        else if (ts.isArrayTypeNode(ta) && ts.isTypeLiteralNode(ta.elementType))
+          collect(ta.elementType.members, `${label}[]`, sf.fileName);
+      }
       ts.forEachChild(n, visit);
     };
     visit(sf);
@@ -213,7 +255,10 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
   });
 
   it("reports a PARTITION, not a number — the typed pass has its own blind spot", () => {
-    const all = [...keyToFile.keys()];
+    // NAMED keys only. DEADFIELD-INLINE widened the walk to inline response literals, and folding
+    // 5,999 of them into these bands would have left every assertion green while changing what the
+    // partition is a partition OF — the quietest way for a check to stop meaning what it says.
+    const all = [...keyToFile.keys()].filter((k) => !isInline(k));
     const typedUnread = all.filter((k) => readersOutsideDecl(k).length === 0);
     const leaf = (k: string) => k.split(".").pop()!.replace(/\[\]$/, "");
     const alsoNoLiteral = typedUnread.filter((k) => !lits.has(leaf(k)));
@@ -245,6 +290,50 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     expect(atRisk.length,
       "the residual is now most of the candidate set, so the sound set is no longer sound — "
       + "re-derive before quoting it").toBeLessThan(alsoNoLiteral.length);
+  });
+
+  it("the inline blind spot is bounded, and shrinking it is the only free direction", () => {
+    // DEADFIELD-INLINE. A response declared in the `this.json<{…}>` type argument has no named
+    // shape, so until 2026-10-14 none of its fields were in this axis's population at all.
+    // Measured that day: 5,999 keys across 562 call sites, 2,696 with no typed reader, 1,200 of
+    // those with no string-literal reader either — against the 2,650-key named bucket the bands
+    // above are about. WAIVER-FLAT's `status` and `waived_conditional` were two of them.
+    //
+    // A CEILING, not a pin, and it ratchets one way. Naming a response type moves its keys into
+    // the named bucket and lowers this; a new inline-declared route raises it. Either is fine, and
+    // the number has to change deliberately — which is the point, because nothing else in this
+    // tree makes the blind spot's size visible.
+    const keys = [...keyToFile.keys()];
+    const inline = keys.filter(isInline);
+    const named = keys.filter((k) => !isInline(k));
+    const sites = new Set(inline.map((k) => k.split(".")[0]!));
+    const leaf = (k: string) => k.split(".").pop()!.replace(/\[\]$/, "");
+    const unread = inline.filter((k) => readersOutsideDecl(k).length === 0);
+    const sound = unread.filter((k) => !lits.has(leaf(k)));
+
+    // THE VACUITY GUARD COMES FIRST, and here it carries more weight than usual: a ceiling is
+    // satisfied by a walk that finds NOTHING, and a shrinking blind spot is exactly what progress
+    // looks like. So a broken walk would read as the work being done.
+    expect(inline.length, "the inline walk found no keys — a broken walk reports a shrinking blind "
+      + "spot, which is indistinguishable from the work being done").toBeGreaterThan(1_000);
+    expect(sites.size, "the inline walk found almost no call sites").toBeGreaterThan(100);
+    expect(unread.length, "no inline key is unread, which is implausible at this population and "
+      + "means the reader resolution stopped reaching this bucket").toBeGreaterThan(100);
+
+    // The two buckets must not bleed into one another, or the bands above drift without moving.
+    expect(named.some(isInline)).toBe(false);
+    expect(inline.every((k) => k.startsWith(INLINE))).toBe(true);
+    expect(isInline("Appraisal.reconciliation.value"),
+      "a named interface key is being counted as inline").toBe(false);
+
+    expect(inline.length, `inline-declared response fields outside the named population: `
+      + `${inline.length} keys across ${sites.size} call sites, ${unread.length} with no typed `
+      + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
+      + `response type, declare it as a named interface instead — that is what moves its fields `
+      + `into every audit built on these declarations. If you must add one, raise this number and `
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_999);
+    expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
+      .toBeLessThanOrEqual(562);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

@@ -270,7 +270,7 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // **No gate in this tree could have seen it, and that is DEADFIELD-INLINE.**
   // `apps/web/src/api/deadFieldTyped.test.ts` builds its population from exported INTERFACE
   // declarations under `api/`, and this response was declared inline in the `this.json<{…}>` type
-  // argument — 562 of 706 call sites are, covering 5,999 of the 8,603 declared field keys. *Naming
+  // argument — 562 of 706 call sites are, covering 5,999 of the 8,649 declared field keys. *Naming
   // the response type is what makes it auditable*, which is why the fix names it.
   // `services/api/test_payapp.py` had already asserted `conditional_only` on a $100k exposure; its
   // fixture simply never had a `no_waiver` vendor beside it, so the pair that renders identically
