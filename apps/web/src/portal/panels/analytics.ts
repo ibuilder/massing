@@ -1,3 +1,4 @@
+import { downloadPostedPdf, optionsBoardBody, optionsBoardPath } from "../../api/downloadPdf";
 import { esc, money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
@@ -551,6 +552,26 @@ export async function renderRiskCost(ctx: PanelContext) {
       const scoreBtn = el("button", "file-btn") as HTMLButtonElement; scoreBtn.textContent = "⚖ Score options";
       scoreBtn.title = "Generate FAR variants of this envelope and rank them: cost · carbon · yield · compliance";
       const optOut = el("div"); optOut.style.marginTop = "6px";
+      // OPTION-BOARD-DARK: the deck this ranking exists to support. `POST …/design/options/board.pdf`
+      // is called "the client-facing artifact of a GEN-SCORE run" by its own route docstring and had
+      // no caller, so the table below was where the comparison ended — nobody could take it to the
+      // client meeting it was made for.
+      //
+      // DISABLED UNTIL A SCORE HAS RUN, because the route refuses an empty option set with
+      // `option_score.EMPTY_OPTIONS` (a 400), and a button that produces a 400 reads as a broken
+      // feature rather than an unavailable move — the rule `modelReviewPanel.ts` states for its own
+      // action set.
+      const boardBtn = el("button", "file-btn") as HTMLButtonElement;
+      boardBtn.textContent = "📄 Board PDF"; boardBtn.disabled = true;
+      boardBtn.style.marginLeft = "4px";
+      boardBtn.title = "Score the options first — the deck is rendered from the set that was scored";
+      // THE SAME INPUT THE TABLE WAS DRAWN FROM, held rather than recomputed. The route scores the
+      // set it is given, so posting the SCORED output would re-score already-scored dicts, and
+      // posting a freshly generated set would re-generate from inputs the reader may have edited
+      // since. *A deliverable derived from a different input than the screen it is taken from is a
+      // second opinion wearing the first one's name.* `weights` travels with it for the same
+      // reason: this panel passes none, so the board must pass none.
+      let scored: { options: Record<string, unknown>[]; weights?: Record<string, number> } | null = null;
       scoreBtn.onclick = async () => {
         if (!Number(lotW.value) || !Number(lotD.value) || !Number(farIn.value)) { toast("Enter lot W/D + FAR", "error"); return; }
         optOut.textContent = "scoring options…";
@@ -560,6 +581,9 @@ export async function renderRiskCost(ctx: PanelContext) {
             ...(Number(hLim.value) ? { height_limit: Number(hLim.value) } : {}) };
           const g = await api.designOptionsGenerate(pid, base, [type.value]);
           const s = await api.designOptionsScore(pid, g.options);
+          scored = { options: g.options };
+          boardBtn.disabled = false;
+          boardBtn.title = "Download the scored option set as a one-page client deck";
           const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
           t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th><th scope="col">Score</th><th scope="col">$/sf</th>`
             + `<th scope="col">tCO₂e</th><th scope="col">Floors</th><th scope="col">GFA (sf)</th><th scope="col" style="text-align:left">Code</th></tr></thead><tbody>`
@@ -573,9 +597,21 @@ export async function renderRiskCost(ctx: PanelContext) {
             + `</tbody>`;
           optOut.innerHTML = "";
           optOut.append(t);
-        } catch (e) { optOut.textContent = `failed: ${(e as Error).message}`; }
+        } catch (e) {
+          // A FAILED SCORE MUST TAKE THE BUTTON BACK. Leaving it enabled after the second run
+          // fails offers a deck built from the FIRST run's options under the second run's inputs,
+          // which is the one wrong answer that looks like a right one.
+          scored = null; boardBtn.disabled = true;
+          optOut.textContent = `failed: ${(e as Error).message}`;
+        }
       };
-      optRow.append(lotW, lotD, farIn, hLim, scoreBtn, optOut);
+      boardBtn.onclick = () => {
+        if (!scored) return;                      // disabled, but the guard states why rather than relying on it
+        void downloadPostedPdf(api, optionsBoardPath(pid), `${pid}-options-board.pdf`,
+                               optionsBoardBody(scored))
+          .catch((e) => toast(`Board PDF failed: ${(e as Error).message}`, "error"));
+      };
+      optRow.append(lotW, lotD, farIn, hLim, scoreBtn, boardBtn, optOut);
       ceWrap.append(optRow);
     }).catch(() => { ceWrap.innerHTML = `<div class="meta">conceptual estimator unavailable</div>`; });
 

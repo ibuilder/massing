@@ -1926,7 +1926,16 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     # measured and rejected, because 19 real callers pass fragments. So both move out of both sets
     # and are asserted to be in neither, exactly as `/asset-rights/verify` and the jurisdiction
     # pair are. See the block below the `_blind_spot()` derivation.
-    "/projects/{pid}/design/options/board.pdf",
+    # `/projects/{pid}/design/options/board.pdf` left this set 2026-10-13 — OPTION-BOARD-DARK. The
+    # GEN-SCORE card in `apps/web/src/portal/panels/analytics.ts` offers the deck once a score has
+    # run, through `optionsBoardPath` + `downloadPostedPdf`.
+    #
+    # **It was in THIS set rather than `KNOWN_UNCALLED` for the sibling-leaf reason, and the leaf
+    # was a real one**: `board.pdf` is genuinely built by `/projects/{pid}/pull-plan/board.pdf` in
+    # `api/schedule.ts`, so the rule read the leaf as called — by something else. *A leaf is not a
+    # name.* The route's own docstring called it "the client-facing artifact of a GEN-SCORE run"
+    # while nothing could produce it: an architect could rank four massing options on screen and
+    # not take the comparison to the meeting it was made for.
     "/projects/{pid}/design/options/carbon",
     "/projects/{pid}/design/options/compare",
     # `/projects/{pid}/design/standards/check` left this set 2026-10-13 — DESIGN-STD-DARK.

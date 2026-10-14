@@ -1511,6 +1511,68 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **OPTION-BOARD-DARK — the design-option deck could be ranked on screen and never taken to
+  the meeting it was made for** *(XS — `apps/web/src/portal/panels/analytics.ts` +
+  `apps/web/src/api/downloadPdf.ts`; **CLOSED 2026-10-13**; gated by
+  `apps/web/src/api/downloadPdf.test.ts`)*
+
+  The GEN-SCORE card already works end to end: lot width/depth, FAR and a height limit go in, and
+  `/design/options/{generate,score}` come back with four massing variants ranked on $/sf, embodied
+  carbon, yield and FAR/height compliance, the recommendation starred. `POST
+  …/design/options/board.pdf` renders that same set as a one-page deck — title, recommendation,
+  comparison table, composite score bars — and its own route docstring calls it **"the
+  client-facing artifact of a GEN-SCORE run."** Nothing called it. *The comparison ended at the
+  table, and the single document the comparison exists to support could not be produced.*
+
+  ### Why no gate saw it, and why that is the gate being honest
+
+  `services/api/test_route_reachability.py` fires when a route's last static segment appears
+  nowhere in the web source. `board.pdf` appears — `api/schedule.ts` builds
+  `/projects/{pid}/pull-plan/board.pdf`, a different feature that really is called. So the leaf was
+  read as called, by something else: the sibling-leaf collision, found a seventh time, and the
+  reason the route sat in `LEAF_COLLISION_BLIND` rather than `KNOWN_UNCALLED`. *A leaf is not a
+  name.*
+
+  ### The load-bearing decision is WHICH option set gets posted
+
+  The route scores the set it is handed. Three candidates were available at the click, and two of
+  them are wrong:
+
+  | post this | what the client gets |
+  |---|---|
+  | the SCORED output | already-scored dicts re-scored — a second pass over the engine's own answer |
+  | a freshly GENERATED set | re-generated from inputs the reader may have edited since the table was drawn |
+  | **the set that was scored** | the deck and the screen agree by construction |
+
+  So the generated set is held when the score succeeds and posted verbatim, `weights` travelling
+  with it for the same reason — this panel passes none, so the board must pass none. *A deliverable
+  derived from a different input than the screen it is taken from is a second opinion wearing the
+  first one's name.*
+
+  Two states follow from that and are asserted rather than described: the button is **disabled
+  until a score has run**, because the route refuses an empty set with `option_score.EMPTY_OPTIONS`
+  and a button that produces a 400 reads as a broken feature rather than an unavailable move; and a
+  **failed re-score takes the button back**, because leaving it enabled would offer a deck built
+  from the first run's options under the second run's inputs — the one wrong answer that looks like
+  a right one.
+
+  `downloadPostedPdf` gained an optional body, and `undefined` still sends **no body at all**
+  rather than `{}`: the CAM statement takes its input from the URL, and FastAPI's
+  `Body(..., embed=True)` would 422 on a missing key if it started receiving an empty object. That
+  negative is asserted, with the `Authorization` header checked for survival through the spread
+  that adds the content type.
+
+  **The load-bearing decision had no test reach, and closing that is the last part.** The choice of
+  set lives in a panel with no test file, and the wrong alternative sits ONE IDENTIFIER away —
+  `s.options` is the scored output, `g.options` the set that was scored. So the pass-through became
+  `optionsBoardBody`, which is asserted by identity (`toBe`, not `toEqual`: a copy is a
+  re-derivation), and the holder is pinned at SOURCE level beside it, anchor-first so a rename
+  fails loudly rather than passing by matching nothing. *That is the same bargain
+  `services/api/test_route_reachability.py` makes for URL literals — it pins the text, so it cannot
+  see a handler that never runs, and it can see this.* Written down rather than discovered later.
+  Four mutations, one per assertion: `{}` for no body, the auth header dropped from the spread, the
+  holder keeping `s.options`, and a copied array instead of the set itself.
+
 - ✅ ⭐ **CV-BRIDGE-DARK — the site-photo progress bridge, and a batch verdict decided before any
   write was attempted** *(S — `apps/web/src/portal/panels/cvBridge.ts` +
   `services/api/src/aec_api/cv_bridge.py`; **CLOSED 2026-10-13**; gated by
