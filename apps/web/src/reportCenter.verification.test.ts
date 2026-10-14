@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { verificationCoverageCard, feasibilityScope } from "./reportCenter";
+import {
+  baselineCaveat, feasibilityScope, schemeStateMark, verificationCoverageCard, type RankedScheme,
+} from "./reportCenter";
 
 /**
  * RESPONSE-UNDECLARED — `/verification/coverage` returns thirteen keys and `api/model.ts` declared
@@ -125,5 +127,80 @@ describe("the feasibility panel is WIRED to the excluded list", () => {
     const api = readFileSync(resolve(HERE, "api/entitlements.ts"), "utf-8");
     expect(api).toContain("superseded_excluded?:");
     expect(api).toContain("note?: string");
+  });
+});
+
+/**
+ * DRAFT-BASELINE — the deltas are measured against whichever scheme ranks first, and a DRAFT can
+ * rank first. `MEASURED` is a response read back from a live server: two zoning schemes on one
+ * 20,000 SF site, the FAR-8 scheme left in `draft` and the FAR-4 scheme approved.
+ */
+const MEASURED: RankedScheme[] = [
+  { ref: "ZON-002", workflow_state: "draft", unit_yield: 136, allowed_gfa_sf: 144000,
+    delta_units: 0, delta_gfa_sf: 0 },
+  { ref: "ZON-001", workflow_state: "approved", unit_yield: 68, allowed_gfa_sf: 72000,
+    delta_units: -68, delta_gfa_sf: -72000 },
+];
+
+describe("DRAFT-BASELINE · what the table showed before", () => {
+  it("printed the approved scheme as a 68-unit shortfall with no state anywhere", () => {
+    // The shipped columns, in order. No state, and `delta_gfa_sf` was computed and dropped.
+    const shipped = MEASURED.map((s) => [s.ref, s.unit_yield, s.delta_units]);
+    expect(shipped).toEqual([["ZON-002", 136, 0], ["ZON-001", 68, -68]]);
+    expect(MEASURED[0]!.workflow_state).toBe("draft");
+    expect(MEASURED[1]!.delta_gfa_sf).toBe(-72000);
+  });
+});
+
+describe("DRAFT-BASELINE · baselineCaveat", () => {
+  it("names the unapproved baseline and how many approved schemes it is measuring", () => {
+    const c = baselineCaveat(MEASURED)!;
+    expect(c).toContain("The baseline every delta is measured against — ZON-002 — is DRAFT");
+    expect(c).toContain("1 approved scheme(s) below it are shown as a shortfall");
+    // The engine ranks a draft ON PURPOSE. The caveat says so rather than implying a bug.
+    expect(c).toContain("Ranking a draft is deliberate");
+  });
+
+  it("is silent when the top-ranked scheme is approved", () => {
+    const approvedFirst: RankedScheme[] = [
+      { ...MEASURED[1]!, delta_units: 0, delta_gfa_sf: 0 },
+      { ...MEASURED[0]!, delta_units: 68, delta_gfa_sf: 72000 },
+    ];
+    expect(baselineCaveat(approvedFirst)).toBeNull();
+  });
+
+  it("says so plainly when NOTHING in the comparison is approved", () => {
+    const allDraft = MEASURED.map((s) => ({ ...s, workflow_state: "draft" }));
+    const c = baselineCaveat(allDraft)!;
+    expect(c).toContain("No scheme in this comparison is approved.");
+    expect(c).not.toContain("shortfall");
+  });
+
+  it("treats a missing state as unapproved rather than assuming the good case", () => {
+    const c = baselineCaveat([{ ref: "ZON-009", unit_yield: 10 }])!;
+    expect(c).toContain("is NO RECORDED STATE, not approved");
+  });
+
+  it("is silent on an empty comparison — there is no baseline to be about", () => {
+    expect(baselineCaveat([])).toBeNull();
+  });
+
+  it("is case- and whitespace-insensitive about the state the server sends", () => {
+    expect(baselineCaveat([{ ref: "Z", workflow_state: " Approved " }])).toBeNull();
+  });
+});
+
+describe("DRAFT-BASELINE · schemeStateMark", () => {
+  it("marks the pair that actually reaches a consumer", () => {
+    expect(schemeStateMark("approved")).toBe("✅ approved");
+    expect(schemeStateMark("draft")).toBe("✏️ DRAFT");
+  });
+
+  it("renders a dash for no state and passes an unknown one through", () => {
+    // `superseded` never arrives here — `compare` drops those into `superseded_excluded` — but a
+    // state this build has not heard of is shown as itself rather than silently as approved.
+    expect(schemeStateMark(undefined)).toBe("—");
+    expect(schemeStateMark("")).toBe("—");
+    expect(schemeStateMark("withdrawn")).toBe("withdrawn");
   });
 });

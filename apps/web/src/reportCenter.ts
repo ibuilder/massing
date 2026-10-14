@@ -93,6 +93,69 @@ export function feasibilityScope(count: number, supersededCount: number):
   };
 }
 
+/** DRAFT-BASELINE — one ranked zoning scheme, as much of it as the baseline question needs. */
+export interface RankedScheme {
+  ref?: string;
+  workflow_state?: string;
+  unit_yield?: number | null;
+  allowed_gfa_sf?: number | null;
+  delta_units?: number;
+  delta_gfa_sf?: number;
+}
+
+/** The scheme's governance state, marked. `superseded` never reaches a consumer — `compare` drops
+ *  those into `superseded_excluded` — so the pair that matters here is approved versus draft. */
+export function schemeStateMark(state: string | undefined): string {
+  const s = (state ?? "").trim().toLowerCase();
+  if (s === "approved") return "✅ approved";
+  if (s === "draft") return "✏️ DRAFT";
+  if (!s) return "—";
+  return s;
+}
+
+/**
+ * Is the scheme every delta is measured against actually APPROVED? DRAFT-BASELINE.
+ *
+ * `feasibility.compare` ranks by unit yield, then allowed GFA, and measures every other scheme's
+ * `delta_units` / `delta_gfa_sf` against whichever scheme wins. Its own `note` states the rule it
+ * enforces for one state — *"a replaced scheme cannot be the baseline the live ones are measured
+ * against"* — and then states, correctly, that *"Drafts ARE ranked: an unapproved scheme is a real
+ * option to test."* Both are right. What was missing is that the reader is never told WHICH it is.
+ *
+ * Measured against a live server on two schemes on one 20,000 SF site:
+ *
+ * | scheme | state | FAR | allowed GFA | units | Δ units | Δ GFA |
+ * |---|---|---|---|---|---|---|
+ * | ZON-002 | **draft** | 8 | 144,000 | 136 | 0 | 0 |
+ * | ZON-001 | approved | 4 | 72,000 | 68 | **−68** | **−72,000** |
+ *
+ * The headline read `2 scheme(s) ranked by buildable yield · best: ZON-002`, the table rendered no
+ * state column, and `delta_gfa_sf` was computed and never shown — so the APPROVED scheme appeared
+ * as a 68-unit shortfall against an envelope nobody has approved, with the SF half of that
+ * shortfall invisible. *That is the same hazard the engine already guards against for superseded
+ * records, one step milder, and the guard it built does not extend to it — because a draft SHOULD
+ * be rankable. The fix belongs on the screen, not in the ranking.*
+ *
+ * `workflow_state` was sent on every scenario and undeclared. It is nested on `scenarios[]`, so
+ * `apps/web/src/api/responseUndeclared.test.ts` — which compares a route's TOP-LEVEL keys — could
+ * not see it, the same blind spot MC-UNDEFINED and BASIS-UNREAD both record.
+ */
+export function baselineCaveat(scenarios: RankedScheme[]): string | null {
+  const best = scenarios[0];
+  if (!best) return null;
+  if ((best.workflow_state ?? "").trim().toLowerCase() === "approved") return null;
+  const state = (best.workflow_state ?? "").trim() || "no recorded state";
+  const approved = scenarios.filter(
+    (s) => (s.workflow_state ?? "").trim().toLowerCase() === "approved");
+  const against = approved.length
+    ? ` ${approved.length} approved scheme(s) below it are shown as a shortfall against an envelope `
+      + "nobody has approved."
+    : " No scheme in this comparison is approved.";
+  return `⚠ The baseline every delta is measured against — ${best.ref ?? "the top scheme"} — is `
+    + `${state.toUpperCase()}, not approved.${against} Ranking a draft is deliberate; reading its `
+    + "yield as the target is not.";
+}
+
 export async function openReportCenter(api: ApiClient, projectId: string | null, focusId?: string) {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;
@@ -614,13 +677,20 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
       // is advice to create records the user already has whenever every scheme is SUPERSEDED.
       if (scope.empty) { body.innerHTML = `<div class="meta">${escapeHtml(scope.empty)}</div>`; return; }
       const sf = (v: number | null | undefined) => (typeof v === "number" ? `${Math.round(v).toLocaleString()} SF` : "—");
+      // DRAFT-BASELINE: the deltas are measured against whichever scheme ranks first, and a DRAFT
+      // can rank first — deliberately, per the engine's own note. The caveat and the State column
+      // are what stop an approved scheme reading as a shortfall against an unapproved envelope.
+      const baseline = baselineCaveat(c.scenarios);
       body.innerHTML = `<div class="meta"><b>${c.count} scheme(s)</b> ranked by buildable yield · best: ${escapeHtml(c.best_ref ?? "—")}</div>`
+        + (baseline
+          ? `<div class="meta" style="color:var(--status-crit)">${escapeHtml(baseline)}</div>` : "")
         + (scope.caveat
           ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(scope.caveat)}</div>` : "");
-      table(body, ["Scheme", "Site", "FAR", "Floors", "Allowed GFA", "Binds on", "Units", "Parking", "Δ units"],
-        c.scenarios.map((s) => [s.ref ?? "", s.site ?? "", s.far ?? "—", s.max_floors ?? "—", sf(s.allowed_gfa_sf),
+      table(body, ["Scheme", "State", "Site", "FAR", "Floors", "Allowed GFA", "Binds on", "Units", "Parking", "Δ units", "Δ GFA"],
+        c.scenarios.map((s) => [s.ref ?? "", schemeStateMark(s.workflow_state), s.site ?? "", s.far ?? "—", s.max_floors ?? "—", sf(s.allowed_gfa_sf),
           s.binding_constraint ?? "—", s.unit_yield ?? "—", s.parking_required ?? "—",
-          (s.delta_units ?? 0) === 0 ? "—" : String(s.delta_units)])); }
+          (s.delta_units ?? 0) === 0 ? "—" : String(s.delta_units),
+          (s.delta_gfa_sf ?? 0) === 0 ? "—" : sf(s.delta_gfa_sf)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("§ Spec submittal log (from specs)", () => showResult("Spec-driven submittal log", async (body) => {

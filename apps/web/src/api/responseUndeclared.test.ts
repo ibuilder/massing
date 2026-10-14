@@ -226,7 +226,18 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // compliant (100.0%)` over a 40-row register, measured; and with `checked` at 0 the card took an
   // empty-state branch reading **"no envelope assemblies registered"** over forty of them.
   "GET /projects/{}/estimate/resource-based": ["source"],
-  "GET /projects/{}/feasibility/compare": ["error"],
+  // **CLOSED 2026-10-14 under DRAFT-BASELINE, and the top-level key was the smaller half.**
+  // `error` is the module-not-installed refusal, which arrives beside an empty `scenarios` and is
+  // otherwise indistinguishable from a bare register. The live defect was NESTED and therefore
+  // invisible to this gate, which compares a route's top-level keys: `workflow_state` on every
+  // scenario. `compare` ranks by unit yield and measures every delta against whichever scheme
+  // wins, and its own note enforces the rule for one state — *"a replaced scheme cannot be the
+  // baseline the live ones are measured against"* — then says, correctly, *"Drafts ARE ranked: an
+  // unapproved scheme is a real option to test."* Both right; the reader was never told which it
+  // is. Measured on two schemes on one 20,000 SF site: a DRAFT FAR-8 scheme ranked first and the
+  // APPROVED FAR-4 scheme came back at **−68 units / −72,000 SF** against it, with no state column
+  // and `delta_gfa_sf` computed and never rendered. *The fix belongs on the screen, not in the
+  // ranking*, which is why the engine is untouched.
   "GET /projects/{}/info-requirements/cascade": ["children", "nodes"],
   // **SHRUNK 2026-10-14 under PPC-UNASSESSED, and the undeclared keys were the SYMPTOM.**
   // `reasons_not_recorded` and `unassessed` are declared and rendered now; `note` stays because

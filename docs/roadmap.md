@@ -1545,6 +1545,43 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **DRAFT-BASELINE — the APPROVED scheme read as a 68-unit shortfall against an envelope nobody
+  has approved** *(S — `apps/web/src/reportCenter.ts`, `apps/web/src/api/entitlements.ts`;
+  **CLOSED 2026-10-14**; gated by `apps/web/src/reportCenter.verification.test.ts`)*
+
+  `feasibility.compare` ranks zoning schemes by unit yield, then allowed GFA, and measures every
+  scheme's `delta_units` / `delta_gfa_sf` against whichever one wins. Measured against a live server
+  on two schemes on one 20,000 SF site:
+
+  | scheme | state | FAR | allowed GFA | units | Δ units | Δ GFA |
+  |---|---|---|---|---|---|---|
+  | ZON-002 | **draft** | 8 | 144,000 | 136 | 0 | 0 |
+  | ZON-001 | approved | 4 | 72,000 | 68 | **−68** | **−72,000** |
+
+  The headline read `2 scheme(s) ranked by buildable yield · best: ZON-002`, the table rendered no
+  state column, and `delta_gfa_sf` was computed and never shown — so the approved scheme appeared as
+  a 68-unit shortfall against a draft, with the SF half of that shortfall invisible.
+
+  **The engine is right and is untouched, which is the whole shape of this one.** Its own `note`
+  enforces the rule for one state — *"a replaced scheme cannot be the baseline the live ones are
+  measured against"* — and then says, correctly, *"Drafts ARE ranked: an unapproved scheme is a real
+  option to test."* Both are true. What was missing is that the reader is never told WHICH it is.
+  *That is the same hazard the engine already guards against for superseded records, one step
+  milder, and the guard does not extend to it because a draft SHOULD be rankable — so the fix
+  belongs on the screen.* The roadmap already records what the superseded version of this cost:
+  a FAR-12 superseded scheme ranking first made a live FAR-4 scheme read as a 160,000 SF shortfall
+  against an envelope nobody can build.
+
+  **`workflow_state` was sent on every scenario and undeclared**, and it is NESTED on `scenarios[]`
+  — so `apps/web/src/api/responseUndeclared.test.ts`, which compares a route's top-level keys, could
+  not see it. The one key it COULD see, `error`, is the module-not-installed refusal and the least
+  consequential thing wrong with the route. *The third instance today of that same root-only blind
+  spot, after MC-UNDEFINED and BASIS-UNREAD.*
+
+  The reading sits in `reportCenter.ts` beside `feasibilityScope` rather than in a new module, which
+  is where the existing pure reading for this same card already lives — and it means no fifth
+  top-level file for the unowned-file ratchet to surface.
+
 - ✅ ⭐ **REVISE-DARK — an AIA revision could be READ and never ISSUED, and the one number that came
   back counted intentions rather than writes** *(S — `apps/web/src/reviseReadings.ts`,
   `services/api/src/aec_api/drawingset.py`, `apps/web/src/reportCenter.ts`,

@@ -103,11 +103,18 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
    *  TOTAL-EXCLUDED — `count` is the LIVE schemes only: `feasibility.py` drops SUPERSEDED records
    *  from the ranking and names them in `superseded_excluded`, with its own `note` saying so in as
    *  many words. Neither field was declared here, so the screen printed `count` as the size of the
-   *  field. Declared now so the panel can state what the number is over. */
+   *  field. Declared now so the panel can state what the number is over.
+   *
+   *  DRAFT-BASELINE — `workflow_state` was sent on every scenario and undeclared, and it is NESTED
+   *  on `scenarios[]`, so the response-key gate (which compares a route's top-level keys) could not
+   *  see it. Deltas are measured against whichever scheme ranks first, and a DRAFT can rank first:
+   *  the engine's own note says so on purpose. `error` is the module-not-installed refusal, which
+   *  arrives beside an empty `scenarios` and is otherwise indistinguishable from a bare register. */
   feasibilityCompare(pid: string) {
     return this.json<{ count: number; best_ref?: string | null; warnings?: string[];
       superseded_excluded?: { ref?: string | null; zoning_id?: string | null }[]; note?: string;
-      scenarios: { ref?: string; site?: string; use_type?: string; far?: number | null;
+      error?: string;
+      scenarios: { ref?: string; workflow_state?: string; site?: string; use_type?: string; far?: number | null;
         max_floors?: number | null; allowed_gfa_sf?: number | null; binding_constraint?: string | null;
         net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;
         delta_units?: number; delta_gfa_sf?: number }[] }>(
