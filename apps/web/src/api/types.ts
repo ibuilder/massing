@@ -1439,3 +1439,71 @@ export interface DetailRefGraph {
   /** The engine's own sentence for why nothing could be assessed. Render it verbatim. */
   unassessed_reason: string | null;
 }
+
+/** One row of the `design_standard` register: a keyword a firm standardises on, and its status. */
+export interface DesignStandardItem {
+  name: string;
+  category: string;
+  /** `approved` · `preferred` · `prohibited`. A row with any other status is declared and inert —
+   *  the engine buckets only these three, so the audit never sees it. */
+  status: string;
+  discipline: string;
+  /** The keyword matched against an element's type name, material and material-ish psets. **A row
+   *  with no keyword cannot match anything**, which is why the engine filters prohibited rows on it
+   *  and why the counts below can be 0 with rules declared. */
+  match_keyword: string;
+  spec_reference: string;
+}
+
+/** `GET /projects/{pid}/design/standards` — the ruleset as declared, before any model. */
+export interface DesignStandardRuleset {
+  count: number;
+  items: DesignStandardItem[];
+  /** Keyed by the three statuses the engine buckets. */
+  by_status: Record<string, DesignStandardItem[]>;
+  note?: string;
+}
+
+/** One flagged element. `issue` is the engine's own sentence — it names the standard that fired. */
+export interface DesignStandardViolation {
+  guid: string;
+  type: string;
+  issue: string;
+}
+
+/**
+ * What the counts do NOT say. Supplied by the engine rather than reconstructed per screen, because
+ * the engine is the only place that knows both the cap and the total.
+ */
+export interface DesignStandardCoverage {
+  /** `prohibited_hits + unapproved` — the complete total, NOT `violations.length`. The loop stops
+   *  appending unapproved rows at `cap` while still counting them, so the list is short by design. */
+  flagged: number;
+  listed: number;
+  truncated: boolean;
+  cap: number;
+  /** Approved + preferred rows carrying a match keyword. **At 0, `unapproved` counts nothing** —
+   *  which is a different answer from "every element matched something approved". */
+  approved_declared: number;
+  /** Prohibited rows carrying a match keyword. At 0, `prohibited_hits` counts nothing. */
+  prohibited_declared: number;
+  reason: string;
+}
+
+/**
+ * `GET /projects/{pid}/design/standards/check` — the model audited against the ruleset.
+ *
+ * `model_scored: false` is the state a consumer must not render as a pass: the response then carries
+ * `prohibited_hits: 0` and `unapproved: 0` beside the ruleset, two zeros that look exactly like a
+ * clean audit on a project with no model loaded.
+ */
+export interface DesignStandardCheck {
+  model_scored: boolean;
+  elements: number;
+  prohibited_hits: number;
+  unapproved: number;
+  violations: DesignStandardViolation[];
+  ruleset: DesignStandardRuleset;
+  coverage: DesignStandardCoverage;
+  note: string;
+}

@@ -207,6 +207,16 @@ export async function renderStandards(ctx: PanelContext) {
     // gives the reader something to navigate to while this is still in flight. An empty div has no
     // visual footprint, and `isConnected` goes false the moment `root.innerHTML` is cleared, which
     // is the cheapest liveness check there is. Found in review on PR #527.
+    // DESIGN-STD-DARK — the firm's approved / preferred / prohibited standards, and the model
+    // measured against them. The ruleset was ALREADY authorable through the `design_standard`
+    // register and nothing read it; both routes were frozen unreachable. A SLOT, for the reason the
+    // comment below gives for `aiSlot` — this is the same late-write hazard, so it gets the same
+    // shape rather than a second discovery of it.
+    const stdSlot = el("div"); stdSlot.className = "dash-card"; stdSlot.style.marginBottom = "8px";
+    root.appendChild(stdSlot);
+    void (async () => {
+      await (await import("./designStandards")).renderDesignStandards(ctx, stdSlot, pid);
+    })();
     const aiSlot = el("div"); root.appendChild(aiSlot);
     void ctx.host.api.aiReadiness(pid).then((ai) => {
       if (!aiSlot.isConnected) return;    // the reader moved on; this panel is gone

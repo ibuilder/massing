@@ -1,6 +1,10 @@
 /** Design options: generate + score envelope variants, and the stored options as ONE record.
  *
- *  Route-group `/projects/{pid}/design/options/*`, taken out of `client.ts` because the size ratchet
+ *  Route-group `/projects/{pid}/design/*` — widened from `/design/options/*` on 2026-10-13 when
+ *  DESIGN-STD-DARK added `/design/standards` and `/design/standards/check`. They are a sibling group
+ *  under the same prefix and both were dark, so they belong with the design reads rather than in a
+ *  two-method mixin of their own; no gate pins a mixin's prefix (checked — those lines are prose),
+ *  which is why this is a header correction rather than a new file. Taken out of `client.ts` because the size ratchet
  *  in `services/api/test_file_sizes.py` says so in as many words — "a new endpoint added straight to
  *  `client.ts` will fail this, and that friction is the point." Adding `designOptionsRecord` there
  *  put the file 11 lines over its pin, so the group moved instead of the pin moving.
@@ -22,7 +26,7 @@
  *  A mixin, so every call site resolves unchanged.
  */
 import { HttpCore } from "./httpCore";
-import type { OptionRecordSet } from "./types";
+import type { DesignStandardCheck, OptionRecordSet } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -52,6 +56,31 @@ export function withDesignOptions<TBase extends Ctor<HttpCore>>(Base: TBase) {
    * without its returns, one screen at a time. It re-derives nothing — every number comes from the
    * engine that owns it — so it cannot disagree with a screen opened beside it.
    */
+  // --- design standards: the ruleset a firm standardises on, and the model against it -----------
+  /**
+   * DESIGN-STD-DARK — the loaded model audited against the firm's design standards: prohibited
+   * matches, and (only when an approved set is declared) elements matching nothing approved.
+   *
+   * The ruleset is **already authorable**: `design_standards.ruleset` reads the `design_standard`
+   * module register, so a firm records approved / preferred / prohibited assemblies through the
+   * generic register UI today. What was missing was anything that READ them.
+   *
+   * **There is deliberately NO `designStandards()` method for the sibling `/design/standards`**, and
+   * dropping it is this file's own rule working. `check()` returns `"ruleset": rs` — the whole
+   * ruleset, as the standalone route would serve it — so a method for that route would have had no
+   * caller the moment it was written, which is precisely what
+   * `apps/web/src/api/clientCallers.test.ts` exists to catch. *A route whose payload is a strict
+   * subset of another route's is not a second capability.* It stays frozen in
+   * `test_route_reachability.UNREACHABLE_ROUTES` with that reason recorded there.
+   *
+   * Read `coverage` on every answer, not just the counts. `model_scored: false` returns two zeros
+   * that read as a clean audit; `approved_declared: 0` makes `unapproved` count nothing; and the
+   * violation LIST is capped while the counts stay complete, so `coverage.flagged` is the total and
+   * `violations.length` is a page.
+   */
+  designStandardsCheck(pid: string) {
+    return this.json<DesignStandardCheck>(`/projects/${pid}/design/standards/check`);
+  }
   designOptionsRecord(pid: string) {
     return this.json<OptionRecordSet>(`/projects/${pid}/design/options/record`);
   }

@@ -88,6 +88,18 @@ const BASELINE: Record<string, readonly string[]> = {
   "main.ts": [
     "it.label",
   ],
+  // DESIGN-STD-DARK. Both are pre-built HTML from the two functions above the write, and every
+  // value interpolated INSIDE them goes through `esc` — `note.kind` is a union of three literals
+  // (`ok` | `warn` | `bad`) and cannot carry input at all. Declared rather than dodged: the first
+  // attempt imported `resultNote` so the interpolation would vanish, and that hoisted `ui/result`
+  // into the shared app-shell chunk and put the Brotli budget 34 bytes over instead of 14. The
+  // one-level indirection rule below still covers the functions themselves, so a new unescaped
+  // interpolation in either of them reds here.
+  "portal/panels/designStandards.ts": [
+    "inert",
+    "note.html",
+    "note.kind",
+  ],
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
     "mark",

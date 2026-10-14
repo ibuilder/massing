@@ -1511,6 +1511,110 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **DESIGN-STD-DARK — the firm's design standards were authorable and nothing audited a model
+  against them** *(S — `apps/web/src/portal/panels/designStandards.ts` +
+  `services/api/src/aec_api/design_standards.py`; **CLOSED 2026-10-13**; gated by
+  `apps/web/src/portal/panels/designStandards.test.ts`)*
+
+  `design_standards` (B3) is the rules layer the generator and in-viewer authoring are meant to
+  honour: approved, preferred and prohibited assemblies, materials and products, matched by keyword
+  against the openBIM property data a model already carries. Both routes were frozen in
+  `test_route_reachability.UNREACHABLE_ROUTES`.
+
+  **The input was already authorable, and that is the finding.** `ruleset()` reads the
+  `design_standard` module register through `modules.list_records`, and
+  `services/api/modules/design_standard` has shipped for as long as the register has — so a firm
+  could record its standards through the generic register UI and nothing would ever check a model
+  against them. *A capability whose WRITE half is reachable and whose READ half is not fails no gate
+  that asks about one side*: `test_stored_standard_writable`'s lesson with the sides swapped, and
+  the reachability set was the only place that could have seen it. **Verified by reading the engine
+  rather than inferred from the name** — the ESTIMATE-DARK entry above had to be corrected hours
+  earlier for exactly the opposite mistake, where `rule_library` *looked* like the natural source
+  and stores a different shape entirely.
+
+  ### Three coverage facts, and the engine now states all three
+
+  The engine reports COUNTS and no boolean, deliberately, so the card invents none either. What it
+  must never do is let a count read as a result — and each of these was recoverable-with-effort
+  rather than stated, which for a screen that has to decide what to render is the same as absent:
+
+  | fact | the zero it produces | why that zero is not "clean" |
+  |---|---|---|
+  | `model_scored: false` | `prohibited_hits: 0`, `unapproved: 0` | no model is loaded, so nothing was audited |
+  | `approved_declared: 0` | `unapproved: 0` for ever | `unapproved` is counted only `elif approved_kw and …`, so with no approved set declared it counts nothing |
+  | `truncated` | — | the violation LIST is capped while both counts stay complete |
+
+  *A zero meaning "nothing to compare against" and a zero meaning "nothing failed" are different
+  answers to different questions.* So `check()` gains a `coverage` object carrying all three, in the
+  one place that knows both the cap and the total — **the fix belongs at the engine, not in each
+  consumer**, because a screen asked to reconstruct "am I seeing all of them?" from two other numbers
+  will sometimes not bother.
+
+  The truncation detail is worth the line: `coverage.flagged` is `prohibited_hits + unapproved`, NOT
+  `len(violations)`, because the loop stops appending unapproved rows at the cap **while still
+  counting them** — so the list is short of the total by design and the sum is the only honest total.
+
+  **A fourth, quieter gap the card names from the ruleset it already has**: a standard row with no
+  match keyword can never fire, and the engine filters prohibited rows on exactly that. A firm that
+  recorded twenty standards and left the keyword blank gets an audit of nothing, with a register that
+  looks full. Rows whose `status` is outside the three the engine buckets are inert for a second,
+  different reason, and are reported separately.
+
+  **It follows this panel file's own recorded hazard rather than rediscovering it.** The card lands
+  in a SLOT appended up front, with an `isConnected` check before the late write, because `root` is
+  shared by every panel and cleared by whoever renders next — the bug found in review on PR #527,
+  where a late `.then` appended a card into a different screen. Writing into a detached slot is
+  merely a no-op; leaving the guard out would have been rebuilding the hazard on purpose.
+
+  **And wiring it broke the gate that found it.** `/design/standards/check` and `/design/standards`
+  share every static segment but the last, so the reachability probe read the WIRED sibling's URL as
+  a caller for the UNWIRED one and the ratchet demanded a correct freeze entry be deleted. That is
+  PROBE-BOUNDARY below, and it was worth five routes nothing had ever reported.
+
+- ✅ **PROBE-BOUNDARY — the reachability probe was a substring test at both ends, and five routes
+  had been silently vouched for** *(S — `services/api/test_route_reachability.py`;
+  **CLOSED 2026-10-13**)*
+
+  `_wired_probe` exists because the leaf alone is not enough: its own docstring says `provenance`
+  is carried by `/proforma/scenarios/{sid}/provenance`, *"a DIFFERENT route that IS wired, and
+  conflating the two is the very collision this section is about."* It returns the route's run of
+  static segments — and that string was then matched with `in`. **A substring test carries a path
+  exactly the way a substring test carries a leaf**, so the fix moved the question one segment up
+  and inherited every boundary bug of the question it replaced.
+
+  Both ends were open, for different reasons, and each is its own assertion:
+
+  | end | the vouching literal | what it really builds |
+  |---|---|---|
+  | trailing | `/projects/${pid}/design/standards/check` | the SIBLING route — so **wiring one route vouches for every shorter route on its path** |
+  | leading | `/projects/${pid}/view-templates/${tid}/graphics` | a different feature, whose path merely ENDS in the probe `templates/` |
+
+  The leading half is `available_public` vouching for the leaf `public` — the collision
+  `leaf_is_called` spent 2026-09-11 removing — reappearing inside the function written to replace
+  the leaf test. The trailing half is the LEDGER-BROWSE finding (*"wiring one route can blind this
+  gate to a different one"*) one layer down, in the probe added to be immune to it.
+
+  **It was found by a FALSE ALARM, and the shape of that alarm is the point.** DESIGN-STD-DARK wired
+  `/design/standards/check`; the frozen-list ratchet immediately reported its sibling
+  `/design/standards` as *"quietly become called"* and printed the instruction *"DELETE the
+  entry"* — a correct entry, for a route with no caller. *A fail-open rule guarded by a ratchet
+  names the wrong route and asks for the tree to be made worse.*
+
+  **The other four had never been reported by anything.** Measured across the tree: 6 routes read as
+  wired with no caller, **0** routes lose one, both of `_blind_spot`'s controls unmoved. Five were
+  never frozen and never flagged — `/benchmarks`, `/plugins` (vouched for by
+  `../vendor/massingpdf/plugins/search`, an **import path**, since the corpus is string literals and
+  a module specifier is one), `/projects/{pid}/doctext`, `/projects/{pid}/verification`,
+  `/templates/{tid}`. *The ratchet can only fail on entries somebody already wrote down, and a
+  silent vouch on a route nobody listed is invisible to it* — `test_gap_records.py`'s registry
+  lesson arriving as a boundary bug. They are frozen with triage notes, not repaired: that set is
+  for routes this rule cannot judge.
+
+  Four mutations are folded in and each reds on its own: dropping either boundary (neither alone is
+  the rule), reinstating the substring test, and breaking one frozen fixture. The six vouching
+  literals are **frozen rather than re-read from the tree**, because a replay fed a moving input is
+  a claim about nothing.
+
 - ✅ ⭐ **VERDICT-UNOWNED — one floor over three causes, and two of the six were capabilities
   nobody had built** *(S — `services/api/test_verdict_coverage.py` +
   `apps/web/src/viewer/tools/detailRefsCard.ts`; **CLOSED 2026-10-13**)*

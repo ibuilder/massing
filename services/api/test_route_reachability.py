@@ -1514,6 +1514,113 @@ def _wired_probe(route: str) -> str:
         run.insert(0, segs[i])
     probe = "/".join(run)
     return probe + "/" if last_static < len(segs) - 1 else probe
+
+
+#: WHAT MAY PRECEDE THE PROBE, and what may follow it. Added 2026-10-13, and the reason is that
+#: `_wired_probe` above fixed the *leaf-is-a-suffix* half of its own collision and left BOTH ENDS
+#: of the probe open to a plain substring test. The docstring says the leaf alone will not do
+#: because `provenance` is carried by a longer route; the probe it returns was then matched with
+#: `in`, which carries exactly the same way.
+_PROBE_LEAD = r"(?:(?<=/)|(?<=\x00))"
+#: `/` is NOT here, and that is the whole point: a route ending at a static segment is built by a
+#: caller who writes nothing more of the path. A `/` after the probe means the literal is a
+#: DIFFERENT, LONGER route. `${` is admitted because the query string is interpolated
+#: (``/projects/${pid}/k1-pack${q}``) — the same asymmetry `_SEGMENT` records, for the same reason.
+_PROBE_TAIL = r"(?=\x00|[?#]|\$\{)"
+
+
+@functools.lru_cache(maxsize=2048)
+def _PROBE_RX(probe: str) -> "re.Pattern[str]":
+    """The probe occupying a whole path position: it opens a literal or follows a `/`, and — when
+    the route ends at a static segment — nothing continues the path after it."""
+    tail = "" if probe.endswith("/") else _PROBE_TAIL
+    return re.compile(_PROBE_LEAD + re.escape(probe) + tail)
+
+
+def probe_is_built(probe: str, literals: str) -> bool:
+    """Does any string literal in the client actually build this path?
+
+    **This was `probe in literals` until 2026-10-13, and it was wrong at BOTH ENDS.** Measured over
+    the whole tree the day it changed: **6 routes** that this rule reported as wired have no caller
+    at all, and **0** routes lose one. Both of `_blind_spot`'s controls are unmoved.
+
+    The two ends fail for different reasons, which is why both are asserted below rather than one
+    standing for the pair:
+
+    * **No leading boundary.** `/templates/{tid}` probes for `templates/`, and
+      `/projects/${pid}/view-templates/${tid}/resolve` contains it. That is `available_public`
+      vouching for the leaf `public` — the collision `leaf_is_called` spent 2026-09-11 removing —
+      re-appearing inside the function written to replace the leaf test. *A fix that moves the
+      question one segment up inherits every boundary bug of the question it replaced.*
+    * **No trailing boundary.** `/projects/{pid}/design/standards` probes for `design/standards`,
+      and its own sibling `/projects/${pid}/design/standards/check` contains it. So **wiring a
+      route vouches for every shorter route on its path**, and the shorter one leaves the blind
+      spot in the same commit — the LEDGER-BROWSE finding above, one layer down, in the probe
+      added to be immune to it.
+
+    The trailing half is the one that cost a false alarm to find: DESIGN-STD-DARK wired
+    `/design/standards/check` and the ratchet immediately reported its *sibling* as "quietly become
+    called", asking for a correct entry to be deleted. **A fail-open rule guarded by a ratchet
+    reports the wrong route, and the instruction it prints is to make the tree worse.**
+
+    The other four were never frozen and never flagged, so nothing had ever reported them: an
+    import path in the vendored tree (`../vendor/massingpdf/plugins/search`) vouched for `/plugins`,
+    and three routes were vouched for by their own longer siblings. *The ratchet can only fail on
+    the entries somebody already wrote down; a silent vouch on a route nobody listed is invisible
+    to it* — the registry lesson `test_gap_records.py` records, arriving here as a boundary bug.
+    """
+    return _PROBE_RX(probe).search(literals) is not None
+
+
+#: The six shipped vouching literals, FROZEN rather than re-read from the tree, so the proof that
+#: the rule rejects them is a claim about a measurement rather than about today's source. Each is
+#: the real literal that was vouching on 2026-10-13, with the route it falsely vouched for.
+_PROBE_FALSE_VOUCHES: tuple[tuple[str, str], ...] = (
+    ("benchmarks", "/benchmarks/vendors"),
+    ("plugins", "../vendor/massingpdf/plugins/search"),
+    ("design/standards", "/projects/${pid}/design/standards/check"),
+    ("doctext", "/projects/${pid}/doctext/${encodeURIComponent(docId)}/source"),
+    ("verification", "/projects/${pid}/verification/coverage"),
+    ("templates/", "/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics"),
+)
+#: Call shapes a REAL caller writes. A boundary that only rejects is a boundary that has stopped
+#: finding callers — the contract `leaf_is_called`'s four cases state, restated for the probe.
+_PROBE_REAL_CALLS: tuple[tuple[str, str], ...] = (
+    ("bsdd/search", "/bsdd/search"),
+    ("benchmarks", "/benchmarks"),
+    ("design/standards", "/projects/${pid}/design/standards"),
+    ("k1-pack", "/projects/${pid}/k1-pack${q}"),
+    ("verification", "/projects/${pid}/verification?status=open"),
+    ("templates/", "/templates/${encodeURIComponent(tid)}"),
+    ("workflow/", "/projects/${pid}/workflow/${key}"),
+)
+
+def _blob_of(*bodies: str) -> str:
+    """One `string_blob`-shaped corpus from literal bodies, so the fixtures below are matched
+    exactly the way the tree is — NUL-separated AND NUL-terminated."""
+    return _NUL + _NUL.join(bodies) + _NUL
+
+_vouched = [(p, lit) for p, lit in _PROBE_FALSE_VOUCHES if probe_is_built(p, _blob_of(lit))]
+check("the wired-probe rejects a longer route's URL that merely CONTAINS this route's path",
+      not _vouched,
+      f"vouching again: {_vouched} — the probe is back to a substring test at one end or the "
+      "other, and every route whose path is a prefix of a wired sibling's is being reported "
+      "reachable with no caller")
+
+_missed = [(p, lit) for p, lit in _PROBE_REAL_CALLS if not probe_is_built(p, _blob_of(lit))]
+check("  ...and still finds the shapes a real caller writes",
+      not _missed,
+      f"no longer found: {_missed} — the boundary has tightened past the client's own call sites, "
+      "so 'no client builds it' has become a sentence that cannot come out false")
+
+#: PROOF OF REACH. Both arms above pass under rules that are wrong in one direction only, so the
+#: pre-fix rule is reinstated here and must re-find EVERY one of the six. Asserting that the fixed
+#: rule is quiet is not asserting that the broken one was loud.
+_replay = [p for p, lit in _PROBE_FALSE_VOUCHES if p in _blob_of(lit)]
+check("  ...and the pre-fix substring rule re-finds all six shipped false vouches",
+      len(_replay) == len(_PROBE_FALSE_VOUCHES) == 6,
+      f"the replay found {len(_replay)} of {len(_PROBE_FALSE_VOUCHES)} — the frozen literals no "
+      "longer reproduce what shipped, so the two arms above are proving nothing")
 for _r in LEAF_COLLISION_DARK:
     check(f"the LEAF-COLLISION blind spot is still a blind spot: {_r}",
           _r not in FOUND and _r not in KNOWN_UNCALLED,
@@ -1671,7 +1778,7 @@ _STRIPPED = _CODE
 for _r in LEAF_COLLISION_DARK:
     _p = _wired_probe(_r)
     check(f"  ...and it is still UNWIRED -- no client builds {_p!r}",
-          _p not in _STRIPPED,
+          not probe_is_built(_p, string_blob(_STRIPPED)),
           f"{_r} now has a client caller, so it is no longer dark: DELETE it from "
           "LEAF_COLLISION_DARK and record what wired it, the way /bsdd/class and "
           "/projects/{pid}/cost/calibration were recorded when they left this set")
@@ -1717,6 +1824,31 @@ for _r in LEAF_COLLISION_DARK:
 # vouched, which is the whole problem, and a leaf-based helper search returns 685 hits for
 # `projects` and 44 for `status`). Each one needs a read.
 LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
+    # FIVE ENTRIES JOINED THIS SET ON 2026-10-13 WITHOUT ANYTHING CHANGING IN THE APP, because
+    # `probe_is_built` replaced the probe's substring test (see its docstring). Each was being
+    # reported as WIRED by a literal that builds a DIFFERENT path, so none of them had ever been
+    # flagged, frozen or printed: *the ratchet below only fails on entries somebody already wrote
+    # down, and a silent vouch on a route nobody listed is invisible to it.* They are recorded, not
+    # repaired — this set exists for routes this rule cannot judge, and each still needs triage:
+    #
+    #   * `/benchmarks` (`routers/research.py:201`) — the research benchmark index. Its five
+    #     `/benchmarks/*` siblings all have client methods, which is what was vouching for it.
+    #   * `/plugins` (`routers/plugins.py:12`) — vouched for by `../vendor/massingpdf/plugins/search`,
+    #     an IMPORT PATH in the vendored tree. Not a URL at all, and the clearest of the five: the
+    #     corpus is string literals, and a module specifier is a string literal.
+    #   * `/projects/{pid}/doctext` GET (`routers/codecheck.py:323`) — the stored-document list. The
+    #     per-document `.../doctext/{id}/source` IS called, and vouched for the list.
+    #   * `/projects/{pid}/verification` GET (`routers/verification.py:34`) — the as-built
+    #     verification list. `/verification/{guid}`, `/verification/coverage` and
+    #     `/verification/deviations` are all called; the list route is not.
+    #   * `/templates/{tid}` DELETE (`routers/templates.py:52`) — vouched for by
+    #     `/projects/${pid}/view-templates/${tid}/graphics`, a different feature whose path merely
+    #     ENDS in the probe `templates/`. That is the leading-boundary half of the defect.
+    "/benchmarks",
+    "/plugins",
+    "/projects/{pid}/doctext",
+    "/projects/{pid}/verification",
+    "/templates/{tid}",
     "/admin/baseline",
     # PROVENANCE-DARK (2026-10-13). It joined this set the moment its SIBLING was wired: the two
     # routes share the leaf `admissibility`, so `projectAdmissibility` building
@@ -1769,8 +1901,23 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/design/options/board.pdf",
     "/projects/{pid}/design/options/carbon",
     "/projects/{pid}/design/options/compare",
+    # `/projects/{pid}/design/standards/check` left this set 2026-10-13 — DESIGN-STD-DARK.
+    # `apps/web/src/portal/panels/designStandards.ts`, a card in the CDE / Standards panel, reads
+    # the audit. **The input was already authorable and that is the finding**:
+    # `design_standards.ruleset` reads the `design_standard` module register, so a firm could record
+    # approved / preferred / prohibited assemblies through the generic register UI and nothing would
+    # ever check a model against them. *A capability whose WRITE half is reachable and whose READ
+    # half is not fails no gate that asks about one side* — `test_stored_standard_writable`'s lesson
+    # with the sides swapped, and this set is the only place that could have seen it.
+    #
+    # **Its sibling `/design/standards` STAYS, and deliberately.** `check()` returns `"ruleset": rs`
+    # — the whole ruleset, exactly as the standalone route serves it — so a client method for that
+    # route would have had no caller the moment it was written. *A route whose payload is a strict
+    # subset of another route's is not a second capability*, and wiring one to satisfy a freeze list
+    # is how a callerless method gets added on purpose. Drafted, measured over the app-shell budget,
+    # and deleted: `apps/web/src/api/clientCallers.test.ts` would have reported it, and the budget
+    # reported it first.
     "/projects/{pid}/design/standards",
-    "/projects/{pid}/design/standards/check",
     "/projects/{pid}/doctext/search",
     "/projects/{pid}/draft/scope",
     "/projects/{pid}/draft/submittal-summary",
@@ -1844,7 +1991,7 @@ def _blind_spot() -> set[str]:
         if len(leaf) < MIN_SEGMENT or not leaf_is_called(leaf, stripped):
             continue
         probe = _wired_probe(r)
-        if probe and probe in literals:
+        if probe and probe_is_built(probe, literals):
             continue
         out.add(r)
     return out
@@ -1883,7 +2030,7 @@ check("no frozen blind-spot route has quietly become called or vanished",
 # come out true -- the can't-fail shape this file exists to prevent. `/bsdd/search`, wired by
 # BSDD-LOOKUP in the same change that removed `/bsdd/class` above, is the positive control.
 check("  the wired-probe can actually detect a caller (positive control: /bsdd/search)",
-      _wired_probe("/bsdd/search") in _STRIPPED,
+      probe_is_built(_wired_probe("/bsdd/search"), string_blob(_STRIPPED)),
       "the probe found no caller for a route this repo demonstrably wired -- it is measuring "
       "nothing, and every 'still unwired' verdict above is vacuous")
 
