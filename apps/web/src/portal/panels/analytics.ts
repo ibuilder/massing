@@ -4,6 +4,8 @@ import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import { renderPlanningBrief } from "./planningBrief";
+import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT_CSS }
+  from "./permitReading";
 import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
@@ -457,23 +459,72 @@ export async function renderRiskCost(ctx: PanelContext) {
       }
     }).catch(() => { carbonCompSlot.innerHTML = `<div class="meta">Load a model in the Model workspace to compute per-element carbon.</div>`; });
 
-    api.permitReadiness(pid).then((r) => {
-      const good = r.verdict === "READY";
-      permitSlot.innerHTML = `<div><b style="color:${good ? "var(--status-good)" : "var(--status-warn)"}">${r.verdict}</b>`
-        + ` · readiness ${r.readiness_pct}% · approvability ${Math.round(r.approvability_score)}%</div>`;
-      if (r.deficiencies.length) {
-        const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
-        for (const d of r.deficiencies.slice(0, 6)) {
-          const li = el("li");
-          const col = d.severity === "critical" ? "var(--status-crit)" : d.severity === "major" ? "var(--status-warn)" : "var(--muted)";
-          li.innerHTML = `<span style="color:${col}">${d.severity}</span> ${d.item} — <span class="meta">${d.action}</span>`;
-          ul.append(li);
-        }
-        permitSlot.append(ul);
-      } else {
-        permitSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`);
-      }
-    }).catch(() => { permitSlot.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
+    // PERMIT-BLIND. Three things were wrong with this card and the route behind it, and the worst
+    // one was silent: `code_edition` came back null on every call ever served (the server read two
+    // key names `code_analysis` does not have), the route's FOUR declarations were never passed by
+    // anything, and the disclaimer — "NOT a certified plan review. The authority having jurisdiction
+    // rules" — was neither declared on the client type nor rendered on a screen that prints READY
+    // over a building.
+    //
+    // The declaration row is the half that changes what a user can DO: the checklist item "occupancy
+    // group + construction type declared" tests the INPUTS on purpose, because an occupancy group
+    // inferred from the model is not a declaration for permit purposes — so until there was a way to
+    // pass them, that row could never be satisfied and its deficiency never cleared.
+    const permitAsked: { occupancy_group?: string; construction_type?: string;
+                         sprinklered?: boolean; jurisdiction?: string } = {};
+    const permitRow = el("div"); permitRow.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:4px";
+    const occIn = el("input", "portal-filter") as HTMLInputElement;
+    occIn.placeholder = "occupancy (B)"; occIn.size = 12; occIn.setAttribute("aria-label", "IBC occupancy group");
+    const ctIn = el("input", "portal-filter") as HTMLInputElement;
+    ctIn.placeholder = "type (II-B)"; ctIn.size = 12; ctIn.setAttribute("aria-label", "IBC construction type");
+    const jurIn = el("input", "portal-filter") as HTMLInputElement;
+    jurIn.placeholder = "state (CA)"; jurIn.size = 8; jurIn.setAttribute("aria-label", "Jurisdiction (US state code)");
+    const sprWrap = el("label", "meta"); sprWrap.style.cssText = "display:inline-flex;gap:3px;align-items:center";
+    const sprIn = el("input") as HTMLInputElement; sprIn.type = "checkbox";
+    sprWrap.append(sprIn, document.createTextNode("sprinklered"));
+    const recheck = el("button", "portal-btn") as HTMLButtonElement; recheck.textContent = "↻ Re-check";
+    recheck.title = "Re-run the permit pre-check with these declarations — an inferred occupancy group is not a declaration";
+    permitRow.append(occIn, ctIn, jurIn, sprWrap, recheck);
+    const permitOut = el("div");
+    permitSlot.innerHTML = ""; permitSlot.append(permitRow, permitOut);
+    const runPermit = () => {
+      permitOut.innerHTML = `<div class="meta">running the intake pre-check…</div>`;
+      api.permitReadiness(pid, permitAsked).then((r) => {
+        const good = r.verdict === "READY";
+        const ed = editionNote(r);
+        const gap = declarationGap(r);
+        const rows = deficiencyRows(r);
+        const page = deficiencyPageNote(rows.length, r.deficiencies.length);
+        permitOut.innerHTML = `<div><b style="color:${good ? "var(--status-good)" : "var(--status-warn)"}">${esc(r.verdict)}</b>`
+          + ` · readiness ${r.readiness_pct}% · approvability ${Math.round(r.approvability_score)}%</div>`
+          + `<div class="meta" style="margin-top:2px;color:${esc(PERMIT_CSS[ed.tone])}">${esc(ed.text)}</div>`
+          + (gap ? `<div class="meta" style="margin-top:2px;color:${esc(PERMIT_CSS.warn)}">${esc(gap.text)}</div>` : "")
+          + (rows.length
+            ? `<ul style="margin:4px 0 0 16px;font-size:12px">`
+              + rows.map((d) => `<li><span style="color:${d.severity === "critical" ? "var(--status-crit)"
+                  : d.severity === "major" ? "var(--status-warn)" : "var(--muted)"}">${esc(d.severity)}</span> `
+                + `${esc(d.item)} — <span class="meta">${esc(d.action)}</span>`
+                // THE SOURCE, which the old line dropped: "resolve before submission: X" tells a
+                // reader what to do and never what the finding was computed FROM.
+                + (d.source ? ` <span class="meta">(${esc(d.source)})</span>` : "") + `</li>`).join("")
+              + `</ul>`
+              + (page ? `<div class="meta" style="margin-top:2px">${esc(page)}</div>` : "")
+            : `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`)
+          // THE DISCLAIMER, last and always. A screen that prints READY over a building must carry
+          // the sentence saying it is not a plan review, and this one never did.
+          + (r.disclaimer ? `<div class="meta" style="margin-top:4px;font-size:11px">${esc(r.disclaimer)}</div>` : "");
+      }).catch(() => { permitOut.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
+    };
+    recheck.onclick = () => {
+      // Only non-empty declarations are sent: the route treats "" as "not declared", and sending it
+      // explicitly would be the same thing said twice.
+      permitAsked.occupancy_group = occIn.value.trim() || undefined;
+      permitAsked.construction_type = ctIn.value.trim() || undefined;
+      permitAsked.jurisdiction = jurIn.value.trim() || undefined;
+      permitAsked.sprinklered = sprIn.checked || undefined;
+      runPermit();
+    };
+    runPermit();
 
     // PERMIT-BASIS-DARK: days-to-issue over the project's own cached permits. The estimate BROADENS
     // its cohort until the sample is stable and names the one it settled on in `basis` — and the

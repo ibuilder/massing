@@ -168,8 +168,15 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/modules/{}/board": ["counts"],
   "GET /projects/{}/naming/audit": ["conventions"],
   "GET /projects/{}/payapp/lien-exposure": ["vendor_count"],
-  // `disclaimer`, and `code_edition`, which decides what the check MEANT.
-  "GET /projects/{}/permit/readiness": ["code_edition", "disclaimer", "egress", "sheet_series"],
+  // **CLOSED 2026-10-14 under PERMIT-BLIND, and the entry pointed at the right route for the wrong
+  // reason.** `code_edition` was undeclared on the client AND **null in every response this route
+  // has ever served** — the server read `analysis.get("edition") or analysis.get("code_edition")`
+  // and `code_analysis` has neither key. *A gap in this list means "the client does not name what
+  // the server sends"; it cannot mean "and the server sends something true."* Two more findings sat
+  // behind it that no key comparison could reach: the route takes FOUR declarations and nothing
+  // passed any of them, so one checklist row was permanently unsatisfiable; and `disclaimer` — "NOT
+  // a certified plan review. The authority having jurisdiction rules" — went unrendered on a screen
+  // that prints READY over a building.
   "GET /projects/{}/precon/decisions": ["by_category", "by_status", "decided_count"],
   "GET /projects/{}/prequal/coi-expiry": ["soon_days"],
   "GET /projects/{}/procurement/gate": ["note"],

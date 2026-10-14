@@ -1511,6 +1511,57 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **PERMIT-BLIND — the permit pre-check's code edition was null on every call it has ever
+  served, and its four declarations were never passed by anything** *(M —
+  `services/api/src/aec_api/permit_check.py`, `apps/web/src/portal/panels/permitReading.ts`;
+  **CLOSED 2026-10-14**; gated by `apps/web/src/portal/panels/permitReading.test.ts` and a new phase
+  in `services/api/test_permit_check.py`)*
+
+  Three findings, and the one the gate pointed at was the smallest.
+
+  **① `code_edition` was permanently `null`.** `permit_check.readiness` read
+  `analysis.get("edition") or analysis.get("code_edition")`, and `code_analysis` returns **neither**
+  key — its top level is `{code_context, occupancy, construction_type, sprinklered, building,
+  occupant_load_by_occupancy, egress, doors, allowable, citations, disclaimer}`, with the edition at
+  `code_context.ibc_edition`. So the field was `None` on every call, and the checklist evidence read
+  `edition=IBC (default)` even where a jurisdiction had resolved IBC 2021. **The `or` is what made
+  it look safe**: two spellings chained that way read as *"try the obvious name, fall back to the
+  other"* — a shape that implies at least one of them is right. Neither was, and a `.get()` that
+  answers `None` is indistinguishable from a value genuinely absent. *A second spelling of a value
+  is a second chance to pick the wrong one.* **`test_permit_check.py` already made the call that
+  proves it** — it passes `jurisdiction=CA` and asserts the checklist row flips — and asserted
+  everything around the edition.
+
+  **② the route takes four declarations and nothing ever passed one.** `permitReadiness(pid)` took
+  `pid` alone, so `occupancy_group` and `construction_type` were always empty. The checklist item
+  *"Code-analysis summary complete (occupancy group + construction type declared)"* tests the INPUTS
+  on purpose, because `code_analysis` falls back to an occupancy group read off the model and a
+  construction type of `"II-B (verify with AHJ)"`, and **an inferred classification is not a
+  declaration for permit purposes**. So that row was permanently unsatisfied and its deficiency,
+  *"declare occupancy group + construction type"*, permanently unclearable from any screen in the
+  app. *The engine asked a correct question and its only caller gave it no way to answer.* The card
+  now carries the four declarations and a re-check, and `declared` is echoed in the response so a
+  reader can tell what the check was TOLD from what it inferred.
+
+  **③ the disclaimer was undeclared and unrendered.** *"Pre-check assist with cited sections — NOT a
+  certified plan review. The authority having jurisdiction rules."* On a screen that prints **READY**
+  over a building, that is the most important field in the payload.
+
+  **What this says about the ratchet RESPKEY-DELEGATED seeded.** Its entry for this route listed
+  `code_edition` as undeclared, which was true — and the value behind it was null, which no key
+  comparison can see. *A gap in that list means "the client does not name what the server sends"; it
+  cannot mean "and the server sends something true."* Third limit of the instrument in a day, after
+  the union intersection and the root-only comparison — and all three were found by going and
+  reading the route rather than by reading the list.
+
+  The reading keeps `resolved` beside the edition, because **IBC 2021 because this state adopted it
+  is a different claim from IBC 2021 as the national baseline**, and a permit screen showing the
+  number without the basis invites a reader to cite it. An absent `code_context` answers "not
+  knowable from this response" rather than "unresolved" — the two call for different actions. The
+  deficiency rows carry the `source` the old line dropped ("resolve before submission: X" says what
+  to do and never what the finding was computed FROM), the list states both numbers where it stops,
+  and the series table keeps the ZEROS, since a series with no sheets is the deficiency.
+
 - ✅ ⭐ **MODELSYNC-DARK — the one route that ties the underwriting to the IFC takeoff had no
   caller, and the test covering it described a branch it never reached** *(M —
   `apps/web/src/proforma/modelSyncCard.ts`,

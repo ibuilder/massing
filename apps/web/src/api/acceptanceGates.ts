@@ -72,13 +72,47 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withAcceptanceGates<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class AcceptanceGates extends Base {
-    /** PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a model). */
-    permitReadiness(pid: string) {
+    /**
+     * PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a
+     * model).
+     *
+     * **PERMIT-BLIND, 2026-10-14: this took `pid` alone, and the route takes four declarations.**
+     * `occupancy_group`, `construction_type`, `sprinklered` and `jurisdiction` were never passed by
+     * anything, so every permit pre-check in the product's history ran with both declarations empty
+     * — and the checklist item *"Code-analysis summary complete (occupancy group + construction type
+     * declared)"* tests the INPUTS rather than the resolved values, deliberately, because
+     * `code_analysis` falls back to an occupancy group read off the model and a construction type of
+     * `"II-B (verify with AHJ)"` and neither of those is a declaration for permit purposes. So the
+     * item was permanently unsatisfied and its deficiency, *"declare occupancy group + construction
+     * type"*, was permanently unclearable from any screen in the app. *The engine asked a correct
+     * question and the only caller gave it no way to answer.*
+     *
+     * `code_edition`, `code_context`, `declared`, `disclaimer`, `egress` and `sheet_series` were all
+     * undeclared, and `source` was missing from a deficiency row. The disclaimer is the one a permit
+     * screen must carry — *"NOT a certified plan review. The authority having jurisdiction rules"* —
+     * and nothing rendered it.
+     */
+    permitReadiness(pid: string, opts: { occupancy_group?: string; construction_type?: string;
+                                         sprinklered?: boolean; jurisdiction?: string } = {}) {
+      const q = new URLSearchParams();
+      if (opts.occupancy_group) q.set("occupancy_group", opts.occupancy_group);
+      if (opts.construction_type) q.set("construction_type", opts.construction_type);
+      if (opts.sprinklered) q.set("sprinklered", "true");
+      if (opts.jurisdiction) q.set("jurisdiction", opts.jurisdiction);
+      const qs = q.toString();
       return this.json<{
         verdict: string; readiness_pct: number; approvability_score: number;
         checklist: { requirement: string; satisfied: boolean; evidence: string }[];
-        deficiencies: { item: string; severity: string; action: string }[];
-      }>(`/projects/${pid}/permit/readiness`);
+        deficiencies: { item: string; severity: string; action: string; source?: string }[];
+        code_edition: number | null;
+        code_context: { jurisdiction: string | null; ibc_edition: number | null; resolved: boolean;
+                        as_of: number | null; verify: string | null };
+        declared: { occupancy_group: string | null; construction_type: string | null;
+                    sprinklered: boolean; jurisdiction: string | null };
+        sheet_series: Record<string, number>;
+        egress: { summary: Record<string, unknown> };
+        disclaimer: string;
+      }>(`/projects/${pid}/permit/readiness${qs ? `?${qs}` : ""}`);
     }
 
     /** Investor/acquirer gate: `go` plus the diligence items and entitlements holding it back. */
