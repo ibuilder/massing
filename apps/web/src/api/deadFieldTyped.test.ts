@@ -304,8 +304,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // the number has to change deliberately — which is the point, because nothing else in this
     // tree makes the blind spot's size visible.
     //
-    // **5,999/562 → 5,983/560 → 5,976/559 on the day it was added, and that is the ratchet working
-    // rather than bookkeeping.** LOD-TARGET-INERT added four keys to `lodAssessment`'s INLINE
+    // **5,999/562 → 5,983/560 → 5,976/559 → 5,931/558 on the day it was added, and that is the
+    // ratchet working rather than bookkeeping.** It redirected four changes that day, each time
+    // from *raise the number* to *declare it properly*. LOD-TARGET-INERT added four keys to `lodAssessment`'s INLINE
     // declaration,
     // this check went red at 6,015, and its message named the useful option first — so the response
     // type was NAMED instead of the number raised, which moved all of its fields into the bucket
@@ -313,6 +314,7 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // that states the better action gets the better action.* CAPTABLE-PIPELINE then took it from
     // 5,983 to 5,976 by naming `capTable`'s response — whose `rows` had been
     // `Record<string, unknown>[]`, the OPAQUE bucket, so its row fields were in neither population.
+    // PREFIX-RANKED took it to 5,931/558 the same way, by naming `/portfolio/risk`.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -341,9 +343,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_976);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_931);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(559);
+      .toBeLessThanOrEqual(558);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

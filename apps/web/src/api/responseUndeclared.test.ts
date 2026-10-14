@@ -155,7 +155,18 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // the median, p25 and p75 and withheld the spread. *An engine that tells you what to check before
   // quoting it has done the hard part.*
   "GET /interop/speckle/status": ["server_version"],
-  "GET /portfolio/risk": ["weights"],
+  // **CLOSED 2026-10-14 under PREFIX-RANKED, and `weights` was the smaller half.** It is `_WEIGHT`
+  // — the severity weights `score = 3·high + 2·medium + 1·low` is built from — and `portfolio.ts`
+  // hardcodes its colour ramp thresholds (9 and 4) against them, so the ramp and the formula could
+  // drift apart with nothing to notice. The LIVE defect was in `note`, which was DECLARED and read
+  // by nothing: *"When `truncated`, the scanned set is a deterministic prefix of the caller's
+  // projects, not the riskiest ones — ranking is what the sweep produces, so it cannot select what
+  // to sweep."* `scanned = projects[:limit]` is taken before any scoring, so `projects`,
+  // `hotspots` and `totals` are all over the prefix. Measured at `?limit=2` over three projects
+  // with the risk on the last by name: the only risky project ABSENT, `hotspots` empty, and the
+  // caption `0 high / 0 medium / 0 low · showing 2 of 3` — a clean bill of health over a portfolio
+  // carrying a high-severity coordination risk. *Accurate about counts, silent about selection,
+  // above a table sorted worst-first.*
   "GET /projects/{}/action-items/tracker": ["by_priority", "by_state"],
   // **CLOSED 2026-10-14 under SCOPE-THIN, and `covered_without_specs` was a live defect.** The
   // engine matches an element's NCS discipline to a package that CLAIMS that discipline, and flags

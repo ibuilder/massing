@@ -1545,6 +1545,55 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **PREFIX-RANKED — a portfolio risk heading reported 0 high over a portfolio with a
+  high-severity risk in it, because the sweep is bounded before any scoring** *(S —
+  `apps/web/src/portal/panels/portfolioScope.ts`, `apps/web/src/api/risk.ts`,
+  `apps/web/src/portal/panels/portfolio.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/portfolioScope.test.ts`)*
+
+  Both portfolio sweeps bound their work identically — `scanned = projects[:max(0, int(limit))]`,
+  `risk_portfolio.py:75` and `resource_portfolio.py:171` — a plain PREFIX of the caller's project
+  list, taken **before any scoring**. `risk_portfolio` then sorts by score and takes `hotspots[:8]`,
+  so the ranking and the hotspots are over the prefix. Measured against a live server with three
+  projects, four overdue coordination topics on the last one by name, at `?limit=2`:
+
+  | | ZZZ Dangerous | AAA Quiet | BBB Quiet | hotspots | totals |
+  |---|---|---|---|---|---|
+  | full sweep | **score 3, high 1** | 0 | 0 | `[(ZZZ, coordination, 3)]` | 1 high |
+  | prefix, limit 2 | **absent** | 0 | 0 | **`[]`** | **0 high** |
+
+  The caption read `2 project(s) × 5 engines · 0 high / 0 medium / 0 low · showing 2 of 3`. *The
+  portfolio's only risky project is gone, the hotspots list is empty, and the heading reports zero
+  high severity across the book* — not a truncation caveat but a clean bill of health over a
+  portfolio carrying a high-severity coordination risk. `showing 2 of 3` is accurate about counts
+  and silent about SELECTION, which is the only thing that matters above a table sorted worst-first:
+  a reader acts on the top rows and assumes they are the top rows.
+
+  **The engine says exactly this, in a `note` declared and read by nothing** — *"When `truncated`,
+  the scanned set is a deterministic prefix of the caller's projects, not the riskiest ones —
+  ranking is what the sweep produces, so it cannot select what to sweep."* That last clause is why
+  this cannot be fixed by sorting earlier: the score does not exist until the sweep has run, so
+  bounding the sweep necessarily bounds it by something other than rank. *The engine is right and
+  the only available fix is to say so*, which is why the module renders the note rather than
+  paraphrasing it.
+
+  **The resourcing half has the same shape and NO note about it.** `resource_portfolio` prefixes
+  identically and then aggregates a MAX: `peak.units` is the highest weekly concurrent demand summed
+  across projects, so over a prefix it is a **lower bound presented as the peak** — and a trade
+  over-committed across an examined job and an unexamined one reads as comfortable, which is the
+  exact case that view exists for. Its `note` explains the cross-project arithmetic and never
+  mentions the prefix, so there is no sentence to pass through. *The one place a consumer should
+  author a caveat is where no engine has written one* — which is why `aggregatePrefixCaveat` takes
+  no note argument at all, and why the two caveats carry different tones: a ranking that omits the
+  worst row is simply wrong (`crit`), a floor presented as a figure is understated (`warn`).
+
+  **The inline ceiling redirected this change too — the fourth time in one session.** Declaring
+  `weights` tripped it at 5,980 against 5,976, so `/portfolio/risk`'s response was NAMED instead of
+  the number raised: **5,976/559 → 5,931/558**. `weights` itself is `_WEIGHT`, the severity weights
+  `score = 3·high + 2·medium + 1·low` is built from, and `portfolio.ts` hardcodes its colour ramp
+  thresholds (9 and 4) against them — so the ramp and the formula could drift apart with nothing in
+  the tree to notice.
+
 - ✅ ⭐ **CAPTABLE-PIPELINE — the Commit column summed to $16,000,000 under its own Total row of
   $6,000,000** *(S — `apps/web/src/proforma/capTableRead.ts`, `apps/web/src/api/finance.ts`,
   `apps/web/src/proforma/proforma.ts`; **CLOSED 2026-10-14**; gated by

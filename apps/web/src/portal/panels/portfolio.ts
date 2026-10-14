@@ -1,5 +1,8 @@
 import { esc, usd } from "../../ui/charts";
 import { benchmarkRows, benchmarkScope, portfolioLine } from "./spaceBenchmark";
+import {
+  TONE_CSS as SCOPE_TONE, aggregatePrefixCaveat, rankedPrefixCaveat, scopeLine,
+} from "./portfolioScope";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -189,8 +192,18 @@ export async function renderPortfolio(ctx: PanelContext) {
         + `${rp.projects.length} project(s) · ${rp.trades.length} trade(s)`
         + (rp.peak ? ` · peak ${rp.peak.units} concurrent units in ${esc(rp.peak.week)}` : "")
         + (f.fallback ? ` · ${f.assigned} assigned / ${f.fallback} from crew counts` : "")
-        + (rp.truncated ? ` · showing ${rp.project_count} of ${rp.projects_available}` : "")
+        // PREFIX-RANKED, the other half. The same prefix, and here it bounds a MAX: `peak` is the
+        // highest weekly concurrent demand summed across projects, so over a prefix it is a lower
+        // bound presented as the peak — and this engine's own note never mentions the prefix, so
+        // the caveat exists in no sentence anywhere until this one.
+        + (scopeLine(rp) ? ` · ${esc(scopeLine(rp)!)}` : "")
         + `</span>`;
+      const peakCaveat = aggregatePrefixCaveat(rp, "Peak concurrent demand");
+      if (peakCaveat) {
+        card.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:${SCOPE_TONE[peakCaveat.tone]}">`
+          + `${esc(peakCaveat.text)}</div>`);
+      }
       const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
       tbl.innerHTML = `<thead><tr><th scope="col">Trade / discipline</th>`
         + `<th scope="col" style="text-align:right">Peak</th><th scope="col">Peak week</th>`
@@ -285,8 +298,18 @@ export async function renderPortfolio(ctx: PanelContext) {
         + ` · ${hm.totals.high} high / ${hm.totals.medium} medium / ${hm.totals.low} low`
         + (cov.pct == null ? "" : ` · ${cov.pct}% of cells measured`)
         + (cov.errored || cov.unknown ? ` · ${cov.errored + cov.unknown} unavailable` : "")
-        + (hm.truncated ? ` · showing ${hm.project_count} of ${hm.projects_available}` : "")
+        // PREFIX-RANKED. `showing N of M` is accurate about counts and silent about SELECTION, and
+        // this table is sorted worst-first — so a reader takes the top rows for the portfolio's
+        // top rows. Measured at limit 2 over three projects: the only risky one was absent, the
+        // hotspots list empty, and this heading read `0 high / 0 medium / 0 low`.
+        + (scopeLine(hm) ? ` · ${esc(scopeLine(hm)!)}` : "")
         + `</span>`;
+      const rankCaveat = rankedPrefixCaveat(hm, hm.note);
+      if (rankCaveat) {
+        card.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:${SCOPE_TONE[rankCaveat.tone]}">`
+          + `${esc(rankCaveat.text)}</div>`);
+      }
       // Intensity ramp, not a gradient: four steps a reader can name, keyed off the same
       // severity-weighted score the API computes so the colour and the number never diverge.
       const heat = (score: number) => score >= 9 ? "var(--status-crit)" : score >= 4 ? "var(--status-warn)"

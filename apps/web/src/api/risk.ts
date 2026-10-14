@@ -16,6 +16,45 @@ import type { RiskDigest } from "./types";
  */
 type Ctor<T> = new (...args: any[]) => T;
 
+/** PREFIX-RANKED — `GET /portfolio/risk`.
+ *
+ *  NAMED rather than inline, which is the action `apps/web/src/api/deadFieldTyped.test.ts`'s
+ *  inline ceiling asked for when declaring `weights` tripped it. It is the fourth time in this
+ *  session that ratchet redirected a change from *raise the number* to *declare it properly*.
+ *
+ *  The scope triple is the whole of PREFIX-RANKED: the sweep is `projects[:limit]`, a prefix taken
+ *  BEFORE any scoring, and `projects` / `hotspots` / `totals` are all over that prefix. */
+export interface PortfolioRisk {
+  projects: { id: string; name: string; band: string | null; score: number; count: number;
+    high: number; medium: number; low: number; measured_sources: number;
+    cells: Record<string, { state: string; score?: number; count?: number; high?: number;
+      medium?: number; low?: number }> }[];
+  sources: { key: string; label: string; score: number; count: number; high: number;
+    projects_measured: number; projects_error: number }[];
+  /** Over the SWEPT projects, not the portfolio, whenever `truncated`. */
+  totals: { high: number; medium: number; low: number; count: number; score: number };
+  band_tally: Record<string, number>;
+  /** The top 8 of the prefix, not of the book. */
+  hotspots: { project_id: string; project: string; source: string; score: number; high: number;
+    title: string | null; link: string | null }[];
+  coverage: { cells: number; measured: number; errored: number; unknown: number;
+    pct: number | null };
+  project_count: number;
+  projects_available: number;
+  truncated: boolean;
+  limit: number;
+  /** `_WEIGHT` — the severity weights the intensity score is built from. `portfolio.ts` hardcodes
+   *  its colour ramp thresholds (9 and 4) against these, so declaring them is what lets the ramp
+   *  and the formula be checked against each other instead of drifting apart in silence. */
+  weights: { high: number; medium: number; low: number };
+  /** Carries the sentence this item exists for: *"When `truncated`, the scanned set is a
+   *  deterministic prefix of the caller's projects, not the riskiest ones — ranking is what the
+   *  sweep produces, so it cannot select what to sweep."* Declared since the route shipped and
+   *  read by nothing until PREFIX-RANKED. */
+  note: string;
+}
+
+
 export function withRisk<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Risk extends Base {
   /** The risk narrative **with its drivers** — SPI, EAC, variance, open RFIs/submittals/CORs,
@@ -29,22 +68,7 @@ export function withRisk<TBase extends Ctor<HttpCore>>(Base: TBase) {
    *  `state` on a cell is not decoration: an engine that could not run reads `error`, and the map
    *  must not render that as a clear cell. `coverage` says how much of the grid is measured. */
   portfolioRisk(limit = 25) {
-    return this.json<{
-      projects: { id: string; name: string; band: string | null; score: number; count: number;
-        high: number; medium: number; low: number; measured_sources: number;
-        cells: Record<string, { state: string; score?: number; count?: number; high?: number;
-          medium?: number; low?: number }> }[];
-      sources: { key: string; label: string; score: number; count: number; high: number;
-        projects_measured: number; projects_error: number }[];
-      totals: { high: number; medium: number; low: number; count: number; score: number };
-      band_tally: Record<string, number>;
-      hotspots: { project_id: string; project: string; source: string; score: number; high: number;
-        title: string | null; link: string | null }[];
-      coverage: { cells: number; measured: number; errored: number; unknown: number;
-        pct: number | null };
-      project_count: number; projects_available: number; truncated: boolean; limit: number;
-      note: string;
-    }>(`/portfolio/risk?limit=${limit}`);
+    return this.json<PortfolioRisk>(`/portfolio/risk?limit=${limit}`);
   }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
   riskBoard(pid: string) {
