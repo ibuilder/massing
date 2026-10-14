@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Body, Depends, Response
+from fastapi import APIRouter, Body, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
@@ -147,7 +147,9 @@ def schedule_health_endpoint(pid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/schedule/flowline")
-def schedule_flowline_endpoint(pid: str, db: Session = Depends(get_db),
+def schedule_flowline_endpoint(pid: str, buffer_days: int | None = None,
+                               buffer: list[str] | None = Query(None),
+                               db: Session = Depends(get_db),
                                _: str = Depends(require_role("viewer"))):
     """R45-SCHED-REACH -- location-based (linear) scheduling: line of balance.
 
@@ -160,9 +162,29 @@ def schedule_flowline_endpoint(pid: str, db: Session = Depends(get_db),
     Built from the `trade` and `location` fields the schedule already carries, so it needs no extra
     data. Reads `available` first: a project whose activities carry no location, or only one, comes
     back `available: false` with a reason rather than a drawn-but-meaningless diagram.
+
+    FLOW-BUFFER: `buffer_days` is the clearance wanted between every handover, and `buffer` is a
+    repeatable `<trade>:<days>` override. Negative means deliberate overlap, which is what makes the
+    engine's `LOB.OVERLAP` error reachable from this route at all — until these parameters existed
+    the adapter never set `buffer_days`, so every line ran tight and `gap_days` was 0 on every pair.
+    **Read `buffer_days_unmet`**: the realised overlap saturates at the predecessor's per-location
+    duration, so a request can land short and the clearance alone does not say so.
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
-    return schedule_locations.flowline(acts)
+    # FLOW-BUFFER. `buffer_days` is the flat request for every handover; `buffer=<trade>:<days>`,
+    # repeatable, overrides it per trade — `?buffer_days=2&buffer=Paint:-1` means two days
+    # everywhere and a day of deliberate overlap before the painters.
+    #
+    # A GET with a repeated scalar rather than a POST body, because this is a READ: the buffer is a
+    # what-if a planner moves while looking at the diagram, nothing is stored, and making it a POST
+    # would put a mutation verb on a view and lose the shareable URL.
+    #
+    # **Both are forwarded RAW, and the parsing lives in the engine** — `parse_buffer_pairs`. The
+    # first draft parsed the pairs here, which left the one part of this feature a user actually
+    # types reachable only by a live request: the engine suite could not see it and no route suite
+    # covers the flowline at all. *A parser only a live request can exercise is a parser nobody
+    # exercises.*
+    return schedule_locations.flowline(acts, buffer_days=buffer_days, buffer_pairs=buffer)
 
 
 @router.get("/projects/{pid}/schedule/takt-train")

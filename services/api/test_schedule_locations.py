@@ -6,7 +6,7 @@ answer, both of which it did before these tests existed.
 """
 from __future__ import annotations
 
-from aec_api.schedule_locations import flowline
+from aec_api.schedule_locations import flowline, parse_buffer_pairs
 
 _FAILURES: list[str] = []
 
@@ -148,15 +148,17 @@ def main() -> int:
           r["converging_count"] == sum(1 for i in r["interferences"] if i["converging"]),
           f"{r['converging_count']} vs {[i['converging'] for i in r['interferences']]}")
 
-    # WHY THERE IS NO `overlap_count` OR `touching_count`, measured rather than reasoned.
-    # `compute()` places each line at `max(0, max(requirements))`, so the clearance at the binding
-    # location is exactly the declared `buffer_days` — and this adapter never sets it. Both counts
-    # would therefore be constants from this route: 0, and `len(trades) - 1`. FLOW-BUFFER holds the
-    # real gap, which is that nobody can REQUEST a buffer.
-    check("gap_days is 0 everywhere, because the adapter requests no buffer",
+    # The NO-BUFFER call still runs tight, which is the right default: a planner who asked for
+    # nothing gets the line-of-balance's own answer rather than a spacing somebody guessed. The
+    # check is kept exactly as written, now scoped to the default call — FLOW-BUFFER made a buffer
+    # settable and the cases below are where it is set.
+    check("gap_days is 0 everywhere when no buffer is requested",
           all(i["gap_days"] == 0 for i in r["interferences"]),
-          f"{[i['gap_days'] for i in r['interferences']]} — if this ever fails, a buffer became "
-          f"settable and `overlap_count` stopped being a constant: publish it then")
+          f"{[i['gap_days'] for i in r['interferences']]} — the DEFAULT must stay tight; a spacing "
+          f"nobody asked for is a schedule nobody agreed to")
+    check("...and overlap_count is 0 there, which is now a measurement rather than a constant",
+          r["overlap_count"] == 0 and r["buffer_days_requested"] == {},
+          f"{r['overlap_count']} / {r['buffer_days_requested']}")
     # ...and the engine DOES report an overlap when a buffer makes one, so the path is live and only
     # unreachable from here. Proved against the vendored engine directly, not inferred.
     from massingplan.core.locations import LinearTask, Location, compute
@@ -166,6 +168,115 @@ def main() -> int:
     check("a NEGATIVE buffer does produce a negative clearance and a LOB.OVERLAP error",
           _neg.interferences[0].gap_days == -3 and "LOB.OVERLAP" in _neg.issues.codes(),
           f"gap {_neg.interferences[0].gap_days}, codes {_neg.issues.codes()}")
+
+    # ── FLOW-BUFFER: the buffer is requestable, so that branch is reachable from the ADAPTER ──
+    #
+    # The check above proved the engine honours a negative buffer; these prove the route can ask for
+    # one. *A live engine branch no caller can reach is the same as a dead one*, which is the whole
+    # of what FLOW-BUFFER was.
+    flat = flowline(DATED, buffer_days=2)
+    check("a flat buffer spaces every handover by it",
+          all(i["gap_days"] == 2 for i in flat["interferences"]),
+          f"{[i['gap_days'] for i in flat['interferences']]}")
+    check("...and the response states what was ASKED for, not only what came out",
+          flat["buffer_days_requested"] == dict.fromkeys(flat["trades"][1:], 2),
+          f"{flat['buffer_days_requested']} for trades {flat['trades']}")
+
+    # THE FIRST TRADE'S VALUE IS INERT, and that is the engine's shape rather than a choice here:
+    # `buffer_days` is the lag on the link INTO a task, so the first has no predecessor. The field's
+    # own docstring says the opposite ("between this task finishing and the next task starting"), so
+    # a caller following it sets exactly this trade — hence the value is REPORTED as ignored rather
+    # than dropped. Measured: 3 on the first of two trades moves nothing at all.
+    check("a buffer on the FIRST trade is named as ignored, not silently dropped",
+          flat["buffer_days_ignored_first"] == [flat["trades"][0]],
+          f"{flat['buffer_days_ignored_first']} vs first trade {flat['trades'][0]!r}")
+
+    per = flowline(DATED, buffer_days={flat["trades"][1]: 3, "Nonesuch": 1})
+    check("a per-trade map applies only to the trade it names",
+          per["buffer_days_requested"] == {flat["trades"][1]: 3},
+          f"{per['buffer_days_requested']}")
+    check("...and an unknown trade name is reported as a TYPO, kept apart from the first-trade case",
+          per["buffer_days_ignored_unknown"] == ["Nonesuch"]
+          and per["buffer_days_ignored_first"] == [],
+          f"unknown={per['buffer_days_ignored_unknown']} first={per['buffer_days_ignored_first']}")
+
+    # THE REQUEST AND THE RESULT ARE TWO DIFFERENT NUMBERS. The realised overlap saturates at the
+    # predecessor's per-location duration, because a successor cannot start before its predecessor
+    # did. Measured against the engine at 2/4/6/10 crew-days per location, a request of −5 returns
+    # −2/−4/−5/−5. *A planner who asked for five and got two has been told nothing by a response
+    # that reports only the two* — which is why `buffer_days_unmet` exists.
+    neg = flowline(DATED, buffer_days=-5)
+    check("a negative buffer reaches LOB.OVERLAP THROUGH THE ADAPTER for the first time",
+          "LOB.OVERLAP" in {i["code"] for i in neg["issues"]},
+          f"codes {sorted({i['code'] for i in neg['issues']})}")
+    check("...and overlap_count counts the crossings rather than the trades",
+          neg["overlap_count"] == sum(1 for i in neg["interferences"] if i["gap_days"] < 0)
+          and neg["overlap_count"] > 0,
+          f"{neg['overlap_count']} vs {[i['gap_days'] for i in neg['interferences']]}")
+    check("a request the engine could not honour is NAMED, with both numbers",
+          neg["buffer_days_unmet"]
+          and all(u["requested"] == -5 and u["realised"] > -5 for u in neg["buffer_days_unmet"]),
+          f"{neg['buffer_days_unmet']} — the realised overlap saturates at the predecessor's "
+          f"per-location duration, and a response carrying only the clearance hides the shortfall")
+
+    # The clamp is reported rather than silent, for the same reason: a flowline is a planning view
+    # and one silly number should not cost the diagram, but it must not look honoured either.
+    big = flowline(DATED, buffer_days=10_000)
+    check("an absurd buffer is clamped and SAYS so",
+          big["buffer_days_clamped"] == sorted(big["buffer_days_requested"])
+          and all(v == big["max_buffer_days"] for v in big["buffer_days_requested"].values()),
+          f"clamped={big['buffer_days_clamped']} requested={big['buffer_days_requested']}")
+
+    # ── the TRANSPORT shape, parsed in the engine so it needs no server ──────────────────────────
+    #
+    # `buffer=<trade>:<days>`, repeatable. The first draft parsed this in the router, which left the
+    # one part of the feature a user actually TYPES reachable only by a live request — and there is
+    # no route suite for the flowline at all. *A parser only a live request can exercise is a parser
+    # nobody exercises.*
+    pairs, bad = parse_buffer_pairs(["Drywall:2", "Paint:-1", " Tiling : 3 "])
+    check("a repeated `<trade>:<days>` pair parses, trimmed",
+          pairs == {"Drywall": 2, "Paint": -1, "Tiling": 3} and bad == [],
+          f"{pairs} / {bad}")
+    # Split on the LAST colon, so a trade whose NAME contains one survives the round trip. A first
+    # draft splitting on the first colon would have turned "Co:Ltd:5" into trade "Co" — a confident
+    # wrong answer about a trade that exists.
+    check("...and the split is on the LAST colon, so a colon in the trade name survives",
+          parse_buffer_pairs(["Co:Ltd:5"])[0] == {"Co:Ltd": 5},
+          f"{parse_buffer_pairs(['Co:Ltd:5'])[0]}")
+    bad_pairs, bad_list = parse_buffer_pairs(["x", ":4", "A:notanumber", "B:1"])
+    check("an unreadable pair is RETURNED rather than dropped, and the good ones still land",
+          bad_pairs == {"B": 1} and bad_list == ["x", ":4", "A:notanumber"],
+          f"{bad_pairs} / {bad_list} — a typo in a query string is otherwise indistinguishable "
+          f"from a buffer the engine declined, and those have different fixes")
+
+    both = flowline(DATED, buffer_days=1, buffer_pairs=["Paint:-3", "bad"])
+    check("a per-trade pair OVERRIDES the flat number for the trade it names",
+          both["buffer_days_requested"] == {"Drywall": 1, "Paint": -3},
+          f"{both['buffer_days_requested']}")
+    check("...and the malformed pair rides back with it",
+          both["buffer_malformed"] == ["bad"], f"{both['buffer_malformed']}")
+    # A pair must not smuggle past the bound the flat path respects.
+    check("a pair is clamped by the same rule as a flat request",
+          flowline(DATED, buffer_pairs=["Paint:9999"])["buffer_days_requested"]
+          == {"Paint": flowline(DATED)["max_buffer_days"]},
+          f"{flowline(DATED, buffer_pairs=['Paint:9999'])['buffer_days_requested']}")
+
+    # A TYPO IS REPORTED EVEN WHEN THERE IS NO FLOW TO COMPUTE. An empty `buffer_malformed` on a
+    # refusal says "nothing was malformed", which is a different claim from "we never got that
+    # far" — and it is the one a consumer acts on.
+    check("a malformed pair is reported on the UNAVAILABLE path too",
+          flowline([], buffer_pairs=["oops"])["buffer_malformed"] == ["oops"],
+          f"{flowline([], buffer_pairs=['oops'])['buffer_malformed']}")
+
+    # Every key the computed shape carries is present on the REFUSAL too — the contract
+    # `_unavailable` states in its own docstring. A key that appears only on the available path is
+    # one a consumer reads as `undefined` and renders as nothing-was-requested.
+    _gone = flowline([])
+    check("the refusal carries every buffer key, so no consumer sees `undefined`",
+          all(k in _gone for k in ("buffer_days_requested", "buffer_days_unmet", "overlap_count",
+                                   "buffer_days_ignored_first", "buffer_days_ignored_unknown",
+                                   "buffer_days_clamped", "max_buffer_days")),
+          f"missing {[k for k in ('buffer_days_requested', 'buffer_days_unmet', 'overlap_count') if k not in _gone]}")
 
     if _FAILURES:
         print(f"FAILED: {', '.join(_FAILURES)}")

@@ -1,14 +1,19 @@
 /** FLOW-CLEAR — "whether anyone is in anyone's way", which the card promised and never answered.
  *
  *  Every fixture is a measured response. The clean and converging ones come from the same project
- *  shape with the trade durations swapped; the crossing one needs a negative `buffer_days`, which
- *  the adapter cannot yet request (FLOW-BUFFER) and which was measured directly against
- *  `massingplan/core/locations.compute`.
+ *  shape with the trade durations swapped; the crossing one needed a negative `buffer_days`, which
+ *  **the adapter could not request when this file was written** and was therefore measured directly
+ *  against `massingplan/core/locations.compute`.
+ *
+ *  **FLOW-BUFFER settled that**, and the buffer fixtures below come off `schedule_locations.flowline`
+ *  itself — the same shape a browser now gets. *A fixture measured one layer below the route is a
+ *  claim about the engine; one measured at the route is a claim about the response.*
  */
 import { describe, expect, it } from "vitest";
 import type { FlowlineResult } from "../../api/schedule";
 import {
-  TONE_CSS, bufferNote, clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows,
+  TONE_CSS, bufferDroppedNotes, bufferNote, bufferRequestNote, bufferUnmetNote, bufferUnmetRows,
+  clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows, overlapNote,
   populationNote,
 } from "./flowlineRead";
 
@@ -109,10 +114,23 @@ describe("the count is named for what it measures", () => {
 });
 
 describe("the zero-buffer caveat explains every 0d row", () => {
-  it("fires when EVERY clearance is zero, which is the normal result today", () => {
+  it("fires when EVERY clearance is zero and nothing was asked for", () => {
     const n = bufferNote(fl());
     expect(n).toContain("computed with no buffer between trades");
-    expect(n).toContain("cannot be requested through this view yet");
+    // **This assertion used to pin "cannot be requested through this view yet", and FLOW-BUFFER
+    // made that sentence false.** It names the control now. *A caveat nobody re-tests becomes
+    // folklore* — which this repository's own verify-frontend skill asserted about itself for weeks
+    // while its body said the opposite.
+    expect(n).toContain("Set a buffer above");
+    expect(n).not.toContain("cannot be requested");
+  });
+
+  it("says so differently when a buffer WAS asked for and produced nothing", () => {
+    // A request of zero, or one on trades that were already tight. The reader is not looking at an
+    // unasked question, and telling them nobody can ask would be the stale sentence all over again.
+    const n = bufferNote(fl({ buffer_days_requested: { Drywall: 0 } }))!;
+    expect(n).toContain("buffer requested for 1 handover(s) produced no spacing");
+    expect(n).not.toContain("Set a buffer above");
   });
 
   it("is silent as soon as any clearance is non-zero", () => {
@@ -192,5 +210,112 @@ describe("the tone tokens are literal", () => {
     expect(TONE_CSS.crit).toBe("var(--status-crit)");
     expect(TONE_CSS.good).toBe("var(--status-good)");
     expect(TONE_CSS[""]).toBe("");
+  });
+});
+
+
+/** MEASURED off `aec_api.schedule_locations.flowline` on the dated three-trade fixture — the same
+ *  shape a browser gets, not the engine one layer below it:
+ *
+ *      buffer_days=2  → gaps [2, 2] · requested {Drywall: 2, Paint: 2} · ignored_first [Framing]
+ *      buffer_days=-5 → gaps [-4, -5] · overlap_count 2 · LOB.OVERLAP
+ *                       unmet [{trade: Drywall, requested: -5, realised: -4}]
+ *
+ *  The two pairs saturate DIFFERENTLY (−4 and −5) because the trades carry different content per
+ *  location, which is why `buffer_days_unmet` names one of them and not both. */
+const SPACED: FlowlineResult = fl({
+  interferences: [
+    { predecessor_id: "Framing", successor_id: "Drywall", location_id: "L01", gap_days: 2,
+      converging: false },
+    { predecessor_id: "Drywall", successor_id: "Paint", location_id: "L01", gap_days: 2,
+      converging: false },
+  ],
+  overlap_count: 0,
+  buffer_days_requested: { Drywall: 2, Paint: 2 },
+  buffer_days_unmet: [],
+  buffer_days_ignored_first: ["Framing"],
+  buffer_days_ignored_unknown: [],
+  buffer_days_clamped: [],
+  max_buffer_days: 90,
+});
+
+const OVERLAPPED: FlowlineResult = fl({
+  interferences: [
+    { predecessor_id: "Framing", successor_id: "Drywall", location_id: "L01", gap_days: -4,
+      converging: false },
+    { predecessor_id: "Drywall", successor_id: "Paint", location_id: "L01", gap_days: -5,
+      converging: false },
+  ],
+  overlap_count: 2,
+  buffer_days_requested: { Drywall: -5, Paint: -5 },
+  buffer_days_unmet: [{ trade: "Drywall", requested: -5, realised: -4 }],
+  buffer_days_ignored_first: ["Framing"],
+  buffer_days_ignored_unknown: [],
+  buffer_days_clamped: [],
+  max_buffer_days: 90,
+});
+
+describe("FLOW-BUFFER — the request, beside the result", () => {
+  it("states what was asked for, which the pair rows never carry", () => {
+    expect(bufferRequestNote(SPACED))
+      .toBe("Buffer requested: 2d at every one of 2 handover(s). A negative number is deliberate "
+        + "overlap.");
+  });
+
+  it("spells a mixed request per trade rather than inventing a single number", () => {
+    expect(bufferRequestNote(fl({ buffer_days_requested: { Drywall: 2, Paint: -1 } })))
+      .toContain("Drywall 2d · Paint -1d");
+  });
+
+  it("is null when nothing was asked, so the card says nothing about a question nobody put", () => {
+    expect(bufferRequestNote(fl())).toBeNull();
+    expect(bufferRequestNote(fl({ buffer_days_requested: {} }))).toBeNull();
+  });
+
+  it("names the requests the engine could not honour, with BOTH numbers", () => {
+    expect(bufferUnmetRows(OVERLAPPED)).toEqual([{ k: "Drywall", v: "asked -5d, got -4d" }]);
+    const n = bufferUnmetNote(OVERLAPPED)!;
+    expect(n).toContain("1 request(s) could not be met in full");
+    // The REASON, which is the part a planner can act on: it is the predecessor's work content per
+    // location that bounds the overlap, not an arbitrary engine limit.
+    expect(n).toContain("cannot start before the one it follows started");
+    expect(n).toContain("saturates at that trade's work content per location");
+  });
+
+  it("is silent about unmet requests when every one landed exactly", () => {
+    expect(bufferUnmetRows(SPACED)).toEqual([]);
+    expect(bufferUnmetNote(SPACED)).toBeNull();
+    expect(bufferUnmetNote(fl())).toBeNull();
+  });
+
+  it("keeps the three dropped-request mistakes APART, because the fixes differ", () => {
+    const notes = bufferDroppedNotes(fl({
+      buffer_days_ignored_first: ["Framing"],
+      buffer_days_ignored_unknown: ["Nonesuch"],
+      buffer_malformed: ["Paint-2"],
+      buffer_days_clamped: ["Drywall"],
+      max_buffer_days: 90,
+    }));
+    expect(notes).toHaveLength(4);
+    expect(notes[0]).toContain("it is first in the flow");
+    expect(notes[0]).toContain("Set it on the following trade instead");
+    expect(notes[1]).toContain("is not a trade on this project");
+    expect(notes[2]).toContain('written as "<trade>:<days>"');
+    expect(notes[3]).toContain("90-day limit");
+  });
+
+  it("says nothing when every request was applied as sent", () => {
+    expect(bufferDroppedNotes(fl())).toEqual([]);
+    // ...and the first-trade note is the ONE that fires on an ordinary successful request, because
+    // a flat buffer always names a trade the engine cannot space.
+    expect(bufferDroppedNotes(SPACED)).toHaveLength(1);
+  });
+
+  it("reports an overlap as a plan rather than an error, and still logs it", () => {
+    const n = overlapNote(OVERLAPPED)!;
+    expect(n).toContain("2 handover(s) OVERLAP");
+    expect(n).toContain("That is a plan, not an error");
+    expect(overlapNote(SPACED)).toBeNull();
+    expect(overlapNote(fl())).toBeNull();
   });
 });

@@ -337,8 +337,17 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    * cannot express crew continuity at all, so this is the number that says whether the method is
    * worth using on this job.
    */
-  scheduleFlowline(pid: string) {
-    return this.json<FlowlineResult>(`/projects/${pid}/schedule/flowline`);
+  scheduleFlowline(pid: string, buffer?: FlowlineBuffer) {
+    const q = new URLSearchParams();
+    if (buffer?.flatDays != null) q.set("buffer_days", String(buffer.flatDays));
+    for (const [trade, days] of Object.entries(buffer?.perTrade ?? {})) {
+      // `<trade>:<days>`, repeated. The server splits on the LAST colon, so a trade whose name
+      // contains one survives the round trip.
+      q.append("buffer", `${trade}:${days}`);
+    }
+    const qs = q.toString();
+    return this.json<FlowlineResult>(
+      `/projects/${pid}/schedule/flowline${qs ? `?${qs}` : ""}`);
   }
 
   /**
@@ -1017,6 +1026,22 @@ export interface FlowlineInterference {
   converging: boolean;
 }
 
+/** FLOW-BUFFER — the clearance a planner WANTS between handovers.
+ *
+ *  `flatDays` applies to every handover; `perTrade` overrides it for named trades. Negative is
+ *  legal and means deliberate overlap, which is what makes the engine's `LOB.OVERLAP` error
+ *  reachable from this route at all.
+ *
+ *  **A value for the FIRST trade in the flow has no effect**, because the engine applies
+ *  `buffer_days` to the link INTO a task and the first has no predecessor. The response says whose
+ *  value was dropped (`buffer_days_ignored_first`) rather than leaving it to be inferred — the
+ *  field's own docstring in the vendored engine describes the other side, so a caller following it
+ *  sets exactly that trade. */
+export interface FlowlineBuffer {
+  flatDays?: number;
+  perTrade?: Record<string, number>;
+}
+
 /** R45-SCHED-REACH — line of balance, and whether anyone is in anyone's way.
  *
  *  The card's own subtitle promised the second half and rendered none of it: `interference_count`
@@ -1045,6 +1070,37 @@ export interface FlowlineResult {
   issues?: ScheduleIssue[];
   /** `_unavailable` extras on the inconsistent-locations refusal: what it did find. */
   trades_found?: string[];
+  /** Pairs whose lines actually CROSS — `gap_days < 0`.
+   *
+   *  **Published only once FLOW-BUFFER made a buffer requestable.** It was written and deleted
+   *  before shipping because the adapter never set `buffer_days`, so it would have been a constant
+   *  0: *a count whose value the caller fixes reads as a measurement and carries no information.*
+   *  Now it counts crossings rather than restating the trade count. */
+  overlap_count?: number;
+  /** What was ASKED for, per trade — `{trade: days}`, over the trades the request could reach.
+   *
+   *  **Read this beside `gap_days`, because they are two different numbers.** The realised overlap
+   *  SATURATES at the predecessor's per-location duration: a successor cannot start before its
+   *  predecessor did. Measured against the engine at 2/4/6/10 crew-days per location, a request of
+   *  −5 returns −2/−4/−5/−5. */
+  buffer_days_requested?: Record<string, number>;
+  /** The requests the engine could not honour, with both numbers. Empty when every one landed
+   *  exactly — which is always the case for a non-negative buffer, since the saturation only ever
+   *  bites on overlap. */
+  buffer_days_unmet?: { trade: string; requested: number; realised: number }[];
+  /** A value sent for the FIRST trade in the flow, which is inert — see `FlowlineBuffer`. */
+  buffer_days_ignored_first?: string[];
+  /** A name that is not a trade on this project: a typo, not a misunderstanding of the model. The
+   *  two are kept apart because they are different mistakes with different fixes. */
+  buffer_days_ignored_unknown?: string[];
+  /** Trades whose request hit `max_buffer_days` and was reduced to it. Reported rather than silent:
+   *  a flowline is a planning view and one absurd number should not cost the diagram, but it must
+   *  not look honoured either. */
+  buffer_days_clamped?: string[];
+  max_buffer_days?: number;
+  /** A `buffer=<trade>:<days>` pair the ROUTE could not parse, echoed verbatim. A typo in a query
+   *  string is otherwise indistinguishable from a buffer the engine declined. */
+  buffer_malformed?: string[];
 }
 
 /** One thing the schedule engine could not do exactly as asked.

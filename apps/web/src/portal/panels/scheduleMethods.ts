@@ -23,7 +23,8 @@ import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
 import { type Tone, TONE_CSS, capRows, capVerdict, coverageNote as levelCoverageNote,
          levelIssueRows, uncappedNote, unavailableExtras } from "./levelRead";
-import { bufferNote, clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows,
+import { bufferDroppedNotes, bufferNote, bufferRequestNote, bufferUnmetNote, bufferUnmetRows,
+  clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows, overlapNote,
          populationNote } from "./flowlineRead";
 import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
   from "./scheduleHealthRead";
@@ -151,8 +152,30 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     "Where each crew is, and whether anyone is in anyone's way. CPM cannot express crew continuity: "
     + "its earliest-start pass is exactly what fragments a gang into work-a-floor-then-wait.");
   const fOut = document.createElement("div");
+  // FLOW-BUFFER — the control that was missing, not the reading. `schedule_locations.flowline`
+  // never set `LinearTask.buffer_days`, so every line ran as tight as it could go, `gap_days` was
+  // 0 on every pair, and the engine's `LOB.OVERLAP` branch was dead from the product. One number
+  // is all it took: *the reading side was already written and asserted, waiting on a producer
+  // nobody could drive.*
+  const fBar = document.createElement("div");
+  fBar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px";
+  const fBuf = document.createElement("input");
+  fBuf.type = "number"; fBuf.step = "1"; fBuf.min = "-90"; fBuf.max = "90"; fBuf.value = "0";
+  fBuf.style.width = "80px";
+  fBuf.title = "Working days of clearance between every handover. Negative is deliberate overlap, "
+    + "which the engine reports as LOB.OVERLAP — a plan, not an error.";
+  const fLbl = document.createElement("span");
+  fLbl.className = "meta";
+  fLbl.textContent = "buffer days between handovers (negative = overlap)";
+  fBar.append(fBuf, fLbl);
+  fc.appendChild(fBar);
   fc.appendChild(runner(fOut, "▶ Compute flowline", async () => {
-    const r = await api.scheduleFlowline(pid);
+    // 0 is sent as "no request" rather than as a buffer of zero: they produce the same diagram, and
+    // the difference matters only to the caveat — `bufferNote` says "nobody asked" for one and
+    // "the request produced no spacing" for the other, and the first is the honest reading of an
+    // untouched input.
+    const want = Number(fBuf.value) || 0;
+    const r = await api.scheduleFlowline(pid, want ? { flatDays: want } : undefined);
     const cost = Object.entries(r.continuity_cost_days ?? {});
     const worst = cost.sort((a, b) => b[1] - a[1])[0];
     render(fOut, r, r.available ? [
@@ -199,6 +222,18 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     if (pop) fline(esc(pop));
     const buf = bufferNote(r);
     if (buf) fline(esc(buf), "warn");
+
+    // FLOW-BUFFER. The REQUEST, then the requests that could not be met, then the ones that were
+    // dropped — three separate things, because a planner who asked for five days of overlap and
+    // got two is owed a different sentence from one whose trade name was a typo.
+    const req = bufferRequestNote(r);
+    if (req) fline(esc(req));
+    const over = overlapNote(r);
+    if (over) fline(esc(over), "warn");
+    const unmet = bufferUnmetNote(r);
+    if (unmet) fline(esc(unmet), "warn");
+    for (const u of bufferUnmetRows(r)) fline(`${esc(u.k)} — ${esc(u.v)}`, "warn");
+    for (const d of bufferDroppedNotes(r)) fline(esc(d), "warn");
 
     for (const i of flowIssueRows(r).slice(0, 8)) {
       fline(`<code>${esc(i.code)}</code> ${esc(i.text)}`, i.tone);

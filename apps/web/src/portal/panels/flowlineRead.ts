@@ -107,16 +107,107 @@ export function populationNote(r: FlowlineResult): string | null {
     + `a count of problems. Clearance is measured where each pair comes closest.`;
 }
 
-/** The zero-buffer caveat, which is why every clearance above reads 0.
+/** The zero-buffer caveat, which is why every clearance reads 0 when nothing was asked for.
  *
  *  Stated rather than left as a puzzle: a reader who sees `0d` on every row will otherwise conclude
- *  the schedule is pathologically tight, when in fact nobody has been able to ask for a buffer. */
+ *  the schedule is pathologically tight.
+ *
+ *  **Its second sentence used to say a buffer "cannot be requested through this view yet", and
+ *  FLOW-BUFFER made that false.** It now names the control instead — which is the difference
+ *  between a caveat that explains a limit and one that has outlived it. A caveat nobody re-reads
+ *  becomes folklore, and this file's own `*.test.ts` is what holds the sentence to the code. */
 export function bufferNote(r: FlowlineResult): string | null {
   const pairs = r.interferences ?? [];
   if (pairs.length === 0 || pairs.some((p) => p.gap_days !== 0)) return null;
+  const asked = Object.keys(r.buffer_days_requested ?? {}).length;
+  if (asked) {
+    // Every clearance is 0 AND a buffer was asked for: the request was zero, or it was for trades
+    // whose lines were already tight. Either way the reader is not looking at an unasked question.
+    return `Every clearance is 0 days — the buffer requested for ${asked} handover(s) produced no `
+      + `spacing, so each line is still as tight as it can go.`;
+  }
   return `Every clearance is 0 days because the flow is computed with no buffer between trades — `
-    + `each line is placed as tight as it can go. A deliberate buffer ("two days between drywall `
-    + `and paint") cannot be requested through this view yet.`;
+    + `each line is placed as tight as it can go. Set a buffer above to space the handovers, or a `
+    + `negative one for deliberate overlap.`;
+}
+
+/** What was ASKED for, beside what came out — null when nothing was asked.
+ *
+ *  **The request and the result are two different numbers**, and the engine reports only the second
+ *  on each pair. The realised overlap saturates at the predecessor's per-location duration, because
+ *  a successor cannot start before its predecessor did: measured against the engine at 2/4/6/10
+ *  crew-days per location, a request of −5 returns −2/−4/−5/−5. *A planner who asked for five days
+ *  of overlap and got two has been told nothing by a row that shows the two.* */
+export function bufferRequestNote(r: FlowlineResult): string | null {
+  const asked = r.buffer_days_requested ?? {};
+  const names = Object.keys(asked);
+  if (!names.length) return null;
+  const vals = [...new Set(Object.values(asked))];
+  const spec = vals.length === 1
+    ? `${vals[0]}d at every one of ${names.length} handover(s)`
+    : names.map((t) => `${t} ${asked[t]}d`).join(" · ");
+  return `Buffer requested: ${spec}. A negative number is deliberate overlap.`;
+}
+
+/** The requests the engine could not honour, each with both numbers. */
+export function bufferUnmetRows(r: FlowlineResult): { k: string; v: string }[] {
+  return (r.buffer_days_unmet ?? []).map((u) => ({
+    k: u.trade,
+    v: `asked ${u.requested}d, got ${u.realised}d`,
+  }));
+}
+
+/** Why a request landed short, or null when every one landed exactly.
+ *
+ *  Separate from the rows because the REASON is one sentence about all of them and repeating it per
+ *  row would bury it. */
+export function bufferUnmetNote(r: FlowlineResult): string | null {
+  const unmet = r.buffer_days_unmet ?? [];
+  if (!unmet.length) return null;
+  return `${unmet.length} request(s) could not be met in full: a trade cannot start before the one `
+    + `it follows started, so the overlap saturates at that trade's work content per location. `
+    + `Shorten the overlap, or give the predecessor more content per floor.`;
+}
+
+/** The requests that were DROPPED, and why — three different mistakes, kept apart.
+ *
+ *  A value on the first trade is a misunderstanding of the model (the engine spaces a trade from
+ *  its PREDECESSOR, so the first has nothing to space from — and the field's own docstring in the
+ *  vendored engine describes the other side, which is how a careful caller gets it wrong). An
+ *  unknown name is a typo. A malformed pair never parsed at all. *Folding them into one "ignored"
+ *  line would tell a reader there is a problem without saying which fix applies.* */
+export function bufferDroppedNotes(r: FlowlineResult): string[] {
+  const out: string[] = [];
+  const first = r.buffer_days_ignored_first ?? [];
+  if (first.length) {
+    out.push(`No buffer was applied to ${first.join(", ")} — it is first in the flow, and a buffer `
+      + `spaces a trade from the one BEFORE it. Set it on the following trade instead.`);
+  }
+  const unknown = r.buffer_days_ignored_unknown ?? [];
+  if (unknown.length) {
+    out.push(`${unknown.join(", ")} is not a trade on this project, so its buffer was ignored.`);
+  }
+  const bad = r.buffer_malformed ?? [];
+  if (bad.length) {
+    out.push(`Could not read ${bad.join(", ")} — a buffer is written as "<trade>:<days>".`);
+  }
+  const clamped = r.buffer_days_clamped ?? [];
+  if (clamped.length) {
+    out.push(`${clamped.join(", ")} asked for more than the ${r.max_buffer_days ?? 90}-day limit `
+      + `and was reduced to it.`);
+  }
+  return out;
+}
+
+/** Pairs whose lines actually cross, as a sentence — null when none do.
+ *
+ *  `overlap_count` is a real measurement only since a buffer became requestable; before that it
+ *  would have been a constant 0, which is why it was written and deleted before shipping. */
+export function overlapNote(r: FlowlineResult): string | null {
+  const n = r.overlap_count ?? 0;
+  if (!n) return null;
+  return `${n} handover(s) OVERLAP — the two trades share the space for part of the work. That is `
+    + `a plan, not an error, but the engine logs it below so nobody ships it by accident.`;
 }
 
 const SEVERITY_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 };
