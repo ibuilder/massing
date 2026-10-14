@@ -1605,3 +1605,53 @@ export interface StakeholderAnalysis {
   grid: StakeholderGrid;
   note: string;
 }
+
+
+/**
+ * One activity's standing as of a data date — `POST /projects/{pid}/schedule/status`.
+ *
+ * EVERY key is present on EVERY row whatever branch produced it, filled with `null` where it does
+ * not apply. That uniformity is the server's `_ROW_KEYS` contract and it was briefly untrue:
+ * `future_actual_ignored` was missing from the blank branch, so reading it raised server-side.
+ * ROWKEY-SUPERSET closed that, which is why this type can be non-optional here.
+ */
+export interface ScheduleStatusRow {
+  ref: string;
+  state: "complete" | "in_progress" | "not_started" | "unknown";
+  detail: string;
+  planned_start: string | null;
+  planned_finish: string | null;
+  actual_start: string | null;
+  actual_finish: string | null;
+  /** P6's Expected Finish — entered by the crew, so a CLAIM rather than a measurement. */
+  expected_finish: string | null;
+  /** Should have begun by the data date and has not. Only meaningful for unstarted work. */
+  late_to_start: boolean;
+  days_late_to_start: number | null;
+  /** Past its planned finish and NOT complete. An activity that finished late is not overdue. */
+  overdue: boolean;
+  days_overdue: number | null;
+  /** What already happened. Only a finished activity has one. */
+  actual_slip_days: number | null;
+  /** The crew's claim. Reported apart from `actual_slip_days` and never added to it. */
+  forecast_slip_days: number | null;
+  /** An actual date later than the data date was disregarded — stated, not silent. */
+  future_actual_ignored: boolean;
+}
+
+export interface ScheduleStatusReport {
+  /** `null` exactly when `checked` is false. */
+  data_date: string | null;
+  activities: ScheduleStatusRow[];
+  counts: { complete: number; in_progress: number; not_started: number; unknown: number };
+  late_to_start: string[];
+  overdue: string[];
+  forecast_slipping: string[];
+  /**
+   * False when no data date was supplied, and then NOTHING was assessed — not "nothing is late".
+   * A consumer that renders a clean verdict on `checked: false` prints a page of green over a
+   * schedule nobody measured.
+   */
+  checked: boolean;
+  note: string;
+}

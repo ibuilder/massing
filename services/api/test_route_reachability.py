@@ -1995,7 +1995,14 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/review/contract",
     "/projects/{pid}/review/scope",
     "/projects/{pid}/scene/package",
-    "/projects/{pid}/schedule/status",
+    # `/projects/{pid}/schedule/status` left this set 2026-10-14 — SCHED-STATUS-DARK. The
+    # "⏳ What is late" button on the Schedule panel reads it, with the reading in
+    # `apps/web/src/portal/panels/scheduleStatusReading.ts`.
+    #
+    # It was dark for long enough that a row-shape defect sat behind it unnoticed: ROWKEY-SUPERSET,
+    # where `future_actual_ignored` was absent from the engine's `_ROW_KEYS` and reading it on a
+    # blank row raised `KeyError`. *The first consumer is what makes a latent trap live*, so that
+    # landed in its own change before this one.
     # `/projects/{pid}/stakeholders/analysis` left this set 2026-10-13 — STAKEHOLDER-MEDIUM. The
     # Mendelow grid card in `apps/web/src/portal/panels/stakeholderGrid.ts` reads it, mounted in the
     # Responsibility panel.

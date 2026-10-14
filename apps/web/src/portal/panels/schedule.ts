@@ -128,7 +128,20 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
+  // SCHED-STATUS-DARK — "what is late, as of a data date". The route had no caller, and the engine
+  // is careful in four ways a status card would flatten (see `scheduleStatusReading.ts`).
+  //
+  // THE DATE IS AN INPUT, not an assumption. It is prefilled with today as a convenience and is
+  // visible and editable, which is the engine's actual rule — *the as-of line is chosen, not
+  // assumed* — and it is what lets a reader run the same schedule against last month's line.
+  const ddIn = document.createElement("input");
+  ddIn.type = "date"; ddIn.className = "portal-filter"; ddIn.title = "Data date — the 'as of' line everything remaining is measured from (P6's term)";
+  ddIn.setAttribute("aria-label", "Data date"); ddIn.style.cssText = "margin:2px 4px 2px 0";
+  ddIn.value = new Date().toISOString().slice(0, 10);
+  const statusBtn = document.createElement("button");
+  statusBtn.className = "mini-btn on"; statusBtn.textContent = "⏳ What is late";
+  statusBtn.title = "Late to start, overdue and forecast slip as of the data date — three different questions, reported separately";
+  intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, ddIn, statusBtn, note);
   ctx.root.appendChild(intro);
 
   // R45 — the four scheduling methods the vendored engine brought, each behind its own button rather
@@ -200,6 +213,40 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         : `<div class="meta">🟢 No schedule alerts.</div>`;
       showDrawer(`<div class="dash-card"><div class="section-title">🔔 Schedule alerts · ${a.counts.high} high · ${a.counts.medium} medium · ${a.counts.low} low</div>${rows}</div>`);
     } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Alerts unavailable: ${(e as Error).message}</div></div>`); }
+  };
+  statusBtn.onclick = async () => {
+    showDrawer(`<div class="dash-card"><div class="meta">Reading the schedule…</div></div>`);
+    try {
+      const m = await import("./scheduleStatusReading");
+      const r = await ctx.host.api.scheduleStatus(pid, ddIn.value || undefined);
+      const read = m.statusReading(r);
+      const col = read.tone === "bad" ? "var(--status-crit)" : read.tone === "warn" ? "var(--status-warn)"
+        : read.tone === "unknown" ? "var(--muted)" : "var(--status-good)";
+      const list = (title: string, refs: string[], claim = false) => {
+        const rows = m.rowsFor(r, refs);
+        if (!rows.length) return "";
+        return `<div class="meta" style="margin-top:6px"><b>${esc(title)}</b>${claim ? " <span style=\"opacity:.7\">(the crew's claim, not a measurement)</span>" : ""}</div>`
+          + rows.map((a) => {
+            const c = m.slipCells(a);
+            return `<div class="meta" style="margin:1px 0">${esc(a.ref)} — ${esc(a.detail)}`
+              + (a.days_overdue != null ? ` · <b>${a.days_overdue}d overdue</b>` : "")
+              + (a.days_late_to_start != null ? ` · <b>${a.days_late_to_start}d late to start</b>` : "")
+              + ` · actual slip ${esc(c.actual)} · forecast ${esc(c.forecast)}</div>`;
+          }).join("");
+      };
+      const ignored = m.futureActualRows(r);
+      showDrawer(`<div class="dash-card"><div class="section-title">⏳ Schedule status</div>`
+        + `<div class="meta" style="color:${col}">${esc(read.text)}</div>`
+        // OVERDUE and LATE TO START are two lists, never one. They answer different questions and
+        // an activity can be in both, so a combined list would also double-count.
+        + list("Overdue (past planned finish, not complete)", r.overdue)
+        + list("Late to start (should have begun, has not)", r.late_to_start)
+        + list("Forecast to slip", r.forecast_slipping, true)
+        + (ignored.length
+          ? `<div class="meta" style="margin-top:6px">${ignored.length} activity(s) had an actual date AFTER the data date, which was disregarded: ${esc(ignored.map((a) => a.ref).join(", "))}</div>`
+          : "")
+        + `<div class="meta" style="margin-top:6px;opacity:.7">${esc(r.note)}</div></div>`);
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Status unavailable: ${(e as Error).message}</div></div>`); }
   };
   esBtn.onclick = async () => {
     showDrawer(`<div class="dash-card"><div class="meta">Computing earned schedule…</div></div>`);

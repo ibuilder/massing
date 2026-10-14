@@ -1511,6 +1511,44 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **SCHED-STATUS-DARK — "what is late" had an engine and no screen, and its four distinctions
+  are exactly what a status card flattens** *(S —
+  `apps/web/src/portal/panels/scheduleStatusReading.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/scheduleStatusReading.test.ts`)*
+
+  `schedule_status` answers the question a superintendent actually asks, and
+  `POST /projects/{pid}/schedule/status` had no caller. The engine is unusually careful — and every
+  one of its four rules is a thing a screen would naturally collapse, which is why the wiring is
+  mostly a reading module with assertions rather than markup:
+
+  | the engine's rule | what a card does by default |
+  |---|---|
+  | the data date is **required**, not defaulted | assume today, and paint a job that finished two years ago entirely red |
+  | `late_to_start` ≠ `overdue` | add them into "N late" |
+  | finished LATE is **complete**, not overdue | re-derive overdue from the slip number |
+  | forecast slip is a **CLAIM** | total it with actual slip |
+
+  **The no-data-date case is the sharpest.** The engine returns `checked: false` with every row
+  `unknown` and a note saying why, because *"defaulting to today would be wrong on every historical
+  snapshot, every archived project and every what-if — and it would be wrong silently."* So the
+  reading says **"NOT ASSESSED"** and the test asserts the absence of the reassuring words: no
+  `none overdue`, no `on track`, no tick. *A report that measured nothing must not be able to spell
+  a clean verdict.*
+
+  The date is an INPUT, prefilled with today and visible, which is the engine's actual rule rather
+  than a softening of it — the as-of line is chosen, not assumed, and making it editable is what
+  lets a reader run the same schedule against last month's line.
+
+  Two assertions are about arithmetic that must NOT happen: `slipCells` returns two cells and no
+  total (and the test checks the summed value appears nowhere), and the headline reports overdue
+  and late-to-start as separate counts — with a case where **one activity is in both lists**, so a
+  sum is not merely misleading but not a count of anything.
+
+  **And this is the item ROWKEY-SUPERSET had to precede.** `futureActualRows` reads
+  `future_actual_ignored`, the key that was missing from the engine's `_ROW_KEYS` and raised
+  `KeyError` on a blank row. *The first consumer is what makes a latent trap live*, so the row
+  shape was fixed in its own change first rather than discovered by this one.
+
 - ✅ **ROWKEY-SUPERSET — a test named for an equality asserted a containment, and the key added
   last was the one missing** *(XS — `services/api/src/aec_api/schedule_status.py`;
   **CLOSED 2026-10-14**; gated by `services/api/test_schedule_status.py`)*

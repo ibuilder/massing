@@ -17,7 +17,7 @@
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
 import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
-import type { CvBridgeStatus, LogisticsResource, MakeReady } from "./types";
+import type { CvBridgeStatus, LogisticsResource, MakeReady, ScheduleStatusReport } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -33,6 +33,18 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    */
   cvProgressStatus(pid: string) {
     return this.json<CvBridgeStatus>(`/projects/${pid}/cv-progress/status`);
+  }
+
+  /**
+   * SCHED-STATUS — what is late, as of a **data date**, which is REQUIRED rather than defaulted.
+   *
+   * The server returns `checked: false` and every row `unknown` when `dataDate` is omitted, and
+   * says why. That is deliberate: assuming today would be wrong on every historical snapshot and
+   * archived project, and wrong silently. The caller passes the as-of line; nobody assumes one.
+   */
+  scheduleStatus(pid: string, dataDate?: string) {
+    return this.json<ScheduleStatusReport>(`/projects/${pid}/schedule/status`,
+      { method: "POST", body: JSON.stringify(dataDate ? { data_date: dataDate } : {}) });
   }
 
   scheduleAlerts(pid: string) {
