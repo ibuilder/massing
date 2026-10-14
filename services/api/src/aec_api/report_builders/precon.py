@@ -90,17 +90,32 @@ def _stakeholder_analysis(db: Session, pid: str, name: str) -> Report:
     r.kpi("Stakeholders", a["total"])
     r.kpi("Supporters", f"{a['stance']['Supporter']} ({a['supporter_pct'] or 0}%)")
     r.kpi("Blockers", a["stance"]["Blocker"])
-    for k in ("manage_closely", "keep_satisfied", "keep_informed", "monitor"):
-        q = a["quadrants"][k]
-        if q["stakeholders"]:
+    r.kpi("Assessed", f"{a['assessed']} of {a['total']}")
+    # THE BUCKET ORDER COMES FROM THE ENGINE. This was a hardcoded four-name tuple, so the
+    # `unassessed` bucket added by STAKEHOLDER-MEDIUM would have been absent from this PDF while
+    # the KPI above counted its members — *a consumer that enumerates the buckets by hand cannot
+    # see a new one.*
+    for k in stakeholder.QUADRANT_ORDER:
+        q = a["quadrants"].get(k)
+        if q and q["stakeholders"]:
             r.table(f"{q['label']} ({q['count']}) — {q['advice']}",
-                    ["Ref", "Name", "Organization", "Category", "Stance"],
+                    ["Ref", "Name", "Organization", "Category", "Stance", "Power", "Interest"],
                     [[s.get("ref") or "", s.get("name") or "", s.get("organization") or "",
-                      s.get("category") or "", s.get("stance") or ""] for s in q["stakeholders"]])
-    if a["high_power_blockers"]:
-        r.table("High-power blockers to address", ["Ref", "Name", "Organization"],
-                [[s.get("ref") or "", s.get("name") or "", s.get("organization") or ""]
-                 for s in a["high_power_blockers"]])
+                      s.get("category") or "", s.get("stance") or "",
+                      s.get("power") or "—", s.get("interest") or "—"]
+                     for s in q["stakeholders"]])
+    # EVERY BLOCKER, AT EVERY POWER LEVEL, and that is the fix to a discrepancy that was ON THE
+    # PAGE: the "Blockers" KPI above is the stance tally over all of them, while this table used to
+    # be `high_power_blockers` only. A reader saw "Blockers: 3" and a table of 1, with nothing
+    # saying why — and on a three-level scale the missing ones are the Medium-power parties, which
+    # is exactly who a PM needs warning about. The level is a column now, so the high-power ones
+    # are still identifiable without the table pretending to be the whole set.
+    if a["blockers"]:
+        r.table(f"Blockers to address ({len(a['blockers'])})",
+                ["Ref", "Name", "Organization", "Power"],
+                [[s.get("ref") or "", s.get("name") or "", s.get("organization") or "",
+                  s.get("power") or "not recorded"] for s in a["blockers"]])
+    r.table("Grid coverage", ["Reading"], [[a["grid"]["reason"]], [a["note"]]])
     return r
 
 

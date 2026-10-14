@@ -40,6 +40,19 @@ export async function renderResponsibility(ctx: PanelContext) {
   const intro = el("div", "dash-card"); intro.style.marginBottom = "8px";
   root.appendChild(intro);
 
+  // STAKEHOLDER-MEDIUM — who the parties are, beside who is accountable for what. The grid was
+  // only ever readable by exporting `reports/stakeholder_analysis.pdf`; the JSON route had no web
+  // caller, so the one place it showed up was a document somebody had to generate and circulate.
+  //
+  // A SLOT appended synchronously with an `isConnected` check on the late write, because `ctx.root`
+  // belongs to whichever panel rendered last (PR #527).
+  const stkSlot = document.createElement("div");
+  root.appendChild(stkSlot);
+  void (async () => {
+    const { renderStakeholderGrid } = await import("./stakeholderGrid");
+    await renderStakeholderGrid(api, stkSlot, pid);
+  })().catch(() => {});
+
   const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
 
   const load = async () => {

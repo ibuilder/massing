@@ -1552,3 +1552,56 @@ export interface ExpiryCoverage {
   skipped_reason?: string;
   reason: string;
 }
+
+
+/** One party in the stakeholder register, as the grid reports it. */
+export interface StakeholderBrief {
+  ref?: string;
+  name?: string;
+  organization?: string;
+  category?: string;
+  stance?: string;
+  /** `null` when the register field is blank — which is why `unassessed` exists. */
+  power: string | null;
+  interest: string | null;
+}
+
+export interface StakeholderQuadrant {
+  label: string;
+  advice: string;
+  count: number;
+  stakeholders: StakeholderBrief[];
+}
+
+/**
+ * `GET /projects/{pid}/stakeholders/analysis` — STAKEHOLDER-MEDIUM.
+ *
+ * The grid is a 2×2 and the register's `power` / `interest` are THREE-option selects, so `Medium`
+ * sits on the low side of both axes. `grid` states that split and the distribution under it, so a
+ * screen can say "12 of 15 are Medium" rather than presenting a wall of "Monitor" as a finding.
+ */
+export interface StakeholderGrid {
+  high_level: string;
+  levels: string[];
+  by_level: { power: Record<string, number>; interest: Record<string, number> };
+  /** Values outside the register's options, per axis — blank counts here too. */
+  unrecorded: { power: number; interest: number };
+  unassessed: number;
+  reason: string;
+}
+
+export interface StakeholderAnalysis {
+  total: number;
+  assessed: number;
+  /** Four Mendelow quadrants plus `unassessed`, which is NOT one of them. */
+  quadrants: Record<string, StakeholderQuadrant>;
+  stance: Record<string, number>;
+  supporter_pct: number | null;
+  by_category: Record<string, number>;
+  /** Every Blocker, at any power level. */
+  blockers: StakeholderBrief[];
+  /** The high-power subset of `blockers` — a subset, not a substitute. */
+  high_power_blockers: StakeholderBrief[];
+  grid: StakeholderGrid;
+  note: string;
+}

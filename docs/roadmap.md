@@ -1511,6 +1511,63 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **STAKEHOLDER-MEDIUM — a 2×2 grid over a three-level scale, printing "monitor with minimal
+  effort" about parties nobody had assessed** *(S — `services/api/src/aec_api/stakeholder.py` +
+  `apps/web/src/portal/panels/stakeholderGrid.ts`; **CLOSED 2026-10-13**; gated by
+  `services/api/test_stakeholder.py` and `apps/web/src/portal/panels/stakeholderGrid.test.ts`)*
+
+  `stakeholder.analysis` turns the stakeholder register into a Mendelow power/interest grid: manage
+  closely, keep satisfied, keep informed, monitor — plus the high-power blockers. It reads
+  `d.get("power") == "High"`. The register scores `power` and `interest` as **three-option selects
+  (High / Medium / Low), neither required.**
+
+  ### The framing was wrong first, and correcting it moved the severity
+
+  `/projects/{pid}/stakeholders/analysis` sits in the reachability freeze list, and the first
+  reading of this item was "the whole capability is dark". **It is not.** The same engine is
+  rendered by `reports/stakeholder_analysis.pdf`, which is in the report catalog and which
+  `apps/web/src/reportCenter.ts` offers as a PDF button — so the grid was being **circulated in a
+  document** the whole time. *That gate's subject is a ROUTE, and a capability can be reachable
+  through a different one*; reading a freeze entry as a statement about the feature is what
+  produced the wrong severity, and opening the report builder is what corrected it. The defects
+  below were live on a page a PM hands round, not latent.
+
+  ### Three consequences, and they are not the same kind of problem
+
+  | | what happened | what kind |
+  |---|---|---|
+  | `Medium` | Medium/Medium → *"Monitor — low power + low interest, monitor with minimal effort"* | a **product decision** nobody had written down — Medium/Medium is also the most likely assessment, so the common case looks like a finding |
+  | unassessed | no power or no interest → the same bucket | **wrong**, not debatable: a register nobody had filled in read as "everybody is low priority and there are no blockers" |
+  | blockers | `high_power_blockers` demands High, so a Medium-power blocker appeared **nowhere** | **an omission**, and the worst of the three |
+
+  So the fix states the first, repairs the second and third, and invents no policy: the split is
+  named (`grid.high_level`), the distribution under it is reported (`grid.by_level`), `unassessed`
+  is its own bucket with its own advice, and `blockers` lists every Blocker with its level while
+  `high_power_blockers` remains the subset it always was. *A subset is fine; a subset standing in
+  for the whole is not.*
+
+  ### The discrepancy was ON THE PAGE
+
+  The PDF prints `r.kpi("Blockers", a["stance"]["Blocker"])` — the stance tally over *all* of them
+  — and then a table of `high_power_blockers`. A reader saw **"Blockers: 2" above a table of 1**,
+  with nothing saying why. That is now one number and one table that agree, with power as a column,
+  and `test_stakeholder.py` asserts the equality rather than describing it.
+
+  ### A fifth bucket the PDF could not have seen
+
+  `report_builders/precon.py` iterated a hardcoded
+  `("manage_closely", "keep_satisfied", "keep_informed", "monitor")`. Adding `unassessed` would
+  have left it out of the circulated document while the new "Assessed" KPI counted its members —
+  *a consumer that enumerates the buckets by hand cannot see a new one.* The list is
+  `stakeholder.QUADRANT_ORDER` now, owned by the engine, and the test asserts it covers every key
+  the response carries, so the next bucket cannot be dropped in silence.
+
+  The client method went into a new one-method mixin rather than `api/responsibility.ts`, whose own
+  header cites its exact 1:1 correspondence with `routers/responsibility.py` as the reason it is a
+  grouping at all — and this route lives in `routers/construction.py`. *A grouping rule set aside
+  for a convenient case was never a rule.* The panel is still Responsibility: who the parties are
+  belongs beside who is accountable for what.
+
 - ✅ ⭐ **EXPIRY-UNDATED — "Compliance: no COI/permit expiries ✓" over certificates nothing could
   read** *(S — `services/api/src/aec_api/module_schema.py` +
   `services/api/src/aec_api/routers/closeout.py` + `apps/web/src/portal/expiryNote.ts`;
@@ -1547,6 +1604,21 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   is unaffected — legacy rows holding bad dates stay editable. That matters: the `_table_errors`
   docstring one function away records what happens when a config change breaks data it never
   touched.
+
+  **AND THE CSV IMPORT WAS ALREADY DOING IT RIGHT — checked, not assumed, after the rule landed.**
+  `imports._coerce` tries five formats for a `date` field (`%Y-%m-%d`, `%m/%d/%Y`, `%m/%d/%y`,
+  `%d/%m/%Y`, `%Y/%m/%d`) and normalises to ISO before `create_record`, so a spreadsheet carrying
+  `12/31/2026` imports as `2026-12-31` and this rule changes nothing for it. What it changes is the
+  tail of that function — `return s  # leave as-is if unrecognised` — which used to store an
+  unrecognisable string and now reports it as a per-row error, which is what `do_import`'s
+  *"never let one bad row abort the batch"* channel exists for.
+
+  *So the tree held two writers with two opinions, and the careless one was the path a user touches
+  most.* The import boundary already knew what a human date looks like; the register API — every UI
+  form, script and integration — stored whatever arrived. The two stay different on purpose:
+  **coerce at an import boundary, validate at a contract boundary.** A spreadsheet is a foreign
+  artifact and a payload is a promise. That five-format list is also why the validator needed no
+  format policy of its own to invent: the decision had already been made, one file away.
 
   ### Three engines, three answers, and the careful ones were already here
 

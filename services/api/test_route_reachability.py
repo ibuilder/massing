@@ -1996,7 +1996,17 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/review/scope",
     "/projects/{pid}/scene/package",
     "/projects/{pid}/schedule/status",
-    "/projects/{pid}/stakeholders/analysis",
+    # `/projects/{pid}/stakeholders/analysis` left this set 2026-10-13 — STAKEHOLDER-MEDIUM. The
+    # Mendelow grid card in `apps/web/src/portal/panels/stakeholderGrid.ts` reads it, mounted in the
+    # Responsibility panel.
+    #
+    # **AND THIS ENTRY WAS READ AS "THE CAPABILITY IS DARK", WHICH IT WAS NOT.** The same engine is
+    # rendered by `reports/stakeholder_analysis.pdf`, which is in the report catalog and which
+    # `apps/web/src/reportCenter.ts` offers as a button — so the grid was being circulated in a
+    # document while this list said nothing called it. *This gate's subject is a ROUTE, and a
+    # capability can be reachable through a different one*; the item's first framing came from
+    # reading the freeze entry as a statement about the feature, and was corrected by opening the
+    # report builder. The defect was therefore live on a page a PM hands round, not latent.
     # STAYS FROZEN, with the reason, from EXPIRY-UNDATED (2026-10-13). Its payload is a window —
     # `days_left` within N days — over the register `closeout.warranty_rollup` already serves as
     # one rollup through `/closeout/summary`, which IS wired. *A route whose payload is a view of
