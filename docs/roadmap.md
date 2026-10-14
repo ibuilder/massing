@@ -1511,6 +1511,195 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **MC-UNDEFINED — both risk cards captioned a percentile with the draws it had excluded, and
+  the excluded ones are the scenarios where the deal never returned capital** *(S —
+  `apps/web/src/proforma/mcRead.ts`, `apps/web/src/api/types.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/proforma/mcRead.test.ts`)*
+
+  `services/api/src/aec_api/proforma/monte_carlo.py`'s `_summary` is careful and says so in its own
+  docstring: a draw that solved but produced no value carries `NaN` and is **counted, not dropped**,
+  because *"an undefined equity IRR is a scenario where the deal never returned capital, which is
+  the worst outcome rather than a missing one"*; percentiles are *"necessarily taken over the
+  defined draws only"*, while `prob_at_least` is over **all** of them *"because that is the question
+  it claims to answer"*. It publishes `n`, `undefined`, and `prob_at_least_of_defined`
+  *"alongside rather than instead, so a reader can see the gap between the two"*.
+
+  **`undefined` and `prob_at_least_of_defined` were declared nowhere in `apps/web/src/api/types.ts`,
+  so neither consumer could read them.** Measured on the backend suite's own `deal` fixture
+  (`services/api/test_proforma.py`), with a hard-cost spread wide enough to wipe equity on some
+  draws:
+
+  | | |
+  |---|---|
+  | draws requested / solved | 300 / 300 |
+  | `n` — the draws every percentile describes | **134** |
+  | `undefined` — scenarios that returned no capital | **166** |
+  | the card's caption | *"Monte Carlo — Equity IRR (**300 draws**…)"* |
+
+  So the P10/P50/P90 covered 134 draws under a title claiming 300, and **the 166 left out are the
+  bad ones** — the card's own "downside-tilted" framing made that worse, not better. *A risk
+  distribution that silently drops its worst outcomes reports less risk than it measured.* (The
+  card's shipped spread is ±20% on hard cost rather than the wider one used to reproduce it, so this
+  is a thin deal away rather than a figure on every screen. Stated because `CLASH-TRUNC`'s first
+  draft overstated a severity in the flattering direction and only measuring caught it.)
+
+  **The specialty risk sim was worse in one respect and better in none.** It captioned
+  `` `${r.iterations} draws` `` — the draws *requested*, before failures and before undefined
+  metrics — where the main card at least read `solved`. It also had no `n` guard at all, and the
+  `n === 0` branch returns `{n, undefined}` **and nothing else**: no percentiles, no histogram. The
+  old client type declared those required, so that branch rendered as **four em-dashes**, for the
+  single strongest finding a sim can produce — *in none of these scenarios did the deal return
+  capital.* Both cards now render that sentence instead of a band.
+
+  **Everything but `n` and `undefined` is optional now, and that is a fact about the server rather
+  than caution.** Relaxing it made the compiler name **twelve** unguarded reads across the two
+  cards, which is the argument for the declared type doing work: a re-spelled inline shape would
+  have accepted every one of them.
+
+  **Why the undeclared-key gate did not catch it, which is the part worth keeping.**
+  `apps/web/src/api/responseUndeclared.test.ts` compares a route's **top-level** keys, and these sit
+  two levels down in `metrics[*]`. That is its measured blind spot (b) — *"a root-only comparison
+  blind to a shape wrong one level down"* — and it is not a hypothetical here: the gate **did** hold
+  an entry for this route, naming `seed` and `variables`, both roots. Those two are now declared and
+  rendered as well (the seed is the only thing that makes a quoted P50 comparable between two
+  readers, and it is a fixed 42, so the run is reproducible and nobody could see that it was). *The
+  gate pointed at the right route and listed the lesser half of what was wrong with it.*
+
+- ✅ ⭐ **COND-REFUSED — a DENIED approval rendered as `ENT-002 — 0 open`, the most reassuring row
+  the card can produce** *(S — `apps/web/src/portal/panels/conditionsRead.ts`,
+  `apps/web/src/portal/panels/design.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/conditionsRead.test.ts`)*
+
+  `services/api/src/aec_api/approval_conditions.py` is careful about a refused entitlement and
+  writes down exactly why: *"this entitlement was DENIED. Its conditions are listed because they
+  are what the agency would have required, and an appeal puts them back in play — but they are not
+  open obligations, so they count zero. **Nobody owes the terms of a permission that was
+  refused.**"* It implements that by zeroing the row — `open_count: 0`, `unparsed_count: 0`,
+  `discharged_count: 0` — so the row *"cannot read '3 open' while contributing 0 to the total"*.
+
+  The "Conditions of approval" card read only those counts. Its loop was
+  `` `${e.ref} — ${e.open_count} open` ``, so **measured on a live server**: a denied variance
+  carrying five unaddressed conditions printed as `ENT-002 — 0 open`, beside the approved
+  application's `ENT-001 — 4 open`. *The zeroing was right and the consumer read it as compliance.*
+  `status` was never branched on and `refused`/`live_count` were both in the undeclared-key list.
+
+  **`services/api/test_refusal_readers.py` already proved the engine right** — it drives the real
+  route, denies the entitlement, asserts the totals do not move, asserts
+  `live_count + len(refused) == entitlement_count`, and even asserts the denied row keeps its
+  conditions readable because an appeal revives them. Its two stated rules are a positive control
+  and a reconciliation. **Its subject was the engine, and nothing asked the same question of the
+  reader** — so the one screen that displays this register was the only place the refusal did not
+  hold. *A behavioural gate on a producer is not a gate on the pair.*
+
+  The asymmetry is what makes it a defect rather than a judgement: **the card directly beneath it
+  on the same panel**, reading the same register through `entitlementConditionChecks`, already
+  prints *"N refused (listed, not scored)"*. Two cards, one register, one of them honouring the
+  refusal. And the declared type's own doc comment on `status` enumerated **three of its four
+  values** (`tracked` · `no_conditions` · `unrecorded`), with `refused` missing — *an enumeration
+  in a doc comment is the only specification a `string` field has, and one value short reads
+  exactly like a complete list.*
+
+  **The headline gained its denominator too.** `total_open`/`total_unparsed` are sums over rows
+  whose refused members contribute zero, so they cover `live_count` entitlements and not
+  `entitlement_count`; the card printed `4 open · 1 unparsed` with no population attached. It now
+  reads *"across 1 of 2 entitlement(s)"*, and because that denominator is a claim about the
+  server's own identity, `reconciles()` checks it rather than trusting it — returning `null`, not
+  `false`, against a server that does not send the keys, since an unanswerable question is not a
+  failed one.
+
+  **NOT generalised into a tree-wide gate, and the measurement is why.** The tempting rule is "a
+  response that publishes a refusal list must have a consumer that reads it", and `"refused":`
+  appears 12 times across the backend — but in `jobs`, `plugin_registry`, `clause_playbook` and
+  `docmanager` it is a different sense each time (a refused job, a rejected plugin, a clause the
+  firm refuses). *A rule that needs an exemption list is a rule whose population is wrong*, which
+  is what `test_verdict_coverage.py` paid to learn when coverage-ish words returned 24 candidates
+  of mostly unrelated senses. The real signature is structural — an engine that excludes rows from
+  a total and publishes **both** the surviving count and the excluded list, which is also
+  `n`/`without_value` in `comp_tier`, `usable_count`/`excluded` in `unit_rate_memory` and
+  `comp_count`/`excluded_comparables` — and deriving that population is its own piece of work.
+  Recorded here with the measurement so it starts from one rather than from a word search.
+
+- ✅ ⭐ **COMPTIER-DARK — the comp source ladder had never been shown the register's own source
+  field, and four of its seven options were "Unattributed"** *(S —
+  `apps/web/src/proforma/compTierCard.ts`, `apps/web/src/proforma/compTierRead.ts`,
+  `services/api/src/aec_api/comp_tier.py`; **CLOSED 2026-10-14**; gated by
+  `services/api/test_comp_tier_sources.py`, `apps/web/src/proforma/compTierRead.test.ts` and new
+  assertions in `services/api/test_cre_deal_desk.py`)*
+
+  `comp_tier.py` opens with the case for itself — *"a comp is not a fact until you know where it
+  came from"* — and `GET /projects/{pid}/comps/tiered` had **no caller**: `tieredComps` sat in
+  `apps/web/src/api/clientCallers.test.ts`'s uncalled freeze and two of its keys in
+  `apps/web/src/api/responseUndeclared.test.ts`'s gap list. Writing the screen found three defects,
+  and **the undeclared keys were the cheapest thing wrong with it.**
+
+  **① The ladder was written for free text, and `source` is a SELECT.** `tier_of()`'s docstring
+  calls its matching *"pure string normalization over what users already type"*. Users do not type
+  it: `services/api/modules/comparable/module.json` declares `source` a `select` with seven options
+  and `modules._validate_values` refuses anything outside them. Measured against that population:
+
+  | option | tier before | tier now |
+  |---|---|---|
+  | `Public record` | Recorded sale (1) | Recorded sale (1) |
+  | `MLS` | Listing / asking (5) | Listing / asking (5) |
+  | `Broker` | Broker package (6) | Broker package (6) |
+  | `Owner` | **Unattributed (7)** | Party-verified (2) |
+  | `CoStar` | **Unattributed (7)** | Vendor-confirmed (3) |
+  | `Appraisal` | **Unattributed (7)** | Vendor-confirmed (3) |
+  | `Other` | Unattributed (7) | Unattributed (7) — deliberate |
+
+  Three demotions, and **demotion is the expensive direction for this engine specifically**:
+  `statistic()` exists to report the weakest tier a band rests on and appends *"Strengthen that
+  source before the number carries a decision."* A band of owner-confirmed and appraisal comps
+  carried that sentence on every render, so *the one qualifier this leaf publishes fired on the
+  most ordinary sources an analyst picks — it was defeated by being always-on, which reads the same
+  as absent by the second time anybody sees it.*
+
+  Matched **exactly** (normalised, whitespace-collapsed) and consulted before the substring pass,
+  and that is load-bearing rather than tidy. The cheap repair — add `"owner"` to the `verified`
+  phrase list and `"appraisal"` to `confirmed` — promotes *"listing agent for the owner"* to
+  party-verified and *"broker OM quoting an appraisal"* to vendor-confirmed. Both are pinned as
+  negatives, so the cheap repair cannot be made quietly.
+
+  `services/api/test_comp_tier_sources.py` **derives the population from `module.json`** rather than
+  restating it, asserts the agreement in **both directions** (a key for an option that no longer
+  exists is dead weight that reads as coverage — the `ROWKEY-SUPERSET` lesson), and needs **zero
+  exemptions**, because `Other` is in the table mapping to the weakest tier on purpose. It
+  reinstates the pre-fix classifier and must re-find exactly those four before it may report. *The
+  tier ladder and the register are edited by different people for different reasons, and nothing
+  connected them.*
+
+  **② The band was a subset and published only `n`.** `statistic()` filters to the comps carrying a
+  value for its field, so a band over three of five comps and a band over all three of three were
+  the same payload — and the missing two were not a thinner market, they were blank cells in a form.
+  `of_comps` is the population now and `without_value` **names** the shortfall, the same rule
+  `from_project` already applied one level up to the appraiser's exclusions. Carried in the engine
+  rather than reassembled per caller, because `statistic()` is also called standalone.
+
+  **③ `conflicts_resolved` was a property of the SET, published among keys that are all properties
+  of the BAND.** Measured: a `rent_psf` band of one comp reported `conflicts_resolved: 1` for a
+  tie-break about `price_psf` at a different address — so the single rent figure read as the
+  survivor of a disagreement it was never in. It is field-scoped now (`value_deltas` is already
+  per-field, so the scoping reads what the engine recorded rather than deriving anything new) and
+  the set-wide figure is still published as `conflicts_in_set`, because dropping it would trade one
+  wrong number for a missing one.
+
+  **The engine also now publishes the ladder itself.** `tier_counts` is a dict with no order in it,
+  and the only non-arbitrary order to render it in is the hierarchy — so `ladder` ships once per
+  response and `worst_rank`/`best_rank` ship per band. Without them a client handed
+  `{"worst_tier": "listing"}` cannot tell whether that is good news without keeping a second copy of
+  the ladder, and *a re-spelled ordering drifts exactly like a re-spelled shape.* The card's one
+  judgement is which tier counts as weak (`WEAK_FROM_TIER = "listing"`); its **rank** is read from
+  the response, and a ladder that no longer names that tier fails to the WARNING side — asserted,
+  because the opposite default blesses every band on the day somebody renames a tier and nothing
+  goes red.
+
+  **No authority gate, decided rather than omitted.** `proforma/authorityGate.ts` governs cards whose
+  conclusion rests on a deal-room FACT and says why `residual_land` is absent: *"a block nobody can
+  act on teaches the reader to dismiss the ones they can."* This route reads the project's own
+  `comparable` register and consumes no governed document. `appraisal` is the tempting dependency
+  and the wrong one — the table tracks that document's freshness, and these comps are not drawn
+  from it.
+
 - ✅ ⭐ **UNITRATE-BASIS — the engine says "check `spread_ratio` before quoting a median", and the
   card printed the median and withheld the spread** *(S —
   `apps/web/src/portal/panels/unitRateRead.ts`; **CLOSED 2026-10-14**; gated by

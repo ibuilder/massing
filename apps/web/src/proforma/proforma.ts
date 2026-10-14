@@ -11,6 +11,7 @@ import { basisNote, disciplineRows, SYNC_CSS, syncFailure, vintageNote } from ".
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderAdmissibilityCard } from "./admissibilityCard";
 import { renderAuthorityCard } from "./authorityCard";
+import { renderCompTierCard } from "./compTierCard";
 import { renderCovenantCard } from "./covenantCard";
 import { renderDecisionGateCard } from "./decisionGateCard";
 import { renderHoldSellCard } from "./holdSellCard";
@@ -23,6 +24,7 @@ import { renderT12Card } from "./t12Card";
 import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
+import { degenerate, drawScope, histogram, probReading, undefinedNote } from "./mcRead";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -183,6 +185,11 @@ export class ProformaUI {
       const out = document.createElement("div"); out.id = "pf-out"; uwSec.appendChild(out);
       const sens = document.createElement("div"); sens.id = "pf-sens"; uwSec.appendChild(sens);
       const mc = document.createElement("div"); mc.id = "pf-mc"; uwSec.appendChild(mc);
+      // COMPTIER-DARK, BEFORE the gates: the comps band is an INPUT to a value conclusion, and the
+      // two cards below it are gates over conclusions. Reading order is inputs, then gates.
+      renderCompTierCard(uwSec, {
+        api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      });
       // The authority table is the gate on whether any figure on this tab should be trusted, so it
       // sits with the underwriting rather than beside one of the things it governs.
       renderAuthorityCard(uwSec, {
@@ -1226,12 +1233,34 @@ export class ProformaUI {
             });
             const b = r.metrics.blended_irr, s = r.metrics.specialty_irr;
             if (!b || !s) { pnlOut.innerHTML = `<div class="meta">no risk-sim result</div>`; return; }
-            const prob = b.prob_at_least == null ? "—" : `${Math.round(b.prob_at_least * 100)}%`;
+            // MC-UNDEFINED. `r.iterations` is the draws REQUESTED — worse than the main card's
+            // `solved`, because the specialty engine publishes no solved count at all. The
+            // percentiles describe `b.n`, and the difference is the draws where the blended deal
+            // never returned capital: the worst scenarios, left out of the band that was captioned
+            // with their number.
+            const dead = degenerate(b, r.iterations, "blended IRR");
+            if (dead) {
+              pnlOut.innerHTML =
+                `<div class="meta" style="color:var(--status-crit)">${escapeHtml(dead)}</div>`
+                + `<div class="meta">risk discount 20–60%, greens $/lb σ=1 · seed ${r.seed}</div>`;
+              return;
+            }
+            const prob = probReading(b);
+            const bScope = drawScope(b, r.iterations), sScope = drawScope(s, r.iterations);
+            const bNote = undefinedNote(b, "blended IRR"), sNote = undefinedNote(s, "specialty IRR");
             pnlOut.innerHTML =
-              `<div>Blended IRR across ${r.iterations} draws (risk discount 20–60%, greens $/lb σ=1):</div>`
-              + `<div style="margin-top:2px">P5 <b>${pct(b.p5)}</b> · P50 <b>${pct(b.p50)}</b> · P95 <b>${pct(b.p95)}</b>`
-              + ` · P[≥15%] <b>${prob}</b></div>`
-              + `<div class="meta" style="margin-top:2px">specialty-only IRR: P5 ${pct(s.p5)} · P50 ${pct(s.p50)} · P95 ${pct(s.p95)}</div>`;
+              `<div>Blended IRR across ${escapeHtml(bScope.text)} (risk discount 20–60%, greens $/lb σ=1):</div>`
+              + `<div style="margin-top:2px">P5 <b>${pct(b.p5 ?? null)}</b> · P50 <b>${pct(b.p50 ?? null)}</b> · P95 <b>${pct(b.p95 ?? null)}</b>`
+              + ` · P[≥15%] <b>${escapeHtml(prob.headline)}</b></div>`
+              + (bNote ? `<div class="meta" style="margin-top:2px;color:var(--status-warn)">${escapeHtml(bNote)}</div>` : "")
+              + (prob.gap ? `<div class="meta">P[≥15%] is ${escapeHtml(prob.gap)}</div>` : "")
+              + `<div class="meta" style="margin-top:2px">specialty-only IRR over ${escapeHtml(sScope.text)}: `
+              + `P5 ${pct(s.p5 ?? null)} · P50 ${pct(s.p50 ?? null)} · P95 ${pct(s.p95 ?? null)}</div>`
+              + (sNote ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(sNote)}</div>` : "")
+              // The seed, so two readers comparing a P50 can tell whether they ran the same stream.
+              // It is a fixed default (42) today, which makes the run reproducible — and a reader
+              // who cannot see it has no way to know that.
+              + `<div class="meta">seed ${r.seed} · ${r.variables.length} variable(s) sampled</div>`;
           } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
         };
         bodyEl.appendChild(risk);
@@ -1886,20 +1915,39 @@ export class ProformaUI {
       });
     } catch { this.renderMonteCarloPrompt(); return; }
     const m = mc.metrics["returns.equity_irr"];
-    if (!m || !m.n) { this.renderMonteCarloPrompt(); return; }
-    const hmax = Math.max(...m.histogram.counts, 1);
-    const bars = m.histogram.counts.map((c, i) => {
-      const lo = m.histogram.edges[i] ?? 0;
-      return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / hmax) * 48) + 1}px"></span>`;
+    if (!m) { this.renderMonteCarloPrompt(); return; }
+    // MC-UNDEFINED. `!m.n` used to send the reader back to the prompt, which reads as "the sim did
+    // not run" — and `n === 0` with a non-zero `undefined` means it ran and **every** scenario
+    // failed to return capital. That is the strongest finding this card can carry, and it was the
+    // one case it refused to render.
+    const dead = degenerate(m, mc.solved, "equity IRR");
+    if (dead) {
+      host.innerHTML =
+        `<div class="section-title">Monte Carlo — Equity IRR</div>`
+        + `<div class="meta" style="color:var(--status-crit)">${escapeHtml(dead)}</div>`
+        + `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
+      return;
+    }
+    const hist = histogram(m);
+    const bars = !hist ? "" : hist.counts.map((c, i) => {
+      const lo = hist.edges[i] ?? 0;
+      return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / Math.max(...hist.counts, 1)) * 48) + 1}px"></span>`;
     }).join("");
-    const prob = Math.round((m.prob_at_least ?? 0) * 100);
+    const prob = probReading(m);
+    // The title names the draws the PERCENTILES describe, not the draws attempted. `mc.solved` is
+    // the attempted figure here (the engine publishes it); the percentiles cover `m.n`.
+    const scope = drawScope(m, mc.solved);
+    const undef = undefinedNote(m, "equity IRR");
     host.innerHTML =
-      `<div class="section-title">Monte Carlo — Equity IRR (${mc.solved} draws: exit cap × hard cost × rent)</div>` +
+      `<div class="section-title">Monte Carlo — Equity IRR (${escapeHtml(scope.text)}: exit cap × hard cost × rent)</div>` +
       `<div class="kpi-grid">` +
-      [["P10", pct(m.p10)], ["P50 (median)", pct(m.p50)], ["P90", pct(m.p90)], [`P(IRR ≥ ${target * 100}%)`, `${prob}%`]]
+      [["P10", pct(m.p10 ?? null)], ["P50 (median)", pct(m.p50 ?? null)], ["P90", pct(m.p90 ?? null)],
+       [`P(IRR ≥ ${target * 100}%)`, prob.headline]]
         .map(([l, v]) => `<div class="kpi"><div class="kpi-v">${escapeHtml(v)}</div><div class="kpi-l">${escapeHtml(l)}</div></div>`).join("") +
       `</div>` +
       `<div class="pf-hist" title="equity IRR distribution (P10 → P90)">${bars}</div>` +
+      (undef ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(undef)}</div>` : "") +
+      (prob.gap ? `<div class="meta">P(IRR ≥ ${target * 100}%) is ${escapeHtml(prob.gap)}</div>` : "") +
       `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
   }
 

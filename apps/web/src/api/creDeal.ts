@@ -239,6 +239,98 @@ export interface ClausePosition {
   fallback?: string;
 }
 
+/** CRE-COMP-TIER — one comp with its source tier resolved.
+ *
+ *  `matched` means **the source was recognised**, which is not the same fact as a tier above the
+ *  weakest: `comparable.source` is a select whose `Other` option asserts there is no attribution,
+ *  so `{ tier: "unknown", matched: true }` is the register saying so and `matched: false` is a
+ *  source string nobody could read. `services/api/src/aec_api/comp_tier.py` carries the table. */
+export interface TieredComp {
+  tier: string;
+  rank: number;
+  label: string;
+  matched: boolean;
+  address: string | null;
+  source: string | null;
+  sale_date: string | null;
+  price: number | null;
+  price_psf: number | null;
+  cap_rate: number | null;
+  rent_psf: number | null;
+  ref: string | null;
+}
+
+/** One tier-aware band — the p25/median/p75 **plus what it rests on and what it left out**.
+ *
+ *  Every key from `p25` down is optional because the `n === 0` branch returns a different shape:
+ *  `{field, n, median, worst_tier, reason}` plus the coverage block, and nothing else. The coverage
+ *  keys are NOT optional, because they are present on both branches by construction — that is the
+ *  point of carrying them in the engine rather than reassembling them per caller. */
+export interface TieredCompBand {
+  field: string;
+  /** How many comps carry a value for `field` — a SUBSET of `of_comps`, never the population. */
+  n: number;
+  /** The resolved comp population the band was drawn from. `n + without_value.count === of_comps`. */
+  of_comps: number;
+  /** The comps that carry no value for this field, named rather than counted. */
+  without_value: {
+    count: number;
+    comps: { address: string | null; source: string | null; tier: string }[];
+    /** The COUNT is exact; only `comps` is capped. */
+    truncated: boolean;
+  };
+  /** Tie-breaks that moved THIS field. Field-scoped; `conflicts_in_set` is the whole register's. */
+  conflicts_resolved: number;
+  conflicts_in_set: number;
+  median: number | null;
+  worst_tier: string | null;
+  /** Present only when `n === 0`. */
+  reason?: string;
+  /** The weakest/strongest contributing tier's RANK on the ladder (1 is strongest). Carried so a
+   *  reader can tell whether `worst_tier: "listing"` is good news without restating the hierarchy
+   *  on its own side. */
+  worst_rank?: number;
+  best_rank?: number;
+  p25?: number;
+  p75?: number;
+  min?: number;
+  max?: number;
+  worst_tier_label?: string;
+  best_tier?: string;
+  tier_counts?: Record<string, number>;
+  unattributed?: number;
+  note?: string;
+}
+
+/** CRE-COMP-TIER's full response. */
+export interface TieredComps {
+  comps: TieredComp[];
+  comp_count: number;
+  conflicts: {
+    address: string | null;
+    kept_tier: string;
+    outranked: { tier: string; source: string | null }[];
+    value_deltas: { field: string; kept: number; outranked: number;
+                    kept_tier: string; outranked_tier: string }[];
+  }[];
+  conflict_count: number;
+  note: string;
+  /** The source hierarchy itself, strongest first. `statistics[*].tier_counts` is a dict with no
+   *  order in it, and the only non-arbitrary order to render it in is this one — published by the
+   *  engine so no client has to keep a second copy of the ladder. */
+  ladder: { tier: string; label: string; rank: number }[];
+  /** Keyed by `price_psf` | `cap_rate` | `rent_psf` — a `Record` rather than three named members
+   *  because the engine builds it by comprehension over that tuple, and a client that names the
+   *  three would silently drop a fourth. */
+  statistics: Record<string, TieredCompBand>;
+  /** The band for the field the caller asked for. Undeclared until COMPTIER-DARK, so the one
+   *  statistic the `field` parameter exists to produce could not be read from TypeScript. */
+  requested: TieredCompBand;
+  /** Comps the appraiser moved to `excluded` in the `comparable` workflow. Named, never silently
+   *  dropped — the sample shrank because somebody decided it should. */
+  excluded_comparables: { id: string | null; ref: string | null; reason: string }[];
+}
+
 export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class CreDeal extends Base {
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
@@ -366,18 +458,25 @@ export function withCreDeal<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: JSON.stringify({ evidence, required_exhibits: requiredExhibits,
                                                min_coverage: minCoverage ?? 0.9 }) });
   }
-  /** CRE-COMP-TIER — comps ranked by source tier; bands report the weakest tier they rest on. */
+  /** CRE-COMP-TIER — comps ranked by source tier; bands report the weakest tier they rest on.
+   *
+   *  Declared in full by COMPTIER-DARK. What was missing mattered in three different ways, which is
+   *  why the shape is named rather than inline (`api/noRespelledShapes.test.ts`: a re-spelled shape
+   *  is a field no derivation over declarations can see):
+   *
+   *  * `requested` — the band for the field the caller ASKED for — was undeclared, so the one
+   *    statistic the `field` parameter exists to produce was unreachable from TypeScript.
+   *  * `excluded_comparables` was undeclared. The engine names them on purpose — *"a sample that
+   *    shrank without saying so reads as a thinner market rather than as a decision somebody
+   *    made"* — and a key no client can read is a decision nobody is shown.
+   *  * `reason` is the ONLY band key present when `n === 0`; `p25`/`p75`/`note`/`tier_counts` are
+   *    all absent on that branch. A consumer written against the non-empty shape renders `—` for a
+   *    median and says nothing about why, which is the empty-versus-zero confusion this engine is
+   *    otherwise careful about.
+   */
   tieredComps(pid: string, field = "price_psf") {
-    return this.json<{ comp_count: number; conflict_count: number;
-      comps: { tier: string; label: string; rank: number; address: string; source: string;
-        price_psf: number | null; cap_rate: number | null }[];
-      conflicts: { address: string; kept_tier: string;
-        outranked: { tier: string; source: string }[];
-        value_deltas: { field: string; kept: number; outranked: number }[] }[];
-      statistics: Record<string, { n: number; median: number | null; p25?: number; p75?: number;
-        worst_tier: string | null; worst_tier_label?: string; best_tier?: string;
-        tier_counts?: Record<string, number>; unattributed?: number; note?: string }>;
-      note: string }>(`/projects/${pid}/comps/tiered?field=${encodeURIComponent(field)}`);
+    return this.json<TieredComps>(
+      `/projects/${pid}/comps/tiered?field=${encodeURIComponent(field)}`);
   }
   /** CRE-T12 — normalize a trailing-twelve to the house chart; the tie-out is a GATE, not a report. */
   normalizeT12(pid: string, t12: unknown, units?: number) {

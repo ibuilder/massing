@@ -126,8 +126,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/change-orders/log": ["by_state", "change_events_by_scope", "rejected_value"],
   // `support_unscheduled` — the 4D pairs with no date to clash on.
   "GET /projects/{}/clash/sequence": ["support_unscheduled"],
-  // `excluded_comparables` — the comps a valuation did NOT use.
-  "GET /projects/{}/comps/tiered": ["excluded_comparables", "requested"],
+  // **CLOSED 2026-10-14 under COMPTIER-DARK.** `requested` is the band for the field the `field`
+  // parameter exists to choose, so the one statistic the route is parameterised on was unreachable
+  // from TypeScript; `excluded_comparables` is the appraiser's own decision, which the engine names
+  // on purpose (*"a sample that shrank without saying so reads as a thinner market rather than as a
+  // decision somebody made"*) and which no client could read. The route had no caller at all, so
+  // the fix was a screen — and writing one surfaced two engine defects that reading the key list
+  // could not: `comparable.source` is a SELECT whose options the tier ladder had never been shown
+  // (four of seven fell to the weakest tier), and `conflicts_resolved` reported the whole
+  // register's count while sitting among keys that are all properties of one band.
+  // *A dark route's undeclared keys are the cheapest thing wrong with it.*
   // **CLOSED 2026-10-14 under LIEN-PLACEHOLDER, and this was the highest-stakes entry in the
   // list.** The six undeclared keys were every field that says WHO is releasing WHAT, through WHEN,
   // and what is carved out — `claimant`, `customer`, `through_date`, `application_no`, `exceptions`,
@@ -143,7 +151,15 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/documents/health": ["note", "orphans"],
   "GET /projects/{}/elements/{}/records": ["note"],
   // `refused` — conditions the engine would not rule on.
-  "GET /projects/{}/entitlements/conditions": ["live_count", "refused"],
+  // **CLOSED 2026-10-14 under COND-REFUSED, and this pair was a live defect rather than a gap.**
+  // `refused` is the DENIED entitlements and `live_count` is the population the totals beside it
+  // cover. `approval_conditions.assess` zeroes a refused row's counts so it *"cannot read '3 open'
+  // while contributing 0 to the total"* — correct, and the card read only the counts, so a denied
+  // variance with five unaddressed conditions printed as `ENT-002 — 0 open`: the most reassuring
+  // row the card can produce, for a permission the agency refused. Measured live, not reasoned.
+  // `services/api/test_refusal_readers.py` already proved the engine honours the refusal, including
+  // `live_count + len(refused) == entitlement_count` — *its subject was the engine, and nothing
+  // asked the same question of the reader.*
   "GET /projects/{}/envelope/audit": ["note"],
   "GET /projects/{}/estimate/resource-based": ["source"],
   "GET /projects/{}/feasibility/compare": ["error"],
@@ -235,7 +251,14 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // a route sends and being able to reach it are two different kinds of done, and conflating them
   // is how a gate starts reporting the wrong one.*
   "POST /projects/{}/schedule/level": ["caps", "issues", "mode"],
-  "POST /projects/{}/specialty/monte-carlo": ["seed", "variables"],
+  // **CLOSED 2026-10-14 under MC-UNDEFINED, and the roots were the lesser half.** `seed` is the
+  // only thing that makes a quoted P50 comparable between two readers; `variables` is the engine's
+  // echo of what it sampled. Both are now declared and rendered. The real defect was two levels
+  // DOWN, in `metrics[*]`, where `undefined` and `prob_at_least_of_defined` were undeclared —
+  // *this gate compares a route's top-level keys, which is its known blind spot (b): "a root-only
+  // comparison blind to a shape wrong one level down."* Its entry for this route named the two
+  // roots and said nothing about the nested pair that made both risk cards caption a percentile
+  // with the draws it had excluded.
   // **REMOVED 2026-10-14, AND IT WAS NEVER A GAP.** This entry was seeded with fourteen keys and
   // thirteen of them were phantoms: `competitiveSupply` returns
   // `SupplyAssessment | SupplyIndexResult`, and `checker.getPropertiesOfType` on a UNION returns

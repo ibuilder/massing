@@ -588,12 +588,42 @@ export interface ProformaForecast {
   irr_delta: number | null;
 }
 
-/** One metric's sampled distribution from a Monte Carlo run. */
+/** One metric's distribution across a Monte-Carlo run — **and the draws it could not describe.**
+ *
+ *  `proforma/monte_carlo._summary` is explicit that `mean`/`std`/`min`/`max`/`pN` *"describe THESE
+ *  draws only"*: a draw that solved but produced no value for the metric carries `NaN`, is
+ *  **counted rather than dropped**, and the percentiles are necessarily over the defined ones.
+ *  `undefined` is published so that gap is visible. **MC-UNDEFINED declares it, because the client
+ *  type omitted it and neither of the two consumers could read it** — one captioned its percentiles
+ *  `${solved} draws` and the other `${iterations} draws`, where the honest denominator is `n`.
+ *
+ *  An undefined equity IRR is *"a scenario where the deal never returned capital, which is the worst
+ *  outcome rather than a missing one"*, so the draws left out of a percentile are the bad ones and
+ *  omitting them flatters the distribution. The direction is what makes a missing denominator
+ *  dangerous here rather than untidy.
+ *
+ *  **Everything but `n` and `undefined` is OPTIONAL, and that is a fact about the server, not
+ *  caution.** When every draw is undefined the engine returns `{n: 0, undefined: total}` and
+ *  nothing else — no percentiles, no histogram. The old declaration said those were required, so a
+ *  consumer written against it rendered four em-dashes for the single most important risk finding
+ *  a sim can produce: *in no scenario did this deal return capital.* */
 export interface MonteCarloMetric {
-  mean: number; std: number; min: number; max: number; n: number;
-  p5: number; p10: number; p25: number; p50: number; p75: number; p90: number; p95: number;
-  target?: number; prob_at_least?: number;
-  histogram: { counts: number[]; edges: number[] };
+  /** Draws with a DEFINED value — the population every percentile below describes. */
+  n: number;
+  /** Draws counted in the run that produced no value for this metric. `n + undefined` is the
+   *  run's solved-draw count. */
+  undefined?: number;
+  mean?: number; std?: number; min?: number; max?: number;
+  p5?: number; p10?: number; p25?: number; p50?: number; p75?: number; p90?: number; p95?: number;
+  target?: number;
+  /** Over ALL solved draws, because an undefined metric cannot clear a target and counts against.
+   *  The engine's comment: dividing by the defined draws instead *"flatters a deal exactly when it
+   *  is at its riskiest."* */
+  prob_at_least?: number;
+  /** `P[metric ≥ target | metric is defined]` — published ALONGSIDE, never instead, *"so a reader
+   *  can see the gap between the two"*. Present only when `undefined` is non-zero. */
+  prob_at_least_of_defined?: number;
+  histogram?: { counts: number[]; edges: number[] };
 }
 export interface MonteCarloResult {
   iterations: number; solved: number; failures: number; seed: number;
@@ -1039,6 +1069,16 @@ export interface EntitlementConditions {
   entitlement_count?: number;
   /** Approved entitlements whose conditions field is EMPTY — reported as unrecorded, not clean. */
   unrecorded: string[];
+  /** Entitlements NOT refused. `total_open`/`total_unparsed` are sums over rows whose refused
+   *  members contribute zero, so they are totals over THIS count, not over `entitlement_count` —
+   *  and the engine states the identity `live_count + refused.length === entitlement_count`.
+   *  Undeclared until COND-REFUSED, which is why the card printed the totals with no denominator. */
+  live_count?: number;
+  /** DENIED entitlements, listed with their conditions rather than dropped: those conditions are
+   *  what the agency would have required, and an appeal puts them back in play. The engine zeroes
+   *  their counts so a refused row cannot read "3 open" — so a consumer that reads only the counts
+   *  renders a refusal as **`0 open`**, the most reassuring row on the card. */
+  refused?: { ref: string; workflow_state: string | null; condition_count: number }[];
   total_open?: number;
   total_unparsed?: number;
   note: string;
@@ -1046,7 +1086,12 @@ export interface EntitlementConditions {
     entitlement_id: string;
     ref: string | null;
     workflow_state: string | null;
-    /** `tracked` · `no_conditions` · `unrecorded`. */
+    /** `tracked` · `no_conditions` · `unrecorded` · `refused`.
+     *
+     *  **This comment listed three of the four until COND-REFUSED**, and `refused` was the missing
+     *  one — so nothing branched on it and a denied approval rendered through the `tracked` path as
+     *  `0 open`. *An enumeration in a doc comment is the only specification a `string` field has,
+     *  and one short value reads exactly like a complete list.* */
     status: string;
     open_count: number;
     unparsed_count: number;

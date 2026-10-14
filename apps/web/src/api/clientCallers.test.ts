@@ -423,7 +423,10 @@ const UNCALLED: readonly string[] = [
   // `spaceUtilBenchmarks` left this list 2026-10-12 — BENCH-DARK: the Portfolio panel compares each
   // modelled project's m² per space against the portfolio median, and the engine now counts the
   // exclusion it used to drop silently (a readable model with no IfcSpace).
-  "sharedDigestUrl", "speckleStatus", "tieredComps",
+  // `tieredComps` left this list 2026-10-14 — COMPTIER-DARK: `proforma/compTierCard.ts` reads the
+  // tier-resolved band on the Underwriting tab, with the weakest contributing source, the comps the
+  // band left out, the tie-breaks and the appraiser's exclusions.
+  "sharedDigestUrl", "speckleStatus",
   "topicComments", "updateConnection", "verificationDeviations",
 ];
 
