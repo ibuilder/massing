@@ -21,6 +21,8 @@
  */
 import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
+import { type Tone, TONE_CSS, capRows, capVerdict, coverageNote as levelCoverageNote,
+         levelIssueRows, uncappedNote, unavailableExtras } from "./levelRead";
 import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
   from "./scheduleHealthRead";
 import type { PanelContext } from "../panelContext";
@@ -664,6 +666,55 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
         hint: r.horizon === "within_float" ? "the horizon would not allow a fix" : "" },
       { label: "finish moves", value: `${r.finish_moved_days}d` },
     ] : []);
+
+    // LEVEL-UNREAD. Those three tiles are motion, not outcome: measured at a cap of 8, a peak of
+    // 26 before and 26 after produced `moves 0 · unresolved 5 · finish +0d`, and two of the three
+    // read the same as a schedule that was already inside its caps.
+    const line = (html: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.innerHTML = html;
+      lOut.appendChild(d);
+    };
+
+    if (!r.available) {
+      // The refusal's own diagnostic — the trades that DO appear, which is what makes "check the
+      // trade spelling" actionable. `render` already printed the reason, so only the extras go here.
+      const extra = unavailableExtras(r);
+      if (extra) line(esc(extra));
+      return;
+    }
+
+    const verdict = capVerdict(r);
+    if (verdict) {
+      const v = document.createElement("div");
+      v.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[verdict.tone]}`;
+      // textContent: the verdict names a trade the user typed into the caps input above.
+      v.textContent = verdict.text;
+      lOut.appendChild(v);
+    }
+
+    for (const row of capRows(r)) {
+      line(`${esc(row.trade)}: peak ${esc(row.before)} → <strong>${esc(row.after)}</strong> `
+           + `against a cap of ${esc(row.cap)}`, row.tone);
+    }
+
+    const un = uncappedNote(r);
+    if (un) line(esc(un), "warn");
+
+    const cov = levelCoverageNote(r);
+    if (cov) line(esc(cov.text), cov.tone);
+
+    // The IssueLog. `massingplan/core/issues.py` emits one per coercion, drop or fallback so that
+    // somebody looks — a dropped predecessor among them — and this is the first screen that does.
+    const issues = levelIssueRows(r);
+    for (const i of issues.slice(0, 8)) {
+      line(`<code>${esc(i.code)}</code> ${esc(i.text)}`
+           + (i.where ? ` <span class="meta">(${esc(i.where)})</span>` : ""), i.tone);
+    }
+    if (issues.length > 8) line(`… and ${issues.length - 8} more issue(s).`, "warn");
   }));
   lc.append(lRow, lOut); wrap.appendChild(lc);
 

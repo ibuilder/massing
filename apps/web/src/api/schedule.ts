@@ -390,14 +390,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    */
   scheduleLevel(pid: string, caps: Record<string, number>,
                 horizon: "within_float" | "extend_finish" = "within_float") {
-    return this.json<{
-      available: boolean; reason?: string; horizon: string | null;
-      finish_before: string | null; finish_after: string | null; finish_moved_days: number | null;
-      moves: { activity_id: string; from_start: string; to_start: string; shifted_working_days: number;
-               blocked_by: string[]; float_remaining_days: number }[];
-      move_count: number | null; unresolved_count: number | null;
-      peak_before: Record<string, number>; peak_after: Record<string, number>;
-    }>(`/projects/${pid}/schedule/level`,
+    return this.json<LevellingResult>(`/projects/${pid}/schedule/level`,
        { method: "POST", body: JSON.stringify({ caps, horizon }) });
   }
 
@@ -906,6 +899,87 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     });
   }
   };
+}
+
+/** One thing the schedule engine could not do exactly as asked.
+ *
+ *  `services/api/src/massingplan/core/issues.py` exists because the code it was ported from carried
+ *  a `warnings: list[str]`, and *"a list of prose cannot be filtered by severity, counted, or
+ *  asserted on"*. The rule it states for the whole engine family is the reason this type is here:
+ *  *"every coercion, drop or fallback emits one of these. A silent default produces a plausible
+ *  schedule that is wrong, with nothing in the output to look at."* The levelling response carried
+ *  them and the client declared them nowhere, so the output had something to look at and no screen
+ *  that could. */
+export interface ScheduleIssue {
+  /** `info` · `warning` · `error`. `error` means data was dropped or is self-contradictory. */
+  severity: string;
+  /** Stable and greppable, e.g. `MASSING.PREDECESSOR_UNRESOLVED`. Tests assert on this, not on
+   *  the message, so improving the wording cannot break them. */
+  code: string;
+  message: string;
+  /** What the engine did INSTEAD, e.g. "relationship dropped". */
+  action: string;
+  table: string | null;
+  row_key: string | null;
+  field: string | null;
+  raw_value: string | null;
+}
+
+/** R45-SCHED-DEDUPE resource levelling — **and whether the caps are actually met now.**
+ *
+ *  LEVEL-UNREAD declared the second half. The response published the moves it made and the peaks
+ *  before and after, and nothing compared the second peak to the cap, so the one question levelling
+ *  exists to answer was left for a caller to assemble — and the caller rendered `move_count`,
+ *  `unresolved_count` and `finish_moved_days` instead. Measured on a four-activity fixture at a cap
+ *  of 8: a peak of 26 before and 26 after, with `move_count: 0` and `finish_moved_days: 0`. *The
+ *  three figures the card printed are the same three a perfect run produces.* */
+export interface LevellingResult {
+  available: boolean;
+  reason?: string;
+  horizon: string | null;
+  /** `advisory` — the server returns moves and never writes them. The method's doc comment makes
+   *  that claim and this field is the only thing that can check it. */
+  mode?: string | null;
+  finish_before: string | null;
+  finish_after: string | null;
+  finish_moved_days: number | null;
+  moves: { activity_id: string; from_start: string; to_start: string; shifted_working_days: number;
+           blocked_by: string[]; float_remaining_days: number }[];
+  move_count: number | null;
+  /** Conflicts the horizon would not let it solve. Under `within_float` this is the honest
+   *  remainder; an empty list here with a non-empty one under `extend_finish` is the trade-off made
+   *  visible, which is why `horizon` is a parameter rather than a default. */
+  unresolved_count: number | null;
+  peak_before: Record<string, number>;
+  peak_after: Record<string, number>;
+  /** The caps the SERVER applied, after it dropped any non-positive value. */
+  caps?: Record<string, number>;
+  /** Did every CAPPED trade end at or below its cap? `null` when the levelling did not run — not
+   *  `false`, because it did not fail to meet them either. Silent on `coverage.uncapped_trades`. */
+  within_caps?: boolean | null;
+  /** The trades still over, and by how much. Published beside `within_caps` because a boolean says
+   *  whether to act and this says on what. */
+  over_cap?: { trade: string; cap: number; peak_after: number; over_by: number }[];
+  /** What the levelling actually covered. `null` when it did not run. */
+  coverage?: {
+    activities: number;
+    /** Activities carrying BOTH a trade and a crew size — the only ones that draw on anything. */
+    with_demand: number;
+    without_demand: number;
+    /** Named, capped; `without_demand` is the exact count. */
+    without_demand_sample: string[];
+    levelled_demands: number;
+    capped_trades: string[];
+    /** Trades carrying crew that nobody capped. Unconstrained by definition, and the population
+     *  `within_caps` says nothing about. */
+    uncapped_trades: string[];
+  } | null;
+  /** Coercions, drops and fallbacks from building the network — a dropped predecessor among them. */
+  issues?: ScheduleIssue[];
+  /** `_unavailable` extras: the trades found on activities when none matched a cap (the "check the
+   *  trade spelling" diagnostic), and the logic loop when there is one. */
+  trades?: string[];
+  cycle?: string[];
 }
 
 /** One delay event as the caller states it. `days` is what detection never supplies. */

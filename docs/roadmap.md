@@ -1511,6 +1511,114 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **SCOPE-THIN — "✅ Every model discipline is covered by a bid package" over packages that
+  cite no spec section at all** *(S — `apps/web/src/portal/panels/scopeGapRead.ts`;
+  **CLOSED 2026-10-14**; gated by `apps/web/src/portal/panels/scopeGapRead.test.ts`)*
+
+  `services/api/src/aec_api/scope_gap.py` answers *"does every element in the model land in
+  someone's bid package?"* by matching an element's NCS discipline to a package that **claims** that
+  discipline. It is explicit that this is a baseline, and it publishes a fourth state for the case
+  the baseline cannot stand on:
+
+  > `covered_without_specs` flags disciplines covered by a package that cites no CSI spec section
+  > (thin, non-traceable coverage).
+
+  The only screen that calls the route read `gaps` and nothing else:
+
+  ```
+  g.gaps.length ? "⚠️ Scope gaps — … not in any bid package"
+                : "✅ Every model discipline is covered by a bid package"
+  ```
+
+  So a job where every discipline is claimed by a package citing **nothing** got the green tick,
+  with `covered_pct` reading 100%. *Discipline-level coverage with nothing to trace it to is how a
+  scope hole survives buyout*, which is the sentence the engine's note already contains.
+
+  **`services/api/test_scope_gap.py` already asserted the engine flags it** —
+  `covered_without_specs == {"Mechanical"}`, on a fixture built for exactly this — so for the third
+  time today the producer was proven correct and the screen was the only place the distinction did
+  not reach. *A behavioural gate on a producer is not a gate on the pair.*
+
+  Four states now, with a gap outranking thin coverage because quantities in nobody's bid cost more
+  than quantities somebody is pricing without writing down what. The verdict degrades to the old
+  two-state reading against a server that omits the key, which is asserted: an absence it cannot
+  see is not a warning it is entitled to raise.
+
+  **Three smaller things, each its own shape.**
+
+  * **`covered_pct` is qualified where it is printed.** The figure is right and means less than it
+    looks; the line now says "by discipline" and names both shortfalls, rather than leaving the
+    reader to reach a note three lines down.
+  * **The per-discipline `spec_sections` rendered for the first time**, with an empty list shown as a
+    WARNING rather than a blank cell — *a blank reads as "nothing to say" and this one is the
+    finding.* It was undeclared and **not** in the undeclared-key list: the ROOT `spec_sections` was
+    there and the nested one was invisible, which is that gate's root-only blind spot, hit twice
+    today.
+  * **The engine's own module docstring enumerated three of its four outputs** and never mentioned
+    the thin one. Fixed in the same change. Identical in shape to COND-REFUSED's `status` comment
+    listing three of four values, hours earlier — *a list that stopped being extended reads exactly
+    like a complete one*, and here the omission cost more than the missing client declaration did,
+    because it is what a reader consults to find out the state exists.
+
+- ✅ ⭐ **LEVEL-UNREAD — the levelling card reported how far it moved the work and never whether the
+  crew cap is met; two of its three tiles read zero on a total failure** *(S —
+  `apps/web/src/portal/panels/levelRead.ts`,
+  `services/api/src/aec_api/schedule_levelling.py`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/levelRead.test.ts`, new phases in
+  `services/api/test_schedule_levelling.py`, and `services/api/test_verdict_coverage.py`)*
+
+  Measured on one four-activity project at a cap of 8 crew/day, under both horizons:
+
+  | horizon | peak | moves | unresolved | finish | the card showed |
+  |---|---|---|---|---|---|
+  | `within_float` | 26 → **26** | 0 | 5 | +0d | `moves 0 · unresolved 5 · finish moves 0d` |
+  | `extend_finish` | 26 → **8** | 3 | 0 | **+21d** | `moves 3 · unresolved 0 · finish moves 21d` |
+
+  **The first row is a total failure and two of its three tiles read zero** — which is exactly what
+  a schedule already inside its caps produces. The only distinguishing figure was a bare
+  `unresolved 5` between two zeros. *A screen that reports motion instead of outcome cannot tell
+  "nothing needed doing" from "nothing could be done".*
+
+  The engine knew: it had `peak_after` and `caps` in the same dict and compared them nowhere, so
+  the one question levelling exists to answer was left for a caller to assemble. It now publishes
+  `within_caps` (the boolean a report quotes) **and** `over_cap` (the trade, its cap, the peak it
+  ended at, the excess — what somebody acts on), the pairing the same file already uses for
+  `prob_at_least` and its conditional twin. `within_caps` is `null` for a refusal, never `false`: a
+  levelling that did not run has not met the caps and has not failed to meet them either.
+
+  **Three more things the response carried and no screen read.**
+
+  * **`issues`** — the engine's `IssueLog`, whose module docstring states the rule this whole class
+    of defect breaks: *"every coercion, drop or fallback emits one of these. A silent default
+    produces a plausible schedule that is wrong, with nothing in the output to look at."* A mistyped
+    predecessor arrives as `MASSING.PREDECESSOR_UNRESOLVED` with `action: "relationship dropped"`.
+    The indication existed and **the screen was where it stopped.**
+  * **the uncapped trades** — `Electrical` at 30 crew/day is absent from `peak_before` entirely,
+    because only capped demands are fed in. That is right (*"inventing an availability would
+    silently move real work for a limit nobody set"*) and it is the population `within_caps` is
+    silent about, so it is named.
+  * **the activities with neither a trade nor a crew size** — one missing field drops an activity
+    from the levelling, 2 of 10 on that fixture, and the new `coverage` block counts **and names**
+    them.
+
+  **`test_verdict_coverage` then made two corrections in a row, and the second is the better
+  lesson.** The new `within_caps` is the structural shape that gate derives, so it demanded a
+  coverage declaration; the first one named the nested uncapped-trades field, which is not a
+  *sibling*, and the gate refused with *"a declaration that names nothing is an exemption, and the
+  point of declaring at the site is that it cannot become one."* The correction then explained
+  itself by writing that rejected declaration out in prose — **and the gate's regex read the example
+  as a second live declaration and refused again.** *An illustrative form spelled exactly is a live
+  one*, which is the lesson `services/api/test_claude_md_gates.py` records about backticking a
+  filename you only meant to mention. The declaration names the `coverage` block, which is also the
+  honest answer: two independent narrowings matter here, and naming either alone would leave the
+  other unchecked by the consumer rule.
+
+  **And a sample that looked populated and was not.** `coverage.without_demand_sample` first read
+  `row.get("name")`, which returns the row UUID — `modules.list_records` keeps a module's own fields
+  under `data` and lifts only some to the root. A list of identifiers nobody can look up *reads as
+  evidence and is worth less than the count beside it.* Measured, then routed through the same
+  `_text` helper the trade lookup uses.
+
 - ✅ ⭐ **MC-UNDEFINED — both risk cards captioned a percentile with the draws it had excluded, and
   the excluded ones are the scenarios where the deal never returned capital** *(S —
   `apps/web/src/proforma/mcRead.ts`, `apps/web/src/api/types.ts`; **CLOSED 2026-10-14**; gated by

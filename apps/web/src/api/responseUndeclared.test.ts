@@ -121,7 +121,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /interop/speckle/status": ["server_version"],
   "GET /portfolio/risk": ["weights"],
   "GET /projects/{}/action-items/tracker": ["by_priority", "by_state"],
-  "GET /projects/{}/bidding/scope-gap": ["covered_without_specs", "spec_section_count", "spec_sections"],
+  // **CLOSED 2026-10-14 under SCOPE-THIN, and `covered_without_specs` was a live defect.** The
+  // engine matches an element's NCS discipline to a package that CLAIMS that discipline, and flags
+  // separately what its own note calls *"thin, non-traceable coverage"* — a discipline covered by a
+  // package citing no CSI spec section. The only screen that calls the route read `gaps` and
+  // nothing else, so its else-branch printed **"✅ Every model discipline is covered by a bid
+  // package"** over a job where every covering package cited nothing, with `covered_pct` at 100%.
+  // `services/api/test_scope_gap.py` already asserted the engine flags that case — *the engine was
+  // proven right and the screen was the only place the distinction did not reach.*
+  // The per-discipline `spec_sections` on each `covered` entry was undeclared too and is NOT in the
+  // list above: this gate compares a route's top-level keys, so the root `spec_sections` was
+  // visible to it and the nested one was not — the same root-only blind spot MC-UNDEFINED records.
   "GET /projects/{}/cap-table": ["pipeline_commitment", "workflow_in_use"],
   "GET /projects/{}/change-orders/log": ["by_state", "change_events_by_scope", "rejected_value"],
   // `support_unscheduled` — the 4D pairs with no date to clash on.
@@ -250,7 +260,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // freeze in `apps/web/src/api/clientCallers.test.ts` rather than left as a date. *Declaring what
   // a route sends and being able to reach it are two different kinds of done, and conflating them
   // is how a gate starts reporting the wrong one.*
-  "POST /projects/{}/schedule/level": ["caps", "issues", "mode"],
+  // **CLOSED 2026-10-14 under LEVEL-UNREAD.** `issues` is the engine's `IssueLog`, whose own module
+  // docstring is the rule this whole class of defect violates — *"every coercion, drop or fallback
+  // emits one of these. A silent default produces a plausible schedule that is wrong, with nothing
+  // in the output to look at."* A mistyped predecessor arrived as `MASSING.PREDECESSOR_UNRESOLVED`
+  // with `action: "relationship dropped"`, and the screen was where the indication stopped. `caps`
+  // is the server's echo and `mode` the only evidence for the client's own "advisory, never writes"
+  // claim. The card now also reads the three keys this change ADDED — `within_caps`, `over_cap`,
+  // `coverage` — because the response reported the moves it made and the peaks before and after and
+  // never compared the second peak to the cap: measured at 26 against a limit of 8, with
+  // `move_count: 0` and `finish_moved_days: 0`, *the three figures the card printed are the same
+  // three a perfect run produces.*
   // **CLOSED 2026-10-14 under MC-UNDEFINED, and the roots were the lesser half.** `seed` is the
   // only thing that makes a quoted P50 comparable between two readers; `variables` is the engine's
   // echo of what it sampled. Both are now declared and rendered. The real defect was two levels

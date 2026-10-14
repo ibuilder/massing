@@ -27,6 +27,63 @@ import type { BidLevelingDetail, SpecSubmittalLog } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One NCS discipline in the model takeoff, with the classes behind its tally. */
+export interface ScopeGapDiscipline {
+  discipline: string;
+  element_count: number;
+  classes: { ifc_class: string; count: number }[];
+}
+
+/** SCOPE-GAP (R14) — does every element in the model land in someone's bid package?
+ *
+ *  **Four states, not two**, and the consumer read two. `scope_gap.analyze`'s own note:
+ *
+ *  > Gaps = disciplines present in the model with no covering package — their quantities aren't in
+ *  > any bid. `covered_without_specs` flags disciplines covered by a package that cites no CSI spec
+ *  > section (thin, non-traceable coverage).
+ *
+ *  Coverage is matched at the DISCIPLINE level, so "covered" means a package claimed the discipline
+ *  — not that anybody wrote down which spec sections they were pricing. The fourth state is the
+ *  engine refusing to call that coverage, and the card printed a green tick over it.
+ *
+ *  The module's own docstring enumerates three of the four outputs and never mentions the thin one,
+ *  the same shape as `EntitlementConditions.status` listing three of its four values. *A list that
+ *  stopped being extended reads exactly like a complete one.* */
+export interface ScopeGapResult {
+  package_count: number;
+  element_count: number;
+  /** Elements whose discipline a package CLAIMS, over all elements. Discipline-level: a 100% here
+   *  is compatible with every package citing no spec section at all. */
+  covered_pct: number;
+  gap_element_count: number;
+  covered: (ScopeGapDiscipline & {
+    packages: string[];
+    /** The CSI sections the covering packages cite for this discipline. Empty means the coverage is
+     *  a claim with no traceability, and this discipline then also appears in
+     *  `covered_without_specs`. Undeclared until SCOPE-THIN — the ROOT `spec_sections` was in the
+     *  undeclared-key list and this nested one was invisible to it. */
+    spec_sections?: string[];
+  })[];
+  /** Disciplines in the model that NO package claims — quantities in nobody's bid. GUIDs so the
+   *  viewer can highlight them; an IFC GlobalId is the only identity that survives a reload. */
+  gaps: (ScopeGapDiscipline & { sample_guids: string[] })[];
+  /** THE FOURTH STATE: covered by discipline, by a package citing no CSI spec section. Not a gap —
+   *  somebody is pricing it — and not traceable coverage either. */
+  covered_without_specs?: {
+    discipline: string;
+    packages: string[];
+    element_count: number;
+    sample_guids: string[];
+  }[];
+  /** Every CSI section cited by any package, across the project. */
+  spec_sections?: string[];
+  /** `0` is the measurable signal that no package on this job cites a section at all. */
+  spec_section_count?: number;
+  /** Packages whose discipline has no model elements — over-scoped, nothing to price. */
+  packages_without_model_scope: string[];
+  note: string;
+}
+
 export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Procurement extends Base {
   /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
@@ -214,15 +271,21 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ package_count: number; total_invited: number; total_responses: number;
       packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
   }
-  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages. */
+  /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages,
+   *  **and the coverage the engine refuses to call coverage.**
+   *
+   *  SCOPE-THIN declared the fourth state. `scope_gap.analyze` matches an element's NCS discipline
+   *  to a package that CLAIMS that discipline, and flags separately — in its own words — *"a claim
+   *  with no CSI traceability"*: a discipline covered by a package citing no spec section at all.
+   *  `covered_without_specs`, `spec_sections` and `spec_section_count` were all undeclared, and the
+   *  only screen that calls this printed **"✅ Every model discipline is covered by a bid package"**
+   *  whenever `gaps` was empty — including when every one of those packages cited nothing.
+   *
+   *  `spec_sections` on a `covered` entry was undeclared too, which is the same root-only blind spot
+   *  `apps/web/src/api/responseUndeclared.test.ts` has: the root `spec_sections` was in its gap list
+   *  and the per-discipline one, nested, was not. */
   scopeGap(pid: string) {
-    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
-    return this.json<{
-      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
-      covered: (Disc & { packages: string[] })[];
-      gaps: (Disc & { sample_guids: string[] })[];
-      packages_without_model_scope: string[]; note: string;
-    }>(`/projects/${pid}/bidding/scope-gap`);
+    return this.json<ScopeGapResult>(`/projects/${pid}/bidding/scope-gap`);
   }
   /** inviteBidders — record companies invited to bid on a package. */
   inviteBidders(pid: string, packageId: string, companies: string[]) {

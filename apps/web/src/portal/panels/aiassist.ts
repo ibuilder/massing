@@ -5,6 +5,8 @@ import { money as cmoney, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { renderClausePlaybook } from "./clausePlaybook";
 import type { PanelContext } from "../panelContext";
+import { TONE_CSS, coverageVerdict, coveredLine, coveredRows, overScopedNote,
+         specCitationNote, thinRows } from "./scopeGapRead";
 
 /**
  * AI-assist / risk-review render cluster (contract risk, scope gaps, doc Q&A, draft RFI/scope/
@@ -292,16 +294,37 @@ export async function renderAiAssist(ctx: PanelContext) {
               + s.packages.map((p) => `<tr><td>${esc(p.package)}</td><td style="text-align:right">${p.bid_count}</td><td style="text-align:right">${usd(p.low)}</td><td style="text-align:right">${usd(p.high)}</td><td style="text-align:right">${usd(p.avg)}</td><td style="text-align:right">${Math.round(p.spread * 100)}%</td></tr>`).join("")
               + `</tbody></table></div>`;
             // SCOPE-GAP: does every element in the model land in a bid package? (needs a source IFC)
+            //
+            // SCOPE-THIN. This read `gaps` and nothing else, so the else-branch printed a green
+            // tick — "Every model discipline is covered by a bid package" — over a job where every
+            // covering package cited no CSI spec section at all, which the engine flags as
+            // `covered_without_specs` and calls "thin, non-traceable coverage" in its own note.
+            // Four states now, and a gap still outranks thin coverage.
             try {
               const g = await ctx.host.api.scopeGap(pid);
               if (g.element_count > 0) {
-                const gapRow = g.gaps.length
-                  ? `<div class="meta" style="color:var(--status-warn)">⚠️ Scope gaps — ${g.gaps.map((x) => `${esc(x.discipline)} (${x.element_count})`).join(" · ")} not in any bid package</div>`
-                  : `<div class="meta" style="color:var(--status-good)">✅ Every model discipline is covered by a bid package</div>`;
-                const over = g.packages_without_model_scope.length
-                  ? `<div class="meta">Over-scoped (no model elements): ${g.packages_without_model_scope.map(esc).join(", ")}</div>` : "";
+                const v = coverageVerdict(g);
+                const verdict = v
+                  ? `<div class="meta" style="color:${TONE_CSS[v.tone]}">${esc(v.text)}</div>` : "";
+                const thin = thinRows(g).map((t) =>
+                  `<div class="meta" style="color:${TONE_CSS.warn}">${esc(t.discipline)}: `
+                  + `${t.elements} element(s) priced by ${esc(t.packages)} against no spec section`
+                  // GlobalIds, never a transient viewer id — they survive a reload.
+                  + (t.guids.length ? ` <span class="meta">(e.g. ${esc(t.guids.slice(0, 3).join(", "))})</span>` : "")
+                  + `</div>`).join("");
+                const spec = specCitationNote(g);
+                const specRow = spec
+                  ? `<div class="meta" style="color:${TONE_CSS.crit}">${esc(spec)}</div>` : "";
+                const covRows = coveredRows(g).map((c) =>
+                  `<div class="meta">${esc(c.discipline)} (${c.elements}) → ${esc(c.packages)} · `
+                  + `<span style="color:${TONE_CSS[c.tone]}">${esc(c.sections)}</span></div>`).join("");
+                const overNote = overScopedNote(g);
+                const over = overNote
+                  ? `<div class="meta">${esc(overNote)}</div>` : "";
                 out.insertAdjacentHTML("beforeend",
-                  `<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:4px"><b>Model coverage</b> <span class="meta">${g.covered_pct}% of ${g.element_count} elements in a package</span>${gapRow}${over}</div>`);
+                  `<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:4px">`
+                  + `<b>Model coverage</b> <span class="meta">${esc(coveredLine(g))}</span>`
+                  + `${verdict}${thin}${specRow}${covRows}${over}</div>`);
               }
             } catch { /* no source IFC (409) — scope-gap needs a model; skip silently */ }
           } catch (e) { out.textContent = `leveling failed: ${(e as Error).message}`; }
