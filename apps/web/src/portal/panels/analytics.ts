@@ -4,6 +4,8 @@ import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 import { renderPlanningBrief } from "./planningBrief";
+import { BASIS_CSS, basisRows, classNote, midpointReading, sectorLine }
+  from "./conceptualBasis";
 import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT_CSS }
   from "./permitReading";
 import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
@@ -580,19 +582,52 @@ export async function renderRiskCost(ctx: PanelContext) {
       region.setAttribute("aria-label", "Region");
       region.innerHTML = cat.regions.map((rg) => `<option value="${esc(rg)}"${rg === "us_average" ? " selected" : ""}>${esc(rg)}</option>`).join("");
       const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.setAttribute("aria-label", "Gross floor area (sf)"); gfa.style.cssText = "width:110px;margin:2px 4px";
+      // ESTIMATE-BASIS: the two inputs that compute the midpoint escalation, which nothing passed.
+      // The engine runs Track M on every call and, without these, reports only today's money — and
+      // today's money is 9.4% below the construction-midpoint total on a 2027/24-month build
+      // (measured). *The engine computed the number to underwrite to and the screen showed the
+      // other one.*
+      const startY = el("input", "portal-filter") as HTMLInputElement; startY.type = "number";
+      startY.placeholder = "start yr"; startY.setAttribute("aria-label", "Construction start year");
+      startY.style.cssText = "width:80px;margin:2px 4px";
+      const durM = el("input", "portal-filter") as HTMLInputElement; durM.type = "number";
+      durM.placeholder = "months"; durM.setAttribute("aria-label", "Construction duration in months");
+      durM.style.cssText = "width:78px;margin:2px 4px";
+      const stories = el("input", "portal-filter") as HTMLInputElement; stories.type = "number";
+      stories.placeholder = "storeys"; stories.setAttribute("aria-label", "Storeys");
+      stories.style.cssText = "width:78px;margin:2px 4px";
       const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Estimate";
       const out = el("div"); out.style.marginTop = "6px";
       go.onclick = async () => {
         if (!Number(gfa.value)) { toast("Enter GFA", "error"); return; }
         out.textContent = "estimating…";
         try {
-          const r = await api.conceptualEstimate(pid, { building_type: type.value, region: region.value, gfa_sf: Number(gfa.value) });
+          const r = await api.conceptualEstimate(pid, {
+            building_type: type.value, region: region.value, gfa_sf: Number(gfa.value),
+            ...(Number(stories.value) ? { stories: Number(stories.value) } : {}),
+            ...(Number(startY.value) ? { start_year: Number(startY.value) } : {}),
+            ...(Number(durM.value) ? { duration_months: Number(durM.value) } : {}),
+          });
           if (r.error) { out.textContent = r.error; return; }
+          const mid = midpointReading(r);
+          const sector = sectorLine(r);
+          const cls = classNote(r);
           out.innerHTML = `<div><b>${cmoney(r.total_cost)}</b> total (${cmoney(r.range.low)}–${cmoney(r.range.high)}) `
-            + `· ${cmoney(r.metrics.total_per_sf ?? 0)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`;
+            + `· ${cmoney(r.metrics.total_per_sf ?? 0)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`
+            // THE MIDPOINT TOTAL, or which input would produce it. Never silence: a figure that is
+            // materially lower than the right one, shown unlabelled, is this item's whole defect.
+            + `<div class="meta" style="margin-top:2px;color:${esc(BASIS_CSS[mid.tone])}">${esc(mid.text)}</div>`
+            // THE BASIS — type, region+index, cost year+escalation, height premium, soft %. A
+            // total without them cannot be reconciled against anything.
+            + `<table class="portal-table" style="width:100%;font-size:11px;margin-top:4px"><tbody>`
+            + basisRows(r).map((b) => `<tr><td>${esc(b.label)}</td>`
+              + `<td style="text-align:right">${esc(b.value)}</td></tr>`).join("")
+            + `</tbody></table>`
+            + (sector ? `<div class="meta" style="margin-top:2px;color:${esc(BASIS_CSS[sector.tone])}">${esc(sector.text)}</div>` : "")
+            + (cls ? `<div class="meta" style="margin-top:2px;font-size:11px">${esc(cls)}</div>` : "");
         } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
       };
-      ceWrap.append(type, region, gfa, go, out);
+      ceWrap.append(type, region, gfa, stories, startY, durM, go, out);
 
       // GEN-SCORE: massing-option comparison — generate FAR variants of a zoning envelope and rank
       // them through cost ($/SF) + embodied carbon + yield + FAR/height compliance in one pass.

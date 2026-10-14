@@ -1057,8 +1057,11 @@ export class RegisterUI {
       if (!f.total_column || !n) return label;
       const col = f.columns?.find((c) => c.name === f.total_column);
       const sum = (v as Record<string, unknown>[]).reduce((t, r) => t + (Number(r[f.total_column!]) || 0), 0);
+      // `usd` rather than a local `$` + toLocaleString: the house formatter puts the minus OUTSIDE
+      // the currency mark, and a register total CAN be negative (a credit change order, a reversed
+      // line). The local spelling rendered that as "$-1,234".
       const shown = col?.type === "currency"
-        ? `$${sum.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        ? usd(sum)
         : sum.toLocaleString(undefined, { maximumFractionDigits: 2 });
       return `${label} · ${shown}`;
     }

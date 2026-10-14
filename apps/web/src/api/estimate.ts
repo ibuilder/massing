@@ -166,10 +166,41 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ building_types: string[]; regions: string[]; base_year: number;
       annual_escalation: number; current_year: number }>(`/estimate/conceptual/catalog`);
   }
-  conceptualEstimate(pid: string, params: Record<string, unknown>) {
+  /**
+   * ESTIMATE-BASIS — a Class 5 conceptual cost, **with the basis it is a claim about** and the
+   * escalation to the midpoint of construction.
+   *
+   * `year`, `region`, `height_factor`, `soft_cost_pct`, `market` and `note` were all undeclared.
+   * The first five are the BASIS: a $/SF number is a claim about a building type, a market, a year
+   * and a soft-cost assumption, and a total shown without them cannot be reconciled against
+   * anything. `note` says the estimate is **Class 5** — AACE's widest class — beside a band of
+   * −15%/+20% that reads far tighter than that.
+   *
+   * **`market` is the one that cost money.** When `start_year` and `duration_months` are given the
+   * engine escalates to the midpoint of the build, which is the basis a development budget is
+   * carried at. Measured on an office at 120,000 sf, 20 storeys, a 2027 start and a 24-month build:
+   * base-year total $49,476,000, `market.total_at_construction_midpoint` $54,131,692 — **9.4%,
+   * $4.66M** apart. The card showed the first, and could not have shown the second: the key was
+   * undeclared AND nothing passed the two inputs that compute it, so the whole of Track M ran on
+   * every call and was reachable from nothing.
+   *
+   * `start_year`/`duration_months` are named in the parameter type rather than left to the
+   * `Record<string, unknown>` passthrough, because a caller cannot pass what nothing tells them
+   * exists.
+   */
+  conceptualEstimate(pid: string, params: Record<string, unknown> & {
+    start_year?: number; duration_months?: number;
+  }) {
     return this.json<{ building_type: string; gfa_sf: number; hard_cost: number; soft_cost: number;
       total_cost: number; range: { low: number; base: number; high: number };
-      metrics: Record<string, number>; region_index: number; escalation_factor: number; error?: string }>(
+      metrics: Record<string, number>; region_index: number; escalation_factor: number;
+      region: string; year: number; height_factor: number; soft_cost_pct: number;
+      market: { region: string; labour_usd_hr: number; sector_temperature: string;
+                sector_note: string;
+                /** Present only when `start_year` was given. */
+                escalation_basis?: string; midpoint_escalation_factor?: number;
+                total_at_construction_midpoint?: number };
+      note: string; error?: string }>(
       `/projects/${pid}/estimate/conceptual`, { method: "POST", body: JSON.stringify(params) });
   }
   /** Conceptual estimate from the IFC takeoff × unit rates — priced line items + total. */

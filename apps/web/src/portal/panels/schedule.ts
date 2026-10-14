@@ -425,7 +425,6 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   optCard.appendChild(optNote);
   const optBody = document.createElement("div"); optBody.innerHTML = `<div class="meta">Click <b>▶ Run</b> to score the options.</div>`;
   optCard.appendChild(optBody); ctx.root.appendChild(optCard);
-  const usd0 = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const runOpt = async () => {
     optBody.innerHTML = `<div class="meta">enumerating options…</div>`; runBtn.disabled = true;
     try {
@@ -438,8 +437,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       if (!r.scenarios.length) { optBody.innerHTML = `<div class="meta">No trades to optimise.</div>`; return; }
       const rec = r.recommended, base = r.baseline, sv = r.recommended_vs_baseline;
       const chips = document.createElement("div"); chips.className = "meta"; chips.style.cssText = "margin-bottom:6px;display:flex;gap:14px;flex-wrap:wrap";
-      chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd0(rec.cost)} · peak ${rec.crew_peak} crews</span>`
-        + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd0(sv.cost)}` : ""}</span>` : "")
+      chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd(rec.cost)} · peak ${rec.crew_peak} crews</span>`
+        + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd(sv.cost)}` : ""}</span>` : "")
         + `<span>${r.scenario_count} scenarios · ${r.pareto_count} on the Pareto frontier</span>`;
       // when the CPM lever is on, say which rule actually applied — a path that matched nothing falls
       // back to the slowest-trade heuristic, and the user needs to know the difference
@@ -498,7 +497,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
             s.resequenced ? "reseq" : ""].filter(Boolean).join(" · ") || "single crews · 1z";
           const hl = s.rank === rec.rank ? "background:var(--hover);font-weight:600" : "";
           return `<tr style="${hl}"><td style="text-align:center">${s.rank}</td><td style="text-align:left">${lev}</td>`
-            + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd0(s.cost)}</td>`
+            + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd(s.cost)}</td>`
             + `<td style="text-align:right">${s.crew_peak}</td><td style="text-align:center">${s.pareto ? "◆" : ""}</td></tr>`;
         }).join("") + `</tbody>`;
       wrap.appendChild(t);

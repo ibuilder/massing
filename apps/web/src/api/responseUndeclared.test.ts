@@ -211,9 +211,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "POST /connections/{}/query": ["limit"],
   "POST /projects/{}/drawing-set/generate": ["register"],
   "POST /projects/{}/drawings/{}/revise": ["markups_carried"],
-  "POST /projects/{}/estimate/conceptual": [
-    "height_factor", "market", "note", "region", "soft_cost_pct", "year",
-  ],
+  // **CLOSED 2026-10-14 under ESTIMATE-BASIS.** Five of the six were the BASIS — `region`, `year`,
+  // `height_factor`, `soft_cost_pct` and `note` — and a $/SF total shown without them cannot be
+  // reconciled against anything; `note` is also where the engine says the estimate is Class 5,
+  // beside a band of −15%/+20% that reads far tighter.
+  //
+  // **`market` was the one that cost money**, and it cost it in a way this gate cannot see: the
+  // engine escalates to the midpoint of construction when given `start_year` and `duration_months`,
+  // and the card passed neither, so the key was undeclared AND the number was never computed.
+  // Measured at $54,131,692 against the $49,476,000 the card showed — 9.4%, $4.66M. *An undeclared
+  // key can mean "nobody reads it"; it can also mean "nobody asked for it", and only reading the
+  // route tells you which.*
   // `unmatched_guids`/`t1`/`t2`. PROGRESS-DARK closed the engine's half of exactly this
   // ("never silently dropped" and it dropped); the client type still cannot see the counts.
   "POST /projects/{}/progress/capture-diff": ["unmatched_guids", "unmatched_t1", "unmatched_t2"],

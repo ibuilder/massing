@@ -1,4 +1,5 @@
 import "./style.css";
+import { usd } from "./ui/charts";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient, type MassingParams } from "./api/client";
 import { sealIdentity } from "./api/assetRights";
@@ -1477,16 +1478,15 @@ async function openPortfolioTab() {
   try { p = await api.portfolio(); }
   catch { panel.innerHTML = `<div class="meta">portfolio unavailable (API offline)</div>`; return; }
   const t = p.totals;
-  const m = (v: number | null) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
   const kpis: [string, string][] = [
-    ["Deals", String(p.deal_count)], ["Total cap", m(t.total_capitalization ?? null)],
-    ["Total equity", m(t.total_equity ?? null)], ["Blended LTC", pc(t.blended_ltc ?? null)],
+    ["Deals", String(p.deal_count)], ["Total cap", usd(t.total_capitalization ?? null)],
+    ["Total equity", usd(t.total_equity ?? null)], ["Blended LTC", pc(t.blended_ltc ?? null)],
     ["Portfolio IRR", pc(t.portfolio_irr ?? null)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
-    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${m(d.total_uses)}</td>` +
-    `<td>${m(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
+    `<tr><th style="text-align:left">${escapeHtml(d.name)}</th><td>${usd(d.total_uses)}</td>` +
+    `<td>${usd(d.equity)}</td><td>${pc(d.equity_irr)}</td><td>${d.equity_multiple ?? "—"}×</td></tr>`).join("");
   panel.innerHTML =
     `<div class="section-title">Portfolio roll-up — ${p.deal_count} deal(s)</div>` +
     `<div class="kpi-grid">` +
@@ -1501,13 +1501,13 @@ async function openPortfolioTab() {
     if (cp.project_count) {
       const ct = cp.totals;
       const prows = cp.projects.map((r) =>
-        `<tr><th style="text-align:left">${r.name}</th><td style="color:${r.over_budget ? "#e2554a" : "var(--text)"}">${m(r.projected_over_under)}</td>` +
-        `<td>${r.open_risks} (${m(r.risk_exposure)})</td><td>${r.recordables}</td><td>${r.open_rfis}</td></tr>`).join("");
+        `<tr><th style="text-align:left">${r.name}</th><td style="color:${r.over_budget ? "#e2554a" : "var(--text)"}">${usd(r.projected_over_under)}</td>` +
+        `<td>${r.open_risks} (${usd(r.risk_exposure)})</td><td>${r.recordables}</td><td>${r.open_rfis}</td></tr>`).join("");
       panel.insertAdjacentHTML("beforeend",
         `<div class="section-title" style="margin-top:14px">Construction program — ${cp.project_count} project(s)`
         + (ct.over_budget_count ? ` · <span style="color:#e2554a">${ct.over_budget_count} over budget</span>` : "") + `</div>`
         + `<table class="sens-table"><tr><th>Project</th><th>Over/Under</th><th>Open risks ($)</th><th>Recordables</th><th>Open RFIs</th></tr>${prows}`
-        + `<tr style="font-weight:700"><th style="text-align:left">Total</th><td>${m(ct.projected_over_under)}</td><td>${ct.open_risks} (${m(ct.risk_exposure)})</td><td>${ct.recordables}</td><td>${ct.open_rfis}</td></tr></table>`);
+        + `<tr style="font-weight:700"><th style="text-align:left">Total</th><td>${usd(ct.projected_over_under)}</td><td>${ct.open_risks} (${usd(ct.risk_exposure)})</td><td>${ct.recordables}</td><td>${ct.open_rfis}</td></tr></table>`);
     }
   } catch { /* program roll-up optional */ }
 }
@@ -1518,7 +1518,6 @@ async function openPortfolioTab() {
 function openFinanceHomeTab() {
   const panel = document.getElementById("panel-home");
   if (!panel) return;                                    // defensive: never throw to a blank panel
-  const m = (v: number | null | undefined) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null | undefined) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
   const kpi = (v: string, l: string, tone?: string) =>
     `<div class="kpi"><div class="kpi-v" style="font-size:17px${tone ? `;color:${tone}` : ""}">${v}</div><div class="kpi-l">${l}</div></div>`;
@@ -1585,7 +1584,7 @@ function openFinanceHomeTab() {
     if (kEl) kEl.innerHTML =
       kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
       + kpi(r.equity_multiple == null ? "—" : `${r.equity_multiple.toFixed(2)}×`, "Equity multiple")
-      + kpi(pc(r.project_irr), "Project IRR") + kpi(pc(r.yield_on_cost), "Yield on cost") + kpi(m(r.npv), "NPV");
+      + kpi(pc(r.project_irr), "Project IRR") + kpi(pc(r.yield_on_cost), "Yield on cost") + kpi(usd(r.npv), "NPV");
     const total = su?.total_uses ?? null, debt = su?.debt ?? null, equity = su?.equity ?? null;
     const stEl = document.getElementById("fin-home-stack");
     if (stEl && total && (debt || equity)) {
@@ -1594,7 +1593,7 @@ function openFinanceHomeTab() {
         + `<div role="img" aria-label="Capital stack: ${dPct}% senior debt, ${ePct}% equity" style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
         + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
         + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
-        + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
+        + `<div class="meta">${usd(debt)} senior debt · ${usd(equity)} equity · ${usd(total)} total`
         + (su && su.balanced === false ? ` · <span style="color:var(--status-warn)">sources ≠ uses</span>` : "") + `</div>`;
     }
   })();

@@ -1511,6 +1511,75 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **ESTIMATE-BASIS — the conceptual estimator computes the number a developer should
+  underwrite to, and the card showed the other one, 9.4% lower** *(S —
+  `apps/web/src/portal/panels/conceptualBasis.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/conceptualBasis.test.ts` and a new phase in
+  `services/api/test_conceptual.py`)*
+
+  `conceptual_estimate.estimate` runs Track M on every call, and when it is given a construction
+  `start_year` and `duration_months` it escalates to the **midpoint of the build** — the correct
+  basis for a development budget, because money is spent across construction rather than on the day
+  the estimate was made. Measured on an office at 120,000 sf, `us_average`, 20 storeys, a 2027 start
+  and a 24-month build: base-year total **$49,476,000**, `market.total_at_construction_midpoint`
+  **$54,131,692** — **9.4%, $4.66M** apart.
+
+  **The card showed the first and could not have shown the second**, for two independent reasons:
+  `market` was undeclared on the client type, and the card passed neither of the two inputs that
+  compute it. So the whole of Track M — regional labour rate, sector temperature, escalation basis
+  and the midpoint total — was computed on every call and reachable from nothing. *An undeclared key
+  can mean "nobody reads it"; it can also mean "nobody asked for it", and only reading the route
+  tells you which.*
+
+  The other five keys are the **basis**: `region`, `year`, `height_factor`, `soft_cost_pct` and
+  `note`. A $/SF total is a claim about a building type, a market, a year and a soft-cost
+  assumption, and one shown without them cannot be reconciled against anything — the same finding
+  MODELSYNC-DARK recorded about `basis`, two hours earlier and one estimator over. `note` is also
+  where the engine says the figure is **Class 5**, AACE's widest band, which the card printed a
+  −15%/+20% range beside without ever saying so.
+
+  Three decisions in the reading. The midpoint line returns a **prompt** rather than `null` when no
+  start year was given — *a screen that cannot compute the better number should say which input it
+  is waiting for, not show the worse one unlabelled.* The delta is computed against the total the
+  card is SHOWING, not against the pre-soft intermediate the payload also carries, so the sentence
+  is about two numbers a reader can see. And a row is **omitted** where the server sent nothing
+  rather than defaulted: a `height_factor` of exactly `1.0` is a real answer (no height premium) and
+  an absent one is not knowable, and printing `×1` for both would state something nobody measured.
+
+  The backend phase pins both branches — the keys ABSENT without a start year (absent, not null,
+  which is what the reading branches on) and the escalated total materially higher with one, with
+  the basis in words — and both mutations red: suppressing the escalation branch, and firing it
+  unconditionally.
+
+  **AND A GATE CAUGHT ME MID-ITEM, WHICH IS WHERE THE REST OF THIS ENTRY COMES FROM.** The first
+  draft of `conceptualBasis.ts` had `const money = …`, and
+  `apps/web/src/ui/charts.test.ts`'s *"no file declares its own currency formatter"* refused it on
+  the spot — a rule that exists because *"eighteen local copies disagreed about how a negative
+  renders, and ten of them put the $ on the wrong side of the minus"*, and a midpoint delta can be
+  negative.
+
+  Then checking whether anything ELSE had slipped through found that **`proforma/modelSyncCard.ts`,
+  shipped two hours earlier in this same session, had the identical function under the name
+  `fmt()`** — and that check never saw it, because the ban matched a LIST OF NAMES
+  (`usd|cmoney|money2?|dollars`). *A ban keyed on the names somebody thought of is a ban on those
+  names, and the next instance will be called something else.* So the rule now derives its
+  population from the BODY — a declaration that concatenates a **literal** `$` onto a
+  `toLocaleString` — which needs no name list and no exemptions.
+
+  **Widening it found four more, none of which any name list would have guessed**:
+  `panels/buyoutKeep.ts:fmtUsd`, `panels/schedule.ts:usd0`, two `const m = …` in `main.ts` (12 call
+  sites), and the currency branch of `register/register.ts`. All six are now `usd`, and the register
+  one mattered on its merits: a register total can be negative — a credit change order, a reversed
+  line — and the local spelling rendered that as `$-1,234`.
+
+  **The literal-dollar distinction is the load-bearing half of the new rule**, learned by
+  measurement: a first draft matched `$` anywhere and reported ten false positives, because
+  `` `${n.toLocaleString()}` `` contains a `$` as template syntax. *A shape rule that cannot tell
+  its own delimiters from its subject matches the language, not the code.* Both regexes are also
+  defined ONCE now and shared with their self-tests — non-global, because `.test()` on a `/g` regex
+  advances `lastIndex` and answers differently the second time, which a self-test is exactly the
+  wrong place to step in — and all four false positives are pinned as negatives.
+
 - ✅ ⭐ **LIEN-PLACEHOLDER — the statutory lien waiver was downloadable as a PDF reading
   `[Claimant]`, `[Customer]`, `[Owner]` and `through [date]`, and the only screen that produced it
   showed a title and a dollar amount** *(M — `apps/web/src/portal/panels/lienWaiverRead.ts`,

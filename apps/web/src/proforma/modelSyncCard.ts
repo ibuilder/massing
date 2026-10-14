@@ -28,6 +28,9 @@
  *     offers a retry that cannot work, or hides one that would.
  */
 
+import { usd } from "../ui/charts";
+
+
 export interface ModelSyncResult {
   synced: boolean;
   hard_cost: number;
@@ -71,7 +74,7 @@ export function basisNote(r: ModelSyncResult): { text: string; tone: SyncTone } 
   }
   if (r.basis === "gfa_benchmark") {
     const sum = r.discipline_total;
-    const gap = sum === undefined ? "" : ` (elements priced at ${fmt(sum)})`;
+    const gap = sum === undefined ? "" : ` (elements priced at ${usd(sum)})`;
     return { text: `⚠ The element pricing and the GFA benchmark diverged, so ONE benchmark line was `
                    + `written${gap}. The breakdown below is the element pricing and does NOT add up `
                    + `to the committed cost — refine the takeoff or the unit rates before treating `
@@ -127,7 +130,3 @@ export function syncFailure(message: string): { text: string; retryable: boolean
 }
 
 export const SYNC_CSS = TONE_CSS;
-
-function fmt(n: number): string {
-  return `$${Math.round(n).toLocaleString()}`;
-}
