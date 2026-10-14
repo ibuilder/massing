@@ -257,7 +257,24 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/models/health": ["note"],
   "GET /projects/{}/modules/{}/board": ["counts"],
   "GET /projects/{}/naming/audit": ["conventions"],
-  "GET /projects/{}/payapp/lien-exposure": ["vendor_count"],
+  // **CLOSED 2026-10-14 under WAIVER-FLAT, and `vendor_count` was the LEAST of it.** This gate
+  // compares a route's top-level keys, so the one undeclared key here was the population; the live
+  // defect was two keys that were DECLARED and read by nothing. `status` is the engine's verdict on
+  // whether money paid out has been released — `clear` · `conditional_only` · `no_waiver` — and
+  // `waived_conditional` is the amount behind it. The card rendered Vendor / Paid / Unconditional
+  // waived / Exposure, so a vendor holding a signed conditional release for the whole balance and
+  // one holding nothing at all came out as the SAME ROW, both in `--status-crit`, measured at
+  // $200,000 each on a live server. On a lien screen those are two different decisions: chase a
+  // signature, or withhold the next payment.
+  //
+  // **No gate in this tree could have seen it, and that is DEADFIELD-INLINE.**
+  // `apps/web/src/api/deadFieldTyped.test.ts` builds its population from exported INTERFACE
+  // declarations under `api/`, and this response was declared inline in the `this.json<{…}>` type
+  // argument — 562 of 706 call sites are, covering 5,999 of the 8,603 declared field keys. *Naming
+  // the response type is what makes it auditable*, which is why the fix names it.
+  // `services/api/test_payapp.py` had already asserted `conditional_only` on a $100k exposure; its
+  // fixture simply never had a `no_waiver` vendor beside it, so the pair that renders identically
+  // was never both present in one response.
   // **CLOSED 2026-10-14 under PERMIT-BLIND, and the entry pointed at the right route for the wrong
   // reason.** `code_edition` was undeclared on the client AND **null in every response this route
   // has ever served** — the server read `analysis.get("edition") or analysis.get("code_edition")`
@@ -268,7 +285,11 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // a certified plan review. The authority having jurisdiction rules" — went unrendered on a screen
   // that prints READY over a building.
   "GET /projects/{}/precon/decisions": ["by_category", "by_status", "decided_count"],
-  "GET /projects/{}/prequal/coi-expiry": ["soon_days"],
+  // **CLOSED 2026-10-14 under WAIVER-FLAT.** `soon_days` is the horizon `expiring_soon` was
+  // computed against, and the card printed `expiring ≤30d` as LITERAL TEXT beside it — true only
+  // because the one caller passes the default, so the label was a restatement of a parameter rather
+  // than a reading of the answer. `carrier` and `ref` were undeclared on the rows and invisible to
+  // this gate for being nested, and `carrier` is who you telephone about an expired certificate.
   "GET /projects/{}/procurement/gate": ["note"],
   // **CLOSED 2026-10-14 under FLOW-CLEAR.** The card is subtitled *"Where each crew is, and whether
   // anyone is in anyone's way"* and rendered four tiles answering none of the second half:

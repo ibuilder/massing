@@ -1545,6 +1545,91 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **WAIVER-FLAT — a $200,000 signed conditional release and a $200,000 naked exposure were the
+  SAME ROW, and both fields that tell them apart were already declared** *(S —
+  `apps/web/src/portal/panels/waiverRead.ts`, `apps/web/src/api/counterpartyRisk.ts`,
+  `apps/web/src/portal/panels/analytics.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/waiverRead.test.ts` and new assertions in
+  `services/api/test_payapp.py`)*
+
+  `payapp.reconcile` decides, per vendor, whether money paid out has been RELEASED, and publishes
+  three states. Measured against a live server:
+
+  | | `paid` | `waived_unconditional` | `waived_conditional` | `exposure` | `status` |
+  |---|---|---|---|---|---|
+  | B | 200,000 | 0 | **200,000** | 200,000 | `conditional_only` |
+  | C | 200,000 | 0 | 0 | 200,000 | `no_waiver` |
+
+  The card rendered Vendor / Paid / Unconditional waived / Exposure, so **B and C came out as the
+  same row** — `200,000 / 0 / 200,000`, both in `--status-crit` — while B holds a signed release for
+  the full amount and C holds nothing. On a lien screen those are two different decisions: chase a
+  signature, or withhold the next payment. `vendors_at_risk` is derived from the status and lumps
+  both, so the distinction was not recoverable from the rollup either.
+
+  **It was DECLARED and unread, which is the worse half.** `status` and `waived_conditional` were
+  both on the client type. Nothing was wrong with the engine, nothing was wrong with the
+  declaration, and no gate here could see it — which is DEADFIELD-INLINE below. And
+  `services/api/test_payapp.py` had already asserted `status == "conditional_only"` on a $100,000
+  exposure: *the engine was proven right, and its fixture simply never had a `no_waiver` vendor
+  beside it*, so the pair that renders identically was never both present in one response. It is
+  now, with the three columns the card rendered asserted EQUAL for the two and the two fields that
+  differ asserted to differ.
+
+  **The money split is deliberately finer than the status.** `conditional_only` requires the
+  conditional waivers to cover the WHOLE exposure, so a vendor with $200k exposed and a $50k
+  conditional waiver reads `no_waiver` — correct as a verdict, and $50k really is covered. The
+  headline splits the total as `Σ min(exposure, waived_conditional)` against the remainder, the
+  rows carry the engine's verdict, and `splitBasisNote` renders the disagreement when the two can
+  disagree rather than letting one stand in for the other.
+
+  **Narrowing the type introduced a crash hazard, and the type system is what hides it.** `status`
+  was `string` and is now the closed union, which is what lets a consumer be checked for
+  exhaustiveness — and it also makes TypeScript believe `SECURITY[v.status]` cannot be `undefined`.
+  A server that grows a fourth state would make that belief false, so reading `.label` off the
+  lookup would take the whole lien card down over a missing column: *a narrowed type is a claim
+  about a program on the other side of the wire.* The lookup goes through a runtime fallback that
+  renders an unknown state as itself in the worst tone and sorts it with the unreleased ones, which
+  is the safe direction on a lien screen, and both are asserted.
+
+  **Two smaller things in the same card.** The COI line printed `expiring ≤30d` as literal text
+  beside an unread `soon_days` — true only because the one caller passes the default, so the label
+  was a restatement of a parameter rather than a reading of the answer; `carrier` was sent,
+  undeclared, and is who you telephone. And the exposure table filtered out every vendor with zero
+  exposure, which conflates *released by an unconditional waiver* with *not paid yet* — the engine
+  calls both `clear`, right as a lien verdict and wrong as a summary.
+
+- 🟡 ⭐ **DEADFIELD-INLINE — the dead-field gate's population is a third of the client's response
+  surface, and its 269 reads as a statement about all of it** *(M — Lane I —
+  `apps/web/src/api/deadFieldTyped.test.ts`; **MEASURED, NOT YET GATED** — the widening is a 4.5×
+  ratchet and wants its own change)*
+
+  `deadFieldTyped` resolves every read through the TypeScript checker, which is sound, and builds
+  its population by walking **exported interface declarations** under `apps/web/src/api/` —
+  `collect` is reached only from `ts.isInterfaceDeclaration(n) && export`. Measured 2026-10-14:
+  **562 of 706 `this.json<T>` call sites declare their response as an inline type literal**, 139 by
+  reference, 5 otherwise; 7 exported type-literal aliases and 1 non-exported interface are excluded
+  too.
+
+  | | named interfaces | inline `this.json<{…}>` |
+  |---|---|---|
+  | declared field keys | 2,604 | **5,999** |
+  | no typed reader outside the declaring file | 909 | 2,696 |
+  | sound candidates (also no string-literal reader, not dynamically read) | **269** | **1,203** |
+
+  So the number the gate reports is about 30% of the surface, and WAIVER-FLAT's `status` and
+  `waived_conditional` sat in the other 70% — declared, read by nobody, and flattening a three-state
+  verdict on a money screen. *A population derived from one declaration FORM is a population that
+  reports confidently on whatever happens to use that form.*
+
+  **Why it is filed rather than fixed in the same change:** widening adds 1,203 sound candidates
+  against the 269 reported today, and COURT-SPLIT paid to learn that a rule demanding hundreds of
+  edits gets abandoned halfway and leaves the tree half-declared. The shape that would work is to
+  widen `collect` to inline type literals so the population is the whole surface, keep today's
+  SOUND assertion scoped to the named keys, and ratchet the inline population and its sound count
+  separately — the instrument `roadmapLanes`' unowned-file ceiling already uses here, so converting
+  a response type from inline to named visibly shrinks the blind spot and adding to it costs an
+  explicit number change rather than nothing.
+
 - ✅ ⭐ **BASIS-UNREAD — `4/4 assemblies compliant (100.0%)` over four of forty, and with `checked` at
   zero the same card denied the register existed** *(S —
   `apps/web/src/portal/panels/statedBasis.ts`, `apps/web/src/api/model.ts`,
@@ -10168,7 +10253,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
 | **H · Registers** | `services/api/modules/*/module.json` | CAPTURE-SESSION *(filed 2026-10-14. The deliverable when unblocked is a two-picker card, which is Lane B's, and the BLOCKER is a register this product does not have: a capture record carrying a date, a GUID set and a source. Filed here rather than with the card, because `progress/capture-diff` already exists in Lane G and its client method already exists in Lane I — the only missing piece is the register definition, and this cell owns those. *A lane goes by where the missing thing is, not by where the screen would go* — the correction Lane E's cell had to make twice, once for SITE-1 and once for UX-3.)* |
-| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* · DEADFIELD-INLINE *(the dead-field gate's population is a third of the client's response surface — 562 of 706 `this.json<T>` call sites declare their response inline, outside a walk that reads exported interface declarations only. Lane I and not B: the work is in `apps/web/src/api/deadFieldTyped.test.ts`, and the panels that benefit are only where the symptoms show — lanes go by the directory the change lands in, the correction WF-SPLIT had to make in the Lane C cell above)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* · VERDICT-NAMEREAD *(exposure, no live instance: `test_verdict_coverage.py`'s consumer read is matched by NAME anywhere in the file, so another response's field of the same name satisfies it. Measured at 11 consumer/verdict pairs — 8 holder-scoped, 3 taking the response as a parameter — which is why the holder-scoped rule is not built yet: it would red three correct files. Here rather than Lane C because the subject is the GATE, not the engine it rules on.)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so

@@ -13,6 +13,10 @@ import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
 } from "./vendorScorecard";
+import {
+  TONE_CSS as WAIVER_TONE, coiHorizonLine, coiRows, exposureHeadline, exposureInstruction,
+  securityRows, settledNote, splitBasisNote,
+} from "./waiverRead";
 
 /**
  * Analytics & benchmarking panels (cross-project benchmarks, subcontractor risk & cost).
@@ -429,13 +433,17 @@ export async function renderRiskCost(ctx: PanelContext) {
     }).catch((e) => { pqSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.coiExpiry(pid).then((r) => {
-      coiSlot.innerHTML = `<div class="meta">${r.expired_count} expired · ${r.expiring_count} expiring ≤30d</div>`;
-      const rows = [...r.expired.map((x) => ({ ...x, k: "EXPIRED" })), ...r.expiring_soon.map((x) => ({ ...x, k: "soon" }))];
+      // WAIVER-FLAT. The horizon was the literal text "≤30d" beside an unread `soon_days` — true
+      // only because the one caller passes the default. `carrier` was sent and undeclared, and it
+      // is who you telephone; an expired certificate shows an age rather than a negative countdown.
+      coiSlot.innerHTML = `<div class="meta">${esc(coiHorizonLine(r))}</div>`;
+      const rows = coiRows(r);
       if (rows.length) {
         const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
         rows.forEach((x) => { const li = el("li");
-          li.innerHTML = `<span style="color:${x.k === "EXPIRED" ? "var(--status-crit)" : "var(--status-warn)"}">${x.k}</span> `
-            + `${esc(x.vendor || "")} — ${esc(x.coverage_type || "")} exp ${x.expires} (${x.days}d)`; ul.append(li); });
+          li.innerHTML = `<span style="color:${WAIVER_TONE[x.tone]}">${esc(x.kind)}</span> `
+            + `${esc(x.vendor)} — ${esc(x.coverage)} · ${esc(x.carrier)} · exp ${esc(x.expires)} `
+            + `(${esc(x.age)})`; ul.append(li); });
         coiSlot.append(ul);
       }
     }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
@@ -456,17 +464,36 @@ export async function renderRiskCost(ctx: PanelContext) {
     }).catch((e) => { gateSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.lienExposure(pid).then((r) => {
-      lienSlot.innerHTML = `<div class="meta">Total exposure <b style="color:${r.total_lien_exposure > 0 ? "var(--status-crit)" : "var(--status-good)"}">${cmoney(r.total_lien_exposure)}</b>`
-        + (r.vendors_at_risk.length ? ` · at risk: ${r.vendors_at_risk.join(", ")}` : "") + `</div>`;
-      const risky = r.vendors.filter((v) => v.exposure > 0);
-      if (risky.length) {
+      // WAIVER-FLAT. This table was Vendor / Paid / Unconditional waived / Exposure, so a vendor
+      // holding a conditional release for the whole balance and one holding nothing at all came
+      // out as the SAME ROW, both in --status-crit — measured at $200,000 each. `status` and
+      // `waived_conditional` were declared on the client type and read by nothing.
+      // `apps/web/src/portal/panels/waiverRead.ts` holds the readings and the measurement.
+      const head = exposureHeadline(r, cmoney);
+      lienSlot.innerHTML = `<div class="meta" style="color:${WAIVER_TONE[head.tone]}">`
+        + `${esc(head.text)}</div>`;
+      const line = (text: string | null, tone = "") => {
+        if (!text) return;
+        const d = el("div", "meta"); d.textContent = text;
+        if (tone) d.style.color = tone;
+        lienSlot.append(d);
+      };
+      line(exposureInstruction(r), WAIVER_TONE.warn);
+      line(splitBasisNote(r));
+      const rows = securityRows(r);
+      if (rows.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
-        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th><th scope="col">Unconditional waived</th><th scope="col">Exposure</th></tr></thead><tbody>`
-          + risky.map((v) => `<tr><td>${esc(v.vendor)}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
-            + `<td style="text-align:right">${cmoney(v.waived_unconditional)}</td>`
-            + `<td style="text-align:right;color:var(--status-crit)">${cmoney(v.exposure)}</td></tr>`).join("") + `</tbody>`;
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th>`
+          + `<th scope="col">Unconditional waived</th><th scope="col">Conditional waived</th>`
+          + `<th scope="col">Exposure</th><th scope="col" style="text-align:left">Release</th></tr></thead><tbody>`
+          + rows.map((v) => `<tr><td>${esc(v.vendor)}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
+            + `<td style="text-align:right">${cmoney(v.unconditional)}</td>`
+            + `<td style="text-align:right">${cmoney(v.conditional)}</td>`
+            + `<td style="text-align:right;color:${WAIVER_TONE.crit}">${cmoney(v.exposure)}</td>`
+            + `<td style="color:${WAIVER_TONE[v.tone]}">${esc(v.security)}</td></tr>`).join("") + `</tbody>`;
         lienSlot.append(t);
       }
+      line(settledNote(r));
     }).catch((e) => { lienSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.projectCarbon(pid).then((r) => {
