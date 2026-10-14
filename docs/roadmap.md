@@ -1511,6 +1511,88 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- 🟡 ⭐ **WF-SPLIT — the distribution split follows COMMITMENTS while the waterfall runs on
+  CONTRIBUTED capital; which one is right is an operating-agreement term** *(S — Lane C —
+  `services/api/src/aec_api/distwaterfall.py`; **NEEDS A DECISION, not a patch**; the disagreement
+  is detected, named and rendered today by `apps/web/src/proforma/waterfallRead.ts`)*
+
+  Measured under WF-BASIS, on a $20m exit with LP Big ($800k committed, $100k funded) and LP Small
+  ($200k committed, $200k funded):
+
+  | investor | committed | funded | commitment share | funded share | **distribution** |
+  |---|---|---|---|---|---|
+  | LP Big | $800k | $100k | 80.0% | 33.3% | **$13,490,617** |
+  | LP Small | $200k | $200k | 20.0% | 66.7% | **$3,372,654** |
+
+  The waterfall ran on `lp_contrib` of $300k — the contributed capital — and then allocated the
+  result pro-rata to the $1,000k of commitments. **The investor who funded twice as much receives a
+  quarter as much.**
+
+  **This is deliberately not fixed, and the reason is not timidity.** Which share a distribution
+  follows is written into the operating agreement: most split pro-rata to contributed capital, some
+  to commitments, and a few run a separate return-of-capital tier on contributions with the promote
+  split on commitments. Silently re-deciding that inside a distribution calculator is not a
+  correction, it is a different deal — and the figures above are the ones somebody wires money
+  against. *An arithmetic defect gets fixed; a term gets chosen by the person whose agreement it
+  is.*
+
+  What ships today instead: `split_basis` names the allocation, every `per_investor` row carries
+  **both** `commitment_share` and `contributed_share`, `split_mismatch` names each investor whose
+  two shares differ, and the card renders the disagreement with *"confirm against the operating
+  agreement before distributing."* That is `proforma/authorityGate.ts`'s rule applied — *show the
+  working, withhold the verdict* — and it makes the open question visible on the one screen where
+  acting on the wrong answer costs money.
+
+  **The decision needed:** should `per_investor` follow contributed capital when the waterfall does,
+  follow commitments always, or become a per-project setting? The third is the most honest and the
+  most work; the first is what most agreements say. A `contributed_share` is already computed, so
+  whichever is chosen is a few lines.
+
+- ✅ ⭐ **WF-BASIS — a deal nobody has funded produced byte-identical output to one fully funded, and
+  nothing on the screen could tell them apart** *(S — `apps/web/src/proforma/waterfallRead.ts`,
+  `services/api/src/aec_api/distwaterfall.py`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/proforma/waterfallRead.test.ts` and a new phase in
+  `services/api/test_distwaterfall.py`)*
+
+  `distwaterfall.scenario` computes the capital base as
+
+  ```python
+  lp_contrib = sum(r["contributed"] for r in lp) or lp_commit
+  ```
+
+  The preferred return accrues on that figure, the return-of-capital tier returns it, and **both
+  IRRs and both equity multiples are computed against it.** The `or` is a silent fallback to the
+  commitment. Measured on an $8m LP / $2m GP cap table at a $20m exit:
+
+  | cap table | LP distributions | LP IRR | GP distributions |
+  |---|---|---|---|
+  | nothing contributed | $18,302,056 | 17.99% | $1,697,944 |
+  | fully contributed | **$18,302,056** | **17.99%** | **$1,697,944** |
+  | half contributed | $17,151,028 | **33.78%** | **$2,848,972** |
+
+  The card rendered the distributions, both IRRs, both multiples, the pref rate and the style — and
+  not the base all five rest on. *An IRR without the capital it is a return on is not a return, it
+  is a ratio.* And the third row is why it matters in the other direction: the same $20m exit pays
+  the GP **$1.15m more promote** when the base halves.
+
+  **The two sides fall back independently**, so a cap table where the LPs have funded and the GP has
+  not produces one waterfall on two bases, with the GP's promote priced against money the GP has not
+  put in. `lp_basis`/`gp_basis` are published per side and the card says *"the two sides are on
+  DIFFERENT bases"* when they disagree.
+
+  **The precedent for publishing it is in the file below it.** `proforma/waterfall.run_waterfall`
+  made `pref_accrual` explicit for the same reason and recorded why: *"this used to be unstated and
+  unselectable … so it is now an explicit input, defaulted to the documented behaviour and echoed in
+  the result."* Same unstated deal term, one layer up — and a `None` basis on the no-cap-table
+  branch, because naming one there would describe a waterfall that did not run.
+
+  **The sharpest part is where the gap had been hiding.** `services/api/test_distwaterfall.py`'s
+  fixture — three investors, one 2.0M exit, in place since the file was written — gives **no
+  investor a `contributed` figure**, so every assertion it has ever made ran on the committed
+  fallback and nothing said so. *A fixture that only ever walks one branch cannot notice there are
+  two.* The new phase funds that same cap table and asserts the basis flips while every figure
+  stays identical, then half-funds it and asserts the promote and the IRR both move.
+
 - ✅ ⭐ **CO-REJECTED — the change-order report printed a total $400k above the three figures beside
   it, and the gap was money nobody owes** *(S — `apps/web/src/coLogReadings.ts`,
   `services/api/src/aec_api/changeorders.py`; **CLOSED 2026-10-14**; gated by
@@ -9928,7 +10010,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/expiryNote.ts`, `apps/web/src/portal/expiryNote.test.ts`, `apps/web/src/portal/ppcNote.ts`, `apps/web/src/portal/ppcNote.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · WS-BTN-DEAD *(✅ CLOSED 2026-10-13, pending archive — all four sites gone and `apps/web/src/shell/wsBtnGone.test.ts` refuses the class returning. The note here said "three remaining places in `main.ts`" and is kept as the record of why the item sat in THIS lane rather than with the stylesheet or the colour contract that also carried the dead class: the live QUERIES are what kept it looking plausible and they are this lane's file — the same "lanes go by the directory the work touches" correction the Lane E cell below had to make. The persona half was the open one, and the answer was weighting, not hiding)* · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/preconReadings.ts`, `apps/web/src/preconReadings.test.ts`, `apps/web/src/coLogReadings.ts`, `apps/web/src/coLogReadings.test.ts` *(the two `coLogReadings` files claimed 2026-10-14 by CO-REJECTED, for the same reason and by the same route as the `preconReadings` pair beside them: readings over a money register that `reportCenter.ts` renders, surfaced by the unowned-file ratchet, remedied with a row here rather than a bigger ceiling. **The ratchet is the only thing that asks the question** — a new top-level file under `apps/web/src` is owned by nothing until somebody says so, and nothing else in the tree notices)* *(claimed 2026-10-12 by VE-DARK — the readings over the three preconstruction money registers, rendered by `reportCenter.ts` which this cell already owns. The unowned-file ratchet is how it surfaced and a row here is the remedy it names. **A MARKDOWN TABLE ROW IS ONE LINE**: the first draft of this claim wrapped it across five, which left the parser seeing **one** lane row and reporting 555 unowned files and 17 unassigned items — a confident catalogue of a table it could no longer read)*, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* · WF-SPLIT *(the distribution split follows commitments while the waterfall runs on contributed capital — `distwaterfall.py` is this cell's, and the open part is a term the operating agreement decides rather than code. Lane C and not E: the first draft of the entry said Lane E because the SCREEN that renders the disagreement is a proforma card, and lanes go by the directory the work touches — the same correction this table's Lane E cell had to make once before)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* · ESTIMATE-DARK *(the rules-based cost estimate: `POST /projects/{pid}/cost/estimate` is frozen unreachable and its `complete` verdict, guarded on four coverage counts, is read by nobody. M rather than S because the route takes a `rules` body and nothing yet binds a stored rule set to it — inventing a default would ship a cost computed from rules the user never chose. Here because the deliverable is the card; the engine half is Lane C.)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |

@@ -16,6 +16,72 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One investor's slice of a waterfall scenario, with BOTH shares of it.
+ *
+ *  `distribution` is allocated pro-rata to `commitment_share`, and the waterfall above it may have
+ *  run on contributed capital — so when the two shares disagree the figure rests on the basis the
+ *  waterfall did not use. Both are published rather than one being chosen, because which share a
+ *  distribution follows is an operating-agreement term and not an arithmetic fact. */
+export interface WaterfallInvestor {
+  id: string;
+  investor: string;
+  investor_class: string;
+  commitment: number;
+  contributed: number;
+  distribution: number;
+  commitment_share: number;
+  /** `null` when nothing has been called on this investor's side — there is no contributed share to
+   *  compare against, and substituting the commitment share would make the two look agreed. */
+  contributed_share: number | null;
+}
+
+/** A distribution / equity-waterfall scenario over the cap table — **and the capital base it ran on.**
+ *
+ *  WF-BASIS declared the base. `distwaterfall.scenario` computes
+ *  `lp_contrib = sum(contributed) or commitment`, and the pref accrues on that figure, the
+ *  return-of-capital tier returns it, and both IRRs and both multiples are computed against it.
+ *  Measured on an $8m LP / $2m GP cap table at a $20m exit:
+ *
+ *  | cap table | LP distributions | LP IRR | GP |
+ *  |---|---|---|---|
+ *  | nothing contributed | $18,302,056 | 17.99% | $1,697,944 |
+ *  | fully contributed | **identical** | **identical** | **identical** |
+ *  | half contributed | $17,151,028 | **33.78%** | **$2,848,972** |
+ *
+ *  So the screen could not tell a deal nobody has funded from one fully funded, and the two sides
+ *  fall back independently — a cap table where the LPs have funded and the GP has not produces one
+ *  waterfall on two bases. `lp_basis`/`gp_basis` say which. */
+export interface WaterfallScenario {
+  total_distributable: number;
+  lp_distributions: number;
+  gp_distributions: number;
+  lp_irr: number | null;
+  gp_irr: number | null;
+  lp_equity_multiple: number;
+  gp_equity_multiple: number;
+  lp_unreturned: number;
+  pref_rate: number;
+  style: string;
+  note?: string;
+  periods: Record<string, unknown>[];
+  per_investor: WaterfallInvestor[];
+  /** The capital base the pref, the return of capital and both returns were computed on.
+   *  `"contributed"` or `"committed"`; `null` when there is no cap table and no waterfall ran. */
+  lp_basis?: "contributed" | "committed" | null;
+  gp_basis?: "contributed" | "committed" | null;
+  lp_contrib?: number;
+  gp_contrib?: number;
+  lp_commitment?: number;
+  gp_commitment?: number;
+  /** How `per_investor[].distribution` was allocated — `"commitment"`. Published because it can
+   *  differ from the basis the waterfall itself ran on. */
+  split_basis?: string;
+  /** Investors whose contributed share differs from their commitment share. Non-empty means every
+   *  `distribution` above rests on the share the waterfall did not use. */
+  split_mismatch?: { investor: string; commitment_share: number;
+                     contributed_share: number | null }[];
+}
+
 export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class extends Base {
   /** FIN-GOV — the project's locked reporting period (books closed through lock_date, or null). */
@@ -92,10 +158,7 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
   waterfallScenario(pid: string, body: { exit_amount?: number; contribution_date?: string;
     exit_date?: string; distributable?: number[]; dates?: string[]; pref_rate?: number;
     style?: string; clawback?: boolean } = {}) {
-    return this.json<{ total_distributable: number; lp_distributions: number; gp_distributions: number;
-      lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number;
-      lp_unreturned: number; pref_rate: number; style: string; note?: string;
-      periods: Record<string, unknown>[]; per_investor: Record<string, unknown>[] }>(
+    return this.json<WaterfallScenario>(
       `/projects/${pid}/waterfall`, { method: "POST", body: JSON.stringify(body) });
   }
   /** Allocate a capital call (pro-rata by commitment). persist=true posts it to investor totals. */

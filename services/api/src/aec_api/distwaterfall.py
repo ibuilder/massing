@@ -81,11 +81,33 @@ def scenario(db, pid: str, body: dict | None = None) -> dict[str, Any]:
             "lp_distributions": 0.0, "gp_distributions": 0.0, "lp_irr": None, "gp_irr": None,
             "lp_equity_multiple": 0, "gp_equity_multiple": 0, "lp_unreturned": 0.0,
             "pref_rate": _DEFAULT_PREF, "style": "american", "periods": [], "per_investor": [],
+            # `None`, not "committed": with no cap table there is no basis, and naming one would
+            # describe a waterfall that did not run. Same rule as the zeroed figures beside it.
+            "lp_basis": None, "gp_basis": None,
+            "lp_commitment": 0.0, "gp_commitment": 0.0,
+            "split_basis": "commitment", "split_mismatch": [],
             "note": "No investors with a commitment in the cap table — add investors to model distributions.",
         }
-    # contributed basis (fall back to commitment if nothing has been called yet)
-    lp_contrib = sum(r["contributed"] for r in lp) or lp_commit
-    gp_contrib = sum(r["contributed"] for r in gp) or gp_commit
+    # WHICH CAPITAL BASE THE WHOLE WATERFALL RUNS ON — and until WF-BASIS nothing said.
+    #
+    # The pref accrues on this figure, the return-of-capital tier returns it, and both IRRs and both
+    # equity multiples are computed against it. The `or` falls back to the COMMITMENT when nothing
+    # has been called, which is a defensible default and a silent one: measured on an $8m LP / $2m GP
+    # cap table at a $20m exit, a deal with **nothing contributed** returns LP $18,302,056 / IRR
+    # 17.99% / GP $1,697,944 — **byte-identical to the fully funded deal**. Half called gives LP
+    # $17,151,028 / IRR 33.78% / GP $2,848,972: the same exit, $1.15m more promote.
+    #
+    # The two sides also fall back INDEPENDENTLY, so a cap table where the LPs have funded and the
+    # GP has not produces one waterfall on two different bases. `lp_basis`/`gp_basis` are published
+    # for exactly the reason `proforma/waterfall.run_waterfall` publishes `pref_accrual`: *"this used
+    # to be unstated and unselectable … so it is now an explicit input, defaulted to the documented
+    # behaviour and echoed in the result."* Same unstated deal term, one layer up.
+    lp_called = sum(r["contributed"] for r in lp)
+    gp_called = sum(r["contributed"] for r in gp)
+    lp_contrib = lp_called or lp_commit
+    gp_contrib = gp_called or gp_commit
+    lp_basis = "contributed" if lp_called else "committed"
+    gp_basis = "contributed" if gp_called else "committed"
 
     today = date.today()
     if body.get("distributable"):
@@ -109,19 +131,55 @@ def scenario(db, pid: str, body: dict | None = None) -> dict[str, Any]:
 
     lp_total = wf["lp_distributions"]
     gp_total = wf["gp_distributions"]
-    per_investor = []
-    for r in lp:
-        share = lp_total * (r["commitment"] / lp_commit) if lp_commit else 0.0
-        per_investor.append({"id": r["id"], "investor": r["investor"], "investor_class": r["investor_class"],
-                             "commitment": r["commitment"], "distribution": round(share, 2)})
-    for r in gp:
-        share = gp_total * (r["commitment"] / gp_commit) if gp_commit else 0.0
-        per_investor.append({"id": r["id"], "investor": r["investor"], "investor_class": r["investor_class"],
-                             "commitment": r["commitment"], "distribution": round(share, 2)})
+    # THE SPLIT IS BY COMMITMENT, and the waterfall above may have run on CONTRIBUTED capital.
+    #
+    # That is two bases in one answer, and it is money: measured on LP Big ($8m committed, $1m
+    # funded) and LP Small ($2m committed, $2m funded) at a $20m exit, the waterfall ran on
+    # `lp_contrib` = $3m and then allocated the result 8:2, so **the LP who funded $1m takes
+    # $13,490,617 and the one who funded $2m takes $3,372,654.**
+    #
+    # The allocation is NOT changed here. Which share a distribution follows is an operating-
+    # agreement term — most split pro-rata to contributed capital, some to commitments — and
+    # silently re-deciding it in a distribution calculator is not a correction, it is a different
+    # deal. So both shares are published per investor, the disagreement is flagged, and the
+    # decision is filed as WF-SPLIT for the user. *Show the working, withhold the verdict* — the
+    # rule `proforma/authorityGate.ts` states for this family of card.
+    def _slice(r: dict, total: float, commit: float, called: float) -> dict[str, Any]:
+        """One investor's row. Shared by both classes so the two cannot drift apart — which is the
+        defect one level up in this same function, where the money total and the schedule total had
+        come to treat the same refusal differently."""
+        return {
+            "id": r["id"], "investor": r["investor"], "investor_class": r["investor_class"],
+            "commitment": r["commitment"], "contributed": r["contributed"],
+            "distribution": round(total * (r["commitment"] / commit), 2) if commit else 0.0,
+            "commitment_share": round(r["commitment"] / commit, 6) if commit else 0.0,
+            # `None`, not the commitment share, when nothing has been called on this side: there is
+            # no contributed share to compare against, and substituting the other one would make
+            # the two look agreed.
+            "contributed_share": round(r["contributed"] / called, 6) if called else None,
+        }
+
+    per_investor = [_slice(r, lp_total, lp_commit, lp_called) for r in lp]
+    per_investor += [_slice(r, gp_total, gp_commit, gp_called) for r in gp]
+    # Investors whose two shares differ by more than a rounding tick. Named, because the per-investor
+    # figure above rests on the one the waterfall did NOT use whenever this list is non-empty.
+    split_mismatch = [
+        {"investor": x["investor"], "commitment_share": x["commitment_share"],
+         "contributed_share": x["contributed_share"]}
+        for x in per_investor
+        if x["contributed_share"] is not None
+        and abs(x["contributed_share"] - x["commitment_share"]) > 1e-4
+    ]
 
     return {
         "total_distributable": round(sum(distributable), 2),
         "lp_contrib": round(lp_contrib, 2), "gp_contrib": round(gp_contrib, 2),
+        # `"contributed"` or `"committed"` — the one thing that distinguishes a deal nobody has
+        # funded from one fully funded, whose outputs are otherwise identical.
+        "lp_basis": lp_basis, "gp_basis": gp_basis,
+        "lp_commitment": round(lp_commit, 2), "gp_commitment": round(gp_commit, 2),
+        "split_basis": "commitment",
+        "split_mismatch": split_mismatch,
         "lp_distributions": lp_total, "gp_distributions": gp_total,
         "lp_irr": wf["lp_irr"], "gp_irr": wf["gp_irr"],
         "lp_equity_multiple": wf["lp_equity_multiple"], "gp_equity_multiple": wf["gp_equity_multiple"],

@@ -297,7 +297,18 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // it asks the right question — and the reason the entry is recorded here rather than silently
   // deleted. One route, thirteen keys, found by reading the type rather than the list.
   "POST /projects/{}/sync/procore/push": ["direction", "source"],
-  "POST /projects/{}/waterfall": ["gp_contrib", "lp_contrib"],
+  // **CLOSED 2026-10-14 under WF-BASIS, and these two were the capital base every figure rests on.**
+  // `distwaterfall.scenario` computes `lp_contrib = sum(contributed) or lp_commit`, so the pref
+  // accrues on that figure, the return-of-capital tier returns it, and both IRRs and both equity
+  // multiples are computed against it — with a SILENT fallback to the commitment. Measured on an
+  // $8m LP / $2m GP cap table at a $20m exit: nothing contributed returns LP $18,302,056 / IRR
+  // 17.99% / GP $1,697,944, **byte-identical to the fully funded deal**; half called gives IRR
+  // 33.78% and $1.15m more promote. The card rendered the distributions, both IRRs, both multiples,
+  // the pref and the style — and not the base. *An IRR without the capital it is a return on is
+  // not a return, it is a ratio.* The two sides also fall back independently, so one waterfall can
+  // run on two bases. `lp_basis`/`gp_basis` now say which, and the per-investor shares are both
+  // published because the split runs on commitments while the waterfall may not (WF-SPLIT holds
+  // that decision — it is an operating-agreement term, not an arithmetic one).
   "POST /test-fit/compare": ["plate"],
 };
 

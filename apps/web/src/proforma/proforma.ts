@@ -25,6 +25,7 @@ import { renderTestFitTab } from "./testfitTab";
 import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
 import { toast } from "../ui/feedback";
 import { degenerate, drawScope, histogram, probReading, undefinedNote } from "./mcRead";
+import { type Tone, TONE_CSS, basisLine, investorRows, returnsLine, splitNote, uncalledNote } from "./waterfallRead";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -983,10 +984,23 @@ export class ProformaUI {
       try {
         const w = await this.api.waterfallScenario(pid, { exit_amount: n, contribution_date: c0, exit_date: exit });
         if (w.note) { out.innerHTML = `<span class="meta">${escapeHtml(w.note)}</span>`; return; }
-        const pct = (v: number | null) => v == null ? "—" : `${(v * 100).toFixed(1)}%`;
-        out.innerHTML = `<b>LP ${money(w.lp_distributions)}</b> (IRR ${pct(w.lp_irr)}, ${w.lp_equity_multiple}x) · `
-          + `<b>GP ${money(w.gp_distributions)}</b> (${w.gp_equity_multiple}x) · pref ${pct(w.pref_rate)} ${escapeHtml(w.style)}<br>`
-          + (w.per_investor as any[]).map((p) => `${escapeHtml(String(p.investor))}: ${money(p.distribution)}`).join(" · ");
+        // WF-BASIS. This printed the distributions, both IRRs, both multiples, the pref and the
+        // style — and not the capital base all five rest on. The engine falls back from contributed
+        // to COMMITTED capital silently, so a deal nobody has funded produced the identical screen
+        // to one fully funded: LP $18,302,056 at IRR 17.99% either way, measured.
+        const basis = basisLine(w);
+        const uncalled = uncalledNote(w);
+        const split = splitNote(w);
+        const line = (html: string, tone: Tone = "") =>
+          `<div class="meta" style="margin-top:3px${tone ? `;color:${TONE_CSS[tone]}` : ""}">${html}</div>`;
+        out.innerHTML = `<b>${escapeHtml(returnsLine(w))}</b>`
+          + (basis ? line(escapeHtml(basis.text), basis.tone) : "")
+          + (uncalled ? line(escapeHtml(uncalled), "crit") : "")
+          + (split ? line(escapeHtml(split), "warn") : "")
+          + investorRows(w).map((r) => line(
+              `${escapeHtml(r.investor)}: <b>${escapeHtml(r.distribution)}</b>`
+              + ` <span class="meta">(${escapeHtml(r.commitment)} committed, `
+              + `${escapeHtml(r.contributed)} in — ${escapeHtml(r.shares)})</span>`, r.tone)).join("");
       } catch (e) { out.textContent = (e as Error).message; }
       finally { go.disabled = false; }
     };
