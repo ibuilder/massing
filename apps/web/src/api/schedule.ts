@@ -778,7 +778,29 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       by_level: (Grp & { level: string })[]; note: string;
     }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
   }
-  /** progressCaptureDiff — newly installed and disappeared between two capture timestamps. */
+  /**
+   * progressCaptureDiff — newly installed and disappeared between two capture timestamps.
+   *
+   * **The three `unmatched_*` keys are declared here and this method still has no screen**, and the
+   * two facts are worth keeping apart.
+   *
+   * PROGRESS-DARK closed the ENGINE's half of this: `capture_diff` used to filter every capture
+   * GUID the model does not know out of both sets while its note promised *"never silently
+   * dropped"* — true only among elements the current model still contains, *"which excludes exactly
+   * the case a rework flag is for, an element taken out of the model and off the site between
+   * captures."* The filter stayed and the COUNT stopped being silent: `unmatched_t1`,
+   * `unmatched_t2` and the `unmatched_guids` sample say when a capture was aimed at the wrong model
+   * version. Declaring them is free and makes them visible to every audit built on these
+   * declarations; **not declaring them would have left the correction invisible on this side too.**
+   *
+   * **Why there is still no caller, measured rather than assumed.** The route needs two
+   * timestamped sets of installed GUIDs, and nothing in this product persists a capture: grepping
+   * the API for `installed_t1`, a capture-session model or a `progress_capture` register returns
+   * only this route and the engine behind it. So a screen would have to invent the concept — a
+   * stored capture with a date and a GUID set — which is a product decision and a migration, not a
+   * wiring job. Filed as **CAPTURE-SESSION** rather than built, and the freeze in
+   * `apps/web/src/api/clientCallers.test.ts` now records that reason instead of only the date.
+   */
   progressCaptureDiff(pid: string, body: {
     installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
     elements?: Record<string, unknown>[];
@@ -791,6 +813,10 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       added_by_level: { storey: string; count: number }[];
       pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
       elements_per_day: number | null; note: string;
+      /** Capture GUIDs the model does not know — a capture aimed at the wrong model version. */
+      unmatched_t1: number; unmatched_t2: number;
+      /** A SAMPLE, capped at 200 server-side. `unmatched_t1 + unmatched_t2` are the totals. */
+      unmatched_guids: string[];
     }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
   }
 

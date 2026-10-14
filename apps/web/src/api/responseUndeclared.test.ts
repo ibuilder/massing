@@ -222,9 +222,15 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // Measured at $54,131,692 against the $49,476,000 the card showed — 9.4%, $4.66M. *An undeclared
   // key can mean "nobody reads it"; it can also mean "nobody asked for it", and only reading the
   // route tells you which.*
-  // `unmatched_guids`/`t1`/`t2`. PROGRESS-DARK closed the engine's half of exactly this
-  // ("never silently dropped" and it dropped); the client type still cannot see the counts.
-  "POST /projects/{}/progress/capture-diff": ["unmatched_guids", "unmatched_t1", "unmatched_t2"],
+  // **CLOSED 2026-10-14 — and this is the one entry closed WITHOUT giving the route a screen.**
+  // PROGRESS-DARK fixed the engine's half (the note promised "never silently dropped" and the
+  // filter dropped); the three counts are declared now, which is free and makes them visible to
+  // every audit built on these declarations. The route still has no caller, and that is a different
+  // problem with a measured cause: it needs two TIMESTAMPED sets of installed GUIDs and nothing in
+  // this product persists a capture. Filed as CAPTURE-SESSION; the reason is recorded beside the
+  // freeze in `apps/web/src/api/clientCallers.test.ts` rather than left as a date. *Declaring what
+  // a route sends and being able to reach it are two different kinds of done, and conflating them
+  // is how a gate starts reporting the wrong one.*
   "POST /projects/{}/schedule/level": ["caps", "issues", "mode"],
   "POST /projects/{}/specialty/monte-carlo": ["seed", "variables"],
   // **REMOVED 2026-10-14, AND IT WAS NEVER A GAP.** This entry was seeded with fourteen keys and
