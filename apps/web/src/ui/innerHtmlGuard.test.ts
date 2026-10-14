@@ -100,6 +100,16 @@ const BASELINE: Record<string, readonly string[]> = {
     "note.html",
     "note.kind",
   ],
+  //: Same reason as the entry above, in the same release: `cvBridge.ts` is a LAZY panel chunk, and
+  //: importing `resultNote` from `ui/result` there would hoist that module into the shared eager
+  //: shell, because a module two lazy chunks both import stops being lazy. `bridgeNote` returns
+  //: `{html, kind}` whose every interpolation is either a literal sentence written here or passed
+  //: through `esc`; the one-level indirection rule still covers the function itself.
+  "portal/panels/cvBridge.ts": [
+    "note.html",
+    "note.kind",
+    "batch",
+  ],
   "portal/panels/aiassist.ts": [
     "(p.title || p.ref || p.id) as string",
     "mark",

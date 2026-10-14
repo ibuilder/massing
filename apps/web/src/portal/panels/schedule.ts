@@ -171,6 +171,21 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   noticeCard.appendChild(noticeBtn);
   ctx.root.appendChild(noticeCard);
 
+  // CV-BRIDGE-DARK — the site-photo progress bridge, which writes to the activities this panel
+  // shows. Three of its routes were frozen as unreachable and only ONE of them wanted a screen:
+  // `…/ingest` and `…/ingest-batch` are inbound doors a vision vendor's service calls, so a
+  // browser caller for them would be the wrong thing to build. `…/status` is the operator's half —
+  // *is this wired up, and what do I hand my vendor?* — and nothing asked it.
+  //
+  // A SLOT appended synchronously, then a late write guarded by `isConnected`, for the reason the
+  // EOT block above states: `ctx.root` belongs to whichever panel rendered last.
+  const cvSlot = document.createElement("div");
+  ctx.root.appendChild(cvSlot);
+  void (async () => {
+    const { renderCvBridge } = await import("./cvBridge");
+    await renderCvBridge(ctx, cvSlot, pid);
+  })().catch(() => {});
+
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
   const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
   ctx.root.appendChild(interopDrawer);

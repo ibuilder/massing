@@ -1507,3 +1507,23 @@ export interface DesignStandardCheck {
   coverage: DesignStandardCoverage;
   note: string;
 }
+
+/**
+ * `GET /projects/{pid}/cv-progress/status` — CV-BRIDGE-DARK.
+ *
+ * The site-photo progress bridge is feature-flagged and the platform never runs a vision model
+ * itself, so this route answers two operator questions and nothing else: *is it enabled*, and
+ * *what contract does my vision vendor implement*. Its two siblings — `…/ingest` and
+ * `…/ingest-batch` — are INBOUND machine doors with no browser caller by design, which is why
+ * only this one gains a client method.
+ */
+export interface CvBridgeStatus {
+  feature: string;
+  enabled: boolean;
+  note: string;
+  /** One estimate's fields, as the engine describes them: `{field: meaning}`. */
+  contract: Record<string, string>;
+  /** The sweep's envelope, same shape. */
+  batch_contract: Record<string, string>;
+  reference_adapter: string;
+}

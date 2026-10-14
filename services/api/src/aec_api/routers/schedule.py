@@ -784,8 +784,16 @@ def cv_progress_ingest(pid: str, payload: dict = Body(default={}),
     `activity` (a schedule_activity id or name) is resolved and the estimate written to its percent."""
     from .. import cv_bridge
     res = cv_bridge.ingest(payload)
-    if res.get("accepted") and payload.get("activity"):
-        res.update(_apply_estimate(db, pid, payload["activity"], res["percent"], actor))
+    if res.get("accepted"):
+        if payload.get("activity"):
+            res.update(_apply_estimate(db, pid, payload["activity"], res["percent"], actor))
+        else:
+            # THE BATCH DOOR HAS ALWAYS SAID THIS PER ITEM and this one said nothing: an accepted
+            # estimate with no `activity` returned `accepted: true` and NO `applied` key at all,
+            # which is the one response an integrator cannot tell from a successful write — a
+            # missing key reads as `undefined`, and `undefined` is not `false` to anybody checking
+            # for a failure. *One capability, two doors, two different answers to "did it land?"*
+            res.update({"applied": False, "apply_error": "no activity given"})
     return res
 
 
@@ -799,16 +807,19 @@ def cv_progress_ingest_batch(pid: str, payload: dict = Body(default={}),
     res = cv_bridge.ingest_batch(payload.get("estimates", []))
     if not res.get("accepted"):
         return res
-    applied = 0
     for item in res["items"]:
         if item["ok"] and item["activity"]:
-            outcome = _apply_estimate(db, pid, item["activity"], item["percent"], actor)
-            item.update(outcome)
-            applied += 1 if outcome.get("applied") else 0
+            item.update(_apply_estimate(db, pid, item["activity"], item["percent"], actor))
         elif item["ok"]:
             item["applied"] = False
             item["apply_error"] = "no activity given"
-    res["applied"] = applied
+    # `accepted` was decided before any of those writes was attempted, so it stays True on a sweep
+    # in which every one of them failed. `cv_bridge.write_coverage` states how much actually landed;
+    # `applied` is DERIVED from it rather than counted a second time in the loop above, because two
+    # spellings of one number is two chances for them to disagree.
+    cov = cv_bridge.write_coverage(res["items"])
+    res["applied"] = cov["written"]
+    res["coverage"] = cov
     return res
 
 

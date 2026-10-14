@@ -1511,6 +1511,81 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **CV-BRIDGE-DARK — the site-photo progress bridge, and a batch verdict decided before any
+  write was attempted** *(S — `apps/web/src/portal/panels/cvBridge.ts` +
+  `services/api/src/aec_api/cv_bridge.py`; **CLOSED 2026-10-13**; gated by
+  `apps/web/src/portal/panels/cvBridge.test.ts`)*
+
+  `cv_bridge` is a feature-flagged bridge, not a model: the platform never runs computer vision
+  itself. An operator sets `AEC_CV_BRIDGE` and points a vision service at
+  `POST …/cv-progress/ingest` or `…/ingest-batch`, and each accepted estimate is written to a
+  `schedule_activity`'s percent. Three routes sat frozen as unreachable.
+
+  **Only ONE of the three wanted a screen, and that is the finding about the gate rather than the
+  feature.** `…/ingest` and `…/ingest-batch` are INBOUND doors — the caller is the vendor's
+  service, so a browser caller would be the wrong thing to build, exactly as for `/scim/v2/Users`.
+  `…/status` is the operator's half: *is this wired up, and what do I hand my vision vendor?*
+  *The reachability list records that nobody calls a route, which is a defect for a screen's route
+  and the DESIGN for a webhook's — and it cannot tell the two apart*, so "three dark cv-progress
+  routes" overstated the product gap by two, and the one that was really dark was the only one a
+  person was ever meant to read.
+
+  ### Four things the engine said that were not true, none of which any gate sees
+
+  | | what it said | what was so |
+  |---|---|---|
+  | `accepted` | the batch landed | **decided before the first write is attempted** — it stays `true` on a sweep in which every one of them failed |
+  | single door | nothing | `accepted: true` with **no `applied` key at all** when no `activity` was given, while the batch door stated it per item |
+  | the note | *"Wire this to `schedule_activity.percent` in your CV integration"* | the router has written it since the write path landed — a sentence telling an integrator to build what already exists, beside an `applied: true` saying it had happened |
+  | the batch | — | **uncapped**: one editor-role request performing an unbounded number of writes |
+
+  `write_coverage` states `written` / `write_failed` / `no_activity` / `invalid` with no boolean —
+  a `complete: true` would just be `accepted` again, one layer along — and no `complete: null`
+  placeholder either, since a null key of that name is falsy in both languages and reads as "not
+  complete". It lives in the **router**, because the engine validates and the router applies, so
+  the router is the only place that knows the outcomes; `applied` is now DERIVED from it rather
+  than counted a second time in the loop. The cap (500) **refuses** rather than truncating:
+  applying 500 of a 5,000-estimate sweep and reporting success is the defect the coverage object
+  exists to prevent, committed at the door.
+
+  **Writing the coverage sentence reproduced my own gate's class.** `len(written) == len(items)`
+  holds on an empty batch, so the obvious ordering says *"every estimate was written"* about zero
+  estimates — the vacuous-quantifier shape `services/api/test_quant_vacuous.py` exists for, in a
+  sentence written days after that gate landed. *A presence guard is not something you remember to
+  add; it is something a check has to demand.* The empty case is first, and asserted.
+
+  ### A SEVENTH reachability blind spot, and the first whose vouching literal is on screen
+
+  The card's job is to print the contract an integrator implements, so it renders both endpoint
+  URLs — and ``/projects/${pid}/cv-progress/ingest`` built for DISPLAY is character-for-character
+  the literal a fetch would build. The corpus is string literals and nothing about a literal says
+  where it is used, so **this rule cannot tell a URL you CALL from a URL you PRINT**, and both
+  siblings were immediately reported as "quietly become called". Deliberately not fixed by
+  wording: shortening the displayed path to dodge the probe would make the card worse for the one
+  reader it exists for, and *a rule that can only be satisfied by changing things it has no
+  business naming has stopped being a measurement.* Both are asserted to be in NEITHER set, the
+  `/asset-rights/verify` treatment, with the second condition requiring the probe to still be
+  found — so if the card stops printing the URLs the routes become visible again and belong back
+  in their sets. Three mutations are folded in: re-freezing either entry, and the card ceasing to
+  print.
+
+- ✅ **MODEL-STATE-LAZY — five click-opened viewer panels were in the boot chunk**
+  *(XS — `apps/web/src/viewer/tools/modelStatePanels.ts`; **CLOSED 2026-10-13**)*
+
+  Forced by CV-BRIDGE-DARK rather than chosen: one client method put the app shell at **225.1 KB**
+  against a 225 KB ceiling, 57 bytes over. `viewer/tools/*` lands in the eager `app-*` chunk, and
+  every export of `modelStatePanels` is an `openXPanel(deps)` that a tool-rail button calls on a
+  click — so 463 lines of family-type, groups, phasing, LOD and as-built panels were in the boot
+  path of a viewer that may never open any of them. Five dynamic imports at the call sites;
+  `ModelStateDeps` stays a static TYPE import, which is erased and costs nothing, so the call
+  sites keep their checking. **225.1 → 221.4 KB**, 3.6 KB of headroom where there were 47 bytes.
+
+  `apps/web/src/viewer/app.ts` is unchanged in LINE COUNT, deliberately: it sits on an exact pin in
+  `services/api/test_file_sizes.py`, and the explanation belongs in the deferred module's own header
+  rather than as four lines of comment inside the capped file. *The budget's whole value is that it
+  forces this question* — the script's own message names trimming before raising the ceiling, and
+  `modelReviewPanel.ts` records the identical reading for its own `coordFreshness` import.
+
 - ✅ ⭐ **DESIGN-STD-DARK — the firm's design standards were authorable and nothing audited a model
   against them** *(S — `apps/web/src/portal/panels/designStandards.ts` +
   `services/api/src/aec_api/design_standards.py`; **CLOSED 2026-10-13**; gated by

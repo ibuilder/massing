@@ -61,8 +61,8 @@ import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { modelBox3, planBoundsFromModels } from "./modelBounds";
 import { buildExportsSection } from "./tools/exportsSection";
-import { type ModelStateDeps, openAsBuiltPanel, openGroupsPanel, openLodPanel,
-  openPhasingPanel, openTypeBrowser } from "./tools/modelStatePanels";
+// MODEL-STATE-LAZY: all five of those panels open on a CLICK, so they are imported on the click
+import type { ModelStateDeps } from "./tools/modelStatePanels";   // (reasoning in that file's header)
 import { buildQaSection } from "./tools/qaSection";
 import { buildClashPanel as renderClashPanel } from "./tools/clashPanel";
 import { buildAnalyseSection } from "./tools/analyseSection";
@@ -1817,18 +1817,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         layerMgr, container, authorAndReload, waitForPublish, loadProjectModel, reloadModelPins,
       };
 
-      const typesBtn = toolBtn2("🧱 Family types", () => void openTypeBrowser(panelDeps));
+      const typesBtn = toolBtn2("🧱 Family types", () => void import("./tools/modelStatePanels").then((m) => m.openTypeBrowser(panelDeps)));
       typesBtn.title = "Browse & author IFC type families (Revit-style type properties): create types, edit a "
         + "type's size (propagates to all occurrences), assign material layers — IFC-native, GUID-stable";
 
       // W10-3 groups / assemblies / arrays: organise placed elements. Groups/assemblies build from a
       // saved selection set (Navisworks-style); arrays duplicate the selected element on a grid.
-      const groupsBtn = toolBtn2("🧩 Groups & arrays", () => void openGroupsPanel(panelDeps));
+      const groupsBtn = toolBtn2("🧩 Groups & arrays", () => void import("./tools/modelStatePanels").then((m) => m.openGroupsPanel(panelDeps)));
       groupsBtn.title = "Organise placed elements — IfcGroup (named set), IfcElementAssembly (part-of whole), "
         + "and rectangular parametric arrays. Groups/assemblies build from saved selection sets; GUID-stable";
 
       // W10-8 element phasing: tag new/existing/demolish/temporary status (renovation/demolition modeling).
-      const phaseBtn = toolBtn2("🕐 Phasing", () => void openPhasingPanel(panelDeps));
+      const phaseBtn = toolBtn2("🕐 Phasing", () => void import("./tools/modelStatePanels").then((m) => m.openPhasingPanel(panelDeps)));
       phaseBtn.title = "Tag elements new / existing / demolish / temporary (Massing_Phasing.Status) — the "
         + "renovation & demolition-sequencing dimension for as-built LOD-500 models. Colour by phase; GUID-stable";
 
@@ -1866,13 +1866,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       // W11 F0: LOD-stage spine — dial an element's maturity 100→500, and establish the view-keyed
       // representation contexts the construction-drawing pipeline needs.
-      const lodBtn = toolBtn2("📶 Level of Development", () => void openLodPanel(panelDeps));
+      const lodBtn = toolBtn2("📶 Level of Development", () => void import("./tools/modelStatePanels").then((m) => m.openLodPanel(panelDeps)));
       lodBtn.title = "Dial an element's LOD maturity 100 (schematic) → 500 (as-built), and establish the "
         + "view-keyed representation contexts for construction-drawing generation. GUID-stable.";
 
       // W11 G1: LOD-500 = field-verified as-built (BIMForum defines no geometry for it — it's a
       // reliability/data attribute). Stamp the selection as verified + show model readiness.
-      const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", () => void openAsBuiltPanel(panelDeps));
+      const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", () => void import("./tools/modelStatePanels").then((m) => m.openAsBuiltPanel(panelDeps)));
       asBuiltBtn.title = "Mark elements field-verified as-built and see LOD-500 readiness — the data/reliability "
         + "attribute BIMForum actually defines as LOD 500 (no geometric requirement).";
 

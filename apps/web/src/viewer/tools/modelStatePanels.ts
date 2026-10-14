@@ -2,6 +2,21 @@
  * R39-DECOMP-VIEWER ③ — the five panels that read and write an element's *state*, moved out of
  * `app.ts`: family types, groups/arrays, phasing, LOD, and as-built verification.
  *
+ * MODEL-STATE-LAZY (2026-10-13) — WHY `app.ts` IMPORTS THIS MODULE DYNAMICALLY.
+ * Every export here is an `openXPanel(deps)` a tool-rail button calls on a CLICK, and
+ * `viewer/tools/*` lands in the EAGER `app-*` chunk — so a static import put all five panels in the
+ * boot path of a viewer that may never open any of them. `npm run budget` refused the shell at
+ * 225.1 KB against a 225 KB ceiling when CV-BRIDGE-DARK added one client method, and the script's
+ * own message names trimming before raising the ceiling. *A panel that runs on a click is the right
+ * thing to defer* — the same reading `modelReviewPanel.ts` records for its own `coordFreshness`
+ * import. 225.1 → 221.4 KB. `ModelStateDeps` is still imported statically, as a TYPE: that import
+ * is erased at build and costs no shell bytes, so the call sites keep their checking.
+ *
+ * This paragraph is INSIDE the existing header rather than a second block above it, because
+ * `apps/web/src/tooling/docStranded.test.ts` pins the file-header exemption at exactly one
+ * occurrence — a second stacked doc comment is the stranded shape that gate exists to find, and it
+ * found this one. *An exemption whose count is pinned cannot be grown by accident.*
+ *
  * WHY THESE FIVE, AND WHY NOW
  * ---------------------------
  * `app.ts` sits on a per-file ratchet with zero headroom, and R36-VIEWER-SUBAPP needs room in it for

@@ -254,7 +254,9 @@ KNOWN_UNCALLED: set[str] = {
     # `/cost/lien-waiver`, `/elements/by-discipline`, `/naming/conventions` left here in v0.3.1135 —
     # each gained a client method and a panel caller. Leaving them frozen would claim they were still
     # unreachable.
-    "/projects/{pid}/cv-progress/ingest-batch",
+    # `/projects/{pid}/cv-progress/ingest-batch` left this set 2026-10-13 — CV-BRIDGE-DARK, with
+    # its sibling `…/ingest`, and for the printed-URL reason given in `LEAF_COLLISION_BLIND` below
+    # rather than because anything calls it. Both are now asserted to be in NEITHER set.
 
     # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
     # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a
@@ -1896,8 +1898,34 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     # writes everywhere, so the coarse rule could never see it either way; this entry's removal is
     # the probe below reporting a real caller, not the rule getting sharper.
     "/projects/{pid}/cost/estimate",
-    "/projects/{pid}/cv-progress/ingest",
-    "/projects/{pid}/cv-progress/status",
+    # `/projects/{pid}/cv-progress/status` left this set 2026-10-13 — CV-BRIDGE-DARK.
+    # `apps/web/src/portal/panels/cvBridge.ts`, a card in the Schedule panel, reads it.
+    #
+    # **ITS TWO SIBLINGS STAY, AND THEY ARE NOT THE SAME KIND OF ENTRY AS ANYTHING ELSE IN THIS
+    # FILE.** `…/ingest` (here) and `…/ingest-batch` (in `KNOWN_UNCALLED`) are INBOUND doors: the
+    # caller is the operator's own vision service POSTing progress estimates, so a browser caller
+    # would be the wrong thing to build, exactly as for `/scim/v2/Users` and `/bcf/2.1/projects`.
+    # *This gate records that nobody calls a route, which is a defect for a screen's route and the
+    # DESIGN for a webhook's — and it cannot tell the two apart.* So "three dark cv-progress
+    # routes" overstated the product gap by two, and the one that was really dark was the only one
+    # a person was ever meant to read: *is this wired up, and what do I hand my vision vendor?*
+    #
+    # **NEITHER SIBLING COULD STAY FROZEN, AND THE REASON IS A THIRD KIND OF FALSE VOUCH.** The
+    # card's whole job is to print the contract an integrator implements, so it renders both
+    # endpoint URLs — and the literal it builds for DISPLAY,
+    # ``/projects/${pid}/cv-progress/ingest``, is character-for-character the literal a fetch
+    # would build. The corpus here is string literals, so **this rule cannot tell a URL you CALL
+    # from a URL you PRINT**, and both entries were immediately reported as "quietly become
+    # called". They have not been; nothing fetches either one.
+    #
+    # Not fixable by wording, and deliberately not fixed by wording: shortening the displayed path
+    # to dodge the probe would make the card worse for the one reader it exists for, and *a rule
+    # that can only be satisfied by changing things it has no business naming has stopped being a
+    # measurement*. Telling the two apart needs the literal's POSITION — an argument to a fetch,
+    # not a template in markup — which is the call-shape matching `leaf_is_called`'s docstring
+    # measured and rejected, because 19 real callers pass fragments. So both move out of both sets
+    # and are asserted to be in neither, exactly as `/asset-rights/verify` and the jurisdiction
+    # pair are. See the block below the `_blind_spot()` derivation.
     "/projects/{pid}/design/options/board.pdf",
     "/projects/{pid}/design/options/carbon",
     "/projects/{pid}/design/options/compare",
@@ -2024,6 +2052,34 @@ check("no frozen blind-spot route has quietly become called or vanished",
       f"{len(_LEFT_BLIND)}: {_LEFT_BLIND[:6]} — if it now has a caller, DELETE the entry (that is "
       "the ratchet coming down, and is always welcome); if the path changed, update it. Leaving it "
       "freezes a name that no longer refers to anything")
+
+# A SEVENTH INSTANCE, 2026-10-13, and it is the first one whose vouching literal is on SCREEN.
+# CV-BRIDGE-DARK wired `/projects/{pid}/cv-progress/status` and gave its card the job of printing
+# the contract an integrator implements -- so `apps/web/src/portal/panels/cvBridge.ts` builds
+# ``/projects/${pid}/cv-progress/ingest`` and ``…/ingest-batch`` as DISPLAY TEXT. Those literals
+# are indistinguishable from a fetch's, because this file's corpus is string literals and nothing
+# about a literal says where it is used.
+#
+# **The two kinds of entry in this file are not the same claim, and that is the real finding.** For
+# a screen's route, "no client builds it" is a defect. For an INBOUND door -- `…/ingest` is POSTed
+# by the operator's own vision service, like `/scim/v2/Users` by an identity provider -- it is the
+# design. This gate reports the same sentence for both, so a reader taking its cv-progress entries
+# as a product gap would have counted three and found one.
+#
+# Asserted in neither set, the `/asset-rights/verify` treatment, because freezing them makes the
+# ratchet above red on the printed URL and deleting them silently would drop two real routes out of
+# this file's sight. **And the collision is REAL, not a guess**: the second condition requires the
+# probe to still be found, so if the card stops printing the URLs these routes become visible again
+# and belong back in their sets. (That `or`-versus-`and` is the fail-open shape a review bot caught
+# in the `/benchmarks/vendors` entry above; both conditions are required here from the start.)
+_lits = string_blob(_STRIPPED)
+for _r in ("/projects/{pid}/cv-progress/ingest", "/projects/{pid}/cv-progress/ingest-batch"):
+    check(f"the CV-BRIDGE printed-URL collision is still a blind spot: {_r}",
+          _r not in KNOWN_UNCALLED and _r not in LEAF_COLLISION_BLIND
+          and probe_is_built(_wired_probe(_r), _lits),
+          "either the entry was re-frozen -- which reds the ratchet on a URL the card merely "
+          "prints -- or the card stopped printing it, in which case this rule can see the route "
+          "again and it belongs back in the set it came from")
 
 # ---------------------------------------------------------------------------------------------
 # The probe must be able to SEE a caller, or "no client builds it" is a sentence that can only ever

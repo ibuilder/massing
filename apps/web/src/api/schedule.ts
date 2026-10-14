@@ -17,7 +17,7 @@
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
 import { HttpCore, HttpError, type LiveStatus, type LiveStream } from "./httpCore";
-import type { LogisticsResource, MakeReady } from "./types";
+import type { CvBridgeStatus, LogisticsResource, MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -25,6 +25,16 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   // Clash rides here so ApiClient's mixin expression does not grow another
   // `withX()` — one more wrapper there loses HttpCore on the type (TS mixin depth).
   return class Schedule extends withClash(Base) {
+  /**
+   * CV-BRIDGE-DARK — is the site-photo progress bridge enabled, and what does a vision vendor
+   * implement? The bridge's other two routes (`…/cv-progress/ingest`, `…/ingest-batch`) are
+   * INBOUND doors called by that vendor's service, so they deliberately get no method here: a
+   * browser caller for a webhook would be the wrong thing to build.
+   */
+  cvProgressStatus(pid: string) {
+    return this.json<CvBridgeStatus>(`/projects/${pid}/cv-progress/status`);
+  }
+
   scheduleAlerts(pid: string) {
     return this.json<{ alerts: { level: string; type: string; title: string; detail: string; ref?: string }[];
       counts: { high: number; medium: number; low: number } }>(`/projects/${pid}/schedule/alerts`);
