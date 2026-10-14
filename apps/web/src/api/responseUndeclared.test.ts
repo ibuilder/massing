@@ -138,9 +138,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/estimate/resource-based": ["source"],
   "GET /projects/{}/feasibility/compare": ["error"],
   "GET /projects/{}/info-requirements/cascade": ["children", "nodes"],
-  // `reasons_not_recorded` and `unassessed`: a PPC percentage over the tasks somebody assessed,
-  // beside a count of the ones nobody did.
-  "GET /projects/{}/lean/ppc": ["note", "reasons_not_recorded", "unassessed"],
+  // **SHRUNK 2026-10-14 under PPC-UNASSESSED, and the undeclared keys were the SYMPTOM.**
+  // `reasons_not_recorded` and `unassessed` are declared and rendered now; `note` stays because
+  // nothing branches on prose. The defect was in the two keys that WERE declared: `ppc: number` and
+  // `rating: string`, when the engine returns `null` for both while the period is unmeasurable — so
+  // the health strip printed "Lean PPC: 0%" in critical red on a team mid-week (`null * 100` is
+  // `0`, and a `null` rating fell through a two-literal ternary to its default branch). *No key-set
+  // comparison can see a nullability that is simply wrong — this gate asks which keys are NAMED,
+  // never whether the names are TRUE*, which is the limit of the instrument and worth writing here
+  // rather than discovering twice.
+  "GET /projects/{}/lean/ppc": ["note"],
   // **TRIAGED AND LARGELY CLOSED the same day, under LOD-UNREAD — this is what a ratchet going
   // down looks like.** It was the largest gap in the tree at ten keys, four of them coverage, over
   // an LOD verdict the screen rendered as a bare band table titled "LOD coverage". Seven are now

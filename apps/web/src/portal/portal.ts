@@ -10,6 +10,7 @@ import { type RegisterFilter, RegisterUI } from "./register/register";
 import { densityToggleRow } from "./densityToggle";
 import { readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { expiryReading } from "./expiryNote";
+import { ppcLine } from "./ppcNote";
 import { safetyClassLine, safetyHeadline } from "./safetyCard";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
@@ -1100,12 +1101,9 @@ export class PortalUI {
       }).catch(() => {});
       const lean = el("div", "meta"); lean.style.margin = "2px 0"; health.appendChild(lean);
       void this.host.api.leanPpc(pid).then((l) => {
-        if (!l.commitments) return;
-        const top = l.top_variance_reasons[0];
-        const color = l.rating === "good" ? "var(--status-good)" : l.rating === "fair" ? "var(--status-warn)" : "var(--status-crit)";
-        lean.innerHTML = `Lean PPC: <b style="color:${color}">${(l.ppc * 100).toFixed(0)}%</b> `
-          + `(${l.completed}/${l.commitments} commitments${l.missed ? ` · ${l.missed} missed` : ""})`
-          + (top ? ` · top reason: ${top.reason}` : "");
+        const r = ppcLine(l);       // PPC-UNASSESSED: null ppc is "not yet measurable", not a red 0%
+        if (!r) return;             // nothing promised — no line, which is the engine's own rule
+        lean.innerHTML = `Lean PPC: <b style="color:${r.css}">${esc(r.value)}</b> ${esc(r.detail)}`;
       }).catch(() => {});
       // compliance: COI / permit expiries — don't let insurance or permits lapse silently
       const comp = el("div", "meta"); comp.style.margin = "2px 0"; health.appendChild(comp);

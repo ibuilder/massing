@@ -698,9 +698,26 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       per_project?: { project_id: string; ppc_pct: number; tmr_pct: number; committed: number }[] }>(
       `/benchmarks/pull-planning`);
   }
-  /** leanPpc — Last-Planner percent complete plus missed-commitment reasons. */
+  /**
+   * leanPpc — Last-Planner percent complete plus missed-commitment reasons.
+   *
+   * **`ppc` AND `rating` ARE NULLABLE, and declaring them otherwise was the defect PPC-UNASSESSED
+   * closed.** `lean.ppc` returns `null` for both while the period is unmeasurable — an unanswered
+   * commitment is neither met nor missed, and its own docstring records fixing exactly this one
+   * layer down: *"Until v0.3.974 this divided by EVERY record, so … every team read as failing on a
+   * Wednesday."* With `ppc: number` declared, the health strip did `(l.ppc * 100).toFixed(0)` —
+   * `null * 100` is `0` in JavaScript — and tested `rating` against two string literals with a
+   * critical-red default branch, so a team mid-week got **"Lean PPC: 0%" in red**. *A non-nullable
+   * type is how a consumer is told there is no decision to make; this one said the opposite.*
+   *
+   * `unassessed` and `reasons_not_recorded` were undeclared (found by RESPKEY-DELEGATED) and are the
+   * two counts that make the null readable: how many promises are still open, and how many misses
+   * nobody gave a reason for. The reading is `apps/web/src/portal/ppcNote.ts`.
+   */
   leanPpc(pid: string) {
-    return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
+    return this.json<{ commitments: number; completed: number; ppc: number | null; missed: number;
+      rating: string | null; unassessed: number; reasons_not_recorded: number;
+      top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);
   }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
