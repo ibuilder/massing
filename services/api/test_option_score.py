@@ -103,6 +103,46 @@ with TestClient(app) as c:
     assert "options-board.pdf" in bd.headers.get("content-disposition", "")
     assert c.post(f"/projects/{pid}/design/options/board.pdf", json={"options": []}).status_code == 400
 
+    # --- RESPKEY-DELEGATED: the deck's caveats, which were STRUCTURALLY unreachable ----------------
+    # `score_options` APPENDS its carbon-basis sentence to `note`, and the deck drew `note[:180]`
+    # against a boilerplate that is 480 characters on its own. So the warning did not fail
+    # sometimes — it was past the cut on every render there has ever been, measured: index 364 of
+    # 546. *A truncation measured against the text that happened to be there first silently
+    # reclassifies everything added after it as optional.*
+    mixed = [*g.json()["options"], {**g.json()["options"][0], "structure": "unobtanium",
+                                    "label": "no-takeoff variant"}]
+    ms = c.post(f"/projects/{pid}/design/options/score", json={"options": mixed}).json()
+    assert ms["carbon_basis_mixed"] and len(ms["carbon_basis"]) > 1, ms["carbon_basis"]
+    assert ms["note"].find("CARBON BASES ARE MIXED") > 180, ms["note"].find("CARBON BASES ARE MIXED")
+    txt = PdfReader(_io.BytesIO(osc.board_pdf("Mixed", ms))).pages[0].extract_text()
+    assert "MIXED" in txt and "like-for-like" in txt, txt[-300:]
+
+    # and the partial mark, which the table had no way to show: a partially-scored option RANKS, so
+    # it can be the top row of a client-facing deck with no star and nothing saying why.
+    #
+    # Driven through the `_evaluate` seam `test_option_missing.py` uses, NOT by hunting for inputs
+    # that happen to lose a criterion. **The first draft of this did the latter and wrapped it in
+    # `if ps["partially_scored"]:`** — a region named `atlantis` prices exactly like `us-west`, so
+    # the condition was false, the two assertions never ran, and the phase reported PASS. *A guard
+    # that makes a check conditional on the thing the check is about is not a guard, it is an
+    # off switch that reports success.*
+    ROWS = [{"label": "priced", "cost_per_sf": 300.0, "carbon_intensity_kgco2e_m2": 400.0,
+             "yield_net_sellable_m2": 1000.0, "compliant": True, "carbon_basis": "quantity",
+             "massing": {}, "cost_total": 1.0, "carbon_total_tco2e": 1.0, "violations": []},
+            {"label": "unpriced", "cost_per_sf": None, "carbon_intensity_kgco2e_m2": 450.0,
+             "yield_net_sellable_m2": 1100.0, "compliant": True, "carbon_basis": "quantity",
+             "massing": {}, "cost_total": 1.0, "carbon_total_tco2e": 1.0, "violations": []}]
+    _real = osc._evaluate
+    osc._evaluate = lambda o: dict(ROWS[o["_i"]])                 # noqa: E731 — focused seam
+    try:
+        ps = osc.score_options([{"_i": 0}, {"_i": 1}])
+    finally:
+        osc._evaluate = _real
+    assert ps["partially_scored"] == ["unpriced"], ps["partially_scored"]
+    ptxt = PdfReader(_io.BytesIO(osc.board_pdf("Partial", ps))).pages[0].extract_text()
+    assert "scored on fewer criteria" in ptxt, ptxt[-400:]
+    assert "* unpriced" in ptxt.replace("\n", " "), ptxt[:400]
+
 print("GEN-SCORE OK - deterministic variant grid (2 types x 3 FAR steps); warehouse beats hospital on "
       "cost+carbon with equal yield (flat criteria score 100 for all); carbon total = GFA x benchmark; "
       "weights steer ranking (all-yield -> tie); non-compliant options capped <=49 and never "

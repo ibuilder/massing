@@ -113,7 +113,14 @@ def board_pdf(project_name: str, scored: dict[str, Any]) -> bytes:
     y -= 7 * mm
     c.setFont("Helvetica", 8.5)
     for r in rows[:12]:
-        vals = [str(r.get("label", ""))[:44], f"{r.get('gfa_m2', 0):,.0f}",
+        # The same distinction the screen draws, for the same reason: a partially-scored option is RANKED, so
+        # it can be the top row of this table with no recommendation beside it, and a deck a client
+        # reads has no tooltip to explain that. Prefixed rather than a column, because a column
+        # that is blank on every like-for-like set costs the table 10mm for ever. ASCII `*` rather
+        # than the screen's `\u25e7`: Helvetica has no glyph for it and reportlab draws a missing-glyph
+        # box, so the mark that exists to explain an unstarred top row would itself be unreadable.
+        vals = [("* " if not r.get("fully_scored", True) else "") + str(r.get("label", ""))[:44],
+                f"{r.get('gfa_m2', 0):,.0f}",
                 f"${r.get('cost_total', 0):,.0f}", f"{r.get('cost_per_sf') or 0:,.0f}",
                 f"{r.get('carbon_intensity_kgco2e_m2', 0):,.0f}",
                 f"{r.get('yield_net_sellable_m2', 0):,.0f}",
@@ -142,8 +149,37 @@ def board_pdf(project_name: str, scored: dict[str, Any]) -> bytes:
         c.setFillColorRGB(0, 0, 0)
         c.drawString(bx + 72 * mm + (bw - 90 * mm) * frac, y, f"{r.get('composite', 0):.0f}")
         y -= 6.5 * mm
+    # THE CAVEATS GET THEIR OWN LINE, ABOVE the boilerplate, and that is the whole fix.
+    #
+    # This used to be one `drawString` of `note[:180]`. `score_options` APPENDS the mixed-carbon
+    # warning to `note` — "\u26a0 CARBON BASES ARE MIXED \u2026 the carbon ranking across this set is not
+    # like-for-like" \u2014 and the boilerplate it is appended to is ~360 characters on its own, so the
+    # warning sat past the cut on EVERY render. Not sometimes: *structurally*, for every mixed set
+    # there has ever been. A truncation measured against the text that happened to be there first
+    # silently reclassifies everything added after it as optional.
+    #
+    # So the warnings are drawn from their own keys, before the generic sentence, and the generic
+    # sentence is what gets truncated if anything does. RESPKEY-DELEGATED found this as the
+    # client-side half (the card rendered neither); the deck is the artifact the client actually
+    # reads, which makes it the worse of the two places to drop it.
+    y2 = 20 * mm
+    c.setFont("Helvetica-Bold", 7.5)
+    if scored.get("carbon_basis_mixed"):
+        c.setFillColorRGB(0.72, 0.33, 0.0)
+        bases = ", ".join(scored.get("carbon_basis") or [])
+        c.drawString(18 * mm, y2, f"! Carbon bases are MIXED ({bases}) - the carbon column is not "
+                                  "like-for-like across these options.")
+        y2 -= 4 * mm
+    partial = scored.get("partially_scored") or []
+    if partial:
+        c.setFillColorRGB(0.72, 0.33, 0.0)
+        c.drawString(18 * mm, y2, f"* {len(partial)} option(s) scored on fewer criteria than their "
+                                  f"rivals ({', '.join(str(p) for p in partial)[:90]}) - ranked, never "
+                                  "recommended.")
+        y2 -= 4 * mm
+    c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica-Oblique", 7.5)
-    c.drawString(18 * mm, 14 * mm, (scored.get("note") or "")[:180])
+    c.drawString(18 * mm, min(y2, 14 * mm), (scored.get("note") or "")[:180])
     c.showPage()
     c.save()
     return buf.getvalue()

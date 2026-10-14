@@ -65,8 +65,126 @@ const CONTROL = "GET /projects/{}/verification/coverage";
 /** Every gap in the tree today. Asserted EXACTLY, in both directions: a new gap fails the build, and
  *  so does an entry here that is no longer a gap — which forces this list to shrink as they are
  *  fixed rather than rotting into a freeze-list nobody re-checked. (`KNOWN_UNCALLED` is the
- *  cautionary tale this shape is built against.) */
+ *  cautionary tale this shape is built against.)
+ *
+ *  **It was EMPTY until 2026-10-14, and that was a measurement of this gate's reach, not of the
+ *  tree.** RESPKEY-DELEGATED taught `response_keys.py` to follow one hop from a route into the
+ *  engine it delegates to, and 303 routes that had never been compared became comparable. 48 of
+ *  them disagree with their client type. *They are newly VISIBLE, not new* — every one of them
+ *  predates this change, and `no_expiry` (EXPIRY-UNDATED, closed hours earlier) sat in exactly this
+ *  blind spot: 605 of 1016 routes `return engine.func(...)`, so the majority of the surface was
+ *  never read by the gate that exists to read it.
+ *
+ *  **NOBODY HAS TRIAGED THESE 48.** They are seeded as a measured ratchet that may only go DOWN —
+ *  the instrument `KNOWN_UNCALLED` and the unowned-file ceiling already use here — because the
+ *  alternative was to declare ~130 fields across 48 client types in one unreviewed sweep, and a
+ *  declaration added to silence a gate is a declaration nobody checked against its engine. Stating
+ *  the number and refusing to let it grow is a true claim; declaring the fields would have been a
+ *  false one. Delete an entry when you have READ the engine and declared what it sends.
+ *
+ *  **The measured shape, because it decides where triage is worth starting:** the overwhelming
+ *  majority are QUALIFIER keys — `unassessed`, `refused`, `excluded`, `limitation`,
+ *  `reasons_not_recorded`, `limited_by`, `orphans`, `values_truncated`, `unmatched_guids`,
+ *  `partially_scored`, `disclaimer`, `data_date`. That is not a coincidence and it is the same
+ *  finding as CLASH-TRUNC and VERDICT-COVERAGE one layer along: *an engine states what it could not
+ *  evaluate, and the client type declares the answer without the caveat.* Only the engine knows the
+ *  caveat exists, so dropping it from the type makes the screen look complete.
+ *
+ *  **49 were measured and one was FIXED rather than seeded**, which is the argument for triaging the
+ *  rest: `POST /projects/{}/design/options/score` was the OPTION-BOARD-DARK card, shipped in this
+ *  same session hours before this gate could see it. It dropped `partially_scored`,
+ *  `partially_scored_note`, `carbon_basis` and `carbon_basis_mixed` — so the card ranked
+ *  quantity-derived carbon against typology benchmarks in one column while the engine's own
+ *  sentence, "⚠ CARBON BASES ARE MIXED … the carbon ranking across this set is not like-for-like",
+ *  went unrendered; and a partially-scored option topped the table with no star and no explanation.
+ *  The deck was worse: `board_pdf` drew `note[:180]` and the engine APPENDS that warning to a
+ *  boilerplate 480 characters long, so the warning was past the cut on every render there has ever
+ *  been. *The first defect this gate found was its own author's, and the gate found it in hours.*
+ */
 const KNOWN_GAPS: Record<string, string[]> = {
+  // `basis`, `limitation`, `excluded` — what the rate is and is not.
+  "GET /benchmarks/unit-rates": ["basis", "excluded", "limitation"],
+  "GET /interop/speckle/status": ["server_version"],
+  "GET /portfolio/risk": ["weights"],
+  "GET /projects/{}/action-items/tracker": ["by_priority", "by_state"],
+  "GET /projects/{}/bidding/scope-gap": ["covered_without_specs", "spec_section_count", "spec_sections"],
+  "GET /projects/{}/cap-table": ["pipeline_commitment", "workflow_in_use"],
+  "GET /projects/{}/change-orders/log": ["by_state", "change_events_by_scope", "rejected_value"],
+  // `support_unscheduled` — the 4D pairs with no date to clash on.
+  "GET /projects/{}/clash/sequence": ["support_unscheduled"],
+  // `excluded_comparables` — the comps a valuation did NOT use.
+  "GET /projects/{}/comps/tiered": ["excluded_comparables", "requested"],
+  "GET /projects/{}/cost/lien-waiver": [
+    "application_no", "claimant", "customer", "exceptions", "signature_block", "through_date",
+  ],
+  "GET /projects/{}/cx/matrix": ["note"],
+  // `orphans` — documents attached to nothing.
+  "GET /projects/{}/documents/health": ["note", "orphans"],
+  "GET /projects/{}/elements/{}/records": ["note"],
+  // `refused` — conditions the engine would not rule on.
+  "GET /projects/{}/entitlements/conditions": ["live_count", "refused"],
+  "GET /projects/{}/envelope/audit": ["note"],
+  "GET /projects/{}/estimate/resource-based": ["source"],
+  "GET /projects/{}/feasibility/compare": ["error"],
+  "GET /projects/{}/info-requirements/cascade": ["children", "nodes"],
+  // `reasons_not_recorded` and `unassessed`: a PPC percentage over the tasks somebody assessed,
+  // beside a count of the ones nobody did.
+  "GET /projects/{}/lean/ppc": ["note", "reasons_not_recorded", "unassessed"],
+  // The largest single gap in the tree, and where a triage pass should start: four of its ten
+  // keys are coverage — `elements_with_an_undecidable_aspect`,
+  // `elements_without_readable_geometry`, `limited_by` and `compliance` — over an LOD verdict the
+  // screen renders as a score. That is the CLASH-TRUNC shape exactly.
+  "GET /projects/{}/lod/assessment": [
+    "avg_information_score", "ceiling_distribution", "compliance", "default",
+    "elements_with_an_undecidable_aspect", "elements_without_readable_geometry",
+    "information_score_max", "limited_by", "note", "targets",
+  ],
+  "GET /projects/{}/mep/model-extract": ["by_discipline", "note"],
+  "GET /projects/{}/model/columnar/stats": [
+    "est_interned_bytes", "est_naive_string_bytes", "note", "string_references",
+  ],
+  "GET /projects/{}/models/health": ["note"],
+  "GET /projects/{}/modules/{}/board": ["counts"],
+  "GET /projects/{}/naming/audit": ["conventions"],
+  "GET /projects/{}/payapp/lien-exposure": ["vendor_count"],
+  // `disclaimer`, and `code_edition`, which decides what the check MEANT.
+  "GET /projects/{}/permit/readiness": ["code_edition", "disclaimer", "egress", "sheet_series"],
+  "GET /projects/{}/precon/decisions": ["by_category", "by_status", "decided_count"],
+  "GET /projects/{}/prequal/coi-expiry": ["soon_days"],
+  "GET /projects/{}/procurement/gate": ["note"],
+  "GET /projects/{}/schedule/flowline": ["interferences", "issues"],
+  // `data_date` — without it, every date verdict on this payload is relative to nothing.
+  "GET /projects/{}/schedule/health": ["activity_count", "data_date", "issues", "relationship_count"],
+  "GET /projects/{}/standards/check": ["supported"],
+  // `values_truncated` — the property diff is a PAGE and says so in a key no client declares.
+  "GET /projects/{}/versions/diff": ["property_values_available", "values_truncated"],
+  "GET /projects/{}/view-templates/{}/graphics": [
+    "cut_count", "graphics", "hidden_count", "name", "note", "template",
+  ],
+  "GET /projects/{}/vitals": ["area", "cost_sf", "float", "health", "irr", "lod"],
+  "GET /rooms": ["note"],
+  "POST /connections/{}/query": ["limit"],
+  "POST /projects/{}/drawing-set/generate": ["register"],
+  "POST /projects/{}/drawings/{}/revise": ["markups_carried"],
+  "POST /projects/{}/estimate/conceptual": [
+    "height_factor", "market", "note", "region", "soft_cost_pct", "year",
+  ],
+  // `unmatched_guids`/`t1`/`t2`. PROGRESS-DARK closed the engine's half of exactly this
+  // ("never silently dropped" and it dropped); the client type still cannot see the counts.
+  "POST /projects/{}/progress/capture-diff": ["unmatched_guids", "unmatched_t1", "unmatched_t2"],
+  "POST /projects/{}/schedule/level": ["caps", "issues", "mode"],
+  "POST /projects/{}/specialty/monte-carlo": ["seed", "variables"],
+  // Fourteen keys, which is the whole weighted-index derivation: `excluded`, `by_evidence`,
+  // `certain_supply_units` vs `rumored_supply_units`. SUPPLY-DARK wired the route and declared
+  // the headline; the evidence split it exists to make is undeclared.
+  "POST /projects/{}/supply/competitive": [
+    "by_evidence", "certain_supply_units", "competing", "counts", "delta_months", "discount_pct",
+    "excluded", "product_type", "raw_index", "raw_units", "rumored_supply_units", "supply",
+    "weighted_index", "weighted_units", "window",
+  ],
+  "POST /projects/{}/sync/procore/push": ["direction", "source"],
+  "POST /projects/{}/waterfall": ["gp_contrib", "lp_contrib"],
+  "POST /test-fit/compare": ["plate"],
 };
 
 /** Routes the gate compares whose server key set is a LOWER BOUND — the response literal carries a
@@ -121,6 +239,30 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   // price of the comparison rather than a defect. The declared type enumerates `validate`'s six keys,
   // which is complete against today's engine and unverifiable by a static walk over the literal.
   "PUT /projects/{}/workflow/{}",
+  // --- RESPKEY-DELEGATED, 2026-10-14: the 14 that arrived with the one-hop resolver ------------
+  // These are not new spreads. They are routes whose body is `return engine.func(...)`, so until
+  // the resolver followed the hop this gate had no key set for them at all and could not ask the
+  // question — and the ENGINE's return literal is where the `**spread` lives. Each is a lower
+  // bound for the same reason as the entries above: the keys below can be named, whether there are
+  // MORE cannot. *A route moving from "invisible" to "lower bound" is this list getting longer
+  // because the gate got better, which is the opposite of a regression.*
+  "GET /connections/{}/tables",
+  "GET /projects/{}/comps/tiered",
+  "GET /projects/{}/deal-room/authority",
+  "GET /projects/{}/resilience/weather",
+  "GET /projects/{}/schedule/health",
+  "GET /projects/{}/schedule/windows",
+  "POST /estimate/assembly/price",
+  "POST /license/cloud-check",
+  "POST /projects/{}/concept-render/request",
+  "POST /projects/{}/coordination/stale/recheck",
+  // The five schedule engines, all one shape: `scheduler`/`schedule_compress` return
+  // `{**result, ...}` over a dict the optimiser builds, so the literal names the envelope and the
+  // payload arrives through the spread.
+  "POST /projects/{}/schedule/collapsed",
+  "POST /projects/{}/schedule/compress",
+  "POST /projects/{}/schedule/impacted",
+  "POST /projects/{}/schedule/portfolio",
 ];
 
 /** A route path as the SERVER writes it, or null when it genuinely cannot be known statically. */
@@ -257,7 +399,8 @@ describe("RESPONSE-UNDECLARED", () => {
   // what a reader greps for, and what EXEMPT is keyed on.
   const { rows, unresolved } = extract(program, `${WEB}/src`, WEB);
 
-  const server: Record<string, { keys: string[]; literal: boolean; complete: boolean }> = JSON.parse(
+  const server: Record<string, { keys: string[]; literal: boolean; complete: boolean;
+                                 hops: string[] }> = JSON.parse(
     execFileSync("python3", [resolve(REPO, "services/api/response_keys.py")],
                  { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
 
@@ -269,7 +412,18 @@ describe("RESPONSE-UNDECLARED", () => {
     if (r.opaque) opaque.add(r.key);
   }
 
-  const dictRoutes = Object.entries(server).filter(([, v]) => v.literal);
+  // RESPKEY-DELEGATED: a route that hands off to an engine is now comparable too. `literal` alone
+  // described 279 of 1016 routes, because 605 of them `return engine.func(...)` — so this gate had
+  // no view of the MAJORITY of the surface, and `no_expiry` (EXPIRY-UNDATED) hid in exactly that
+  // blind spot. `hops` names where a delegated key set came from, so a reader knows which function
+  // to go and look at rather than searching the route body for a literal that is not there.
+  //
+  // **EXTENDING THE PRODUCER WAS NOT ENOUGH, and that is worth recording**: `response_keys.py`
+  // emitted the new keys and this line dropped every one of them, so the gate went green over 303
+  // newly-resolved routes while reading none of them. *A derivation whose consumer still filters
+  // it out is a derivation that did not happen.*
+  const dictRoutes = Object.entries(server)
+    .filter(([, v]) => v.literal || v.hops.length > 0);
   // Routes whose key set is a LOWER BOUND, not the whole truth: the literal carries a `**spread` or
   // a computed key, so `response_keys.py` marks it `complete: false`. Comparing only the keys it
   // COULD name would let `{**extra, "id": id}` pass whenever `id` is declared, while `extra` sends

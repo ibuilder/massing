@@ -1511,6 +1511,80 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **RESPKEY-DELEGATED — the response-key gate could not see 59% of the route surface, and the
+  first defect it found when it could was the one shipped hours earlier** *(M —
+  `services/api/response_keys.py`, `apps/web/src/api/responseUndeclared.test.ts`; **CLOSED
+  2026-10-14**; gated by that test's exact-both-ways ratchet and `response_keys.py`'s own
+  fail-closed `_selftest`)*
+
+  `apps/web/src/api/responseUndeclared.test.ts` compares what a route SENDS against what the client
+  type DECLARES, and it was comparing 279 of 1016 routes. The other 737 were not exempt and not
+  skipped — they were **invisible**, because the producer only understood a route whose body is a
+  dict literal, and **605 of 1016 are `return engine.func(...)`**. So the gate's own reach was the
+  thing nobody had measured, and its `KNOWN_GAPS` being empty read exactly like a clean tree.
+  *A predicate that decides what to LOOK at is more dangerous than one that decides what to report*
+  — the eleventh time that sentence has been the finding in this file.
+
+  **One hop resolves most of it.** `response_keys.py` now indexes every engine function's return
+  literal and follows `return mod.func(...)` through the router's own relative imports: **305 routes
+  resolved, 582 with keys (was 279)**. The resolution is exactly one hop and refuses a deeper chain
+  or a bare local call, because each extra hop multiplies the ways to attribute keys to the wrong
+  function and `complete: false` on a route nobody can check is worse than no keys.
+
+  **The load-bearing detail is that the index is keyed on a dotted MODULE ID, not a stem.** 26 stems
+  collide between `aec_api/` and `aec_api/routers/` — `drafting.py` and `routers/drafting.py` among
+  them — so a stem-keyed index attributes one module's keys to another, and a `from .` import has to
+  resolve one level differently from a `from ..` import. **I had identified that hazard at the
+  function-name level, designed the resolver around it, and then rebuilt it at the module-name
+  level**, which the proof-of-reach caught: `/closeout/summary` came back unresolved. *A hazard
+  named once is not a hazard handled; it has to be handled at every level it occurs at.* The
+  self-test now derives the colliding set from PATHS (unambiguous by construction) and asserts
+  `module_id` separates them — because its FIRST draft reported a stem-keyed `module_id` as "no
+  colliding stems remain", blaming the tree for a broken function, and *a check whose failure
+  message can misdiagnose is worse than one that stays silent.*
+
+  **EXTENDING THE PRODUCER WAS NOT ENOUGH, and that is the entry's sharpest lesson.** With 303
+  routes newly resolved the gate ran **green with zero new gaps** — because the consumer's one-line
+  filter was still `v.literal`, so every delegated key set was dropped before comparison. The work
+  had been done and thrown away, and the output was indistinguishable from a clean tree. *A
+  derivation whose consumer still filters it out is a derivation that did not happen.*
+
+  **48 gaps seeded as a ratchet that may only go DOWN, 14 new lower-bound entries, and one FIXED.**
+  Nobody has triaged the 48: the alternative was declaring ~130 fields across 48 client types in one
+  unreviewed sweep, and a declaration added to silence a gate is a declaration nobody checked
+  against its engine. Stating the number and refusing to let it grow is a true claim. **The measured
+  shape says where triage starts:** the overwhelming majority are QUALIFIER keys — `unassessed`,
+  `refused`, `excluded`, `limitation`, `reasons_not_recorded`, `limited_by`, `orphans`,
+  `values_truncated`, `unmatched_guids`, `disclaimer`, `data_date` — which is CLASH-TRUNC and
+  VERDICT-COVERAGE one layer along: *an engine states what it could not evaluate and the client type
+  declares the answer without the caveat.*
+
+  **The one fixed instead of seeded was mine, from this same session.** `POST
+  /projects/{pid}/design/options/score` dropped `partially_scored`, `partially_scored_note`,
+  `carbon_basis` and `carbon_basis_mixed`, so the OPTION-BOARD-DARK card ranked quantity-derived
+  carbon against typology benchmarks in one tCO₂e column while the engine's own sentence — *"⚠
+  CARBON BASES ARE MIXED … the carbon ranking across this set is not like-for-like"* — went
+  unrendered, and a partially-scored option could top the table with no star and no explanation.
+  `recommended` was protected the whole time (`compliant[0]` demands `fully_scored`), which is the
+  distinction: **a guard on the recommendation is not a guard on the ranking.**
+
+  **The deck was worse, and structurally so.** `option_score.board_pdf` drew `note[:180]`, and
+  `score_options` APPENDS the carbon warning to a boilerplate that is 480 characters on its own —
+  measured at index **364 of 546**. So the warning was past the cut on *every* render there has ever
+  been, not sometimes. *A truncation measured against the text that happened to be there first
+  silently reclassifies everything added after it as optional.* The caveats now draw from their own
+  keys, above the boilerplate, and the boilerplate is what gets truncated if anything does; the
+  partially-scored rows carry a mark in the deck's table too, in ASCII, because Helvetica has no
+  glyph for `◧` and reportlab would draw a missing-glyph box over the mark that exists to explain an
+  unstarred top row.
+
+  **And the first draft of the test for that was conditional on the thing it tested** — `if
+  ps["partially_scored"]:` over an input hunted for rather than constructed, and a region named
+  `atlantis` prices exactly like `us-west`, so both assertions never ran and the phase reported PASS.
+  It goes through `test_option_missing.py`'s `_evaluate` seam now. *A guard that makes a check
+  conditional on the thing the check is about is not a guard, it is an off switch that reports
+  success.*
+
 - ✅ ⭐ **SCHED-STATUS-DARK — "what is late" had an engine and no screen, and its four distinctions
   are exactly what a status card flattens** *(S —
   `apps/web/src/portal/panels/scheduleStatusReading.ts`; **CLOSED 2026-10-14**; gated by

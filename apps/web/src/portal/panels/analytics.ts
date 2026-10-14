@@ -588,15 +588,41 @@ export async function renderRiskCost(ctx: PanelContext) {
           t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th><th scope="col">Score</th><th scope="col">$/sf</th>`
             + `<th scope="col">tCO₂e</th><th scope="col">Floors</th><th scope="col">GFA (sf)</th><th scope="col" style="text-align:left">Code</th></tr></thead><tbody>`
             + s.options.map((o) => `<tr${o.label === s.recommended ? ' style="background:var(--hover)"' : ""}>`
-              + `<td>${o.label === s.recommended ? "★ " : ""}${o.label}</td><td style="text-align:center"><b>${o.composite}</b></td>`
+              // ◧ IS NOT A DECORATION. A partially-scored option is RANKED, so it can sit at the top
+              // of this table with no star — and until this marker there was nothing on the screen
+              // saying why the top row was not the recommendation. The title names the criteria it is
+              // missing, because "incomplete" without "incomplete in what" sends a reader to re-run.
+              + `<td>${o.label === s.recommended ? "★ " : !o.fully_scored
+                  ? `<span style="color:var(--status-warn)" title="scored on fewer criteria — missing ${esc((o.missing_criteria || []).join(", "))}; ranked but never recommended">◧</span> `
+                  : ""}${esc(o.label)}</td><td style="text-align:center"><b>${o.composite}</b></td>`
               + `<td style="text-align:right">${o.cost_per_sf != null ? "$" + Math.round(o.cost_per_sf) : "—"}</td>`
-              + `<td style="text-align:right">${o.carbon_total_tco2e.toLocaleString()}</td>`
+              // The per-row basis is shown ONLY when the set is mixed. On a like-for-like set it is
+              // noise on every row; on a mixed one it is the difference between two unlike claims,
+              // and a single tCO₂e column with no basis is what made them look comparable.
+              + `<td style="text-align:right">${o.carbon_total_tco2e.toLocaleString()}`
+              + `${s.carbon_basis_mixed ? ` <span class="meta" title="carbon basis for this option">${esc(o.carbon_basis)}</span>` : ""}</td>`
               + `<td style="text-align:center">${o.massing.floors}</td>`
               + `<td style="text-align:right">${Math.round(o.massing.buildable_gfa_sf).toLocaleString()}</td>`
-              + `<td>${o.compliant ? "✓" : `<span style="color:var(--status-crit)" title="${o.violations.join("; ")}">✗</span>`}</td></tr>`).join("")
+              + `<td>${o.compliant ? "✓" : `<span style="color:var(--status-crit)" title="${esc(o.violations.join("; "))}">✗</span>`}</td></tr>`).join("")
             + `</tbody>`;
           optOut.innerHTML = "";
           optOut.append(t);
+          // THE ENGINE'S OWN SENTENCES, rendered. `note` carries the mixed-carbon warning appended
+          // to it — "⚠ CARBON BASES ARE MIXED … the carbon ranking across this set is not
+          // like-for-like" — and `partially_scored_note` explains the ◧ rows. Neither was read by
+          // the card that shipped with OPTION-BOARD-DARK, so the table above was a ranking with its
+          // caveats stripped off. *A qualifier the engine computes and the screen drops is worse
+          // than one that was never computed, because the screen looks complete.*
+          if (s.partially_scored.length) {
+            const w = el("div", "meta"); w.style.color = "var(--status-warn)";
+            w.textContent = `◧ ${s.partially_scored.length} of ${s.options.length} option(s) `
+              + `partially scored (${s.partially_scored.join(", ")}) — ${s.partially_scored_note}`;
+            optOut.append(w);
+          }
+          const nt = el("div", "meta");
+          if (s.carbon_basis_mixed) nt.style.color = "var(--status-warn)";
+          nt.textContent = s.note;
+          optOut.append(nt);
         } catch (e) {
           // A FAILED SCORE MUST TAKE THE BUTTON BACK. Leaving it enabled after the second run
           // fails offers a deck built from the FIRST run's options under the second run's inputs,
