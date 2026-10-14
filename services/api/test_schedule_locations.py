@@ -102,13 +102,70 @@ def main() -> int:
 
     check("...and every unavailable shape carries the full key set",
           all(set(x) >= {"segments", "trades", "locations", "continuity_cost_days",
-                         "interference_count", "issues"} for x in (u, one, bare, empty)),
+                         "interference_count", "interferences", "converging_count", "issues"}
+              for x in (u, one, bare, empty)),
           "callers branch on `available` without special-casing the rest")
 
     # --- the number that decides whether any of this is worth it ------------------------------------
     check("continuity cost is reported per trade — the price of keeping a gang whole",
           isinstance(r["continuity_cost_days"], dict) and set(r["continuity_cost_days"]) == set(r["trades"]),
           f"{r['continuity_cost_days']}")
+
+    # --- FLOW-CLEAR: the whole Interference, not one field of it -----------------------------------
+    #
+    # The adapter projected the dataclass with
+    # `{k: getattr(i, k) for k in ("task_id", "location_id") if hasattr(i, k)}`, and `task_id` is
+    # not a field of `Interference` at all — it belongs to `Segment`. So `hasattr` skipped it in
+    # silence and the whole record left the server as `{"location_id": "L01"}`: both trade ids, the
+    # clearance and the converging flag discarded by the adapter before any client could decline to
+    # read them. *A defensive projection fails silently by design, which is the wrong failure mode
+    # for a field list* — `to_dict()`, which the `issues` line beside it had always called, would
+    # have raised the day the shape changed.
+    _FIELDS = {"predecessor_id", "successor_id", "location_id", "gap_days", "converging"}
+    check("every interference carries all five of the dataclass's fields",
+          r["interferences"] and all(set(i) == _FIELDS for i in r["interferences"]),
+          f"{r['interferences'][:1] if r['interferences'] else r['interferences']}")
+    check("  the two trade ids are the pair in HANDOVER order, not the alphabet",
+          all(i["predecessor_id"] in r["trades"] and i["successor_id"] in r["trades"]
+              for i in r["interferences"])
+          and all(r["trades"].index(i["predecessor_id"]) < r["trades"].index(i["successor_id"])
+                  for i in r["interferences"]),
+          f"trades {r['trades']}, pairs "
+          f"{[(i['predecessor_id'], i['successor_id']) for i in r['interferences']]}")
+
+    # `interference_count` IS NOT A COUNT OF COLLISIONS, and a careful consumer reading it as one is
+    # wrong in the ALARMING direction — the opposite of every other instance of this class today.
+    # `compute()` appends one per consecutive pair unconditionally, so it is `len(trades) - 1`.
+    check("interference_count is the PAIR population, not a finding",
+          r["interference_count"] == len(r["interferences"]) == len(r["trades"]) - 1,
+          f"{r['interference_count']} for {len(r['trades'])} trades — if these ever diverge, a "
+          f"consumer rendering the count as a problem count becomes defensible, and it is not")
+
+    # `converging_count` is the figure that actually VARIES from this route, and the engine says why
+    # it is the one worth showing: the successor is catching up, and that is invisible on a bar
+    # chart. Asserted as a RELATION so it cannot drift from the list it summarises.
+    check("converging_count agrees with the records it summarises",
+          r["converging_count"] == sum(1 for i in r["interferences"] if i["converging"]),
+          f"{r['converging_count']} vs {[i['converging'] for i in r['interferences']]}")
+
+    # WHY THERE IS NO `overlap_count` OR `touching_count`, measured rather than reasoned.
+    # `compute()` places each line at `max(0, max(requirements))`, so the clearance at the binding
+    # location is exactly the declared `buffer_days` — and this adapter never sets it. Both counts
+    # would therefore be constants from this route: 0, and `len(trades) - 1`. FLOW-BUFFER holds the
+    # real gap, which is that nobody can REQUEST a buffer.
+    check("gap_days is 0 everywhere, because the adapter requests no buffer",
+          all(i["gap_days"] == 0 for i in r["interferences"]),
+          f"{[i['gap_days'] for i in r['interferences']]} — if this ever fails, a buffer became "
+          f"settable and `overlap_count` stopped being a constant: publish it then")
+    # ...and the engine DOES report an overlap when a buffer makes one, so the path is live and only
+    # unreachable from here. Proved against the vendored engine directly, not inferred.
+    from massingplan.core.locations import LinearTask, Location, compute
+    _locs = [Location(id=f"L{i}", name=f"L{i}", sequence=i) for i in (1, 2, 3)]
+    _neg = compute([LinearTask(id="A", duration_days=5, buffer_days=0),
+                    LinearTask(id="B", duration_days=5, buffer_days=-3)], _locs)
+    check("a NEGATIVE buffer does produce a negative clearance and a LOB.OVERLAP error",
+          _neg.interferences[0].gap_days == -3 and "LOB.OVERLAP" in _neg.issues.codes(),
+          f"gap {_neg.interferences[0].gap_days}, codes {_neg.issues.codes()}")
 
     if _FAILURES:
         print(f"FAILED: {', '.join(_FAILURES)}")

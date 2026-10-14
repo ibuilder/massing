@@ -225,7 +225,16 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/precon/decisions": ["by_category", "by_status", "decided_count"],
   "GET /projects/{}/prequal/coi-expiry": ["soon_days"],
   "GET /projects/{}/procurement/gate": ["note"],
-  "GET /projects/{}/schedule/flowline": ["interferences", "issues"],
+  // **CLOSED 2026-10-14 under FLOW-CLEAR.** The card is subtitled *"Where each crew is, and whether
+  // anyone is in anyone's way"* and rendered four tiles answering none of the second half:
+  // `interference_count` was declared and unread, `interferences` and `issues` undeclared. Worse,
+  // the adapter projected the `Interference` dataclass with
+  // `{k: getattr(i, k) for k in ("task_id", "location_id") if hasattr(i, k)}` — and `task_id` is
+  // not a field of `Interference` at all — so FOUR of its five fields never left the server:
+  // measured, `[{"location_id": "L01"}]`. It calls `to_dict()` now, which the `issues` line beside
+  // it had always called. And `interference_count` is NOT a count of collisions (it is
+  // `trades.length - 1`), so the one key the card could have reached for is the one that would have
+  // alarmed every reader of a coordinated schedule.
   // **CLOSED 2026-10-14 under SCHEDHEALTH-PARITY.** All four declared and rendered. Three of them
   // were also MISSING FROM BOTH of the engine's refusal shapes, while its own docstring promised
   // "every key the assessed shape carries is present and empty, so a caller reading `checks` or

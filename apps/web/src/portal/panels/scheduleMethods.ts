@@ -23,6 +23,8 @@ import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
 import { type Tone, TONE_CSS, capRows, capVerdict, coverageNote as levelCoverageNote,
          levelIssueRows, uncappedNote, unavailableExtras } from "./levelRead";
+import { bufferNote, clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows,
+         populationNote } from "./flowlineRead";
 import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
   from "./scheduleHealthRead";
 import type { PanelContext } from "../panelContext";
@@ -160,6 +162,47 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
       { label: "continuity cost", value: worst ? `${worst[1]}d` : "0d",
         hint: worst ? `worst: ${worst[0]}` : "no crew was pushed" },
     ] : []);
+
+    // FLOW-CLEAR. The subtitle above says this card is for "whether anyone is in anyone's way" and
+    // those four tiles answer none of it. `interference_count` is deliberately NOT a tile: it
+    // counts adjacent trade PAIRS, not collisions, so a schedule with ample clearance reports
+    // `1` — the per-handover records carry the answer and `populationNote` says what the count is.
+    const fline = (html: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.innerHTML = html;
+      fOut.appendChild(d);
+    };
+
+    if (!r.available) {
+      const extra = flowUnavailableExtras(r);
+      if (extra) fline(esc(extra));
+      return;
+    }
+
+    const v = clearanceVerdict(r);
+    if (v) {
+      const el = document.createElement("div");
+      el.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[v.tone]}`;
+      el.textContent = v.text;
+      fOut.appendChild(el);
+    }
+
+    for (const h of handoverRows(r)) {
+      fline(`${esc(h.pair)} — closest at <strong>${esc(h.at)}</strong>, ${esc(h.clearance)} clear `
+            + `· ${esc(h.trend)}`, h.tone);
+    }
+
+    const pop = populationNote(r);
+    if (pop) fline(esc(pop));
+    const buf = bufferNote(r);
+    if (buf) fline(esc(buf), "warn");
+
+    for (const i of flowIssueRows(r).slice(0, 8)) {
+      fline(`<code>${esc(i.code)}</code> ${esc(i.text)}`, i.tone);
+    }
   }));
   fc.appendChild(fOut); wrap.appendChild(fc);
 

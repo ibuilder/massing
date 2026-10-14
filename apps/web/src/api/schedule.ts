@@ -352,14 +352,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    * worth using on this job.
    */
   scheduleFlowline(pid: string) {
-    return this.json<{
-      available: boolean; reason?: string;
-      locations: { id: string; name: string; sequence: number }[]; trades: string[];
-      duration_days: number | null; continuity_cost_days: Record<string, number>;
-      segments: { task_id: string; location_id: string; start_offset: number; finish_offset: number;
-                  duration_days: number }[];
-      interference_count: number;
-    }>(`/projects/${pid}/schedule/flowline`);
+    return this.json<FlowlineResult>(`/projects/${pid}/schedule/flowline`);
   }
 
   /**
@@ -899,6 +892,65 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     });
   }
   };
+}
+
+/** Where two consecutive trade lines come closest, and by how much.
+ *
+ *  `massingplan/core/locations.Interference`'s own docstring: *"`gap_days` is the actual clearance
+ *  at the binding location after the line has been shifted … it is the requested buffer at exactly
+ *  one location when they do not [run at the same pace] — which is the point of reporting the
+ *  location."*
+ *
+ *  **Four of these five fields never left the server until FLOW-CLEAR.** The adapter projected the
+ *  dataclass with `{k: getattr(i, k) for k in ("task_id", "location_id") if hasattr(i, k)}` — and
+ *  `task_id` is not a field of `Interference` at all — so `hasattr` skipped it silently and the
+ *  whole record arrived as `{"location_id": "L01"}`, measured. It calls `to_dict()` now, which the
+ *  line below it had always called. */
+export interface FlowlineInterference {
+  /** The two trade lines, in handover order. */
+  predecessor_id: string;
+  successor_id: string;
+  /** Where they come closest — the point of reporting it. */
+  location_id: string;
+  /** Actual clearance there, in working days. Negative means the two trades share the space.
+   *  **Always 0 from this route today:** `compute()` shifts each line until it is exactly tight at
+   *  its tightest point, and the clearance it leaves is the declared `buffer_days`, which this
+   *  adapter never sets (FLOW-BUFFER). */
+  gap_days: number;
+  /** The clearance SHRINKS along the flow — the successor is the faster trade and is catching up.
+   *  Per the engine: *"a slip in the predecessor is felt immediately at the far end, and it is
+   *  invisible on a bar chart."* The one figure here that varies from this route. */
+  converging: boolean;
+}
+
+/** R45-SCHED-REACH — line of balance, and whether anyone is in anyone's way.
+ *
+ *  The card's own subtitle promised the second half and rendered none of it: `interference_count`
+ *  was declared and unread, and `interferences` and `issues` were undeclared.
+ *
+ *  **`interference_count` IS NOT A COUNT OF COLLISIONS**, and a careful consumer reading it as one
+ *  would be wrong in the alarming direction. `compute()` appends an `Interference` for every
+ *  consecutive pair of trade lines, unconditionally, so the figure is `trades.length - 1`.
+ *  Measured: two trades with ample clearance through three floors return `interference_count: 1`. */
+export interface FlowlineResult {
+  available: boolean;
+  reason?: string;
+  locations: { id: string; name: string; sequence: number }[];
+  trades: string[];
+  duration_days: number | null;
+  continuity_cost_days: Record<string, number>;
+  segments: { task_id: string; location_id: string; start_offset: number; finish_offset: number;
+              duration_days: number }[];
+  /** The number of adjacent trade PAIRS examined — the population, not a finding. */
+  interference_count: number;
+  /** Pairs where the successor is catching up. This is the finding. */
+  converging_count?: number;
+  interferences?: FlowlineInterference[];
+  /** Coercions, drops and fallbacks from building the network. The third screen this session where
+   *  the engine's `IssueLog` stopped. */
+  issues?: ScheduleIssue[];
+  /** `_unavailable` extras on the inconsistent-locations refusal: what it did find. */
+  trades_found?: string[];
 }
 
 /** One thing the schedule engine could not do exactly as asked.

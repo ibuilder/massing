@@ -212,11 +212,56 @@ def flowline(activities: list[dict], *, sequence: list[str] | None = None,
              "duration_days": s.duration_days}
             for s in result.segments
         ],
-        "interferences": [
-            {k: getattr(i, k) for k in ("task_id", "location_id") if hasattr(i, k)}
-            for i in result.interferences
-        ],
+        # `to_dict()`, not a hasattr projection — and the line below has always called it.
+        #
+        # FLOW-CLEAR: this read `{k: getattr(i, k) for k in ("task_id", "location_id")
+        # if hasattr(i, k)}`. `Interference` is a frozen dataclass with FIVE fields —
+        # `predecessor_id`, `successor_id`, `location_id`, `gap_days`, `converging` — and **no
+        # `task_id` at all** (that belongs to `Segment`). So the projection asked for a field the
+        # type never had, `hasattr` skipped it in silence, and four of the five survived as one:
+        # `[{"location_id": "L01"}]`, measured. Both task ids, the clearance in days and the
+        # converging flag were discarded by the adapter before any client could decline to read
+        # them.
+        #
+        # `gap_days` negative means the lines actually cross, and `converging` is, in the
+        # dataclass's own words, *"the case where a slip in the predecessor is felt immediately at
+        # the far end, and it is invisible on a bar chart"* — the one thing a flowline tells you
+        # that CPM structurally cannot, dropped by the function whose docstring is about exactly
+        # that. *A defensive projection fails silently by design, which is the wrong failure mode
+        # for a field list: `to_dict()` would have raised the day the shape changed.*
+        "interferences": [i.to_dict() for i in result.interferences],
+        # NOT A COUNT OF COLLISIONS, and reading it as one is the trap FLOW-CLEAR found while
+        # looking for something else. `locations.linear_schedule` appends an `Interference` for
+        # EVERY consecutive pair of trade lines, unconditionally, recording the location where they
+        # come CLOSEST and the clearance there — so this figure is `len(trades) - 1` and says
+        # nothing about whether anybody is in anybody's way. Measured: two trades through three
+        # floors with ample clearance return `interference_count: 1`.
+        #
+        # Kept, because it is the population every per-pair figure is drawn from, and a consumer
+        # that renders it needs to know which of the two it is.
+        #
+        # *A name that sounds like a finding and measures a population is worse than no figure at
+        # all, because a careful consumer renders it.*
         "interference_count": len(result.interferences),
+        # `converging_count` is the signal that actually VARIES from this route, and it is the one
+        # the `Interference` docstring says matters: *"the successor is the faster trade and is
+        # catching up … a slip in the predecessor is felt immediately at the far end, and it is
+        # invisible on a bar chart."*
+        #
+        # **AN `overlap_count` AND A `touching_count` WERE WRITTEN HERE AND DELETED BEFORE SHIPPING,
+        # because measuring them showed both are constants from this route.** `compute()` places
+        # each line at `max(0, max(requirements))`, so the clearance at the binding location is
+        # exactly the declared buffer — and `LinearTask.buffer_days` *("Negative is legal and means
+        # deliberate overlap")* is **never set by this adapter**. Measured directly against the
+        # engine: buffer 0 → gap 0, buffer +2 → gap +2, buffer −3 → gap −3 **and** a `LOB.OVERLAP`
+        # error. So from the HTTP route `gap_days` is always 0, `overlap_count` would always be 0
+        # and `touching_count` always `len(trades) - 1`.
+        #
+        # *A count whose value the caller fixes is the same defect as a name that measures a
+        # population — it reads as a measurement and carries no information* — which is why they
+        # are not here, and why FLOW-BUFFER is filed: the gap is that nobody can REQUEST a buffer,
+        # not that the engine fails to report one.
+        "converging_count": sum(1 for i in result.interferences if i.converging),
         "issues": [i.to_dict() for i in issues],
     }
 
@@ -237,7 +282,12 @@ def _unavailable(reason: str, **extra: Any) -> dict[str, Any]:
         "continuity_cost_days": {},
         "segments": [],
         "interferences": [],
+        # `0`, not `None`, and this is the one place that is right: these count members of a list
+        # that is certainly empty because nothing was computed, which is not the same shape as
+        # `duration_days` above — a duration we could not compute, where a zero would read as a
+        # project that takes no time.
         "interference_count": 0,
+        "converging_count": 0,
         "issues": [],
         **extra,
     }
