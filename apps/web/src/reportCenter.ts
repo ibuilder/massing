@@ -663,7 +663,12 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.closeoutSummary(pid); const p = s.punchlist, cx = s.commissioning, w = s.warranties, om = s.om_manuals;
       body.innerHTML = `<div class="meta">Punch <b>${p.complete_pct ?? "—"}% complete</b> (${p.open_count} open, ${p.overdue_count} overdue, ${money(p.open_cost)} open cost) · `
-        + `Cx pass ${cx.pass_rate ?? "—"}% (${cx.cx_count} tests) · warranties ${w.active} active / ${w.expiring_soon} expiring / ${w.expired} expired · O&M ${om.accepted_pct ?? "—"}% accepted</div>`;
+        + `Cx pass ${cx.pass_rate ?? "—"}% (${cx.cx_count} tests) · warranties ${w.active} active / ${w.expiring_soon} expiring / ${w.expired} expired`
+        // EXPIRY-UNDATED: these three buckets do NOT add up to `warranty_count`. The engine has
+        // always counted the rest as `no_expiry`; this line printed three of five numbers, so 37
+        // undated warranties on a 40-warranty project read as "3 warranties, none expired".
+        + (w.no_expiry ? ` · <b>${w.no_expiry} with NO expiry date</b> (of ${w.warranty_count})` : "")
+        + ` · O&M ${om.accepted_pct ?? "—"}% accepted</div>`;
       table(body, ["Punch item", "Ball in court", "Trade", "Due", "Cost"], p.rows.map((r: any) => [r.description ?? "", r.ball_in_court ?? "", r.trade ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), money(r.cost)])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));

@@ -9,6 +9,7 @@ import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { densityToggleRow } from "./densityToggle";
 import { readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
+import { expiryReading } from "./expiryNote";
 import { safetyClassLine, safetyHeadline } from "./safetyCard";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
@@ -1109,12 +1110,11 @@ export class PortalUI {
       // compliance: COI / permit expiries — don't let insurance or permits lapse silently
       const comp = el("div", "meta"); comp.style.margin = "2px 0"; health.appendChild(comp);
       void this.host.api.complianceExpiring(pid, 30).then((cc) => {
-        if (!cc.count) { comp.textContent = "Compliance: no COI/permit expiries ✓"; return; }
-        const color = cc.expired.length ? "var(--status-crit)" : "var(--status-warn)";
-        comp.innerHTML = `Compliance: <b style="color:${color}">${cc.expired.length} expired · ${cc.expiring.length} expiring</b> (COI/permit) `;
-        const a = document.createElement("a"); a.href = "#"; a.className = "ref-link"; a.textContent = "review";
+        const read = expiryReading("Compliance", cc);   // EXPIRY-UNDATED: the tick is EARNED — a zero count over records with no readable date is not a pass
+        if (!cc.count) { comp.innerHTML = read.earned ? esc(read.text) : `<b style="color:${read.css}">${esc(read.text)}</b>`; return; }
+        comp.innerHTML = `<b style="color:${read.css}">${esc(read.text)}</b> (COI/permit) `;
+        const a = document.createElement("a"); a.href = "#"; a.className = "ref-link"; a.textContent = "review"; comp.appendChild(a);
         a.onclick = (e) => { e.preventDefault(); const m = this.mods.find((x) => x.key === (cc.expired[0] ?? cc.expiring[0])?.module); if (m) void this.openModule(m); };
-        comp.appendChild(a);
       }).catch(() => {});
 
       // SIDE — charts (status mix + busiest sections)

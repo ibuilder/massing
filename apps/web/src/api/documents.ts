@@ -190,7 +190,19 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       commissioning: { cx_count: number; passed: number; failed: number; conditional: number;
         accepted: number; pass_rate: number | null };
       certificates: { cert_count: number; by_type: Record<string, number> };
-      warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number };
+      /**
+       * EXPIRY-UNDATED: `no_expiry` and `rows` were SERVED and not declared, so the one number
+       * that says "these were not evaluated" was dropped at this boundary — invisible to the
+       * compiler, the linter and every audit built on these interfaces. `responseUndeclared.test.ts`
+       * could not catch it either: its server half reads routes that RETURN A DICT LITERAL, and
+       * `closeout_summary` returns `closeout_engine.closeout_summary(...)`, so the route is not in
+       * its population at all. *A gate scoped by the shape of the return statement cannot see a
+       * route that delegates.*
+       */
+      warranties: { warranty_count: number; active: number; expired: number; expiring_soon: number;
+        no_expiry: number; by_type: Record<string, number>;
+        rows: { ref?: string; name?: string; vendor?: string; warranty_type: string;
+          expires?: string; status: string }[] };
       om_manuals: { om_count: number; accepted: number; accepted_pct: number | null };
     }>(`/projects/${pid}/closeout/summary`);
   }

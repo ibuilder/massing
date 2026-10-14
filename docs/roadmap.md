@@ -1511,6 +1511,81 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **EXPIRY-UNDATED — "Compliance: no COI/permit expiries ✓" over certificates nothing could
+  read** *(S — `services/api/src/aec_api/module_schema.py` +
+  `services/api/src/aec_api/routers/closeout.py` + `apps/web/src/portal/expiryNote.ts`;
+  **CLOSED 2026-10-13**; gated by `services/api/test_module_schema.py` and
+  `apps/web/src/portal/expiryNote.test.ts`)*
+
+  The project-health banner read `if (!cc.count)` and printed a **green tick**. `count` is a window
+  over the COI and permit records that had a *readable* expiry date; `_parse_date` returned `None`
+  for anything else and both windows `continue`d past it. So on a project where not one certificate
+  had been evaluated, the super saw a tick. The route's own docstring says they should see lapsing
+  compliance *"before it bites"* — and it cannot bite if the date was typed `12/31/2026`.
+
+  ### The root was one layer up, and the blast radius is what settled the fix
+
+  `module_schema.validate_record` checks numeric fields, table rows and GUID fields, and its
+  docstring states the principle: *"the one unambiguous type violation that would silently store
+  garbage the UI can't render."* **A `date` field was not checked at all** — so `12/31/2026` went
+  into `coi.expires`, a field that module marks **required**, and was stored.
+
+  | measured | |
+  |---|---|
+  | `date` fields | **136**, across **87 of 139** modules |
+  | readers of a stored date | ~**70** `fromisoformat` call sites in this service |
+
+  *A field whose declared type is `date` and whose validation is nothing is a field the whole tree
+  reads as optional.* One write-side rule covers all 136; auditing 70 readers does not. So the rule
+  landed there, and it **defers to `date.fromisoformat(str(v)[:10])` rather than opining on format**
+  — the validator must accept exactly what the readers accept, because one stricter refuses data
+  that works and one looser leaves the defect in place. That equivalence is asserted both ways, and
+  the surprising case proves the design: `fromisoformat` accepts the basic form `20261231`, so a
+  hand-written "must look like YYYY-MM-DD" would have refused a value every reader already handles.
+
+  It is **present-only**, like the numeric rule beside it, so a PATCH that does not carry `expires`
+  is unaffected — legacy rows holding bad dates stay editable. That matters: the `_table_errors`
+  docstring one function away records what happens when a config change breaks data it never
+  touched.
+
+  ### Three engines, three answers, and the careful ones were already here
+
+  | engine | what it does with an unreadable date | and then |
+  |---|---|---|
+  | `vendor_memory.vendor_record` | counts `coi_missing_expiry` and **downgrades the verdict** | right, and tested — *"an unparseable expiry counts as UNKNOWN cover, not as valid cover"* |
+  | `closeout.warranty_rollup` | counts `no_expiry`, rows get status `"(no expiry)"` | right — and **the client type declared four of its five counts**, so the one number that says "not evaluated" was dropped at the boundary |
+  | `routers/closeout.py` two windows | `continue` | nothing said at all, and a tick printed over it |
+
+  *The right behaviour was already known in this codebase twice over.* The second row is the one
+  worth the paragraph: `responseUndeclared.test.ts` exists to catch exactly that, is type-aware and
+  pins its gaps exactly — and **its server half reads routes that RETURN A DICT LITERAL**, while
+  `closeout_summary` returns `closeout_engine.closeout_summary(...)`. *A gate scoped by the shape of
+  the return statement cannot see a route that delegates.* The `warranties` shape is now declared in
+  full, and the Closeout dashboard names the undated: it printed three of five numbers, so 37
+  undated warranties on a 40-warranty project read as "3 warranties, none expired".
+
+  ### Two causes, kept apart
+
+  `_parse_date` returned one `None` for three situations. They are now `missing`, `unreadable` and
+  `dated`, because the first two ask different things of the reader — a blank field needs somebody
+  to find the certificate, **an unreadable one needs somebody to retype a date they believe they
+  already entered**, and that record *looks complete to whoever typed it*. Whitespace-only moved
+  from `unreadable` to `missing` in the same change: the old `not v` sent `"   "` into
+  `fromisoformat`, which raised, which became the same `None` as a blank.
+
+  The coverage object **reconciles to the population** —
+  `considered + missing_date + unreadable_date + skipped === population`, asserted — and that is the
+  design rather than a nicety: *coverage that adds up to the population is checkable, and coverage
+  that does not is just another number somebody prints.* A closed permit is counted as `skipped`
+  with its reason for the same arithmetic, even though excluding it is correct. No boolean: a
+  `complete: true` is `not missing and not unreadable`, readable off the counts, and a verdict
+  computed in the engine is one the consumer stops thinking about.
+
+  `expiryReading` then **earns** the tick instead of defaulting to it — `ok` only on a clear window
+  with full coverage. And the warranty test measures its two new records as a **delta**, because
+  this file's own closeout fixture already contained an undated warranty that nothing had ever
+  reported, which is the finding in miniature; an absolute would also pin somebody else's fixture.
+
 - ✅ ⭐ **OPTION-BOARD-DARK — the design-option deck could be ranked on screen and never taken to
   the meeting it was made for** *(XS — `apps/web/src/portal/panels/analytics.ts` +
   `apps/web/src/api/downloadPdf.ts`; **CLOSED 2026-10-13**; gated by
@@ -8763,7 +8838,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · WS-BTN-DEAD *(✅ CLOSED 2026-10-13, pending archive — all four sites gone and `apps/web/src/shell/wsBtnGone.test.ts` refuses the class returning. The note here said "three remaining places in `main.ts`" and is kept as the record of why the item sat in THIS lane rather than with the stylesheet or the colour contract that also carried the dead class: the live QUERIES are what kept it looking plausible and they are this lane's file — the same "lanes go by the directory the work touches" correction the Lane E cell below had to make. The persona half was the open one, and the answer was weighting, not hiding)* · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts`, `apps/web/src/portal/prefs.ts`, `apps/web/src/portal/prefs.test.ts`, `apps/web/src/portal/densityToggle.ts`, `apps/web/src/portal/safetyCard.ts`, `apps/web/src/portal/safetyCard.test.ts`, `apps/web/src/portal/expiryNote.ts`, `apps/web/src/portal/expiryNote.test.ts`, `apps/web/src/portal/registerEmpty.test.ts`, `apps/web/src/portal/portalRetry.test.ts` *(the loose portal files whose importers are A's — claimed 2026-09-11; see the derivation below the table. **Unbackticked on purpose**: every backtick in THIS cell is parsed as a path claim, so writing the directory name as a citation here claimed the whole of it and clashed with Lane B)* | REL-4 · R40-RIBBON ② · WS-BTN-DEAD *(✅ CLOSED 2026-10-13, pending archive — all four sites gone and `apps/web/src/shell/wsBtnGone.test.ts` refuses the class returning. The note here said "three remaining places in `main.ts`" and is kept as the record of why the item sat in THIS lane rather than with the stylesheet or the colour contract that also carried the dead class: the live QUERIES are what kept it looking plausible and they are this lane's file — the same "lanes go by the directory the work touches" correction the Lane E cell below had to make. The persona half was the open one, and the answer was weighting, not hiding)* · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `apps/web/src/portal/panelContext.ts`, `apps/web/src/portal/offlineQueue.ts`, `apps/web/src/portal/offlineQueue.test.ts`, `apps/web/src/portal/fieldTypeCoverage.test.ts`, `apps/web/src/portal/tableRefColumn.test.ts`, `apps/web/src/portal/moduleEvidenceHint.test.ts` *(the loose portal files whose importers are B's — claimed 2026-09-11; see the derivation below the table)*, `reportCenter.ts`, `apps/web/src/reportCenter.verification.test.ts`, `apps/web/src/preconReadings.ts`, `apps/web/src/preconReadings.test.ts` *(claimed 2026-10-12 by VE-DARK — the readings over the three preconstruction money registers, rendered by `reportCenter.ts` which this cell already owns. The unowned-file ratchet is how it surfaced and a row here is the remedy it names. **A MARKDOWN TABLE ROW IS ONE LINE**: the first draft of this claim wrapped it across five, which left the parser seeing **one** lane row and reporting 555 unowned files and 17 unassigned items — a confident catalogue of a table it could no longer read)*, `apps/web/src/connections/` *(claimed 2026-09-12 by LEDGER-BROWSE — the data-source admin modal and its ledger rules. Four files, owned by no lane since the directory was created; adding two of them to it is what reddened the unowned ratchet, and the remedy it names took all four out rather than the two that tripped it, the same shape as the two claims beside this one)*, `apps/web/src/proforma/` *(claimed 2026-09-09 by PARCEL-SHAPE — seven files of feasibility and underwriting panels that no lane had ever owned. The unowned ratchet is how it surfaced: adding a file to an unclaimed directory reds the build, and the remedy the gate names is a row here rather than a bigger ceiling)* | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · SCREEN-VS-REPORT *(the asymmetric sub-population: fields the Python report builders render and the screen does not. Derived from `apps/web/src/api/` interfaces against `services/api/src/aec_api/report_builders/`, but the EDIT is a caveat rendered beside a number a panel already shows, and the first six fixed all landed in `apps/web/src/proforma/proforma.ts` — same derived-here-fixed-there split as the cell beside it. **Naming a sibling item code inside a cell is how this row failed the disjointness check once**: the parser reads a mention as an assignment, so a cross-reference has to describe the other row rather than name it)* · DEAD-FIELD *(here rather than Lane I even though the population is DERIVED from `apps/web/src/api/` interfaces: what is left to do is render the missing caveat beside a number a panel already shows, and every one of those edits lands under `portal/panels/`. Lanes go by the directory the work touches, not the directory the finding came from — the correction this table's Lane E cell had to make)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py`, `services/api/test_pin_population.py`, `services/api/test_pin_anchor.py`, `services/api/test_desktop_paths.py`, `services/api/test_frozen_paths.py` | R22-ENTITLEMENT · PERF-WORKERS ① · R43-MASSINGBILL-CORE · PIN-ONE-CALL *(**CLOSED** 2026-09-13 — the viewer's overlay made two pin calls and `/pins/all`, the route that replaces them, had no frontend caller at all; the envelope now carries `icon`/`source_name` for both pin kinds and `apps/web/src/kernel/markupPlugin.test.ts` pins the call COUNT at one)* · SYSTEM-COLUMN-PHANTOM *(**CLOSED** 2026-09-13 — two names in `SYSTEM_COLUMNS` were columns on no register table, so sorting or filtering on one was a 500 where the code promises a 400; gated by `services/api/test_system_columns.py`)* · JSON-NULL-CLASS *(**CLOSED** 2026-09-13 — gated by `services/api/test_json_null_filter.py`)* · PIN-SWEEP-PGNULL *(**CLOSED** 2026-09-13 — the pin sweep skipped the rows it exists to convert wherever the driver decodes the column, which is PostgreSQL in production and sqlite3 with a converter registered, which is how the gate reproduces it. Filed here rather than Lane B because the code is a migration under `services/api/migrations/`)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* · COURT-SPLIT *(**CLOSED** 2026-09-13 — ball-in-court was computed twice by two rules and 10 states in 9 modules disagreed; the primary move is now declared rather than inferred from transition order, which was not derivable, and gated by `services/api/test_court_primary.py`)* · RMW-LOCKBOUND *(**CLOSED** 2026-09-24 — the wait for `pid_lock` was unbounded; `SET LOCAL lock_timeout` bounds it and a timeout refuses rather than degrading to an unserialised write. Its 30 call sites are Lane G's routers and the first draft of the entry filed it there, which is the mis-assignment the G row below already warns about; the fix is one file in this lane. Gated by `services/api/test_pid_lock_bound.py`)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
@@ -8811,6 +8886,7 @@ imports this*, never by where the name suggests they belong:
 |---|---|---|
 | `prefs.ts` | `main.ts`, `portal.ts`, `shell/pinnedRail.ts`, `favourites.test.ts` (A) · `register/register.ts` (B) | **A**, 4 of 5 |
 | `safetyCard.ts` | `portal.ts` only | **A**, the one-importer case — same shape as `tree/` |
+| `expiryNote.ts` | `portal.ts` only | **A**, the one-importer case again (EXPIRY-UNDATED, 2026-10-13). Extracted from `portal.ts` for the same reason `safetyCard.ts` was: the compliance banner's reading has three states and needed assertions, which a line inside a 1,100-line render cannot have. The unowned ratchet went red at 25 on the two new files and the remedy it names is this row, not a bigger number |
 | `registerEmpty.test.ts` | imports `PortalUI` from `./portal` | **A** |
 | `panelContext.ts` | 44 files under `portal/panels/`, `register/`, `ui/` (B) · `portal.ts` (A) | **B**, 44 of 45 |
 | `offlineQueue.ts` | `register/uploadQueue.ts` and its test only | **B** |

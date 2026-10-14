@@ -1527,3 +1527,28 @@ export interface CvBridgeStatus {
   batch_contract: Record<string, string>;
   reference_adapter: string;
 }
+
+
+/**
+ * `GET /projects/{pid}/compliance/expiring` and `.../warranties/expiring` — EXPIRY-UNDATED.
+ *
+ * What the window did NOT look at. The counts RECONCILE to the population
+ * (`considered + missing_date + unreadable_date + skipped === population`), which is what makes
+ * them checkable rather than just more numbers: a reader who finds an empty `expiring` list can
+ * tell "nothing is lapsing" from "nothing was looked at".
+ *
+ * `missing_date` and `unreadable_date` stay separate because they ask different things of the
+ * reader — a blank field needs somebody to find the certificate, an unreadable one needs somebody
+ * to retype a date they believe they already entered.
+ */
+export interface ExpiryCoverage {
+  population: number;
+  considered: number;
+  missing_date: number;
+  unreadable_date: number;
+  unevaluated: number;
+  /** Present only where the route excludes records for a reason of its own (a closed permit). */
+  skipped?: number;
+  skipped_reason?: string;
+  reason: string;
+}

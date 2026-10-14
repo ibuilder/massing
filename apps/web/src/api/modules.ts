@@ -13,7 +13,7 @@
  *  moving a method is invisible to it, losing one fails it by number.
  */
 import type {
-  ModuleBoard, ModuleDef, ModuleFilterOp, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
+  ExpiryCoverage, ModuleBoard, ModuleDef, ModuleFilterOp, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
   SavedViewDef, WorkflowTransition,
 } from "./types";
 
@@ -119,7 +119,11 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   complianceExpiring(pid: string, withinDays = 30) {
     return this.json<{ within_days: number; count: number;
       expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
-      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[]; }>(
+      expiring: { module: string; ref: string; name: string; expires: string; days_left: number }[];
+      /** EXPIRY-UNDATED: `count` is a window over the records that HAD a readable date. This says
+       *  how many did not, so the banner's tick is earned rather than default. */
+      coverage: ExpiryCoverage;
+    }>(
       `/projects/${pid}/compliance/expiring?within_days=${withinDays}`);
   }
   addEnumOption(pid: string, key: string, field: string, value: string) {

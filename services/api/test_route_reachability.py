@@ -1997,6 +1997,13 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/scene/package",
     "/projects/{pid}/schedule/status",
     "/projects/{pid}/stakeholders/analysis",
+    # STAYS FROZEN, with the reason, from EXPIRY-UNDATED (2026-10-13). Its payload is a window —
+    # `days_left` within N days — over the register `closeout.warranty_rollup` already serves as
+    # one rollup through `/closeout/summary`, which IS wired. *A route whose payload is a view of
+    # another route's is not a second capability*, and wiring it would put a second screen on the
+    # same question — which is the disagreement this item exists to remove, not to add to. It was
+    # FIXED in that change (it gained the same coverage object); what it did not gain is a caller,
+    # on purpose. Same reasoning as `/design/standards` under DESIGN-STD-DARK.
     "/projects/{pid}/warranties/expiring",
     "/scim/v2/Users",
     "/scim/v2/Users/{user_id}",

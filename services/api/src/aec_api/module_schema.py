@@ -474,8 +474,10 @@ def validate_record(mod: dict, data: dict) -> list[str]:
     """Validate a record's field values against the module's field defs (empty = valid).
 
     Only checks fields actually *present* in `data` (so partial PATCH updates are fine), and only the
-    one unambiguous type violation that would silently store garbage the UI can't render: a
-    non-numeric value in a numeric field (number/currency/percent). Select `options` are treated as
+    two unambiguous type violations that would silently store garbage the UI can't render: a
+    non-numeric value in a numeric field (number/currency/percent), and an unparseable value in a
+    `date` field (EXPIRY-UNDATED — `12/31/2026` in a required `coi.expires` made every expiry
+    window skip the record and a banner print a tick over it). Select `options` are treated as
     *suggestions*, not a closed enum — this system routinely stores free-form values a picklist didn't
     anticipate (e.g. a discipline not on the default list), so membership is deliberately NOT enforced.
     Required-field enforcement lives in the engine (`_validate_fields`); unknown extra keys are allowed
@@ -500,6 +502,26 @@ def validate_record(mod: dict, data: dict) -> list[str]:
                     errors.append(f"{name}: {n:g} is below the minimum {float(lo):g}")
                 if hi is not None and n > float(hi):
                     errors.append(f"{name}: {n:g} is above the maximum {float(hi):g}")
+        elif f.get("type") == "date":
+            # EXPIRY-UNDATED. This is the SAME CLASS as the numeric rule above — "garbage the UI
+            # can't render" — and it was not checked, across **136 `date` fields in 87 of 139
+            # modules**, read by ~70 `fromisoformat` call sites in this service.
+            #
+            # `12/31/2026` is the ordinary way a US contractor writes a date. It was accepted into
+            # `coi.expires`, a field this module marks **required**, and then every expiry window
+            # skipped the record — `date.fromisoformat` raises, the reader treats that as "no date",
+            # and the record matches nothing. The project-health banner printed "Compliance: no
+            # COI/permit expiries ✓" over it. *A field whose declared TYPE is `date` and whose
+            # validation is nothing is a field the whole tree reads as optional.*
+            #
+            # The rule accepts EXACTLY what the readers accept — the first 10 characters as an ISO
+            # date, so a full timestamp still passes — because a validator stricter than its readers
+            # refuses data that works, and one looser leaves this defect in place. That equivalence
+            # is asserted in `services/api/test_module_schema.py`, both ways and over the
+            # surprising case: `fromisoformat` accepts the basic form `20261231`, so a
+            # hand-written "must look like YYYY-MM-DD" would have refused data every
+            # reader in this service already handles.
+            errors.extend(_date_errors(name, value))
         elif f.get("type") == "table":
             errors.extend(_table_errors(name, f, value))
         elif name in _GUID_FIELDS:
@@ -507,6 +529,21 @@ def validate_record(mod: dict, data: dict) -> list[str]:
             # non-negotiable forbids — a viewer id is a small integer, a GlobalId is 22 characters.
             errors.extend(guid_errors(name, value))
     return errors
+
+
+def _date_errors(name: str, value) -> list[str]:
+    """A `date` field holding something no reader in this service can parse.
+
+    Deliberately NOT a format opinion of its own: it defers to `date.fromisoformat` over the first
+    ten characters, which is what every consumer does, so "valid" here means "readable there".
+    A non-string is refused for the same reason — `str(42)[:10]` is not a date either.
+    """
+    from datetime import date as _date
+    try:
+        _date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return [f"{name}: {value!r} is not a date — use ISO-8601 (YYYY-MM-DD), e.g. 2026-12-31"]
+    return []
 
 
 def _table_errors(name: str, f: dict, value) -> list[str]:
