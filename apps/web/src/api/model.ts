@@ -1032,13 +1032,35 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
       review_status: "draft" | "in_review" | "approved"; reviewed_by: string | null;
       reviewed_at: string | null; review_note: string | null }[]>(`/projects/${pid}/versions`);
   }
-  /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
+  /**
+   * Diff two model versions — added/removed/modified elements (with change labels), **the before
+   * and after VALUE of each changed property**, and what the comparison could not read.
+   *
+   * VERSION-VALUES: `from` and `to` on a `changed_properties` row, plus `property_values_available`
+   * and `values_truncated`, were all undeclared — so `versions.diff` has computed
+   * `FireRating: 1HR → 2HR` since VERSION-COMPARE landed and the compare card could only print
+   * `FireRating`. The engine pays to store that snapshot and bounds it on three axes precisely so
+   * it can be shown; *a snapshot the server pays to store and bound, that no type names, is work
+   * nobody can spend.*
+   *
+   * **`from` is the `a` side.** `versions.diff` reads `before = fa.get(g)` for version `a` and
+   * assigns `from` from it — even though the locals holding the two snapshots are spelled `vb`/`va`,
+   * which reads the other way round. `apps/web/src/viewer/tools/versionDiffRead.test.ts` pins the
+   * direction, because rendering it backwards is a correct-looking lie about which way the building
+   * moved.
+   *
+   * The three "not available" flags are three different facts and the reading keeps them apart: no
+   * fingerprints (re-publish), fingerprints without per-property hashes, and a value snapshot that
+   * hit a cap. Both value fields are optional per ROW as well: an added property has no `from`.
+   */
   versionDiff(pid: string, a: number, b: number) {
     return this.json<{
       from: number; to: number; added: string[]; removed: string[];
       modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[];
-        changed_properties?: { property: string; status: "added" | "removed" | "changed" }[] }[];
+        changed_properties?: { property: string; status: "added" | "removed" | "changed";
+          from?: string | null; to?: string | null }[] }[];
       modified_available: boolean; property_detail_available?: boolean;
+      property_values_available?: boolean; values_truncated?: boolean;
       added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
     }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
   }

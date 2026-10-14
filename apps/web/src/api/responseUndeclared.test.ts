@@ -177,8 +177,13 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `data_date` — without it, every date verdict on this payload is relative to nothing.
   "GET /projects/{}/schedule/health": ["activity_count", "data_date", "issues", "relationship_count"],
   "GET /projects/{}/standards/check": ["supported"],
-  // `values_truncated` — the property diff is a PAGE and says so in a key no client declares.
-  "GET /projects/{}/versions/diff": ["property_values_available", "values_truncated"],
+  // **CLOSED 2026-10-14 under VERSION-VALUES, and the top-level keys were the smaller half.** Both
+  // are declared and rendered now. What this gate could NOT see is that `from` and `to` were
+  // missing from `changed_properties` — a shape one level down — so `versions.diff` had been
+  // computing `FireRating: 1HR → 2HR` since VERSION-COMPARE while the only screen that compares two
+  // versions printed `FireRating`. *A key-set comparison at the ROOT cannot see a shape that is
+  // wrong one level down*, which is the second limit of this instrument found in a day: its entries
+  // are a place to LOOK, never a list of what is wrong.
   "GET /projects/{}/view-templates/{}/graphics": [
     "cut_count", "graphics", "hidden_count", "name", "note", "template",
   ],

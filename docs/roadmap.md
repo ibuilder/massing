@@ -1511,6 +1511,56 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **VERSION-VALUES — the diff has computed `FireRating: 1HR → 2HR` since VERSION-COMPARE, and
+  the compare card printed `FireRating`** *(S — `apps/web/src/viewer/tools/versionDiffRead.ts`;
+  **CLOSED 2026-10-14**; gated by `apps/web/src/viewer/tools/versionDiffRead.test.ts` and two new
+  branches in `services/api/test_version_values.py`)*
+
+  `versions.diff` stores a bounded per-property VALUE snapshot at fingerprint position [7] for one
+  stated purpose — its own comment: *"a per-property VALUE snapshot rides position [7] so a diff can
+  show `FireRating: 1HR -> 2HR`, not just 'FireRating changed'"* — bounded on three axes so the
+  stored blob cannot balloon on a large model, **and it reports `values_truncated` when a cap bites
+  rather than pretending it has everything.**
+
+  The client type declared `changed_properties?: { property; status }[]`. No `from`, no `to`. So the
+  whole feature was unreachable from the only screen in the app that compares two published
+  versions, and a BIM manager reviewing a revision could see *which* property moved and never *from
+  what to what*. *A snapshot the server pays to store and bound, that no type names, is work nobody
+  can spend.*
+
+  **The gate that found it could not see the actual defect, and that is the entry's lesson.**
+  RESPKEY-DELEGATED listed this route for its two undeclared top-level keys
+  (`property_values_available`, `values_truncated`) — both now rendered. `from` and `to` are nested
+  one level down inside `changed_properties`, and that gate compares TOP-LEVEL keys only. *A key-set
+  comparison at the root cannot see a shape that is wrong one level down.* That is the second limit
+  of the instrument found in a day, after the union intersection — so its 46 remaining entries are a
+  place to LOOK, never a list of what is wrong.
+
+  **`from` is the `a` side, and it is pinned rather than assumed.** `versions.diff` reads
+  `before = fa.get(g)` for version `a` and assigns `from` from it, while the locals holding the two
+  snapshots are spelled `vb`/`va` — which reads the other way round. Rendering it backwards would be
+  a correct-looking lie about which direction the building moved in, so the test asserts the earlier
+  value appears first rather than asserting an exact string that a reversal could satisfy.
+
+  **Three causes of missing detail, kept apart, because the fixes differ**: no fingerprints at all
+  (re-publish both versions), fingerprints without per-property hashes, and a value snapshot that
+  hit a cap. Folding them into one "unavailable" is what sends a reader to the wrong fix —
+  VERDICT-UNOWNED's lesson. The capped case renders as `(changed, values not stored)`, which is
+  deliberately neither a bare property name (that is the no-snapshot case) nor `x → x` (a false
+  claim that nothing moved). And nothing is printed at all when the detail is complete: a
+  "coverage: full" line on every healthy diff trains the reader to skip the line that matters.
+
+  Two smaller things came with it. The property clause said `…` for the properties it did not show
+  and now says `+3 more` — TRUNC-COUNTED one size down, and the count was free because the array was
+  in hand. And the modified table has always been `slice(0, 40)` over a `modified_count` that can be
+  thousands, with nothing where the rows stop; it states both numbers now.
+
+  The backend phase pins the two branches a SCREEN reads and that nothing exercised:
+  `values_truncated` TRUE on a 60-property element, where a key past the 40 cap carries the change
+  and neither value; and `property_values_available` FALSE with `values_truncated` FALSE on
+  fingerprints predating position [7] — *never stored is a different fact from capped.* Proved by
+  raising the cap to 400, which reds it.
+
 - ✅ ⭐ **PPC-UNASSESSED — the project-health strip printed "Lean PPC: 0%" in critical red on a team
   whose week was not finished yet** *(S — `apps/web/src/portal/ppcNote.ts`; **CLOSED 2026-10-14**;
   gated by `apps/web/src/portal/ppcNote.test.ts`)*
