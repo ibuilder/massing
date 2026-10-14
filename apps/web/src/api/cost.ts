@@ -267,14 +267,41 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
       note: string; message: string | null;
     }>("/benchmarks/vendors");
   }
-  /** Actual unit rates per cost code across the caller's projects (cost ÷ installed quantity). */
+  /**
+   * Actual unit rates per cost code across the caller's projects (cost ÷ installed quantity).
+   *
+   * **UNITRATE-BASIS: the three sentences this type dropped are the ones that say what the median
+   * is worth.** `unit_rate_memory.unit_rates` returns `basis` ("the distribution is over PROJECTS;
+   * `pooled_rate` answers a different question"), `limitation` ("direct_cost and
+   * production_quantity accumulate independently, so a code whose invoices lead its field quantity
+   * reporting reads as expensive and the reverse reads as cheap — **check `spread_ratio` and
+   * `per_project` before quoting a median**"), and `excluded` (mixed units, cost with no quantity,
+   * quantity with no cost — each counted, "never dropped — a project that could not be measured is
+   * not a project that cost zero").
+   *
+   * The card rendered `median`, `p25` and `p75`: the number the engine warns about, without the
+   * field it says to check first. *An engine that tells you what to check before quoting it has
+   * done the hard part; dropping that sentence is the only way to get the quote wrong.* The reading
+   * is `apps/web/src/portal/panels/unitRateRead.ts`, and its one threshold is the engine's own
+   * order-of-magnitude line rather than a band invented here.
+   */
   unitRates(minProjects = 3) {
     return this.json<{
       cost_codes: { cost_code: string; unit: string; projects: number; below_threshold: boolean;
         low: number; p25: number; median: number; p75: number; high: number;
-        pooled_rate: number | null; spread_ratio: number | null }[];
+        pooled_rate: number | null; spread_ratio: number | null;
+        total_cost: number; total_quantity: number;
+        /** The per-project rates the distribution is over, lowest first. */
+        per_project: { project_id: string; cost_code: string; unit: string; cost: number;
+                       quantity: number; rate: number }[] }[];
       code_count: number; usable_count: number; min_projects: number;
       message: string | null;
+      basis: string; limitation: string;
+      excluded: {
+        mixed_units: { project_id: string; cost_code: string; units?: string[]; reason?: string }[];
+        cost_without_quantity: { project_id: string; cost_code: string; cost: number; reason?: string }[];
+        quantity_without_cost: { project_id: string; cost_code: string; reason?: string }[];
+        note: string };
     }>(`/benchmarks/unit-rates?min_projects=${minProjects}`);
   }
 

@@ -113,8 +113,11 @@ const CONTROL = "GET /projects/{}/verification/coverage";
  *  been. *The first defect this gate found was its own author's, and the gate found it in hours.*
  */
 const KNOWN_GAPS: Record<string, string[]> = {
-  // `basis`, `limitation`, `excluded` — what the rate is and is not.
-  "GET /benchmarks/unit-rates": ["basis", "excluded", "limitation"],
+  // **CLOSED 2026-10-14 under UNITRATE-BASIS.** The three keys were the three sentences that say
+  // what the median is worth — and `limitation` is literally an instruction the screen was not
+  // following: *"Check `spread_ratio` and `per_project` before quoting a median."* The table printed
+  // the median, p25 and p75 and withheld the spread. *An engine that tells you what to check before
+  // quoting it has done the hard part.*
   "GET /interop/speckle/status": ["server_version"],
   "GET /portfolio/risk": ["weights"],
   "GET /projects/{}/action-items/tracker": ["by_priority", "by_state"],

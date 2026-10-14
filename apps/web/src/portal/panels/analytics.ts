@@ -8,6 +8,7 @@ import { BASIS_CSS, basisRows, classNote, midpointReading, sectorLine }
   from "./conceptualBasis";
 import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT_CSS }
   from "./permitReading";
+import { exclusionLine, RATE_CSS, ratePageNote, spreadReading } from "./unitRateRead";
 import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
@@ -73,19 +74,59 @@ export async function renderBenchmarks(ctx: PanelContext) {
         const tbl = el("table", "portal-table") as HTMLTableElement;
         tbl.style.cssText = "width:100%;font-size:12px";
         const thead = el("thead");
+        // UNITRATE-BASIS: the SPREAD column. The engine's `limitation` says, in as many words,
+        // "Check `spread_ratio` and `per_project` before quoting a median" — and this table printed
+        // the median, p25 and p75 and withheld the spread. `pooled` is beside it because the
+        // engine's `basis` says it "answers a different question": the distribution is over
+        // PROJECTS, the pooled rate is Σcost ÷ Σquantity and one large project sets it.
         thead.innerHTML = "<tr><th scope=\"col\" style=\"text-align:left\">Cost code</th><th scope=\"col\">Unit</th>"
-          + "<th scope=\"col\">n</th><th scope=\"col\">median</th><th scope=\"col\">p25</th><th scope=\"col\">p75</th></tr>";
+          + "<th scope=\"col\">n</th><th scope=\"col\">median</th><th scope=\"col\">p25</th><th scope=\"col\">p75</th>"
+          + "<th scope=\"col\">spread</th><th scope=\"col\">pooled</th></tr>";
         const tb = el("tbody");
-        for (const c of usable.slice(0, 20)) {
+        const page = usable.slice(0, 20);
+        for (const c of page) {
           const tr = el("tr");
           const td = (t: string, align = "right") => {
             const d = el("td"); d.style.textAlign = align; d.textContent = t; return d;
           };
+          const sp = spreadReading(c);
+          const spCell = td(sp.text, "center");
+          spCell.style.color = RATE_CSS[sp.tone];
+          // The engine calls an order-of-magnitude spread "usually a reporting-lag artefact rather
+          // than a price difference", so the title says what to do rather than only flagging it.
+          spCell.title = sp.quotable
+            ? "high ÷ low across the projects behind this median"
+            : "the projects behind this median disagree by an order of magnitude or more — usually a "
+              + "reporting-lag artefact rather than a price difference. Do not quote this median.";
           tr.append(td(c.cost_code, "left"), td(c.unit, "center"), td(String(c.projects), "center"),
-            td(cmoney(c.median)), td(cmoney(c.p25)), td(cmoney(c.p75)));
+            td(cmoney(c.median)), td(cmoney(c.p25)), td(cmoney(c.p75)), spCell,
+            td(c.pooled_rate == null ? "—" : cmoney(c.pooled_rate)));
           tb.appendChild(tr);
         }
         tbl.append(thead, tb); ratesSlot.appendChild(tbl);
+        const pageNote = ratePageNote(page.length, usable.length);
+        if (pageNote) {
+          const pn = el("div", "meta"); pn.style.marginTop = "2px"; pn.textContent = pageNote;
+          ratesSlot.appendChild(pn);
+        }
+        // WHAT COULD NOT BE MEASURED AT ALL — mixed units, cost with no quantity, quantity with no
+        // cost. The engine counts each and refuses to drop them: "a project that could not be
+        // measured is not a project that cost zero." None of it reached this screen.
+        const ex = exclusionLine(ur);
+        if (ex) {
+          const e = el("div", "meta");
+          e.style.cssText = `margin-top:2px;color:${RATE_CSS[ex.tone]}`;
+          e.textContent = ex.text;
+          ratesSlot.appendChild(e);
+        }
+        // The engine's own two sentences, verbatim. A second wording of a caveat is a second thing
+        // to keep in step with the engine that computes it.
+        for (const t of [ur.basis, ur.limitation]) {
+          if (!t) continue;
+          const d = el("div", "meta"); d.style.cssText = "margin-top:2px;font-size:11px";
+          d.textContent = t;
+          ratesSlot.appendChild(d);
+        }
       }
     } catch (e) { ratesSlot.textContent = `unit rates failed: ${(e as Error).message}`; }
 

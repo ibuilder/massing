@@ -1511,6 +1511,47 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **UNITRATE-BASIS — the engine says "check `spread_ratio` before quoting a median", and the
+  card printed the median and withheld the spread** *(S —
+  `apps/web/src/portal/panels/unitRateRead.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/unitRateRead.test.ts` and a derived check in
+  `services/api/test_unit_rate_route.py`)*
+
+  `unit_rate_memory.unit_rates` is unusually careful about what its own numbers are worth, and
+  returns three sentences the client type declared none of:
+
+  - **`basis`** — *"each rate is one PROJECT's cost divided by that project's installed quantity for
+    one cost code and unit; the distribution is over projects. `pooled_rate` is the portfolio-wide
+    blend and answers a different question."*
+  - **`limitation`** — *"direct_cost and production_quantity accumulate independently, so a code
+    whose invoices lead its field quantity reporting reads as expensive and the reverse reads as
+    cheap. **Check `spread_ratio` and `per_project` before quoting a median.**"*
+  - **`excluded`** — mixed units, cost with no quantity, quantity with no cost, each counted, *"never
+    dropped — a project that could not be measured is not a project that cost zero."*
+
+  The card printed `median`, `p25` and `p75`. **So it rendered the number the engine warns about and
+  withheld the field the engine says to check first**, and the codes that could not be measured at
+  all appeared nowhere. *An engine that tells you what to check before quoting it has done the hard
+  part; dropping that sentence is the only way to get the quote wrong.*
+
+  **One threshold, and it is the engine's own.** Its comment beside `spread_ratio` reads *"a code
+  where one project is an order of magnitude off another is usually a reporting-lag artefact rather
+  than a price difference"* — so 10× is the line, taken from there rather than invented, and there
+  is deliberately no second softer band: *a threshold nobody stated is a judgement the reading is
+  not entitled to make.* A `null` ratio (the low rate was zero) answers UNKNOWN rather than
+  rendering as a dash in an otherwise reassuring row.
+
+  **The backend check is DERIVED from the caveat, not listed beside it.** The new assertion pulls
+  every backticked field name out of `basis` and `limitation` and requires each to exist on the row
+  or in the payload — so the engine cannot rename one and keep the sentence, which would leave the
+  caveat pointing at a field no caller can read. Proved by renaming `spread_ratio` to `spread`: the
+  check reds and names it. *A caveat that names a field is a promise the field exists.*
+
+  **And my first draft of one assertion was a guess wearing an assertion's clothes**: `spread_ratio
+  == 2.0`, inferred from the neighbouring "median is the middle project's rate, 300.0". Measured
+  2.05 — the fixture's extremes are not 200/400. It asserts the RELATION now
+  (`round(max/min, 2)`), which cannot be wrong for that reason and survives the fixture changing.
+
 - ✅ ⭐ **ESTIMATE-BASIS — the conceptual estimator computes the number a developer should
   underwrite to, and the card showed the other one, 9.4% lower** *(S —
   `apps/web/src/portal/panels/conceptualBasis.ts`; **CLOSED 2026-10-14**; gated by

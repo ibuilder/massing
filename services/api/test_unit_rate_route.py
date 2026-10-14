@@ -73,6 +73,43 @@ with TestClient(app) as c:
     check("  the basis is stated in the payload", "distribution is over projects" in J["basis"])
     check("  as is the accrual-lag limitation", "spread_ratio" in J["limitation"])
 
+    # --- UNITRATE-BASIS: a caveat that NAMES a field is a promise the field exists --------------
+    # `limitation` tells the reader to "check `spread_ratio` and `per_project` before quoting a
+    # median". That sentence is the instruction a screen is supposed to follow, and until
+    # 2026-10-14 the only screen that calls this route printed the median and rendered NEITHER
+    # field — which is why the sentence is now asserted against the ROW rather than only against
+    # its own text. The field names are DERIVED from the backticks in the caveat instead of listed
+    # here: a list would let the engine rename one and keep the sentence, and then the caveat names
+    # a field no caller can read.
+    import re as _re
+
+    _named = set(_re.findall(r"`(\w+)`", f"{J['basis']} {J['limitation']}"))
+    check("  the caveats name at least two fields (otherwise the check below is vacuous)",
+          len(_named) >= 2, sorted(_named))
+    _missing = sorted(f for f in _named if f not in g and f not in J)
+    check("  every field the basis/limitation names EXISTS on the row or the payload",
+          not _missing,
+          f"named but absent: {_missing} — a caveat that points at a field nobody can read is worse "
+          f"than no caveat; row keys = {sorted(g)}")
+    # and the two it names specifically carry usable values on this fixture, so a screen rendering
+    # them has something to render.
+    #
+    # The RELATION, not a number: the first draft asserted `== 2.0`, inferred from the median being
+    # the middle project's 300.0, and measured 2.05 — the fixture's extremes are not 200/400. *A
+    # constant inferred from a neighbouring assertion is a guess wearing an assertion's clothes*,
+    # and this spelling cannot be wrong for that reason: it says what the field MEANS, so it also
+    # survives the fixture changing.
+    _rates = [r["rate"] for r in g["per_project"]]
+    check("  spread_ratio is high/low over the per-project rates",
+          g["spread_ratio"] == round(max(_rates) / min(_rates), 2),
+          (g["spread_ratio"], max(_rates), min(_rates)))
+    check("  ...and it is a real spread on this fixture, so a screen has something to show",
+          g["spread_ratio"] > 1.0, g["spread_ratio"])
+    check("  per_project carries one row per project, lowest rate first",
+          [r["rate"] for r in g["per_project"]] == sorted(r["rate"] for r in g["per_project"])
+          and len(g["per_project"]) == 3,
+          g["per_project"])
+
     # A fourth project with cost but no quantity must be EXCLUDED and REPORTED, never counted as 0.
     p4 = new_project("Rate D")
     rec(p4, "direct_cost", {"description": "concrete", "cost_code": "03 30 00", "amount": 15_000})
