@@ -70,12 +70,23 @@ const CONTROL = "GET /projects/{}/verification/coverage";
  *  **It was EMPTY until 2026-10-14, and that was a measurement of this gate's reach, not of the
  *  tree.** RESPKEY-DELEGATED taught `response_keys.py` to follow one hop from a route into the
  *  engine it delegates to, and 303 routes that had never been compared became comparable. 48 of
- *  them disagree with their client type. *They are newly VISIBLE, not new* — every one of them
+ *  them disagreed with their client type (47 after one proved to be the gate's own defect, see
+ *  below). *They are newly VISIBLE, not new* — every one of them
  *  predates this change, and `no_expiry` (EXPIRY-UNDATED, closed hours earlier) sat in exactly this
  *  blind spot: 605 of 1016 routes `return engine.func(...)`, so the majority of the surface was
  *  never read by the gate that exists to read it.
  *
- *  **NOBODY HAS TRIAGED THESE 48.** They are seeded as a measured ratchet that may only go DOWN —
+ *  **One of the 49 was never a gap at all, and finding that out cost nothing but asking.** The
+ *  entry for `POST /projects/{}/supply/competitive` carried fourteen keys of which thirteen were
+ *  phantoms: that method returns a UNION, and `checker.getPropertiesOfType` on a union returns the
+ *  INTERSECTION — the TypeScript-correct answer to "what may I read without narrowing" and the
+ *  wrong one to "is this key named anywhere in the client's declarations". *A derivation that asks
+ *  a subtly different question produces a confident list, and a list reads as evidence.* The
+ *  extractor unions the branches now, with two self-tests; the removed entry is recorded in place
+ *  rather than deleted, because a seeded ratchet whose first measurement was partly wrong is worth
+ *  saying out loud. 47 remain.
+ *
+ *  **NOBODY HAS TRIAGED THESE 47 (LOD-UNREAD took the largest one the same day).** They are seeded as a measured ratchet that may only go DOWN —
  *  the instrument `KNOWN_UNCALLED` and the unowned-file ceiling already use here — because the
  *  alternative was to declare ~130 fields across 48 client types in one unreviewed sweep, and a
  *  declaration added to silence a gate is a declaration nobody checked against its engine. Stating
@@ -130,15 +141,18 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `reasons_not_recorded` and `unassessed`: a PPC percentage over the tasks somebody assessed,
   // beside a count of the ones nobody did.
   "GET /projects/{}/lean/ppc": ["note", "reasons_not_recorded", "unassessed"],
-  // The largest single gap in the tree, and where a triage pass should start: four of its ten
-  // keys are coverage — `elements_with_an_undecidable_aspect`,
-  // `elements_without_readable_geometry`, `limited_by` and `compliance` — over an LOD verdict the
-  // screen renders as a score. That is the CLASH-TRUNC shape exactly.
-  "GET /projects/{}/lod/assessment": [
-    "avg_information_score", "ceiling_distribution", "compliance", "default",
-    "elements_with_an_undecidable_aspect", "elements_without_readable_geometry",
-    "information_score_max", "limited_by", "note", "targets",
-  ],
+  // **TRIAGED AND LARGELY CLOSED the same day, under LOD-UNREAD — this is what a ratchet going
+  // down looks like.** It was the largest gap in the tree at ten keys, four of them coverage, over
+  // an LOD verdict the screen rendered as a bare band table titled "LOD coverage". Seven are now
+  // declared and rendered (`apps/web/src/portal/panels/lodCoverage.ts`).
+  //
+  // The three left are NOT undeclared by omission. `targets` and `default` are the target matrix,
+  // which has its own route (`/lod/targets`) and its own card — declaring it here a second time
+  // would make two screens able to disagree about it, which is the defect
+  // `apps/web/src/api/noRespelledShapes.test.ts` exists to forbid. `note` is the engine's prose; no
+  // consumer branches on it and a declared `note` invites one to. *An entry that shrinks for a
+  // stated reason is a different thing from one that shrinks to zero.*
+  "GET /projects/{}/lod/assessment": ["default", "note", "targets"],
   "GET /projects/{}/mep/model-extract": ["by_discipline", "note"],
   "GET /projects/{}/model/columnar/stats": [
     "est_interned_bytes", "est_naive_string_bytes", "note", "string_references",
@@ -174,14 +188,14 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "POST /projects/{}/progress/capture-diff": ["unmatched_guids", "unmatched_t1", "unmatched_t2"],
   "POST /projects/{}/schedule/level": ["caps", "issues", "mode"],
   "POST /projects/{}/specialty/monte-carlo": ["seed", "variables"],
-  // Fourteen keys, which is the whole weighted-index derivation: `excluded`, `by_evidence`,
-  // `certain_supply_units` vs `rumored_supply_units`. SUPPLY-DARK wired the route and declared
-  // the headline; the evidence split it exists to make is undeclared.
-  "POST /projects/{}/supply/competitive": [
-    "by_evidence", "certain_supply_units", "competing", "counts", "delta_months", "discount_pct",
-    "excluded", "product_type", "raw_index", "raw_units", "rumored_supply_units", "supply",
-    "weighted_index", "weighted_units", "window",
-  ],
+  // **REMOVED 2026-10-14, AND IT WAS NEVER A GAP.** This entry was seeded with fourteen keys and
+  // thirteen of them were phantoms: `competitiveSupply` returns
+  // `SupplyAssessment | SupplyIndexResult`, and `checker.getPropertiesOfType` on a UNION returns
+  // the INTERSECTION — `{note}` — so every branch-specific field read as undeclared. The fix is in
+  // `extract` above. *The gate's first measurement included a confident list of fields that were
+  // fully declared*, which is the cost of seeding a ratchet from a derivation before asking whether
+  // it asks the right question — and the reason the entry is recorded here rather than silently
+  // deleted. One route, thirteen keys, found by reading the type rather than the list.
   "POST /projects/{}/sync/procore/push": ["direction", "source"],
   "POST /projects/{}/waterfall": ["gp_contrib", "lp_contrib"],
   "POST /test-fit/compare": ["plate"],
@@ -355,12 +369,34 @@ export function extract(program: ts.Program, root: string, relBase = root):
         else if (method === "UNKNOWN") unresolved.push({ rel, line, why: "method not a literal" });
         else {
           const t = checker.getTypeFromTypeNode(typeArg);
-          const keys = checker.getPropertiesOfType(t).map((p) => p.getName()).sort();
+          // A UNION DECLARES EVERY BRANCH'S KEYS, AND `getPropertiesOfType` RETURNS THE
+          // INTERSECTION. That is the TypeScript-correct answer to a different question — what you
+          // may read without narrowing — and the wrong one here, where the question is whether a
+          // key the server sends is NAMED anywhere in the client's declarations. On
+          // `SupplyAssessment | SupplyIndexResult` the intersection is `{note}`, so the gate
+          // reported 13 fully-declared fields as undeclared, and **those 13 were seeded into
+          // `KNOWN_GAPS` as measured gaps before this was found** — a confident list of phantoms
+          // that would have sent the next reader looking for a defect that was never there. *A
+          // number with a list attached reads as evidence*, which is the whole reason the ratchet
+          // has to be measured by a derivation that asks the right question.
+          //
+          // It is a weaker check than an exact shape, and deliberately so: a union does not say
+          // WHICH branch carries a key, so a key named only on an irrelevant branch passes here.
+          // That is this gate's scope — declaration VISIBILITY, which is what every audit built on
+          // these interfaces depends on. Branch correctness belongs to the consumer's own test.
+          const parts = t.isUnion() ? t.types : [t];
+          const named = new Set<string>();
+          for (const part of parts)
+            for (const sym of checker.getPropertiesOfType(part)) named.add(sym.getName());
+          const keys = [...named].sort();
           // `Record<string, unknown>` resolves to ZERO named properties. That is neither "declares
           // nothing" nor "declares everything": it type-checks while naming nothing, so a field
           // under it is still invisible to every audit built on these interfaces. Its own bucket.
-          const opaque = keys.length === 0 && !!(checker.getIndexTypeOfType(t, ts.IndexKind.String)
-            ?? checker.getIndexTypeOfType(t, ts.IndexKind.Number));
+          // `every`, not `some`: one opaque branch beside a named one still names those keys, and
+          // `keys.length === 0` already means no branch named anything.
+          const opaque = keys.length === 0 && parts.every((part) =>
+            !!(checker.getIndexTypeOfType(part, ts.IndexKind.String)
+              ?? checker.getIndexTypeOfType(part, ts.IndexKind.Number)));
           rows.push({ rel, line, key: `${method} ${raw.split("?")[0]}`, keys, opaque });
         }
       }
@@ -489,6 +525,41 @@ describe("RESPONSE-UNDECLARED", () => {
     // above, and a test that leans on that ordering is a test that breaks for the wrong reason.
     expect(r.map((x) => ({ key: x.key, keys: x.keys })))
       .toEqual([{ key: "GET /x", keys: ["a"] }]);       // `b` returned by a server would be a gap
+  });
+
+  it("reads EVERY branch of a union, not the intersection", () => {
+    // The defect this gate shipped with for one commit. `getPropertiesOfType` on a union returns
+    // only the shared members — the TypeScript-correct answer to "what can I read without
+    // narrowing", and the wrong one for "is this key named anywhere in the client's declarations".
+    // Measured on the real tree: 13 declared fields of `competitiveSupply` reported as gaps.
+    const { program: p, root } = syntheticProgram(
+      "interface A { a: number; note: string }\ninterface B { b: number; note: string }\n"
+      + "declare const c: any;\nfunction f() { return c.json<A | B>(\"/x\"); }\n");
+    const { rows: r, unresolved: u } = extract(p, root);
+    expect(u).toEqual([]);
+    // the intersection would be ["note"] alone — that is the mutation this assertion refuses
+    expect(r.map((x) => x.keys)).toEqual([["a", "b", "note"]]);
+    expect(r[0]!.opaque).toBe(false);
+  });
+
+  it("calls a union of two opaque branches opaque, and a mixed union NOT opaque", () => {
+    // `every`, not `some`: a named branch beside a `Record` one still names those keys, so the
+    // route is comparable and must not fall into the bucket that skips comparison entirely —
+    // which is the fail-OPEN direction of the same bug.
+    // Index signatures written out rather than `Record<…>`: `syntheticProgram` runs with
+    // `noLib: true`, so `Record` does not resolve and silently becomes `any` — which is neither
+    // branch of this check. *A fixture that cannot express the case under test passes for the
+    // wrong reason*, and the first draft of this assertion did exactly that.
+    const both = syntheticProgram(
+      "interface O1 { [k: string]: unknown }\ninterface O2 { [k: string]: number }\n"
+      + "declare const c: any;\nfunction f() { return c.json<O1 | O2>(\"/x\"); }\n");
+    expect(extract(both.program, both.root).rows[0]!.opaque).toBe(true);
+    const mixed = syntheticProgram(
+      "interface A { a: number }\ninterface O1 { [k: string]: unknown }\ndeclare const c: any;\n"
+      + "function f() { return c.json<A | O1>(\"/x\"); }\n");
+    const row = extract(mixed.program, mixed.root).rows[0]!;
+    expect(row.opaque).toBe(false);
+    expect(row.keys).toEqual(["a"]);
   });
 
   it("accepts a BACKSLASHED root, which is what `path.resolve` returns on Windows", () => {

@@ -70,6 +70,35 @@ with TestClient(app) as c:
     # cap: no element can infer past LOD 400
     assert a["distribution"]["LOD 500"] == 0, a["distribution"]
 
+    # --- LOD-UNREAD: the keys a SCREEN now depends on ---------------------------------------------
+    # `apps/web/src/portal/panels/lodCoverage.ts` renders all four of these, and until 2026-10-14 the
+    # client type declared none of them: the card was titled "LOD coverage" and showed one table of
+    # six bands, so "most elements at LOD 200" read as under-modelled when this assessment may have
+    # been saying it could not SEE. Pinned here because the engine computing a caveat and a consumer
+    # rendering it are two different facts, and only the first had a test.
+    assert isinstance(a["limited_by"], dict) and set(a["limited_by"]) == set(lod.ASPECTS), a["limited_by"]
+    # The capped aspect is named per element, so every element in a band below the ceiling has at
+    # least one. `detail` is the one the BoundingBox element above is capped on.
+    assert a["limited_by"]["detail"] >= 1, a["limited_by"]
+    assert isinstance(a["elements_with_an_undecidable_aspect"], int), a
+    assert a["information_score_max"] == len(lod.LOIN_FACETS), (a["information_score_max"],)
+    # `compliance` is per authored stage, and `no_target` sits BESIDE `pct_meeting` rather than
+    # inside it — the engine's own comment: "A model element table that covers a third of the model
+    # and reports 100% is the failure this whole item exists to remove." A consumer that renders the
+    # percentage without the count reintroduces exactly that, one layer along.
+    # PRESENCE FIRST. `for _ph, _c in {}.items()` asserts nothing, and a project whose target
+    # register carries no phase yields exactly that — the vacuous-quantifier shape
+    # `services/api/test_quant_vacuous.py` exists for, and the stage defaults DO carry phases, so
+    # there is no reason to accept an empty one here.
+    assert a["compliance"], "no stage was scored, so the loop below would assert nothing"
+    for _ph, _c in a["compliance"].items():
+        assert set(_c) == {"meeting_target", "short_of_target", "no_target", "pct_meeting",
+                           "short_by_rule"}, (_ph, sorted(_c))
+        _scored = _c["meeting_target"] + _c["short_of_target"]
+        assert (_c["pct_meeting"] is None) == (_scored == 0), (_ph, _c)
+        # and the uncovered elements are NOT in the denominator
+        assert _scored + _c["no_target"] == a["elements"], (_ph, _c, a["elements"])
+
     # --- report + PDF ----------------------------------------------------------------------------
     assert "lod" in {x["id"] for x in reports.catalog()}, "lod missing from catalog"
     rep = c.get(f"/projects/{pid}/reports/lod.pdf")

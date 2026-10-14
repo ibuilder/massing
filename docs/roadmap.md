@@ -1511,6 +1511,56 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   sentence is kept as written because it was the reading on the day: what closed it was not an
   editor.)*
 
+- ✅ ⭐ **LOD-UNREAD — a card titled "LOD coverage" rendered a band table and none of the coverage,
+  so an unread model read as an under-modelled one** *(S —
+  `apps/web/src/portal/panels/lodCoverage.ts`; **CLOSED 2026-10-14**; gated by
+  `apps/web/src/portal/panels/lodCoverage.test.ts` and a new phase in `services/api/test_lod.py`)*
+
+  `lod.assess` is one of the most careful engines in this tree. It reads the achieved band as the
+  **minimum** across the five ISO 7817-1 aspects — so an element with one aspect the index cannot
+  read gets a FLOOR, not a reading — and because of that it also returns `ceiling_distribution`
+  (how high the same elements would reach if those aspects were met),
+  `elements_with_an_undecidable_aspect` and `elements_without_readable_geometry` (the exact
+  per-element counts of why), `limited_by` (which aspect PROVED each cap), and
+  `compliance[phase].no_target` with the uncovered elements deliberately kept out of the percentage.
+  Its own note states the distinction in as many words: *"the gap is unread model, not missing
+  model."*
+
+  **The card rendered `a.distribution` and nothing else** — one table of six bands, under the title
+  "LOD coverage". So a BIM manager read "most elements at LOD 200" and concluded the model was
+  under-modelled, when the assessment may have been saying it could not see; and every "why", which
+  is the only part a team can act on, was computed and discarded. *A card named for the coverage it
+  does not show is worse than one that never claimed it.*
+
+  **Found by RESPKEY-DELEGATED hours earlier**, which could not see this route at all until it
+  learned to follow one hop into the engine: `lod/assessment` was the single largest gap it
+  surfaced, ten undeclared keys of which four were coverage. The triage took the day it was seeded,
+  which is the argument for seeding the other 47 as a ratchet rather than declaring them.
+
+  **Seven of the ten are now declared and rendered; three stay, for stated reasons.** `targets` and
+  `default` are the target matrix, which has its own route and its own card — declaring it here a
+  second time is exactly the duplicate-shape defect `noRespelledShapes` forbids. `note` is the
+  engine's prose and nothing branches on it. *An entry that shrinks for a reason is a different
+  thing from one that shrinks to zero.*
+
+  **Four judgement calls live in the pure module so they are assertable** (the panel has no test
+  file): the tick demands BOTH readability counts be zero **and** something assessed, because
+  `!undecidable && !unreadable` is true of an empty model; an ABSENT count answers `unknown` rather
+  than being read as a zero; a stage that scored nothing renders `—`, never `0%`; and there is
+  deliberately **no per-band "headroom" number**, because an element sits in one achieved band and
+  one ceiling band and the two aggregates do not say which element moved where — *a derived number
+  that looks precise is worse than two honest columns.*
+
+  A flat ceiling is reported as a FINDING rather than an absence of one: when the response carries a
+  ceiling identical to the distribution AND readability flagged unreadable elements, the card says
+  the unread aspects would not raise any band, so the reading holds regardless. That is the sharpest
+  statement this payload can make and no number on the screen expressed it.
+
+  The backend phase pins the four keys a screen now depends on, and **its first draft was vacuous**:
+  `for ph, c in a["compliance"].items()` asserts nothing over an empty dict, and a register with no
+  authored phase yields exactly that. The presence guard comes first, and was proved by emitting no
+  phases.
+
 - ✅ ⭐ **RESPKEY-DELEGATED — the response-key gate could not see 59% of the route surface, and the
   first defect it found when it could was the one shipped hours earlier** *(M —
   `services/api/response_keys.py`, `apps/web/src/api/responseUndeclared.test.ts`; **CLOSED
@@ -1548,6 +1598,22 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   filter was still `v.literal`, so every delegated key set was dropped before comparison. The work
   had been done and thrown away, and the output was indistinguishable from a clean tree. *A
   derivation whose consumer still filters it out is a derivation that did not happen.*
+
+  **CORRECTION, same day: one of the 49 was never a gap, and it was the gate's own defect.** The
+  entry for `POST /projects/{pid}/supply/competitive` carried fourteen keys of which **thirteen were
+  phantoms**: `competitiveSupply` returns a UNION (`SupplyAssessment | SupplyIndexResult`), and
+  `checker.getPropertiesOfType` on a union returns the **intersection** — `{note}` — so every
+  branch-specific field read as undeclared although all of them are fully typed. That is the
+  TypeScript-correct answer to *"what may I read without narrowing"* and the wrong answer to this
+  gate's question, *"is this key named anywhere in the client's declarations"*. *A derivation that
+  asks a subtly different question returns a confident list, and a list reads as evidence* — the
+  same failure `test_scratch_ignored` paid for twice and `test_gap_records` paid for with a prefix
+  match. The extractor unions the branches now, with two self-tests (a mixed union must NOT be
+  called opaque, which is the fail-open direction of the same bug), and the removed entry is
+  recorded in place rather than deleted. **47 remain.** The first draft of that self-test also
+  passed for the wrong reason — `syntheticProgram` runs with `noLib: true`, so `Record<string,
+  unknown>` silently became `any` and expressed neither branch; the index signatures are written out
+  now. *A fixture that cannot express the case under test passes.*
 
   **48 gaps seeded as a ratchet that may only go DOWN, 14 new lower-bound entries, and one FIXED.**
   Nobody has triaged the 48: the alternative was declaring ~130 fields across 48 client types in one

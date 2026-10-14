@@ -3,6 +3,8 @@ import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
+import { bandRows, ceilingDiffers, complianceRows, infoScoreLine, limitingRows, readability,
+  TONE_CSS } from "./lodCoverage";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import { renderViewTemplates } from "./viewTemplates";
 import type { PanelContext } from "../panelContext";
@@ -657,11 +659,66 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         pick.onchange = run; q.append(pick, out); run();
     }).catch(fail(q));
 
+    // LOD-UNREAD. This card was titled "LOD coverage" and rendered ONE table of six bands — the
+    // achieved distribution — while `lod.assess` returns the ceiling, the two per-element counts of
+    // why a band is a floor, which aspect proved each cap, and per-stage target compliance with its
+    // own uncovered count. The engine's note says the distinction in as many words: *"the gap is
+    // unread model, not missing model."* So a BIM manager read "most elements at LOD 200" as
+    // under-modelled when the assessment may have been saying it could not see.
+    //
+    // The reading lives in `./lodCoverage` so it is assertable — this panel has no test file, and
+    // every verdict here (the tick, the `—` for an unscored stage, the refusal to subtract two
+    // distributions) is a judgement that can be got wrong silently.
     const lod = section("🎚 LOD coverage");
     void ctx.host.api.lodAssessment(pid).then((a) => {
         lod.textContent = "";
         if (!a.model_scored) { lod.textContent = "targets only — load a model to assess achieved LOD"; return; }
-        lod.appendChild(table(["LOD band", "Elements"], Object.entries(a.distribution).map(([k, val]) => [k, val])));
+        const read = readability(a);
+        const rd = el("div", "meta");
+        rd.style.cssText = `color:${TONE_CSS[read.tone]};margin-bottom:4px`;
+        rd.textContent = read.text;
+        lod.appendChild(rd);
+        // The Ceiling column appears only when the response CARRIES a ceiling. A column of blanks
+        // would read as "nothing could be higher", which is the opposite of "not knowable" — the
+        // same reason `bandRows` returns null rather than 0 for an absent ceiling.
+        const rows = bandRows(a);
+        const hasCeiling = a.ceiling_distribution !== undefined;
+        lod.appendChild(hasCeiling
+            ? table(["LOD band", "Elements", "Ceiling"],
+                    rows.map((r) => [r.band, r.achieved, r.ceiling ?? "—"]))
+            : table(["LOD band", "Elements"], rows.map((r) => [r.band, r.achieved])));
+        // A FLAT CEILING IS A FINDING, not an absence of one, and it is the sharpest reading this
+        // response can give: the aspects the index could not read would not move a single band, so
+        // the distribution above is the answer even though the assessment was partly blind. Said
+        // only when a ceiling was actually given, and only when `readability` has flagged
+        // unreadable elements — otherwise it restates the tick.
+        if (hasCeiling && !ceilingDiffers(a) && !read.earned && read.tone === "warn") {
+            const flat = el("div", "meta");
+            flat.textContent = "The ceiling is identical to the distribution: the aspects that could "
+                + "not be read would not raise any element's band, so this reading holds regardless.";
+            lod.appendChild(flat);
+        }
+        // WHY, which is the only part a team can act on — the engine's own comment beside
+        // `limited_by`: "A distribution says a model is at LOD 200 without saying why".
+        const lim = limitingRows(a);
+        if (lim.length) {
+            const h = el("div", "meta"); h.style.marginTop = "6px";
+            h.textContent = "Capped by — the aspect that PROVED each element's band:";
+            lod.append(h, table(["Aspect", "Elements"], lim.map((r) => [r.aspect, r.elements])));
+        }
+        const comp = complianceRows(a);
+        if (comp.length) {
+            const h = el("div", "meta"); h.style.marginTop = "6px";
+            h.textContent = "Against the target matrix, per stage. `No target` is the elements no "
+                + "rule addresses — it is OUTSIDE the percentage, not compliant within it:";
+            lod.append(h, table(["Stage", "Meeting", "Short", "No target", "Meeting %"],
+                                comp.map((r) => [r.phase, r.met, r.short, r.noTarget, r.pct])));
+        }
+        const info = infoScoreLine(a);
+        if (info) {
+            const i = el("div", "meta"); i.style.marginTop = "6px"; i.textContent = info;
+            lod.appendChild(i);
+        }
     }).catch(fail(lod));
 
     const hand = section("📋 LOD 500 handover work list");

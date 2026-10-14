@@ -1122,10 +1122,37 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
         specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
       use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
-  /** LOD assessment — element distribution and average LOD per discipline. `using_default` marks a model scored against the fallback rules. */
+  /**
+   * LOD assessment — the achieved band distribution, **its ceiling**, why each element was capped,
+   * and per-stage target compliance. `using_default` marks a model scored against the fallback rules.
+   *
+   * LOD-UNREAD: this type declared five of fifteen keys, and the ten it dropped were every one of
+   * the engine's caveats. `lod.assess` computes the band as the MINIMUM across five ISO 7817-1
+   * aspects, so an element with one aspect the index cannot read gets a FLOOR rather than a
+   * reading — which is why the engine also returns `ceiling_distribution`,
+   * `elements_with_an_undecidable_aspect`, `elements_without_readable_geometry` and `limited_by`,
+   * and why its own note says *"the gap is unread model, not missing model."* None of that reached
+   * the screen, so "most elements at LOD 200" read as under-modelled when it may have meant unread.
+   *
+   * `compliance[phase].no_target` is the same distinction one layer along, and the engine's comment
+   * names it: *"A model element table that covers a third of the model and reports 100% is the
+   * failure this whole item exists to remove."* It kept the uncovered count out of the percentage;
+   * `lodCoverage.complianceRows` keeps it on the screen.
+   *
+   * `targets`, `default` and `note` are deliberately NOT declared: the targets matrix has its own
+   * route and its own card, and re-declaring it here would make two screens able to disagree about
+   * it. The caveat keys are declared because nothing else serves them.
+   */
   lodAssessment(pid: string) {
     return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
       distribution: Record<string, number>;
+      ceiling_distribution: Record<string, number>;
+      limited_by: Record<string, number>;
+      elements_with_an_undecidable_aspect: number;
+      elements_without_readable_geometry: number;
+      avg_information_score: number; information_score_max: number;
+      compliance: Record<string, { meeting_target: number; short_of_target: number;
+        no_target: number; pct_meeting: number | null; short_by_rule: Record<string, number> }>;
       by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
       `/projects/${pid}/lod/assessment`);
   }
