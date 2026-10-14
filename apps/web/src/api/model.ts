@@ -227,6 +227,45 @@ export interface EnvelopeAudit {
   note: string;
 }
 
+/** LOD-TARGET-INERT — `GET /projects/{pid}/lod/assessment`.
+ *
+ *  NAMED rather than inline, which is the action `apps/web/src/api/deadFieldTyped.test.ts`'s
+ *  inline ceiling asked for when this change added four keys to it: a response declared in the
+ *  `this.json<{…}>` type argument has no named shape, so none of its fields are in that axis's
+ *  population. *The gate redirected the change rather than just counting it*, which is the whole
+ *  point of stating both options in its failure message. */
+export interface LodAssessmentResponse {
+  model_scored: boolean;
+  elements: number;
+  distribution: Record<string, number>;
+  ceiling_distribution: Record<string, number>;
+  limited_by: Record<string, number>;
+  elements_with_an_undecidable_aspect: number;
+  elements_without_readable_geometry: number;
+  avg_information_score: number;
+  information_score_max: number;
+  compliance: Record<string, {
+    meeting_target: number; short_of_target: number; no_target: number;
+    pct_meeting: number | null; short_by_rule: Record<string, number>;
+  }>;
+  by_discipline: { discipline: string; elements: number; avg_lod: string }[];
+  /** The firm's authored matrix, as `lod.matrix` projects it. Empty exactly when `using_default`.
+   *  `element_category` is the register's only REQUIRED field and is NOT one of the three matching
+   *  keys (`ifc_class`, `uniformat`, `discipline`) — which is the whole of LOD-TARGET-INERT. */
+  targets: { element_category?: string; discipline?: string; ifc_class?: string;
+    uniformat?: string; phase?: string; target_lod?: string; state?: string }[];
+  /** The built-in RIBA/AIA stage matrix, in force exactly when `using_default`. */
+  default: { phase?: string; target_lod?: string }[];
+  /** True when nothing is authored, so the compliance table is against the built-in defaults
+   *  rather than the firm's standard. The table's own header never said which. */
+  using_default: boolean;
+  /** Authored rows that resolved against no element — "nobody wrote a rule" versus "the rule you
+   *  wrote cannot be resolved", which the table could not distinguish. */
+  targets_matching_nothing: { element_category: string; phase: string; target_lod: string;
+    why: string }[];
+  note: string;
+}
+
 /** MODEL-SETUP — the whole-model setup state behind `modelSetup()`.
  *
  *  Named rather than inline because `apps/web/src/viewer/tools/projectSetupPanel.ts` REDRAWS its two
@@ -1212,17 +1251,7 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
    * it. The caveat keys are declared because nothing else serves them.
    */
   lodAssessment(pid: string) {
-    return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
-      distribution: Record<string, number>;
-      ceiling_distribution: Record<string, number>;
-      limited_by: Record<string, number>;
-      elements_with_an_undecidable_aspect: number;
-      elements_without_readable_geometry: number;
-      avg_information_score: number; information_score_max: number;
-      compliance: Record<string, { meeting_target: number; short_of_target: number;
-        no_target: number; pct_meeting: number | null; short_by_rule: Record<string, number> }>;
-      by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
-      `/projects/${pid}/lod/assessment`);
+    return this.json<LodAssessmentResponse>(`/projects/${pid}/lod/assessment`);
   }
   /** Envelope audit — how many envelope elements were checked and how many comply, with the per-element verdict.
    *

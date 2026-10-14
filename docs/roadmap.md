@@ -1545,6 +1545,54 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   `apps/web/src/portal/panels/flowlineRead.test.ts` against the engine's measured output. *The
   consumer is ready for a producer nobody can drive.*
 
+- ✅ ⭐ **LOD-TARGET-INERT — the register's only REQUIRED field is not a matching key, and the stage
+  defaults the response promises were never applied** *(M — `services/api/src/aec_api/lod.py`,
+  `apps/web/src/portal/panels/lodCoverage.ts`, `apps/web/src/api/model.ts`,
+  `apps/web/src/portal/panels/standards.ts`; **CLOSED 2026-10-14**; gated by new assertions in
+  `services/api/test_lod.py` and `apps/web/src/portal/panels/lodCoverage.test.ts`)*
+
+  **① The promised fallback never fired.** `lod.matrix` returns `default` — the five RIBA/AIA stages
+  — and a `note` saying *"With no targets registered the RIBA/AIA stage defaults apply (SD LOD200 →
+  DD LOD300 → CD LOD350 → Construction LOD400 → As-built LOD500)."* They did not. `assess` derived
+  its stages from `m["targets"]`, the AUTHORED list, so a project with nothing authored got
+  `compliance: {}` while `using_default` said `True` — measured on a three-element index. And even
+  passing the default rows would have changed nothing: `target_for` required one of `ifc_class`,
+  `uniformat` or `discipline` to be non-empty and matched, and a default row has none of them.
+
+  **`services/api/test_lod.py`'s own comment asserted the opposite.** Beside its compliance
+  assertion it said *"the stage defaults DO carry phases, so there is no reason to accept an empty
+  one here"* — and its fixture authors a real target, so `using_default` was False and the defaults
+  were never the reason it passed. *A belief about the engine, written beside a check that could not
+  test it.* The reach is proved separately now, on a second project with an empty register.
+
+  **② The register's required field cannot match.** `lod_target`'s only REQUIRED field is
+  `element_category`; the three keys matching uses are all optional. So the obvious authoring —
+  `{element_category: "Exterior Walls", phase: "Construction Docs", target_lod: "LOD 350"}` — is
+  accepted (201), listed in `targets`, flips `using_default` to False, and resolves against nothing:
+  measured `no_target: 3` of 3 with an empty `short_by_rule`. Adding `ifc_class` makes the same rule
+  work, which is the proof that `element_category` is read as the LABEL and ignored for MATCHING.
+  The screen then explains `No target` as *"the elements no rule addresses"* — which reads as *you
+  have not written rules yet* to the one person who just did.
+
+  **The load-bearing decision is that an unresolvable rule is REPORTED, not widened.** A row with a
+  phase and nothing to narrow it by is now stage-wide — that is the shape of the default matrix —
+  **but naming an `element_category` disqualifies it**, because the author scoped that rule to
+  exterior walls and applying LOD 350 to every duct at CD would manufacture findings nobody asked
+  for. `targets_matching_nothing` carries those rows with the engine's own reason, and the two
+  reasons are kept apart because they need different actions: *an unresolvable rule is a data-entry
+  fix; a discipline absent from the model is a model that has not got there yet.*
+  `short_by_rule` also names a stage default for what it IS — the old fallback reported every
+  default shortfall as `(unlabelled rule)`, which describes the row's data rather than the row.
+
+  **③ `using_default` was declared and read by nothing**, with a doc comment saying exactly what it
+  means. It sat in the inline-declaration blind spot DEADFIELD-INLINE measured hours earlier — and
+  **that gate then redirected this change.** Adding four keys to `lodAssessment`'s inline
+  declaration took the inline ceiling red at 6,015 against 5,999, and its message names the useful
+  option first, so the response type was NAMED rather than the number raised: 5,999/562 → 5,983/560,
+  with every one of its fields now inside the population the dead-field bands are about. *A gate
+  that only reports a number gets the number raised; one that states the better action gets the
+  better action.*
+
 - ✅ ⭐ **DRAFT-BASELINE — the APPROVED scheme read as a 68-unit shortfall against an envelope nobody
   has approved** *(S — `apps/web/src/reportCenter.ts`, `apps/web/src/api/entitlements.ts`;
   **CLOSED 2026-10-14**; gated by `apps/web/src/reportCenter.verification.test.ts`)*

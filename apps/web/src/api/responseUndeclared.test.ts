@@ -260,7 +260,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `apps/web/src/api/noRespelledShapes.test.ts` exists to forbid. `note` is the engine's prose; no
   // consumer branches on it and a declared `note` invites one to. *An entry that shrinks for a
   // stated reason is a different thing from one that shrinks to zero.*
-  "GET /projects/{}/lod/assessment": ["default", "note", "targets"],
+  // **CLOSED 2026-10-14 under LOD-TARGET-INERT, and the three keys were the BASIS of a compliance
+  // table.** `targets` is the firm's authored matrix, `default` is the built-in RIBA/AIA stage
+  // matrix, and `using_default` (declared since LOD-UNREAD, read by nothing) says which was in
+  // force — while the table's own header read "Against the target matrix, per stage" and never
+  // named it. *A compliance percentage whose threshold the reader cannot see cannot be checked.*
+  //
+  // Two live defects sat behind them. The `note` promised *"With no targets registered the
+  // RIBA/AIA stage defaults apply"* and they did NOT: `assess` derived its stages from the authored
+  // list, so a project with no targets got `compliance: {}` with `using_default` true — measured on
+  // a 3-element index. And the register's only REQUIRED field, `element_category`, is free text and
+  // is not one of the three matching keys, so the obvious authoring was accepted and resolved
+  // against nothing: `no_target: 3` of 3 with an empty `short_by_rule`.
+  // `targets_matching_nothing` now separates those, and the response type is NAMED — which is what
+  // the inline ceiling in `apps/web/src/api/deadFieldTyped.test.ts` asked for when this change
+  // added four keys to an inline declaration.
   "GET /projects/{}/mep/model-extract": ["by_discipline", "note"],
   "GET /projects/{}/model/columnar/stats": [
     "est_interned_bytes", "est_naive_string_bytes", "note", "string_references",

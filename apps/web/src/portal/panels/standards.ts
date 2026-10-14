@@ -3,8 +3,8 @@ import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { bsddFailure, bsddFailureText, requestGate } from "./bsddLookup";
-import { bandRows, ceilingDiffers, complianceRows, infoScoreLine, limitingRows, readability,
-  TONE_CSS } from "./lodCoverage";
+import { bandRows, ceilingDiffers, complianceRows, inertTargetNote, inertTargetRows, infoScoreLine,
+  limitingRows, matrixBasis, readability, TONE_CSS } from "./lodCoverage";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote,
   envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
@@ -715,6 +715,23 @@ export async function renderModelAnalysis(ctx: PanelContext) {
                 + "rule addresses — it is OUTSIDE the percentage, not compliant within it:";
             lod.append(h, table(["Stage", "Meeting", "Short", "No target", "Meeting %"],
                                 comp.map((r) => [r.phase, r.met, r.short, r.noTarget, r.pct])));
+            // LOD-TARGET-INERT. WHICH matrix, and which authored rules contributed nothing to it.
+            // The header above explains `No target` as "the elements no rule addresses", which
+            // reads as *you have not written rules yet* to somebody whose rules cannot resolve.
+            const basis = matrixBasis(a);
+            if (basis) {
+                const b = el("div", "meta");
+                b.style.color = TONE_CSS.warn; b.textContent = basis;
+                lod.appendChild(b);
+            }
+            const inert = inertTargetNote(a);
+            if (inert) {
+                const n = el("div", "meta"); n.style.marginTop = "6px";
+                n.style.color = TONE_CSS.warn; n.textContent = inert;
+                lod.append(n, table(["Category", "Stage", "Target", "Why it matched nothing"],
+                                    inertTargetRows(a).map((r) => [r.category, r.phase, r.target,
+                                                                   r.why])));
+            }
         }
         const info = infoScoreLine(a);
         if (info) {

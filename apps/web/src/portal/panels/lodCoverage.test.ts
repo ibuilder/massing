@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  bandRows, ceilingDiffers, complianceRows, infoScoreLine, limitingRows, readability,
-  TONE_CSS, type LodAssessment,
+  TONE_CSS, bandRows, ceilingDiffers, complianceRows, inertTargetNote, inertTargetRows,
+  infoScoreLine, limitingRows, matrixBasis, readability, type LodAssessment,
 } from "./lodCoverage";
 
 /**
@@ -134,5 +134,125 @@ describe("LOD-UNREAD", () => {
 
   it("maps every tone to a CSS variable", () => {
     for (const t of ["ok", "warn", "unknown"] as const) expect(TONE_CSS[t]).toMatch(/^var\(--/);
+  });
+});
+
+/**
+ * LOD-TARGET-INERT — which matrix the compliance table is against, and which authored rules
+ * contributed nothing to it. Both fixtures are measured responses from a live server against the
+ * same 3-element synthetic index.
+ */
+const DEFAULTS: LodAssessment = {
+  model_scored: true,
+  elements: 3,
+  distribution: { "LOD 100": 1, "LOD 200": 1, "LOD 300": 0, "LOD 350": 1, "LOD 400": 0, "LOD 500": 0 },
+  using_default: true,
+  targets: [],
+  default: [
+    { phase: "Concept / SD", target_lod: "LOD 200" },
+    { phase: "Design Development", target_lod: "LOD 300" },
+    { phase: "Construction Docs", target_lod: "LOD 350" },
+    { phase: "Construction", target_lod: "LOD 400" },
+    { phase: "As-built", target_lod: "LOD 500" },
+  ],
+  targets_matching_nothing: [],
+  compliance: {
+    "As-built": { meeting_target: 0, short_of_target: 3, no_target: 0, pct_meeting: 0.0,
+      short_by_rule: { "stage default (LOD 500)": 3 } },
+    "Concept / SD": { meeting_target: 2, short_of_target: 1, no_target: 0, pct_meeting: 66.7,
+      short_by_rule: { "stage default (LOD 200)": 1 } },
+  },
+};
+
+const INERT: LodAssessment = {
+  model_scored: true,
+  elements: 3,
+  distribution: DEFAULTS.distribution,
+  using_default: false,
+  targets: [{ element_category: "Exterior Walls" }, { element_category: "Plumbing" }],
+  default: DEFAULTS.default,
+  targets_matching_nothing: [
+    { element_category: "Exterior Walls", phase: "Construction Docs", target_lod: "LOD 350",
+      why: "names no ifc_class, uniformat or discipline — matching uses those three, and "
+        + "`element_category` is a free-text label" },
+    { element_category: "Plumbing", phase: "Construction Docs", target_lod: "LOD 300",
+      why: "its ifc_class / uniformat / discipline matched no element in this model" },
+  ],
+  compliance: {
+    "Construction Docs": { meeting_target: 0, short_of_target: 0, no_target: 3, pct_meeting: null,
+      short_by_rule: {} },
+  },
+};
+
+describe("LOD-TARGET-INERT · matrixBasis", () => {
+  it("names the built-in defaults, with their bands, when nothing is authored", () => {
+    const b = matrixBasis(DEFAULTS)!;
+    expect(b).toContain("No LOD targets are authored for this project");
+    expect(b).toContain("built-in RIBA/AIA defaults, not your standard");
+    expect(b).toContain("Concept / SD LOD 200");
+    expect(b).toContain("As-built LOD 500");
+  });
+
+  it("is silent when the firm's own targets are in force", () => {
+    expect(matrixBasis(INERT)).toBeNull();
+  });
+
+  it("is silent when there is no compliance table to be about", () => {
+    expect(matrixBasis({ ...DEFAULTS, compliance: {} })).toBeNull();
+    expect(matrixBasis({ ...DEFAULTS, compliance: undefined })).toBeNull();
+  });
+});
+
+describe("LOD-TARGET-INERT · inertTargetNote", () => {
+  it("counts the inert rules against the authored total", () => {
+    expect(inertTargetNote(INERT)).toBe("2 of 2 authored target(s) matched no element in this "
+      + "model, so they contribute nothing to the table above.");
+  });
+
+  it("is silent when every authored rule resolved", () => {
+    expect(inertTargetNote(DEFAULTS)).toBeNull();
+    expect(inertTargetNote({ ...INERT, targets_matching_nothing: [] })).toBeNull();
+  });
+
+  it("still reports when the authored list is absent from the response", () => {
+    // An older server, or a narrower projection. The count is what matters and it stands alone.
+    expect(inertTargetNote({ ...INERT, targets: undefined }))
+      .toBe("2 authored target(s) matched no element in this model, so they contribute nothing to "
+        + "the table above.");
+  });
+});
+
+describe("LOD-TARGET-INERT · inertTargetRows", () => {
+  it("keeps the engine's two DIFFERENT reasons apart — they need different actions", () => {
+    const rows = inertTargetRows(INERT);
+    expect(rows.map((r) => r.category)).toEqual(["Exterior Walls", "Plumbing"]);
+    // A data-entry fix...
+    expect(rows[0]!.why).toContain("free-text label");
+    // ...versus a model that has not got there yet.
+    expect(rows[1]!.why).toContain("matched no element in this model");
+    expect(rows[0]!.target).toBe("LOD 350");
+    expect(rows[0]!.phase).toBe("Construction Docs");
+  });
+
+  it("names a rule with no category rather than rendering a blank cell", () => {
+    expect(inertTargetRows({ ...INERT, targets_matching_nothing: [
+      { element_category: "", phase: "", target_lod: "", why: "x" }] })[0])
+      .toEqual({ category: "(unnamed)", phase: "—", target: "—", why: "x" });
+  });
+
+  it("is empty, not undefined, when the response carries no such list", () => {
+    expect(inertTargetRows({ ...INERT, targets_matching_nothing: undefined })).toEqual([]);
+  });
+});
+
+describe("LOD-TARGET-INERT · the reading the table gave before", () => {
+  it("reported No target for every element with no way to tell why", () => {
+    // Both fixtures have a compliance table. One is measured against built-in defaults, the other
+    // against two rules that address nothing — and the rows alone cannot tell them apart.
+    const inertRow = complianceRows(INERT)[0]!;
+    expect(inertRow.noTarget).toBe(3);
+    expect(inertRow.pct).toBe("—");
+    expect(matrixBasis(INERT)).toBeNull();
+    expect(inertTargetNote(INERT)).not.toBeNull();
   });
 });

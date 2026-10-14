@@ -35,6 +35,15 @@ export interface LodCompliancePhase {
   short_by_rule: Record<string, number>;
 }
 
+/** LOD-TARGET-INERT — an authored target row that resolved against no element in this model. */
+export interface InertTarget {
+  element_category: string;
+  phase: string;
+  target_lod: string;
+  /** Which of the two reasons it is: an unresolvable rule, or a scope absent from this model. */
+  why: string;
+}
+
 export interface LodAssessment {
   model_scored: boolean;
   elements: number;
@@ -46,6 +55,19 @@ export interface LodAssessment {
   avg_information_score?: number;
   information_score_max?: number;
   compliance?: Record<string, LodCompliancePhase>;
+  /** LOD-TARGET-INERT. True when the project has authored NO targets, so the compliance table is
+   *  measured against the built-in RIBA/AIA stage defaults rather than the firm's own standard.
+   *  Declared since LOD-UNREAD and read by nothing until now — it sat in the inline-declaration
+   *  blind spot DEADFIELD-INLINE measures. */
+  using_default?: boolean;
+  /** The authored matrix, as `lod.matrix` projects it. Empty exactly when `using_default` is true.
+   *  `element_category` is the register's only REQUIRED field and is NOT one of the three matching
+   *  keys — which is the whole of LOD-TARGET-INERT. */
+  targets?: { element_category?: string; discipline?: string; ifc_class?: string;
+    uniformat?: string; phase?: string; target_lod?: string; state?: string }[];
+  /** The built-in stage matrix, which is what the compliance table used when `using_default`. */
+  default?: { phase?: string; target_lod?: string }[];
+  targets_matching_nothing?: InertTarget[];
 }
 
 /** The aspect keys as a reader says them. The engine's keys are ISO 7817-1 names in snake_case. */
@@ -176,3 +198,56 @@ export const TONE_CSS: Record<Tone, string> = {
   warn: "var(--status-warn)",
   unknown: "var(--muted)",
 };
+
+/**
+ * What the compliance table is measured AGAINST. LOD-TARGET-INERT.
+ *
+ * The table's own header says "Against the target matrix, per stage" and never said WHICH matrix.
+ * `using_default` is true when the project has authored no targets at all, in which case every row
+ * is against the built-in RIBA/AIA stage defaults — a reasonable screen, and not the firm's
+ * standard. Until 2026-10-14 the defaults did not even apply: `assess` derived its stages from the
+ * authored list, so a project with no targets got `compliance: {}` while `using_default` said true
+ * and the response's own note promised the defaults were in force.
+ */
+export function matrixBasis(a: LodAssessment): string | null {
+  if (!a.compliance || !Object.keys(a.compliance).length) return null;
+  if (!a.using_default) return null;
+  const bands = (a.default ?? [])
+    .map((d) => `${d.phase ?? "?"} ${d.target_lod ?? "?"}`).join(" · ");
+  return "No LOD targets are authored for this project, so these stages are the built-in RIBA/AIA "
+    + `defaults, not your standard${bands ? ` — ${bands}` : ""}. Author targets under Standards → `
+    + "LOD Targets to measure against your own.";
+}
+
+/**
+ * Authored rules that resolved against NOTHING — the reading that separates "nobody wrote a rule"
+ * from "the rule you wrote cannot be resolved".
+ *
+ * `lod_target`'s only REQUIRED field is `element_category`, which is free text with nothing on an
+ * element to match it against; matching uses `ifc_class`, `uniformat` and `discipline`, all three
+ * optional. So the obvious authoring — the required field plus a stage plus a band — is accepted,
+ * listed in `targets`, flips `using_default` to false, and addresses no element. The table then
+ * reports `No target` for every element under a header explaining that as "the elements no rule
+ * addresses", which reads as *you have not written rules yet* to the person who just did.
+ */
+export function inertTargetNote(a: LodAssessment): string | null {
+  const inert = a.targets_matching_nothing ?? [];
+  if (!inert.length) return null;
+  const total = (a.targets ?? []).length;
+  const scope = total ? `${inert.length} of ${total} authored target(s)` : `${inert.length} authored target(s)`;
+  return `${scope} matched no element in this model, so they contribute nothing to the table above.`;
+}
+
+/** One row per inert rule, with the engine's own reason. Two reasons, and they need different
+ *  actions: an unresolvable rule is a data-entry fix, an absent scope is a model that has not got
+ *  there yet. */
+export function inertTargetRows(a: LodAssessment): {
+  category: string; phase: string; target: string; why: string;
+}[] {
+  return (a.targets_matching_nothing ?? []).map((t) => ({
+    category: t.element_category || "(unnamed)",
+    phase: t.phase || "—",
+    target: t.target_lod || "—",
+    why: t.why,
+  }));
+}
