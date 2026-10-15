@@ -329,6 +329,24 @@ for the process, not for output**, and if a run's log has been at zero bytes for
 buffering, not failure. A heavy `vitest run` or `vite build` alongside the backend suite is enough to
 cause the same errors on its own.
 
+⚠️ **Sweeping up scratch directories by name prefix can delete a TRACKED test.** Nine suites set
+`STORAGE_DIR = "./test_storage"`, and a tracked gate is called `test_storage_key_parity.py` — so
+`rm -rf test_storage*` takes the gate with the scratch directory. Measured the hard way on
+2026-10-15: the deletion was silent, and the symptom arrived a half-hour later as
+`run_tests manifest: registered in TESTS but no such file on disk`, which reads as somebody else's
+de-registration bug. **The glob cannot tell a directory from a file; `find` can** —
+
+```
+find services/api -maxdepth 1 -type d -name 'test_storage*' -exec rm -rf {} +
+```
+
+`-type d` is the whole of the fix. Renaming the scratch directory was considered and declined: nine
+files use that prefix, and `.gitignore` already carries `test_storage*/` and `test_storage_*/`
+because they do. A gate was considered and declined too — it would be red on arrival with the only
+remedies being the nine-file rename or an exemption, and *an exemption list is where the next
+instance hides*. `git clean -fdX` is **not** the safe alternative: it is scoped to ignored files, and
+`services/api/.venv/` is ignored.
+
 **Web** — Node **24+** (`export PATH="/c/Program Files/nodejs:$PATH"`; the default `node` on PATH is v18
 and breaks the build). Typecheck with `npx tsc --noEmit` from `apps/web`. For the suite, run the
 workspace command — **not a bare `vitest run` from the repo root**, which collects `.claude/worktrees/`
