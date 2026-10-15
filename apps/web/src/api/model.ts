@@ -392,6 +392,23 @@ export interface GraphicOverride {
   halftone?: boolean;
 }
 
+/** MEP-DISCIPLINE-DARK — MEP elements read off the model. `by_discipline` is the division a
+ *  contractor BUYS by and was undeclared, so the card could only show IFC classes — a modeller's
+ *  vocabulary, not a buyer's. Named, not inline, per DEADFIELD-INLINE. */
+export interface MepModelExtract {
+  model_scored: boolean;
+  mep_elements: number;
+  by_class: { ifc_class: string; label: string; count: number }[];
+  /** How many DISTINCT classes are present, so a paged class table can say what it is paging. */
+  class_count: number;
+  by_discipline: { discipline: string; count: number }[];
+  /** Elements whose discipline the classifier could not place. Measured at 0 across all 25 MEP
+   *  classes, and `services/api/test_mep.py` keeps it that way — but it is declared so a screen can
+   *  say so rather than a reader assuming the columns are exhaustive. */
+  unattributed: number;
+  note: string;
+}
+
 /** VG-DARK — the resolved graphic state of a view template, as
  *  `GET /projects/{pid}/view-templates/{tid}/graphics` returns it.
  *

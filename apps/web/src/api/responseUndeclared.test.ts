@@ -341,7 +341,23 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `targets_matching_nothing` now separates those, and the response type is NAMED — which is what
   // the inline ceiling in `apps/web/src/api/deadFieldTyped.test.ts` asked for when this change
   // added four keys to an inline declaration.
-  "GET /projects/{}/mep/model-extract": ["by_discipline", "note"],
+  // **CLOSED 2026-10-15 under MEP-DISCIPLINE-DARK.** `by_discipline` is the division a contractor
+  // BUYS MEP by — Mechanical / Plumbing / Electrical — and it was undeclared, so the card could only
+  // render IFC classes: `IfcDuctSegment`, `IfcPipeFitting`, a modeller's vocabulary rather than a
+  // buyer's. *A count is only useful in the vocabulary of whoever has to act on it.* The class table
+  // was also `by_class.slice(0, 15)` with no note over a list that runs to 25, in a card headed by a
+  // total — TRUNC-COUNTED again, and `class_count` now lets the page be stated against the server's
+  // own figure.
+  //
+  // **And a clean negative worth keeping, because the hypothesis was wrong.** The discipline came
+  // from `discipline_name(discipline_of_ifc_class(cl)) or "Mechanical"` — a fallback that picks a
+  // real answer instead of admitting it has none, and one that would put a mis-attributed plumbing
+  // element straight into a procurement breakdown. Measured: **all 25 of `_MEP_CLASSES` resolve**,
+  // so the branch was unreachable and nothing has ever been mis-attributed. It is written up as a
+  // negative rather than a fix. `services/api/test_mep.py` now asserts every key resolves and that
+  // the three disciplines are exactly the trade split, so adding a class the classifier cannot place
+  // reds the build; the fallback reads `Unattributed`, which is asserted NOT to be one of the three.
+  // *A clean negative is only clean while something is checking it.*
   "GET /projects/{}/model/columnar/stats": [
     "est_interned_bytes", "est_naive_string_bytes", "note", "string_references",
   ],

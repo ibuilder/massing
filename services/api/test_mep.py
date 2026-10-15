@@ -11,7 +11,7 @@ for _f in ("./test_mep.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import mep, reports  # noqa: E402
+from aec_api import classification, mep, reports  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 # --- unit: the sizing calculators -----------------------------------------------------------------
@@ -60,6 +60,55 @@ with TestClient(app) as c:
     rep = c.get(f"/projects/{pid}/reports/mep.pdf")
     assert rep.status_code == 200 and rep.content[:4] == b"%PDF", rep.status_code
 
+# --- MEP-DISCIPLINE-DARK: the discipline fallback must stay unreachable -----------------------
+# `extract_from_model` derives each element's discipline from its IFC class, and the fallback used to
+# name a REAL discipline — *Mechanical* — for any class the classifier could not place. That is a
+# default that looks like data, and `by_discipline` is the division a contractor buys MEP by, so a
+# mis-attributed plumbing element lands straight in a procurement breakdown.
+#
+# MEASURED: all 25 of `_MEP_CLASSES` resolve, so the branch was unreachable and nothing was ever
+# mis-attributed. This is the assertion that keeps it that way — add one class the classifier does
+# not know and the build goes red rather than a plumbing element quietly joining the mechanical
+# column. *A clean negative is only clean while something is checking it.*
+_unresolved = [cl for cl in mep._MEP_CLASSES
+               if not classification.discipline_name(classification.discipline_of_ifc_class(cl))]
+assert not _unresolved, (
+    f"{len(_unresolved)} MEP class(es) resolve to no discipline and would be counted as "
+    f"'{mep.UNKNOWN_DISCIPLINE}': {_unresolved}")
+assert len(mep._MEP_CLASSES) >= 25, f"the population shrank to {len(mep._MEP_CLASSES)} — vacuous above"
+# Every discipline the classifier DOES return for these classes must be one of the three a
+# contractor recognises: a fourth would mean the class map had drifted from the trade split.
+_discs = {classification.discipline_name(classification.discipline_of_ifc_class(cl))
+          for cl in mep._MEP_CLASSES}
+assert _discs == {"Mechanical", "Plumbing", "Electrical"}, sorted(_discs)
+
+# And the fallback's own value must not be a real discipline, which is the half an unreachable
+# branch can still get wrong: if it ever fires, naming a trade is the worst available answer.
+assert mep.UNKNOWN_DISCIPLINE not in _discs, mep.UNKNOWN_DISCIPLINE
+
+# The response carries what a screen needs to page the class table honestly and to say the
+# discipline columns are exhaustive.
+_idx = {f"g{i}": {"guid": f"g{i}", "ifc_class": cl}
+        for i, cl in enumerate(["IfcDuctSegment", "IfcDuctSegment", "IfcPipeSegment",
+                                "IfcLightFixture", "IfcWall"])}
+_x = mep.extract_from_model(_idx)
+assert _x["mep_elements"] == 4, _x["mep_elements"]          # the IfcWall is not MEP
+assert _x["class_count"] == 3, _x["class_count"]
+assert _x["unattributed"] == 0, _x["unattributed"]
+assert {d["discipline"]: d["count"] for d in _x["by_discipline"]} == {
+    "Mechanical": 2, "Plumbing": 1, "Electrical": 1}, _x["by_discipline"]
+assert sum(d["count"] for d in _x["by_discipline"]) == _x["mep_elements"], \
+    "the discipline split must account for every counted element"
+assert "derived from the IFC class" in _x["note"], _x["note"]
+# No model is not an empty model, and both shapes carry the same keys so a reader never has to
+# branch on which one arrived.
+_none = mep.extract_from_model(None)
+assert _none["model_scored"] is False and _none["class_count"] == 0, _none
+assert set(_none) <= set(_x), sorted(set(_none) - set(_x))
+
 print("MEP OK - sizing calcs (2000 cfm@1000fpm -> 20in round; 100 gpm@6fps -> 3in nominal; 120k BTU/h "
       "-> 10 tons; 35k sf@350 -> 100 tons; 4in steel pipe -> 14 ft hangers; duct -> 8 ft); equipment "
-      "schedule rolls up 3 CHW items @ 600 tons; sizing endpoint; report PDF served")
+      "schedule rolls up 3 CHW items @ 600 tons; sizing endpoint; report PDF served. "
+      "MEP-DISCIPLINE-DARK: all 25 _MEP_CLASSES resolve to one of Mechanical/Plumbing/Electrical, so "
+      "the discipline fallback is unreachable - PINNED here, because it used to name 'Mechanical' for "
+      "an unplaceable class and by_discipline is what a contractor buys by")

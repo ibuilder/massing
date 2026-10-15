@@ -7,11 +7,13 @@ import { bandRows, ceilingDiffers, complianceRows, inertTargetNote, inertTargetR
   limitingRows, matrixBasis, readability, TONE_CSS } from "./lodCoverage";
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote,
-  envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
+  envelopeHeadline, TONE_CSS as BASIS_TONE, type Tone } from "./statedBasis";
 import { checkFieldRows, checkHeadline, conventionNote, namingHeadline, unnamedNote, unnamedRows,
   unnamedPageNote, violationPageNote, violationRows } from "./namingRead";
 import { cascadeHeadline, coverageBasis, flowRows, missingLinkNotes, nodePageNote, rootNote,
   rowTone } from "./cascadeRead";
+import { classPageNote, classRows, disciplineRows, mepBasis, mepHeadline,
+  unattributedNote } from "./mepExtractRead";
 import { cutCoverageNote, detailNote, elementRows, flattenedNote, graphicsHeadline, graphicsNote,
   sampleGuids, styleRows } from "./vgRead";
 import { renderViewTemplates } from "./viewTemplates";
@@ -1046,10 +1048,33 @@ export async function renderModelAnalysis(ctx: PanelContext) {
 
     const mep = section("🌀 MEP off the model");
     void ctx.host.api.mepModelExtract(pid).then((a) => {
+        // MEP-DISCIPLINE-DARK. This card counted MEP in IFC classes — a modeller's vocabulary — and
+        // `by_discipline`, the division a contractor buys by, was undeclared on the client type. The
+        // class table was also sliced at 15 of up to 25 with no note.
+        // `apps/web/src/portal/panels/mepExtractRead.ts` holds the readings.
         mep.textContent = "";
-        if (!a.model_scored) { mep.textContent = "load a model to count MEP elements"; return; }
-        const m = el("div", "meta"); m.textContent = `${a.mep_elements} MEP elements`;
-        mep.append(m, table(["IFC class", "Type", "Count"], a.by_class.slice(0, 15).map((x) => [x.ifc_class, x.label, x.count])));
+        const mNote = (text: string, tone: Tone = "") => {
+            const n = el("div", "meta"); n.textContent = text;
+            if (tone) n.style.color = BASIS_TONE[tone];
+            n.style.marginTop = "4px";
+            mep.appendChild(n);
+        };
+        const head = mepHeadline(a);
+        mNote(head.text, head.tone);
+        if (!a.model_scored) return;
+        const un = unattributedNote(a);
+        if (un) mNote(un, "warn");
+        if (a.by_discipline.length) {
+            mep.appendChild(table(["Discipline", "Elements", "Share"],
+                disciplineRows(a).map((d) => [d.discipline, d.count, d.share])));
+        }
+        if (a.by_class.length) {
+            mep.appendChild(table(["IFC class", "Type", "Count"],
+                classRows(a).map((x) => [x.ifcClass, x.label, x.count])));
+            const pg = classPageNote(a);
+            if (pg) mNote(pg, "warn");
+        }
+        mNote(mepBasis(a));
     }).catch(fail(mep));
 
     const nm = section("🔤 Naming compliance");
