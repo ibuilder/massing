@@ -54,6 +54,86 @@ def _finish(rows: dict, label: str) -> list[dict]:
     return sorted(out, key=lambda r: -r["expected"])
 
 
+#: CAPTURE-SESSION. The source a derived capture is built from. A string rather than a bool, because
+#: there will be a second one (a scan import, a true point-in-time capture) and `derived_from: true`
+#: would not say which.
+DERIVED_FIELD_VERIFICATION = "field_verification"
+
+_DERIVED_NOTE = (
+    "A DERIVED capture, not a stored one: the installed set is every element the Field Verification "
+    "register observed on or before that date. Two consequences. It is CUMULATIVE, so it can only "
+    "grow — which means `removed` is structurally empty and this diff cannot raise a rework flag; an "
+    "element that was observed once and never re-observed is still counted as installed. And it is "
+    "only as complete as the register: elements nobody verified are absent from both sides, so the "
+    "delta is over what the crew recorded, not over the building."
+)
+
+
+def installed_as_of(records: list[dict], as_of: str | None) -> dict[str, Any]:
+    """The GUIDs the Field Verification register observed on or before `as_of`.
+
+    **CAPTURE-SESSION — a capture at a moment, derived from a register that already exists.** The
+    roadmap entry recorded that nothing in this product persists a capture and that a caller would
+    have to invent the concept. That is true of a stored capture ROW and not of the SET: every
+    `field_verification` record carries a REQUIRED `guid` and an `observed_date`, so *"what was
+    observed installed as of 2026-09-30"* is a filter, not a new concept. *"There is no stored X"
+    and "X is not available" are different claims, and the entry read the first as the second.*
+
+    **CUMULATIVE on purpose, and this is the load-bearing decision.** `observed_date <= as_of`
+    rather than `== as_of`, because a point-in-time reading would report every element not
+    re-verified on the later date as *disappeared* — manufacturing rework flags out of a crew's
+    ordinary habit of not re-walking finished work. The cost is that the set can only grow, so
+    `capture_diff`'s `removed` half is structurally empty on a derived capture and says so.
+    *Choosing which half to make unreachable is better than leaving a half that lies.*
+
+    A record with no readable date is EXCLUDED and COUNTED, never silently dropped — the same rule
+    `capture_diff` had to learn for the GUIDs the model does not know. An undated verification is a
+    row somebody has to go and date, which only shows up if the number is reported.
+    """
+    from datetime import date
+
+    def _d(v: Any) -> date | None:
+        s = str(v or "").strip()[:10]
+        if not s:
+            return None
+        try:
+            return date.fromisoformat(s)
+        except ValueError:
+            return None
+
+    cutoff = _d(as_of)
+    guids: set[str] = set()
+    undated = 0
+    dates: list[date] = []
+    for r in records or []:
+        data = r.get("data") if isinstance(r.get("data"), dict) else r
+        g = str(data.get("guid") or "").strip()
+        if not g:
+            continue
+        d = _d(data.get("observed_date"))
+        if d is None:
+            undated += 1
+            continue
+        dates.append(d)
+        if cutoff is None or d <= cutoff:
+            guids.add(g)
+    return {
+        "guids": sorted(guids),
+        "count": len(guids),
+        "as_of": as_of,
+        # Rows the register holds that this set could not use. A verification with no observed date
+        # is invisible to every capture, at every date, for ever.
+        "undated": undated,
+        # The dated range the register actually covers, so a caller can tell a date INSIDE its data
+        # from one before it begins — an `as_of` before the first observation returns an empty set,
+        # which is a correct answer and an alarming-looking one.
+        "earliest": min(dates).isoformat() if dates else None,
+        "latest": max(dates).isoformat() if dates else None,
+        "source": DERIVED_FIELD_VERIFICATION,
+        "note": _DERIVED_NOTE,
+    }
+
+
 def capture_diff(elements: list[dict], installed_t1: list | set, installed_t2: list | set,
                  t1: str | None = None, t2: str | None = None) -> dict[str, Any]:
     """SCAN-4D — the deterministic diff between two capture timestamps: what got installed between t1 and

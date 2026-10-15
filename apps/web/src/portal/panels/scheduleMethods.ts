@@ -26,6 +26,10 @@ import { type Tone, TONE_CSS, capRows, capVerdict, coverageNote as levelCoverage
 import { bufferDroppedNotes, bufferNote, bufferRequestNote, bufferUnmetNote, bufferUnmetRows,
   clearanceVerdict, flowIssueRows, flowUnavailableExtras, handoverRows, overlapNote,
          populationNote } from "./flowlineRead";
+import {
+  addedByClassRows, addedByLevelRows, captureHeadline, captureTone, dateRangeNote, derivationNote,
+  progressNote, reworkAnswerable, reworkRows, undatedNote, unmatchedNote,
+} from "./captureDiffRead";
 import { cycleRows, dataDateNote, HEALTH_CSS, issuePageNote, issueRows, scopeLine }
   from "./scheduleHealthRead";
 import type { PanelContext } from "../panelContext";
@@ -240,6 +244,80 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     }
   }));
   fc.appendChild(fOut); wrap.appendChild(fc);
+
+  // ── Capture diff ─────────────────────────────────────────────────────────────────────────────
+  //
+  // CAPTURE-SESSION. The route had no caller because the roadmap recorded that nothing in this
+  // product persists a capture — true of a stored capture ROW, and not of the SET: every
+  // `field_verification` record carries a required `guid` and an `observed_date`, so "what was
+  // observed installed as of D" is a filter. *"There is no stored X" and "X is not available" are
+  // different claims.* Two date pickers, therefore, rather than two capture pickers.
+  const cd = card("Site capture diff — what went in between two dates",
+    "Derived from Field Verification: every element observed on or before each date. CUMULATIVE, so "
+    + "it cannot raise a rework flag — an element observed once and never re-observed still counts.");
+  const cdOut = document.createElement("div");
+  const cdBar = document.createElement("div");
+  cdBar.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px";
+  const mkDate = (title: string) => {
+    const i = document.createElement("input");
+    i.type = "date"; i.title = title; i.style.width = "148px";
+    return i;
+  };
+  const cdT1 = mkDate("The earlier capture date — elements observed on or before it");
+  const cdT2 = mkDate("The later capture date");
+  const cdLbl = document.createElement("span");
+  cdLbl.className = "meta"; cdLbl.textContent = "→";
+  cdBar.append(cdT1, cdLbl, cdT2);
+  cd.appendChild(cdBar);
+  cd.appendChild(runner(cdOut, "▶ Diff captures", async () => {
+    if (!cdT1.value || !cdT2.value) {
+      cdOut.textContent = "Pick both dates — a diff needs two moments to be between.";
+      return;
+    }
+    const r = await api.progressCaptureDiff(pid, {
+      derive: "field_verification", t1: cdT1.value, t2: cdT2.value,
+    });
+    render(cdOut, { available: true }, [
+      { label: "newly installed", value: `${r.newly_installed}` },
+      { label: "window", value: r.days == null ? "—" : `${r.days}d` },
+      { label: "rate", value: r.elements_per_day == null ? "—" : `${r.elements_per_day}/day`,
+        hint: "elements per day across the window" },
+      { label: "% complete", value: `${(r.pct_complete_t2 * 100).toFixed(1)}%`,
+        hint: "over the whole design element set" },
+    ]);
+    const cline = (text: string, tone: Tone = "") => {
+      const d = document.createElement("div");
+      d.className = "meta";
+      d.style.cssText = "margin-top:4px;line-height:1.45";
+      if (tone) d.style.color = TONE_CSS[tone];
+      d.textContent = text;                 // every line here is composed from server numbers
+      cdOut.appendChild(d);
+    };
+    const head = document.createElement("div");
+    head.style.cssText = `font-weight:600;margin-top:6px;color:${TONE_CSS[captureTone(r)]}`;
+    head.textContent = captureHeadline(r);
+    cdOut.appendChild(head);
+    cline(progressNote(r));
+    const dv = derivationNote(r);
+    if (dv) cline(dv);
+    const dr = dateRangeNote(r);
+    if (dr) cline(dr, "warn");
+    const un = undatedNote(r);
+    if (un) cline(un, "warn");
+    const um = unmatchedNote(r);
+    if (um) cline(um, "warn");
+    for (const row of addedByClassRows(r)) cline(`${row.k} — ${row.v}`);
+    for (const row of addedByLevelRows(r)) cline(`${row.k} — ${row.v}`);
+    // The rework half is drawn only when the SOURCE can answer it. An empty table here would read
+    // as "no rework found", which is the opposite of "this source cannot tell you".
+    if (reworkAnswerable(r)) {
+      cline(r.disappeared
+        ? `${r.disappeared} element(s) present at the first capture and absent at the second:`
+        : "Nothing disappeared between the two captures.");
+      for (const row of reworkRows(r)) cline(`${row.k} — ${row.v}`, "crit");
+    }
+  }));
+  cd.appendChild(cdOut); wrap.appendChild(cd);
 
   // ── Takt ─────────────────────────────────────────────────────────────────────────────────────
   const tc = card("Takt train — a fixed rhythm",

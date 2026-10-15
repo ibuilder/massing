@@ -774,31 +774,29 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
    * version. Declaring them is free and makes them visible to every audit built on these
    * declarations; **not declaring them would have left the correction invisible on this side too.**
    *
-   * **Why there is still no caller, measured rather than assumed.** The route needs two
-   * timestamped sets of installed GUIDs, and nothing in this product persists a capture: grepping
-   * the API for `installed_t1`, a capture-session model or a `progress_capture` register returns
-   * only this route and the engine behind it. So a screen would have to invent the concept — a
-   * stored capture with a date and a GUID set — which is a product decision and a migration, not a
-   * wiring job. Filed as **CAPTURE-SESSION** rather than built, and the freeze in
-   * `apps/web/src/api/clientCallers.test.ts` now records that reason instead of only the date.
+   * **It had no caller for a reason that was half right, and CAPTURE-SESSION closed it.** The note
+   * here recorded that the route needs two timestamped sets of installed GUIDs and that nothing in
+   * this product persists a capture, so a screen would have to invent the concept. The first half
+   * is true of a stored capture ROW. It is not true of the SET: every `field_verification` record
+   * carries a REQUIRED `guid` and an `observed_date`, so *"what was observed installed as of
+   * 2026-09-30"* is a filter. *"There is no stored X" and "X is not available" are different
+   * claims, and this note read the first as the second.*
+   *
+   * Pass `derive: "field_verification"` with two dates and the server fills both sets. **Read
+   * `derived`**: a derived capture is CUMULATIVE, so `disappeared` is structurally empty and this
+   * call cannot raise a rework flag — and `derived.undated` counts the verifications no date could
+   * place, which are invisible to every capture at every date.
    */
   progressCaptureDiff(pid: string, body: {
-    installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
+    installed_t1?: string[]; installed_t2?: string[]; t1?: string; t2?: string;
     elements?: Record<string, unknown>[];
+    /** CAPTURE-SESSION — derive both sets from a register instead of sending them. Opt-in, never a
+     *  fallback: an empty `installed_t1` means the caller sent nothing, and answering a different
+     *  question than the one asked is how a screen shows a diff over a set nobody chose. */
+    derive?: "field_verification";
   }) {
-    return this.json<{
-      t1: string | null; t2: string | null; days: number | null;
-      installed_t1: number; installed_t2: number; newly_installed: number; disappeared: number;
-      added_guids: string[]; disappeared_guids: string[];
-      added_by_class: { ifc_class: string; count: number }[];
-      added_by_level: { storey: string; count: number }[];
-      pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
-      elements_per_day: number | null; note: string;
-      /** Capture GUIDs the model does not know — a capture aimed at the wrong model version. */
-      unmatched_t1: number; unmatched_t2: number;
-      /** A SAMPLE, capped at 200 server-side. `unmatched_t1 + unmatched_t2` are the totals. */
-      unmatched_guids: string[];
-    }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
+    return this.json<CaptureDiff>(
+      `/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
   }
 
   /** safetySummary — OSHA TRIR/DART/LTIFR, observation mix, toolbox coverage, violations. */
@@ -1024,6 +1022,54 @@ export interface FlowlineInterference {
    *  Per the engine: *"a slip in the predecessor is felt immediately at the far end, and it is
    *  invisible on a bar chart."* The one figure here that varies from this route. */
   converging: boolean;
+}
+
+/** CAPTURE-SESSION — where a DERIVED capture's two sets came from, or null when the caller sent them.
+ *
+ *  `cumulative: true` is a structural fact about the derivation, not a property of this project's
+ *  data: *"observed on or before D"* can only grow, so `disappeared` is empty by construction. A
+ *  consumer should suppress the rework half rather than render an empty table, which reads as "no
+ *  rework found" — the opposite of "this source cannot tell you". */
+export interface CaptureDerivation {
+  source: "field_verification";
+  note: string;
+  t1: { as_of?: string | null; count: number };
+  t2: { as_of?: string | null; count: number };
+  /** Verifications with no readable `observed_date`. Excluded from every capture at every date, so
+   *  reporting the count is the only thing that makes them findable. */
+  undated: number;
+  /** The dated range the register actually covers — an `as_of` before `register_earliest` returns
+   *  an empty set, which is a correct answer and an alarming-looking one. */
+  register_earliest: string | null;
+  register_latest: string | null;
+  cumulative: boolean;
+}
+
+/** SCAN-4D — what got installed between two captures, per class and per level. */
+export interface CaptureDiff {
+  t1: string | null;
+  t2: string | null;
+  days: number | null;
+  installed_t1: number;
+  installed_t2: number;
+  newly_installed: number;
+  disappeared: number;
+  added_guids: string[];
+  disappeared_guids: string[];
+  added_by_class: { ifc_class: string; count: number }[];
+  added_by_level: { storey: string; count: number }[];
+  pct_complete_t1: number;
+  pct_complete_t2: number;
+  pct_delta: number;
+  elements_per_day: number | null;
+  note: string;
+  /** Capture GUIDs the model does not know — a capture aimed at the wrong model version. */
+  unmatched_t1: number;
+  unmatched_t2: number;
+  /** A SAMPLE, capped at 200 server-side. `unmatched_t1 + unmatched_t2` are the totals. */
+  unmatched_guids: string[];
+  /** Null when the caller supplied both sets itself. */
+  derived: CaptureDerivation | null;
 }
 
 /** FLOW-BUFFER — the clearance a planner WANTS between handovers.

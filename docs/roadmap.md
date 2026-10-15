@@ -3655,8 +3655,13 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   rather than a read-only card, and that is ESTIMATE-DARK below rather than work smuggled into this
   item. The `dark` floor is therefore a ratchet at **1**; lower it to 0 when that lands.
 
-- 🟡 **CAPTURE-SESSION — SCAN-4D's capture diff needs a concept this product does not have** *(M —
-  Lane H; FILED 2026-10-14, blocker measured)*
+- ✅ ⭐ **CAPTURE-SESSION — SCAN-4D's capture diff needs a concept this product does not have** *(M
+  filed, **S built** — Lane C `services/api/src/aec_api/progress_rollup.py`, Lane G
+  `services/api/src/aec_api/routers/standards.py`, Lane I `apps/web/src/api/schedule.ts`, Lane B
+  `apps/web/src/portal/panels/captureDiffRead.ts` + `apps/web/src/portal/panels/scheduleMethods.ts`;
+  FILED 2026-10-14 with the blocker measured, **CLOSED 2026-10-15 because the measurement was half
+  wrong**; gated by `services/api/test_capture_derived.py` and
+  `apps/web/src/portal/panels/captureDiffRead.test.ts`)*
 
   `POST /projects/{pid}/progress/capture-diff` answers a question a superintendent asks weekly:
   between two site captures, what was newly installed per class and per level, what **disappeared**
@@ -3685,6 +3690,70 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   makes the diff a two-picker card, or a decision that the CV bridge's `/cv-progress/ingest-batch`
   writes become the capture record, which gets the timestamps for free and bounds the scope to
   projects using that bridge.
+
+  ### WHAT CLOSED IT: the blocker was measured, written down, and still half wrong
+
+  **"There is no stored X" and "X is not available" are different claims, and the entry above reads
+  the first as the second.** It is true that no capture ROW exists. It is not true of the SET:
+  `field_verification` carries `guid` as a **REQUIRED** field alongside `observed_date`, so *"what
+  was observed installed as of 2026-09-30"* is a filter over a register this product has had all
+  along. The entry even names that register — *"Field Verification records carry per-element
+  verification … but neither is a capture at a moment"* — and the missing step is that a cumulative
+  filter over dated per-element rows **is** a capture at a moment. *A blocker that lists the right
+  evidence and draws the wrong conclusion is the most expensive kind, because the next reader sees
+  the evidence was checked and stops.*
+
+  `progress_rollup.installed_as_of` is the filter; `{"derive": "field_verification", "t1": …,
+  "t2": …}` on the existing route fills both sets; the Schedule panel has **two date pickers**
+  rather than the two capture pickers the entry predicted.
+
+  **And the OTHER option it named could not have worked.** *"Let the CV bridge's
+  `/cv-progress/ingest-batch` writes become the capture record, which gets the timestamps for
+  free"* — that bridge's payload is `{activity, percent}`. It carries **no element identity at
+  all**, so it can never produce an installed GUID set. *An unblocking option nobody costed is a
+  plan with a hole in it*, and it sat in the entry looking like the cheaper of two routes.
+
+  ### The derivation is CUMULATIVE, and that choice makes one half unanswerable
+
+  `observed_date <= as_of`, not `== as_of`. The point-in-time reading is the obvious one and it is
+  wrong: it would report every element not re-verified on the later date as **disappeared**,
+  manufacturing rework flags out of a crew's ordinary habit of not re-walking finished work. So the
+  set can only grow — asserted as monotonic, `[1, 3, 5, 6]` across four cutoffs — `disappeared` is
+  empty **by construction**, and `derived.cumulative` says so.
+
+  *Choosing which half to make unreachable is better than leaving a half that lies.* The consumer's
+  obligation follows: `reworkAnswerable()` decides whether the rework section is DRAWN at all,
+  because an empty rework table reads as *"no rework found"*, which is the opposite of *"this source
+  cannot tell you"*. A true point-in-time capture import would set `cumulative: false` and the half
+  comes back — the flag is read, not inferred from the presence of a derivation.
+
+  ### Three coverage facts in one response, two denominators
+
+  Measured through the route over 6 design elements and 8 verifications:
+
+  | | value | what it is over |
+  |---|---|---|
+  | `installed_t1` / `installed_t2` | 3 / 5 | elements the MODEL knows, of those the register dated |
+  | `pct_complete_t2` | 0.833 | 5 of the 6 **design** elements |
+  | `unmatched_t2` | 1 | a verification whose GlobalId this model has never had |
+  | `derived.undated` | 1 | a verification no date could place — outside every capture, at every date |
+
+  So a crew that verified forty elements of five thousand produces a true 0.8%, and a reader who
+  takes it for progress is reading the register's coverage as the building's. `progressNote` names
+  both denominators; `dateRangeNote` separates *an empty side for want of records* from *for want of
+  progress*, which a bare `0 installed` cannot.
+
+  ### And the register refuses a guid that is not a GlobalId, which is what makes this sound
+
+  Found by the test: `POST …/modules/field_verification` with `{"guid": "W1"}` is a **422** —
+  *"'W1' is not an IFC GlobalId (22 chars over [0-9A-Za-z_$])"*. The top-level non-negotiable
+  enforced at the door. It is the reason the derivation can be trusted at all: the register cannot
+  hold a key the model could not match, so the only unmatched GUIDs are ones whose element left the
+  model — exactly the case PROGRESS-DARK's `unmatched_*` counts exist to surface, now reachable
+  through a door that has a caller.
+
+  *(`progressRollup` stays frozen in `apps/web/src/api/clientCallers.test.ts`: it takes an installed
+  set and no date, so it is this derivation minus the half that makes it a capture.)*
 
 - ✅ ⭐ **ESTIMATE-DARK — the rules-based cost estimate, and the verdict nobody reads** *(M —
   **Lane B** for the card, Lane C for the store, Lane G for the routes, Lane I for the client; found
@@ -10778,7 +10847,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE *(**CLASH-TRUNC closed here 2026-09-24** — the fix is one caller in this lane, but it needed a field added in Lane I's `apps/web/src/api/clash.ts` and a tally in Lane C's `services/api/src/aec_api/soft_clash.py` returned from Lane G's `services/api/src/aec_api/jobs.py`. Filed here because the DEFECT and its repair are the caller: the three other files gained a value, this one stopped drawing the wrong conclusion from one. *A lane goes by where the wrong answer is produced, not by how many files the evidence had to cross to reach it.*)* *(**SITE-1 left this cell 2026-09-24** — and the cell's own pointer was the clue nobody read: it named `apps/web/src/viewer/gis.ts`, which is where the DRAWING would go, while the gap was that `apps/web/src/proforma/massingTab.ts` never saved the ring. *A lane pointer records where an item was expected to land, which is not evidence about where its blocker is.*)* *(**PIN-OPEN-ROW left this cell 2026-09-24** — closed, and the cross-lane note it carried was the interesting part: the click handler is here, the screen it reaches is Lane B's, and the opener that joins them turned out to be in neither, sitting in `apps/web/src/main.ts` since the command palette shipped. *A cell that names two lanes for one item has already decided the work spans them, which is how nobody looked in the third place.*)* *(**UX-3 left this cell 2026-09-06: all five of its items now ship** — see its entry. The cell had pointed at `apps/web/src/viewer/tools/authoringSection.ts`, which is a real file and the WRONG one: every one of the five landed under `apps/web/src/viewer/draft/`. Lanes are assigned by directory, so a pointer that resolves is not the same as a pointer that is right — a tracked-path gate cannot catch this, and did not)* *(**ESTIMATE-DARK left this cell 2026-10-14, closed, and its pointer was wrong in the usual way.** The cell said *"here because the deliverable is the card"* and this lane owns the viewer — the card landed in `portal/panels/`, beside the two sibling estimates it exists to be compared with and in the lazy chunk, which the shell's 1.9 KB of headroom also required. *Lanes go by the directory the work touches*, for the fourth time in this table. The M was right and the reason was right: the blocker was a store, not a screen.)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | *(empty again — RMW-LOCKGAP closed 2026-09-14, RMW-TOKEN 2026-09-23; RFQ-IDEMPOTENT shipped 2026-09-13.)* **Both concurrency items needed a column in `models.py`, which is Lane C's, and neither turned out to need one** — they closed with a lock this lane's own files already imported. *A lane assignment that reserves a crossing for work the entry has not yet costed is a prediction, and this cell carried two of them.* It also once carried RFQ-IDEMPOTENT because the fix looked like it sat entirely inside a router's transaction boundary. **It did not**: the duplicate was a router ordering bug, but the race under it was in `modules.transition`, which is Lane C. *A lane assignment made from where a defect SHOWS is wrong whenever the cause is one layer down.* **The sentence below was true until 2026-09-11 and is kept because it still explains the lane's shape**: every lane normally routes its own work, which is why this is a lane rather than a shared file. |
-| **H · Registers** | `services/api/modules/*/module.json` | CAPTURE-SESSION *(filed 2026-10-14. The deliverable when unblocked is a two-picker card, which is Lane B's, and the BLOCKER is a register this product does not have: a capture record carrying a date, a GUID set and a source. Filed here rather than with the card, because `progress/capture-diff` already exists in Lane G and its client method already exists in Lane I — the only missing piece is the register definition, and this cell owns those. *A lane goes by where the missing thing is, not by where the screen would go* — the correction Lane E's cell had to make twice, once for SITE-1 and once for UX-3.)* |
+| **H · Registers** | `services/api/modules/*/module.json` | CAPTURE-SESSION *(**CLOSED 2026-10-15, and this cell was wrong about the one thing it was for.** It said the blocker is "a register this product does not have: a capture record carrying a date, a GUID set and a source" — and `field_verification` already carries a REQUIRED `guid` and an `observed_date`, so a capture at a moment is a cumulative FILTER over rows this product has had all along. No register was added and this lane contributed nothing: the work landed in Lanes C, G, I and B. *A lane assignment made from a blocker is only as good as the blocker, and this one named the right register two sentences before concluding it was not there.* Gated by `services/api/test_capture_derived.py`)* |
 | **I · API client** | `apps/web/src/api/` | SCHEMA-UNGENERATED *(**CLOSED 2026-09-25** — `schema.d.ts` declared 500 of the 947 paths the server serves and had done since the day it was generated, because `gen:api-types` read a gitignored `openapi.json`, so "regenerate" did not mean "read the server". The generator now dumps from the app into a temp file it deletes, and `services/api/test_schema_types_agree.py` asserts every live (path, method) is declared. **Filed as SCHEMA-STALE, and that name was the first thing wrong with it** — stale implies it was once right, and it sent the reader at the one action that could not fix it)* · RESPONSE-UNDECLARED *(**CLOSED 2026-09-11** — all 15 gaps declared and rendered, `KNOWN_GAPS` is empty and asserted empty. The finding came from `services/api/src/aec_api/routers/`, which is Lane G's, but the WORK is declaring the field on the client interface so something can read it — lanes go by the directory the work touches, the correction Lane E's cell already had to make. Rendering the newly-declared field afterwards is Lane B's)* · SCALE-SEAM *(the only open slice; ②–⓾ plus (81)–(91) have shipped. **Deliberately carries NO mark**: ⓾ is the last glyph in `MARKS` and the double-circled range it closes has no successor, so the next slice cannot be numbered at all — writing a mark the parser does not know would drop the item out of this table's own population.)* *(this cell said (81)–(87) until 2026-09-04, four slices after (88) landed — the same drift its own history below records, in the same cell, for the third time. It named ⓽ until 2026-09-03; ②–⓼ had shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* · DEADFIELD-INLINE *(**CLOSED** 2026-10-14 — the dead-field gate's population was a third of the client's response surface: 562 of 706 `this.json<T>` call sites declare their response inline, outside a walk that read exported interface declarations only, so 5,999 of 8,649 declared field keys were invisible to every audit built on those declarations. The walk now takes all three declaration forms, the partition assertions are scoped to NAMED keys so their meaning does not shift, and the inline bucket has its own one-way ceiling. Lane I and not B: the work is in `apps/web/src/api/deadFieldTyped.test.ts`, and the panels that benefit are only where the symptoms show — lanes go by the directory the change lands in, the same correction the Lane C cell above had to make)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)*  · DESKTOP-CONVERT-TIMEOUT *(**CLOSED 2026-09-24** — a COOPERATIVE deadline bounds the Python path at its phase boundaries and inside both loops, and the conversion now runs in a CHILD PROCESS the parent kills, which covers the two costs no checkpoint follows: `ifcopenshell.open`, and a single `create_shape` that never returns. **This row twice recorded a wrong REASON for the item being blocked** — first "process/packaging shape", which cost 13 days, then `multiprocessing`-under-PyInstaller, which cost another fortnight. Neither was true of process isolation as such: `services/api/desktop_entry.py` is the `Analysis` script for both specs, so an argv sentinel re-entering `sys.executable` serves frozen and unfrozen alike. *A blocker recorded as a property of the platform turned out to be a property of one approach to it.* Gated by `services/api/test_fragconvert_timeout.py` and `services/api/test_fragconvert_kill.py`)* · VERDICT-NAMEREAD *(exposure, no live instance: `test_verdict_coverage.py`'s consumer read is matched by NAME anywhere in the file, so another response's field of the same name satisfies it. Measured at 11 consumer/verdict pairs — 8 holder-scoped, 3 taking the response as a parameter — which is why the holder-scoped rule is not built yet: it would red three correct files. Here rather than Lane C because the subject is the GATE, not the engine it rules on.)* |
 

@@ -377,7 +377,17 @@ def progress_capture_diff(pid: str, payload: dict = Body(...), db: Session = Dep
                           _: str = Depends(require_role("viewer"))):
     """SCAN-4D — the diff between two capture timestamps: newly installed per class/level, elements that
     *disappeared* (re-scan/rework flag), the progress delta and a daily rate. Body: `{installed_t1,
-    installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted."""
+    installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted.
+
+    CAPTURE-SESSION: `{"derive": "field_verification", "t1": …, "t2": …}` fills both installed sets
+    from the Field Verification register instead — every element observed on or before each date.
+    **A capture derived this way is CUMULATIVE**, so `removed` is structurally empty and this call
+    cannot raise a rework flag; `derived.note` says so and `derived.undated` counts the verifications
+    no date could place. Opt-in rather than a fallback: an empty `installed_t1` means *the caller
+    sent nothing*, and silently answering a different question than the one asked is how a screen
+    comes to show a diff over a set nobody chose.
+    """
+    from .. import modules as me
     from .. import progress_rollup as pr
     _project(db, pid)
     elements = payload.get("elements")
@@ -385,8 +395,29 @@ def progress_capture_diff(pid: str, payload: dict = Body(...), db: Session = Dep
         idx = _idx_for(pid) or {}
         elements = [{"guid": g, "ifc_class": e.get("ifc_class"), "storey": e.get("storey")}
                     for g, e in idx.items()]
-    return pr.capture_diff(elements, payload.get("installed_t1") or [], payload.get("installed_t2") or [],
-                           payload.get("t1"), payload.get("t2"))
+    t1, t2 = payload.get("t1"), payload.get("t2")
+    set1, set2 = payload.get("installed_t1") or [], payload.get("installed_t2") or []
+    derived: dict | None = None
+    if str(payload.get("derive") or "") == pr.DERIVED_FIELD_VERIFICATION:
+        recs = me.list_records(db, "field_verification", pid, limit=200_000) \
+            if "field_verification" in me.TABLES else []
+        a, b = pr.installed_as_of(recs, t1), pr.installed_as_of(recs, t2)
+        set1, set2 = a["guids"], b["guids"]
+        # The provenance of both sides, in one object rather than two flat key families: a caller
+        # that reads `derived` at all has to read which date each count belongs to, and a pair of
+        # `derived_t1_count` / `derived_t2_count` invites reading one and not the other.
+        derived = {"source": a["source"], "note": a["note"],
+                   "t1": {"as_of": t1, "count": a["count"]},
+                   "t2": {"as_of": t2, "count": b["count"]},
+                   "undated": a["undated"],
+                   "register_earliest": a["earliest"], "register_latest": a["latest"],
+                   # Structurally, not incidentally: a cumulative set cannot shrink. Published so a
+                   # consumer can suppress the rework half rather than render an empty table that
+                   # reads as "no rework found".
+                   "cumulative": True}
+    out = pr.capture_diff(elements, set1, set2, t1, t2)
+    out["derived"] = derived
+    return out
 
 
 @router.get("/projects/{pid}/rules")

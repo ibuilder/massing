@@ -385,15 +385,27 @@ const UNCALLED: readonly string[] = [
   // to "all permits" regardless of sample size and names the one it settled on in `basis`.
   "pdfInfo", "preconSnapshot",
   "proformaRenovation", "proformaRollover",
-  // `progressCaptureDiff` + `progressRollup` stay frozen 2026-10-14 WITH THE BLOCKER MEASURED,
-  // because a freeze that records only a date reads as "this is fine" after long enough. SCAN-4D's
-  // capture diff needs two TIMESTAMPED sets of installed GUIDs, and nothing in this product
-  // persists a capture: grepping the API for `installed_t1`, a capture-session model or a
-  // `progress_capture` register returns only the route and its engine. A screen would have to
-  // invent the concept — a stored capture with a date and a GUID set — which is a product decision
-  // and a migration, not a wiring job. Filed as CAPTURE-SESSION. *A route whose caller needs a
-  // concept the product does not have is not the same kind of dark as one nobody got round to.*
-  "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
+  // `progressCaptureDiff` LEFT this list 2026-10-15 — CAPTURE-SESSION, and the freeze's own
+  // measured blocker is what made it findable. It read: "nothing in this product persists a
+  // capture… a screen would have to invent the concept — a stored capture with a date and a GUID
+  // set — which is a product decision and a migration, not a wiring job."
+  //
+  // **Half of that was right, and the half that was wrong is the whole finding.** It is true of a
+  // stored capture ROW. It is not true of the SET: every `field_verification` record carries a
+  // REQUIRED `guid` and an `observed_date`, so "what was observed installed as of 2026-09-30" is a
+  // filter over a register this product has had all along. *"There is no stored X" and "X is not
+  // available" are different claims, and a measured blocker can state the first while reading as
+  // the second.* `scheduleMethods.ts` has two date pickers now.
+  //
+  // The other named option could NOT have worked, which is worth recording beside it: the entry
+  // offered "let the CV bridge's ingest-batch writes become the capture record", and that bridge's
+  // payload is `{activity, percent}` — it carries no element identity at all. *An unblocking option
+  // nobody costed is a plan with a hole in it.*
+  //
+  // `progressRollup` stays frozen: it takes an installed set and no date, so it is the same
+  // derivation minus the half that makes it a capture, and its screen is the percent-complete
+  // rollup rather than a diff.
+  "progressRollup", "raisePlan", "recordDistribution",
   // `residualLand` left this list 2026-09-25 — `proforma/residualLandCard.ts` is the Feasibility
   // tab's inverse solve. The engine and the client method shipped with FIN-CALC; nothing called it.
   "reviewPost",
