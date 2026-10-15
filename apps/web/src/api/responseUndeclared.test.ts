@@ -721,7 +721,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // QUOTIENT while leaving both operands undeclared — the BASIS-UNREAD shape. `draft_count =
   // report_count - submitted_count`, so a field log 90% covered by unsubmitted drafts reads
   // identically to one that is signed.
-  "GET /projects/{}/daily-reports/summary": ["draft_count", "first_date", "last_date", "logged_days", "span_days"],
+  // **CLOSED 2026-10-15 under FIELDLOG-WINDOW, and the five keys ARE the denominator.**
+  // `dailylog.summary` computes `span_days = (max(dates) - min(dates)).days + 1` from the LOGGED
+  // report dates, so `coverage_pct = 100 * logged_days / span_days` measures the window the reports
+  // themselves define — never the job. Measured on the engine: one report → 100.0%; three
+  // contiguous days on a 200-day build → 100.0%; twenty of thirty-one with gaps → 64.5%. *A
+  // superintendent who logged three days and stopped got a clean 100%.* And drafts count toward
+  // everything, so three unsigned reports reported the same 100.0% with `submitted_count: 0` —
+  // `submitted_count` was declared and never rendered. On a document that becomes evidence in a
+  // delay claim those two states had the same text. The percentage is not redefined (measuring
+  // against the schedule's span is a different question and a product decision); the window and the
+  // draft split now travel with it, and `coverage_note` carries the engine's own sentence.
   // `drawingset.register` — `current_set` (the latest revision per sheet) and `superseded` (every
   // earlier one, each tagged `superseded_by`). Both COUNTS are declared and neither row list is,
   // so the register can say how many sheets were superseded and never which. This is the route

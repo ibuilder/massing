@@ -125,7 +125,45 @@ with TestClient(app) as c:
     assert fl["peak_manpower"]["count"] == 20 and fl["peak_manpower"]["date"] == "2026-06-02", fl
     assert fl["weather_lost_days"] == 1.5, fl                   # 0 + 0.5 + 1.0
     assert fl["delay_days"] == 1, fl
+    # FIELDLOG-WINDOW. This 100.0% is a TAUTOLOGY and the assertion used to read as if it were an
+    # achievement: `span_days` is the span of the LOGGED dates, so an unbroken run is 100% whatever
+    # the job's length. The note now says so, and the window travels with the figure.
     assert fl["span_days"] == 3 and fl["logged_days"] == 3 and fl["coverage_pct"] == 100.0, fl
+    assert "BETWEEN THE FIRST AND LAST REPORT" in fl["coverage_note"], fl["coverage_note"]
+    assert "not out of the job" in fl["coverage_note"], fl["coverage_note"]
+    # **AND THIS FIXTURE IS THE FLATTENED CASE, which is how the suite documented the defect as
+    # correct output.** `mk` leaves a daily report in the module's initial `draft` state and nothing
+    # transitions these three, so the route reports `coverage_pct: 100.0` with NOTHING submitted --
+    # and the assertion above asserted that 100% as an achievement for as long as it existed. *A
+    # test can pin a tautology and read like a measurement.*
+    assert fl["draft_count"] == 3 and fl["submitted_count"] == 0, fl
+
+    # The denominator is derived from the answer, demonstrated on the engine with the window held
+    # as the only variable. Driven through `summary` because the comparison needs three populations
+    # and a route test can only hold one project.
+    from aec_api import dailylog as _dl
+    def _rep(day, state="submitted"):
+        return {"ref": f"DR-{day}", "workflow_state": state,
+                "data": {"report_date": f"2026-03-{day:02d}", "manpower": 10}}
+    one = _dl.summary([_rep(10)])
+    run3 = _dl.summary([_rep(d) for d in (10, 11, 12)])
+    gappy = _dl.summary([_rep(d) for d in list(range(1, 11)) + list(range(22, 32))])
+    assert one["coverage_pct"] == 100.0 and one["span_days"] == 1, one
+    assert run3["coverage_pct"] == 100.0 and run3["span_days"] == 3, run3
+    assert gappy["coverage_pct"] == 64.5 and gappy["span_days"] == 31, gappy
+    # ...so 100% says NOTHING about length: one report and a three-day run agree, and a 200-day job
+    # logged for three days is indistinguishable from a three-day job logged in full.
+    assert one["coverage_pct"] == run3["coverage_pct"], (one, run3)
+
+    # AND DRAFTS COUNT TOWARD EVERYTHING. Three unsigned reports agree with three signed ones on
+    # every number the field-log card used to print; only `submitted_count`/`draft_count` differ,
+    # and neither was rendered.
+    drafts = _dl.summary([_rep(d, "draft") for d in (10, 11, 12)])
+    _printed = ("report_count", "coverage_pct", "total_manpower", "avg_manpower",
+                "weather_lost_days", "delay_days")
+    assert {k: drafts[k] for k in _printed} == {k: run3[k] for k in _printed}, (drafts, run3)
+    assert drafts["submitted_count"] == 0 and drafts["draft_count"] == 3, drafts
+    assert run3["submitted_count"] == 3 and run3["draft_count"] == 0, run3
 
     # --- Safety dashboard (OSHA rates) ----------------------------------------
     mk(c, pid, "incident", {"subject": "Cut hand", "date": "2026-06-02", "classification": "Recordable",

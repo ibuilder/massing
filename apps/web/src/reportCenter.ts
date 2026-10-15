@@ -41,6 +41,7 @@ import {
   veTargetFromAlignment,
 } from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
+import { coverageLine, draftLine } from "./fieldLogReadings";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
 import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
@@ -881,7 +882,13 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("☼ Field-log rollup", () => showResult("Field-log rollup", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.fieldLogSummary(pid); body.innerHTML = `<div class="meta">${s.report_count} daily reports · coverage ${s.coverage_pct ?? "—"}% · total manpower ${s.total_manpower} · avg ${s.avg_manpower ?? "—"}/day · peak ${s.peak_manpower.count} (${s.peak_manpower.date ?? "—"}) · weather lost-days ${s.weather_lost_days} · ${s.delay_days} delay days</div>`;
+    try { const s = await api.fieldLogSummary(pid);
+      // FIELDLOG-WINDOW. `coverage ${s.coverage_pct}%` was 100% for a single report and for any
+      // unbroken run, because the denominator is the span of the logged dates. `coverageLine` names
+      // the window; `draftLine` says when the figures count unsigned reports, which nothing did.
+      const draft = draftLine(s);
+      body.innerHTML = `<div class="meta">${s.report_count} daily reports · ${escapeHtml(coverageLine(s))} · total manpower ${s.total_manpower} · avg ${s.avg_manpower ?? "—"}/day · peak ${s.peak_manpower.count} (${s.peak_manpower.date ?? "—"}) · weather lost-days ${s.weather_lost_days} · ${s.delay_days} delay days</div>`
+        + (draft ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(draft)}</div>` : "");
       table(body, ["Date", "Weather", "Impact", "Manpower", "Delay"], s.rows.map((r: any) => [r.report_date ?? "", r.weather ?? "", r.weather_impact ?? "", r.manpower ?? "", r.has_delay ? "yes" : "—"])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));

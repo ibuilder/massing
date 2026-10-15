@@ -886,9 +886,16 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       source: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
   }
-  /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage. */
+  /** fieldLogSummary — manpower trend, weather-impact lost-days, reporting coverage.
+   *
+   *  FIELDLOG-WINDOW — `coverage_pct`'s denominator is `span_days`, the span of the LOGGED dates,
+   *  so it is coverage of the window the reports define and never of the job: one report is 100%,
+   *  and so is an unbroken run of any length. The window and the draft split are declared because
+   *  the percentage cannot be read without them. See `fieldLogReadings.ts`. */
   fieldLogSummary(pid: string) {
-    return this.json<{ report_count: number; submitted_count: number; coverage_pct: number | null;
+    return this.json<{ report_count: number; submitted_count: number; draft_count: number;
+      first_date: string | null; last_date: string | null;
+      span_days: number; logged_days: number; coverage_pct: number | null; coverage_note: string;
       total_manpower: number; avg_manpower: number | null;
       peak_manpower: { count: number; date: string | null }; weather_lost_days: number;
       delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;

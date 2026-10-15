@@ -6,6 +6,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### FIELDLOG-WINDOW — "coverage 100%" over three logged days of a 200-day job, every one a draft
+
+`dailylog.summary` computes `span_days = (max(dates) - min(dates)).days + 1` from the **logged**
+report dates, so `coverage_pct = 100 * logged_days / span_days` measures the window the reports
+themselves define. The denominator is derived from the answer. Measured on the engine:
+
+| fixture | span | logged | coverage |
+|---|---|---|---|
+| one report | 1 | 1 | **100.0%** |
+| three contiguous days (on a 200-day build) | 3 | 3 | **100.0%** |
+| 20 of 31 days, with gaps | 31 | 20 | 64.5% |
+
+A superintendent who logged three days and stopped got a clean 100%.
+
+**And drafts count toward everything.** Three unsigned reports report the same `coverage_pct: 100.0`
+with `submitted_count: 0` — identical on every number the card printed. `submitted_count` was
+declared and never rendered; `span_days`, `logged_days`, `draft_count`, `first_date` and `last_date`
+were undeclared (RESPKEY-HOP2 made them visible), so the screen could not have shown the window even
+if someone wanted it. On a document that becomes evidence in a delay claim, "100% coverage, nothing
+submitted" and "100% coverage, all submitted" must not be the same sentence.
+
+**The repo's own fixture was the flattened case.** `test_construction_depth.py` creates three daily
+reports with `mk`, which leaves them in the initial `draft` state, and asserted
+`coverage_pct == 100.0` as correct output — a test pinning a tautology and reading like a
+measurement.
+
+The percentage is **not** redefined: "how complete is the run I have" is a real question, and
+measuring against the schedule's span is a different one plus a product decision (the schedule may
+not exist or be unbaselined, and a field log legitimately starts after mobilisation). What changed is
+that the window travels with the figure — `coverage_note` carries the engine's sentence, and
+`fieldLogReadings.ts` renders `3 of 3 days — … is the whole window these reports span, so 100% here
+means unbroken, not complete` plus the draft split.
+
+
 ### RENTROLL-BASIS — 30% occupancy read as 100% when the building's area was unset
 
 `rentroll.summarize` computes `total_rentable = building_rentable_sf if building_rentable_sf else
