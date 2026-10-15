@@ -100,6 +100,20 @@ def join(geometry: dict | None, carbon: dict | None, economics: dict | None) -> 
             # prevent one level up.
             "carbon_basis": c.get("basis"),
             "economics_basis": e.get("basis"),
+            # OPTION-DISAGREE. The basis above was kept because dropping it "would turn a
+            # benchmarked carbon figure and a measured one into the same number" -- and the
+            # STRONGER version of the same concern was dropped anyway. `option_economics`'s own
+            # header calls a scheme whose typed IRR sits well above what its scenario solves to
+            # "the single most useful thing this module can surface"; it names them in
+            # `declared_disagrees_with_derived`, on a route with no caller in the whole web tree.
+            # Measured on a two-scheme project sharing one scenario: an option that typed nothing
+            # and an option that typed **45.0%** against a solved **32.16%** -- 1,284 basis points
+            # apart -- both arrived here as `returns: 32.16, economics_basis: derived`, *byte
+            # identical on the screen where a scheme is chosen.* A basis says how the number was
+            # got; it cannot say that somebody is quoting a different one.
+            "declared_returns": _num(e.get("declared_irr_pct")),
+            "returns_agree": e.get("agrees_with_declared"),
+            "returns_delta_pct": _num(e.get("declared_vs_derived_irr_pct")),
             "axis_status": {a: (STATUS_ABSENT if axes[a] is None else STATUS_PRESENT) for a in AXES},
             "missing_axes": missing,
             "comparable": not missing,
@@ -111,12 +125,28 @@ def join(geometry: dict | None, carbon: dict | None, economics: dict | None) -> 
         })
 
     comparable = [r for r in rows if r["comparable"]]
+    # Derived from `rows` rather than copied from the economics payload, so the list and the rows
+    # it describes cannot disagree -- a set-level count taken from a different source than the
+    # per-row flags is a second answer to one question.
+    disagree = [r for r in rows if r["returns_agree"] is False]
     return {
         "options": rows, "option_count": len(rows),
         "comparable_count": len(comparable),
         "incomparable": [{"id": r["id"], "name": r["name"], "missing_axes": r["missing_axes"]}
                          for r in rows if not r["comparable"]],
         "axes": list(AXES),
+        "declared_disagrees": [{"id": r["id"], "name": r["name"],
+                                "declared_returns": r["declared_returns"],
+                                "derived_returns": r["axes"]["returns"],
+                                "delta_pct": r["returns_delta_pct"]} for r in disagree],
+        "declared_disagrees_count": len(disagree),
+        "returns_basis_note":
+            "`returns` is the figure the economics engine stands behind: solved when the option "
+            "names a proforma scenario, otherwise the recorded one, labelled by "
+            "`economics_basis`. `declared_returns` is what was TYPED on the option, kept beside it "
+            "and never promoted or overwritten -- `returns_agree: false` means the scheme is being "
+            "quoted at a return its own deal does not solve to, which is the one thing that cannot "
+            "be read off a basis label.",
         "note": ("one record per option across geometry · unit mix · cost · carbon · returns. This "
                  "does NOT rank — `option_score` owns ranking and does it honestly (missing criteria "
                  "excluded from the pool, weights renormalised, partially-scored options ranked but "

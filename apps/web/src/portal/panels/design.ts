@@ -4,6 +4,8 @@ import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { promptModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 import { TONE_CSS, entitlementRows, headline, reconciles, refusedNote } from "./conditionsRead";
+import { disagreeBanner, disagreeRows, returnsBasisNote, returnsCell, returnsCellTitle }
+  from "./optionDisagreeRead";
 
 /**
  * Design & feasibility panels (land screening, project-lifecycle gates, diligence, ESG/POE).
@@ -602,12 +604,42 @@ export async function renderOptionRecord(ctx: PanelContext) {
     + `<th scope="col" style="text-align:left">Basis</th></tr></thead><tbody>`
     + r.options.map((o) => `<tr>`
       + `<td>${o.comparable ? "" : `<span title="${esc(o.note)}">⚠ </span>`}${esc(o.name)}</td>`
-      + r.axes.map((a) => `<td style="text-align:right">${fmt(a, o.axes[a])}</td>`).join("")
+      + r.axes.map((a) => (a === "returns"
+        ? `<td style="text-align:right${o.returns_agree === false ? ";color:var(--status-crit)" : ""}"`
+          + ` title="${esc(returnsCellTitle(o))}">${esc(returnsCell(o))}</td>`
+        : `<td style="text-align:right">${fmt(a, o.axes[a])}</td>`)).join("")
       + `<td class="meta">${esc([o.carbon_basis && `carbon: ${o.carbon_basis}`,
           o.economics_basis && `economics: ${o.economics_basis}`].filter(Boolean).join(" · "))}</td>`
       + `</tr>`).join("")
     + `</tbody>`;
   body.appendChild(t);
+
+  // OPTION-DISAGREE. Two schemes sharing one scenario, one typing nothing and one typing 45.0%
+  // against a solved 32.16%, both arrived here as `returns 32.16 · economics: derived` — identical,
+  // 1,284 bps apart. `option_economics` calls this finding "the single most useful thing this
+  // module can surface" and published it only on a route with no caller.
+  const dis = disagreeBanner(r);
+  if (dis) {
+    const warn = el("div", "dash-card"); warn.style.marginTop = "8px";
+    warn.innerHTML = `<b style="color:var(--status-crit)">⚠ ${esc(dis)}</b>`;
+    const dt = el("table", "portal-table") as HTMLTableElement;
+    dt.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+    dt.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th>`
+      + `<th scope="col">Typed</th><th scope="col">Solved</th><th scope="col">Δ</th>`
+      + `</tr></thead><tbody>`
+      + disagreeRows(r).map((x) => `<tr><td>${esc(x.name)}</td>`
+        + `<td style="text-align:right">${esc(x.typed)}</td>`
+        + `<td style="text-align:right">${esc(x.solved)}</td>`
+        + `<td style="text-align:right">${esc(x.delta)}</td></tr>`).join("")
+      + `</tbody>`;
+    warn.appendChild(dt);
+    body.appendChild(warn);
+  }
+  const rbn = returnsBasisNote(r);
+  if (rbn) {
+    const n = el("div", "meta"); n.style.marginTop = "6px"; n.textContent = rbn;
+    body.appendChild(n);
+  }
 
   if (r.incomparable.length) {
     const gap = el("div", "meta"); gap.style.marginTop = "8px";

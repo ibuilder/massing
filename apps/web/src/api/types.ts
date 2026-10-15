@@ -1000,6 +1000,22 @@ export interface OptionRecord {
   /** How each engine got its number: declared / benchmark / derived / unlinked / unavailable. */
   carbon_basis: string | null;
   economics_basis: string | null;
+  /**
+   * OPTION-DISAGREE — the IRR somebody TYPED on this option, kept beside `axes.returns`.
+   *
+   * `null` when nothing was typed, which is the ordinary case for a linked scheme. It is never
+   * promoted into `returns` and never overwritten by it: both exist so `returns_agree` can be
+   * false, which is the state a basis label cannot express.
+   */
+  declared_returns: number | null;
+  /**
+   * `false` when the typed figure and the solved one disagree by more than the engine's 0.5pt
+   * tolerance — the scheme is being quoted at a return its own deal does not solve to.
+   * `null` when there is nothing to compare (no typed figure, or nothing derived).
+   */
+  returns_agree: boolean | null;
+  /** Typed minus solved, in percentage points. Positive means the typed figure is the optimistic one. */
+  returns_delta_pct: number | null;
   missing_axes: OptionAxis[];
   comparable: boolean;
   note: string;
@@ -1012,6 +1028,24 @@ export interface OptionRecordSet {
   comparable_count: number;
   incomparable: { id: string; name: string; missing_axes: OptionAxis[] }[];
   axes: OptionAxis[];
+  /**
+   * OPTION-DISAGREE — schemes whose typed IRR their own proforma scenario does not solve to.
+   *
+   * `option_economics`'s header calls this *"the single most useful thing this module can
+   * surface"*, and it was surfaced only on `/design/options/economics`, which has no caller
+   * anywhere in this tree. Measured on two schemes sharing one scenario — one that typed nothing
+   * and one that typed **45.0%** against a solved **32.16%**, 1,284 basis points apart — both
+   * arrived as `returns: 32.16 · economics_basis: derived`, *byte-identical on the screen where a
+   * scheme is chosen.*
+   *
+   * Derived from `options` server-side rather than copied from the economics payload, so the list
+   * and the per-row flags cannot disagree.
+   */
+  declared_disagrees: { id: string; name: string; declared_returns: number | null;
+    derived_returns: number | null; delta_pct: number | null }[];
+  declared_disagrees_count: number;
+  /** What `returns` is, and what `declared_returns` is for. The engine's own sentence. */
+  returns_basis_note: string;
   project_id?: string;
   note: string;
 }
