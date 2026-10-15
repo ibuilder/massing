@@ -4,6 +4,7 @@ import { liveDisplay } from "../../ui/liveState";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { cpmLine, cpmSeverity, issuesLine, noDates } from "./cpmRead";
 import { renderScheduleBrief } from "./scheduleBrief";
 import { renderEotClaim } from "./eotClaimPanel";
 import { renderScheduleMethods } from "./scheduleMethods";
@@ -814,22 +815,44 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       toast(`${r.activities} trade activit${r.activities === 1 ? "y" : "ies"} upserted — `
         + `CPM ${r.cpm_project_duration}d`, "success");
       const c = await ctx.host.api.scheduleCpm(pid);       // refresh the CPM line in place
-      cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
-        + `<span style="color:var(--status-crit)">critical path</span>`;
+      // CPM-SILENT — the SECOND renderer of this line, and it said even less than the first: no
+      // cycle mention at all, so a loop introduced by the activities this button just inserted
+      // rendered as `project 0d`. Both go through `cpmLine` now.
+      const note2 = issuesLine(c);
+      cpmBox.innerHTML = `<b${noDates(c) ? ` style="color:var(--status-crit)"` : ""}>${esc(cpmLine(c))}</b>`
+        + (note2 ? `<br><span class="meta">${esc(note2)}</span>` : "");
     } catch (e) { toast((e as Error).message, "error"); }
     estBtn.disabled = false; estBtn.textContent = prev;
   };
   ctx.root.appendChild(estBtn);
   void ctx.host.api.scheduleCpm(pid).then((c) => {
     if (!c.activity_count) { cpmBox.textContent = "CPM: no activities with durations yet."; return; }
+    // CPM-SILENT. The caption used to append " · ⚠ cycle broken" over `project 0d · 0/N`, which is
+    // the behaviour `schedule_cpm._cyclic` deliberately STOPPED having — it computes no dates now —
+    // and it never rendered `issues`, so a typo'd predecessor was dropped in silence on a schedule
+    // that otherwise looked perfect. `cpmRead` owns both wordings; the escaping stays here because
+    // this is the sink.
+    //
     // `critical_path` is a list of stored activity REFS (schedule_engine builds it as
     // `[r["ref"] or r["id"] ...]`), so it is user-entered text reaching innerHTML. Escaped AFTER the
     // join because the " → " separator holds nothing escapable. Found by triaging the bare-local
     // class this PR's new rule deliberately leaves out: 134 sites classified, this the one real one.
+    const sev = cpmSeverity(c);
+    const col = sev === "error" ? "var(--status-crit)" : sev === "warn" ? "var(--status-warn)" : "";
+    const head = esc(cpmLine(c));
+    const note = issuesLine(c);
+    if (noDates(c)) {
+      // No dates means no critical path and no duration, so nothing below the headline can be
+      // rendered as a figure. The refusal IS the content.
+      cpmBox.innerHTML = `<b style="color:${col}">${head}</b>`
+        + (note ? `<br><span class="meta" style="color:${col}">${esc(note)}</span>` : "");
+      return;
+    }
     const cp = esc(c.critical_path.slice(0, 12).join(" → ")) || "—";
     cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
-      + `<span style="color:var(--status-crit)">critical path</span>${c.has_cycle ? " · ⚠ cycle broken" : ""}<br>`
-      + `<span class="meta">Critical: ${cp}</span>`;
+      + `<span style="color:var(--status-crit)">critical path</span><br>`
+      + `<span class="meta">Critical: ${cp}</span>`
+      + (note ? `<br><span class="meta" style="color:var(--status-warn)">${esc(note)}</span>` : "");
   }).catch(() => { cpmBox.textContent = "CPM unavailable."; });
 
   // Earned value (schedule performance) — SPI + dollar schedule variance
@@ -904,7 +927,14 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     const pg = tp.progress;
     const color = (s: string) => s === "ahead" ? "var(--status-good)" : s === "behind" ? "var(--status-warn)" : "var(--text)";
     const head = `<div class="meta">Overall <b style="color:${color(pg.overall_status)}">${pg.overall_status}</b>`
-      + ` · lead ${pg.lead_trade ?? "—"} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
+      // A TRADE NAME IS USER-ENTERED TEXT, and this was unescaped — found by the innerHTML ratchet
+      // the moment CPM-SILENT's renderer happened to introduce a local also called `head`.
+      // `innerHtmlGuard`'s one-hop follower keys `bound` on the NAME, file-wide, so it collects from
+      // every `const head = …` in the file once any one of them reaches innerHTML as a bare
+      // identifier. *Whether this sink was visible depended on what an unrelated function a hundred
+      // lines away called its local* — which is a reach defect in the scanner, recorded here because
+      // the finding it surfaced is real and the mechanism that surfaced it was luck.
+      + ` · lead ${esc(pg.lead_trade ?? "—")} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
       + ` · PPC <b>${Math.round((tp.ppc.ppc ?? 0) * 100)}%</b> (${tp.ppc.rating})</div>`;
     const rows = pg.rows.map((r) =>
       `<tr><td>${esc(r.trade)}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`

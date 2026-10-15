@@ -6,9 +6,19 @@ web CI job, which installs node and web dependencies and no Python ones, so anyt
 would have to be installed somewhere it currently is not.
 
 WHAT IT ANSWERS, and the boundary. For every route handler under `routers/`, the top-level string
-keys of every dict literal it returns. Routes returning a list, an ORM object or a Pydantic model are
-reported with their shape and NO keys, because this cannot know what those serialise to — that is a
-different derivation and pretending otherwise would understate what the server sends.
+keys of every dict literal it returns, plus those of any dict literal reachable through up to
+`MAX_HOPS` delegations. Routes returning a list, an ORM object or a Pydantic model are reported with
+their shape and NO keys, because this cannot know what those serialise to — that is a different
+derivation and pretending otherwise would understate what the server sends.
+
+**AND IT NOW SAYS WHEN IT COULD NOT LOOK.** A route whose return is a call this cannot follow is
+reported with a `call-unresolved` or `call-no-dict` shape and a `stops` entry naming where resolution
+gave up. It used to be published as `{"complete": true, "keys": []}` — byte-identical to a file
+download — so a consumer could not distinguish "this route sends no dict" from "nobody read this
+route". `complete` means *the key set is the whole truth*, and asserting it over a key set nothing
+had looked for is the one claim a derivation must never make. RESPKEY-HOP2 found 265 routes in that
+state, 108 of them with a typed client call site; `apps/web/src/api/responseUndeclared.test.ts` pins
+that number as a ceiling.
 
 THREE THINGS ITS FIRST DRAFT GOT WRONG, each found by reading a reported row rather than by trusting
 a count. They are recorded here because each is a way for the next version to go quietly wrong:
@@ -127,33 +137,176 @@ def module_id(path: pathlib.Path) -> str:
     return ".".join(path.relative_to(PKG).with_suffix("").parts)
 
 
-def engine_index() -> dict[str, dict[str, tuple[list[str], bool]]]:
-    """Every module-level function in the package that returns a dict literal, by module identity.
+#: How many hops from a route the resolver follows. TWO, measured rather than chosen: at ONE hop,
+#: 34 routes that do reach a dict literal resolved to nothing, and the commonest shape was a
+#: register engine whose public entry point is itself a one-line delegation --
+#: `drawingset.drawing_set` is `return register(drawings)`. A third hop was measured as reaching
+#: nothing further, and each extra level multiplies the ways to attribute keys to the wrong
+#: function, which is the hazard `module_id` exists for.
+MAX_HOPS = 2
+
+
+def module_tables() -> tuple[dict[str, dict[str, ast.AST]], dict[str, dict[str, str]]]:
+    """Every module-level function in the package, and every module's own relative aliases.
 
     Module-level only: a nested helper is not reachable as `module.func`, so indexing one would
     offer a resolution that cannot happen.
+
+    **Both are keyed PER MODULE, and that is the load-bearing part of this function.** A hop into an
+    engine must resolve THAT engine's own calls through ITS imports; resolving a second hop through
+    the ROUTER's aliases would rebuild the stem collision `module_id` exists to prevent, one level
+    further down, where nothing would notice.
     """
-    out: dict[str, dict[str, tuple[list[str], bool]]] = {}
+    funcs: dict[str, dict[str, ast.AST]] = {}
+    aliases: dict[str, dict[str, str]] = {}
     for path in sorted(PKG.rglob("*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:                                # a module this Python cannot parse
             continue
-        fns: dict[str, tuple[list[str], bool]] = {}
-        for node in tree.body:
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            keys: list[str] = []
-            complete = True
-            for ret in own_returns(node):
-                if isinstance(ret.value, ast.Dict):
-                    k, c = dict_keys(ret.value)
-                    keys.extend(k)
-                    complete = complete and c
-            if keys:
-                fns[node.name] = (keys, complete)
+        mid = module_id(path)
+        fns = {n.name: n for n in tree.body
+               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
         if fns:
-            out[module_id(path)] = fns
+            funcs[mid] = fns
+        aliases[mid] = relative_aliases(tree)
+    return funcs, aliases
+
+
+def resolve_target(call: ast.AST, mid: str, funcs: dict[str, dict[str, ast.AST]],
+                   aliases: dict[str, dict[str, str]]) -> str | None:
+    """Where `call` points -- `"module.func"` -- or None.
+
+    TWO shapes, and the second is the one the resolver used to refuse:
+
+    - `engine.func(...)`, through an alias the CONTAINING module imported relatively.
+    - a BARE `func(...)` that the containing module itself defines at module level.
+
+    **The self-test below pinned the bare form as a refusal, and its stated reason named the wrong
+    hazard.** It said "a bare call resolved -- the resolver is matching by NAME". Matching a name
+    across MODULES is indeed a guess, and 26 stems collide here, which is what `module_id` is for.
+    But a bare call inside a module that DEFINES that function is not a guess: it is the lookup
+    Python itself performs, and it cannot reach another module. The refusal is still correct when
+    the containing module has no such function -- and the self-test's fixture defined none, so it
+    could not tell the two cases apart. *Asserting the one case you thought of is not asserting the
+    property*, so it now asserts both directions.
+    """
+    if not isinstance(call, ast.Call):
+        return None
+    if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name):
+        mod = aliases.get(mid, {}).get(call.func.value.id)
+        # EXISTENCE IS PART OF RESOLUTION. An alias can name a module that holds no such function —
+        # `from . import ai` binds `routers.ai`, and the engine is `aec_api/ai.py`. The old
+        # `one_hop` happened to be safe here because it looked the name up in the index and got
+        # None; reading the function's AST does not get that check for free, and the first draft of
+        # this crashed on exactly that pair rather than refusing it.
+        return f"{mod}.{call.func.attr}" if call.func.attr in funcs.get(mod or "", {}) else None
+    if isinstance(call.func, ast.Name) and call.func.id in funcs.get(mid, {}):
+        return f"{mid}.{call.func.id}"
+    return None
+
+
+#: What one return statement puts on the wire: its keys, whether that set is the whole truth, the
+#: hop targets the keys came from, the shape vocabulary for the report, and -- `stops` -- where
+#: resolution gave up. `stops` is the half that did not exist before: a route that returns a call
+#: nobody can follow used to be reported `{"complete": true, "keys": []}`, which is the same output
+#: as a file download, so the consumer could not tell "did not look" from "nothing to find".
+def return_facts(fn: ast.AST, mid: str, funcs: dict[str, dict[str, ast.AST]],
+                 aliases: dict[str, dict[str, str]], hops_left: int,
+                 ) -> tuple[set[str], bool, set[str], set[str], set[str]]:
+    """(keys, complete, hops, shapes, stops) for ONE function's own returns, following `hops_left`.
+
+    `complete` is False as soon as any return path cannot be read: an unresolvable call, a variable,
+    a conditional expression, a comprehension. **That is a correction, not a tightening.** The old
+    index collected the dict-literal returns of a function and ignored its other return paths
+    entirely, reporting `complete: True` -- so a function written as `if x: return {...}` /
+    `return build()` had its key set published as the whole truth. 106 module-level functions here
+    have such a mixed return set and 24 of them are reachable from a route in one hop, among them
+    `/schedule/health`, `/schedule/flowline`, `/feasibility` and `/contracts/review`.
+
+    A `return`, `return None` or a scalar constant adds no keys and does NOT make the set
+    incomplete: `null` on the wire is not a dict with fields nobody declared.
+    """
+    keys: set[str] = set()
+    hops: set[str] = set()
+    shapes: set[str] = set()
+    stops: set[str] = set()
+    complete = True
+    for ret in own_returns(fn):
+        if ret.value is None or isinstance(ret.value, ast.Constant):
+            shapes.add("other")
+        elif isinstance(ret.value, ast.Dict):
+            shapes.add("dict")
+            k, c = dict_keys(ret.value)
+            keys.update(k)
+            complete = complete and c
+        elif isinstance(ret.value, (ast.List, ast.ListComp)):
+            shapes.add("list")                             # lesson 3
+        elif isinstance(ret.value, ast.Call):
+            # NAMING IS INDEPENDENT OF THE BUDGET. A call this runs out of hops on is still worth
+            # naming, because the point of `stops` is to say WHERE to look; only the recursion is
+            # bounded. An earlier draft folded the two together and reported `?` for a call it
+            # could name perfectly well.
+            target = resolve_target(ret.value, mid, funcs, aliases)
+            if target is None:
+                # A call this cannot follow: a method on an expression, an absolute import, a local
+                # name. Named as a CALL rather than as "other", because a call is a delegation and
+                # may become followable later — `other` is for a shape that never will be.
+                shapes.add("call-unresolved")
+                stops.add("?")
+                complete = False
+                continue
+            if hops_left <= 0:
+                shapes.add("call-no-dict")
+                stops.add(target)
+                complete = False
+                continue
+            tmid, tname = target.rsplit(".", 1)
+            sub = return_facts(funcs[tmid][tname], tmid, funcs, aliases, hops_left - 1)
+            sub_keys, sub_complete, sub_hops, _sub_shapes, sub_stops = sub
+            if sub_keys:
+                shapes.add("delegated")
+                keys |= sub_keys
+                hops.add(target)
+                hops |= sub_hops
+                complete = complete and sub_complete
+            else:
+                # The callee was FOUND and reaches no dict literal. Different from
+                # `call-unresolved` on purpose: this one knows where to send a reader. When the
+                # callee reported its OWN stop, that deeper one is the real cause and this one
+                # would bury it — a stop list naming every link of a chain says nothing about
+                # which link to open.
+                shapes.add("call-no-dict")
+                complete = False
+                if not sub_stops:
+                    stops.add(target)
+            stops |= sub_stops
+        else:
+            # A variable, a conditional expression, a dict comprehension, an await. No keys are
+            # readable, so whatever this route sends is outside the comparison.
+            shapes.add("other")
+            complete = False
+    return keys, complete, hops, shapes, stops
+
+
+def engine_index(funcs: dict[str, dict[str, ast.AST]],
+                 aliases: dict[str, dict[str, str]],
+                 ) -> dict[str, dict[str, tuple[list[str], bool]]]:
+    """Every module-level function that reaches a dict literal, by module identity.
+
+    Kept as a function of its own because `_selftest` drives `resolve_target` through it, and
+    because the FLOOR below is measured against what it resolves.
+    """
+    out: dict[str, dict[str, tuple[list[str], bool]]] = {}
+    for mid, fns in funcs.items():
+        got: dict[str, tuple[list[str], bool]] = {}
+        for name, node in fns.items():
+            keys, complete, _hops, _shapes, _stops = return_facts(
+                node, mid, funcs, aliases, MAX_HOPS - 1)
+            if keys:
+                got[name] = (sorted(keys), complete)
+        if got:
+            out[mid] = got
     return out
 
 
@@ -172,90 +325,58 @@ def relative_aliases(tree: ast.AST) -> dict[str, str]:
     return out
 
 
-def one_hop(ret: ast.Return, aliases: dict[str, str],
-            index: dict[str, dict[str, tuple[list[str], bool]]]) -> tuple[list[str], bool, str] | None:
-    """`return engine.func(...)` -> that function's dict-literal keys, or None.
-
-    EXACTLY ONE HOP, and only through an alias this router itself imported relatively. A deeper
-    chain is reported as unresolved rather than followed: each extra hop multiplies the ways to
-    attribute keys to the wrong function, and `complete: False` on a route nobody can check is a
-    worse answer than no keys at all.
-    """
-    call = ret.value
-    if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
-            and isinstance(call.func.value, ast.Name)):
-        return None
-    mod = aliases.get(call.func.value.id)
-    if mod is None:
-        return None
-    hit = index.get(mod, {}).get(call.func.attr)
-    if hit is None:
-        return None
-    keys, complete = hit
-    return keys, complete, f"{mod}.{call.func.attr}"
-
-
 def collect() -> dict[str, dict]:
-    """Every decorated route under `routers/`, keyed `METHOD /normalised/path`."""
+    """Every decorated route under `routers/`, keyed `METHOD /normalised/path`.
+
+    RESPKEY-DELEGATED. A route that hands off to an engine used to land here as `other` with no
+    keys, and 605 of 1016 routes do exactly that — so the gate consuming this had no view of the
+    MAJORITY of the surface. The module docstring named its boundary as "a list, an ORM object or a
+    Pydantic model"; the commonest case was none of those.
+
+    RESPKEY-HOP2. The per-return switch that used to live here is now `return_facts`, shared with
+    the engine index, so a route's returns and an engine's returns are read by ONE function at two
+    depths rather than by two functions that could drift. A route is read with the full hop budget.
+    """
     routes: dict[str, dict] = {}
-    index = engine_index()
+    funcs, aliases = module_tables()
     for path in sorted(ROUTERS.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         prefix = router_prefix(tree)
-        aliases = relative_aliases(tree)
+        rmid = module_id(path)
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            returns = own_returns(node)
             for dec in node.decorator_list:
                 if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)
                         and dec.func.attr in METHODS and dec.args
                         and isinstance(dec.args[0], ast.Constant)):
                     continue
                 key = f"{dec.func.attr.upper()} {normalise(prefix + str(dec.args[0].value))}"
-                keys: set[str] = set()
-                complete, literal = True, False
-                shapes: set[str] = set()
-                hops: set[str] = set()
-                for ret in returns:
-                    if isinstance(ret.value, ast.Dict):
-                        literal = True
-                        shapes.add("dict")
-                        k, c = dict_keys(ret.value)
-                        keys.update(k)
-                        complete = complete and c
-                    elif isinstance(ret.value, (ast.List, ast.ListComp)):
-                        shapes.add("list")                 # lesson 3
-                    elif ret.value is not None:
-                        # RESPKEY-DELEGATED. A route that hands off to an engine used to land here
-                        # as `other` with no keys, and 605 of 1016 routes do exactly that — so the
-                        # gate consuming this had no view of the MAJORITY of the surface. The
-                        # module docstring named its boundary as "a list, an ORM object or a
-                        # Pydantic model"; the commonest case was none of those.
-                        hop = one_hop(ret, aliases, index)
-                        if hop is None:
-                            shapes.add("other")
-                        else:
-                            k, c, target = hop
-                            shapes.add("delegated")
-                            keys.update(k)
-                            complete = complete and c
-                            hops.add(target)
+                keys, complete, hops, shapes, stops = return_facts(
+                    node, rmid, funcs, aliases, MAX_HOPS)
                 rec = routes.setdefault(key, {"keys": set(), "complete": True, "literal": False,
-                                              "shapes": set(), "sites": [], "hops": set()})
+                                              "shapes": set(), "sites": [], "hops": set(),
+                                              "stops": set()})
                 rec["keys"].update(keys)
                 rec["complete"] = rec["complete"] and complete
-                rec["literal"] = rec["literal"] or literal
+                rec["literal"] = rec["literal"] or "dict" in shapes
                 rec["shapes"] |= shapes
                 rec["hops"] |= hops
+                rec["stops"] |= stops
                 rec["sites"].append(f"{path.name}:{node.lineno}:{node.name}")
     return routes
 
 
-#: The one-hop resolution measured when it landed. A FLOOR, not a target: it may rise freely, and a
+#: The delegated resolution measured when it landed. A FLOOR, not a target: it may rise freely, and a
 #: fall means the resolver has quietly stopped resolving — which looks exactly like a tree that
 #: happens to delegate less, and is the failure mode a count cannot distinguish from progress.
-MIN_DELEGATED = 260
+#:
+#: RESPKEY-HOP2 raised the measurement from 301 to 341 (a second hop, and the bare same-module call
+#: shape). The floor keeps the same headroom the one-hop version chose — ~15% below the measurement,
+#: not equal to it — because a delegation REWRITTEN as a dict literal in the route is an improvement
+#: and must not red the build. *A ratchet set equal to the measurement fails on the work it exists
+#: to encourage.*
+MIN_DELEGATED = 300
 
 
 def _selftest() -> None:
@@ -275,16 +396,55 @@ def _selftest() -> None:
     if aliases != {"w": "widget", "rw": "routers.widget"}:
         raise AssertionError(f"relative import LEVEL is lost: {aliases}")
 
-    index = {"widget": {"f": (["engine_key"], True)},
-             "routers.widget": {"f": (["router_key"], True)}}
+    widget = ast.parse('def f():\n    return {"engine_key": 1}\n')
+    rwidget = ast.parse('def f():\n    return {"router_key": 1}\n')
+    funcs = {"widget": {"f": widget.body[0]}, "routers.widget": {"f": rwidget.body[0]},
+             "caller": {n.name: n for n in tree.body
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}}
+    all_aliases = {"caller": aliases, "widget": {}, "routers.widget": {}}
     got = {}
     for fn in tree.body:
         if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            hop = one_hop(own_returns(fn)[0], aliases, index)
-            got[fn.name] = None if hop is None else (hop[0], hop[2])
-    want = {"a": (["engine_key"], "widget.f"), "b": (["router_key"], "routers.widget.f")}
+            k, _c, hops, _sh, _st = return_facts(fn, "caller", funcs, all_aliases, MAX_HOPS)
+            got[fn.name] = (sorted(k), sorted(hops))
+    want = {"a": (["engine_key"], ["widget.f"]), "b": (["router_key"], ["routers.widget.f"])}
     if got != want:
         raise AssertionError(f"same-stem modules conflated: {got} != {want}")
+
+    # THE SECOND HOP, asserted rather than assumed. `drawingset.drawing_set` is
+    # `return register(drawings)`, so at one hop it resolved to nothing and the route was reported
+    # as sending NO keys — indistinguishable from a file download. 20 routes were in that hole,
+    # including every GC register (`/rfi/register`, `/submittals/register`, `/rent-roll`).
+    # ATTRIBUTE calls on purpose, not bare ones. The bare-call form is asserted separately below,
+    # and a fixture that needed both would make one regression red two checks with the wrong
+    # message — *two checks that share a failure mode are one check.*
+    top = ast.parse('from .. import mid as m\ndef outer():\n    return m.middle()\n')
+    midm = ast.parse('from .. import deep as d\ndef middle():\n    return d.inner()\n')
+    deep = ast.parse('def inner():\n    return {"deep_key": 1}\n')
+    cfuncs = {"top": {"outer": top.body[-1]}, "mid": {"middle": midm.body[-1]},
+              "deep": {"inner": deep.body[-1]}}
+    calias = {"top": relative_aliases(top), "mid": relative_aliases(midm), "deep": {}}
+    k2, _c2, hops2, _s2, _t2 = return_facts(cfuncs["top"]["outer"], "top", cfuncs, calias, MAX_HOPS)
+    if sorted(k2) != ["deep_key"] or sorted(hops2) != ["deep.inner", "mid.middle"]:
+        raise AssertionError(f"a two-hop delegation did not resolve: {sorted(k2)} {sorted(hops2)}")
+    # ...and the budget is a BOUND, not a decoration: the same chain read with ONE hop must report
+    # that it STOPPED, and say where, rather than that there was nothing there. `stops` is the half
+    # that did not exist: an empty key set used to be published as `complete: true`.
+    k1, c1, _h1, sh1, st1 = return_facts(cfuncs["top"]["outer"], "top", cfuncs, calias, 1)
+    if k1 or c1 or "call-no-dict" not in sh1 or st1 != {"deep.inner"}:
+        raise AssertionError("running out of hops must report a STOP, not an empty key set: "
+                             f"keys={sorted(k1)} complete={c1} shapes={sorted(sh1)} stops={st1}")
+
+    # A MIXED return set is a LOWER BOUND, not the whole truth. The old index read a function's
+    # dict-literal returns and ignored its other return paths, publishing `complete: True`.
+    mixed = ast.parse('def m(x):\n'
+                      '    if x:\n'
+                      '        return {"named": 1}\n'
+                      '    return whatever\n')
+    mfuncs = {"mix": {n.name: n for n in mixed.body}}
+    km, cm, _hm, _sm, _tm = return_facts(mfuncs["mix"]["m"], "mix", mfuncs, {"mix": {}}, MAX_HOPS)
+    if sorted(km) != ["named"] or cm is not False:
+        raise AssertionError(f"a mixed return set reported as complete: {sorted(km)} {cm}")
 
     # ...AND `module_id` ITSELF IS EXERCISED ON THE REAL PAIR. The synthetic case above builds its
     # own index, so it cannot notice `module_id` being wrong — the first version of this self-test
@@ -306,11 +466,27 @@ def _selftest() -> None:
             raise AssertionError(f"`module_id` conflates {rels} (stem {stem!r}) into {sorted(ids)} "
                                  f"— an index keyed on this attributes one module's keys to another")
 
-    # A function the resolver must REFUSE: a bare local call is not `module.func`, and guessing at
-    # one by name is how the wrong engine's keys get attributed.
-    bare = ast.parse("def c():\n    return f()\n").body[0]
-    if one_hop(own_returns(bare)[0], aliases, index) is not None:
-        raise AssertionError("a bare call resolved — the resolver is matching by NAME")
+    # THE BARE CALL, BOTH WAYS — and the old version of this check asserted only one of them.
+    #
+    # It refused `return f()` outright, with the reason "guessing at one by name is how the wrong
+    # engine's keys get attributed". The hazard is real but it is about crossing MODULES: 26 stems
+    # collide here. A bare call inside a module that DEFINES that function is the lookup Python
+    # itself performs and cannot reach another module — and 14 routes delegate to a helper in their
+    # own router file, every one of them invisible for as long as this refusal was unconditional.
+    # The fixture below defined no `f`, so it could not tell the two cases apart; *asserting the
+    # one case you thought of is not asserting the property.*
+    bare = ast.parse("def c():\n    return f()\n")
+    nf = {"lonely": {"c": bare.body[0]}}
+    if resolve_target(own_returns(bare.body[0])[0].value, "lonely", nf, {"lonely": {}}) is not None:
+        raise AssertionError("a bare call resolved in a module that defines no such function — "
+                             "the resolver is matching by NAME across modules")
+    local = ast.parse('def c():\n    return f()\n'
+                      'def f():\n    return {"local_key": 1}\n')
+    lf = {"same": {n.name: n for n in local.body}}
+    kl, _cl, hl, _sl, _tl = return_facts(lf["same"]["c"], "same", lf, {"same": {}}, MAX_HOPS)
+    if sorted(kl) != ["local_key"] or sorted(hl) != ["same.f"]:
+        raise AssertionError(f"a bare call to the module's OWN function did not resolve: "
+                             f"{sorted(kl)} {sorted(hl)}")
 
 
 def main() -> int:
@@ -333,7 +509,13 @@ def main() -> int:
                    "shapes": sorted(v["shapes"]), "sites": v["sites"],
                    # Where the keys came from. A consumer treating a delegated key set as a
                    # hand-written literal would be wrong about who to go and fix.
-                   "hops": sorted(v["hops"])}
+                   "hops": sorted(v["hops"]),
+                   # RESPKEY-HOP2. Where resolution GAVE UP, which is the field whose absence was
+                   # the defect: a route returning a call nobody could follow was published as
+                   # `{"complete": true, "keys": []}` — the same bytes as a file download — so the
+                   # consumer could not tell "did not look" from "nothing to find". `"?"` means the
+                   # call could not even be named; anything else names the function to go and read.
+                   "stops": sorted(v["stops"])}
                for k, v in routes.items()}, sys.stdout, indent=1, sort_keys=True)
     return 0
 

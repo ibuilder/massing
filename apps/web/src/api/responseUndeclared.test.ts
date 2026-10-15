@@ -35,6 +35,22 @@ import { describe, expect, it } from "vitest";
  * because this is where the checker lives. That script is stdlib-only so it runs in the web CI job,
  * which installs no Python dependencies.
  *
+ * ### RESPKEY-HOP2 — the server half's reach, measured
+ *
+ * The producer resolved EXACTLY one hop, and the consumer below filters on `literal || hops.length`,
+ * so a route the producer could not read was not merely uncompared — it was absent from the
+ * population, with no record that it had been. `GET /projects/{pid}/drawing-set` is
+ * `return drawingset.drawing_set(db, pid)`, and `drawing_set` is `return register(drawings)`: two
+ * hops, reported as `{"complete": true, "keys": []}`, indistinguishable from a file download. 20
+ * routes were in that shape, among them every GC register.
+ *
+ * Measured over 1,018 routes: 291 return a single unresolved call — 14 one hop away through a bare
+ * same-module call the resolver refused by rule, 20 two hops away, 84 not pure delegations, 173
+ * genuinely unfollowable (mostly `.csv`/`.dxf`/`.svg` responses). Following the second hop and the
+ * bare call took comparable routes from 584 to 621, made nine already-compared routes gain keys
+ * (`/schedule/health` eight, `/standards/check` five) and cost none theirs. The remaining blindness
+ * is no longer silent: `UNREAD_WITH_CALLER_CEILING` counts it.
+ *
  * ### It fails CLOSED
  *
  * A call site whose path or type the analyser cannot resolve is reported and FAILS, never skipped —
@@ -57,6 +73,22 @@ const EXEMPT: Record<string, string> = {
   "src/api/httpCore.ts": "the `postJson` callback handed to the resumable uploader — a transport "
     + "shim whose path comes from its caller, so it has no route identity of its own",
 };
+
+/** RESPKEY-HOP2 — how many routes the SERVER half still cannot read, among those that HAVE a typed
+ *  client call site. These are the routes where a comparison is possible in principle and is not
+ *  happening: `response_keys.py` reports them with a `call-unresolved` or `call-no-dict` shape and a
+ *  `stops` entry saying where it gave up, instead of the `{"complete": true, "keys": []}` that used
+ *  to make them indistinguishable from a file download.
+ *
+ *  **A CEILING, revised only DOWN.** It is deliberately noisy: a route added in a shape this cannot
+ *  follow is a new hole in the gate, and the author either makes it followable — a `return
+ *  engine.func(...)` whose callee reaches a dict literal within `MAX_HOPS` — or raises this number
+ *  on purpose and says why. The alternative is the state this item found, where the count was
+ *  unknown because nothing produced it.
+ *
+ *  Measured 2026-10-15 at 108 of 265 unread routes; the other 157 have no typed caller, so the gate
+ *  would not compare them even if it could read them. */
+const UNREAD_WITH_CALLER_CEILING = 108;
 
 /** The one route whose keys were reconciled by hand when this axis was opened. Both halves are
  *  derived independently, so a non-empty result here means the DERIVATION broke, not the product. */
@@ -665,6 +697,70 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // run on two bases. `lp_basis`/`gp_basis` now say which, and the per-investor shares are both
   // published because the split runs on commitments while the waterfall may not (WF-SPLIT holds
   // that decision — it is an operating-agreement term, not an arithmetic one).
+  // **THIRTEEN SEEDED ON 2026-10-15 under RESPKEY-HOP2.** They are not new: every one predates the
+  // change, and they became VISIBLE when `response_keys.py` learned to follow a second hop and to
+  // resolve a bare same-module call. Measured: comparable routes 584 -> 621, nine already-compared
+  // routes GAINED keys (`/schedule/health` eight, `/standards/check` five), and no route lost any.
+  // *A derivation's reach is a measurement, and nobody had taken it since the one hop landed.*
+  // `/schedule/cpm` was the fourteenth and is FIXED rather than seeded — see CPM-SILENT in
+  // `portal/panels/cpmRead.ts`: the card said "⚠ cycle broken" over `project 0d · 0/3`, which is the
+  // behaviour the engine deliberately stopped having, and never rendered the `issues` list that
+  // reports a dropped predecessor on a schedule which otherwise looks perfect.
+  //
+  // Each note below says what the key IS, read from the engine source. They are triage, not
+  // measurements against a live route — where a sentence makes a claim about what a screen shows,
+  // measuring it is the next item's job.
+  // `itb.summarize` — the ITB response rate across every package, and the bonded total. The screen
+  // shows per-package rows; these two are the set-level answer to "is this bid list responding".
+  "GET /projects/{}/bidding/itb": ["overall_response_rate", "total_bonded"],
+  // `carbon.compute` — the per-line embodied-carbon breakdown behind the declared totals.
+  // `unmatched` IS declared, so the screen can say how much it could not price; `lines` is what
+  // would let a reader see WHICH.
+  "GET /projects/{}/carbon": ["lines"],
+  // `dailylog.summary` computes `coverage_pct = 100 * logged_days / span_days` and declares the
+  // QUOTIENT while leaving both operands undeclared — the BASIS-UNREAD shape. `draft_count =
+  // report_count - submitted_count`, so a field log 90% covered by unsubmitted drafts reads
+  // identically to one that is signed.
+  "GET /projects/{}/daily-reports/summary": ["draft_count", "first_date", "last_date", "logged_days", "span_days"],
+  // `drawingset.register` — `current_set` (the latest revision per sheet) and `superseded` (every
+  // earlier one, each tagged `superseded_by`). Both COUNTS are declared and neither row list is,
+  // so the register can say how many sheets were superseded and never which. This is the route
+  // whose two-hop delegation opened this item.
+  "GET /projects/{}/drawing-set": ["current_set", "superseded"],
+  // `pricing.reconcile` — `line_count` is the population `matched` is a count out of, and `message`
+  // is the engine's sentence for an estimate it could not reconcile at all.
+  "GET /projects/{}/pricing/reconcile": ["line_count", "message"],
+  // `rentroll.summarize`, and this one reads worse the closer you look.
+  // `total_rentable = building_rentable_sf if building_rentable_sf else occupied_sf`, so when the
+  // building's rentable area is unknown the DENOMINATOR becomes the occupied area and
+  // `occupancy_pct` is 100.0 by construction, with `vacant_sf` at 0. `occupancy_pct` is declared;
+  // `total_rentable_sf`, `occupied_sf` and `vacant_sf` are not — so the figures that say whether
+  // the percentage means anything are unreadable. Filed from the arithmetic, not from a live
+  // route; RENTROLL-BASIS is the item that owes the measurement.
+  "GET /projects/{}/rent-roll": ["as_of", "avg_rent_psf", "occupied_sf", "recoveries_annual", "total_rentable_sf", "vacant_sf"],
+  // `submittals.register` — the status distribution. `open_count` and `overdue_count` are declared;
+  // the distribution they came out of is not.
+  "GET /projects/{}/submittals/register": ["by_status"],
+  // `tm.summarize` — `billed_total` beside the declared `unbilled_total`, and the status
+  // distribution. A T&M screen showing only the unbilled half cannot show what share that is.
+  "GET /projects/{}/tm-summary": ["billed_total", "by_status"],
+  // `gc_seed` — the seed the generative run used, which is the only thing that makes a generated
+  // massing reproducible.
+  "POST /projects/{}/generate/massing": ["gc_seed"],
+  // the saved template's own identity (`module`, `name`, `created_at`), echoed by the route and
+  // unread, so the UI cannot confirm what it just stored.
+  "POST /projects/{}/modules/{}/save-template": ["created_at", "module", "name"],
+  // `schedule_baselines.capture` — `has_logic` says whether the captured baseline carried
+  // relationships or only dates, which decides whether a later variance analysis against it can
+  // mean anything, and `schema` is its version.
+  "POST /projects/{}/schedule/baselines": ["has_logic", "schema"],
+  // `client_portal.create_token` — the token's audit fields (`created_by`, `created_at`,
+  // `view_count`, `last_viewed_at`). A share token whose use nobody can see is the one kind
+  // somebody asks for an audit trail on later.
+  "POST /projects/{}/share-tokens": ["created_at", "created_by", "last_viewed_at", "view_count"],
+  // the updated verification record as stored (`verified_by`, `modified_at`, `note`, `storey`,
+  // `has_photo`) — the write echoes its own result and the client re-fetches instead.
+  "PUT /projects/{}/verification/{}": ["has_photo", "modified_at", "note", "storey", "verified_by"],
   "POST /test-fit/compare": ["plate"],
 };
 
@@ -750,6 +846,27 @@ const INCOMPLETE_LOWER_BOUND: string[] = [
   "POST /projects/{}/schedule/compress",
   "POST /projects/{}/schedule/impacted",
   "POST /projects/{}/schedule/portfolio",
+  // **ELEVEN JOINED ON 2026-10-15 under RESPKEY-HOP2, and not one of them is a new spread.** They
+  // are routes whose key set was never read at all: the resolver followed exactly ONE hop, so a
+  // route delegating to an engine whose own entry point delegates again resolved to nothing and was
+  // published as `{"complete": true, "keys": []}` — the same bytes as a file download. `complete`
+  // means "the key set is the whole truth", and it was being asserted over a key set nobody had
+  // looked for. *An empty answer published as a complete one is the claim a derivation must never
+  // make.* The other half of the correction is `return_facts`: the old index read a function's
+  // dict-literal returns and IGNORED its other return paths, so `if x: return {...}` /
+  // `return build()` published its named keys as complete. 106 module-level functions have such a
+  // mixed return set and 24 are reachable from a route in one hop.
+  "GET /projects/{}/ci/latest",
+  "GET /projects/{}/deal-memory/beside",
+  "GET /projects/{}/finance/lock",
+  "GET /projects/{}/ids",
+  "GET /projects/{}/publish/status",
+  "GET /projects/{}/schedule/cpm",
+  "GET /projects/{}/schedule/reliability",
+  "POST /projects/{}/layers/bake",
+  "POST /projects/{}/schedule/level",
+  "POST /projects/{}/schedule/weather",
+  "POST /settings/integrations/test",
 ];
 
 /** A route path as the SERVER writes it, or null when it genuinely cannot be known statically. */
@@ -925,7 +1042,7 @@ describe("RESPONSE-UNDECLARED", () => {
   const { rows, unresolved } = extract(program, `${WEB}/src`, WEB);
 
   const server: Record<string, { keys: string[]; literal: boolean; complete: boolean;
-                                 hops: string[] }> = JSON.parse(
+                                 hops: string[]; shapes: string[]; stops?: string[] }> = JSON.parse(
     execFileSync("python3", [resolve(REPO, "services/api/response_keys.py")],
                  { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
 
@@ -984,6 +1101,28 @@ describe("RESPONSE-UNDECLARED", () => {
     for (const rel of Object.keys(EXEMPT))
       expect(unresolved.some((u) => u.rel === rel),
              `EXEMPT names ${rel}, which no longer has an unresolvable call site — delete it`).toBe(true);
+  }, 120_000);
+
+  it("the routes the server half cannot read are counted, not silently excluded", () => {
+    // `dictRoutes` filters on `literal || hops.length`, so an unreadable route is simply absent
+    // from every comparison below — which is this gate's own recorded lesson ("a derivation whose
+    // consumer still filters it out is a derivation that did not happen") applied to the routes it
+    // never saw rather than to the keys it dropped.
+    const unread = Object.entries(server).filter(([, v]) => !v.literal && !v.hops.length
+      && (v.shapes.includes("call-unresolved") || v.shapes.includes("call-no-dict")));
+    // VACUITY: a producer that stopped emitting these shapes would report a tree with no blind
+    // spots, in exactly the words of a tree that has none.
+    expect(unread.length, "no route carries an unread shape — the producer has stopped reporting "
+      + "where it gave up, which reads identically to a tree it can read in full").toBeGreaterThan(50);
+    expect(unread.some(([, v]) => (v.stops ?? []).some((x) => x !== "?")),
+      "no `stops` entry NAMES a function — the resolver is reporting that it gave up without "
+      + "saying where, which is half the point of reporting it").toBe(true);
+    const withCaller = unread.filter(([route]) => declared.has(route)).map(([route]) => route).sort();
+    expect(withCaller.length, "more routes with a typed client caller are unreadable by "
+      + "`response_keys.py` than the ceiling allows. Either make the new one followable (a route "
+      + "body of `return engine.func(...)` reaching a dict literal within MAX_HOPS), or raise "
+      + `UNREAD_WITH_CALLER_CEILING and say why:\n  ${withCaller.join("\n  ")}`)
+      .toBeLessThanOrEqual(UNREAD_WITH_CALLER_CEILING);
   }, 120_000);
 
   it("the hand-reconciled control route has no undeclared keys", () => {

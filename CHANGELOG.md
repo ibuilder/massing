@@ -6,6 +6,69 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SQL-CAP — the data browser printed its own row cap as a total, and the cap could not be raised
+
+`POST /connections/{cid}/query` is the read-only SELECT console in the Data-connections modal.
+`connectors.query` wrapped the SQL as `SELECT * FROM (<sql>) AS _q LIMIT {limit}` and returned
+`row_count` = the length of that page, and the console printed it bare. Measured on a seeded
+connection: a 5,000-row table read at the console's hardcoded 200 and a 200-row table read in full
+both returned `{row_count: 200, limit: 200}` — byte-identical, both captioned **"200 rows"**. An
+equality cannot separate two equal things, so the server now fetches one row past the cap and
+reports `truncated` as a fact.
+
+The table list's preview buttons run `SELECT * FROM "<name>"`, so the unbounded select was the
+DEFAULT path through the screen, not the edge case. And the cap was unraisable — the console passed
+200 where the server clamps at 1000, and an inner `LIMIT 1000` is still wrapped by the outer one —
+so a row-limit selector landed with the wording. `connections/ledgerBrowse.ts`, one function away,
+already named this class for the QuickBooks read in the same modal.
+
+### RESPKEY-HOP2 — the response-key derivation reported "did not look" as "nothing to find"
+
+`response_keys.py` followed exactly one hop from a route into an engine. `GET
+/projects/{pid}/drawing-set` is `return drawingset.drawing_set(db, pid)` and `drawing_set` is
+`return register(drawings)` — two hops — so it resolved to nothing and was published as
+`{"complete": true, "keys": []}`, byte-identical to a file download. `complete` means *the key set
+is the whole truth*; it was being asserted over a key set nothing had looked for.
+
+Measured over 1,018 routes: 291 return a single unresolved call — 14 one hop away through a bare
+same-module call the resolver refused by rule, 20 two hops away, 84 not pure delegations, 173
+genuinely unfollowable. Following both took comparable routes **584 → 621**, made nine
+already-compared routes gain keys (`/schedule/health` eight, `/standards/check` five), and cost none
+theirs. 13 newly visible disagreements are seeded in `KNOWN_GAPS` with what each key is, and 11
+routes joined `INCOMPLETE_LOWER_BOUND` — a correction, not a tightening: the old index read a
+function's dict-literal returns and ignored its other return paths, so `if x: return {...}` /
+`return build()` published its named keys as complete.
+
+The remaining blindness is counted rather than silent: a route whose return cannot be followed now
+carries a `call-unresolved` or `call-no-dict` shape and a `stops` entry naming where resolution gave
+up, and `UNREAD_WITH_CALLER_CEILING` pins the 108 unreadable routes that do have a typed client
+caller. The resolver's own self-test gained three arms, each mutation-proved and each with its own
+fixture so that one regression cannot red another's check with the wrong message.
+
+### CPM-SILENT — the schedule card said the loop was broken and never said a relationship was dropped
+
+Found by RESPKEY-HOP2 on the route it made comparable. `GET /projects/{pid}/schedule/cpm` sends 15
+keys; the client declared 6. Two of the missing nine are the only things the response says when the
+schedule is wrong.
+
+On a three-activity loop the card rendered **"CPM: project 0d · 0/3 on the critical path · ⚠ cycle
+broken"** with "Critical: —", while the response carried `cycle: ["a1","a2","a3","a1"]` and an error
+issue reading *"Circular logic: a1 -> a2 -> a3 -> a1"* / *"no dates computed; break the loop and
+recalculate"*. `schedule_cpm._cyclic` computes **no dates at all** — breaking the loop in dictionary
+order is what it deliberately stopped doing — so the caption described the behaviour it replaced,
+over a `project_duration` of 0 taken from `blank_result()`.
+
+The quieter half needs no loop: a typo'd predecessor is reported as
+`MASSING.PREDECESSOR_UNRESOLVED` / "relationship dropped", and the card rendered **"project 2d · 2/3
+on the critical path · Critical: A → B"** — a confident schedule with one activity hanging off
+nothing. `schedule_engine.build_network`'s docstring says exactly why that list exists; nothing was
+reading it.
+
+`portal/panels/cpmRead.ts` now owns both wordings for both renderers, reports a refused computation
+as a refusal rather than as zeros, and translates the engine's record ids into the refs a planner
+typed.
+
+
 ### SSO-DOOR-DERIVED — the sign-in door list is derived from the helper's callers
 
 The roadmap's concurrency record predicted "a fourth sign-in path is the risk". SCIM is that fourth

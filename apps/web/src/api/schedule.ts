@@ -21,6 +21,41 @@ import type { CvBridgeStatus, LogisticsResource, MakeReady, ScheduleStatusReport
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** One issue as `IssueLog.to_dict()` emits it. `table`/`row_key`/`field`/`raw_value` are present on
+ *  data-provenance issues and absent on engine ones, which is why only the first four are required. */
+export interface CpmIssue {
+  severity: string;
+  code: string;
+  message: string;
+  action?: string | null;
+  row_key?: string | null;
+  field?: string | null;
+  raw_value?: string | null;
+}
+
+export interface CpmRow {
+  id?: string;
+  ref: string | null;
+  name: string;
+  duration: number;
+  es: number | null;
+  ef: number | null;
+  total_float: number;
+  critical: boolean;
+}
+
+export interface CpmResult {
+  project_duration: number;
+  activity_count: number;
+  critical_count: number;
+  has_cycle: boolean;
+  critical_path: string[];
+  activities: CpmRow[];
+  cycle?: string[];
+  issues?: CpmIssue[];
+}
+
+
 export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   // Clash rides here so ApiClient's mixin expression does not grow another
   // `withX()` — one more wrapper there loses HttpCore on the type (TS mixin depth).
@@ -290,10 +325,12 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     a.href = URL.createObjectURL(blob); a.download = fmt === "msp" ? "schedule.xml" : "schedule.xer"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
-  /** CPM analysis of the schedule activities — duration, critical path, float, cycle detection. */
+  /** CPM analysis of the schedule activities — duration, critical path, float, cycle detection.
+   *
+   *  CPM-SILENT — `cycle` and `issues` are the only things this response says when the schedule is
+   *  WRONG, and they were undeclared. See `portal/panels/cpmRead.ts`. */
   scheduleCpm(pid: string) {
-    return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(
-      `/projects/${pid}/schedule/cpm`);
+    return this.json<CpmResult>(`/projects/${pid}/schedule/cpm`);
   }
   /**
    * R45-SCHED-REACH — DCMA 14-point schedule quality.
