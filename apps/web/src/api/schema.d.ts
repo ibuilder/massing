@@ -20914,13 +20914,26 @@ export interface paths {
         };
         /**
          * View Template Graphics
-         * @description R21-VG-OVERRIDES — the full graphic state per visible element: weight, colour, pattern and
-         *     halftone, resolved SEPARATELY for the cut side and the projection side.
+         * @description R21-VG-OVERRIDES — the graphic state of a view template: weight, colour, pattern and halftone,
+         *     resolved SEPARATELY for the cut side and the projection side.
          *
          *     Cut lines are heavier than projection lines; that weight difference — not colour — is how a reader
          *     reads depth off a flat sheet, and it is what makes output look like a drawing rather than a dump.
          *     Overrides layer as partials, so a rule that names only a colour never flattens the weights beneath
          *     it. `cut` is an optional comma-separated GUID list naming what the view plane actually cuts.
+         *
+         *     **VG-DARK: this used to return the per-element map unconditionally, and that is not a payload.**
+         *     Measured on a 50,000-element index: 42,857 entries, **8.9 MB in a viewer-role GET**, on every call
+         *     — and read by nothing, because the only client declaration for this route named two top-level keys
+         *     (`cut`, `projection`) the server has never sent. What a screen asks is *what weight does each
+         *     category draw at*, which `styles` answers in a handful of rows; the per-element map is now opt-in:
+         *
+         *     - default — counts plus `styles`, the distinct resolved states and how many elements carry each;
+         *     - `?guids=a,b,c` — those elements only, with anything not visible named in `graphics_unknown`;
+         *     - `?detail=true` — the whole map, bounded at `max_graphics` with `graphics_truncated` set.
+         *
+         *     `graphics_mode` says which of the three you got, and `graphics_count` is the full visible
+         *     population in all three — *the length of what shipped is never the size of the answer* (TRUNC-COUNTED).
          */
         get: operations["view_template_graphics_projects__pid__view_templates__tid__graphics_get"];
         put?: never;
@@ -61111,6 +61124,8 @@ export interface operations {
         parameters: {
             query?: {
                 cut?: string;
+                guids?: string;
+                detail?: boolean;
             };
             header?: {
                 "x-user"?: string | null;

@@ -10,6 +10,8 @@ import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote
   envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
 import { checkFieldRows, checkHeadline, conventionNote, namingHeadline, unnamedNote, unnamedRows,
   unnamedPageNote, violationPageNote, violationRows } from "./namingRead";
+import { cutCoverageNote, detailNote, elementRows, flattenedNote, graphicsHeadline, graphicsNote,
+  sampleGuids, styleRows } from "./vgRead";
 import { renderViewTemplates } from "./viewTemplates";
 import type { NamingRegisterAudit } from "../../api/types";
 import type { PanelContext } from "../panelContext";
@@ -905,17 +907,81 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     const vgRead = el("div", "meta");
     const vgEdit = el("div"); vgEdit.style.marginTop = "6px";
     vg.textContent = ""; vg.append(vgRead, vgEdit);
-    void ctx.host.api.viewTemplates(pid).then(async (vt) => {
-        const first = vt.templates[0];
-        if (!first) {
+    void ctx.host.api.viewTemplates(pid).then((vt) => {
+        vgRead.textContent = "";
+        if (!vt.templates.length) {
           vgRead.textContent = "No view templates saved yet — write one below and the viewer's QA "
             + "section can apply it.";
           return;
         }
-        const g = await ctx.host.api.viewTemplateGraphics(pid, first.id);
-        const n = g.visible_count;
-        vgRead.textContent = `${vt.templates.length} template(s) · graphics for ${first.name}`
-          + (n != null ? ` · ${n} visible` : "");
+        // VG-DARK. This card read `visible_count` and nothing else — 1 of 3 counts, with every
+        // resolved weight, colour and pattern discarded, and `cut`/`projection` declared as
+        // top-level keys the server has never sent. `apps/web/src/portal/panels/vgRead.ts` holds
+        // the readings and the measurement.
+        const pick = el("select") as HTMLSelectElement;
+        for (const t of vt.templates) {
+          const o = el("option") as HTMLOptionElement;
+          o.value = t.id; o.textContent = t.name || t.id; pick.appendChild(o);
+        }
+        const inspect = el("input") as HTMLInputElement;
+        inspect.type = "text"; inspect.placeholder = "GlobalId(s), comma-separated — blank for none";
+        inspect.style.cssText = "flex:1;min-width:200px";
+        const all = el("label", "meta") as HTMLLabelElement;
+        const allBox = el("input") as HTMLInputElement; allBox.type = "checkbox";
+        all.append(allBox, document.createTextNode(" whole map"));
+        // Separate from the GUID box ON PURPOSE. Passing the inspected elements as the cut list
+        // would make `cut_supplied` true because somebody typed a GlobalId, and the card would then
+        // report "N elements are cut by the view plane" about a claim the reader never made.
+        // *Asking what an element draws at and asserting the plane cuts it are two questions.*
+        const asCut = el("label", "meta") as HTMLLabelElement;
+        const cutBox = el("input") as HTMLInputElement; cutBox.type = "checkbox";
+        asCut.append(cutBox, document.createTextNode(" treat them as cut"));
+        const go = el("button", "btn") as HTMLButtonElement; go.textContent = "Resolve";
+        const bar = el("div");
+        bar.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px";
+        bar.append(pick, inspect, asCut, all, go);
+        const body = el("div");
+        vgRead.append(bar, body);
+
+        const note = (text: string, colour = "") => {
+          const n = el("div", "meta"); n.textContent = text;
+          if (colour) n.style.color = colour;
+          n.style.marginTop = "4px";
+          body.appendChild(n);
+        };
+        const run = async () => {
+          const guids = inspect.value.split(",").map((x) => x.trim()).filter(Boolean);
+          body.textContent = "resolving…";
+          try {
+            const g = await ctx.host.api.viewTemplateGraphics(pid, pick.value,
+              { guids, cut: cutBox.checked ? guids : [], detail: allBox.checked });
+            body.textContent = "";
+            const head = graphicsHeadline(g);
+            note(head.text, BASIS_TONE[head.tone]);
+            note(cutCoverageNote(g));
+            const flat = flattenedNote(g);
+            if (flat) note(flat, BASIS_TONE.crit);
+            if (g.styles.length) {
+              // Two columns, never one: collapsing cut and projection is the flattening this engine
+              // exists to prevent.
+              body.appendChild(table(["Category", "Elements", "Cut (weight · colour · pattern)",
+                "Projection", "Cut heavier by"],
+                styleRows(g).map((r) => [r.group, r.count, r.cut, r.projection, r.heavier])));
+            }
+            note(detailNote(g));
+            if (Object.keys(g.graphics).length) {
+              body.appendChild(table(["GlobalId", "Category", "Cut", "Projection", "Side"],
+                elementRows(g).map((r) => [r.guid, r.group, r.cut, r.projection, r.isCut])));
+            } else if (!guids.length && !allBox.checked) {
+              const ex = sampleGuids(g, 3);
+              if (ex.length) note(`Try one of these GlobalIds: ${ex.join(", ")}`);
+            }
+            note(graphicsNote(g));
+          } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
+        };
+        go.onclick = () => { void run(); };
+        pick.onchange = () => { void run(); };
+        void run();
     }).catch((e: Error) => { vgRead.textContent = `failed: ${esc(e.message)}`; });
     void renderViewTemplates(ctx, vgEdit, pid);
 

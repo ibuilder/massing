@@ -12,6 +12,7 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore, HttpError } from "./httpCore";
+import type { ViewTemplateGraphics } from "./model";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -153,13 +154,25 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   permitsGeojsonUrl(pid: string, city: string) {
     return this.url(`/projects/${pid}/opendata/permits.geojson?city=${encodeURIComponent(city)}`);
   }
-  /** Cut vs projection graphic state for one view template (weight, colour, pattern, halftone). */
-  viewTemplateGraphics(pid: string, tid: string) {
-    return this.json<{
-      visible_count?: number;
-      cut?: Record<string, unknown>;
-      projection?: Record<string, unknown>;
-    }>(`/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics`);
+  /** Cut vs projection graphic state for one view template (weight, colour, pattern, halftone).
+   *
+   *  VG-DARK. The inline type this replaces declared top-level `cut` and `projection`, and the
+   *  server sends neither — they live per element inside `graphics`. Both were phantoms on every
+   *  call ever served, and because the declaration was inline no audit over declarations could see
+   *  them (DEADFIELD-INLINE). `visible_count` was also optional though the server always sends it,
+   *  so the one caller guarded `!= null` against a case that cannot occur.
+   *
+   *  `guids` asks about named elements; `detail` asks for the whole per-element map, which the route
+   *  bounds. Neither is the default, because by default a screen wants `styles`. */
+  viewTemplateGraphics(pid: string, tid: string,
+                       opts: { cut?: readonly string[]; guids?: readonly string[]; detail?: boolean } = {}) {
+    const q = new URLSearchParams();
+    if (opts.cut?.length) q.set("cut", opts.cut.join(","));
+    if (opts.guids?.length) q.set("guids", opts.guids.join(","));
+    if (opts.detail) q.set("detail", "true");
+    const s = q.toString();
+    return this.json<ViewTemplateGraphics>(
+      `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/graphics${s ? `?${s}` : ""}`);
   }
   /**
    * The per-element quality evidence chain — ITP hold/witness points, NCRs and inspections resolved

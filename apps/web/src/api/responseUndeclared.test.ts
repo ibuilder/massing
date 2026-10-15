@@ -388,9 +388,32 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // versions printed `FireRating`. *A key-set comparison at the ROOT cannot see a shape that is
   // wrong one level down*, which is the second limit of this instrument found in a day: its entries
   // are a place to LOOK, never a list of what is wrong.
-  "GET /projects/{}/view-templates/{}/graphics": [
-    "cut_count", "graphics", "hidden_count", "name", "note", "template",
-  ],
+  // **CLOSED 2026-10-15 under VG-DARK, and this entry UNDERSTATED the defect by listing only
+  // omissions.** The declaration it compared against had three members, and TWO of them were
+  // PHANTOMS: `cut` and `projection` at the top level, which the server has never sent — measured,
+  // the top-level keys are exactly the six above plus `visible_count`, and both sides live PER
+  // ELEMENT inside `graphics`. This gate reports the server's keys the client lacks; it says nothing
+  // about the client's keys the server lacks, so the phantoms were outside its question in the same
+  // way `changed_properties.from` was one level below it. *An omission stops a reader; a phantom
+  // gives them `undefined` and a clean build.* The declaration was inline, which is why no audit
+  // over interface declarations could see either half (DEADFIELD-INLINE) — it is a named
+  // `ViewTemplateGraphics` now.
+  //
+  // Behind the six: the whole resolved graphic state. R21-VG-OVERRIDES resolves line weight, colour,
+  // pattern and halftone for the cut side and the projection side of every visible element — the
+  // distinction its own module calls *"the single distinction that separates a drawing from a
+  // dump"* — and the card rendered `42857 visible`, **1 of 3 counts**, with no weight, no colour and
+  // neither side. A template hiding 7,143 of 50,000 elements rendered identically to one hiding
+  // none.
+  //
+  // **And serving it was 8.9 MB.** Measured on a 50,000-element index: 42,857 per-element entries in
+  // a viewer-role GET, on every call, read by nothing — `graphics()` has one caller, the route, and
+  // no drawing generator touches it. *The reading and the bound had to land together, because
+  // wiring a screen to this route without bounding it first turns a latent payload defect into a
+  // live one.* The route now serves `styles`, the distinct resolved states and their element counts
+  // (3 rows over 2,400 elements, under 4 KB), and the map is opt-in: `?guids=` names the misses,
+  // `?detail=true` caps at 2,000 and declares the shortfall, and `graphics_count` is the full
+  // population in all three modes.
   // **MOVED 2026-10-14 to `BY_INDEX_SIGNATURE`, which is a reclassification and not a fix.** The
   // six keys are declared — through `VitalsPayload`'s string index signature, which
   // `getPropertiesOfType` does not report. *An entry no action can remove is a freeze-list entry,

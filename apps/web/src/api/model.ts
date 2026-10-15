@@ -392,6 +392,69 @@ export interface GraphicOverride {
   halftone?: boolean;
 }
 
+/** VG-DARK — the resolved graphic state of a view template, as
+ *  `GET /projects/{pid}/view-templates/{tid}/graphics` returns it.
+ *
+ *  Named, not inline: `apps/web/src/api/deadFieldTyped.test.ts` builds its population from exported
+ *  interface declarations, and the inline declaration this replaces had **two phantom members** —
+ *  top-level `cut` and `projection`, which the server has never sent. Measured against a live route:
+ *  the top-level keys are `cut_count`, `graphics`, `hidden_count`, `name`, `note`, `template`,
+ *  `visible_count`. The cut and projection sides live PER ELEMENT, inside `graphics[guid]`. So both
+ *  members type-checked, resolved to `undefined` on every call ever served, and no compiler error
+ *  could reach them — the client-side form of SYSTEM-COLUMN-PHANTOM. */
+export interface GraphicState {
+  /** The drafting category the default weights came from: structure / enclosure / interior /
+   *  opening / mep / site / other. An unfamiliar IFC class lands in `other` by design. */
+  group: string;
+  cut: GraphicOverride;
+  projection: GraphicOverride;
+  /** Whether the view plane is claimed to cut THIS element — only ever true for a GUID the caller
+   *  named in `?cut=`. */
+  is_cut: boolean;
+}
+
+/** One distinct resolved style and how many elements carry it. This is what a screen is asking when
+ *  it asks about a view template, and it is a handful of rows where the per-element map is tens of
+ *  thousands: measured at 4 styles over 42,857 visible elements. */
+export interface GraphicStyleBucket {
+  group: string;
+  cut: GraphicOverride;
+  projection: GraphicOverride;
+  count: number;
+  /** How many of this bucket's elements the caller named in `?cut=`. */
+  cut_count: number;
+  /** Up to five GUIDs, so a reader can ask `?guids=` about one rather than paging the whole map. */
+  sample: string[];
+}
+
+export interface ViewTemplateGraphics {
+  template: string;
+  name?: string | null;
+  visible_count: number;
+  hidden_count: number;
+  /** Elements the caller named in `?cut=` AND that resolved visible. */
+  cut_count: number;
+  /** Whether a cut list was supplied at all. `cut_count: 0` has two causes — nothing is cut, or
+   *  nobody said what is cut — and the engine calls the second the honest answer for a 3D view. */
+  cut_supplied: boolean;
+  styles: GraphicStyleBucket[];
+  style_count: number;
+  /** The per-element map, OPT-IN. Served unconditionally it was 8.9 MB on a 50,000-element model, in
+   *  a viewer-role GET, read by nothing. */
+  graphics: Record<string, GraphicState>;
+  /** Every visible element, whatever shipped in `graphics` — the length of a page is never the size
+   *  of the answer (TRUNC-COUNTED). */
+  graphics_count: number;
+  /** Which of the three the caller got: no map, the GUIDs they named, or the whole thing. */
+  graphics_mode: "none" | "guids" | "all";
+  /** Only `all` can set this. */
+  graphics_truncated: boolean;
+  /** Only `guids` can fill this: the GUIDs asked for that are not visible under this template. */
+  graphics_unknown: string[];
+  max_graphics: number;
+  note: string;
+}
+
 /** One stacked colour rule. Later rules win. `color` is REQUIRED — the server keeps it required so
  *  every template saved before R21 still validates and still resolves identically. */
 export interface ViewTemplateRule {

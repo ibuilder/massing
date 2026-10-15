@@ -595,16 +595,29 @@ def view_template_resolve(pid: str, tid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/view-templates/{tid}/graphics")
-def view_template_graphics(pid: str, tid: str, cut: str = "",
+def view_template_graphics(pid: str, tid: str, cut: str = "", guids: str = "", detail: bool = False,
                            db: Session = Depends(get_db),
                            _: str = Depends(require_role("viewer"))):
-    """R21-VG-OVERRIDES — the full graphic state per visible element: weight, colour, pattern and
-    halftone, resolved SEPARATELY for the cut side and the projection side.
+    """R21-VG-OVERRIDES — the graphic state of a view template: weight, colour, pattern and halftone,
+    resolved SEPARATELY for the cut side and the projection side.
 
     Cut lines are heavier than projection lines; that weight difference — not colour — is how a reader
     reads depth off a flat sheet, and it is what makes output look like a drawing rather than a dump.
     Overrides layer as partials, so a rule that names only a colour never flattens the weights beneath
     it. `cut` is an optional comma-separated GUID list naming what the view plane actually cuts.
+
+    **VG-DARK: this used to return the per-element map unconditionally, and that is not a payload.**
+    Measured on a 50,000-element index: 42,857 entries, **8.9 MB in a viewer-role GET**, on every call
+    — and read by nothing, because the only client declaration for this route named two top-level keys
+    (`cut`, `projection`) the server has never sent. What a screen asks is *what weight does each
+    category draw at*, which `styles` answers in a handful of rows; the per-element map is now opt-in:
+
+    - default — counts plus `styles`, the distinct resolved states and how many elements carry each;
+    - `?guids=a,b,c` — those elements only, with anything not visible named in `graphics_unknown`;
+    - `?detail=true` — the whole map, bounded at `max_graphics` with `graphics_truncated` set.
+
+    `graphics_mode` says which of the three you got, and `graphics_count` is the full visible
+    population in all three — *the length of what shipped is never the size of the answer* (TRUNC-COUNTED).
     """
     from .. import view_templates as vt
     _project(db, pid)
@@ -612,7 +625,28 @@ def view_template_graphics(pid: str, tid: str, cut: str = "",
     if t is None:
         raise HTTPException(404, f"view template {tid!r} not found")
     cut_guids = {g.strip() for g in cut.split(",") if g.strip()} or None
-    return vt.graphics(_idx_for(pid), t, cut_guids)
+    out = vt.graphics(_idx_for(pid), t, cut_guids)
+    full: dict[str, dict] = out.pop("graphics")
+    want = {g.strip() for g in guids.split(",") if g.strip()}
+    if want:
+        mode, shown = "guids", {g: full[g] for g in sorted(want) if g in full}
+        unknown, truncated = sorted(want - set(full)), False
+    elif detail:
+        keys = sorted(full)[:vt.MAX_DETAIL]
+        mode, shown = "all", {g: full[g] for g in keys}
+        unknown, truncated = [], len(keys) < len(full)
+    else:
+        mode, shown = "none", {}
+        unknown, truncated = [], False
+    out["styles"] = vt.style_summary(full)
+    out["style_count"] = len(out["styles"])
+    out["graphics"] = shown
+    out["graphics_count"] = len(full)
+    out["graphics_mode"] = mode
+    out["graphics_truncated"] = truncated
+    out["graphics_unknown"] = unknown
+    out["max_graphics"] = vt.MAX_DETAIL
+    return out
 
 
 # SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).
