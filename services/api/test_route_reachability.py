@@ -434,7 +434,23 @@ KNOWN_UNCALLED: set[str] = {
     # paid for.* See `services/api/test_elements_freshness.py`.
     "/projects/{pid}/market/exists",
     "/projects/{pid}/model/ensure",
-    "/projects/{pid}/model/options/{slug}/activate",
+    # `/projects/{pid}/model/options/{slug}/activate` left this set 2026-10-15 — MODELOPT-DARK,
+    # and it was the only one of the five THIS list could see. The capability was split across
+    # three records: this entry, two more in `LEAF_COLLISION_BLIND` below (`GET`/`POST
+    # /model/options` and `DELETE .../{slug}`), and `.../{slug}/diff` in no list at all — its leaf
+    # `diff` appears all over the web source, which is this gate's own documented false-negative
+    # class. *One capability's parts, each reading as somebody else's gap*, which is CLASSIFY-DARK's
+    # three-way split arriving again on five routes instead of three.
+    #
+    # **The first draft of this comment claimed the other four appeared in NO freeze list, and the
+    # gate refuted it on the next run** by failing on the two it does hold. *A claim about what a
+    # gate does not contain is exactly the claim a gate can check* — and it is the argument for
+    # keeping the two lists separate: a merged list would have had nothing to disagree with.
+    #
+    # The whole family is wired now through `apps/web/src/api/modelOptions.ts` and the branch
+    # controls in `apps/web/src/viewer/tools/modelOptionsPanel.ts`, mounted from
+    # `authoringSection.ts` because `apps/web/src/viewer/app.ts` is exactly on its size pin — the
+    # remedy `repairPanel.ts` and `projectSetupPanel.ts` already took.
     # `/projects/{pid}/notices` and `/notices/clauses` left this set 2026-10-12 — NOTICE-CLOCK-DARK.
     # `apps/web/src/portal/panels/noticeClock.ts`, opened from the schedule panel beside the EOT
     # claim, for the reason the claim exists: late notice is what bars it. `/notices/draft` left
@@ -1998,8 +2014,15 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/mep/schedule",
     "/projects/{pid}/model/connections",
     "/projects/{pid}/model/export.csv",
-    "/projects/{pid}/model/options",
-    "/projects/{pid}/model/options/{slug}",
+    # `/projects/{pid}/model/options` (GET + POST) and `/projects/{pid}/model/options/{slug}`
+    # (DELETE) left this set 2026-10-15 — MODELOPT-DARK. **The ratchet coming down here corrected
+    # the write-up that removed it.** The entry I deleted from `KNOWN_UNCALLED` said the other four
+    # routes of this capability "appear in no freeze list anywhere" — TWO of them were right here,
+    # in the blind-spot list, and only `.../{slug}/diff` was genuinely unlisted. *A claim about
+    # what a gate does NOT contain is the one a gate can refute, and this one did*, which is the
+    # argument for keeping both lists rather than merging them. So the capability's five routes
+    # were split THREE ways: one named uncalled, two named blind, one unlisted, and one (`POST`
+    # sharing the GET's path) covered by the same entry as its sibling.
     # `/projects/{pid}/naming/validate` left this set 2026-10-15 — NAMING-UNREAD. It is the fix loop
     # for the naming audit's violation table: the product could tell a reader their container
     # filename was wrong and had no way to tell them whether the replacement is right. Its sibling

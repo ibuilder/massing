@@ -81,6 +81,17 @@ const SECTION_SOURCES = [
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",
+  // MODELOPT-DARK: the model-branch controls, exported as a `*Button()` and appended by
+  // `authoringSection.ts`. SAME ORDERING CONSTRAINT as the three `qa`-run entries above — this
+  // file opens no `const b = section("key"` of its own, so it is attributed to whichever file
+  // precedes it, and `authoringSection.ts` is where its button mounts. It is therefore LAST on
+  // purpose: anywhere earlier and its controls read as belonging to another section.
+  "src/viewer/tools/modelOptionsPanel.ts",
+  // ...and its BODY, which is a separate module only because `viewer/tools/*` is the eager shell
+  // chunk and the panel put it at exactly 225.0 KB of a 225 KB budget. The controls live there, so
+  // this list has to read it or every one of them reads as deleted — the both-directions property
+  // the docstring above promises. Same ordering constraint: it opens no `section("key"` either.
+  "src/viewer/tools/modelOptionsView.ts",
 ];
 const APP = () => SECTION_SOURCES.map(read).join("\n");
 

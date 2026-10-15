@@ -1561,3 +1561,66 @@ export interface ModelHealth {
   /** Why a count of lenses is not the coverage of a weighted mean. */
   weight_basis: string;
 }
+
+/**
+ * MODELOPT-DARK — one model-option BRANCH: a whole saved IFC, not a set of metrics.
+ *
+ * `model_options`'s own header draws the line: *"The metrics-comparison module
+ * (`design_options.py`) compares numbers; THIS module carries the actual model files."* So this is
+ * not a second view of the `design_option` register — it is the geometry half, and the two were
+ * dark in different ways. The register's economics reached a screen (OPTION-DISAGREE fixed what it
+ * said there); the branches reached nothing at all.
+ */
+export interface ModelOptionBranch {
+  slug: string;
+  name: string;
+  note: string | null;
+  created_at: string;
+  size_bytes: number;
+  /** `null` when the IFC could not be opened to count — a count never blocks a snapshot. */
+  elements: number | null;
+  /** False when the index has an entry whose `.ifc` is gone from storage. */
+  available?: boolean;
+  /** Byte-identical to the project's current source. More than one branch can be current. */
+  current?: boolean;
+}
+
+export interface ModelOptionList {
+  options: ModelOptionBranch[];
+  count: number;
+}
+
+export interface ModelOptionActivated {
+  activated: string;
+  source_ifc: string;
+  /** `"running"` when the viewer republish was kicked off. Absent when `publish: false`. */
+  publish?: string;
+}
+
+/**
+ * MODELOPT-DARK — what separates the current model from a branch, at the GUID-set level.
+ *
+ * **The two GUID lists are capped at 100 server-side and the counts are not**, so a consumer that
+ * renders `added_in_current.length` prints a page length as a total — the TRUNC-COUNTED defect this
+ * repo has now paid for several times. `added_count` / `removed_count` are the totals.
+ *
+ * `identical` is true for two element-less models and that is deliberate, not vacuous: the question
+ * *do these differ at the IfcElement GUID-set level?* is genuinely answered "no" for two empty
+ * models. What a reader needs beside it is the POPULATION, which is why both element counts are
+ * here — the engine's own comment calls that the fix for a vacuous truth: *"sometimes it is to say
+ * what it is true of."*
+ */
+export interface ModelOptionDiff {
+  option: string;
+  /** Capped at 100. Use `added_count` for the total. Direction is option → current. */
+  added_in_current: string[];
+  added_count: number;
+  /** Capped at 100. Use `removed_count` for the total. */
+  removed_in_current: string[];
+  removed_count: number;
+  /** Per IFC class, only where the counts differ. `delta` is current − option. */
+  class_deltas: Record<string, { current: number; option: number; delta: number }>;
+  current_element_count: number;
+  option_element_count: number;
+  identical: boolean;
+}

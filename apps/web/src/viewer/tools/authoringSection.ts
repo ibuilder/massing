@@ -4,6 +4,7 @@ import { type ApiClient } from "../../api/client";
 import { escapeHtml } from "../../ui/feedback";
 import { openNodeCanvas } from "../nodeCanvas";
 import { macroButton } from "./macroTool";
+import { modelBranchesButton } from "./modelOptionsPanel";
 import { describePlan, planApply, planSteps, type ApplyPlan, type LockVariable } from "../dimLocks";
 
 /**
@@ -162,6 +163,11 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
         // in a local and never appended is the silent-inert failure that gate is named for.
         b.append(fix, pub, furnish, nodeBtn,
                  macroButton({ toolBtn2, api, pid, notify, waitForPublish, loadProjectModel }),
+                 // MODELOPT-DARK: the five `/model/options*` routes had no door anywhere. Mounted
+                 // here rather than as its own `app.ts` builder because that file is exactly on
+                 // its size pin — the same reason the locks builder below lives in this section —
+                 // and branching a model IS authoring.
+                 modelBranchesButton({ toolBtn2, api, pid, notify, waitForPublish, loadProjectModel }),
                  locksBtn(d, out), out);
 }
 

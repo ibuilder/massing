@@ -38,6 +38,7 @@ import { withAcceptanceGates } from "./acceptanceGates";
 import { withCoverageMaps } from "./coverageMaps";
 import { withStakeholder } from "./stakeholder";
 import { withDesignOptions } from "./designOptions";
+import { withModelOptions } from "./modelOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { withAssetRights } from "./assetRights";
@@ -85,7 +86,7 @@ import type {
 //: members, and only a `class` DECLARATION clears it — a `const` split does not. All four
 //: measurements, and why this is enforced by a test rather than by this comment, are in
 //: `api/mixinStaging.test.ts`; `api/surface.test.ts` floors the method count.
-class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore))))))))))))))))))))))))) {}
+class _ApiStageA extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withModelOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withClassification(withAuthoring(HttpCore)))))))))))))))))))))))))) {}
 
 class _ApiStageB extends withStakeholder(withCoverageMaps(withAcceptanceGates(withCounterpartyRisk(withDesignPerformance(withDetailing(withAnnotate(withCreDeal(withClientPortal(withResilience(withResponsibility(withOperations(withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(_ApiStageA))))))))))))))))))))))))) {}
 
