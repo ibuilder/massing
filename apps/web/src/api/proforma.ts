@@ -39,6 +39,34 @@ import type { Appraisal, DevBudgetLine, DevBudgetResponse, DevBudgetSummary, Fin
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** RENTROLL-BASIS — the operating rent roll as `rentroll.summarize` returns it.
+ *
+ *  `occupancy_basis` is the load-bearing field. `total_rentable = building_rentable_sf or
+ *  occupied_sf`, so when a project carries no rentable area the denominator becomes the numerator
+ *  and the percentage is 100% whatever the leases say. Measured on the engine with identical
+ *  leases: a 20,000 sf building gives 30.0% with 14,000 sf vacant; the same leases with the area
+ *  unset give 100.0% with 0 vacant. Nothing can be derived from the numbers — a full building
+ *  reports exactly the same four values — so the server states which denominator it used. */
+export interface RentRollResult {
+  as_of: string;
+  lease_count: number;
+  total_rentable_sf: number;
+  occupied_sf: number;
+  vacant_sf: number;
+  occupancy_pct: number;
+  /** "building" when the project's rentable area was used, "leased" when it fell back. */
+  occupancy_basis: "building" | "leased";
+  /** The project's rentable area as supplied, or null when it was not set. */
+  building_rentable_sf: number | null;
+  base_rent_annual: number;
+  recoveries_annual: number;
+  in_place_gross_income: number;
+  avg_rent_psf: number;
+  walt_years: number;
+  expirations_by_year: Record<string, unknown>;
+  rows: Record<string, unknown>[];
+}
+
 export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Proforma extends Base {
   solveProforma(assumptions: unknown) {
@@ -487,11 +515,14 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/listings/${lid}/syndicate`, { method: "POST" });
   }
 
-  /** rentRoll — occupancy, WALT, expiration schedule, in-place income. */
+  /** rentRoll — occupancy, WALT, expiration schedule, in-place income.
+   *
+   *  RENTROLL-BASIS — `occupancy_pct` is meaningless without `occupancy_basis`: the engine falls
+   *  back to the LEASED area when the project has no rentable building area, which makes it 100% by
+   *  construction. The three area fields and the basis are declared so a reader can tell that case
+   *  from a full building; see `proforma/rentRollBasis.ts`. */
   rentRoll(pid: string) {
-    return this.json<{ occupancy_pct: number; lease_count: number; base_rent_annual: number;
-      in_place_gross_income: number; walt_years: number; expirations_by_year: Record<string, unknown>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/rent-roll`);
+    return this.json<RentRollResult>(`/projects/${pid}/rent-roll`);
   }
   /** leaseManagement — renewal pipeline, rent-escalation schedule, CAM/recovery reconciliation. */
   leaseManagement(pid: string, years?: number, recoverableOpex?: number) {

@@ -8,6 +8,7 @@ import { drawPackageLines } from "./drawPackage";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { basisNote, disciplineRows, SYNC_CSS, syncFailure, vintageNote } from "./modelSyncCard";
+import { areaRows, occupancyLine, occupancyText } from "./rentRollBasis";
 import { applyLandBasis, landBasis, renderResidualLandCard, type LandLine } from "./residualLandCard";
 import { renderAdmissibilityCard } from "./admissibilityCard";
 import { renderAuthorityCard } from "./authorityCard";
@@ -592,14 +593,26 @@ export class ProformaUI {
           `<div class="meta">No active leases yet — add them under `
           + `Construction ▸ Operations ▸ Leases. The seller's T-12 below does not need them.</div>`);
       }
+      // RENTROLL-BASIS. `${rr.occupancy_pct}%` printed 100% on any project whose rentable area is
+      // unset, because the engine's denominator falls back to the leased area. The three areas are
+      // now rows of their own, so the denominator is on screen instead of implied, and the
+      // percentage is withheld rather than invented when there was never a denominator.
       const rc = document.createElement("div"); rc.className = "fin-card";
+      const occBasis = occupancyLine(rr);
       rc.innerHTML = `<div class="section-title">Rent roll (operating)</div>`
         + `<table class="fin-table">`
-        + `<tr><td>Occupancy</td><td class="num">${rr.occupancy_pct}%</td></tr>`
+        // Escaped although every one of these is a number or a fixed English label today. The
+        // innerHTML ratchet's own lesson is that "a false positive is only cheap when the
+        // suggested fix is safe" — here it IS safe (none of these holds assembled markup), so
+        // escaping beats a BASELINE entry, which would freeze a judgement about what
+        // `rentRollBasis` happens to return this week.
+        + `<tr><td>Occupancy</td><td class="num">${escapeHtml(occupancyText(rr))}</td></tr>`
+        + areaRows(rr).map((a) => `<tr><td>${escapeHtml(a.label)}</td><td class="num">${escapeHtml(a.value)}</td></tr>`).join("")
         + `<tr><td>Leases</td><td class="num">${rr.lease_count}</td></tr>`
         + `<tr><td>Base rent / yr</td><td class="num">${money(rr.base_rent_annual)}</td></tr>`
         + `<tr><td>In-place income</td><td class="num">${money(rr.in_place_gross_income)}</td></tr>`
-        + `<tr class="fin-total"><td>WALT</td><td class="num">${rr.walt_years} yrs</td></tr></table>`;
+        + `<tr class="fin-total"><td>WALT</td><td class="num">${rr.walt_years} yrs</td></tr></table>`
+        + (occBasis ? `<div class="meta" style="color:var(--status-warn);margin-top:6px">${escapeHtml(occBasis)}</div>` : "");
       const rb = document.createElement("div"); rb.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
       const rl = document.createElement("a"); rl.className = "file-btn"; rl.textContent = "⬇ Rent roll (PDF)"; rl.href = this.api.reportUrl(pid, "rent_roll", "pdf"); rl.target = "_blank"; rl.rel = "noopener";
       const rx = document.createElement("a"); rx.className = "file-btn"; rx.textContent = "⬇ Excel"; rx.href = this.api.reportUrl(pid, "rent_roll", "xlsx"); rx.target = "_blank"; rx.rel = "noopener";
