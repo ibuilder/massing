@@ -96,6 +96,33 @@ def compute(items: list[dict]) -> dict:
     Same class as PRICE-MATCHED's `unmatched`/`unit_mismatch` split in `pricing.reconcile`, which
     walks the same `production_quantity` records with the same keyword-table-plus-unit-conversion
     shape. *Fixing a class in one engine is a reason to look at its twin, and this one had it.*
+
+    ### The class, swept: four engines refuse a line for two distinguishable reasons
+
+    | engine | refusals told apart? |
+    |---|---|
+    | `pricing.reconcile` | **no** -- fixed under PRICE-MATCHED |
+    | `carbon.compute` (here) | **no** -- fixed here |
+    | `cost.reconcile_tm_rates` | yes: `unmatched` vs `unpriced`, with `in_totals` and a reason |
+    | `production` reconciliation | yes: five named statuses plus `STATUS_MEANING` on the wire |
+
+    **What separates the two halves is the SHAPE OF THE RETURN VALUE, not how carefully each was
+    written.** Both engines that lost the distinction summarise into a single scalar
+    (`priced_total`, `total_kgco2e`) and report refusals as a count beside it; both that kept it
+    return a per-line STATUS, where there is nowhere for a reason to go except onto the line. An
+    engine whose output is a total has to choose to carry the refusal; an engine whose output is a
+    row cannot avoid it. *The return shape predicts the defect, which makes it a cheaper thing to
+    look for than the defect.*
+
+    Recorded as a comment and not a gate on purpose: the population is four, and a derivation over
+    four sites needing judgement at each one is the shape this repository's own notes warn about --
+    `noRespelledShapes.test.ts` bought that lesson at five exemptions. If a fifth engine of this
+    shape appears, the table above is the thing to re-measure.
+
+    *(An earlier draft of this note credited `cost.py`'s correctness to the three review rounds its
+    own comments record. Measuring `production.py` -- which had no such rounds and is the cleanest
+    of the four -- showed that was the wrong cause. A plausible explanation for a clean negative is
+    still a guess until the other negatives are checked.)*
     """
     lines, by_material, by_code = [], {}, {}
     total = 0.0

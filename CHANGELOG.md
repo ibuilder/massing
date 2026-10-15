@@ -50,6 +50,24 @@ axis. *A declared key says nothing about whether the number in it answers one qu
 `agg["unmatched"] == 1` was asserted over a population containing one of the two cases. The new
 block derives the split from the per-line notes rather than writing the counts out.
 
+**The class was then swept, and the result named a cheaper thing to look for.** Four engines in this
+tree refuse a quantity line for two distinguishable reasons: `pricing.reconcile` and `carbon.compute`
+both lost the distinction (both now fixed), while `cost.reconcile_tm_rates` (`unmatched` vs
+`unpriced`, carrying `in_totals` and a reason) and the `production` reconciliation (five named
+statuses plus `STATUS_MEANING` on the wire) both kept it. **What separates the halves is the shape of
+the return value.** The two that lost it summarise into a single scalar — `priced_total`,
+`total_kgco2e` — and report refusals as a count beside it; the two that kept it return a per-line
+status, where there is nowhere for a reason to go except onto the line. An engine whose output is a
+total has to *choose* to carry the refusal; one whose output is a row cannot avoid it. *The return
+shape predicts the defect, which makes it cheaper to look for than the defect.* Recorded as a
+comment rather than a gate: the population is four, and a derivation needing judgement at each of
+four sites is what `noRespelledShapes.test.ts` bought at the price of five exemptions.
+
+*(An earlier draft of that note credited `cost.py`'s correctness to the three review rounds its own
+comments record. Measuring `production.py` — which had no such rounds and is the cleanest of the
+four — showed that was the wrong cause. **A plausible explanation for a clean negative is still a
+guess until the other negatives are checked.**)*
+
 Gated by `apps/web/src/portal/panels/carbonCoverage.test.ts` (14 cases) and the new block in
 `services/api/test_carbon.py`. Nine mutations proved red — five on the engine (the refusals
 collapsed again, the excluded materials counted instead of named, an unconverted line counted as
