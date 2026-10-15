@@ -737,7 +737,17 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `total_rentable_sf`, `occupied_sf` and `vacant_sf` are not — so the figures that say whether
   // the percentage means anything are unreadable. Filed from the arithmetic, not from a live
   // route; RENTROLL-BASIS is the item that owes the measurement.
-  "GET /projects/{}/rent-roll": ["as_of", "avg_rent_psf", "occupied_sf", "recoveries_annual", "total_rentable_sf", "vacant_sf"],
+  // **CLOSED 2026-10-15 under RENTROLL-BASIS, and the three area fields were the whole finding.**
+  // `rentroll.summarize` does `total_rentable = building_rentable_sf if building_rentable_sf else
+  // occupied_sf`, sourced from `project.dev_property["sqft"]` — a field nobody is obliged to fill —
+  // so the DENOMINATOR becomes the numerator. Measured with identical leases: a 20,000 sf building
+  // gives `{total_rentable_sf: 20000, occupied_sf: 6000, vacant_sf: 14000, occupancy_pct: 30.0}`;
+  // the area unset gives `{6000, 6000, 0, 100.0}`. `occupancy_pct` was the ONLY one of the four
+  // declared, so the card printed "Occupancy 100%" with no vacancy row and could not have shown
+  // the basis. It reaches further than the screen: the figure is a KPI in the rent-roll PDF, it is
+  // passed into `proforma/income_basis.py`, and it is in the assistant's snapshot. The engine now
+  // states `occupancy_basis`, because nothing can be derived — a FULL building reports the same
+  // four numbers, and an equality cannot separate two equal things.
   // `submittals.register` — the status distribution. `open_count` and `overdue_count` are declared;
   // the distribution they came out of is not.
   "GET /projects/{}/submittals/register": ["by_status"],
