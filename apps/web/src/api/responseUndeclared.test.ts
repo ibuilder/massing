@@ -230,7 +230,28 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // end against a live server.
   "GET /projects/{}/cx/matrix": ["note"],
   // `orphans` — documents attached to nothing.
-  "GET /projects/{}/documents/health": ["note", "orphans"],
+  // **CLOSED 2026-10-15 under DOCHEALTH-VACUOUS, and the two undeclared keys were the small half.**
+  // `orphans` was a list of bare file ids — a list a reader resolves one lookup at a time — and it
+  // now carries the name and the folder. The larger finding needed no undeclared key at all:
+  // `required_missing` and `by_cde_state` were DECLARED and rendered nowhere, so a strip printing
+  // `required coverage 18.2%` held the missing nine folders and discarded them, which is LOD-UNREAD's
+  // shape in the document audit.
+  //
+  // **And two of that strip's three percentages could not vary.** `upload` generates every filed
+  // name with `_standard_name` and assigns every revision, so `naming_compliance_pct` and
+  // `revision_control_pct` answer *did this module work* rather than *is this document set in
+  // order* — measured at 100% for a document uploaded as "Final final v2.pdf", filed as
+  // `DOC_G_FinalFinalV2_P01_2026-10-15.pdf`. `named_at_source_pct` is the number about the project
+  // and was free: `orig_name` is already on every entry. *A metric over a value the product wrote
+  // itself is a check on the product, and leading a health strip with one is leading with a
+  // constant.*
+  //
+  // Two live defects came out of probing the auto-namer rather than reading it. `_safe` truncates at
+  // 120 characters and used to be handed the whole assembled name, so a long title pushed the
+  // revision and the date off the end — **three fields, no revision, in a revision-controlled CDE**;
+  // `_standard_name` bounds the description now. And `revision="   "` is truthy, so a whitespace
+  // revision became the revision and landed in the name as a blank field: it is stripped before the
+  // fallback, which was also the only way either percentage above could ever dip.
   "GET /projects/{}/elements/{}/records": ["note"],
   // `refused` — conditions the engine would not rule on.
   // **CLOSED 2026-10-14 under COND-REFUSED, and this pair was a live defect rather than a gap.**

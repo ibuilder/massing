@@ -30,8 +30,8 @@
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { DocFile, DocFolderNode, InfoRequirementsCascade, ModuleRecord, NamingAudit,
-  NamingCheck, PreflightGate } from "./types";
+import type { DocFile, DocFolderNode, DocumentsHealth, InfoRequirementsCascade, ModuleRecord,
+  NamingAudit, NamingCheck, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -51,11 +51,14 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ role: string; count: number; folders: DocFolderNode[] }>(
       `/projects/${pid}/documents/by-role?role=${encodeURIComponent(role)}`);
   }
+  /** Document-control health: naming, required-folder coverage, revision control, CDE spread, and
+   *  the documents filed outside the standard taxonomy.
+   *
+   *  DOCHEALTH-VACUOUS. The inline type this replaces left out `orphans` and `note`, and declared
+   *  `required_missing` and `by_cde_state` that the only caller never rendered — so a strip printing
+   *  `required coverage 18.2%` had the missing nine folders in hand and threw them away. */
   documentsHealth(pid: string) {
-    return this.json<{ total_files: number; naming_compliance_pct: number | null;
-      required_coverage_pct: number | null; revision_control_pct: number | null;
-      required_missing: string[]; by_cde_state: Record<string, number>; superseded_kept: number }>(
-      `/projects/${pid}/documents/health`);
+    return this.json<DocumentsHealth>(`/projects/${pid}/documents/health`);
   }
   documentsPhaseGaps(pid: string, phase: string) {
     return this.json<{ phase: string; missing: number;

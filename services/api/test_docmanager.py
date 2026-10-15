@@ -4,6 +4,7 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_docmanager.py"""
 import io
 import os
 import shutil
+from datetime import datetime
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_docmanager.db"
 os.environ["STORAGE_DIR"] = "./test_storage_docmanager"
@@ -17,7 +18,7 @@ shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import docmanager, folder_template  # noqa: E402
+from aec_api import docmanager, folder_template, naming  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 # --- F1: taxonomy ---------------------------------------------------------------------------------
@@ -63,11 +64,79 @@ drawings_root = next(n for n in t["nodes"] if n["path"] == "02_Drawings")
 assert drawings_root["count"] == 1, "counts roll up to parent"
 assert "01_Contract Documents/Contract Agreement" in t["required_gaps"], "required-but-empty flagged"
 
+def _expect_value_error(fn):
+    """Return the ValueError a call raises, or fail — `assertRaises` with the message in hand, so
+    the refusal's TEXT can be asserted rather than only its type."""
+    try:
+        fn()
+    except ValueError as e:
+        return e
+    raise AssertionError("expected a ValueError and the call succeeded")
+
+
 # health
 h = docmanager.health(PID)
 assert h["total_files"] == 1 and h["revision_control_pct"] == 100.0, h
 assert h["superseded_kept"] == 1, h
 assert "01_Contract Documents/Contract Agreement" in h["required_missing"], h
+
+# --- DOCHEALTH-VACUOUS: two of the three percentages cannot vary -------------------------------
+# `upload` generates every filed name with `_standard_name` AND assigns every revision, so
+# `naming_compliance_pct` and `revision_control_pct` both answer "did this module work" and are
+# 100% by construction. The strip led with the first and printed the second beside it.
+# PROVED rather than asserted on one fixture: every hostile title, doc_type and discipline the
+# caller can supply still produces a name this project's own validator accepts.
+_WHEN = datetime(2026, 10, 15)
+for _t in ("", "   ", "...", "!!!", "a" * 300, "Final final v2", "Ünïcödé ✓", "a_b_c_d_e_f",
+           "2026-01-01", "../../etc/passwd"):
+    for _dt, _disc in (("", None), ("!!!", "Nonsense"), ("x" * 40, "Architectural"), ("a-b-c", "")):
+        _nm = docmanager._safe(docmanager._standard_name(
+            _dt, _disc, (_t or "Document").strip() or "Document", "P01", _WHEN) + ".pdf")
+        _v = naming.validate_container_name(_nm)
+        assert _v["valid"], (_t[:30], _dt, _disc, _nm, _v["issues"])
+        # The two fields that MUST survive the length bound, which is the defect behind the 300-char
+        # case: `_safe` truncates at 120 and used to be handed the whole assembled name, so a long
+        # title pushed the revision and the date off the end — three fields, no revision, in a
+        # revision-controlled CDE.
+        assert _v["fields"]["revision"] == "P01", (_t[:30], _nm)
+        assert _v["fields"]["date"] == "2026-10-15", (_t[:30], _nm)
+        assert len(_nm) <= docmanager._MAX_NAME, (len(_nm), _nm)
+
+# `named_at_source_pct` is the number about the PROJECT, free from the `orig_name` already stored.
+_at_source = docmanager.upload(PID, "02_Drawings/Structural",
+                               "DR_S_FoundationPlan_P01_2026-07-05.pdf", b"x", "dev")
+_renamed = docmanager.upload(PID, "02_Drawings/Structural", "Final final v2.pdf", b"x", "dev")
+h2 = docmanager.health(PID)
+assert h2["naming_compliance_pct"] == 100.0, "the auto-namer always conforms"
+assert h2["named_at_source_pct"] is not None and h2["named_at_source_pct"] < 100.0, h2
+assert h2["renamed_on_intake"] >= 1, h2
+_row = next(r for r in h2["renamed"] if r["orig_name"] == "Final final v2.pdf")
+# `S`, not `G`: the discipline in the generated name comes from the FOLDER's declared discipline
+# (`02_Drawings/Structural`), which is why filing into the taxonomy is what makes auto-naming work.
+assert _row["name"].startswith("DOC_S_FinalFinalV2_P01_"), _row
+assert h2["renamed_truncated"] is False, h2
+assert "100% by construction" in h2["naming_basis"], h2["naming_basis"]
+
+# A whitespace revision is an EMPTY revision — the one path by which a document could be filed with
+# a blank revision field in its name, which is also the only way either percentage above could dip.
+_ws = docmanager.upload(PID, "02_Drawings/Structural", "Blank rev.pdf", b"x", "dev",
+                        revision="   ")
+assert _ws["entry"]["revision"] == "P01", _ws["entry"]["revision"]
+assert _ws["naming"]["valid"] is True, _ws["naming"]
+assert docmanager.health(PID)["revision_control_pct"] == 100.0
+
+# `required_total` is the denominator the percentage is over, and `orphans` is actionable rather
+# than a list of bare ids a reader resolves one lookup at a time.
+h3 = docmanager.health(PID)
+assert h3["required_total"] == len(folder_template.required_paths()) > 0, h3["required_total"]
+assert h3["orphan_count"] == 0 and h3["orphans"] == [], h3
+# The list is empty BY CONSTRUCTION: both doors refuse a non-standard folder, so the only way it
+# fills is a folder leaving the standard tree under documents already filed there.
+assert "not a standard folder" in str(
+    _expect_value_error(lambda: docmanager.upload(PID, "99_Loose", "x.pdf", b"x", "dev")))
+assert "not a standard folder" in str(
+    _expect_value_error(lambda: docmanager.move(PID, _at_source["entry"]["id"], "99_Loose", "dev")))
+assert "by construction" in h3["orphan_basis"], h3["orphan_basis"]
 
 # phase gaps: CD needs structural drawings (present) + specs/BOQ (missing)
 pg = docmanager.phase_gaps(PID, "CD")
