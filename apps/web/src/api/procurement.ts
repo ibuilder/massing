@@ -199,14 +199,35 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/procurement/buyout-schedule`, { method: "POST", body: JSON.stringify(body) });
   }
   procurementComplianceFeed(pid: string) {
-    return this.json<{ within_days: number; vendors_flagged: number;
+    return this.json<{ within_days: number;
+      /** PREQUAL-LAPSE: the horizon actually used. `within_days` was accepted, clamped to 1–365 by
+       *  its route, echoed, and used for nothing — the windows were a literal 30 inside the COI
+       *  branch, so a caller asking for 7 days got a 30-day answer labelled 7. */
+      warn_days: number; vendors_flagged: number;
       vendors: { vendor: string; issues: string[]; can_bid: boolean; can_bill: boolean }[];
       note: string }>(`/projects/${pid}/procurement/compliance-feed`);
   }
+  /** One vendor's bid/bill readiness.
+   *
+   *  PREQUAL-LAPSE. `coi.expiring_soon` was computed on every call and declared on none, so the
+   *  one warning this gate DID produce could not reach a screen; `prequal` carried a status and no
+   *  date at all, so an approval dying in ten days read `can_bid: true · prequal approved`. The
+   *  blockers/warnings split is the state this response had no way to express — a document still
+   *  valid today is not a blocker, and that is exactly why the verdict alone is not enough.
+   */
   procurementGate(pid: string, vendor: string) {
-    return this.json<{ vendor: string; coi: { status: string; expires: string | null };
-      prequal: { status: string }; subcontract: { executed: boolean }; waiver_on_file: boolean;
-      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[] }>(
+    return this.json<{ vendor: string;
+      /** `expiring_soon` is present on every branch, `missing` included — an absent key is falsy
+       *  and reads as "not expiring soon" when the truth is "there is nothing to expire". */
+      coi: { status: string; expires: string | null; expiring_soon: boolean };
+      /** An approved prequalification has no transition out of `approved`, so `expires` is the
+       *  only thing that ends it. `expiring_soon` is false once it already has — that is a
+       *  blocker, and "expiring soon" is only said about something currently valid. */
+      prequal: { status: string; expires: string | null; expiring_soon: boolean };
+      subcontract: { executed: boolean }; waiver_on_file: boolean;
+      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[];
+      /** Documents still valid that lapse within `warn_days`. Never a reason to refuse today. */
+      bid_warnings: string[]; bill_warnings: string[]; warn_days: number; note: string }>(
       `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
   }
   // --- materials procure-to-pay (FieldMaterials) -----------------------------

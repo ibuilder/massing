@@ -10,8 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import type { CoiExpiry, LienExposure } from "../../api/counterpartyRisk";
 import {
-  SECURITY, TONE_CSS, coiHorizonLine, coiRows, exposureHeadline, exposureInstruction,
-  exposureSplit, securityRows, settledNote, splitBasisNote,
+  SECURITY, TONE_CSS, coiHorizonLine, coiRows, expiryCoverage, exposureHeadline,
+  exposureInstruction, exposureSplit, prequalLapseLine, prequalLapseRows, securityRows, settledNote,
+  splitBasisNote,
 } from "./waiverRead";
 
 /** Plain and deterministic — the panel passes its own `money` in, so this only has to be legible. */
@@ -265,6 +266,13 @@ const COI: CoiExpiry = {
               ref: "COI-004", expires: "2026-09-30", days: -14 }],
   expiring_soon: [{ vendor: "Best Electric", coverage_type: "Workers Comp", carrier: "Hartford",
                     ref: "COI-011", expires: "2026-11-01", days: 18 }],
+  // PREQUAL-LAPSE: the second register the engine's docstring always promised. Empty here so the
+  // COI readings below are measured on COI data alone; the prequal readings have their own block.
+  prequals_expired: [],
+  prequals_expiring: [],
+  prequals_expired_count: 0,
+  prequals_expiring_count: 0,
+  covers: ["coi", "prequalification"],
 };
 
 describe("WAIVER-FLAT · coiHorizonLine", () => {
@@ -307,5 +315,116 @@ describe("WAIVER-FLAT · SECURITY and TONE_CSS", () => {
   it("is a literal tone map — a runtime-built custom property resolves to nothing", () => {
     expect(TONE_CSS.warn).toBe("var(--status-warn)");
     expect(TONE_CSS[""]).toBe("");
+  });
+});
+
+describe("PREQUAL-LAPSE · prequalLapseLine", () => {
+  /** An approved prequalification expiring in 10 days — the case the engine's docstring promised
+   *  to report and its body never read. Measured: the route returned `expiring_count: 1` and the
+   *  one row was the COI. */
+  const SOON: CoiExpiry = {
+    ...COI,
+    prequals_expiring: [{ company: "Acme Steel", trade: "Structural", ref: "PQ-002",
+                          expires: "2026-10-25", days: 10 }],
+    prequals_expiring_count: 1,
+    covers: ["coi", "prequalification"],
+  };
+  const LAPSED: CoiExpiry = {
+    ...COI,
+    prequals_expired: [{ company: "Acme Steel", trade: "Structural", ref: "PQ-002",
+                         expires: "2026-09-30", days: -14 }],
+    prequals_expired_count: 1,
+  };
+
+  it("is null when no approval is lapsing — not a zero line", () => {
+    expect(prequalLapseLine(COI)).toBeNull();
+  });
+
+  it("reports the lapsing count against the horizon the server used", () => {
+    const l = prequalLapseLine(SOON)!;
+    expect(l).toContain("1 lapsing within 30 day(s)");
+    expect(prequalLapseLine({ ...SOON, soon_days: 90 })!).toContain("within 90 day(s)");
+  });
+
+  it("separates already-lapsed from lapsing, and names both when both are present", () => {
+    expect(prequalLapseLine(LAPSED)!).toContain("1 prequalification(s) already LAPSED");
+    const both = prequalLapseLine({ ...SOON, prequals_expired: LAPSED.prequals_expired,
+                                    prequals_expired_count: 1 })!;
+    expect(both).toContain("already LAPSED");
+    expect(both).toContain("lapsing within");
+  });
+
+  it("says WHY a date matters here — nothing else revokes an approval", () => {
+    expect(prequalLapseLine(SOON)!).toContain("nothing else revokes it");
+  });
+
+  it("survives a response from a server that predates the two lists", () => {
+    const old = { ...COI } as Record<string, unknown>;
+    delete old.prequals_expired_count; delete old.prequals_expiring_count;
+    expect(prequalLapseLine(old as unknown as CoiExpiry)).toBeNull();
+  });
+
+  it("is plain text", () => {
+    expect(prequalLapseLine(SOON)!).not.toMatch(/[<>]/);
+  });
+});
+
+describe("PREQUAL-LAPSE · prequalLapseRows", () => {
+  const row = (over: Partial<CoiExpiry> = {}) => prequalLapseRows({ ...COI, ...over });
+
+  it("is empty when nothing is lapsing", () => {
+    expect(row()).toEqual([]);
+  });
+
+  it("shows a negative day count as an AGE, never as a countdown", () => {
+    // `in -14d` reads as a typo. Same rule the COI rows beside it follow.
+    const r = row({ prequals_expired: [{ company: "Acme Steel", trade: "Structural",
+                                         expires: "2026-09-30", days: -14 }] })[0]!;
+    expect(r.age).toBe("14d ago");
+    expect(r.kind).toBe("LAPSED");
+    expect(r.tone).toBe("crit");
+  });
+
+  it("counts down for one still ahead", () => {
+    const r = row({ prequals_expiring: [{ company: "Acme Steel", expires: "2026-10-25", days: 10 }] })[0]!;
+    expect(r.age).toBe("in 10d");
+    expect(r.kind).toBe("soon");
+    expect(r.tone).toBe("warn");
+  });
+
+  it("puts the already-lapsed first — they are the ones blocking a bid today", () => {
+    const rows = row({
+      prequals_expired: [{ company: "Lapsed Co", expires: "2026-09-01", days: -40 }],
+      prequals_expiring: [{ company: "Soon Co", expires: "2026-10-25", days: 10 }],
+    });
+    expect(rows.map((r) => r.company)).toEqual(["Lapsed Co", "Soon Co"]);
+  });
+
+  it("fills a blank company and trade rather than rendering undefined", () => {
+    const r = row({ prequals_expiring: [{ expires: "2026-10-25", days: 10 }] })[0]!;
+    expect(r.company).toBe("(no company)");
+    expect(r.trade).toBe("—");
+  });
+
+  it("survives a response from a server that predates the two lists", () => {
+    const old = { ...COI } as Record<string, unknown>;
+    delete old.prequals_expired; delete old.prequals_expiring;
+    expect(prequalLapseRows(old as unknown as CoiExpiry)).toEqual([]);
+  });
+});
+
+describe("PREQUAL-LAPSE · expiryCoverage", () => {
+  it("names the registers the server says it read", () => {
+    expect(expiryCoverage(COI)).toBe("Covers: coi, prequalification.");
+  });
+
+  it("makes a one-register answer visible instead of letting it look complete", () => {
+    // This is the whole point: the defect was a response that covered one register and read like
+    // a compliance sweep. A screen that prints what was covered cannot hide that again.
+    expect(expiryCoverage({ ...COI, covers: ["coi"] })).toBe("Covers: coi.");
+  });
+
+  it("says so rather than guessing when the server states nothing", () => {
+    expect(expiryCoverage({ ...COI, covers: [] })).toContain("not stated by the server");
   });
 });

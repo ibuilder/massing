@@ -14,7 +14,8 @@ import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
 } from "./vendorScorecard";
 import {
-  TONE_CSS as WAIVER_TONE, coiHorizonLine, coiRows, exposureHeadline, exposureInstruction,
+  TONE_CSS as WAIVER_TONE, coiHorizonLine, coiRows, expiryCoverage, exposureHeadline,
+  exposureInstruction, prequalLapseLine, prequalLapseRows,
   securityRows, settledNote, splitBasisNote,
 } from "./waiverRead";
 
@@ -446,6 +447,21 @@ export async function renderRiskCost(ctx: PanelContext) {
             + `(${esc(x.age)})`; ul.append(li); });
         coiSlot.append(ul);
       }
+      // PREQUAL-LAPSE. `coi_expiry`'s docstring reads "...plus prequals lapsing" and its body
+      // read the `coi` table alone, so this card — the one place compliance documents get a
+      // warning window — never showed the one document that had no warning anywhere else.
+      const pqLine = prequalLapseLine(r);
+      if (pqLine) {
+        coiSlot.insertAdjacentHTML("beforeend",
+          `<div class="meta" style="color:var(--status-warn);margin-top:6px">${esc(pqLine)}</div>`);
+        const pul = el("ul"); pul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
+        prequalLapseRows(r).forEach((x) => { const li = el("li");
+          li.innerHTML = `<span style="color:${WAIVER_TONE[x.tone]}">${esc(x.kind)}</span> `
+            + `${esc(x.company)} — ${esc(x.trade)} · exp ${esc(x.expires)} (${esc(x.age)})`;
+          pul.append(li); });
+        coiSlot.append(pul);
+      }
+      coiSlot.insertAdjacentHTML("beforeend", `<div class="meta">${esc(expiryCoverage(r))}</div>`);
     }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.procurementComplianceFeed(pid).then((r) => {
@@ -459,7 +475,12 @@ export async function renderRiskCost(ctx: PanelContext) {
             + `<td style="text-align:center">${v.can_bill ? "✅" : "⛔"}</td></tr>`).join("") + `</tbody>`;
         gateSlot.append(t);
       } else {
-        gateSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ All vendors clear on insurance + prequalification.</div>`);
+        // PREQUAL-LAPSE: say what window the tick is over. This read as an unqualified all-clear
+        // while the nudge list's `within_days` controlled nothing — a caller asking for 7 days got
+        // a 30-day answer labelled 7, so the tick was over a window nobody had chosen.
+        gateSlot.insertAdjacentHTML("beforeend",
+          `<div class="meta">✅ No vendor is blocked, and none has insurance or an approved `
+          + `prequalification lapsing within ${r.warn_days} day(s).</div>`);
       }
     }).catch((e) => { gateSlot.textContent = `failed: ${(e as Error).message}`; });
 

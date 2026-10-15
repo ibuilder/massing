@@ -259,12 +259,22 @@ export async function renderAiAssist(ctx: PanelContext) {
           try {
             const g = await ctx.host.api.procurementGate(pid, v);
             const yn = (ok: boolean) => ok ? `<span style="color:var(--status-good)">✓</span>` : `<span style="color:var(--status-crit)">✗</span>`;
+            // PREQUAL-LAPSE. This printed `bid ✓ · prequal approved` for a vendor whose approval
+            // dies in ten days: `coi.expiring_soon` was computed and undeclared, and `prequal`
+            // carried no date at all. A document still valid today is not a blocker, so the
+            // verdict is unchanged and the WARNINGS are what was missing.
+            const soon = (d: { expires: string | null; expiring_soon: boolean }) =>
+              d.expiring_soon ? ` ⚠ lapses ${esc(d.expires || "")}` : "";
             out.innerHTML = `<div class="meta"><b>${esc(g.vendor)}</b> — bid ${yn(g.can_bid)} · bill ${yn(g.can_bill)}`
-              + ` · COI ${esc(g.coi.status)}${g.coi.expires ? ` (exp ${esc(g.coi.expires)})` : ""}`
-              + ` · prequal ${esc(g.prequal.status)} · subcontract ${g.subcontract.executed ? "executed" : "not executed"}`
+              + ` · COI ${esc(g.coi.status)}${g.coi.expires ? ` (exp ${esc(g.coi.expires)})` : ""}${soon(g.coi)}`
+              + ` · prequal ${esc(g.prequal.status)}${g.prequal.expires ? ` (exp ${esc(g.prequal.expires)})` : ""}${soon(g.prequal)}`
+              + ` · subcontract ${g.subcontract.executed ? "executed" : "not executed"}`
               + (g.waiver_on_file ? " · waiver on file" : "") + `</div>`
               + (g.bid_blockers.length ? `<div class="meta">bid blockers: ${g.bid_blockers.map(esc).join(" · ")}</div>` : "")
-              + (g.bill_blockers.length ? `<div class="meta">bill blockers: ${g.bill_blockers.map(esc).join(" · ")}</div>` : "");
+              + (g.bill_blockers.length ? `<div class="meta">bill blockers: ${g.bill_blockers.map(esc).join(" · ")}</div>` : "")
+              + (g.bid_warnings.length ? `<div class="meta" style="color:var(--status-warn)">bid warnings (within ${g.warn_days}d): ${g.bid_warnings.map(esc).join(" · ")}</div>` : "")
+              + (g.bill_warnings.length ? `<div class="meta" style="color:var(--status-warn)">bill warnings (within ${g.warn_days}d): ${g.bill_warnings.map(esc).join(" · ")}</div>` : "")
+              + `<div class="meta">${esc(g.note)}</div>`;
           } catch (e) { out.textContent = `gate check failed: ${(e as Error).message}`; }
         };
         invB.onclick = async () => {

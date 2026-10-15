@@ -42,7 +42,8 @@
  *  rather than a reading of the answer — the same shape as the re-spelled response types
  *  `apps/web/src/api/noRespelledShapes.test.ts` refuses.
  */
-import type { CoiExpiry, LienExposure, LienVendor } from "../../api/counterpartyRisk";
+import type { CoiExpiry, LienExposure, LienVendor, PrequalLapseRow }
+  from "../../api/counterpartyRisk";
 
 export type Tone = "" | "good" | "warn" | "crit";
 
@@ -224,4 +225,76 @@ export function coiRows(r: CoiExpiry): {
   });
   return [...r.expired.map((x) => row(x, true)),
           ...r.expiring_soon.map((x) => row(x, false))];
+}
+
+/**
+ * PREQUAL-LAPSE — the compliance document with no warning window, on the screen built to give them.
+ *
+ * `prequalification.coi_expiry` is the engine behind this card, and its docstring reads
+ * *"Certificates of insurance that are expired or expiring within `soon_days` — **plus prequals
+ * lapsing**"*. Its body looped over the `coi` table and nothing else. Measured on a project
+ * holding an approved prequalification expiring in **10 days** and a COI expiring in 10 days:
+ *
+ * > `expiring_count: 1` · the one row is `Best Electric / GL / in 10d` · `any prequal row? false`
+ *
+ * *A function written to give compliance documents a warning window promised two registers and
+ * read one* — and the prequal was the one with no other warning anywhere in the system.
+ * `procurement_gate.compliance_feed` reports `prequal not approved`, which is true only AFTER the
+ * approval has lapsed, i.e. after `can_bid` has already flipped from ✓ to ✗; and
+ * `procurement_gate.gate` reported, for that same vendor, `can_bid: true` with
+ * `bid_blockers: []` and `prequal: {status: "approved"}`, with nothing to say the approval dies
+ * inside the fortnight. On a register a GC chases paperwork from, that is a sub who gets
+ * uninvited from a bid on the morning their file goes stale.
+ *
+ * The approval is what lapses, and only an approval can: `prequalification`'s workflow declares
+ * `invited → submitted → approved | rejected` with **no transition out of `approved`**, so a
+ * rejection is a fact about one submission and the date is the only thing that ends an approval —
+ * which `procurement_gate._pq_live` already says in its own comment. A `submitted` or `rejected`
+ * record has nothing to expire and is deliberately not a lapse.
+ *
+ * Kept as its own list and its own rows rather than merged into the COI table: the two remedies
+ * are *telephone the carrier* and *re-run a qualification package*, and a merged list sends the
+ * reader to the wrong one.
+ */
+
+/** The prequal line beside the COI one, or `null` when no approval is lapsing. */
+export function prequalLapseLine(r: CoiExpiry): string | null {
+  const exp = r.prequals_expired_count ?? 0;
+  const soon = r.prequals_expiring_count ?? 0;
+  if (!exp && !soon) return null;
+  const bits: string[] = [];
+  if (exp) bits.push(`${exp} prequalification(s) already LAPSED`);
+  if (soon) bits.push(`${soon} lapsing within ${r.soon_days} day(s)`);
+  return `${bits.join(" · ")} — an approved prequal ends on its date and nothing else revokes it, `
+    + "so a lapse un-invites the sub from the next bid.";
+}
+
+/** One prequal row, shaped like the COI rows beside it so the two tables read the same way. */
+export function prequalLapseRows(r: CoiExpiry): {
+  kind: string; company: string; trade: string; expires: string; age: string; tone: Tone;
+}[] {
+  const row = (x: PrequalLapseRow, lapsed: boolean) => ({
+    kind: lapsed ? "LAPSED" : "soon",
+    company: x.company || "(no company)",
+    trade: x.trade || "—",
+    expires: x.expires,
+    // Negative days are an age, not a countdown — `in -14d` reads as a typo. Same rule as
+    // `coiRows` above, and for the same reason.
+    age: lapsed ? `${Math.abs(x.days)}d ago` : `in ${x.days}d`,
+    tone: (lapsed ? "crit" : "warn") as Tone,
+  });
+  return [...(r.prequals_expired ?? []).map((x) => row(x, true)),
+          ...(r.prequals_expiring ?? []).map((x) => row(x, false))];
+}
+
+/**
+ * What this response covers, named from the server rather than assumed.
+ *
+ * The point of printing it is that the docstring's promise becomes checkable from the screen: a
+ * response that covers one register says so, instead of looking like a complete compliance sweep.
+ */
+export function expiryCoverage(r: CoiExpiry): string {
+  const c = r.covers ?? [];
+  if (!c.length) return "Coverage not stated by the server.";
+  return `Covers: ${c.join(", ")}.`;
 }

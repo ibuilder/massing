@@ -50,6 +50,24 @@ export interface CoiRow {
   days: number;
 }
 
+/**
+ * PREQUAL-LAPSE — one APPROVED prequalification that is lapsing or has lapsed.
+ *
+ * Only an approved prequal has an approval to lose: `prequalification`'s workflow declares
+ * `invited → submitted → approved | rejected` with **no transition out of `approved`**, so an
+ * approval ends only by its date — which is exactly what `procurement_gate._pq_live` says in its
+ * own comment, *"the date check below is the thing that ends it"*. A `submitted` or `rejected`
+ * record has nothing to expire and is not a lapse.
+ */
+export interface PrequalLapseRow {
+  company?: string;
+  trade?: string;
+  ref?: string;
+  expires: string;
+  /** Days from today to expiry. NEGATIVE once the approval has already lapsed. */
+  days: number;
+}
+
 /** WAIVER-FLAT — `GET /projects/{pid}/prequal/coi-expiry`. */
 export interface CoiExpiry {
   expired: CoiRow[];
@@ -59,6 +77,26 @@ export interface CoiExpiry {
   /** The horizon `expiring_soon` was computed against, echoed back. The card hard-coded "≤30d"
    *  beside this — correct only because the one caller passes the default. */
   soon_days: number;
+  /**
+   * PREQUAL-LAPSE. `coi_expiry`'s docstring reads *"Certificates of insurance that are expired or
+   * expiring within `soon_days` — **plus prequals lapsing**"*, and its body looped over the `coi`
+   * table alone: measured on a project holding an approved prequal expiring in **10 days**, the
+   * route returned `expiring_count: 1` and the one row was the COI. *The function that exists to
+   * give compliance documents a warning window promised two registers and read one*, and the
+   * prequal was the one with no other warning anywhere — `compliance_feed` reports
+   * `prequal not approved` only once it has already lapsed, which is after `can_bid` has flipped.
+   *
+   * Kept as a SEPARATE list rather than merged into the COI rows: a lapsing certificate and a
+   * lapsing prequalification are different documents with different remedies — telephone the
+   * carrier, versus re-run a qualification package — and a merged list would send the reader to
+   * the wrong one.
+   */
+  prequals_expired: PrequalLapseRow[];
+  prequals_expiring: PrequalLapseRow[];
+  prequals_expired_count: number;
+  prequals_expiring_count: number;
+  /** Which registers this response covers, so the docstring's promise is checkable from outside. */
+  covers: string[];
 }
 
 /** WAIVER-FLAT — one vendor's billed/paid position against the lien waivers actually on file.

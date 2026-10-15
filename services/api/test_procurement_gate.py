@@ -110,5 +110,54 @@ with TestClient(app) as c:
     g2 = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Never Qualified"}).json()
     assert g2["can_bid"] is False and "no approved prequalification" in g2["bid_blockers"], g2
 
+    # --- PREQUAL-LAPSE: the state between "fine" and "blocked" --------------------------------
+    # An approved prequalification lapsing in 10 days used to report `can_bid: True` with
+    # `bid_blockers: []` and `prequal: {"status": "approved"}` -- nothing to say the approval dies
+    # inside the fortnight, and the approval's own date is the only thing that ends it (the module
+    # declares no transition out of `approved`). The verdict is deliberately UNCHANGED: a document
+    # still valid today is not a blocker. What was missing was a way to say it.
+    soon10 = (date.today() + timedelta(days=10)).isoformat()
+    lq = _create(c, pid, "prequalification", {"company": "Lapsing Steel", "expires": soon10})
+    _act(c, pid, "prequalification", lq["id"], "submit")
+    _act(c, pid, "prequalification", lq["id"], "approve")
+    lc = _create(c, pid, "coi", {"vendor": "Lapsing Steel", "expires": future,
+                                 "gl_each_occurrence": 1_000_000})
+    _act(c, pid, "coi", lc["id"], "approve")
+    gl = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Lapsing Steel"}).json()
+    assert gl["can_bid"] is True and gl["bid_blockers"] == [], gl
+    assert gl["prequal"]["expiring_soon"] is True, gl["prequal"]
+    assert gl["prequal"]["expires"] == soon10, gl["prequal"]
+    assert any("prequalification lapses" in w for w in gl["bid_warnings"]), gl["bid_warnings"]
+    assert gl["coi"]["expiring_soon"] is False, gl["coi"]
+    # `expiring_soon` is on EVERY branch of the COI block, including `missing` -- an absent key is
+    # falsy and reads as "not expiring soon" when the truth is "there is nothing to expire".
+    gm = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Never Qualified"}).json()
+    assert gm["coi"]["status"] == "missing" and gm["coi"]["expiring_soon"] is False, gm["coi"]
+    # an ALREADY-lapsed approval is a blocker, not a warning: "expiring soon" is only ever said
+    # about something currently valid, so the two states can never both fire for one document
+    gx = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Bedrock LLC"}).json()
+    assert gx["can_bid"] is False and gx["prequal"]["expiring_soon"] is False, gx["prequal"]
+
+    # `within_days` was accepted, clamped to 1..365 by its route, echoed, and used for NOTHING:
+    # the windows were a literal 30 inside the COI branch, so a caller asking for 7 days got a
+    # 30-day answer labelled 7. It now controls both registers' warning horizon.
+    f7 = c.get(f"/projects/{pid}/procurement/compliance-feed", params={"within_days": 7}).json()
+    f30 = c.get(f"/projects/{pid}/procurement/compliance-feed", params={"within_days": 30}).json()
+    assert f7["warn_days"] == 7 and f30["warn_days"] == 30, (f7["warn_days"], f30["warn_days"])
+    in7 = {v["vendor"] for v in f7["vendors"]}
+    in30 = {v["vendor"] for v in f30["vendors"]}
+    assert "Lapsing Steel" in in30, in30          # 10 days out, inside a 30-day window
+    assert "Lapsing Steel" not in in7, in7        # ...and outside a 7-day one
+    assert in7 < in30, (in7, in30)                # a narrower window is a strict subset
+    # ...while a BLOCKER is reported whatever the window, because expired is expired
+    assert "Bedrock LLC" in in7 and "Bedrock LLC" in in30, (in7, in30)
+    lap = next(v for v in f30["vendors"] if v["vendor"] == "Lapsing Steel")
+    assert any("prequal lapses" in i for i in lap["issues"]), lap
+
 print("PROCUREMENT GATE OK - Acme fully compliant (can bid + bill, waiver on file); Bedrock blocked "
-      "(expired COI + unapproved prequal); Crane COI expiring; feed nudges Bedrock+Crane, not Acme; a rejected-then-approved vendor can bid and a rejected-only vendor still cannot")
+      "(expired COI + unapproved prequal); Crane COI expiring; feed nudges Bedrock+Crane, not Acme; a rejected-then-approved vendor can bid and a rejected-only vendor still cannot. "
+      "PREQUAL-LAPSE: an approval lapsing in 10 days keeps can_bid True with empty blockers and "
+      "raises a bid WARNING instead; `expiring_soon` is present on the missing-COI branch too; an "
+      "already-lapsed approval is a blocker and never also 'expiring soon'; and `within_days` now "
+      "moves the horizon -- a 7-day window is a strict subset of a 30-day one, while the expired "
+      "blocker shows in both")

@@ -394,7 +394,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/model/columnar/stats": [
     "est_interned_bytes", "est_naive_string_bytes", "note", "string_references",
   ],
-  "GET /projects/{}/models/health": ["note"],
+  // **CLOSED 2026-10-15 under HEALTH-WEIGHT-COVER, and `note` was the authoritative copy of a
+  // sentence the screen had restated WRONG.** The hardcoded caption under the scorecard read "one
+  // score over integrity/hygiene, ISO 19650 KPIs, clash coordination, and verified-as-built" —
+  // **four**, where the engine has five — because `readiness` (code and permit pre-flight, 15% of
+  // the composite) was added and the caption was not; `apps/web/src/api/models.ts`'s own docstring
+  // named the same four, while `services/api/test_model_health.py` had the five right all along.
+  // *A client-side restatement of a server fact is a copy, and a copy is what drifts.*
+  //
+  // The finding under it needed no undeclared key. `overall_score` is a WEIGHTED mean renormalised
+  // over the lenses that scored — correct, because an unmeasured lens must not drag the number
+  // down — and the coverage of that mean is therefore a WEIGHT, while the screen printed the
+  // COUNT. Computed straight from `_WEIGHTS`: `verified + readiness` is **30%** of the composite
+  // and `hygiene + information` is **50%**, and both report `2 of 5 checks scored` beside the same
+  // `80`. `weight_scored` is the share now, each lens carries its own `weight`, and the warning
+  // threshold is on the weight — which is why it fires on one of those two and not the other.
   "GET /projects/{}/modules/{}/board": ["counts"],
   // **CLOSED 2026-10-15 under NAMING-UNREAD, and `conventions` was the SMALLEST of it.** This gate
   // compares a route's TOP-LEVEL keys, so the one key it could see was the convention block — while
@@ -465,7 +479,24 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // because the one caller passes the default, so the label was a restatement of a parameter rather
   // than a reading of the answer. `carrier` and `ref` were undeclared on the rows and invisible to
   // this gate for being nested, and `carrier` is who you telephone about an expired certificate.
-  "GET /projects/{}/procurement/gate": ["note"],
+  // **CLOSED 2026-10-15 under PREQUAL-LAPSE, and `note` was the smallest of four.** The gate
+  // computed `coi.expiring_soon` on every call and the client declared it on NO branch, so the one
+  // warning this engine already produced could not reach a screen; `prequal` carried a status and
+  // no date at all. Measured on a vendor whose approved prequalification lapses in **10 days**:
+  // `can_bid: true`, `bid_blockers: []`, `prequal: {status: "approved"}` — and an approved
+  // prequalification has **no transition out of `approved`**, so its date is the only thing that
+  // ends it. *The gate had no way to say "valid today, gone next week", which is the state a GC
+  // chases paperwork from.* Blockers and warnings are now separate, and the verdict is unchanged
+  // on purpose: a document still valid today is not a blocker.
+  //
+  // `coi.expiring_soon` was also absent from the `missing` branch, where an absent key is falsy
+  // and reads as "not expiring soon" rather than "there is nothing to expire".
+  //
+  // And `compliance_feed`'s `within_days` was **accepted, clamped to 1–365 by its route, echoed,
+  // and used for nothing** — the horizon was a literal 30 inside the COI branch — so a caller
+  // asking for a 7-day nudge window got a 30-day answer labelled 7. *A parameter accepted,
+  // validated, echoed and ignored is worse than an absent one, because the echo is what makes it
+  // look answered.* It is the horizon now, for both registers, echoed back as `warn_days`.
   // **CLOSED 2026-10-14 under FLOW-CLEAR.** The card is subtitled *"Where each crew is, and whether
   // anyone is in anyone's way"* and rendered four tiles answering none of the second half:
   // `interference_count` was declared and unread, `interferences` and `issues` undeclared. Worse,
