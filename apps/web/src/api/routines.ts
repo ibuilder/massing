@@ -55,12 +55,30 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/routines/run-due`, { method: "POST" });
   }
 
-  /** actionTracker — open/overdue by assignee, completion, meeting log. */
+  /** actionTracker — outstanding/overdue by assignee and priority, completion, meeting log.
+   *
+   *  ACTION-SUBSET. `by_assignee` was the only rollup declared and it is over EVERY item, done or
+   *  not — measured on a 14-item tracker with 3 open, it reported `Ana: 11` where Ana has zero
+   *  outstanding, while the two people who owe work were at 2 and 1. The open-scoped pair is what a
+   *  screen about outstanding work reads; `rollup_basis` says which is which.
+   *
+   *  The row shape was `Record<string, unknown>[]`, the index-signature erasure that forced
+   *  `(r: any)` at the only call site and put every row field — `overdue` most of all — out of
+   *  reach of every audit built on these declarations. */
   actionTracker(pid: string) {
     return this.json<{ action_count: number; open_count: number; done_count: number;
       overdue_count: number; completion_pct: number | null; meeting_count: number;
-      last_meeting: string | null; by_assignee: Record<string, number>;
-      meetings_by_type: Record<string, number>; rows: Record<string, unknown>[] }>(
+      last_meeting: string | null;
+      /** Over EVERY item, done or not. */
+      by_assignee: Record<string, number>; by_priority: Record<string, number>;
+      /** `done` / `open` — the two states, which account for the register between them. */
+      by_state: Record<string, number>;
+      /** Over the OUTSTANDING items, which is the population every other number here is about. */
+      open_by_assignee: Record<string, number>; open_by_priority: Record<string, number>;
+      rollup_basis: string;
+      meetings_by_type: Record<string, number>;
+      rows: { ref: string | null; subject: string | null; assignee: string; priority: string;
+        state: string; due_date: string | null; overdue: boolean }[] }>(
       `/projects/${pid}/action-items/tracker`);
   }
   /** Work queue — open items across modules that need attention. */

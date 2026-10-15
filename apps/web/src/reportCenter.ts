@@ -50,6 +50,8 @@ import {
   INSTRUMENTS, TONE_CSS as REV_TONE, carryReconciles, carryVerdict, nextRev, revisionLine,
   sheetOptions,
 } from "./reviseReadings";
+import { actionHeadline, historicBy, meetingLine, openPriorities, owedBy,
+  rollupBasis } from "./actionReadings";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
  *  interactive project tools & analytics (drawing-set register + issuance + pre-flight gate,
@@ -832,8 +834,21 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("✅ Meeting action-item tracker", () => showResult("Meeting action-item tracker", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.actionTracker(pid); body.innerHTML = `<div class="meta">${s.action_count} action items · ${s.open_count} open · ${s.overdue_count} overdue · <b>${s.completion_pct ?? "—"}% complete</b> · ${s.meeting_count} meetings · last ${s.last_meeting ?? "—"}</div>`;
-      table(body, ["Ref", "Subject", "Assignee", "Priority", "Due", "State"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.assignee ?? "", r.priority ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), r.state ?? ""])); }
+    try { const s = await api.actionTracker(pid);
+      // ACTION-SUBSET: the two rollups are over the WHOLE register while every other number here is
+      // about the open subset — measured, `by_assignee` named the person with ZERO outstanding items
+      // first. `apps/web/src/actionReadings.ts` holds the readings and the measurement.
+      const owed = owedBy(s);
+      const pri = openPriorities(s);
+      const hist = historicBy(s);
+      body.innerHTML = `<div class="meta"><b>${escapeHtml(actionHeadline(s))}</b></div>`
+        + (owed ? `<div class="meta">${escapeHtml(owed)}</div>` : "")
+        + (pri ? `<div class="meta">${escapeHtml(pri)}</div>` : "")
+        + (hist ? `<div class="meta">${escapeHtml(hist)}</div>` : "")
+        + `<div class="meta">${escapeHtml(meetingLine(s))}</div>`
+        + `<div class="meta">${escapeHtml(rollupBasis(s))}</div>`;
+      // The row shape is declared now, so these reads are checked rather than cast through `any`.
+      table(body, ["Ref", "Subject", "Assignee", "Priority", "Due", "State"], s.rows.map((r) => [r.ref ?? "", r.subject ?? "", r.assignee, r.priority, (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), r.state])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("📑 Submittal register", () => showResult("Submittal register", async (body) => {

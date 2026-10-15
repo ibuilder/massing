@@ -198,6 +198,32 @@ with TestClient(app) as c:
     assert at["overdue_count"] == 1 and at["completion_pct"] == 50.0, at
     assert at["meeting_count"] == 1 and at["last_meeting"] == "2026-06-10", at
 
+    # --- ACTION-SUBSET: a rollup over the whole register, beside numbers about the open subset ----
+    # `by_assignee` and `by_priority` count DONE items too, and every other number this route
+    # returns is about what is outstanding — so the only rollup that was declared pointed at
+    # whoever had finished the most. Already visible at two items: Super's one item is complete.
+    assert at["by_assignee"] == {"PM": 1, "Super": 1}, at["by_assignee"]
+    assert at["open_by_assignee"] == {"PM": 1}, at["open_by_assignee"]
+    assert at["by_priority"] == {"High": 1, "Medium": 1}, at["by_priority"]
+    assert at["open_by_priority"] == {"High": 1}, at["open_by_priority"]
+    # The two states partition the register, so the open rollup's total IS `open_count`.
+    assert at["by_state"] == {"open": 1, "done": 1}, at["by_state"]
+    assert sum(at["open_by_assignee"].values()) == at["open_count"], at
+    assert sum(at["open_by_priority"].values()) == at["open_count"], at
+    assert sum(at["by_assignee"].values()) == at["action_count"], at
+    assert "done or not" in at["rollup_basis"], at["rollup_basis"]
+    # Worst-first on the open rollup, because the question it answers is who to chase.
+    mk(c, pid, "action_item", {"subject": "Chase permit", "assignee": "PM", "priority": "High"})
+    mk(c, pid, "action_item", {"subject": "Book crane", "assignee": "Super", "priority": "Low"})
+    at2 = c.get(f"/projects/{pid}/action-items/tracker").json()
+    assert list(at2["open_by_assignee"]) == ["PM", "Super"], at2["open_by_assignee"]
+    assert at2["open_by_assignee"]["PM"] == 2, at2["open_by_assignee"]
+    # The ROW shape the client declares, which was `Record<string, unknown>` and forced a cast.
+    row = at2["rows"][0]
+    assert set(row) == {"ref", "subject", "assignee", "priority", "state", "due_date",
+                        "overdue"}, sorted(row)
+    assert row["overdue"] is True, "overdue rows sort first, so the first row is the overdue one"
+
     # --- Project-health executive rollup --------------------------------------
     h = c.get(f"/projects/{pid}/health").json()
     assert h["overall_status"] == "red", h           # overdue RFIs/NCRs/punch + recordable incidents
@@ -221,5 +247,8 @@ print("CONSTRUCTION-DEPTH OK - T&M rollup $10k (labor/material/equip split, bill
       "ball-in-court Consultant vs GC; field-log: 3 reports, 32 manpower, peak 20, 1.5 weather lost-days; "
       "safety: 3 incidents, 2 recordable, TRIR 4.0/DART 2.0 @100k hrs (est 256h from manpower); "
       "closeout: 2 punch (1 overdue, ball-in-court GC vs Sub), Cx pass 50%, 1 expired warranty; "
-      "CO log: $12k executed/$8k pending + $25k CE ROM; action tracker: 50% complete, 1 overdue; "
+      "CO log: $12k executed/$8k pending + $25k CE ROM; action tracker: 50% complete, 1 overdue, "
+      "with ACTION-SUBSET's open-scoped rollups beside the whole-register ones (by_assignee counts "
+      "done work, so the only declared rollup pointed at whoever had finished the most) and the row "
+      "shape pinned; "
       "project-health: RED rollup over 7 domains; all 10 dashboard/log PDFs render")

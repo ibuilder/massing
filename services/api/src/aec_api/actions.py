@@ -7,6 +7,12 @@ from datetime import date, datetime
 from typing import Any
 
 DONE = ("done",)
+_ROLLUP_BASIS = (
+    "`by_assignee` and `by_priority` are over EVERY action item, done or not. `open_by_assignee` and "
+    "`open_by_priority` are over the outstanding ones, which is the population every other number "
+    "here is about — a tracker whose assignee rollup counts completed work points at whoever has "
+    "finished the most rather than whoever owes the most."
+)
 
 
 def _parse(s: Any) -> date | None:
@@ -29,6 +35,7 @@ def action_tracker(db, pid: str, as_of: date | None = None) -> dict[str, Any]:
     meetings = me.list_records(db, "meeting", pid, limit=100000) if "meeting" in me.TABLES else []
 
     by_assignee, by_priority, by_state = {}, {}, {}
+    open_by_assignee, open_by_priority = {}, {}
     done = overdue = 0
     rows = []
     for a in items:
@@ -42,6 +49,16 @@ def action_tracker(db, pid: str, as_of: date | None = None) -> dict[str, Any]:
         by_assignee[who] = by_assignee.get(who, 0) + 1
         pri = (d.get("priority") or "(none)").strip() or "(none)"
         by_priority[pri] = by_priority.get(pri, 0) + 1
+        # ACTION-SUBSET. The two rollups above are over the WHOLE register, and every other number
+        # this returns is about what is OUTSTANDING. Measured on a 14-item tracker with 3 open:
+        # `by_assignee` reports `Ana: 11` and Ana has **zero** open items, while the two people who
+        # actually owe work are reported at 2 and 1. *A reader asking an action tracker who owes what
+        # is sent to the wrong person by the only rollup that was declared.* Both are kept — "where
+        # has the work been" is a fair question — and the open-scoped pair is what a screen about
+        # outstanding work reads.
+        if not is_done:
+            open_by_assignee[who] = open_by_assignee.get(who, 0) + 1
+            open_by_priority[pri] = open_by_priority.get(pri, 0) + 1
         due = _parse(d.get("due_date"))
         is_overdue = bool(due and due < today and not is_done)
         if is_overdue:
@@ -67,6 +84,10 @@ def action_tracker(db, pid: str, as_of: date | None = None) -> dict[str, Any]:
         "completion_pct": round(100 * done / n, 1) if n else None,
         "by_assignee": dict(sorted(by_assignee.items(), key=lambda kv: -kv[1])),
         "by_priority": dict(sorted(by_priority.items())), "by_state": by_state,
+        # Worst-first, because the question these answer is who to chase.
+        "open_by_assignee": dict(sorted(open_by_assignee.items(), key=lambda kv: -kv[1])),
+        "open_by_priority": dict(sorted(open_by_priority.items())),
+        "rollup_basis": _ROLLUP_BASIS,
         "meeting_count": len(meetings),
         "last_meeting": max(dates).isoformat() if dates else None,
         "meetings_by_type": dict(sorted(by_type.items())),

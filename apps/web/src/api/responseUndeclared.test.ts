@@ -167,7 +167,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // caption `0 high / 0 medium / 0 low · showing 2 of 3` — a clean bill of health over a portfolio
   // carrying a high-severity coordination risk. *Accurate about counts, silent about selection,
   // above a table sorted worst-first.*
-  "GET /projects/{}/action-items/tracker": ["by_priority", "by_state"],
+  // **CLOSED 2026-10-15 under ACTION-SUBSET, and the live defect was in the key that WAS declared.**
+  // `actions.action_tracker` returns five numbers about what is OUTSTANDING and two rollups over the
+  // WHOLE register. Only `by_assignee` was declared. Measured against a live route on a 14-item
+  // tracker with 3 open: it reports **`Ana: 11`, and Ana has zero outstanding**, while the two
+  // people who actually owe work sit at 2 and 1; `by_priority` says `High: 12` where exactly one
+  // High item is live. *A reader asking an action tracker who owes what is sent to whoever has
+  // finished the most.* Both populations are kept — "where has the work been" is a fair question —
+  // and `open_by_assignee` / `open_by_priority` are what the card reads, with `rollup_basis` naming
+  // the difference. `by_state` joins them declared: `done` / `open` partition the register, so the
+  // open rollup's total IS `open_count`, which the gate now asserts.
+  //
+  // **And the row shape was `Record<string, unknown>[]`** — the index-signature erasure that
+  // `api/precon.ts` already calls *"the erasure that keeps a response out of reach of every audit
+  // here"*. It forced `(r: any)` at the only call site, so `overdue` was unreachable by any
+  // derivation over these declarations. The shape is written out and the cast is gone.
   // **CLOSED 2026-10-14 under SCOPE-THIN, and `covered_without_specs` was a live defect.** The
   // engine matches an element's NCS discipline to a package that CLAIMS that discipline, and flags
   // separately what its own note calls *"thin, non-traceable coverage"* — a discipline covered by a
