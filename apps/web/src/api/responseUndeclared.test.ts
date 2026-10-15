@@ -409,7 +409,30 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // and `hygiene + information` is **50%**, and both report `2 of 5 checks scored` beside the same
   // `80`. `weight_scored` is the share now, each lens carries its own `weight`, and the warning
   // threshold is on the weight — which is why it fires on one of those two and not the other.
-  "GET /projects/{}/modules/{}/board": ["counts"],
+  // **CLOSED 2026-10-15 under BOARD-SHIPPED, and `counts` was one of three.** It is the TRUE
+  // per-state total from a SQL GROUP BY, and the kanban head rendered `columns[state].length` — a
+  // PAGE length, because `columns` is capped at 200 cards per column. Measured at 205 records in
+  // one state: the column serves 200 and the head said 200, with nothing anywhere to say five were
+  // missing. TRUNC-COUNTED, on the board shared across every module, and the engine's own docstring
+  // had already written the consequence down for its consumer: *"A column deeper than the cap shows
+  // count > len(cards)."*
+  //
+  // The larger finding needed no undeclared key at all. `board()` called `get_module` where every
+  // other workflow consumer routes through `workflow_config.effective`, so its `transitions` were
+  // the SHIPPED workflow while `transition` honours the CONFIGURED one. With RFI overridden to
+  // `draft → answered (fast_answer)`, dragging `draft → open` — which the board offered — posted
+  // `submit` and got **409**, while `fast_answer` returned **200** and the board offered no drag for
+  // it. *Every drag it offered failed and the only one that worked it refused client-side.* The
+  // single-record route one screen over carries the rule verbatim — *"the actions offered must be
+  // the ones the ENGINE will honour, or the UI shows a button that 409s"* — and
+  // `services/api/test_workflow_config.py` claimed that property in its own summary while checking
+  // only the routes somebody had looked at.
+  //
+  // And a clean negative: a record in a state the module does not declare got a column in `columns`
+  // and none in `states`, so a consumer iterating `states` drew it nowhere — invisible rather than
+  // uncounted, measured at 2 of 3. **Unreachable today**: `workflow_state` has exactly two writers
+  // and an override cannot invent states, which that gate now also asserts across all 135 modules
+  // with a workflow. The union fix stays as defence against a `module.json` that drops a state.
   // **CLOSED 2026-10-15 under NAMING-UNREAD, and `conventions` was the SMALLEST of it.** This gate
   // compares a route's TOP-LEVEL keys, so the one key it could see was the convention block — while
   // `violations`, nested one level down inside `containers` and `sheets`, was a list of up to 200

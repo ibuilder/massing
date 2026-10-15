@@ -413,10 +413,40 @@ export interface RelatedRecords {
   outgoing: (RecordBrief & { label: string })[];
   incoming: RecordBrief[];
 }
+/**
+ * BOARD-SHIPPED — the kanban board, and the three things it could not say.
+ *
+ * Measured against a live route on the `rfi` register:
+ *
+ * 1. **The column head printed a page length.** 205 records in `draft` → the column serves the
+ *    capped **200** cards while `counts.draft` is **205**, and the head rendered
+ *    `columns[state].length`. `counts` was undeclared here, so the screen could not say otherwise —
+ *    TRUNC-COUNTED, on the board shared across ~139 modules, with the engine's own docstring
+ *    stating the consequence: *"A column deeper than the cap shows count > len(cards)."*
+ * 2. **A record in an undeclared state was invisible, not merely uncounted.** `columns` was keyed
+ *    over the union of declared states and states the data holds; `states` was the declared list
+ *    alone. On three records with one moved to `retired`, the board drew **2 of 3**.
+ * 3. **`transitions` were the SHIPPED workflow while `transition` honours the CONFIGURED one.**
+ *    With RFI overridden to `draft → answered (fast_answer)`, every drag the board offered 409'd
+ *    (`draft → open` posts `submit`: *"action 'submit' not allowed from state 'draft'"*) and the one
+ *    that worked was refused client-side for having no shipped transition. *The board was inverted.*
+ */
 export interface ModuleBoard {
+  /** Declared order, then any state the DATA holds. Iterate this and every record has a column. */
   states: string[];
+  /** The module's own states, without the data-only ones. */
+  declared_states?: string[];
+  /** States holding records that the module does not declare — worth labelling, not hiding. */
+  extra_states?: string[];
   columns: Record<string, { id: string; ref: string; title: string | null; assignee: string | null; party_owner: string | null }[]>;
+  /** TRUE per-state totals from a SQL GROUP BY. `columns[state]` is a page of at most `per_state_cap`. */
+  counts?: Record<string, number>;
+  /** The project's EFFECTIVE transitions — what `transition` will actually honour. */
   transitions: WorkflowTransition[];
+  /** True when this project overrides the shipped workflow, so a UI can say the states are theirs. */
+  workflow_overridden?: boolean;
+  per_state_cap?: number;
+  counts_basis?: string;
 }
 export interface WorkItem {
   module: string; module_name: string; icon: string; id: string; ref: string;
