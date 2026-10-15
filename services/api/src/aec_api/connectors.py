@@ -295,8 +295,18 @@ def tables(ctype: str, config: dict | None) -> dict[str, Any]:
 
 
 def query(ctype: str, config: dict | None, sql: str, limit: int = 200) -> dict[str, Any]:
-    """Run a READ-ONLY SELECT/WITH query and return {columns, rows}. Rejects anything that
-    isn't a single SELECT/WITH (no writes/DDL/multiple statements). Result is row-capped."""
+    """Run a READ-ONLY SELECT/WITH query and return {columns, rows, row_count, limit, truncated}.
+
+    Rejects anything that isn't a single SELECT/WITH (no writes/DDL/multiple statements).
+
+    SQL-CAP -- `row_count` is the length of the PAGE, counted after the cap, so it is not a fact
+    about the table. The cap and whether anything was discarded are returned WITH it, because
+    `row_count == limit` cannot tell the two apart: measured against a live connection, a
+    5,000-row table read at 200 and a 200-row table read in full both returned
+    `{"row_count": 200, "limit": 200}`. So this fetches ONE ROW PAST the cap and reports
+    `truncated` as a fact -- the caller is handed the distinction instead of inferring it from an
+    equality that holds in both cases. `apps/web/src/connections/sqlBrowseRead.ts` is the reader.
+    """
     config = config or {}
     if ctype not in ("local", "postgres", "supabase"):
         return {"error": "this connection is not a SQL data source"}
@@ -311,11 +321,16 @@ def query(ctype: str, config: dict | None, sql: str, limit: int = 200) -> dict[s
         with eng.connect() as c:
             if "postgres" in str(eng.url):
                 c.exec_driver_sql("SET TRANSACTION READ ONLY")
-            res = c.exec_driver_sql(f"SELECT * FROM ({sql}) AS _q LIMIT {limit}")
+            # SQL-CAP: limit + 1. The extra row is never returned -- it exists only so the answer
+            # to "was anything discarded?" is observed rather than guessed at.
+            res = c.exec_driver_sql(f"SELECT * FROM ({sql}) AS _q LIMIT {limit + 1}")
             cols = list(res.keys())
+            fetched = res.fetchall()
+            truncated = len(fetched) > limit
             rows = [[(v if isinstance(v, (int, float, str, bool, type(None))) else str(v)) for v in r]
-                    for r in res.fetchall()]
-        return {"columns": cols, "rows": rows, "row_count": len(rows), "limit": limit}
+                    for r in fetched[:limit]]
+        return {"columns": cols, "rows": rows, "row_count": len(rows), "limit": limit,
+                "truncated": truncated}
     except ModuleNotFoundError as e:
         return {"error": f"{e} — install the PostgreSQL driver (psycopg) on the server"}
     except Exception as e:                       # noqa: BLE001
