@@ -1514,3 +1514,50 @@ export function withModel<TBase extends Ctor<NeedsEditIfc>>(Base: TBase) {
   }
   };
 }
+
+/**
+ * HEALTH-WEIGHT-COVER — one lens of the composite Model Health scorecard.
+ *
+ * `weight` is this lens's share of the composite, and it is on the lens rather than in a map
+ * beside it so a reader of one row can see what the row is worth. The five sum to 1.0, asserted
+ * in `services/api/test_model_health.py`.
+ */
+export interface ModelHealthLens {
+  key: string;
+  label: string;
+  /** The rail tool or Report Center page that acts on this lens. */
+  tool: string;
+  /** `null` when the lens had no inputs — excluded from the composite rather than guessed. */
+  score: number | null;
+  status: "good" | "warn" | "poor" | "na";
+  headline: string;
+  /** This lens's share of the composite, 0–1. */
+  weight: number;
+}
+
+/**
+ * HEALTH-WEIGHT-COVER — the composite, and the two different things "how much was measured" can
+ * mean.
+ *
+ * `overall_score` is a WEIGHTED mean over the lenses that produced a score, with the weights
+ * renormalised over exactly those — so an unscored lens does not drag the number down, which is
+ * right. What follows from it is that the coverage of that mean is a **weight**, not a count, and
+ * the screen was printing the count: `2 of 5 checks scored` covers **30%** of the intended basis
+ * when the two are `verified` + `readiness` and **50%** when they are `hygiene` + `information`.
+ * Both print the same caption and both report the same `80`.
+ */
+export interface ModelHealth {
+  /** Weighted mean over the scored lenses. `null` when nothing could be scored. */
+  overall_score: number | null;
+  band: string;
+  /** How MANY lenses scored. True, and not the basis the score is over — see `weight_scored`. */
+  scored_lenses: number;
+  /** The share of the composite the score actually covers, 0–1. */
+  weight_scored: number;
+  model_available: boolean;
+  lenses: ModelHealthLens[];
+  /** The engine's own sentence naming all five lenses and the n/a rule. */
+  note: string;
+  /** Why a count of lenses is not the coverage of a weighted mean. */
+  weight_basis: string;
+}

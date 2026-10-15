@@ -12,7 +12,7 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { ViewTemplateGraphics } from "./model";
+import type { ModelHealth, ViewTemplateGraphics } from "./model";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -27,11 +27,15 @@ const RESUMABLE_ABOVE_BYTES = 8 * 1024 * 1024;
 
 export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Models extends Base {
-  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
+  /** Composite Model Health scorecard — one weighted score over FIVE lenses.
+   *
+   *  HEALTH-WEIGHT-COVER. This docstring used to say "hygiene + ISO 19650 KPIs + clash + verified",
+   *  and the screen's own caption said the same four — both written before `readiness` (code and
+   *  permit pre-flight, 15% of the composite) was added, and neither updated. The authoritative
+   *  sentence naming all five was served in `note` and declared by nothing.
+   */
   modelHealth(pid: string) {
-    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
-      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
-      `/projects/${pid}/models/health`);
+    return this.json<ModelHealth>(`/projects/${pid}/models/health`);
   }
   /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
   modelQa(pid: string) {
