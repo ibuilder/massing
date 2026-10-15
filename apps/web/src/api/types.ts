@@ -1867,3 +1867,62 @@ export interface ScheduleStatusReport {
   checked: boolean;
   note: string;
 }
+
+/**
+ * CX-CELL-FLAT — one cell of the commissioning system × phase wall chart.
+ *
+ * `pass` + `fail` + `conditional` + `no_result` **partition** `total`, which
+ * `services/api/test_cx.py` asserts per cell. Before this item the cell carried only `pass` and
+ * `fail`, so on ten Functional tests coming back five Conditional, two Pass, one Fail and two with
+ * nothing recorded, seven of the ten were in no bucket at all.
+ *
+ * `tested` and `accepted` are the two halves of the workflow and NOT the same question: `tested` is
+ * the contractor's transition, `accepted` is the Owner's. A cell at `0 accepted` over `0 tested` has
+ * not been started; one at `0 accepted` over `10 tested` is waiting on an owner signature. The grid
+ * rendered both as `0/10`.
+ */
+export interface CxCell {
+  total: number;
+  /** Contractor's half — workflow_state is `tested` or `accepted`. */
+  tested: number;
+  /** Owner's half. `complete_pct` is computed from this, not from `tested`. */
+  accepted: number;
+  pass: number;
+  fail: number;
+  /** Accepted with deficiencies — the state that generates the punch work. */
+  conditional: number;
+  /** No result recorded, or a value outside the declared three. Never read as a pass. */
+  no_result: number;
+}
+
+export interface CxMatrixRow {
+  system: string;
+  /** asset_register records carrying this system name. Zero is normal for a system with tests only. */
+  assets: number;
+  tests: number;
+  tested: number;
+  accepted: number;
+  conditional: number;
+  failed: number;
+  /** Owner acceptance over every test on the row, including any under an `extra_phases` column. */
+  complete_pct: number;
+  /** Keyed by every entry of the response's `phases`; `null` where the system has no test in it. */
+  phases: Record<string, CxCell | null>;
+}
+
+export interface CxMatrix {
+  systems: CxMatrixRow[];
+  /** The five declared phases plus `extra_phases`, so every counted test has a column. */
+  phases: string[];
+  /**
+   * Phases found in the data that are not among the five — `(unspecified)` for a test with no
+   * `test_type`, plus any free-form value. `module_schema.validate_record` treats select options as
+   * suggestions rather than a closed enum, so both are ordinary stored data, and a grid built on the
+   * five being exhaustive counted them in its row totals and showed them in no column.
+   */
+  extra_phases: string[];
+  system_count: number;
+  note: string;
+  /** Why an extra column can appear, and why an unreadable `result` is not a pass. */
+  test_result_basis: string;
+}

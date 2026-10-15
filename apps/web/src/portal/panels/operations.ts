@@ -9,6 +9,8 @@ import type { PanelContext } from "../panelContext";
 import { renderOperateBrief } from "./operateBrief";
 import { productivityRows, productivityScope, provenanceLine } from "./productivity";
 import { punchMentionNote } from "./statedBasis";
+import { cxCell, cxCellTitle, cxHandoffNote, cxLegend, cxParity, cxPhaseNote, cxRowPct }
+  from "./cxMatrixRead";
 
 /**
  * Operations & facility panels, extracted from portal.ts (portal.ts decomposition).
@@ -639,18 +641,40 @@ export async function renderTurnover(ctx: PanelContext) {
             `<div class="meta">No commissioning systems yet — seed from the model or add commissioning records.</div>`);
           return;
         }
+        // CX-CELL-FLAT. The cell was `accepted/total` plus a ✗ for fails, so a phase with ten
+        // tests ALL TESTED and awaiting the Owner rendered byte-identically to one where nothing
+        // had been done, and `Conditional` — a declared result of the module — was counted in
+        // neither bucket. `cxMatrixRead.ts` carries the measurement; the marks are explained by
+        // the legend below the table and by each cell's own title.
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
-        const cell = (c: { total: number; accepted: number; pass: number; fail: number } | null | undefined) =>
-          !c ? "—" : `${c.accepted}/${c.total}` + (c.fail ? ` <span style="color:var(--status-crit)">✗${c.fail}</span>` : "");
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">System</th><th scope="col">Assets</th>`
           + mx.phases.map((p) => `<th scope="col">${esc(p)}</th>`).join("")
           + `<th scope="col">%</th><th scope="col"><span class="sr-only">Dossier</span></th></tr></thead><tbody>`
           + mx.systems.map((s) => `<tr><td>${esc(s.system)}</td><td style="text-align:center">${s.assets}</td>`
-            + mx.phases.map((p) => `<td style="text-align:center">${cell(s.phases[p])}</td>`).join("")
-            + `<td style="text-align:right">${s.complete_pct}%</td>`
+            + mx.phases.map((p) => {
+              const c = s.phases[p];
+              const crit = c && c.fail ? ";color:var(--status-crit)" : "";
+              return `<td style="text-align:center${crit}" title="${esc(cxCellTitle(c))}">`
+                + `${esc(cxCell(c))}</td>`;
+            }).join("")
+            + `<td style="text-align:right" title="${esc(cxRowPct(s))}">${s.complete_pct}%</td>`
             + `<td><a href="#" data-sys="${esc(s.system)}" class="cx-dossier">dossier</a></td></tr>`).join("")
           + `</tbody>`;
         const wrap = el("div"); wrap.style.overflowX = "auto"; wrap.appendChild(t); cxWrap.append(wrap);
+        const handoff = cxHandoffNote(mx);
+        if (handoff) {
+          cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(handoff)}</div>`);
+        }
+        cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(cxLegend())}</div>`);
+        const phaseNote = cxPhaseNote(mx);
+        if (phaseNote) {
+          cxWrap.insertAdjacentHTML("beforeend", `<div class="meta">${esc(phaseNote)}</div>`);
+        }
+        const parity = cxParity(mx);
+        if (parity) {
+          cxWrap.insertAdjacentHTML("beforeend",
+            `<div class="meta" style="color:var(--status-warn)">${esc(parity)}</div>`);
+        }
         const detail = el("div"); cxWrap.append(detail);
         t.querySelectorAll<HTMLAnchorElement>("a.cx-dossier").forEach((a) => {
           a.onclick = async (ev) => {

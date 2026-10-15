@@ -128,7 +128,36 @@ def seed_checklists(db: Session, pid: str, actor: str = "system") -> dict:
 
 
 def matrix(db: Session, pid: str) -> dict:
-    """The system × phase wall chart: per cell total / tested / accepted / pass / fail."""
+    """The system × phase wall chart: per cell total / tested / accepted and the four result states.
+
+    **CX-CELL-FLAT — three things this grid used to lose, all measured on a live route.**
+
+    1. ``Conditional`` was counted NOWHERE. The module declares three results — Pass / Fail /
+       Conditional — and the cell carried only the first two, so on ten Functional tests coming
+       back five Conditional, two Pass, one Fail and two with nothing recorded, the cell said
+       ``pass: 2, fail: 1`` over ``total: 10`` and the other seven were in no bucket at all. A
+       Conditional commissioning test is *accepted with deficiencies*, which is the state that
+       generates the punch work, so on a turnover chart it is the one a reader most needs.
+    2. A test with no ``test_type`` was attributed to **Pre-Functional**, a phase nobody chose.
+    3. A ``test_type`` outside the five was counted in the row's ``tests`` and in
+       ``complete_pct``'s denominator and **rendered in no column** — measured on a two-test system
+       whose row read ``tests: 2`` above cells summing to 1.
+
+    Both phase defects are the same cause: ``module_schema.validate_record`` says select options are
+    "treated as *suggestions*, not a closed enum", so neither a missing nor an unlisted ``test_type``
+    is an error, and this grid was built as though the five were exhaustive.
+
+    **The distinction was already drawn in this service.** ``closeout.commissioning_rollup`` counts
+    ``conditional`` as a first-class third state, buckets a missing phase as ``(unspecified)``, and
+    takes its ``pass_rate`` over ``passed + failed + conditional`` rather than over the total. All
+    three of these were already right one file away — *the matrix is the one place the distinction
+    did not reach*, so ``UNSPECIFIED_PHASE`` is imported from there rather than re-spelled.
+
+    ``phases`` is returned as the five plus any extra phase actually present, so **every counted
+    cell has a column** and the row total cannot exceed the cells on screen. ``test_result_basis``
+    says why an extra column can appear at all.
+    """
+    from .closeout import UNSPECIFIED_PHASE
     cx = me.list_records(db, "commissioning", pid, limit=100_000) if "commissioning" in me.TABLES else []
     assets = me.list_records(db, "asset_register", pid, limit=100_000) if "asset_register" in me.TABLES else []
     asset_by_system: dict[str, int] = {}
@@ -140,9 +169,10 @@ def matrix(db: Session, pid: str) -> dict:
     for c in cx:
         d = c.get("data") or {}
         system = (d.get("system") or "(unassigned)").strip() or "(unassigned)"
-        phase = d.get("test_type") or "Pre-Functional"
+        phase = (d.get("test_type") or UNSPECIFIED_PHASE).strip() or UNSPECIFIED_PHASE
         cell = grid.setdefault(system, {}).setdefault(phase, {
-            "total": 0, "tested": 0, "accepted": 0, "pass": 0, "fail": 0})
+            "total": 0, "tested": 0, "accepted": 0,
+            "pass": 0, "fail": 0, "conditional": 0, "no_result": 0})
         cell["total"] += 1
         st = c.get("workflow_state") or "open"
         if st in ("tested", "accepted"):
@@ -150,21 +180,45 @@ def matrix(db: Session, pid: str) -> dict:
         if st == "accepted":
             cell["accepted"] += 1
         res = (d.get("result") or "").strip()
+        # The four buckets PARTITION the cell: `pass + fail + conditional + no_result == total`,
+        # which `services/api/test_cx.py` asserts per cell. A result outside the declared three is
+        # counted as `conditional` ONLY if it says so; anything else is `no_result`, because a value
+        # this engine cannot read is not evidence that a test passed.
         if res == "Pass":
             cell["pass"] += 1
         elif res == "Fail":
             cell["fail"] += 1
+        elif res == "Conditional":
+            cell["conditional"] += 1
+        else:
+            cell["no_result"] += 1
+    extra = sorted({p for cells in grid.values() for p in cells} - set(PHASES))
+    all_phases = list(PHASES) + extra
     rows = []
     for system in sorted(set(grid) | set(asset_by_system)):
-        phases = {p: grid.get(system, {}).get(p) for p in PHASES}
-        total = sum(c["total"] for c in grid.get(system, {}).values())
-        accepted = sum(c["accepted"] for c in grid.get(system, {}).values())
+        phases = {p: grid.get(system, {}).get(p) for p in all_phases}
+        cells = grid.get(system, {}).values()
+        total = sum(c["total"] for c in cells)
         rows.append({"system": system, "assets": asset_by_system.get(system, 0),
-                     "tests": total, "accepted": accepted,
+                     "tests": total,
+                     "tested": sum(c["tested"] for c in cells),
+                     "accepted": (accepted := sum(c["accepted"] for c in cells)),
+                     "conditional": sum(c["conditional"] for c in cells),
+                     "failed": sum(c["fail"] for c in cells),
                      "complete_pct": round(100 * accepted / total, 1) if total else 0.0,
                      "phases": phases})
-    return {"systems": rows, "phases": list(PHASES), "system_count": len(rows),
-            "note": "system × phase completion — cells carry total/tested/accepted/pass/fail."}
+    return {"systems": rows, "phases": all_phases, "system_count": len(rows),
+            "extra_phases": extra,
+            "note": "system × phase completion — cells carry total/tested/accepted and the four "
+                    "result states (pass/fail/conditional/no_result), which partition total. "
+                    "`accepted` is OWNER acceptance; `tested` is the contractor's half, so "
+                    "`0 accepted` over `0 tested` and over `all tested` are different cells.",
+            "test_result_basis":
+                "`test_type` and `result` are select fields, and select options are suggestions "
+                "rather than a closed enum, so a test may carry no phase (bucketed "
+                f"`{UNSPECIFIED_PHASE}`) or a phase outside the five (listed in `extra_phases` and "
+                "given its own column, so every counted test is on the chart). A `result` outside "
+                "Pass/Fail/Conditional counts as `no_result` — an unreadable value is not a pass."}
 
 
 def dossier(db: Session, pid: str, system: str) -> dict:

@@ -242,7 +242,26 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `customer` and `through_date` and nothing passed them, so the PDF a subcontractor would sign
   // read `[Claimant]`, `[Customer]`, `[Owner]` and `through [date]` literally — measured end to
   // end against a live server.
-  "GET /projects/{}/cx/matrix": ["note"],
+  // **CLOSED 2026-10-15 under CX-CELL-FLAT, and `note` was the smallest of three defects.** The
+  // commissioning wall chart rendered `accepted/total` plus a ✗ for fails, so a phase with ten
+  // tests ALL TESTED by the contractor and awaiting the Owner read `0/10 ✗1` against `0/10` for a
+  // phase where nothing had been done — delete that one Fail and the two cells were byte-identical,
+  // while `tested` sat DECLARED on the client type and read by nothing. *The two states a Cx agent
+  // acts on in opposite directions were the same string.* `Conditional` — one of three declared
+  // results — was counted in neither bucket, so on that cell five Conditional and two unrecorded
+  // tests, seven of ten, were in no bucket at all. And because `module_schema.validate_record`
+  // treats select options as suggestions rather than a closed enum, a test with no `test_type` was
+  // silently filed under **Pre-Functional** and one with a free-form phase was counted in the row
+  // total and shown in **no column** — measured at `tests: 2` above cells summing to 1.
+  //
+  // **All three answers were already in this service.** `closeout.commissioning_rollup` counts
+  // `conditional`, buckets a missing phase as `(unspecified)`, and takes `pass_rate` over
+  // `passed + failed + conditional` — and `closeoutSummary` declares `conditional` twenty lines
+  // above `cxMatrix` in the same client class. *A rollup and its detail in one file, and only the
+  // rollup knew the third state existed.* The engine imports `UNSPECIFIED_PHASE` from there now.
+  // The rollup's own `by_result` / `by_test_type` / `by_state` were served and undeclared too, and
+  // are outside this gate's population for the reason EXPIRY-UNDATED records: `closeout_summary`
+  // delegates rather than returning a dict literal.
   // `orphans` — documents attached to nothing.
   // **CLOSED 2026-10-15 under DOCHEALTH-VACUOUS, and the two undeclared keys were the small half.**
   // `orphans` was a list of bare file ids — a list a reader resolves one lookup at a time — and it

@@ -30,8 +30,8 @@
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { DocFile, DocFolderNode, DocumentsHealth, InfoRequirementsCascade, ModuleRecord,
-  NamingAudit, NamingCheck, PreflightGate } from "./types";
+import type { CxMatrix, DocFile, DocFolderNode, DocumentsHealth, InfoRequirementsCascade,
+  ModuleRecord, NamingAudit, NamingCheck, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -186,8 +186,16 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
         overdue_count: number; complete_pct: number | null; open_cost: number;
         ball_in_court: Record<string, number>; by_trade: Record<string, number>;
         rows: Record<string, unknown>[] };
+      /**
+       * CX-CELL-FLAT: `by_result`, `by_test_type` and `by_state` were served and not declared.
+       * They are where the third state and the unphased test are already named — `by_result`
+       * buckets `(pending)` and any free-form value, `by_test_type` buckets `(unspecified)` — and
+       * `pass_rate` is taken over `passed + failed + conditional`, so it is a rate over DECIDED
+       * tests, not over `cx_count`. The matrix one method down had none of this.
+       */
       commissioning: { cx_count: number; passed: number; failed: number; conditional: number;
-        accepted: number; pass_rate: number | null };
+        accepted: number; pass_rate: number | null; by_result: Record<string, number>;
+        by_test_type: Record<string, number>; by_state: Record<string, number> };
       certificates: { cert_count: number; by_type: Record<string, number> };
       /**
        * EXPIRY-UNDATED: `no_expiry` and `rows` were SERVED and not declared, so the one number
@@ -215,12 +223,15 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       checklists?: { created: number; capped?: boolean } }>(
       `/projects/${pid}/cx/seed${checklists ? "" : "?checklists=false"}`, { method: "POST" });
   }
-  /** The system × phase completion matrix. */
+  /** The system × phase completion matrix.
+   *
+   *  CX-CELL-FLAT. The response is declared as `CxMatrix` rather than inline because an inline
+   *  `this.json<{…}>` type argument is outside `apps/web/src/api/deadFieldTyped.test.ts`'s
+   *  population — which is how the missing `conditional` survived here while `closeoutSummary`,
+   *  twenty lines up in this same class, declared it on the ROLLUP over the same module.
+   */
   cxMatrix(pid: string) {
-    return this.json<{ systems: { system: string; assets: number; tests: number; accepted: number;
-      complete_pct: number; phases: Record<string, { total: number; tested: number; accepted: number;
-        pass: number; fail: number } | null> }[]; phases: string[]; system_count: number }>(
-      `/projects/${pid}/cx/matrix`);
+    return this.json<CxMatrix>(`/projects/${pid}/cx/matrix`);
   }
   /** The per-system turnover dossier. */
   cxDossier(pid: string, system: string) {
