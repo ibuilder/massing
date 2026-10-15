@@ -330,6 +330,11 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // 5,805/545 -> 5,789/544 the same day: PRICE-MATCHED named `pricingReconcile`'s response,
     // 16 keys out of one call site. Lowered in the same edit as the conversion, which is the rule
     // the paragraph above had to learn.
+    // 5,789/544 -> 5,782/543: SET-REVISED named `drawingSet`'s response, whose `sheet_index` had
+    // additionally been `Record<string, unknown>[]` -- the OPAQUE bucket, in neither population --
+    // so `revisions`, `change` and every other per-sheet field were outside every audit built on
+    // declarations. That is the shape CAPTABLE-PIPELINE paid for too: an opaque row list costs more
+    // than an inline one, because its fields are not even counted as a blind spot.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -358,9 +363,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_789);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_782);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(544);
+      .toBeLessThanOrEqual(543);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

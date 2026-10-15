@@ -13,13 +13,74 @@ import type { DetailRefGraph, PreflightSummary } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** SET-REVISED — one revision of one sheet, as the controlled register reports it. */
+export interface DrawingRevision {
+  ref: string | null;
+  sheet_number: string;
+  title?: string | null;
+  discipline?: string | null;
+  status?: string | null;
+  revision: string | null;
+  /** Present when this revision came from the sheet's own recorded delta: the date it was made,
+   *  what changed, and the instrument (ASI / CCD / Bulletin) that drove it. */
+  rev_date?: string | null;
+  description?: string | null;
+  instrument?: { type?: string | null; ref?: string | null } | null;
+  /** `delta` — a recorded revision on this sheet's record; `record` — a whole drawing record,
+   *  which is how a drawing-log import carries one revision per row. */
+  source: "delta" | "record";
+  /** Only on a superseded revision: the revision that replaced it. */
+  superseded_by?: string | null;
+}
+
+/** SET-REVISED — one sheet in the bound set. */
+export interface DrawingSheetIndexRow {
+  sheet_number: string;
+  title?: string | null;
+  discipline: string;
+  sheet_id: Record<string, unknown> | null;
+  current_revision: string | null;
+  /** How many revisions this sheet has had. Counted over DISTINCT revision labels, so it is the
+   *  same answer whether the history arrived as deltas on one record or as one record per row. */
+  revisions: number;
+  /** `new` — one known revision; `revised` — more than one. This is the issuance column on the
+   *  transmittal PDF, and it was `new` on every sheet revised through `revise`. */
+  change: "new" | "revised";
+  /** Whether this sheet's revision ORDER is this register's ranking rather than a recorded fact. */
+  order_ambiguous: boolean;
+}
+
+/** SET-REVISED — the controlled drawing-set register.
+ *
+ *  `register` used to classify issuance by counting drawing RECORDS per sheet, while `revise` keeps
+ *  one record per sheet and appends to its own `revisions` list — so a sheet revised twice through
+ *  this application came back `change: "new", revisions: 1, revised_count: 0, superseded_count: 0`,
+ *  and the transmittal PDF told subcontractors it was a new sheet. `current_set` and `superseded`
+ *  were both undeclared here, so no screen could show WHICH revisions a sheet had. */
+export interface DrawingRegister {
+  sheet_count: number;
+  current_count: number;
+  superseded_count: number;
+  new_count: number;
+  revised_count: number;
+  by_discipline: Record<string, number>;
+  sheet_index: DrawingSheetIndexRow[];
+  /** The controlled set: the current revision of every sheet. */
+  current_set: DrawingRevision[];
+  /** Every earlier revision, each naming the revision that superseded it. */
+  superseded: DrawingRevision[];
+  /** Sheets carrying both lettered and numbered revisions across separate records, where which
+   *  kind is later is a set convention rather than something the labels state. */
+  order_ambiguous_sheets: string[];
+  /** The engine's sentence about whether the revision order is recorded or ranked. */
+  order_note: string;
+}
+
 export function withDrawingSet<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class DrawingSet extends Base {
   /** Controlled drawing-set register (current set, superseded, sheet index, issuance new/revised). */
   drawingSet(pid: string) {
-    return this.json<{ sheet_count: number; current_count: number; superseded_count: number;
-      new_count: number; revised_count: number; by_discipline: Record<string, number>;
-      sheet_index: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set`);
+    return this.json<DrawingRegister>(`/projects/${pid}/drawing-set`);
   }
   /** Preview the discipline sheet set that would be generated (one NCS series per discipline: M-/FA-/S-/…). */
   drawingSetPlan(pid: string, opts: { disciplines?: string; all?: boolean } = {}) {

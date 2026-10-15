@@ -50,6 +50,49 @@ with TestClient(app) as c:
     assert reg["revisions"][0]["instrument"]["ref"] == "ASI-003", reg["revisions"][0]
     assert reg["by_instrument"].get("ASI-003") == 1, reg["by_instrument"]
 
+    # --- SET-REVISED: the CONTROLLED register has to agree with the delta register above ----------
+    #
+    # Those two routes read the same record. `/drawing-set/revisions` walked `data["revisions"]` and
+    # reported both deltas with their instruments -- correct, and asserted here since REVISE-DARK.
+    # `/drawing-set` classified issuance by counting RECORDS per sheet (`"new" if len(revs) == 1`),
+    # and `revise` keeps ONE record per sheet, so the same twice-revised sheet came back
+    # `change: "new", revisions: 1, revised_count: 0, superseded_count: 0`.
+    #
+    # It reached the field: `transmittal_pdf` renders `change.title()` as the issuance column, so the
+    # transmittal told subcontractors a revised sheet was New -- the flag that decides whether they
+    # re-check their shop drawings against it.
+    #
+    # NOTHING WENT RED, and the reason is the shape of the coverage rather than its absence. The one
+    # test of this classification, `test_payroll_drawings.py`, builds A-101 as three SEPARATE drawing
+    # records (revs 0/1/2) -- the drawing-log import model, which is the model `register` was written
+    # for -- and this file set up the delta model and then read only the route that handles it.
+    # *A test that exercises one of two data models cannot see a function that handles only that
+    # one, and a handoff each side tests alone is a handoff nobody tests.* So the assertion below is
+    # DERIVED from the delta register's own answer rather than from a number written out here.
+    ctrl = c.get(f"{P}/drawing-set", headers=HDR).json()
+    # Derived from the record fetched above, not from `sheet_no` -- that name is bound 30 lines
+    # BELOW this point, and a check that reads a variable the file happens to define later is one
+    # reordering away from a NameError. (It would have been the loud kind, which is why the point is
+    # worth making here rather than after paying for it.)
+    _sheet = rec["data"].get("sheet_number") or rec["data"].get("number")
+    a_sheet = next(s for s in ctrl["sheet_index"] if s["sheet_number"] == _sheet)
+    assert a_sheet["revisions"] == reg["delta_count"], (a_sheet, reg["delta_count"])
+    assert a_sheet["change"] == "revised", a_sheet
+    # Exactly one sheet was revised; the rest of the generated Structural set never was. Stated as a
+    # RELATION rather than as the fixture's size -- the first draft asserted `new_count == 0`, which
+    # was a guess about how many sheets `drawing-set/generate` makes and reds if that series grows.
+    assert ctrl["revised_count"] == 1, ctrl["sheet_index"]
+    assert ctrl["new_count"] == ctrl["sheet_count"] - 1, (ctrl["new_count"], ctrl["sheet_count"])
+    assert ctrl["new_count"] + ctrl["revised_count"] == ctrl["sheet_count"], ctrl
+    # the earlier delta is now a superseded revision, carrying why it was superseded
+    assert ctrl["superseded_count"] == 1, ctrl
+    sup = ctrl["superseded"][0]
+    assert (sup["revision"], sup["superseded_by"], sup["source"]) == ("1", "2", "delta"), sup
+    assert sup["description"] == "Rebar clarification", sup
+    # one record, so no cross-record label ranking happened and nothing is ambiguous
+    assert ctrl["order_ambiguous_sheets"] == [], ctrl["order_ambiguous_sheets"]
+    assert a_sheet["order_ambiguous"] is False, a_sheet
+
     # --- sealed issuance (PAdES) — 200 + a valid PDF whether or not e-sign is configured -----------
     c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Permit"}, headers=HDR)
     iid = c.get(f"{P}/drawing-set/issuances", headers=HDR).json()["issuances"][0]["id"]

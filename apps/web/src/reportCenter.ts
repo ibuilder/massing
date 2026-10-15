@@ -41,6 +41,7 @@ import {
   veTargetFromAlignment,
 } from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
+import { issuanceLine, orderWarning, supersededRows } from "./drawingRegisterReadings";
 import { coverageLine, draftLine } from "./fieldLogReadings";
 import { unbilledCaveat, unbilledLine } from "./tmReadings";
 import { modalShell } from "./ui/modal";
@@ -305,7 +306,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
       body.innerHTML = `<div class="meta">Loading…</div>`;
       try {
         const d = await api.drawingSet(pid);
-        body.innerHTML = `<div class="meta">${d.current_count} current · ${d.new_count} new · ${d.revised_count} revised · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
+        // SET-REVISED. These five counts were right only for a drawing-log import. `register`
+        // classified issuance by counting RECORDS per sheet while `revise` appends to one record's
+        // own revision list, so a set revised through this app read `N new · 0 revised · 0
+        // superseded` on every sheet. The engine counts revisions now; `orderWarning` surfaces the
+        // sheets whose revision ORDER is the register's ranking rather than a recorded fact, and
+        // the superseded revisions get the table they never had.
+        const ordWarn = orderWarning(d);
+        body.innerHTML = `<div class="meta">${escapeHtml(issuanceLine(d))}</div>`
+          + (ordWarn ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(ordWarn)}</div>` : "");
         // generate a full discipline sheet set (one NCS series per discipline: S-/A-/M-/E-/P-/FP-/FA-/T-)
         const gen = document.createElement("button"); gen.className = "file-btn"; gen.textContent = "⚙ Generate discipline sheet set";
         gen.style.margin = "6px 6px 6px 0";
@@ -324,6 +333,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
         body.appendChild(xmit);
         if (Object.keys(d.by_discipline || {}).length)
           body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:4px 0">By discipline: ${Object.entries(d.by_discipline).map(([k, v]) => `${escapeHtml(k)} ${v}`).join(" · ")}</div>`);
+
+        // SET-REVISED: `superseded` has always carried every earlier revision with the revision
+        // that replaced it, the date, what changed and the driving instrument. It was undeclared on
+        // the client, so the register could say how many sheets were superseded and never which.
+        const supRows = supersededRows(d);
+        if (supRows.length) {
+          body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:8px">Superseded revisions <span class="meta">(void — build from the current set)</span></div>`);
+          table(body, ["Sheet", "Rev", "Superseded by", "Date", "What changed", "Instrument"], supRows);
+        }
 
         // --- AIA issuance: issue the set for a purpose + issuance register + sheet×issuance matrix ---
         const iss = document.createElement("div"); iss.style.margin = "10px 0 4px";

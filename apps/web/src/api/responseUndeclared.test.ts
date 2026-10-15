@@ -736,7 +736,22 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // earlier one, each tagged `superseded_by`). Both COUNTS are declared and neither row list is,
   // so the register can say how many sheets were superseded and never which. This is the route
   // whose two-hop delegation opened this item.
-  "GET /projects/{}/drawing-set": ["current_set", "superseded"],
+  // **CLOSED 2026-10-15 under SET-REVISED, and the COUNTS were wrong, not just the row lists.**
+  // `register` classified issuance by counting drawing RECORDS per sheet (`"new" if len(revs) == 1`)
+  // while `revise` keeps ONE record per sheet and appends to `data["revisions"]` — so a sheet
+  // revised twice through this application came back `change: "new", revisions: 1,
+  // revised_count: 0, superseded_count: 0`, and `transmittal_pdf` renders `change.title()` as the
+  // issuance column, telling subcontractors a revised sheet was New. `revisions()` in the same file
+  // reads the same deltas and reports them correctly: two engines over one record, disagreeing
+  // about whether the sheet was ever revised.
+  // `sheet_index` was ALSO the opaque bucket here (`Record<string, unknown>[]`), so `revisions`,
+  // `change` and the whole per-sheet row were outside every audit built on declarations — which is
+  // why a key-level entry naming two row lists was the most this axis could see of it.
+  // Three keys were added rather than only declared: `order_ambiguous` per sheet,
+  // `order_ambiguous_sheets` and `order_note`. `_rev_key` ranks alpha-only revisions BELOW numeric
+  // (its docstring claimed the reverse), so a sheet whose records read `1, 2, A, B` names rev `2`
+  // current — and which kind is later is a firm convention, not something the labels state, so the
+  // sheets where that ranking is load-bearing are now named instead of silently ranked.
   // `pricing.reconcile` — `line_count` is the population `matched` is a count out of, and `message`
   // is the engine's sentence for an estimate it could not reconcile at all.
   // **CLOSED 2026-10-15 under PRICE-MATCHED, and the entry understated it in both directions.**

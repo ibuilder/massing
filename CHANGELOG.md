@@ -6,6 +6,68 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SET-REVISED — the controlled drawing register issued a twice-revised sheet as "New"
+
+`drawingset.register` classified issuance by counting drawing **records** per sheet number —
+`change = "new" if len(revs) == 1` — while `revise` keeps **one** record per sheet and appends to
+`data["revisions"]`. So a sheet revised twice through this application's own endpoint, with ASI and
+CCD deltas recorded against it:
+
+| | before | corrected |
+|---|---|---|
+| `sheet_index[].revisions` | **1** | 2 |
+| `sheet_index[].change` | **new** | revised |
+| `revised_count` | **0** | 1 |
+| `superseded_count` | **0** | 1 |
+
+`revisions()`, reading the same `data["revisions"]` in the same file, reported both deltas with their
+instruments. **Two engines over one record, disagreeing about whether the sheet had ever been
+revised** — and it reached the field: `transmittal_pdf` renders `change.title()` as the issuance
+column, so the transmittal told subcontractors a revised sheet was New. That flag is what decides
+whether a sub re-checks their shop drawings against it.
+
+**Why nothing went red is the shape of the coverage, not its absence.** The only test of this
+classification, in `services/api/test_payroll_drawings.py`, builds its sheet as three *separate*
+drawing records — the drawing-log import model, which is the model `register` was written for — and
+asserts `revisions == 3, change == "revised"` correctly. `services/api/test_drawing_revision.py` set
+up the delta model, recorded two revisions, and then read only `/drawing-set/revisions`, the route
+that handles it. *A test that exercises one of two data models cannot see a function that handles
+only that one, and a handoff each side tests alone is a handoff nobody tests.* The new assertion
+lives in that second file, where the state was already set up, and is **derived from the delta
+register's own answer** rather than from a number written out beside it.
+
+**The ordering defect is reported, not answered.** Across records the register has only labels to
+rank, and `_rev_key`'s docstring claimed *"numeric revs sort numerically; alpha revs (A<B<C) after"*
+while the body put alpha at rank 1 and numeric at rank 2 — the reverse. Measured:
+`sorted(["", "A", "B", "C", "0", "1", "2", "10"], key=_rev_key)` leaves `10` last, and a sheet whose
+records read `1, 2, A, B` named rev `2` current with `A` and `B` listed as "superseded by 2". Which
+kind is later is a **firm convention**, not something these labels state — some sets number the
+milestone issues and letter the post-issue revisions, others do the reverse — so flipping the order
+would only move the wrongness. The docstring now matches the code, and `order_ambiguous_sheets` names
+the sheets where that ranking is load-bearing, with `order_note` saying the current revision there is
+the register's ranking rather than a recorded fact. *Correcting a comment to match the code is only
+safe once something flags the cases where the code's choice cannot be justified.*
+
+**And the dark half the KNOWN_GAPS entry had named.** `current_set` and `superseded` were undeclared,
+so the register could say how many sheets were superseded and never which — `superseded` has always
+carried every earlier revision with the revision that replaced it, the date, what changed and the
+driving instrument. The card now renders that table. `sheet_index` was additionally
+`Record<string, unknown>[]`, the **opaque** bucket, so `revisions` and `change` were outside every
+audit built on declarations — which is why a key-level entry naming two row lists was the most that
+axis could see of a defect in the counts themselves.
+
+Gated by `apps/web/src/drawingRegisterReadings.test.ts` (17 cases) and the new block in
+`services/api/test_drawing_revision.py`. Eight mutations proved red — four on the engine (records
+counted again, the deltas dropped from the history, the superseded description blanked, every sheet
+reported ambiguous) and four on the client (the denominator dropped, the superseding revision
+dropped, the order warning silenced, the panel wiring reverted). **Two of those mutations first
+failed to APPLY**, because `revisions()` carries the same two lines and the search matched twice —
+the `count == 1` guard refused rather than patching the wrong function, which is the only reason it
+was noticed. *A mutation that does not apply proves nothing, and "0 failures" looks identical either
+way.* The `/drawing-set` KNOWN_GAPS entry is closed here, the `deadFieldTyped` inline ceiling went
+5,789/544 → 5,782/543 in the same edit, and the unowned-file ratchet took a one-line Lane B row —
+**eight for eight** on top-level `apps/web/src` pairs.
+
 ### PRICE-MATCHED — the pricing variance subtracted two totals over different populations, and the sign came out inverted
 
 `pricing.reconcile` sums `priced_total` over every takeoff line the price book could price, and
