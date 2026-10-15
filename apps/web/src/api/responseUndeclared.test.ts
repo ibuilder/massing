@@ -763,7 +763,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/submittals/register": ["by_status"],
   // `tm.summarize` — `billed_total` beside the declared `unbilled_total`, and the status
   // distribution. A T&M screen showing only the unbilled half cannot show what share that is.
-  "GET /projects/{}/tm-summary": ["billed_total", "by_status"],
+  // **CLOSED 2026-10-15 under TM-UNBILLED, and `by_status` was the load-bearing one.**
+  // `unbilled_total = grand_total - billed_total` and `billed_total` counts the one state `billed`,
+  // so "unbilled" spans `draft` (a claim nobody signed), `super_signed` (signed by the sub, not
+  // accepted) and `gc_signed` (accepted, not invoiced) — three different liabilities. Measured:
+  // all-draft and all-gc_signed both return `{grand_total: 90000, unbilled_total: 90000}` and the
+  // T&M rollup card printed both as `total $90,000 · unbilled $90,000`. The split was in
+  // `by_status` all along and undeclared, so no screen could reach it.
+  // Two keys were ADDED in the same change rather than only declared, because the client could not
+  // have derived them: `accepted_states` (which states the GC has accepted, resolved against this
+  // project's effective workflow) and `workflow_overridden`. The acceptance set had been written
+  // out by hand in TWO places — `cost.summary`'s `("gc_signed", "billed")` and three state names on
+  // the client — and since WORKFLOW-DARK a project may replace those transitions, at which point
+  // both copies are quietly wrong. `tm.accepted_states` derives it; that it reproduces the
+  // hand-written pair is the argument for the rule, and `services/api/test_eticket_tm.py` asserts
+  // the equality instead of claiming it.
   // `gc_seed` — the seed the generative run used, which is the only thing that makes a generated
   // massing reproducible.
   "POST /projects/{}/generate/massing": ["gc_seed"],

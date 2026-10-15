@@ -29,7 +29,7 @@ export function verificationCoverageCard(c: {
         : "");
 }
 import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
-import { money } from "./ui/charts";
+import { money, usd } from "./ui/charts";
 import {
   decisionAlignment,
   decisionAxisBasis,
@@ -42,6 +42,7 @@ import {
 } from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
 import { coverageLine, draftLine } from "./fieldLogReadings";
+import { unbilledCaveat, unbilledLine } from "./tmReadings";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
 import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
@@ -646,7 +647,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("💵 T&M / eTicket rollup", () => showResult("Time & Material rollup", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.tmSummary(pid); body.innerHTML = `<div class="meta">${s.ticket_count} tickets · labor ${money(s.labor_total)} · material ${money(s.material_total)} · equipment ${money(s.equipment_total)} · <b>total ${money(s.grand_total)}</b> · unbilled ${money(s.unbilled_total)}</div>`;
+    try { const s = await api.tmSummary(pid);
+      // TM-UNBILLED. `unbilled ${money(s.unbilled_total)}` printed $90,000 of unsigned drafts and
+      // $90,000 of GC-ACCEPTED T&M as the same sentence -- the engine measured both at
+      // `unbilled_total: 90000`, and `by_status` carried the split the card discarded. `unbilledLine`
+      // names the states the figure is made of; `unbilledCaveat` fires when a state arrives that
+      // this screen cannot place, instead of folding it into one of the named buckets.
+      const caveat = unbilledCaveat(s);
+      body.innerHTML = `<div class="meta">${s.ticket_count} tickets · labor ${money(s.labor_total)} · material ${money(s.material_total)} · equipment ${money(s.equipment_total)} · <b>total ${money(s.grand_total)}</b> · billed ${usd(s.billed_total)} · ${escapeHtml(unbilledLine(s))}</div>`
+        + (caveat ? `<div class="meta" style="color:var(--status-warn);margin-top:4px">${escapeHtml(caveat)}</div>` : "");
       table(body, ["Ref", "Subject", "Total", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", money(r.total), r.status]));
       // T&M rolled up by the change event each ticket is linked to (field T&M -> CO -> billing)
       const bce = await api.tmByChangeEvent(pid);

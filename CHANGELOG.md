@@ -6,6 +6,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### TM-UNBILLED — $90k of unsigned drafts and $90k of GC-accepted T&M were the same sentence
+
+`tm.summarize` returns `unbilled_total = grand_total - billed_total`, and `billed_total` counts the
+single state `billed`. The `eticket` workflow is `draft → super_signed → gc_signed → billed`, so
+"unbilled" spans three different liabilities: a claim nobody has signed, a claim the sub signed and
+the GC has not accepted, and one the GC HAS accepted and not yet invoiced. Measured on the engine:
+
+| fixture | grand_total | unbilled_total | `by_status` |
+|---|---|---|---|
+| all `draft` | 90,000 | **90,000** | `{draft: 90000}` |
+| all `gc_signed` | 90,000 | **90,000** | `{gc_signed: 90000}` |
+
+The T&M rollup card printed both as `2 tickets · … · total $90,000 · unbilled $90,000` —
+byte-identical, for money the GC owes versus paperwork nobody has signed. The mixed case shows the
+split existing and being discarded: `{draft: 25000, super_signed: 15000, gc_signed: 40000}` became
+`unbilled $80,000`.
+
+**Not the CO-REJECTED shape, and that is worth stating because it is the first thing to suspect.**
+`eticket` declares no refusal state, so there is no money-nobody-owes inside the figure. The total is
+sound; what was lost is acceptance.
+
+The card now reads `billed $10,000 · unbilled $80,000 ($40,000 GC-accepted · $15,000 sub-signed,
+not GC-accepted · $25,000 unsigned)`, with full-precision figures because the parts are claimed to
+sum to the whole — `money()`'s compact form renders `{500, 400, 100}` as `$1k · $400 · $100`, a
+partition whose parts visibly do not add up. `billed_total` and `by_status` were both undeclared on
+the client, so no screen could have reached the split.
+
+**Which states mean "the GC accepted this" is now the server's answer, derived from the workflow in
+force.** The first draft of the client module wrote out `gc_signed` / `super_signed` / `draft`, which
+is a contract term hardcoded on a screen — and since WORKFLOW-DARK a project may replace the
+`eticket` transitions. It was hardcoded a second time too: `cost.summary` counted T&M as actual cost
+for a hand-written `("gc_signed", "billed")`, where a stale copy is wrong in the expensive direction,
+dropping accepted money out of `actual` so the projected over/under looks better than it is.
+`tm.accepted_states` derives the set — a state counts when **every** transition reaching it is
+performable by the GC alone — and `tm_summary` states it as `accepted_states` beside
+`workflow_overridden`. The argument that this is the right rule is that it reproduces the pair the
+two hand-written copies agreed on, and `services/api/test_eticket_tm.py` asserts that equality
+instead of leaving it in a docstring. `super_signed` is the load-bearing exclusion: `super_sign` is
+party `["Subcontractor", "GC"]`, i.e. the sub's signature, so a rule using `any` rather than `all`
+would have swept it in and made the whole item pointless.
+
+`accepted_states` is `null`, never `[]`, when the module registry cannot answer — "nobody resolved
+it" and "nothing is accepted" are different facts, and the second reads as a plausible answer while
+understating what is owed. **Asserting that distinction on `summarize`'s default was not asserting
+it**: a mutation returning `[]` from `effective_accepted`'s unresolved branch left every assertion
+green until the branch was driven directly. *Reporting a value and deciding it are two different
+questions.*
+
+Gated by `apps/web/src/tmReadings.test.ts` (23 cases, including the two 90,000 fixtures asserted to
+produce **different** text) and the new block in `services/api/test_eticket_tm.py`. Six mutations
+proved red: `all`→`any` in the party test, a drifted `SHIPPED_ACCEPTED`, `[]` for the unresolved
+set, the bare total restored in `unbilledLine`, a hardcoded `gc_signed` in place of the stated set,
+and the panel wiring reverted.
+
 ### FIELDLOG-WINDOW — "coverage 100%" over three logged days of a 200-day job, every one a draft
 
 `dailylog.summary` computes `span_days = (max(dates) - min(dates)).days + 1` from the **logged**

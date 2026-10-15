@@ -297,6 +297,37 @@ export interface TmPricingReport {
             grand_total: number };
 }
 
+/** TM-UNBILLED — the T&M rollup.
+ *
+ *  `unbilled_total` is every ticket not yet billed, and the `eticket` workflow is
+ *  `draft -> super_signed -> gc_signed -> billed`, so that one figure spans three different
+ *  liabilities: a claim nobody has signed, a claim the GC has not accepted, and one the GC HAS
+ *  accepted (`gc_sign` is party GC and requires `gc_approved_by`). Measured on the engine, all-draft
+ *  and all-gc_signed both return `{grand_total: 90000, unbilled_total: 90000}`. `by_status` carries
+ *  the split and `billed_total` the other side of it; both were undeclared. **Which states count as
+ *  accepted is the SERVER's answer**, not a taxonomy a client infers from state names: since
+ *  WORKFLOW-DARK a project may replace the transitions, and the same pair was hardcoded in
+ *  `cost.summary` too. See `tmReadings.ts`. */
+export interface TmSummary {
+  ticket_count: number;
+  labor_total: number;
+  material_total: number;
+  equipment_total: number;
+  grand_total: number;
+  billed_total: number;
+  unbilled_total: number;
+  /** Money per workflow state — the taxonomy is the module's own, not one this client invents. */
+  by_status: Record<string, number>;
+  /** The states whose T&M the GC has ACCEPTED, resolved by the server against the workflow this
+   *  project runs (`tm.accepted_states`). `null` means it could not be resolved — which is not the
+   *  same as "nothing is accepted", and `unbilledSplit` keeps them apart. */
+  accepted_states: string[] | null;
+  /** Whether this project replaced the shipped `eticket` transitions. The two labels BELOW
+   *  acceptance are shipped-workflow names, so a reader needs to know when they are a guess. */
+  workflow_overridden: boolean;
+  rows: Record<string, unknown>[];
+}
+
 export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Cost extends Base {
   /** Close the current pay period (C1): roll every SOV line's `completed_this` into
@@ -664,9 +695,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   /** tmSummary — T&M (eTicket) totals and unbilled remainder. */
   tmSummary(pid: string) {
-    return this.json<{ ticket_count: number; labor_total: number; material_total: number;
-      equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/tm-summary`);
+    return this.json<TmSummary>(`/projects/${pid}/tm-summary`);
   }
   /** tmByChangeEvent — T&M cost rolled up by linked change event. */
   tmByChangeEvent(pid: string) {

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from . import modules as me
-from . import money
+from . import money, tm
 
 DEFAULT_RETAINAGE = 5.0
 
@@ -550,11 +550,22 @@ def summary(db: Session, pid: str) -> dict[str, Any]:
     budget = round(sov["scheduled"] + co, 2)  # revised budget incl approved changes
     committed = round(sum(_n(r["data"].get("amount")) for r in _records(db, "commitment", pid)
                           if r["workflow_state"] in ("executed", "closed")) + co, 2)
+    # TM-UNBILLED. This line used to carry `("gc_signed", "billed")` written out by hand -- the
+    # second hardcoded copy of "which T&M states has the GC accepted", the other being three state
+    # names on the T&M card. Since WORKFLOW-DARK a project may replace the `eticket` transitions, and
+    # a stale copy here is wrong in the expensive direction: an accepted state renamed by a firm
+    # drops out of `actual`, so the cost summary UNDERSTATES money already owed and the
+    # projected over/under looks better than it is. `tm.effective_accepted` resolves it through
+    # `workflow_config.effective`, which is the same door `transition` goes through.
+    # `None` means the registry could not answer; fall back to the shipped set rather than to the
+    # empty one, because an empty set drops every T&M dollar out of `actual` without saying so.
+    _acc = tm.effective_accepted(pid)[0]
+    tm_accepted = set(_acc if _acc is not None else tm.SHIPPED_ACCEPTED)
     actual = round(
         sum(_n(r["data"].get("amount")) for r in _records(db, "direct_cost", pid))
         + sum(_n(r["data"].get("labor_total")) + _n(r["data"].get("material_total"))
               + _n(r["data"].get("equipment_total"))
-              for r in _records(db, "eticket", pid) if r["workflow_state"] in ("gc_signed", "billed")),
+              for r in _records(db, "eticket", pid) if r["workflow_state"] in tm_accepted),
         2)
     forecast = round(max(committed, actual), 2)
     return {

@@ -319,6 +319,14 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // is why the site count is a second assertion rather than the only one: a route whose response
     // nests four record shapes contributes one site and fifty keys, and a ceiling on sites alone
     // would have scored that conversion at almost nothing.
+    //
+    // **5,883/557 -> 5,805/545 on 2026-10-15, and the twelve sites are the more interesting half.**
+    // TM-UNBILLED named `tmSummary`'s response; the other eleven were named by SQL-CAP, CPM-SILENT,
+    // RENTROLL-BASIS and FIELDLOG-WINDOW over the preceding days, each of which declared a response
+    // interface and left this ceiling where it was. A `toBeLessThanOrEqual` is SATISFIED by
+    // progress, so those gains banked silently and the ratchet stopped ratcheting — *a one-way gate
+    // only moves when somebody re-measures it, which makes "lower it when you convert one" part of
+    // the work rather than a courtesy.*
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -347,9 +355,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_883);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_805);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(557);
+      .toBeLessThanOrEqual(545);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",
