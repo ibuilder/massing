@@ -6,6 +6,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### RENTROLL-BASIS — 30% occupancy read as 100% when the building's area was unset
+
+`rentroll.summarize` computes `total_rentable = building_rentable_sf if building_rentable_sf else
+occupied_sf`, and `rent_roll` sources that from `project.dev_property["sqft"]` — a field nobody is
+obliged to fill. Measured on the engine, same two leases both times:
+
+| building area | total_rentable_sf | occupied_sf | vacant_sf | occupancy_pct |
+|---|---|---|---|---|
+| 20,000 sf | 20,000 | 6,000 | 14,000 | **30.0%** |
+| unset | 6,000 | 6,000 | 0 | **100.0%** |
+
+`occupancy_pct` was the only one of those four the client declared (RESPKEY-HOP2 is what made the
+others visible), so the Operations card printed "Occupancy 100%" with no vacancy row and could not
+have shown the basis.
+
+**It did not stop at the screen.** The figure is a KPI in the rent-roll PDF
+(`report_builders/finance.py`), it is passed into the income basis (`proforma/income_basis.py`) and
+into the assistant's project snapshot. A figure that leaves the building as a lender-facing KPI is a
+different class of wrong from a caption — and `income_basis` already refuses to underwrite an empty
+rent roll as zero income, which is the same hazard one field along.
+
+Nothing downstream could work it out: a genuinely full building reports the **same four numbers**, so
+an equality cannot separate them. The engine now states `occupancy_basis` (`"building"` / `"leased"`)
+with `building_rentable_sf` and a note naming the remedy; the numbers are unchanged, and all four
+consumers qualify the figure. The card shows Rentable / Leased / Vacant as rows of their own and
+`n/a` where there was never a denominator; the PDF KPI is withheld rather than restated.
+
+
 ### SQL-CAP — the data browser printed its own row cap as a total, and the cap could not be raised
 
 `POST /connections/{cid}/query` is the read-only SELECT console in the Data-connections modal.

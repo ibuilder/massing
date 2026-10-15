@@ -40,8 +40,13 @@ def project_snapshot(db: Session, pid: str) -> dict[str, Any]:
         from . import rentroll
         rr = rentroll.rent_roll(db, pid)
         if rr.get("lease_count"):
+            # RENTROLL-BASIS -- an assistant quoting an occupancy it cannot qualify is the one
+            # consumer that will be asked to explain the number later.
             snap["rent_roll"] = {"occupancy_pct": rr["occupancy_pct"],
+                                 "occupancy_basis": rr.get("occupancy_basis"),
                                  "in_place_gross_income": rr["in_place_gross_income"]}
+            if rr.get("occupancy_basis") == "leased":
+                snap["rent_roll"]["occupancy_note"] = rr.get("occupancy_note")
     except Exception:                              # noqa: BLE001
         pass
     return snap

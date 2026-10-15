@@ -46,6 +46,35 @@ with TestClient(app) as c:
     assert rr["in_place_gross_income"] == 950000, rr
     assert "2028" in rr["expirations_by_year"] and "2031" in rr["expirations_by_year"], rr["expirations_by_year"]
     assert rr["walt_years"] > 0, rr
+    # RENTROLL-BASIS. This project HAS a rentable area (sqft=50000 above), so the basis is the
+    # building and the 60% means what it says.
+    assert rr["occupancy_basis"] == "building" and rr["building_rentable_sf"] == 50000, rr
+
+    # ...and the branch that needs saying. `total_rentable = building_rentable_sf or occupied_sf`,
+    # so a project with no rentable area reports 100% occupancy and 0 vacancy whatever the leases
+    # are. THE FOUR NUMBERS ARE IDENTICAL to a genuinely full building's, which is the whole reason
+    # the basis is published rather than left to be derived: an equality cannot separate two equal
+    # things. Driven through `summarize` rather than a second project because the comparison has to
+    # hold the leases FIXED -- the defect is invisible unless both sides see the same input.
+    from aec_api import rentroll as _rr
+    _leases = [{"ref": "L-1", "workflow_state": "active",
+                "data": {"tenant": "Acme", "rentable_sf": 20000, "base_rent_annual": 600000}},
+               {"ref": "L-2", "workflow_state": "active",
+                "data": {"tenant": "Globex", "rentable_sf": 10000, "base_rent_annual": 250000}}]
+    measured = _rr.summarize(_leases, building_rentable_sf=50000.0)
+    unset = _rr.summarize(_leases, building_rentable_sf=None)
+    full = _rr.summarize(_leases, building_rentable_sf=30000.0)
+    assert measured["occupancy_pct"] == 60.0 and measured["vacant_sf"] == 20000, measured
+    assert unset["occupancy_pct"] == 100.0 and unset["vacant_sf"] == 0, unset
+    assert unset["occupancy_basis"] == "leased" and unset["building_rentable_sf"] is None, unset
+    # the artefact and the real full building, side by side: same four numbers, different basis
+    _four = ("total_rentable_sf", "occupied_sf", "vacant_sf", "occupancy_pct")
+    assert {k: unset[k] for k in _four} == {k: full[k] for k in _four}, (unset, full)
+    assert unset["occupancy_basis"] != full["occupancy_basis"], (unset, full)
+    assert full["occupancy_basis"] == "building", full
+    # the note says which, and names the remedy
+    assert "NO rentable building area" in unset["occupancy_note"], unset["occupancy_note"]
+    assert "rentable SF" in unset["occupancy_note"], unset["occupancy_note"]
 
     # appraisal income approach can value off the actual rent roll
     base = c.get(f"/projects/{pid}/appraisal").json()
