@@ -58,6 +58,10 @@ export interface RentRollResult {
   occupancy_basis: "building" | "leased";
   /** The project's rentable area as supplied, or null when it was not set. */
   building_rentable_sf: number | null;
+  /** The engine's own sentence about what the basis means. READ by `occupancyLine`, which prefers
+   *  it over its own wording so the explanation exists ONCE — `assistant.py` surfaces the same
+   *  string, and two copies of one sentence in two languages is a drift hazard, not redundancy. */
+  occupancy_note: string;
   base_rent_annual: number;
   recoveries_annual: number;
   in_place_gross_income: number;

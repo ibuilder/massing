@@ -49,6 +49,8 @@ export interface RentRollBasisFields {
   occupancy_basis?: OccupancyBasis | string;
   /** The project's rentable area as supplied, or null when it was not set. */
   building_rentable_sf?: number | null;
+  /** The engine's sentence about the basis. Preferred over the wording below. */
+  occupancy_note?: string;
 }
 
 /**
@@ -86,16 +88,28 @@ export function occupancyText(rr: RentRollBasisFields): string {
   return basis === "building" ? `${pct}%` : `${pct}%†`;
 }
 
-/** The sentence under the figure, or null when the basis is sound and needs no caveat. */
+/**
+ * The sentence under the figure, or null when the basis is sound and needs no caveat.
+ *
+ * **The engine's own `occupancy_note` wins.** It says the same thing, `assistant.py` surfaces that
+ * exact string to anyone who asks the project a question, and keeping a second copy here in another
+ * language is how the two come to disagree — the hazard `api/noRespelledShapes.test.ts` refuses for
+ * shapes, applied to a sentence. The local wording below is the fallback for a response that
+ * predates the field, and is reachable because every field on this view is optional.
+ */
 export function occupancyLine(rr: RentRollBasisFields): string | null {
   const basis = occupancyBasis(rr);
   if (basis === "building") return null;
   if (basis === "leased") {
+    const note = rr.occupancy_note;
+    if (typeof note === "string" && note.trim()) return note.trim();
     return "Occupancy could not be computed: this project has no rentable building area, so the "
       + `denominator fell back to the leased area (${sf(rr.occupied_sf)}) and the percentage would `
       + "be 100% of itself whatever the leases say. Set the project's Rentable SF to get a real "
       + "occupancy and a real vacancy.";
   }
+  // On an UNKNOWN basis the server said nothing, so there is no note to prefer -- and a note that
+  // arrived without a basis could not be trusted to be about this case anyway.
   return "† The server did not say which area this percentage was computed against. If the "
     + "project's rentable area is unset it is 100% by construction — a full building and an "
     + "unmeasured one report the same numbers, so this cannot be told apart here.";

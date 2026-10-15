@@ -13,6 +13,11 @@ const MEASURED: RentRollBasisFields = {
 const UNSET: RentRollBasisFields = {
   total_rentable_sf: 6000, occupied_sf: 6000, vacant_sf: 0, occupancy_pct: 100.0,
   occupancy_basis: "leased", building_rentable_sf: null,
+  // `rentroll.summarize`'s own sentence, verbatim — the engine is the single source of this
+  // wording and `assistant.py` surfaces the same string.
+  occupancy_note: "The project has NO rentable building area, so occupancy was computed against "
+    + "the leased area and is 100% by construction. `vacant_sf` is 0 for the same reason, not "
+    + "because the building is full. Set the project's rentable SF for a real occupancy.",
 };
 /** A genuinely full building — the case the derived fallback must NOT relabel. */
 const FULL: RentRollBasisFields = {
@@ -27,15 +32,19 @@ describe("occupancyBasis", () => {
   });
 
   it("refuses to infer the basis from the numbers, because they are identical", () => {
-    // UNSET and FULL agree on all four numeric fields. Deriving "leased" from
+    // The four NUMERIC fields named explicitly rather than "everything except the fields I
+    // remembered to strip": the first draft stripped two, and adding a third basis-carrying field
+    // (`occupancy_note`) made the objects unequal for a reason that has nothing to do with the
+    // claim. *An exhaustive-by-exclusion comparison stops covering what it excludes.*
+    const nums = (r: RentRollBasisFields) => ({
+      total_rentable_sf: r.total_rentable_sf, occupied_sf: r.occupied_sf,
+      vacant_sf: r.vacant_sf, occupancy_pct: r.occupancy_pct,
+    });
+    expect(nums(UNSET)).toEqual(nums(FULL));
+    // ...so with the basis withheld, neither can be told from the other. Deriving "leased" from
     // `total_rentable_sf === occupied_sf` would relabel every fully leased building as unmeasured.
-    const strip = (r: RentRollBasisFields) => {
-      const { occupancy_basis: _b, building_rentable_sf: _s, ...rest } = r;
-      return rest as RentRollBasisFields;
-    };
-    expect(strip(UNSET)).toEqual(strip(FULL));
-    expect(occupancyBasis(strip(UNSET))).toBe("unknown");
-    expect(occupancyBasis(strip(FULL))).toBe("unknown");
+    expect(occupancyBasis({ ...nums(UNSET) })).toBe("unknown");
+    expect(occupancyBasis({ ...nums(FULL) })).toBe("unknown");
   });
 
   it("treats an unrecognised basis string as unknown rather than as sound", () => {
@@ -74,12 +83,31 @@ describe("occupancyLine", () => {
     expect(occupancyLine(FULL)).toBeNull();
   });
 
-  it("names the cause and the remedy when there is no building area", () => {
-    const line = occupancyLine(UNSET)!;
+  it("prefers the ENGINE's sentence, so the explanation exists once", () => {
+    // Two copies of one sentence in two languages is how they come to disagree. The engine's note
+    // is the source; `assistant.py` surfaces the same string to anyone who asks the project.
+    expect(occupancyLine(UNSET)).toBe(UNSET.occupancy_note!.trim());
+  });
+
+  it("falls back to its own wording when the server sent no note", () => {
+    // Reachable: every field on this view is optional, so a response predating `occupancy_note`
+    // still gets an explanation rather than silence.
+    const line = occupancyLine({ ...UNSET, occupancy_note: undefined })!;
     expect(line).toContain("no rentable building area");
     expect(line).toContain("6,000 sf");
     expect(line).toContain("100% of itself");
     expect(line).toContain("Rentable SF");
+  });
+
+  it("ignores a blank note rather than rendering an empty caveat", () => {
+    expect(occupancyLine({ ...UNSET, occupancy_note: "   " })).toContain("no rentable building area");
+  });
+
+  it("does NOT use a note that arrived without a basis", () => {
+    // On an unknown basis the note cannot be trusted to be about this case.
+    const line = occupancyLine({ ...UNSET, occupancy_basis: undefined })!;
+    expect(line).toContain("did not say");
+    expect(line).not.toBe(UNSET.occupancy_note!.trim());
   });
 
   it("hedges, and says why it cannot do better, when the basis is unknown", () => {
