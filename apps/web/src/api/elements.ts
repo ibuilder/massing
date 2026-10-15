@@ -13,7 +13,8 @@
  *  family — `SavedViewDef`, `/projects/{pid}/modules/{key}/views` — an exact name match. But a
  *  `SavedViewDef` is `{q, state, sort}`: a DATA-GRID filter over a register. Same word, unrelated
  *  thing. Comparing the two shapes is what separated them, the same move that kept `namingAudit`
- *  with `namingConventions` at (82).
+ *  with "namingConventions" at (82) — a method NAMING-UNREAD has since deleted, the audit carrying
+ *  its payload.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */

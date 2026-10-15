@@ -753,6 +753,70 @@ export interface PreflightGate {
   disclaimer: string;
 }
 
+/** NAMING-UNREAD — the ISO 19650 / NCS naming audit, declared so the violations can be rendered.
+ *
+ *  Named rather than inline per DEADFIELD-INLINE: `apps/web/src/api/deadFieldTyped.test.ts` builds
+ *  its population from exported interface declarations, so a response declared in a `this.json<{…}>`
+ *  type argument is outside every dead-field audit in the tree. */
+export interface NamingConventions {
+  container: { pattern: string; separator: string; fields: string[]; note: string };
+  sheet: { pattern: string; note: string };
+}
+
+/** One register row whose recorded name does not satisfy the convention. `ref` is what makes it
+ *  findable; `name` is the string that was ruled on, which is NOT the title. */
+export interface NamingViolation {
+  ref: string;
+  title: string;
+  name: string;
+  issues: string[];
+}
+
+/** One register row with no name recorded at all — outside `compliance_pct` in both directions.
+ *  It carries no `issues`, because there is no name to have an issue with. */
+export interface NamingUnnamed {
+  ref: string;
+  title: string;
+}
+
+/** `total` is the register. `named` is the rows that had a name to rule on. `compliance_pct` is
+ *  over `named`, and `unnamed_count` is the gap — the two numbers only read honestly together. */
+export interface NamingRegisterAudit {
+  total: number;
+  named: number;
+  compliant: number;
+  compliance_pct: number | null;
+  violations: NamingViolation[];
+  violations_count: number;
+  violations_truncated: boolean;
+  unnamed: NamingUnnamed[];
+  unnamed_count: number;
+  unnamed_truncated: boolean;
+}
+
+export interface NamingAudit {
+  /** The basis the audit ruled against, carried BY the verdict. It used to be fetched from
+   *  `/naming/conventions` on a second request the card could lose (`.catch(() => null)`) while
+   *  still printing the percentages — so the convention was optional and the number was not. */
+  conventions: NamingConventions;
+  containers: NamingRegisterAudit;
+  sheets: NamingRegisterAudit;
+  /** The server's own cap on each bounded list, so the client names the bound it is subject to
+   *  rather than hardcoding a second copy of 200. */
+  max_violations: number;
+}
+
+/** One name checked on demand against the convention — the fix loop for a violation row.
+ *  `fields` is what the parser READ, which is what teaches the convention; on a sheet ID it is the
+ *  NCS parse (discipline code, sheet type, sequence) rather than the five container fields. */
+export interface NamingCheck {
+  name: string;
+  kind: string;
+  valid: boolean;
+  fields: Record<string, string | number>;
+  issues: string[];
+}
+
 /** The compact gate stamp an issuance record carries. */
 export interface PreflightSummary {
   ready: boolean;

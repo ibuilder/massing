@@ -308,7 +308,27 @@ const KNOWN_GAPS: Record<string, string[]> = {
   ],
   "GET /projects/{}/models/health": ["note"],
   "GET /projects/{}/modules/{}/board": ["counts"],
-  "GET /projects/{}/naming/audit": ["conventions"],
+  // **CLOSED 2026-10-15 under NAMING-UNREAD, and `conventions` was the SMALLEST of it.** This gate
+  // compares a route's TOP-LEVEL keys, so the one key it could see was the convention block — while
+  // `violations`, nested one level down inside `containers` and `sheets`, was a list of up to 200
+  // offending filenames per register, each with the exact reason it failed, computed on every call
+  // and discarded by a card that printed two percentages. *The actionable half of a compliance audit
+  // was outside this gate's reach by one level of nesting*, which is the same boundary WAIVER-FLAT
+  // ran into from the other side.
+  //
+  // The percentage was wrong too, and `conventions` is why nobody noticed: `container_id` is an
+  // OPTIONAL field on `information_container`, so the audit fell back to the required `title` and
+  // validated a human-readable name against `Type_Discipline_Description_Revision_Date`. Measured on
+  // a five-row register holding one misnamed file: **20.0% compliant with 4 violations**, three of
+  // them titles carrying character-for-character the issue string of the one real offender. Now
+  // 50.0% over the 2 named, 3 reported as `unnamed` — a third state, never folded into either
+  // percentage.
+  //
+  // And the basis was fetched from `/naming/conventions` in a `Promise.all` with
+  // `.catch(() => null)` while `audit()` already returned the identical object: *the convention was
+  // optional and the percentage it qualifies was not.* That client method is deleted and the route
+  // is back in `UNREACHABLE_ROUTES` — a route can leave a freeze list for a caller that should never
+  // have existed.
   // **CLOSED 2026-10-14 under WAIVER-FLAT, and `vendor_count` was the LEAST of it.** This gate
   // compares a route's top-level keys, so the one undeclared key here was the population; the live
   // defect was two keys that were DECLARED and read by nothing. `status` is the engine's verdict on

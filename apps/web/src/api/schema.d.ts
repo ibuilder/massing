@@ -16288,6 +16288,14 @@ export interface paths {
          * @description SCAN-4D — the diff between two capture timestamps: newly installed per class/level, elements that
          *     *disappeared* (re-scan/rework flag), the progress delta and a daily rate. Body: `{installed_t1,
          *     installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted.
+         *
+         *     CAPTURE-SESSION: `{"derive": "field_verification", "t1": …, "t2": …}` fills both installed sets
+         *     from the Field Verification register instead — every element observed on or before each date.
+         *     **A capture derived this way is CUMULATIVE**, so `removed` is structurally empty and this call
+         *     cannot raise a rework flag; `derived.note` says so and `derived.undated` counts the verifications
+         *     no date could place. Opt-in rather than a fallback: an empty `installed_t1` means *the caller
+         *     sent nothing*, and silently answering a different question than the one asked is how a screen
+         *     comes to show a diff over a set nobody chose.
          */
         post: operations["progress_capture_diff_projects__pid__progress_capture_diff_post"];
         delete?: never;
@@ -18415,6 +18423,13 @@ export interface paths {
          *     Built from the `trade` and `location` fields the schedule already carries, so it needs no extra
          *     data. Reads `available` first: a project whose activities carry no location, or only one, comes
          *     back `available: false` with a reason rather than a drawn-but-meaningless diagram.
+         *
+         *     FLOW-BUFFER: `buffer_days` is the clearance wanted between every handover, and `buffer` is a
+         *     repeatable `<trade>:<days>` override. Negative means deliberate overlap, which is what makes the
+         *     engine's `LOB.OVERLAP` error reachable from this route at all — until these parameters existed
+         *     the adapter never set `buffer_days`, so every line ran tight and `gap_days` was 0 on every pair.
+         *     **Read `buffer_days_unmet`**: the realised overlap saturates at the predecessor's per-location
+         *     duration, so a request can land short and the clearance alone does not say so.
          */
         get: operations["schedule_flowline_endpoint_projects__pid__schedule_flowline_get"];
         put?: never;
@@ -56599,7 +56614,10 @@ export interface operations {
     };
     schedule_flowline_endpoint_projects__pid__schedule_flowline_get: {
         parameters: {
-            query?: never;
+            query?: {
+                buffer_days?: number | null;
+                buffer?: string[] | null;
+            };
             header?: {
                 "x-user"?: string | null;
                 authorization?: string | null;

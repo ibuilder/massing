@@ -258,7 +258,11 @@ KNOWN_UNCALLED: set[str] = {
     # `/procurement/rfq-status`, `/accounting/chart-of-accounts`, `/budget/two-sided`,
     # `/cost/lien-waiver`, `/elements/by-discipline`, `/naming/conventions` left here in v0.3.1135 —
     # each gained a client method and a panel caller. Leaving them frozen would claim they were still
-    # unreachable.
+    # unreachable. **`/naming/conventions` CAME BACK on 2026-10-15** (NAMING-UNREAD, see the entry in
+    # `UNREACHABLE_ROUTES`): the client method it gained was reading a basis the audit beside it
+    # already carried, so wiring it had satisfied this list without adding a capability. *A route can
+    # leave a freeze list for a caller that should never have existed*, and the only way that shows
+    # is the round trip being measured against the other route's response.
     # `/projects/{pid}/cv-progress/ingest-batch` left this set 2026-10-13 — CV-BRIDGE-DARK, with
     # its sibling `…/ingest`, and for the printed-URL reason given in `LEAF_COLLISION_BLIND` below
     # rather than because anything calls it. Both are now asserted to be in NEITHER set.
@@ -271,6 +275,17 @@ KNOWN_UNCALLED: set[str] = {
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
     # `/cost/datasets` left here in v0.3.1137 — Budget reads installed vintages.
     # `/drawing-set/compiled.pdf` left here in v0.3.1137 — Exports opens `compiledPdfUrl`.
+    # `/projects/{pid}/naming/conventions` arrived here 2026-10-15 — NAMING-UNREAD, by the rule this
+    # file already states: `naming.audit` returns `conventions()`, the identical object, verified
+    # byte-for-byte in `services/api/test_naming.py`. So this route is a STRICT SUBSET of the audit
+    # the same screen fetches, and the client method it had was reading the basis from here with
+    # `.catch(() => null)` beside the verdict that basis qualifies — *the convention was optional and
+    # the percentage was not.* The method is deleted, not re-pointed: *a route whose payload is a
+    # strict subset of another route's is not a second capability*, and giving one a caller to satisfy
+    # this list is how a callerless method gets added on purpose. EXPIRY: delete the route when
+    # somebody decides whether an embedded or external caller wants the conventions without the
+    # audit.
+    "/projects/{pid}/naming/conventions",
     "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions",
     # `/drawings/schedule.csv` left here in v0.3.1138 — Drawings rail downloads `drawingSchedulesCsvUrl`.
@@ -1985,7 +2000,15 @@ LEAF_COLLISION_BLIND: frozenset[str] = frozenset({
     "/projects/{pid}/model/export.csv",
     "/projects/{pid}/model/options",
     "/projects/{pid}/model/options/{slug}",
-    "/projects/{pid}/naming/validate",
+    # `/projects/{pid}/naming/validate` left this set 2026-10-15 — NAMING-UNREAD. It is the fix loop
+    # for the naming audit's violation table: the product could tell a reader their container
+    # filename was wrong and had no way to tell them whether the replacement is right. Its sibling
+    # `/naming/conventions` went the other way in the same change, into `KNOWN_UNCALLED` rather than
+    # here — and the two destinations are the point. *This* set is for a route whose LEAF reads as
+    # called; losing the caller for `conventions` made its leaf stop reading as called at all, so it
+    # is plainly uncalled and belongs where the plainly uncalled go. **The first draft of that change
+    # put it here**, and this gate caught it twice in one run: once as a new unreachable route, once
+    # as a frozen blind spot that is no longer blind.
     # `/projects/{pid}/notices/draft` left this set 2026-10-12 — NOTICE-CLOCK-DARK, with the two
     # register routes that were in `KNOWN_UNCALLED` rather than here. The notice-clock panel drafts
     # the letter per register item.

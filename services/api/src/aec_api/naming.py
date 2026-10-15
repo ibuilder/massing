@@ -77,37 +77,102 @@ def _pct(a: int, b: int) -> float | None:
     return round(100 * a / b, 1) if b else None
 
 
+MAX_VIOLATIONS = 200
+
+
+def _ident(rec: dict, d: dict) -> tuple[str, str]:
+    """The register reference and human title, so a violation row can be FOUND. A list of bad names
+    with no ref is a list a reader has to search the register for, one name at a time."""
+    return str(rec.get("ref") or ""), str(d.get("title") or rec.get("title") or "")
+
+
 def audit(db: Session, pid: str) -> dict[str, Any]:
     """Scan the CDE containers and the drawing register, validate each name/sheet-ID, and roll up
-    compliance with a bounded violation list."""
+    compliance with a bounded violation list.
+
+    **The compliance percentage is over the rows that HAVE a name to rule on, not over the
+    register.** ``container_id`` — the ISO 19650 name — is an OPTIONAL field on
+    ``information_container``; only ``title`` is required. So registering a container before its
+    name is settled is the normal order of work, and this audit used to fall back to the title,
+    validate *that* against ``Type_Discipline_Description_Revision_Date``, and report the result as
+    a naming violation. Measured on a five-row register with one genuinely misnamed file:
+
+    | | shipped before | here |
+    |---|---|---|
+    | compliance | **20.0%** of 5 | 50.0% of the 2 named, 3 unnamed |
+    | violations | 4 rows, all carrying the same issue string | 1 row |
+
+    Three of those four "violations" read ``expected Type_Discipline_Description_Revision_Date
+    (>=5 '_'-separated fields), got 1`` against the titles *Ground floor plan*, *Structural calcs*
+    and *Fire strategy* — **character-for-character the issue reported for ``New file (2).pdf``**,
+    which is the one file that is actually misnamed. *The audit printed the same sentence for two
+    different pieces of work*: one needs a container ID recorded, the other needs the file renamed.
+    So `unnamed` is a third state and is never folded into either percentage, the same split
+    ``envelope.audit`` makes between ``total`` and ``checked``.
+
+    The drawing side carries the same shape and its ``unnamed`` list is **structurally empty**:
+    ``number`` is a REQUIRED field on the ``drawing`` module (a POST without it is a 422), and the
+    subject falls back from ``sheet_number`` to it — both are drawing numbers, so the fallback stays
+    inside the naming family rather than crossing out of it the way the container one did. The
+    branch is kept, and `services/api/test_naming.py` pins the guarantee to the module field it
+    depends on: make ``number`` optional and un-numbered drawings start reporting as un-named
+    instead of as misnamed.
+
+    Violations are returned in register order and NOT ranked. Every row is one fix of the same size,
+    and a stable order is what lets a reader work down the list across two calls — unlike a
+    worst-first table, where a cap applied before the ranking is its own defect.
+    """
     containers = me.list_records(db, "information_container", pid, limit=100000) \
         if "information_container" in me.TABLES else []
     drawings = me.list_records(db, "drawing", pid, limit=100000) if "drawing" in me.TABLES else []
 
     c_rows: list[dict] = []
+    c_un: list[dict] = []
     c_ok = 0
     for c in containers:
         d = _d(c)
-        nm = d.get("container_id") or d.get("title") or c.get("id", "")
+        ref, title = _ident(c, d)
+        nm = str(d.get("container_id") or "").strip()
+        if not nm:
+            c_un.append({"ref": ref, "title": title})
+            continue
         v = validate_container_name(nm)
         c_ok += v["valid"]
         if not v["valid"]:
-            c_rows.append({"name": nm, "issues": v["issues"]})
+            c_rows.append({"ref": ref, "title": title, "name": nm, "issues": v["issues"]})
 
     s_rows: list[dict] = []
+    s_un: list[dict] = []
     s_ok = 0
     for dr in drawings:
         d = _d(dr)
-        nm = d.get("sheet_number") or d.get("number") or ""
+        ref, title = _ident(dr, d)
+        nm = str(d.get("sheet_number") or d.get("number") or "").strip()
+        if not nm:
+            s_un.append({"ref": ref, "title": title})
+            continue
         v = validate_sheet_id(nm)
         s_ok += v["valid"]
         if not v["valid"]:
-            s_rows.append({"name": nm or "(blank)", "issues": v["issues"]})
+            s_rows.append({"ref": ref, "title": title, "name": nm, "issues": v["issues"]})
+
+    def block(total: int, ok: int, rows: list[dict], un: list[dict]) -> dict[str, Any]:
+        named = total - len(un)
+        return {
+            # `compliance_pct` is over `named`, never over `total`: `unnamed_count` is the gap
+            # between them and the only honest way to read the percentage.
+            "total": total, "named": named, "compliant": ok, "compliance_pct": _pct(ok, named),
+            "violations": rows[:MAX_VIOLATIONS],
+            "violations_count": len(rows),
+            "violations_truncated": len(rows) > MAX_VIOLATIONS,
+            "unnamed": un[:MAX_VIOLATIONS],
+            "unnamed_count": len(un),
+            "unnamed_truncated": len(un) > MAX_VIOLATIONS,
+        }
 
     return {
         "conventions": conventions(),
-        "containers": {"total": len(containers), "compliant": c_ok,
-                       "compliance_pct": _pct(c_ok, len(containers)), "violations": c_rows[:200]},
-        "sheets": {"total": len(drawings), "compliant": s_ok,
-                   "compliance_pct": _pct(s_ok, len(drawings)), "violations": s_rows[:200]},
+        "containers": block(len(containers), c_ok, c_rows, c_un),
+        "sheets": block(len(drawings), s_ok, s_rows, s_un),
+        "max_violations": MAX_VIOLATIONS,
     }

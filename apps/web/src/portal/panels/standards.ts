@@ -8,7 +8,10 @@ import { bandRows, ceilingDiffers, complianceRows, inertTargetNote, inertTargetR
 import { proxyConfirm, proxyOffer, proxySummary } from "./lodProxy";
 import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote,
   envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
+import { checkFieldRows, checkHeadline, conventionNote, namingHeadline, unnamedNote, unnamedRows,
+  unnamedPageNote, violationPageNote, violationRows } from "./namingRead";
 import { renderViewTemplates } from "./viewTemplates";
+import type { NamingRegisterAudit } from "../../api/types";
 import type { PanelContext } from "../panelContext";
 
 /**
@@ -954,19 +957,76 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     }).catch(fail(mep));
 
     const nm = section("🔤 Naming compliance");
-    void Promise.all([
-      ctx.host.api.namingAudit(pid),
-      ctx.host.api.namingConventions(pid).catch(() => null),
-    ]).then(([a, conv]) => {
+    void ctx.host.api.namingAudit(pid).then((a) => {
         nm.textContent = "";
-        if (conv) {
-          const note = el("div", "meta");
-          note.textContent = `Container: ${conv.container.pattern}. Sheet: ${conv.sheet.pattern}`;
-          nm.appendChild(note);
+        const note = (text: string, colour = "") => {
+            const n = el("div", "meta");
+            n.textContent = text;
+            if (colour) n.style.color = colour;
+            n.style.marginTop = "4px";
+            nm.appendChild(n);
+        };
+        // The basis first, and from the audit's OWN response — `conventions` is a key on the verdict,
+        // not a second request that could fail while the percentages printed anyway.
+        note(conventionNote(a));
+        const regs: [string, NamingRegisterAudit, string, string][] = [
+            ["Containers", a.containers, "container", "Container ID (ISO 19650 naming)"],
+            ["Sheets", a.sheets, "drawing", "sheet number"],
+        ];
+        for (const [label, reg, noun, field] of regs) {
+            const h = el("div"); h.style.cssText = "font-weight:600;margin-top:10px";
+            h.textContent = label; nm.appendChild(h);
+            const head = namingHeadline(reg, noun);
+            note(head.text, BASIS_TONE[head.tone]);
+            const un = unnamedNote(reg, noun, field);
+            if (un) note(un, BASIS_TONE.warn);
+            // The violations are the actionable half and were discarded on every call. `ref` is the
+            // first column because a bad name with no register reference is a name somebody has to
+            // go and search for.
+            if (reg.violations.length) {
+                nm.appendChild(table(["Ref", "Title", "Name as recorded", "Why it fails"],
+                    violationRows(reg).map((v) => [v.ref, v.title, v.name, v.why])));
+                const pg = violationPageNote(reg, a.max_violations);
+                if (pg) note(pg, BASIS_TONE.warn);
+            }
+            if (reg.unnamed.length) {
+                nm.appendChild(table([`Ref (no ${field})`, "Title"],
+                    unnamedRows(reg).map((u) => [u.ref, u.title])));
+                const pg = unnamedPageNote(reg, a.max_violations);
+                if (pg) note(pg, BASIS_TONE.warn);
+            }
         }
-        nm.appendChild(table(["Register", "Total", "Compliant", "%"], [
-            ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
-            ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));
+        // The fix loop: `/naming/validate` had no client method, so the audit could say a name was
+        // wrong and nothing could say whether the replacement is right.
+        const chk = el("div"); chk.style.cssText = "margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+        const clab = el("span", "meta"); clab.textContent = "Check a name:";
+        const cin = el("input") as HTMLInputElement;
+        cin.type = "text"; cin.placeholder = "DR_A_GroundFloorPlan_P01_2026-07-05";
+        cin.style.cssText = "flex:1;min-width:220px";
+        const ckind = el("select") as HTMLSelectElement;
+        for (const k of ["container", "sheet"]) {
+            const o = el("option") as HTMLOptionElement; o.value = k; o.textContent = k; ckind.appendChild(o);
+        }
+        const cbtn = el("button", "btn") as HTMLButtonElement; cbtn.textContent = "Validate";
+        const cout = el("div", "meta"); cout.style.marginTop = "6px";
+        cbtn.onclick = async () => {
+            const name = cin.value.trim();
+            if (!name) { cout.textContent = "type a filename or sheet number to check"; return; }
+            cout.textContent = "checking…";
+            try {
+                const r = await ctx.host.api.namingValidate(pid, name, ckind.value as "container" | "sheet");
+                cout.textContent = "";
+                const head = checkHeadline(r);
+                const line = el("div"); line.textContent = head.text;
+                line.style.color = BASIS_TONE[head.tone]; cout.appendChild(line);
+                const rows = checkFieldRows(r);
+                if (rows.length) {
+                    cout.appendChild(table(["Field", "Read as"], rows.map((f) => [f.field, f.value])));
+                }
+            } catch (e) { cout.textContent = `failed: ${(e as Error).message}`; }
+        };
+        chk.append(clab, cin, ckind, cbtn);
+        nm.append(chk, cout);
     }).catch(fail(nm));
 
     // Interop: inspect a VIM / G3D file (G2) — schema, buffers, geometry stats. Offline.

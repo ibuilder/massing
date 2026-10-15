@@ -24,12 +24,14 @@
  *  number, the same rollup-and-detail pair as `procurementLevel` / `bidLevelingDetail` at ⓽.
  *  `cxSeed` is a POST that creates records; it came anyway, because separating a seeder from the
  *  only two readers of what it seeds is the split (82) refused when it kept `namingAudit` with
- *  `namingConventions`.
+ *  "namingConventions". (Plain quotes: NAMING-UNREAD deleted that method — the audit carries the
+ *  conventions itself — so the precedent stands and the method does not.)
  *
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { DocFile, DocFolderNode, ModuleRecord, PreflightGate } from "./types";
+import type { DocFile, DocFolderNode, ModuleRecord, NamingAudit, NamingCheck,
+  PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -95,13 +97,6 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   documentDownloadUrl(pid: string, fid: string) {
     return this.url(`/projects/${pid}/documents/${fid}/download`);
-  }
-  /** Filename + sheet-ID patterns the naming audit enforces (ISO 19650 container / NCS sheet). */
-  namingConventions(pid: string) {
-    return this.json<{
-      container: { pattern: string; separator: string; fields: string[]; note: string };
-      sheet: { pattern: string; note: string };
-    }>(`/projects/${pid}/naming/conventions`);
   }
   /** Filed revisions of the authored model (newest first), including superseded ones. */
   modelHistory(pid: string) {
@@ -264,14 +259,26 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }
 
-  // SCALE-SEAM (82) — *how well does this project follow its own naming rules?* The pair of
-  // `namingConventions` above: that one states the container and sheet patterns, this one
-  // reports compliance against the same two subjects. Splitting them would have been the
-  // mistake — it was on its way to `model.ts` until the return shapes were compared.
+  // SCALE-SEAM (82) — *how well does this project follow its own naming rules?* It arrived here as
+  // a pair with "namingConventions", which (82) declined to split off because the two answered one
+  // question about one subject. **NAMING-UNREAD deleted the other half instead**: `audit()` returns
+  // `conventions()` — the same object, byte-identical, measured — so a second route for it is a
+  // strict subset of this one, and `services/api/test_route_reachability.py` already holds the rule
+  // that *a route whose payload is a strict subset of another route's is not a second capability*.
+  // The card was fetching the basis from that route with `.catch(() => null)` beside the audit it
+  // belongs to, which made the convention optional while the percentage it qualifies was not.
   namingAudit(pid: string) {
-    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
-      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
-      `/projects/${pid}/naming/audit`);
+    return this.json<NamingAudit>(`/projects/${pid}/naming/audit`);
+  }
+  /** Check ONE name against the convention, without touching a register — the fix loop for a
+   *  violation row, and a check to run before filing a container or numbering a sheet.
+   *
+   *  `/naming/validate` sat in `UNREACHABLE_ROUTES` with no client method at all: the audit could
+   *  tell a reader that `New file (2).pdf` is wrong and the product had no way to tell them whether
+   *  the name they were about to use instead is right. */
+  namingValidate(pid: string, name: string, kind: "container" | "sheet" = "container") {
+    return this.json<NamingCheck>(`/projects/${pid}/naming/validate`
+      + `?name=${encodeURIComponent(name)}&kind=${kind}`);
   }
   };
 }
