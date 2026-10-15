@@ -1588,6 +1588,20 @@ concurrency record names the specific thing to watch, a fourth sign-in path.
   The bound is asserted rather than claimed — the three lightest weights sum to exactly 0.50, so any
   three lenses clear half and the two numbers can only disagree about soundness at two or fewer.
 
+  *The extraction ratchet caught me pushing a red build, and it had already written down how.*
+  The change added 13 lines to `apps/web/src/viewer/tools/qaSection.ts`, which sits under a one-way
+  ratchet in `services/api/test_file_sizes.py`. I ran that gate early in the session, during an
+  unrelated item, and not again after touching the file — so "the affected gates are green" was true
+  when said and stale when reported, and the head went to the remote red. **The ratchet's own newest
+  entry on that same file records this exact error**: *"the lesson is about WHEN I ran the gate, not
+  about the pin."* A prose record of a process error teaches that the error is possible; it does not
+  make the next run happen. The remedy is the one the ratchet prescribes — the file gives up lines
+  rather than the pin moving up — so the result body left for
+  `apps/web/src/viewer/tools/healthPanel.ts`, which is where it belonged anyway, beside the readings
+  it renders. 1,229 → **1,218**, re-tightened to the exact count rather than left slack, and listed
+  in `apps/web/src/viewer/toolsSplit.test.ts`'s `SECTION_SOURCES` **inside the `qa` run**, because a
+  file that opens no `section(` of its own is attributed to whichever file precedes it.
+
   **And the caption had stopped counting the lenses.** It read *"one score over integrity/hygiene,
   ISO 19650 KPIs, clash coordination, and verified-as-built"* — **four**, where the engine has five;
   `readiness` (code and permit pre-flight, 15% of the composite) landed and the caption did not move.

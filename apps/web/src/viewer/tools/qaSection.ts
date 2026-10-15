@@ -13,8 +13,7 @@ import { modelCleanupButton, wallJoinsButton } from "./repairPanel";
 import { georeferencingButton, projectOriginButton, projectUnitsButton } from "./projectSetupPanel";
 import { runIdsValidate } from "./idsValidate";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
-import { healthCoverage, healthLensValue, healthNote, healthThin, healthUnscored,
-  healthWeightBasis } from "./healthCoverRead";
+import { healthStatusLine, renderHealthBody } from "./healthPanel";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
 import { SelectionSets } from "../selectionSets";
@@ -494,38 +493,15 @@ export function buildQaSection(d: QaDeps): void {
             }
           });
         })));
+        // HEALTH-WEIGHT-COVER. The body moved to `tools/healthPanel.ts` under the extraction
+        // ratchet — the composite is a WEIGHTED mean and the caption here printed the scored
+        // COUNT, while naming four lenses where the engine has five.
         b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
           let r;
           try { r = await api.modelHealth(pid); }
           catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = r.overall_score != null ? `health ${r.overall_score} · ${r.band}` : "no model data";
-          const dot: Record<string, string> = { good: "🟢", warn: "🟡", poor: "🔴", na: "⚪" };
-          showResult("Model Health", (body) => {
-            // HEALTH-WEIGHT-COVER. The composite is a WEIGHTED mean renormalised over the lenses
-            // that scored, so its coverage is a weight and this caption printed the count:
-            // `2 of 5 checks scored` covers 30% of the composite for verified+readiness and 50%
-            // for hygiene+information, both reporting the same 80. `healthCoverRead.ts` carries
-            // the measurement. The hardcoded note below named FOUR lenses where the engine has
-            // five — `note` is served and is now read instead of restated.
-            const tone = r!.overall_score == null ? "" : r!.overall_score >= 80 ? "ok" : r!.overall_score < 50 ? "bad" : "";
-            body.appendChild(resultNote(r!.overall_score != null
-              ? `Composite <b>${r!.overall_score}/100</b> — <b>${r!.band}</b>.`
-              : "No model-quality inputs yet — load a model and log coordination / verification to score.", tone));
-            const thin = healthThin(r!);
-            if (thin) body.appendChild(resultNote(escapeHtml(thin), "bad"));
-            body.appendChild(kvTable(r!.lenses.map((l) => ({
-              k: `${dot[l.status] || "⚪"} ${l.label}`,
-              v: escapeHtml(healthLensValue(l)),
-            }))));
-            for (const line of [healthCoverage(r!), healthUnscored(r!), healthNote(r!),
-                                healthWeightBasis(r!)]) {
-              if (!line) continue;
-              const note = document.createElement("div"); note.className = "meta";
-              note.style.cssText = "margin-top:8px;font-size:11px";
-              note.textContent = line;
-              body.appendChild(note);
-            }
-          });
+          out.textContent = healthStatusLine(r);
+          showResult("Model Health", (body) => renderHealthBody(body, r!, { resultNote, kvTable }));
         })));
         b.appendChild(toolBtn2("📋 Normative validation (openBIM conformance)", () => withLoading(container, "Running normative validation", async () => {
           let r;

@@ -71,6 +71,13 @@ const SECTION_SOURCES = [
   // found the move**: measured from the list without it, the control read as `gone`, which is the
   // both-directions property the docstring promises, kept.
   "src/viewer/tools/layoutTool.ts",
+  // HEALTH-WEIGHT-COVER: the Model Health result BODY moved to `tools/healthPanel.ts` under the
+  // extraction ratchet. SAME ORDERING CONSTRAINT as the three entries above — it opens no
+  // `const b = section("key"` either, so it is attributed to whichever file precedes it and must
+  // stay inside the `qa` run, which is where the Model Health button mounts. The button and its
+  // status line stayed in `qaSection.ts`; only the body left, so what this list must keep reaching
+  // is the rendering, not the control.
+  "src/viewer/tools/healthPanel.ts",
   "src/viewer/tools/exportsSection.ts",
   "src/viewer/tools/analyseSection.ts",
   "src/viewer/tools/authoringSection.ts",
