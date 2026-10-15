@@ -328,6 +328,63 @@ export interface TmSummary {
   rows: Record<string, unknown>[];
 }
 
+/** PRICE-MATCHED — the takeoff pricing reconciliation.
+ *
+ *  Every total here is over a DIFFERENT population and the response used to say so nowhere.
+ *  `priced_total` is every line the price book could price; `estimated_total` only the subset of
+ *  those that also carried an `estimated_unit_price`; and `variance_total` used to subtract the
+ *  first from the second. Measured on the repo's own fixture — 2 priced lines, 1 estimated — that
+ *  returned `+4250` where the comparable variance is **−1500**, so the card rendered a red overrun
+ *  on a line where the book is cheaper. The sign was wrong, not the magnitude.
+ *
+ *  `comparable_priced_total` is the other side of the corrected subtraction, published so a reader
+ *  can see which total the variance came out of; `unmatched` and `unit_mismatch` were computed by
+ *  the engine and discarded, recoverable only by parsing per-line `note` strings. See
+ *  `portal/panels/pricingCoverage.ts`. */
+export interface PricingReconcileLine {
+  material: string;
+  quantity: number;
+  unit: string;
+  /** The price-book keyword that matched the MATERIAL — set even on a line refused for its unit,
+   *  which is why the summary's `matched` (priced lines) is the smaller count. */
+  matched?: string | null;
+  unit_price?: number;
+  book_unit?: string;
+  priced_amount?: number | null;
+  cost_code?: string;
+  source?: string;
+  estimated_unit_price?: number;
+  variance?: number;
+  variance_pct?: number | null;
+  note?: string;
+}
+
+export interface PricingReconcile {
+  lines: PricingReconcileLine[];
+  /** Every takeoff line the engine was handed — the denominator `matched` is a count out of. */
+  line_count: number;
+  /** Lines PRICED. Not the same as a line whose material the book recognised. */
+  matched: number;
+  /** No price-book keyword matched the material at all. */
+  unmatched: number;
+  /** The book knows the material and refused on the unit — exactly the difference between the
+   *  two senses of "matched". */
+  unit_mismatch: number;
+  /** Lines carrying BOTH a price and an estimated unit price: the variance's population. */
+  comparable_line_count: number;
+  priced_total: number;
+  estimated_total: number;
+  /** The priced amount of the comparable lines only. `variance_total` is this minus
+   *  `estimated_total`, which is why both are on the wire. */
+  comparable_priced_total: number;
+  /** `null` when no line is comparable — which is not a variance of zero. */
+  variance_total: number | null;
+  /** The engine's sentence about which lines these totals are over. */
+  coverage_note: string;
+  pricing_source: string;
+  message: string | null;
+}
+
 export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Cost extends Base {
   /** Close the current pay period (C1): roll every SOV line's `completed_this` into
@@ -356,11 +413,7 @@ export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   // --- Priced-vs-estimated variance, and how much cost traces to model elements ---
   pricingReconcile(pid: string) {
-    return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
-      unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
-      variance_pct?: number | null; note?: string }[]; matched: number; priced_total: number;
-      estimated_total: number; variance_total: number | null; pricing_source: string }>(
-      `/projects/${pid}/pricing/reconcile`);
+    return this.json<PricingReconcile>(`/projects/${pid}/pricing/reconcile`);
   }
   costTraceability(pid: string) {
     return this.json<{ total_cost: number; traceable_cost: number; untraceable_cost: number;

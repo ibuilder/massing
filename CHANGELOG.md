@@ -6,6 +6,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### PRICE-MATCHED — the pricing variance subtracted two totals over different populations, and the sign came out inverted
+
+`pricing.reconcile` sums `priced_total` over every takeoff line the price book could price, and
+`estimated_total` over the strictly smaller subset of those that also carried an
+`estimated_unit_price`. `variance_total` subtracted the one from the other. Run against **this
+repository's own `test_pricing.py` fixture** — 2 priced lines, 1 of them estimated:
+
+| | before | corrected |
+|---|---|---|
+| `priced_total` | 32,250 | 32,250 |
+| `estimated_total` | 20,000 | 20,000 |
+| `comparable_priced_total` | — | **18,500** |
+| `variance_total` | **+12,250** | **−1,500** |
+
+The analytics card renders a positive variance in `--status-warn` red, so it showed an overrun on a
+takeoff the book prices **$1,500 cheaper** than the estimate. The sign was wrong, not the
+magnitude. And the same test file already asserted that sign one level down —
+`concrete["variance"] == round(100 * 185 - 100 * 200, 2)`, commented *"negative variance (book
+cheaper)"* — without ever checking the total that contradicted it. *A test that is right at the row
+level and silent at the summary level reads exactly like a test of the summary.* That missing
+assertion is now the gate, and it is **derived** from the per-line figures rather than written out:
+with exactly one comparable line, the summary must equal that line's own `variance`.
+
+**The coverage half was the one the audit could see, and it was real.** `matched` was declared on
+the client and used only as a truthiness gate, so 400 takeoff lines with 3 priced rendered
+identically to 3 lines with 3 priced — `Priced $55,500 (book) vs estimate $27,000 — variance
+$28,500` — with 397 unpriced lines and $397,000 of estimate absent from the sentence. `line_count`,
+`unmatched` and `unit_mismatch` were all computed by the engine and thrown away; the last two were
+recoverable only by parsing per-line `note` strings.
+
+The engine's module docstring already promised that "unmatched materials or unit mismatches are
+reported, not guessed" — and they were, per line. **The promise was kept at the row level and the
+summary discarded it.** So the fix is split the usual way: the engine states `coverage_note` and the
+three population counts, `portal/panels/pricingCoverage.ts` renders them, and the card now reads
+`Priced $55,500 (book) — $1,500 under estimate across 1 line priced AND estimated, not the 2 priced
+above ($18,500 priced vs $20,000 estimated)` over `2 of 4 takeoff line(s) priced (1 with no
+price-book match; 1 matched in the book but refused on the unit)`.
+
+Three further distinctions the old card could not make. **`variance_total: null` is not a variance
+of zero** — the old code tested `v != null` and otherwise printed nothing at all, so "no line
+carries both a price and an estimate" rendered as silence beside a priced total, which reads as
+agreement. **The note must not assert a contrast that does not exist**: its first draft printed
+"the variance is over 3 lines, which is not the 3 priced lines above" whenever the two coincided,
+and a warning a reader checks once and finds spurious is a warning they stop reading. And the two
+senses of "matched" now differ by a published number rather than by inference — a row refused on its
+unit reports `matched: "concrete"` while the summary's `matched` counts priced lines only, and
+`unit_mismatch` is exactly that difference.
+
+Scope was verified rather than assumed: `variance_total` had exactly one reader, no test pinned it,
+and `pricing.reconcile` reaches no report builder and no assistant snapshot — a clean negative worth
+recording, since RENTROLL-BASIS's equivalent figure did reach a lender's PDF. So the semantics
+changed in place with its one consumer in the same commit.
+
+Gated by `apps/web/src/portal/panels/pricingCoverage.test.ts` (16 cases) and the new block in
+`services/api/test_pricing.py`. Eight mutations proved red — four on the engine (the two-population
+subtraction restored, the note dropping its denominator, no-comparable reported as a zero variance,
+`unit_mismatch` folded into `unmatched`) and four on the client (the priced total printed beside the
+estimate, null treated as zero, the false contrast always printed, the panel wiring reverted). The
+`pricing/reconcile` KNOWN_GAPS entry is closed in this change, and the `deadFieldTyped` inline
+ceiling went 5,805/545 → 5,789/544 in the same edit as the conversion.
+
 ### TM-UNBILLED — $90k of unsigned drafts and $90k of GC-accepted T&M were the same sentence
 
 `tm.summarize` returns `unbilled_total = grand_total - billed_total`, and `billed_total` counts the

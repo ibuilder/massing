@@ -327,6 +327,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // progress, so those gains banked silently and the ratchet stopped ratcheting — *a one-way gate
     // only moves when somebody re-measures it, which makes "lower it when you convert one" part of
     // the work rather than a courtesy.*
+    // 5,805/545 -> 5,789/544 the same day: PRICE-MATCHED named `pricingReconcile`'s response,
+    // 16 keys out of one call site. Lowered in the same edit as the conversion, which is the rule
+    // the paragraph above had to learn.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -355,9 +358,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_805);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_789);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(545);
+      .toBeLessThanOrEqual(544);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

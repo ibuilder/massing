@@ -739,7 +739,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   "GET /projects/{}/drawing-set": ["current_set", "superseded"],
   // `pricing.reconcile` — `line_count` is the population `matched` is a count out of, and `message`
   // is the engine's sentence for an estimate it could not reconcile at all.
-  "GET /projects/{}/pricing/reconcile": ["line_count", "message"],
+  // **CLOSED 2026-10-15 under PRICE-MATCHED, and the entry understated it in both directions.**
+  // The coverage half was real: `matched` was declared and used only as a truthiness gate, so 400
+  // takeoff lines with 3 priced rendered the same sentence as 3 lines with 3 priced — `Priced
+  // $55,500 (book) vs estimate $27,000 — variance $28,500`, with 397 unpriced lines and $397,000
+  // of estimate absent from the card. But the worse defect was in the ENGINE and this entry could
+  // not see it, because an undeclared-key audit looks at what the response does not say rather
+  // than at whether what it says is true: `variance_total` was `priced_total - estimated_total`,
+  // two totals over DIFFERENT populations (`priced_total` is every priced line, `estimated_total`
+  // only the subset also carrying an estimate). On the repo's own `test_pricing.py` fixture that
+  // is **+12,250** where the comparable variance is **−1,500** — the sign inverted, rendered in
+  // `--status-warn` red as an overrun on a takeoff the book prices below estimate.
+  // Three keys were ADDED rather than only declared, all of them figures the engine already
+  // computed and discarded: `unmatched`, `unit_mismatch` and `comparable_line_count`, the last two
+  // previously recoverable only by parsing per-line `note` strings. Plus
+  // `comparable_priced_total`, the other side of the corrected subtraction, and `coverage_note`.
   // `rentroll.summarize`, and this one reads worse the closer you look.
   // `total_rentable = building_rentable_sf if building_rentable_sf else occupied_sf`, so when the
   // building's rentable area is unknown the DENOMINATOR becomes the occupied area and

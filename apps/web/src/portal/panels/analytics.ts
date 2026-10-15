@@ -9,6 +9,7 @@ import { BASIS_CSS, basisRows, classNote, midpointReading, sectorLine }
 import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT_CSS }
   from "./permitReading";
 import { exclusionLine, RATE_CSS, ratePageNote, spreadReading } from "./unitRateRead";
+import { pricedCoverageLine, pricingSuspect, varianceBasisLine } from "./pricingCoverage";
 import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
@@ -647,11 +648,25 @@ export async function renderRiskCost(ctx: PanelContext) {
     }).catch(() => { permitDaysSlot.innerHTML = `<div class="meta">No cached permit records for this project — days-to-issue needs filed and issued dates on the permit register.</div>`; });
 
     api.pricingReconcile(pid).then((r) => {
-      if (!r.matched) { priceSlot.innerHTML = `<div class="meta">No priced quantities (${r.pricing_source}).</div>`; return; }
+      // PRICE-MATCHED. This printed `Priced $X vs estimate $Y — variance $Z` with no denominator
+      // anywhere: 3 priced lines out of 400 and 3 out of 3 rendered the same sentence. And `v` was
+      // `priced_total - estimated_total`, two totals over different populations — on the repo's own
+      // fixture that is +12,250 where the comparable variance is −1,500, so the red/green colour
+      // below was showing an overrun on a takeoff the book prices BELOW estimate. The engine now
+      // subtracts over one population and states the coverage; this renders both.
+      if (!r.matched) {
+        priceSlot.innerHTML = `<div class="meta">No priced quantities (${esc(r.pricing_source)}).</div>`
+          + `<div class="meta">${esc(pricedCoverageLine(r))}</div>`;
+        return;
+      }
       const v = r.variance_total;
-      priceSlot.innerHTML = `<div>Priced <b>${cmoney(r.priced_total)}</b> (${r.pricing_source})`
-        + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
-        + `</div>`;
+      const hue = v == null ? "" : v > 0 ? "var(--status-warn)" : "var(--status-good)";
+      priceSlot.innerHTML = `<div>Priced <b>${cmoney(r.priced_total)}</b> (${esc(r.pricing_source)})`
+        + (v != null ? ` — <b style="color:${hue}">${esc(varianceBasisLine(r))}</b>` : "")
+        + `</div>`
+        + `<div class="meta"${pricingSuspect(r) ? ` style="color:var(--status-warn)"` : ""}>`
+        + `${esc(pricedCoverageLine(r))}</div>`
+        + (v == null ? `<div class="meta">${esc(varianceBasisLine(r))}</div>` : "");
     }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.ifcClassify(pid).then((r) => {
