@@ -712,7 +712,22 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // measuring it is the next item's job.
   // `itb.summarize` — the ITB response rate across every package, and the bonded total. The screen
   // shows per-package rows; these two are the set-level answer to "is this bid list responding".
-  "GET /projects/{}/bidding/itb": ["overall_response_rate", "total_bonded"],
+  // **CLOSED 2026-10-15 under ITB-DOUBLE, and the entry named two keys over FIVE defects, every
+  // one of them flattering the coverage on the screen that decides whether a trade has enough
+  // bidders to award.** (1) `subs_by_pkg.get(name) + subs_by_pkg.get(ref)` counted every bid TWICE
+  // whenever a package's name equalled its ref: 5 bids -> `responses: 10`, `bonded: 10`, rate
+  // 100% instead of 50%, `coverage` flipping "thin" -> "covered". (2) `response_rate` was `0.0`
+  // when no invite list was recorded -- the value that means nobody bid -- on a row whose
+  // `coverage` said "covered". (3) `overall_response_rate` divided every package's responses by
+  // the invited counts of only those that recorded one: measured 80% where the one rated package
+  // was 30%, the same two-population ratio PRICE-MATCHED fixed in `pricing.reconcile`. (4) Which
+  // let it exceed 100%. (5) A bid naming no package vanished: 3 posted, `total_responses: 1`, the
+  // other two reported nowhere.
+  // Six keys were ADDED rather than declared: `rated_packages`, `unrated_packages`,
+  // `rated_responses`, `unmatched_submissions`, `submission_count`, `coverage_note`, plus
+  // `rate_basis` per row. `rows` was `Record<string, unknown>[]` here too, so `response_rate` and
+  // `coverage` were outside every audit over declarations -- the same opaque bucket that hid
+  // SET-REVISED's `sheet_index` counts, now the second time in two days.
   // `carbon.compute` — the per-line embodied-carbon breakdown behind the declared totals.
   // `unmatched` IS declared, so the screen can say how much it could not price; `lines` is what
   // would let a reader see WHICH.

@@ -338,6 +338,10 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // 5,782/543 -> 5,775/542: CARBON-UNCONVERTED named `projectCarbon`'s response. Four items in
     // a row have each lowered this by naming the response they were already touching, which is the
     // cheap direction and the one the message above asks for.
+    // 5,775/542 -> 5,770/541: ITB-DOUBLE named `itb`'s response, whose `rows` was ALSO
+    // `Record<string, unknown>[]` -- the second opaque row list in two days to have hidden a
+    // defect in its own fields, after SET-REVISED's `sheet_index`. Two instances is not a
+    // population, but it is enough to say which shape to look at first.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -366,9 +370,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_775);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_770);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(542);
+      .toBeLessThanOrEqual(541);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

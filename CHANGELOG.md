@@ -6,6 +6,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### ITB-DOUBLE — the bid-coverage screen counted bids twice, read an unknown denominator as 0%, and dropped bids that matched no package
+
+Five defects in `itb.summarize`, **every one of them flattering the coverage** on the screen that
+decides whether a trade has enough bidders to award:
+
+| | measured before |
+|---|---|
+| 5 bids on a package whose name equals its ref | `responses: 10`, `bonded: 10`, rate **100%** (not 50%), `coverage` flipped "thin" → "covered" |
+| 5 bids, no invite list recorded | `response_rate: 0.0` — the value that means nobody bid — on a row whose `coverage` said "covered" |
+| 10 invited + 3 bids, plus an unrated package with 5 bids | `overall_response_rate: 80%`, where the one rated package is **30%** |
+| the two above together | a rate **over 100%** |
+| 3 bids posted, 2 naming a package that does not exist | `total_responses: 1`, the other two reported nowhere |
+
+The double-count was `subs = subs_by_pkg.get(name) + subs_by_pkg.get(ref)` — two lookups
+concatenated — and a package referenced by its own name is the common case, not an edge one. The
+headline rate is the same two-population ratio PRICE-MATCHED fixed in `pricing.reconcile`; it is
+computed over the rated packages only now, with `rated_packages` / `unrated_packages` /
+`rated_responses` stating the split. An unrecorded invite list gives `response_rate: null` and a
+`rate_basis` saying why. And a bid matching no package is counted and named, because a bid somebody
+submitted that nobody is looking at is the one worth surfacing.
+
+The card printed `${total_responses}/${total_invited} responses` — **the third defect in fraction
+form**, a numerator over every package against a denominator over only the rated ones.
+
+**The first mutation of the fix did not red, and that is the useful part.** The new matcher builds a
+SET of keys, and the first draft also carried an `if (i in seen) continue` dedupe inside the loop.
+Mutating that guard away left the test green — because a submission carries exactly **one** `package`
+string, so within a single package the same index cannot arrive twice, so the guard **could never
+fire**. The set is the entire fix. *A guard that cannot fire reads as the fix and is not one, and
+the mutation that proves a fix is the one that removes the mechanism, not the belt beside it.* The
+dead guard is gone and the mutation now reds with "five bids counted as 10".
+
+**The repo's fixture missed all five, for a reason that is new in this run of items.**
+`test_assistant_itb.py` creates packages with `mk`, which posts a record and lets the module engine
+assign the ref — so a package's `name` is never equal to its `ref` in that fixture, and defect (1)
+was unreachable from it. Both its packages also record an invite count, which hid (2) and (3).
+*A test whose data-creation helper cannot produce the colliding case cannot see a defect conditioned
+on that collision* — where the previous items' fixtures merely happened to omit a case, this one was
+structurally incapable of producing it.
+
+`rows` was `Record<string, unknown>[]` here too, so `response_rate` and `coverage` were outside
+every audit built on declarations — the second opaque row list in two days to have hidden a defect
+in its own fields, after SET-REVISED's `sheet_index`.
+
+Gated by `apps/web/src/portal/panels/itbCoverage.test.ts` (17 cases) and the new block in
+`services/api/test_assistant_itb.py`. Nine mutations proved red — four on the engine and five on the
+client. One of the 17 client cases caught a grammar bug in the new code itself ("1 bid **name** a
+package"), which is the argument for asserting the rendered sentence and not only the fields it is
+built from. The `/bidding/itb` KNOWN_GAPS entry is closed here and the `deadFieldTyped` inline
+ceiling went 5,775/542 → 5,770/541 in the same edit.
+
 ### CARBON-UNCONVERTED — a material the carbon engine recognised but could not convert left the total with no trace but a tally
 
 `carbon.compute_item` declines a quantity line two ways, and `compute` counted both as `unmatched`:

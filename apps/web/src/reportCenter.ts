@@ -42,6 +42,8 @@ import {
 } from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
 import { issuanceLine, orderWarning, supersededRows } from "./drawingRegisterReadings";
+import { itbCoverageLine, itbHeadline, itbSuspect, rateCell, unmatchedLine }
+  from "./portal/panels/itbCoverage";
 import { coverageLine, draftLine } from "./fieldLogReadings";
 import { unbilledCaveat, unbilledLine } from "./tmReadings";
 import { modalShell } from "./ui/modal";
@@ -659,8 +661,18 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("📋 ITB coverage (bid invitations)", () => showResult("ITB coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const t = await api.itb(pid); body.innerHTML = `<div class="meta">${t.package_count} packages · ${t.total_responses}/${t.total_invited} responses · ${t.packages_without_bids} with no bids</div>`;
-      table(body, ["Package", "Invited", "Responses", "Coverage"], t.rows.map((r: any) => [r.package, r.invited, r.responses, r.coverage])); }
+    try { const t = await api.itb(pid);
+      // ITB-DOUBLE. `${t.total_responses}/${t.total_invited} responses` was the two-population
+      // ratio in fraction form: a numerator over every package against a denominator over only
+      // the ones that recorded an invite list. The engine computes the rate over the rated
+      // packages now and states the split; the table carries each row's basis, and a bid that
+      // matched no package is reported instead of vanishing.
+      const unmatched = unmatchedLine(t);
+      body.innerHTML = `<div class="meta">${escapeHtml(itbHeadline(t))}</div>`
+        + `<div class="meta"${itbSuspect(t) ? ` style="color:var(--status-warn)"` : ""}>${escapeHtml(itbCoverageLine(t))}</div>`
+        + (unmatched ? `<div class="meta" style="color:var(--status-warn);margin-top:2px">${escapeHtml(unmatched)}</div>` : "");
+      table(body, ["Package", "Invited", "Responses", "Rate", "Coverage"],
+        t.rows.map((r) => [r.package, r.invited || "—", r.responses, rateCell(r), r.coverage])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("💵 T&M / eTicket rollup", () => showResult("Time & Material rollup", async (body) => {

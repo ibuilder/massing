@@ -84,6 +84,63 @@ export interface ScopeGapResult {
   note: string;
 }
 
+/** ITB-DOUBLE — one bid package in the invitation-to-bid rollup. */
+export interface ItbPackageRow {
+  ref: string | null;
+  package: string;
+  trade?: string | null;
+  budget?: number | null;
+  /** How many were invited, or 0 when nobody recorded an invite list. */
+  invited: number;
+  responses: number;
+  bonded: number;
+  low_bid?: number | null;
+  due_date?: string | null;
+  /** `null` when no invite list is recorded — which is not a rate of 0%, the value this used to
+   *  carry on a row whose `coverage` read "covered". */
+  response_rate: number | null;
+  /** `no bids` | `thin` (<3) | `covered` (>=3). About the ABSOLUTE number of bids in hand, so it
+   *  is sound whether or not anyone recorded who was invited. */
+  coverage: "no bids" | "thin" | "covered";
+  /** `invited`, or `no invite list recorded` — why `response_rate` is what it is. */
+  rate_basis: string;
+}
+
+/** ITB-DOUBLE — the invitation-to-bid rollup.
+ *
+ *  Five defects lived in `itb.summarize` and every one flattered the coverage, on the screen that
+ *  decides whether a trade has enough bidders to award. Bids were counted TWICE whenever a
+ *  package's name equalled its ref (5 bids -> `responses: 10`, `bonded: 10`, rate 100% instead of
+ *  50%, `coverage` flipping to "covered"); an unrecorded invite list gave `response_rate: 0.0`,
+ *  indistinguishable from nobody bidding; the headline rate divided every package's responses by
+ *  only the invited counts that were recorded (measured 80% where the one rated package was 30%),
+ *  which also let it exceed 100%; and a bid naming no package vanished from the response entirely.
+ *  `rows` was additionally `Record<string, unknown>[]` — the opaque bucket — so none of these
+ *  fields were in any audit built on declarations. */
+export interface ItbSummary {
+  package_count: number;
+  total_invited: number;
+  total_responses: number;
+  total_bonded: number;
+  packages_without_bids: number;
+  /** Over the packages that record an invite list ONLY, so numerator and denominator are the same
+   *  population. `null` when none do — there is no rate, which is not 0%. */
+  overall_response_rate: number | null;
+  /** Packages that record an invite list, and so are in the rate above. */
+  rated_packages: number;
+  /** Packages that do not, and so are not. */
+  unrated_packages: number;
+  /** The responses the rate's numerator is over — less than `total_responses` when any package
+   *  is unrated. */
+  rated_responses: number;
+  /** Bids naming a package that does not exist: submitted by somebody, counted in no package. */
+  unmatched_submissions: number;
+  submission_count: number;
+  /** The engine's sentence about what the rate covers and what is missing from it. */
+  coverage_note: string;
+  rows: ItbPackageRow[];
+}
+
 export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Procurement extends Base {
   /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
@@ -289,8 +346,7 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
 
   /** itb — invited vs responded vs bonded per package, plus coverage gaps. */
   itb(pid: string) {
-    return this.json<{ package_count: number; total_invited: number; total_responses: number;
-      packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
+    return this.json<ItbSummary>(`/projects/${pid}/bidding/itb`);
   }
   /** scopeGap — model-QTO coverage vs bid packages: covered disciplines, gaps, over-scoped packages,
    *  **and the coverage the engine refuses to call coverage.**
