@@ -10,6 +10,8 @@ import { assemblyPageNote, assemblyRows, envelopeBasisNote, envelopeCoverageNote
   envelopeHeadline, TONE_CSS as BASIS_TONE } from "./statedBasis";
 import { checkFieldRows, checkHeadline, conventionNote, namingHeadline, unnamedNote, unnamedRows,
   unnamedPageNote, violationPageNote, violationRows } from "./namingRead";
+import { cascadeHeadline, coverageBasis, flowRows, missingLinkNotes, nodePageNote, rootNote,
+  rowTone } from "./cascadeRead";
 import { cutCoverageNote, detailNote, elementRows, flattenedNote, graphicsHeadline, graphicsNote,
   sampleGuids, styleRows } from "./vgRead";
 import { renderViewTemplates } from "./viewTemplates";
@@ -306,23 +308,51 @@ export async function renderStandards(ctx: PanelContext) {
     // requirement flow-down (cascade) — OIR → PIR/AIR → EIR, and where it's broken
     if (reg.total) {
       try {
+        // CASCADE-DARK. This card was named for the flow-down and rendered three numbers over a
+        // percentage that could never reach 100% — `coverage_pct` counted the roots, which the
+        // engine itself calls legitimately unlinked, so `0/1 linked · 0%` printed beside
+        // `✅ every requirement traces up to organizational intent` in the same box.
+        // `apps/web/src/portal/panels/cascadeRead.ts` holds the readings and the measurement.
         const cas = await ctx.host.api.infoRequirementsCascade(pid);
-        const healthy = !cas.orphans.length && !cas.misdirected.length;
+        const head = cascadeHeadline(cas);
+        const findings = missingLinkNotes(cas);
         const cc = el("div", "dash-card");
-        cc.style.cssText = `border-left:3px solid var(${healthy ? "--status-good" : "--status-warn"});margin-bottom:8px`;
-        cc.innerHTML = `<b>Requirement flow-down</b> `
-          + `<span class="meta">${cas.linked}/${cas.total} linked${cas.coverage_pct != null ? ` · ${cas.coverage_pct}%` : ""}</span>`
-          + `<div class="meta">OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive from a higher-level one.</div>`;
-        if (cas.orphans.length) {
-          cc.innerHTML += `<div class="meta" style="margin-top:4px">⏳ ${cas.orphans.length} not traced up: `
-            + cas.orphans.slice(0, 6).map((o) => esc(`${o.type} ${o.ref ?? ""}`.trim())).join(", ")
-            + (cas.orphans.length > 6 ? " …" : "") + `</div>`;
+        const tone = head.tone === "crit" ? "--status-crit"
+          : head.tone === "warn" ? "--status-warn"
+            : head.tone === "good" ? "--status-good" : "--line";
+        cc.style.cssText = `border-left:3px solid var(${tone});margin-bottom:8px`;
+        cc.innerHTML = `<b>Requirement flow-down</b> <span class="meta">${esc(head.text)}</span>`;
+        const casNote = (text: string, colour = "") => {
+          const n = el("div", "meta"); n.textContent = text;
+          if (colour) n.style.color = colour;
+          n.style.marginTop = "4px";
+          cc.appendChild(n);
+        };
+        const root = rootNote(cas);
+        if (root) casNote(root.text, BASIS_TONE[root.tone]);
+        for (const f of findings) casNote(f.text, BASIS_TONE[f.tone]);
+        if (!findings.length && cas.expected) {
+          casNote("✅ every requirement that should trace up does.", BASIS_TONE.good);
         }
-        if (cas.misdirected.length) {
-          cc.innerHTML += `<div class="meta">⚠️ ${cas.misdirected.length} link(s) point the wrong way: `
-            + cas.misdirected.slice(0, 6).map((m) => esc(`${m.type}→${m.parent_type}`)).join(", ") + `</div>`;
+        // The flow itself, which is what the card is named after and had never rendered: the chain
+        // each requirement derives through, indented, with the parent named by ref.
+        const rows = flowRows(cas);
+        if (rows.length) {
+          const t = el("table", "fin-table") as HTMLTableElement;
+          t.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+          t.innerHTML = `<tr><th style="text-align:left">Requirement</th><th style="text-align:left">Type</th>`
+            + `<th style="text-align:left">Derives from</th><th style="text-align:left">State</th></tr>`
+            + rows.map((r) => {
+              const c = BASIS_TONE[rowTone(r)];
+              return `<tr${c ? ` style="color:${c}"` : ""}>`
+                + `<td>${"&nbsp;".repeat(r.depth * 4)}${esc(r.ref)} ${esc(r.title)}</td>`
+                + `<td>${esc(r.type)}</td><td>${esc(r.parent)}</td><td>${esc(r.state)}</td></tr>`;
+            }).join("");
+          cc.appendChild(t);
+          const pg = nodePageNote(cas);
+          if (pg) casNote(pg, BASIS_TONE.warn);
         }
-        if (healthy) cc.innerHTML += `<div class="meta">✅ every requirement traces up to organizational intent.</div>`;
+        casNote(coverageBasis(cas));
         body.append(cc);
       } catch { /* cascade is best-effort; register already rendered */ }
       // MIDP/TIDP delivery plan — requirements against programme dates

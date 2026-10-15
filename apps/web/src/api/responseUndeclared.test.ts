@@ -265,7 +265,25 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // APPROVED FAR-4 scheme came back at **−68 units / −72,000 SF** against it, with no state column
   // and `delta_gfa_sf` computed and never rendered. *The fix belongs on the screen, not in the
   // ranking*, which is why the engine is untouched.
-  "GET /projects/{}/info-requirements/cascade": ["children", "nodes"],
+  // **CLOSED 2026-10-15 under CASCADE-DARK, and the two keys WERE the cascade.** `cde.cascade`
+  // builds the whole ISO 19650 flow-down — every requirement as a tiered node and every parent→child
+  // edge — and a card named "Requirement flow-down" could reach neither, so it printed three numbers
+  // and a list of failures. *The standard's question is "does this exchange requirement trace to
+  // organizational intent, and THROUGH WHAT" and the through-what was computed on every call and
+  // discarded.* `roots` was declared and unread beside them, so "✅ every requirement traces up to
+  // organizational intent" printed without ever naming the intent.
+  //
+  // Two live defects sat behind that. **A root is not a coverage failure**: `coverage_pct` was
+  // `linked / total` and this engine's own comment calls OIRs "legitimately unlinked" two lines
+  // before putting them in that denominator, so the number had a permanent ceiling below 100 on
+  // every well-formed cascade — measured at 66.7% for a textbook OIR → PIR → EIR, and **0.0% for a
+  // project holding one OIR and nothing else, printed beside "✅ every requirement traces up to
+  // organizational intent" in the same box.** And `derives_from` is a reference field whose parent
+  // can be deleted under it: a requirement somebody HAD linked arrived in the same
+  // undifferentiated `orphans` list as one nobody had touched, four identical keys each, though one
+  // needs a first link and the other needs a broken reference re-pointed. *The fact that separates
+  // them was already in the response* — `nodes` carries the stored `derives_from` — in one of the
+  // two keys nobody had declared.
   // **SHRUNK 2026-10-14 under PPC-UNASSESSED, and the undeclared keys were the SYMPTOM.**
   // `reasons_not_recorded` and `unassessed` are declared and rendered now; `note` stays because
   // nothing branches on prose. The defect was in the two keys that WERE declared: `ppc: number` and

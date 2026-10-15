@@ -95,11 +95,43 @@ def requirements(db, pid: str) -> dict[str, Any]:
 _TIER = {"OIR": 0, "PIR": 1, "AIR": 1, "EIR": 2, "BEP": 2, "MIDP": 3, "TIDP": 4}
 
 
+MAX_CASCADE_NODES = 2000
+
+_COVERAGE_BASIS = (
+    "`coverage_pct` is over `expected` — the requirements ISO 19650 says must trace up — and NOT "
+    "over `total`. OIRs sit at the top of the cascade and are legitimately unlinked, so counting "
+    "them in the denominator made a textbook-perfect three-tier cascade read 66.7% and a project "
+    "holding one OIR and nothing else read 0.0% beside zero orphans. `orphans` and `dangling` are "
+    "the two ways an expected link is missing, and they are not the same repair."
+)
+
+
 def cascade(db, pid: str) -> dict[str, Any]:
     """The information-requirement flow-down (ISO 19650): OIR → PIR/AIR → EIR → MIDP/TIDP, linked by
     each record's `derives_from`. Returns the requirements as tiered nodes, the parent→children edges,
     and cascade health — which non-top requirements don't trace up to a higher-level one (a broken
-    flow-down) and any links that point the wrong way (to an equal-or-lower tier)."""
+    flow-down) and any links that point the wrong way (to an equal-or-lower tier).
+
+    **A ROOT IS NOT A COVERAGE FAILURE.** The comment two lines down used to say OIRs are
+    *"legitimately unlinked"*, separate them into `roots` — and then count them in `coverage_pct`'s
+    denominator anyway. Measured against a live route:
+
+    | register | shipped `coverage_pct` | here |
+    |---|---|---|
+    | 1 OIR, nothing else | **0.0%**, with 0 orphans | — (nothing is expected to trace up) |
+    | a textbook 1 OIR → 1 PIR → 1 EIR | **66.7%** | 100.0% |
+
+    So the number could never reach 100% on a well-formed cascade, and the screen printed
+    *"0/1 linked · 0%"* beside *"✅ every requirement traces up to organizational intent"* in the
+    same box. `expected` is the population that must link; `coverage_pct` is over it.
+
+    **AND "NEVER LINKED" IS NOT "LINKED TO SOMETHING THAT IS GONE."** `derives_from` is a reference
+    field and the parent can be deleted under it; both arrived in one undifferentiated `orphans`
+    list, so a requirement somebody had linked — whose link was then silently undone — rendered
+    character-for-character like one nobody has touched. Two repairs: link it, or re-point a broken
+    reference. *The fact that separates them was already in the response* — `nodes` carries the
+    stored `derives_from` — in the key no client declared.
+    """
     reqs = me.list_records(db, "info_requirement", pid, limit=10000)
     nodes: dict[str, dict] = {}
     for r in reqs:
@@ -109,23 +141,45 @@ def cascade(db, pid: str) -> dict[str, Any]:
                           "tier": _TIER.get(code, 9), "state": r.get("workflow_state"),
                           "derives_from": d.get("derives_from") or None}
     children: dict[str, list[str]] = {}
-    orphans, misdirected, roots = [], [], []
+    orphans, dangling, misdirected, roots = [], [], [], []
     for n in nodes.values():
         p = n["derives_from"]
+        brief = {"id": n["id"], "ref": n["ref"], "type": n["type"], "title": n["title"]}
         if p and p in nodes:
             children.setdefault(p, []).append(n["id"])
             if nodes[p]["tier"] >= n["tier"] and n["tier"] != 9:
                 misdirected.append({"id": n["id"], "ref": n["ref"], "type": n["type"],
                                     "parent_type": nodes[p]["type"]})
+            continue
+        if n["tier"] == 0:
+            # OIRs sit at the top of the cascade and are legitimately unlinked. A tier-0 record whose
+            # parent is missing is still a root rather than a finding — nothing above it is required.
+            roots.append(brief)
+        elif p:
+            # Somebody DID link this and the parent is gone. The repair is re-pointing a broken
+            # reference, not making a first link, so it cannot share a list with `orphans`.
+            dangling.append({**brief, "missing_parent": p})
         else:
-            # OIRs sit at the top of the cascade (legitimately unlinked); everything else should trace up
-            (roots if n["tier"] == 0 else orphans).append(
-                {"id": n["id"], "ref": n["ref"], "type": n["type"], "title": n["title"]})
-    linked = sum(1 for n in nodes.values() if n["derives_from"] in nodes)
+            orphans.append(brief)
+
+    expected = [n for n in nodes.values() if n["tier"] != 0]
+    linked = sum(1 for n in expected if n["derives_from"] in nodes)
+    for kids in children.values():
+        kids.sort()
     return {
-        "total": len(nodes), "linked": linked, "coverage_pct": _pct(linked, len(nodes)),
-        "nodes": sorted(nodes.values(), key=lambda x: (x["tier"], x["ref"] or "")),
-        "children": children, "roots": roots, "orphans": orphans, "misdirected": misdirected,
+        "total": len(nodes),
+        # The population that must trace up, and the number that does. `linked` counts only the
+        # EXPECTED ones, so it can never exceed its own denominator — an OIR that happens to carry a
+        # `derives_from` is still not a coverage question.
+        "expected": len(expected), "linked": linked,
+        "coverage_pct": _pct(linked, len(expected)),
+        "coverage_basis": _COVERAGE_BASIS,
+        "nodes": sorted(nodes.values(), key=lambda x: (x["tier"], x["ref"] or ""))[:MAX_CASCADE_NODES],
+        "nodes_truncated": len(nodes) > MAX_CASCADE_NODES,
+        "max_nodes": MAX_CASCADE_NODES,
+        "children": children,
+        "roots": roots, "orphans": orphans, "dangling": dangling, "misdirected": misdirected,
+        "orphan_count": len(orphans), "dangling_count": len(dangling),
         "note": "ISO 19650 flow-down: OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive "
                 "from a higher-level one; orphans don't trace up to organizational intent.",
     }

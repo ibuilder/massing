@@ -753,6 +753,67 @@ export interface PreflightGate {
   disclaimer: string;
 }
 
+/** CASCADE-DARK — the ISO 19650 information-requirement flow-down, declared so the FLOW can be
+ *  rendered. `nodes` and `children` are the tree; the card was named "Requirement flow-down" and
+ *  showed three numbers and a list of failures, because neither key was declared.
+ *
+ *  Named, not inline, per DEADFIELD-INLINE. */
+export interface CascadeNode {
+  id: string;
+  ref: string | null;
+  title: string | null;
+  /** The requirement class, short: OIR / PIR / AIR / EIR / MIDP / TIDP / Other. */
+  type: string;
+  /** 0 is the top of the cascade. 9 is a type this engine does not place. */
+  tier: number;
+  state: string | null;
+  /** As STORED — it may name a record that no longer exists, which is what separates a dangling
+   *  reference from a requirement nobody has linked. */
+  derives_from: string | null;
+}
+
+export interface CascadeBrief {
+  id: string;
+  ref: string | null;
+  type: string;
+  title: string | null;
+}
+
+/** A requirement whose `derives_from` names a record that is gone. Somebody DID link it and the
+ *  link was silently undone, so the repair is re-pointing a broken reference rather than making a
+ *  first link — which is why it cannot share a list with `orphans`. */
+export interface CascadeDangling extends CascadeBrief {
+  missing_parent: string;
+}
+
+export interface InfoRequirementsCascade {
+  total: number;
+  /** The requirements ISO 19650 says must trace up — everything below the top tier. `coverage_pct`
+   *  is over THIS, never over `total`: a root is not a coverage failure, and counting one made a
+   *  textbook three-tier cascade read 66.7% and a one-OIR project read 0.0% beside zero orphans. */
+  expected: number;
+  /** How many of `expected` resolve to a parent. Never larger than `expected` by construction. */
+  linked: number;
+  /** `null` when nothing is expected to trace up — not 0, which reads as a failure. */
+  coverage_pct: number | null;
+  coverage_basis: string;
+  nodes: CascadeNode[];
+  nodes_truncated: boolean;
+  max_nodes: number;
+  /** parent id → child ids, sorted. */
+  children: Record<string, string[]>;
+  /** The top of the cascade: organizational intent, legitimately unlinked. */
+  roots: CascadeBrief[];
+  /** Expected to trace up and never linked. */
+  orphans: CascadeBrief[];
+  orphan_count: number;
+  dangling: CascadeDangling[];
+  dangling_count: number;
+  /** Links that point at an equal-or-lower tier — a flow-down running the wrong way. */
+  misdirected: { id: string; ref: string | null; type: string; parent_type: string }[];
+  note: string;
+}
+
 /** NAMING-UNREAD — the ISO 19650 / NCS naming audit, declared so the violations can be rendered.
  *
  *  Named rather than inline per DEADFIELD-INLINE: `apps/web/src/api/deadFieldTyped.test.ts` builds

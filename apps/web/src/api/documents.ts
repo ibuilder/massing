@@ -30,8 +30,8 @@
  *  SCALE-SEAM ⓺ adds the issuance gate — *can this package go out?* `preflight`. Hero upload sat beside it and did **not** come.
  */
 import { HttpCore, HttpError } from "./httpCore";
-import type { DocFile, DocFolderNode, ModuleRecord, NamingAudit, NamingCheck,
-  PreflightGate } from "./types";
+import type { DocFile, DocFolderNode, InfoRequirementsCascade, ModuleRecord, NamingAudit,
+  NamingCheck, PreflightGate } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -140,13 +140,14 @@ export function withDocuments<TBase extends Ctor<HttpCore>>(Base: TBase) {
       `/projects/${pid}/info-requirements/register`);
   }
   /** ISO 19650 requirement flow-down (OIR→PIR/AIR→EIR→MIDP/TIDP) via each record's derives_from,
-   *  with cascade health: orphans that don't trace up + links pointing the wrong way. */
+   *  with cascade health: orphans that don't trace up, dangling parent references, and links
+   *  pointing the wrong way.
+   *
+   *  CASCADE-DARK. The inline type this replaces declared seven keys and left out the two that ARE
+   *  the cascade — `nodes` and `children` — so the tree was unreachable from any TypeScript and a
+   *  card named "Requirement flow-down" could only print its summary statistics. */
   infoRequirementsCascade(pid: string) {
-    type Brief = { id: string; ref: string | null; type: string; title: string | null };
-    return this.json<{ total: number; linked: number; coverage_pct: number | null;
-      roots: Brief[]; orphans: Brief[];
-      misdirected: { id: string; ref: string | null; type: string; parent_type: string }[]; note: string }>(
-      `/projects/${pid}/info-requirements/cascade`);
+    return this.json<InfoRequirementsCascade>(`/projects/${pid}/info-requirements/cascade`);
   }
   /** MIDP/TIDP delivery plan — requirements vs programme dates, overdue/due-soon, LOIN coverage. */
   infoRequirementsDeliveryPlan(pid: string) {
