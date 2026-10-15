@@ -577,7 +577,23 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // and this list's header is written against exactly that.* The derivation that identifies the
   // bucket is pinned at 4 routes and each entry's index signature is now asserted.
   "GET /rooms": ["note"],
-  "POST /connections/{}/query": ["limit"],
+  // **CLOSED 2026-10-15 under SQL-CAP, and `limit` turned out to be the only thing that could
+  // separate two responses the screen was printing identically.** `connectors.query` wraps the
+  // caller's SQL as `SELECT * FROM (<sql>) AS _q LIMIT {limit}` and returns `row_count` = the
+  // length of that PAGE. Measured against a live route: a 5,000-row table read at the console's
+  // hardcoded 200 returned `{row_count: 200, limit: 200}`, and a 200-row table read in full
+  // returned `{row_count: 200, limit: 200}` — byte-identical, and the SQL console printed
+  // **"200 rows"** over both. *An equality cannot separate two equal things*, so the fix is not a
+  // `row_count >= limit` comparison on the client: the server fetches `limit + 1`, returns the
+  // first `limit`, and reports `truncated` as a fact. The table-preview buttons are the worst
+  // case rather than the edge case — they run `SELECT * FROM "<name>"`, the query most likely to
+  // exceed the cap, so the DEFAULT path through the screen was the one the count hid. The cap was
+  // also unraisable (the console passed 200 where the server clamps at 1000, and an inner
+  // `LIMIT 1000` is still wrapped by the outer one), which is why a row-limit selector landed with
+  // the wording — *telling somebody a read was cut without giving them a way to widen it is half a
+  // fix.* `connections/ledgerBrowse.ts` one function away already names this class for the
+  // QuickBooks read in the same modal: *a lesson learned on one route in a file is not a sweep of
+  // the file.*
   "POST /projects/{}/drawing-set/generate": ["register"],
   // **CLOSED 2026-10-14 under REVISE-DARK, and the key was WRONG as well as undeclared.**
   // Slip-sheeting tags every markup on the revised sheet `carried_from` so a reviewer re-checks it,
