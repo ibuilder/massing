@@ -147,3 +147,73 @@ export function veTargetFromAlignment(
   return { target: v, basis: `the latest estimate is ${usd(v)} over the recorded budget `
     + "(preconstruction alignment)" };
 }
+
+/**
+ * DECISION-AXES — the decision log's headline printed a STATE count and an ALIGNMENT count as one
+ * series, left two of seven decisions unaccounted for, and discarded the category breakdown.
+ *
+ * As shipped, over a seven-row register measured against a live route:
+ *
+ * > `7 decisions · 2 open · 2 disputed · cost exposure $250,000 · 0.0 sched days`
+ *
+ * **`open` is a state and `disputed` is an alignment.** A reader parses three numbers in a row as
+ * three slices of the same seven, and these are two different cuts: of the 2 disputed, **1 was open
+ * and 1 had already been DECIDED** — a decision taken over a recorded objection, which is a
+ * claim-exposure question rather than a to-do, and the opposite of what "2 disputed" beside "2
+ * open" suggests. *Two axes rendered as one series is not a presentation choice; it produces a
+ * reading the data does not support.*
+ *
+ * **And `open + decided` came to 5 of 7.** The other two were `superseded`, and `decided_count`,
+ * `superseded_count` and `by_status` were all undeclared — so on a decision log the screen could not
+ * say how many decisions had been MADE, and could not account for the rest. `by_category` was dark
+ * too: `{Envelope: 4, Structure: 2, Vertical transport: 1}` is what tells a PM where the next design
+ * meeting goes.
+ */
+
+/** The state line: three counts that account for every decision, and nothing else. */
+export function decisionStates(d: Decisions): string {
+  const parts = [`${d.open_count} open`, `${d.decided_count} decided`];
+  if (d.superseded_count) parts.push(`${d.superseded_count} superseded`);
+  const named = d.open_count + d.decided_count + d.superseded_count;
+  // The states are exhaustive by construction, so a shortfall means a state this reading does not
+  // know about — said rather than silently absorbed into the total.
+  const gap = d.decision_count - named;
+  const unknown = gap > 0 ? ` · ${gap} in another state` : "";
+  return `${d.decision_count} decision(s): ${parts.join(" · ")}${unknown}`;
+}
+
+/** The alignment line, kept SEPARATE and labelled as a different cut.
+ *
+ * `null` when nothing is disputed — a `0 disputed` on its own line is a decoration, and the state
+ * line above already accounts for everything. */
+export function decisionAlignment(d: Decisions): string | null {
+  if (!d.disputed_count) return null;
+  const bits: string[] = [];
+  if (d.disputed_open) bits.push(`${d.disputed_open} still open`);
+  if (d.disputed_decided) {
+    bits.push(`${d.disputed_decided} already DECIDED over the objection`);
+  }
+  return `Alignment cuts across those states: ${d.disputed_count} disputed — ${bits.join(", ")}.`;
+}
+
+/** The engine's statement of why the two lines above are two lines. Verbatim. */
+export function decisionAxisBasis(d: Decisions): string {
+  return d.axis_basis;
+}
+
+/** Where the decisions cluster, worst-first. Plain text, like everything here. */
+export function decisionCategories(d: Decisions, max = 6): string | null {
+  const entries = Object.entries(d.by_category);
+  if (!entries.length) return null;
+  const sorted = entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const shown = sorted.slice(0, max).map(([k, v]) => `${k} ${v}`).join(" · ");
+  const more = sorted.length > max ? ` · ${sorted.length - max} more categor(ies)` : "";
+  return `By category: ${shown}${more}`;
+}
+
+/** `showing N of M` when the row list is capped, against the server's own total. */
+export function decisionRowNote(d: Decisions): string | null {
+  if (!d.rows_truncated) return null;
+  return `Showing ${d.rows.length} of ${d.decision_count} row(s) — the server caps the list at `
+    + `${d.max_rows}. Every count above is over all ${d.decision_count}.`;
+}

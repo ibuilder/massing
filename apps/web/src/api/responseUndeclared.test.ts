@@ -411,7 +411,22 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // passed any of them, so one checklist row was permanently unsatisfiable; and `disclaimer` — "NOT
   // a certified plan review. The authority having jurisdiction rules" — went unrendered on a screen
   // that prints READY over a building.
-  "GET /projects/{}/precon/decisions": ["by_category", "by_status", "decided_count"],
+  // **CLOSED 2026-10-15 under DECISION-AXES, and the three undeclared keys were the symptom of one
+  // reading.** On a DECISION log, `decided_count` was unreachable — the screen could not say how many
+  // decisions had been MADE — and `by_status` was the account of the rest, so `7 decisions · 2 open`
+  // left five rows with nothing to explain them. Measured: `open + decided` came to **5 of 7**, the
+  // other two `superseded`, which is neither open nor the current answer and belongs in neither
+  // count. `superseded_count` is declared now and the three states partition the register.
+  //
+  // **The live defect was the headline putting two AXES in one series.** `open` is a state,
+  // `disputed` is an alignment, and `7 decisions · 2 open · 2 disputed` reads as three slices of
+  // seven. Measured on that register: of the 2 disputed, **1 was open and 1 had already been
+  // DECIDED** — a decision taken over a recorded objection, which is a claim-exposure question
+  // rather than a pending action, and the opposite of what the line suggested. *Two cuts rendered as
+  // one series is not a presentation choice; it produces a reading the data does not support.*
+  // `disputed_open` / `disputed_decided` split it and `axis_basis` says why the screen now has two
+  // lines. `by_category` was dark too — which trade the decisions cluster in is what tells a PM
+  // where the next design meeting goes.
   // **CLOSED 2026-10-14 under WAIVER-FLAT.** `soon_days` is the horizon `expiring_soon` was
   // computed against, and the card printed `expiring ≤30d` as LITERAL TEXT beside it — true only
   // because the one caller passes the default, so the label was a restatement of a parameter rather

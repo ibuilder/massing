@@ -30,7 +30,16 @@ export function verificationCoverageCard(c: {
 }
 import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
 import { money } from "./ui/charts";
-import { exposureCaveat, veReading, veTargetFromAlignment } from "./preconReadings";
+import {
+  decisionAlignment,
+  decisionAxisBasis,
+  decisionCategories,
+  decisionRowNote,
+  decisionStates,
+  exposureCaveat,
+  veReading,
+  veTargetFromAlignment,
+} from "./preconReadings";
 import { toast, escapeHtml } from "./ui/feedback";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
@@ -740,10 +749,23 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
       const cv = exposureCaveat(s.open_without_cost_impact, s.open_count, "cost", "open decision");
       const sv = exposureCaveat(s.open_without_schedule_impact, s.open_count, "schedule",
                                 "open decision");
-      body.innerHTML = `<div class="meta">${s.decision_count} decisions · ${s.open_count} open · ${s.disputed_count} disputed · cost exposure ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`
+      // DECISION-AXES: `open` is a STATE and `disputed` is an ALIGNMENT, and this line printed them
+      // as one series over the same total — so "7 decisions · 2 open · 2 disputed" read as three
+      // slices of seven while one of the disputed had already been DECIDED. The two cuts are two
+      // lines now, and the states account for the total. `apps/web/src/preconReadings.ts` holds the
+      // readings and the measurement.
+      const align = decisionAlignment(s);
+      const cats = decisionCategories(s);
+      const rowNote = decisionRowNote(s);
+      body.innerHTML = `<div class="meta">${escapeHtml(decisionStates(s))}</div>`
+        + (align ? `<div class="meta">${escapeHtml(align)}</div>` : "")
+        + `<div class="meta">Open exposure: ${money(s.open_cost_exposure)} · ${s.open_schedule_exposure_days} sched days</div>`
         + (cv ? `<div class="meta">⚠ ${escapeHtml(cv)}</div>` : "")
-        + (sv ? `<div class="meta">⚠ ${escapeHtml(sv)}</div>` : "");
-      table(body, ["Decision", "Category", "Alignment", "State", "Cost"], s.rows.map((r: any) => [r.subject ?? "", r.category ?? "", r.alignment ?? "", r.state ?? "", money(r.cost_impact)])); }
+        + (sv ? `<div class="meta">⚠ ${escapeHtml(sv)}</div>` : "")
+        + (cats ? `<div class="meta">${escapeHtml(cats)}</div>` : "")
+        + `<div class="meta">${escapeHtml(decisionAxisBasis(s))}</div>`;
+      table(body, ["Decision", "Category", "Alignment", "State", "Cost"], s.rows.map((r: any) => [r.subject ?? "", r.category ?? "", r.alignment ?? "", r.state ?? "", money(r.cost_impact)]));
+      if (rowNote) body.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml(rowNote)}</div>`); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   // VE-DARK: both of these had no caller anywhere — frozen in `api/clientCallers.test.ts`. They

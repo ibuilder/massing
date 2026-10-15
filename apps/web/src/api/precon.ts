@@ -26,19 +26,36 @@ export function withPrecon<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ created: string; ref: string; total: number; milestone: string }>(
       `/projects/${pid}/precon/snapshot?milestone=${encodeURIComponent(milestone)}`, { method: "POST" });
   }
-  /** Preconstruction decision log — by status/alignment + open cost & schedule exposure. */
+  /** Preconstruction decision log — by status/alignment/category + open cost & schedule exposure.
+   *
+   *  DECISION-AXES. `decided_count`, `by_status` and `by_category` were all undeclared, so on a
+   *  DECISION log the screen could not say how many decisions had been made, could not account for
+   *  the rest, and could not show which trade they cluster in. */
   decisionLog(pid: string) {
-    return this.json<{ decision_count: number; open_count: number; disputed_count: number;
+    return this.json<{ decision_count: number;
+      /** STATES. These three account for every decision between them. */
+      open_count: number; decided_count: number; superseded_count: number;
+      /** An ALIGNMENT, cutting across all three states — not a fourth slice of the same pie. The
+       *  headline printed `open` and `disputed` as one series; measured on a 7-row register, 2 were
+       *  disputed and one of those was already DECIDED, which is a claim-exposure question rather
+       *  than a pending action. */
+      disputed_count: number; disputed_open: number; disputed_decided: number;
+      axis_basis: string;
       open_cost_exposure: number; open_schedule_exposure_days: number;
       /** Open decisions carrying no usable figure — what the two exposures above leave out. This
        *  register is the one of the three that was already on a screen, so the subset problem was
        *  live here rather than latent. */
       open_without_cost_impact: number; open_without_schedule_impact: number;
+      by_status: Record<string, number>;
       by_alignment: Record<string, number>;
+      /** Which trade or area the decisions cluster in — on a precon log this is what tells a PM
+       *  where the next design meeting goes. */
+      by_category: Record<string, number>;
       rows: { ref: string | null; subject: string | null; category: string; state: string;
         alignment: string; cost_impact: number; cost_impact_given: boolean;
         schedule_impact_days: number; schedule_impact_days_given: boolean;
-        decided_by: string | null; due_date: string | null }[] }>(
+        decided_by: string | null; due_date: string | null }[];
+      rows_truncated: boolean; max_rows: number }>(
       `/projects/${pid}/precon/decisions`);
   }
   /** Assumptions & clarifications register — by status/category + open allowance exposure.

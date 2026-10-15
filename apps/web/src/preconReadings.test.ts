@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import type { VeLog } from "./preconReadings";
-import { exposureCaveat, veReading, veTargetFromAlignment } from "./preconReadings";
+import type { Decisions, VeLog } from "./preconReadings";
+import { decisionAlignment, decisionAxisBasis, decisionCategories, decisionRowNote, decisionStates,
+  exposureCaveat, veReading, veTargetFromAlignment } from "./preconReadings";
 
 /**
  * VE-DARK — the preconstruction money registers, and what their totals leave out.
@@ -181,6 +182,99 @@ describe("the engine these readings are about", () => {
  * is a decision function that is perfect and called by nothing, which is the mutation that survived
  * MACRO-DARK's first pass.
  */
+/** The seven-row register measured against a live route: 2 open, 3 decided, 2 superseded; 2
+ *  disputed, one of which is already decided. `services/api/test_precon.py` asserts the same shape
+ *  at the route. */
+function dec(over: Partial<Decisions> = {}): Decisions {
+  return {
+    decision_count: 7, open_count: 2, decided_count: 3, superseded_count: 2,
+    disputed_count: 2, disputed_open: 1, disputed_decided: 1,
+    axis_basis: "`open` / `decided` / `superseded` are STATES and account for every decision between "
+      + "them. `disputed` is an ALIGNMENT and cuts across all three.",
+    open_cost_exposure: 250000, open_schedule_exposure_days: 0,
+    open_without_cost_impact: 1, open_without_schedule_impact: 2,
+    by_status: { open: 2, decided: 3, superseded: 2 },
+    by_alignment: { Disputed: 2, Pending: 1, Aligned: 4 },
+    by_category: { Envelope: 4, Structure: 2, "Vertical transport": 1 },
+    rows: [], rows_truncated: false, max_rows: 500,
+    ...over,
+  } as Decisions;
+}
+
+describe("DECISION-AXES — a state count and an alignment count are not one series", () => {
+  it("accounts for every decision with states alone", () => {
+    // As shipped: `7 decisions · 2 open · 2 disputed`, and open+decided came to 5 of 7.
+    expect(decisionStates(dec()))
+      .toBe("7 decision(s): 2 open · 3 decided · 2 superseded");
+  });
+
+  it("omits superseded when there is none, rather than printing a zero", () => {
+    expect(decisionStates(dec({ decision_count: 5, superseded_count: 0 })))
+      .toBe("5 decision(s): 2 open · 3 decided");
+  });
+
+  it("says so when the states do NOT account for the total", () => {
+    // The states are exhaustive by construction, so a shortfall means a state this reading does not
+    // know about — said rather than absorbed into the total in silence.
+    expect(decisionStates(dec({ decision_count: 9 })))
+      .toContain("· 2 in another state");
+  });
+
+  it("keeps alignment on its own line and names the half that is already decided", () => {
+    // The finding: of 2 disputed, 1 had already been DECIDED — a claim-exposure question, and the
+    // opposite of what "2 disputed" beside "2 open" suggests.
+    const a = decisionAlignment(dec())!;
+    expect(a).toContain("Alignment cuts across those states: 2 disputed");
+    expect(a).toContain("1 still open");
+    expect(a).toContain("1 already DECIDED over the objection");
+  });
+
+  it("is absent when nothing is disputed", () => {
+    expect(decisionAlignment(dec({ disputed_count: 0, disputed_open: 0, disputed_decided: 0 })))
+      .toBeNull();
+  });
+
+  it("names only the halves that exist", () => {
+    const open = decisionAlignment(dec({ disputed_count: 2, disputed_open: 2, disputed_decided: 0 }))!;
+    expect(open).toContain("2 still open");
+    expect(open).not.toContain("DECIDED over the objection");
+  });
+
+  it("returns the engine's basis for the two lines verbatim", () => {
+    expect(decisionAxisBasis(dec())).toBe(dec().axis_basis);
+  });
+});
+
+describe("the category breakdown — where the next design meeting goes", () => {
+  it("is worst-first", () => {
+    expect(decisionCategories(dec()))
+      .toBe("By category: Envelope 4 · Structure 2 · Vertical transport 1");
+  });
+
+  it("bounds the list and says how many it left out", () => {
+    const many = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`Cat${i}`, 9 - i]));
+    expect(decisionCategories(dec({ by_category: many }))).toContain("3 more categor(ies)");
+  });
+
+  it("is absent on an empty register rather than an empty label", () => {
+    expect(decisionCategories(dec({ by_category: {} }))).toBeNull();
+  });
+});
+
+describe("the bounded row list", () => {
+  it("says nothing while every row shipped", () => {
+    expect(decisionRowNote(dec())).toBeNull();
+  });
+
+  it("pages against the register total, not the length of what shipped", () => {
+    const n = decisionRowNote(dec({ rows_truncated: true, decision_count: 900,
+      rows: Array.from({ length: 500 }, () => ({})) as Decisions["rows"] }))!;
+    expect(n).toContain("Showing 500 of 900 row(s)");
+    expect(n).toContain("caps the list at 500");
+    expect(n).toContain("Every count above is over all 900");
+  });
+});
+
 describe("the readings reach the screen", () => {
   const RC = readFileSync("src/reportCenter.ts", "utf8");
 
@@ -194,6 +288,15 @@ describe("the readings reach the screen", () => {
   it("sends the derived target, with its basis, rather than a bare number", () => {
     expect(RC).toContain("veTargetFromAlignment(await api.preconAlignment(pid))");
     expect(RC).toContain("api.veLog(pid, basis.target ?? undefined)");
+  });
+
+  it("renders the two decision axes as two lines, with the basis", () => {
+    expect(RC).toContain("escapeHtml(decisionStates(s))");
+    expect(RC).toContain("const align = decisionAlignment(s)");
+    expect(RC).toContain("escapeHtml(decisionAxisBasis(s))");
+    expect(RC).toContain("const cats = decisionCategories(s)");
+    // And the old one-series headline is gone, which is the thing that produced the wrong reading.
+    expect(RC).not.toContain("${s.open_count} open · ${s.disputed_count} disputed");
   });
 
   it("qualifies the decision log's exposure — the register that was ALREADY on screen", () => {

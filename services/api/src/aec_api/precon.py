@@ -108,6 +108,17 @@ def estimate_continuity(db, pid: str, budget: float | None = None) -> dict[str, 
 
 
 DECISION_OPEN = ("open",)
+# The row list is bounded and the bound is declared; every count above stays over the whole register.
+# Measured at ~306 bytes a row, so the module's own 100,000 limit is a 30 MB viewer-role GET — latent
+# rather than live, because a real precon decision log is tens to hundreds of rows, but the same class
+# has been found twice in this tree already.
+MAX_DECISION_ROWS = 500
+_DECISION_AXIS_BASIS = (
+    "`open` / `decided` / `superseded` are STATES and account for every decision between them. "
+    "`disputed` is an ALIGNMENT and cuts across all three — it is not a fourth slice of the same "
+    "pie. `disputed_open` is a pending argument; `disputed_decided` is a decision taken over a "
+    "recorded objection, which is a claim-exposure question rather than a to-do."
+)
 ASSUMPTION_OPEN = ("open",)
 
 
@@ -142,10 +153,23 @@ def decision_log(db, pid: str) -> dict[str, Any]:
             "schedule_impact_days_given": sd_val is not None,
             "decided_by": d.get("decided_by"), "due_date": d.get("due_date"),
         })
+    disputed_open = sum(1 for r in rows if r["alignment"] == "Disputed" and r["state"] in DECISION_OPEN)
+    disputed_total = by_alignment.get("Disputed", 0)
+    ordered = sorted(rows, key=lambda r: (r["state"] != "open", r.get("due_date") or ""))
     return {
         "decision_count": len(rows), "open_count": open_count,
         "decided_count": by_status.get("decided", 0),
-        "disputed_count": by_alignment.get("Disputed", 0),
+        # `superseded` is neither open nor the current answer, so it belongs in NEITHER count — and
+        # with it undeclared, `open` + `decided` fell short of the total with nothing to say why.
+        "superseded_count": by_status.get("superseded", 0),
+        "disputed_count": disputed_total,
+        # DECISION-AXES: `disputed` is an ALIGNMENT, `open` is a STATE, and the two were printed as
+        # one series. A disputed decision that has already been DECIDED is a different problem from a
+        # disputed one still pending — a claim risk rather than a pending action — and the split is
+        # what tells them apart.
+        "disputed_open": disputed_open,
+        "disputed_decided": disputed_total - disputed_open,
+        "axis_basis": _DECISION_AXIS_BASIS,
         "open_cost_exposure": round(cost_exposure, 2),
         "open_schedule_exposure_days": round(sched_exposure, 1),
         # The decision log is the one of these three that is ALREADY on a screen, printing this
@@ -157,7 +181,9 @@ def decision_log(db, pid: str) -> dict[str, Any]:
                                             if not r["schedule_impact_days_given"]
                                             and r["state"] in DECISION_OPEN),
         "by_status": by_status, "by_alignment": by_alignment, "by_category": dict(sorted(by_category.items())),
-        "rows": sorted(rows, key=lambda r: (r["state"] != "open", r.get("due_date") or "")),
+        "rows": ordered[:MAX_DECISION_ROWS],
+        "rows_truncated": len(ordered) > MAX_DECISION_ROWS,
+        "max_rows": MAX_DECISION_ROWS,
     }
 
 

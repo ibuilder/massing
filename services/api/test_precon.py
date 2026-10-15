@@ -11,6 +11,7 @@ for _f in ("./test_precon.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from aec_api import precon  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 
@@ -65,6 +66,41 @@ with TestClient(app) as c:
     assert dl["decision_count"] == 2 and dl["open_count"] == 1, dl
     assert dl["disputed_count"] == 1, dl
     assert dl["open_cost_exposure"] == 100000 and dl["open_schedule_exposure_days"] == 10, dl
+
+    # --- DECISION-AXES: a STATE count and an ALIGNMENT count are not one series ------------------
+    # The screen printed `N decisions · N open · N disputed` in a row, which a reader takes as three
+    # slices of the same total. `open` / `decided` / `superseded` are states and DO partition the
+    # register; `disputed` is an alignment that cuts across all three, and a disputed decision that
+    # has already been DECIDED is a claim-exposure question rather than a pending action.
+    d3 = mk(c, pid, "decision", {"subject": "Facade colour", "category": "Design",
+                                 "cost_impact": 1000, "alignment": "Disputed"})
+    trans(c, pid, "decision", d3, "decide")        # disputed AND decided — the case that was invisible
+    d4 = mk(c, pid, "decision", {"subject": "Superseded HVAC scheme", "category": "Systems",
+                                 "cost_impact": 50000, "alignment": "Aligned"})
+    trans(c, pid, "decision", d4, "decide")
+    trans(c, pid, "decision", d4, "supersede")
+    dx = c.get(f"/projects/{pid}/precon/decisions").json()
+    assert dx["decision_count"] == 4, dx["decision_count"]
+    # The three STATES account for the register with nothing left over. `open + decided` alone came
+    # to 3 of 4, and `superseded_count` was undeclared so nothing could say where the fourth went.
+    assert dx["open_count"] + dx["decided_count"] + dx["superseded_count"] == dx["decision_count"], dx
+    assert (dx["open_count"], dx["decided_count"], dx["superseded_count"]) == (1, 2, 1), dx
+    assert dx["by_status"] == {"open": 1, "decided": 2, "superseded": 1}, dx["by_status"]
+    # The alignment split, which is the distinction the one-series headline destroyed.
+    assert dx["disputed_count"] == 2, dx["disputed_count"]
+    assert dx["disputed_open"] == 1 and dx["disputed_decided"] == 1, dx
+    assert dx["disputed_open"] + dx["disputed_decided"] == dx["disputed_count"], dx
+    # And disputed is NOT a slice of the states: its total overlaps them rather than extending them.
+    assert dx["disputed_count"] <= dx["decision_count"], dx
+    assert "cuts across" in dx["axis_basis"], dx["axis_basis"]
+    # `by_category` — which trade the decisions cluster in — was dark on a precon decision log.
+    assert dx["by_category"] == {"Design": 2, "Systems": 2}, dx["by_category"]
+    # The row list is bounded and the bound declared; the counts stay over the whole register.
+    assert dx["rows_truncated"] is False and dx["max_rows"] == precon.MAX_DECISION_ROWS == 500
+    assert len(dx["rows"]) == dx["decision_count"], (len(dx["rows"]), dx["decision_count"])
+    # A superseded decision is neither open nor the current answer, so it is in neither count AND
+    # contributes nothing to the open exposure — $50,000 of it.
+    assert dx["open_cost_exposure"] == 100000, dx["open_cost_exposure"]
 
     mk(c, pid, "assumption", {"subject": "Unsuitable soils allowance", "category": "Allowance", "cost_impact": 50000})
     a2 = mk(c, pid, "assumption", {"subject": "Owner-furnished FF&E excluded", "category": "Exclusion"})
@@ -175,4 +211,8 @@ print("PRECON OK - estimate continuity (Concept->SD->DD, $/SF 250, drift +2.5M/2
       "decision log (1 open/disputed, $100k+10d exposure); assumptions (1 open, $50k allowance); VE cycle "
       "($300k accepted vs $500k gap -> $200k remaining); alignment RED w/ score; 4 precon reports render; "
       "empty project zeroed; VE-DARK coverage counts (3 of 5 open decisions unpriced with a REAL ZERO "
-      "excluded, 1 accepted VE idea unpriced so target_met is moot, 0 where every figure is present)")
+      "excluded, 1 accepted VE idea unpriced so target_met is moot, 0 where every figure is present). "
+      "DECISION-AXES: open/decided/superseded are STATES that partition the register (1+2+1 of 4, "
+      "where open+decided alone came to 3 and superseded_count was undeclared), and `disputed` is an "
+      "ALIGNMENT cutting across them - 2 disputed of which 1 is already DECIDED, a claim-exposure "
+      "question the one-series headline rendered as a pending action")
