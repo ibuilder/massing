@@ -51,13 +51,94 @@ export function badColors(rules: readonly ViewTemplateRule[]): number[] {
 
 /** How many graphic facts a template carries that this editor does not author — object-style
  *  categories, plus rules with a weight, pattern or halftone override. Rendered, not hidden: a
- *  number a user can see is the only way they can tell a round trip preserved it. */
-export function carriedThrough(t: ViewTemplate): { styles: number; overrides: number } {
-  return {
-    styles: Object.keys(t.object_styles ?? {}).length,
-    overrides: (t.rules ?? []).filter(
-      (r) => r.weight != null || r.pattern != null || r.halftone != null).length,
-  };
+ *  number a user can see is the only way they can tell a round trip preserved it.
+ *
+ *  **`styles` is no longer one of them, and the shape keeps it on purpose.** VG-STYLES made the
+ *  object-style table authorable, so counting it as *preserved but not authored* became false the
+ *  moment the editor grew a form for it — and a note that says "preserved unchanged" over a field
+ *  the user just edited is worse than no note. `styles` is still returned because it is the number
+ *  `summarise` and the section heading both want; what changed is `unauthored`, which is the one the
+ *  preservation note reads and which now counts rule-level overrides alone. *A count does not become
+ *  wrong when the product changes — the SENTENCE it was feeding does.* */
+export function carriedThrough(t: ViewTemplate): {
+  styles: number; overrides: number; unauthored: number;
+} {
+  const overrides = (t.rules ?? []).filter(
+    (r) => r.weight != null || r.pattern != null || r.halftone != null).length;
+  return { styles: Object.keys(t.object_styles ?? {}).length, overrides, unauthored: overrides };
+}
+
+/** The server's bounds on an object style, restated so the editor can name the CLASS that failed.
+ *  `view_templates` refuses the whole save on the first bad entry and its message names the class
+ *  and side — these mirror those checks so a user sees every problem at once rather than one per
+ *  round trip, which is the same reason `isDeclared` exists. */
+export const MAX_STYLES = 60;
+export const MIN_WEIGHT = 0.05;
+export const MAX_WEIGHT = 4.0;
+export const LINE_PATTERNS = ["solid", "dashed", "dotted", "dash_dot", "hidden", "center"] as const;
+export const SIDES = ["cut", "projection"] as const;
+
+export type StyleTable = NonNullable<ViewTemplate["object_styles"]>;
+
+/** Every problem the server would refuse this table for, as sentences naming the class and side.
+ *
+ *  Order is class then side, so two runs over the same table read the same — a list whose order
+ *  depends on object-key iteration is a list a user cannot re-find their place in. */
+export function styleIssues(styles: StyleTable | undefined): string[] {
+  const table = styles ?? {};
+  const out: string[] = [];
+  const classes = Object.keys(table).sort();
+  if (classes.length > MAX_STYLES) {
+    out.push(`${classes.length} object-style categories — the server accepts at most ${MAX_STYLES}.`);
+  }
+  for (const cls of classes) {
+    if (!cls.trim()) {
+      out.push("An object style with no IFC class name — the server requires one.");
+      continue;
+    }
+    const entry = table[cls] ?? {};
+    const sides = SIDES.filter((sd) => entry[sd] != null);
+    if (!sides.length) {
+      out.push(`${cls} sets neither side — give it a cut or a projection override, or remove it.`);
+      continue;
+    }
+    for (const sd of sides) {
+      const o = entry[sd]!;
+      const set = (["color", "weight", "pattern", "halftone"] as const)
+        .filter((k) => o[k] !== undefined && o[k] !== null);
+      if (!set.length) {
+        out.push(`${cls}.${sd} sets nothing — the server refuses an empty override rather than `
+          + "storing one that does nothing.");
+        continue;
+      }
+      if (o.color != null && !HEX.test(o.color.trim())) {
+        out.push(`${cls}.${sd} colour "${o.color}" is not #rrggbb.`);
+      }
+      if (o.weight != null && !(o.weight >= MIN_WEIGHT && o.weight <= MAX_WEIGHT)) {
+        out.push(`${cls}.${sd} weight ${o.weight} is outside ${MIN_WEIGHT}–${MAX_WEIGHT} mm.`);
+      }
+      if (o.pattern != null && !(LINE_PATTERNS as readonly string[]).includes(o.pattern)) {
+        out.push(`${cls}.${sd} pattern "${o.pattern}" is not one of ${LINE_PATTERNS.join(", ")}.`);
+      }
+    }
+  }
+  return out;
+}
+
+/** Categories whose cut side is not heavier than their projection side.
+ *
+ *  Not an error — the server stores it and a drafter may mean it — but it is the thing this whole
+ *  feature exists to express, so an editor that lets somebody flatten it in silence is the defect
+ *  `_norm_override` was written to avoid, arriving through the front door instead. Only ruled on
+ *  where BOTH weights are set: a cut override over a default projection is the normal case and the
+ *  default is always lighter. */
+export function flattenedCategories(styles: StyleTable | undefined): string[] {
+  const table = styles ?? {};
+  return Object.keys(table).sort().filter((cls) => {
+    const c = table[cls]?.cut?.weight;
+    const p = table[cls]?.projection?.weight;
+    return c != null && p != null && c <= p;
+  });
 }
 
 /** One line describing what a template DOES, in the vocabulary the viewer's apply list uses. */
@@ -251,20 +332,168 @@ export async function renderViewTemplates(ctx: PanelContext, host: HTMLElement,
     };
     editor.appendChild(addRule);
 
+    // ── VG-STYLES: the per-category weight table, authorable ────────────────────────────────────
+    // The second slice VIEWTPL-DARK named rather than implied. The data path already existed and was
+    // already PRESERVED on every round trip — this is a form over a validated field, which is why
+    // nothing below touches `saveViewTemplates`.
+    const stylesHead = document.createElement("div"); stylesHead.className = "meta";
+    stylesHead.style.cssText = "margin-top:14px;font-weight:600";
+    stylesHead.textContent = "Object styles — per IFC class, cut vs projection";
+    editor.appendChild(stylesHead);
+    const stylesIntro = document.createElement("div"); stylesIntro.className = "meta";
+    stylesIntro.style.cssText = "opacity:.85;margin-bottom:4px";
+    stylesIntro.textContent = `Weights are millimetres ON THE SHEET (${MIN_WEIGHT}–${MAX_WEIGHT}), so `
+      + "a wall reads the same at 1:100 and 1:10. Leave a field blank to keep the category default. "
+      + "An override is a PARTIAL: setting a colour here does not touch the weight beneath it.";
+    editor.appendChild(stylesIntro);
+
+    const table: StyleTable = (t.object_styles ??= {});
+    const flat = new Set(flattenedCategories(table));
+    for (const cls of Object.keys(table).sort()) {
+      const card = document.createElement("div"); card.className = "dash-card";
+      card.style.cssText = "margin:6px 0;padding:8px";
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+      const clsName = document.createElement("input"); clsName.className = "portal-filter";
+      clsName.value = cls; clsName.placeholder = "IfcWall"; clsName.maxLength = 80;
+      clsName.style.cssText = "flex:1 1 150px;font-family:monospace";
+      clsName.onchange = () => {
+        // Rename by moving the entry: the server keys on the lowercased class name, so a rename is
+        // a delete plus an insert and doing it any other way leaves the old key behind.
+        const next = clsName.value.trim().toLowerCase();
+        const entry = table[cls];
+        delete table[cls];
+        if (next && entry) table[next] = entry;
+        paint();
+      };
+      const sdel = document.createElement("button"); sdel.className = "selset-del";
+      sdel.textContent = "✕"; sdel.title = `Remove the ${cls} object style`;
+      sdel.onclick = () => { delete table[cls]; paint(); };
+      row.append(clsName, sdel);
+      card.appendChild(row);
+
+      for (const sd of SIDES) {
+        const side = document.createElement("div");
+        side.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px";
+        const lab = document.createElement("span"); lab.className = "meta";
+        lab.style.cssText = "flex:0 0 76px;font-weight:600";
+        lab.textContent = sd;
+        const on = document.createElement("input"); on.type = "checkbox";
+        on.checked = table[cls]?.[sd] != null;
+        on.title = `Override the ${sd} side for ${cls}`;
+        on.onchange = () => {
+          const e = table[cls] ?? (table[cls] = {});
+          if (on.checked) e[sd] = { weight: undefined };
+          else delete e[sd];
+          paint();
+        };
+        side.append(lab, on);
+        const o = table[cls]?.[sd];
+        if (o) {
+          // The native constraints are a hint, not the guard: `styleIssues` names the class and side
+          // of a bad weight before the save, and the server refuses it after. They are set anyway
+          // because a spinner that steps in 0.05 mm is how a drafter expects to pick a pen weight.
+          const w = document.createElement("input"); w.className = "portal-filter";
+          w.type = "number"; w.step = "0.05"; w.min = String(MIN_WEIGHT); w.max = String(MAX_WEIGHT);
+          w.value = o.weight == null ? "" : String(o.weight);
+          w.placeholder = `weight mm (${MIN_WEIGHT}–${MAX_WEIGHT})`;
+          w.style.cssText = "flex:0 0 130px";
+          w.oninput = () => {
+            const v = w.value.trim();
+            // `Number("")` is 0, which is a legal-looking weight the server refuses — so a blank
+            // DELETES the key rather than writing a zero.
+            if (!v) delete o.weight; else o.weight = Number(v);
+            summary.textContent = summarise(t);
+          };
+          const c = document.createElement("input"); c.className = "portal-filter";
+          c.value = o.color ?? ""; c.placeholder = "#rrggbb"; c.maxLength = 7;
+          c.style.cssText = "flex:0 0 100px;font-family:monospace";
+          c.oninput = () => {
+            const v = c.value.trim();
+            if (!v) delete o.color; else o.color = v;
+          };
+          const pat = document.createElement("select"); pat.className = "portal-filter";
+          pat.style.cssText = "flex:0 0 110px;font-size:12px";
+          for (const pv of ["", ...LINE_PATTERNS]) {
+            const op = document.createElement("option");
+            op.value = pv; op.textContent = pv || "(default)";
+            pat.appendChild(op);
+          }
+          // `select.value`, never `option.selected` — the happy-dom off-by-one the colour rule's
+          // dropdown above records in full.
+          pat.value = o.pattern ?? "";
+          pat.onchange = () => {
+            if (!pat.value) delete o.pattern; else o.pattern = pat.value;
+          };
+          const ht = document.createElement("label"); ht.className = "meta";
+          const htBox = document.createElement("input"); htBox.type = "checkbox";
+          htBox.checked = o.halftone === true;
+          htBox.onchange = () => {
+            // `false` is a stored decision, not an absence — `_norm_override` keeps `halftone`
+            // whenever it is not None, so unticking must write `false` rather than delete the key.
+            o.halftone = htBox.checked;
+          };
+          ht.append(htBox, document.createTextNode(" halftone"));
+          side.append(w, c, pat, ht);
+        }
+        card.appendChild(side);
+      }
+      if (flat.has(cls)) {
+        const warn = document.createElement("div"); warn.className = "meta";
+        warn.style.cssText = "margin-top:4px;color:var(--status-warn)";
+        warn.textContent = "⚠ The cut side is no heavier than the projection side — on a sheet this "
+          + "category loses the depth cue entirely. Stored as written; this is a warning, not a "
+          + "refusal.";
+        card.appendChild(warn);
+      }
+      editor.appendChild(card);
+    }
+    const addStyle = document.createElement("button"); addStyle.className = "tool-btn";
+    addStyle.textContent = "＋ object style";
+    addStyle.onclick = () => {
+      if (Object.keys(table).length >= MAX_STYLES) {
+        msg.textContent = `The server accepts at most ${MAX_STYLES} object-style categories.`;
+        return;
+      }
+      let name = "ifcwall";
+      for (let i = 2; table[name] != null; i++) name = `ifcwall${i}`;
+      table[name] = { cut: { weight: 0.5 } };
+      paint();
+    };
+    editor.appendChild(addStyle);
+    const styleProblems = styleIssues(table);
+    if (styleProblems.length) {
+      const bad = document.createElement("div"); bad.className = "meta";
+      bad.style.cssText = "margin-top:6px;color:var(--status-crit)";
+      bad.textContent = `The server will refuse this save: ${styleProblems.join(" ")}`;
+      editor.appendChild(bad);
+    }
+
     // What this editor preserves but does not author, COUNTED on screen. A round trip that silently
-    // dropped these would look identical to one that kept them.
+    // dropped these would look identical to one that kept them. `styles` left this count when
+    // VG-STYLES made the table authorable: a note reading "preserved unchanged" over a field the
+    // user just edited is worse than no note at all.
     const carried = carriedThrough(t);
-    if (carried.styles || carried.overrides) {
+    if (carried.unauthored) {
       const note = document.createElement("div"); note.className = "meta";
       note.style.cssText = "margin-top:8px;opacity:.85";
-      note.textContent = `Preserved unchanged by this editor: ${carried.styles} object-style `
-        + `categor${carried.styles === 1 ? "y" : "ies"} and ${carried.overrides} rule-level `
-        + "weight/pattern override(s). Authoring those is a separate control.";
+      note.textContent = `Preserved unchanged by this editor: ${carried.unauthored} rule-level `
+        + "weight/pattern/halftone override(s) on the colour rules above. Those are set per "
+        + "SELECTOR rather than per class, and authoring them is a separate control.";
       editor.appendChild(note);
     }
   };
 
   save.onclick = async () => {
+    // Every object-style problem, named by class and side, before the round trip — the server
+    // refuses the whole save on the FIRST bad entry, so one bad weight on template 3 hides a bad
+    // colour on template 1 until the user fixes and resubmits. Same reasoning as `isDeclared`.
+    const styleProblems = templates.flatMap((t, i) => styleIssues(t.object_styles)
+      .map((p) => `${t.name || `#${i + 1}`}: ${p}`));
+    if (styleProblems.length) {
+      msg.textContent = `Refused locally: ${styleProblems.join(" ")}`;
+      return;
+    }
     const undeclared = templates.map((t, i) => (isDeclared(t) ? -1 : i)).filter((i) => i >= 0);
     if (undeclared.length) {
       msg.textContent = `Refused locally: ${undeclared.map((i) => templates[i]!.name || `#${i + 1}`)
