@@ -335,6 +335,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
     // so `revisions`, `change` and every other per-sheet field were outside every audit built on
     // declarations. That is the shape CAPTABLE-PIPELINE paid for too: an opaque row list costs more
     // than an inline one, because its fields are not even counted as a blind spot.
+    // 5,782/543 -> 5,775/542: CARBON-UNCONVERTED named `projectCarbon`'s response. Four items in
+    // a row have each lowered this by naming the response they were already touching, which is the
+    // cheap direction and the one the message above asks for.
     const keys = [...keyToFile.keys()];
     const inline = keys.filter(isInline);
     const named = keys.filter((k) => !isInline(k));
@@ -363,9 +366,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_782);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_775);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(543);
+      .toBeLessThanOrEqual(542);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

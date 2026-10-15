@@ -48,6 +48,56 @@ export interface WindResult {
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/** CARBON-UNCONVERTED — embodied carbon (A1–A3) from the project's material quantities.
+ *
+ *  `carbon.compute` can decline a line two ways and used to count both as `unmatched`:
+ *  **no EPD factor** (the material is unrecognised) and **unit not convertible** (the material IS
+ *  recognised, and its takeoff unit is in a different family from the factor's — concrete factored
+ *  per m³ against a quantity in kg). The second is the dangerous one: the line is a known emitter
+ *  and it leaves `total_kgco2e`, `by_material` and `by_cost_code` with no trace but a tally.
+ *  Measured — 2,400 t of concrete in kg beside steel and glazing gives `329.17 tCO₂e · 1 line(s)
+ *  unmatched` and a material rollup naming only steel and glazing, while the concrete is worth
+ *  roughly another 300 tCO₂e. The remedies differ, so the counts are separate and the excluded
+ *  materials are named. See `portal/panels/carbonCoverage.ts`. */
+export interface ProjectCarbonLine {
+  material: string;
+  quantity: number;
+  unit: string;
+  /** The EPD keyword the MATERIAL matched — set even on a line refused for its unit, which is why
+   *  a recognised-but-unconverted line is not the same as an unrecognised one. */
+  matched?: string | null;
+  factor?: number;
+  factor_unit?: string;
+  kgco2e: number | null;
+  cost_code?: string;
+  note?: string | null;
+}
+
+export interface ProjectCarbon {
+  lines: ProjectCarbonLine[];
+  total_kgco2e: number;
+  total_tco2e: number;
+  by_material: Record<string, number>;
+  by_cost_code: Record<string, number>;
+  /** Every quantity line handed to the engine — the denominator `assessed` is out of. */
+  line_count: number;
+  /** Lines that reached the total. */
+  assessed: number;
+  /** The SUM of the two below, kept because it is rendered. */
+  unmatched: number;
+  /** The material is not in the factor table at all. Remedy: add an EPD factor. */
+  no_factor: number;
+  /** The material IS recognised and its unit is in the wrong family. Remedy: record the quantity in
+   *  the factor's unit, or supply a density — which the engine refuses to guess. */
+  unit_mismatch: number;
+  /** The recognised materials excluded from the total, with the quantity left out. These are
+   *  emitters ABSENT from `by_material`. */
+  unconverted_materials: Record<string, number>;
+  /** The engine's sentence about what the total covers and what it excludes. */
+  coverage_note: string;
+  message?: string | null;
+}
+
 export function withDesignPerformance<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class extends Base {
   energy(pid: string) {
@@ -94,9 +144,7 @@ export function withDesignPerformance<TBase extends Ctor<HttpCore>>(Base: TBase)
   }
 
   projectCarbon(pid: string) {
-    return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
-      by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
-      `/projects/${pid}/carbon`);
+    return this.json<ProjectCarbon>(`/projects/${pid}/carbon`);
   }
   };
 }

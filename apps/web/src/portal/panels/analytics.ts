@@ -10,6 +10,8 @@ import { declarationGap, deficiencyPageNote, deficiencyRows, editionNote, PERMIT
   from "./permitReading";
 import { exclusionLine, RATE_CSS, ratePageNote, spreadReading } from "./unitRateRead";
 import { pricedCoverageLine, pricingSuspect, varianceBasisLine } from "./pricingCoverage";
+import { carbonCoverageLine, carbonSuspect, excludedMaterialsLine, noFactorLine }
+  from "./carbonCoverage";
 import { coverageLine, estimateReading, groupRows } from "./permitTimeline";
 import {
   attributionLine, coiLine, isReassuring, lienExposure, ordered, summaryLine, verdictTone,
@@ -519,10 +521,19 @@ export async function renderRiskCost(ctx: PanelContext) {
     }).catch((e) => { lienSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.projectCarbon(pid).then((r) => {
-      if (!r.line_count) { carbonSlot.innerHTML = `<div class="meta">${r.message || "No material quantities."}</div>`; return; }
-      const mats = Object.entries(r.by_material).slice(0, 6).map(([m, v]) => `${m}: ${(v / 1000).toFixed(1)} t`).join(" · ");
-      carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)`
-        + (r.unmatched ? ` · ${r.unmatched} line(s) unmatched` : "") + `</div><div class="meta">${mats}</div>`;
+      if (!r.line_count) { carbonSlot.innerHTML = `<div class="meta">${esc(r.message || "No material quantities.")}</div>`; return; }
+      // CARBON-UNCONVERTED. `${r.unmatched} line(s) unmatched` collapsed two refusals with
+      // different remedies, and hid the worse one: a material the engine RECOGNISES whose unit it
+      // cannot convert leaves the total and both rollups with no trace but that tally. Measured,
+      // 2,400 t of concrete in kg vanished from a 329 tCO2e figure it would near-double.
+      const mats = Object.entries(r.by_material).slice(0, 6).map(([m, v]) => `${esc(m)}: ${(v / 1000).toFixed(1)} t`).join(" · ");
+      const excluded = excludedMaterialsLine(r);
+      const noFactor = noFactorLine(r);
+      carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)</div>`
+        + `<div class="meta"${carbonSuspect(r) ? ` style="color:var(--status-warn)"` : ""}>${esc(carbonCoverageLine(r))}</div>`
+        + `<div class="meta">${mats}</div>`
+        + (excluded ? `<div class="meta" style="color:var(--status-warn);margin-top:2px">${esc(excluded)}</div>` : "")
+        + (noFactor ? `<div class="meta">${esc(noFactor)}</div>` : "");
     }).catch((e) => { carbonSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.carbonComplianceReport(pid).then((r) => {

@@ -6,6 +6,58 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### CARBON-UNCONVERTED — a material the carbon engine recognised but could not convert left the total with no trace but a tally
+
+`carbon.compute_item` declines a quantity line two ways, and `compute` counted both as `unmatched`:
+
+| refusal | what it means | remedy |
+|---|---|---|
+| no EPD factor matched | the material is unrecognised | add a factor |
+| unit not convertible | the material **is** recognised, wrong unit family | record it in the factor's unit, or supply a density |
+
+**The second is the dangerous one**, because the line is a known emitter that leaves
+`total_kgco2e`, `by_material` **and** `by_cost_code` entirely. Measured on a concrete frame whose
+takeoff is in kg:
+
+```
+329.17 tCO₂e embodied (A1-A3) · 1 line(s) unmatched
+materials: structural steel: 279.0 t · glazing: 50.2 t
+```
+
+2,400 t of concrete — worth roughly another 300 tCO₂e, and on most frames the single largest
+contributor — is absent from both rollups. *A total that silently excludes its largest term is worse
+than no total*, and embodied carbon is reported outward, to lenders and to authorities.
+
+**The engine is right to refuse and no density was added.** Converting a mass against a volume
+factor needs one, and guessing it would fabricate the number. What was missing is a consumer that
+says so: the counts are split into `no_factor` and `unit_mismatch`, `assessed` gives the total its
+denominator, and `unconverted_materials` **names** the excluded emitters — a reader shown "1 line
+unmatched" cannot tell a stair nosing from a concrete frame. `unmatched` is preserved as the sum of
+the two, because it is declared and rendered: splitting a published figure out from under its
+readers is a second defect, not a fix.
+
+**This was found by analogy, not by the audit.** It is the same class as PRICE-MATCHED's
+`unmatched`/`unit_mismatch` split, in the sibling engine — `pricing.reconcile` and `carbon.compute`
+both walk `production_quantity` with the same keyword-table-plus-unit-conversion shape, and both
+collapsed the same two refusals. *Fixing a class in one engine is a reason to look at its twin.*
+The route's KNOWN_GAPS entry read `["lines"]` and noted that `unmatched` **was** declared, so the
+screen "can say how much it could not price" — which is exactly what made this invisible to that
+axis. *A declared key says nothing about whether the number in it answers one question or two.*
+
+**And the repo's own fixture was the flattened case for the third item running.**
+`services/api/test_carbon.py` asserts both refusals at the LINE level (`compute_item("concrete",
+100, "kg")["kgco2e"] is None`), and its aggregate fixture holds only the no-factor one — so
+`agg["unmatched"] == 1` was asserted over a population containing one of the two cases. The new
+block derives the split from the per-line notes rather than writing the counts out.
+
+Gated by `apps/web/src/portal/panels/carbonCoverage.test.ts` (14 cases) and the new block in
+`services/api/test_carbon.py`. Nine mutations proved red — five on the engine (the refusals
+collapsed again, the excluded materials counted instead of named, an unconverted line counted as
+assessed, the clean case claiming an exclusion, `unmatched` no longer the sum) and four on the
+client (the material becomes a count, `carbonSuspect` firing on the unrecognised case too, the two
+refusals given one sentence, the panel wiring reverted). The `deadFieldTyped` inline ceiling went
+5,782/543 → 5,775/542 in the same edit.
+
 ### SET-REVISED — the controlled drawing register issued a twice-revised sheet as "New"
 
 `drawingset.register` classified issuance by counting drawing **records** per sheet number —

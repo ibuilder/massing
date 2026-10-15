@@ -716,7 +716,20 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // `carbon.compute` — the per-line embodied-carbon breakdown behind the declared totals.
   // `unmatched` IS declared, so the screen can say how much it could not price; `lines` is what
   // would let a reader see WHICH.
-  "GET /projects/{}/carbon": ["lines"],
+  // **CLOSED 2026-10-15 under CARBON-UNCONVERTED, and `unmatched` being declared is exactly what
+  // made the defect invisible to this axis.** It IS declared and IS rendered -- and it counted TWO
+  // refusals with different remedies as one number. `compute_item` declines a line either because
+  // no EPD factor matched the material, or because the material matched and its takeoff unit is in
+  // a different family from the factor's (concrete factored per m3 against a quantity in kg). The
+  // second is a KNOWN EMITTER leaving `total_kgco2e`, `by_material` and `by_cost_code` with no
+  // trace but the tally. Measured: 2,400 t of concrete in kg, beside steel and glazing, reports
+  // `329.17 tCO2e - 1 line(s) unmatched` and a material rollup naming only steel and glazing --
+  // the concrete is worth roughly another 300 tCO2e and on most frames is the largest single term.
+  // Four keys added rather than only declared: `assessed`, `no_factor`, `unit_mismatch` and
+  // `unconverted_materials`, which NAMES the excluded emitters because a count cannot tell a stair
+  // nosing from a concrete frame. `unmatched` is preserved as the sum of the two -- splitting a
+  // published figure out from under its readers is a second defect, not a fix.
+  // *A declared key says nothing about whether the number in it answers one question or two.*
   // `dailylog.summary` computes `coverage_pct = 100 * logged_days / span_days` and declares the
   // QUOTIENT while leaving both operands undeclared — the BASIS-UNREAD shape. `draft_count =
   // report_count - submitted_count`, so a field log 90% covered by unsubmitted drafts reads
