@@ -370,9 +370,9 @@ describe("DEAD-FIELD: the type-aware derivation", () => {
       + `reader and ${sound.length} with no string-literal reader either. If you ADDED an inline `
       + `response type, declare it as a named interface instead — that is what moves its fields `
       + `into every audit built on these declarations. If you must add one, raise this number and `
-      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_754);
+      + `say why. If you CONVERTED one, lower it.`).toBeLessThanOrEqual(5_748);
     expect(sites.size, "inline `this.json<{…}>` call sites — same rule as the key count above")
-      .toBeLessThanOrEqual(540);
+      .toBeLessThanOrEqual(539);
   });
 
   it("CLASH-TRUNC's two fields resolve to a reader — one of them was unread for a measurable reason",

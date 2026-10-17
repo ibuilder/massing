@@ -44,6 +44,8 @@ import { toast, escapeHtml } from "./ui/feedback";
 import { issuanceLine, orderWarning, supersededRows } from "./drawingRegisterReadings";
 import { itbCoverageLine, itbHeadline, itbSuspect, rateCell, unmatchedLine }
   from "./portal/panels/itbCoverage";
+import { closedStatesCaveat, overdueCell, resubmittalLine, submittalCoverageLine, submittalHeadline,
+  submittalSuspect, turnaroundLine } from "./portal/panels/submittalCoverage";
 import { coverageLine, draftLine } from "./fieldLogReadings";
 import { unbilledCaveat, unbilledLine } from "./tmReadings";
 import { modalShell } from "./ui/modal";
@@ -893,8 +895,23 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("📑 Submittal register", () => showResult("Submittal register", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.submittalRegister(pid); body.innerHTML = `<div class="meta">${s.submittal_count} submittals · ${s.open_count} open · ${s.overdue_count} overdue · avg turnaround ${s.avg_turnaround_days ?? "—"} d</div>`;
-      table(body, ["Ref", "Spec", "Title", "Turn (d)", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.spec_section ?? "", r.title ?? "", r.turnaround_days ?? "", (r.overdue ? "OVERDUE " : "") + r.status])); }
+    // SUBMITTAL-RETURNED. Four figures, each of which could be wrong for its own reason: `returned`
+    // was treated as closed, so a Revise & Resubmit row was neither open nor capable of being late;
+    // `overdue_count` can only count a row with a required-on-site date; and the turnaround average
+    // is over the rows carrying both review dates. The row shape is declared now, so these reads
+    // are checked rather than cast through `any`.
+    try { const s = await api.submittalRegister(pid);
+      const warn = submittalSuspect(s) ? ` style="color:var(--status-warn)"` : "";
+      const resub = resubmittalLine(s), wf = closedStatesCaveat(s);
+      body.innerHTML = `<div class="meta">${escapeHtml(submittalHeadline(s))}</div>`
+        + `<div class="meta">${escapeHtml(turnaroundLine(s))}</div>`
+        + `<div class="meta"${warn}>${escapeHtml(submittalCoverageLine(s))}</div>`
+        + (resub ? `<div class="meta" style="color:var(--status-warn)">${escapeHtml(resub)}</div>` : "")
+        + (wf ? `<div class="meta">${escapeHtml(wf)}</div>` : "");
+      table(body, ["Ref", "Spec", "Title", "Disposition", "Turn (d)", "Late?", "Status"],
+        s.rows.map((r) => [r.ref ?? "", r.spec_section ?? "", r.title ?? "", r.disposition ?? "",
+          r.turnaround_days ?? "", overdueCell(r),
+          (r.needs_resubmittal ? "RESUBMIT " : "") + r.status])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("🏁 Closeout dashboard", () => showResult("Closeout dashboard", async (body) => {

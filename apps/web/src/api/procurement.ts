@@ -141,6 +141,72 @@ export interface ItbSummary {
   rows: ItbPackageRow[];
 }
 
+/** SUBMITTAL-RETURNED — the submittal register, and the three states a row can be in.
+ *
+ *  The engine's `CLOSED_STATES` was hand-written as `("returned", "closed")`, and `returned` is not
+ *  terminal: the shipped workflow gives it two outgoing transitions, `close` and `revise_resubmit`.
+ *  So a submittal the A/E sent back marked *"Revise & Resubmit"* counted as CLOSED — out of
+ *  `open_count`, and unable to be overdue at all. Measured, one such row six weeks past its
+ *  required-on-site date: `0 open, 0 overdue`, identical to an `Approved` one on every figure the
+ *  card printed. `needs_resubmittal_count` is what separates them now — *a state says where the
+ *  record is; the disposition says which way it is going.*
+ *
+ *  And two counts were over populations the response never stated: `overdue_count` can only count a
+ *  row carrying a `required_on_site` date (40 submittals in review with none gave `0 overdue`,
+ *  reading as *nothing is late*), and `avg_turnaround_days` only a row carrying both review dates
+ *  (3.5 days over 2 of 40). `dated_count` / `undated_count` and `turnaround_count` are those
+ *  populations, with `coverage_note` as the engine's sentence. See
+ *  `portal/panels/submittalCoverage.ts`. */
+export interface SubmittalRow {
+  ref: string | null;
+  title: string | null;
+  spec_section: string;
+  type: string | null;
+  responsible: string | null;
+  /** The A/E's verdict: `Approved`, `Approved as Noted`, `Revise & Resubmit`, `Rejected`,
+   *  `For Record Only`. Independent of the workflow state, and the thing that says it is coming
+   *  back. */
+  disposition: string | null;
+  status: string;
+  required_on_site: string | null;
+  turnaround_days: number | null;
+  overdue: boolean;
+  /** Whether this row COULD be overdue — it carries a required-on-site date. `overdue: false`
+   *  means two different things and a register that cannot tell them apart reports an undated
+   *  backlog as on time. */
+  overdue_assessed: boolean;
+  /** Sent back and not closed: the subcontractor owes a resubmittal. */
+  needs_resubmittal: boolean;
+  /** Whether the row's state is terminal in the workflow this project runs. */
+  closed: boolean;
+  ball_in_court: string;
+}
+
+export interface SubmittalRegister {
+  submittal_count: number;
+  open_count: number;
+  overdue_count: number;
+  /** The population `overdue_count` is over — rows carrying a required-on-site date. */
+  dated_count: number;
+  /** The rest. Not late, and not known to be on time either. */
+  undated_count: number;
+  avg_turnaround_days: number | null;
+  /** The population the average is over — rows carrying both review dates. */
+  turnaround_count: number;
+  /** Open and sent back. Counted as closed before this item, so invisible on every screen. */
+  needs_resubmittal_count: number;
+  /** The states this register treats as done, derived from the workflow in force rather than
+   *  hardcoded — a fact this side cannot derive, which is why it is on the wire. */
+  closed_states: string[];
+  /** Whether that workflow is an override rather than the shipped one (WORKFLOW-DARK). */
+  workflow_overridden: boolean;
+  by_status: Record<string, number>;
+  by_section: Record<string, number>;
+  /** The engine's sentence about which submittals each count is over. */
+  coverage_note: string;
+  rows: SubmittalRow[];
+}
+
 export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Procurement extends Base {
   /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
@@ -327,11 +393,9 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
       { method: "POST", body: JSON.stringify(opts) });
   }
 
-  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. */
+  /** submittalRegister — spec-section turnaround, ball-in-court, overdue. See `SubmittalRegister`. */
   submittalRegister(pid: string) {
-    return this.json<{ submittal_count: number; open_count: number; overdue_count: number;
-      avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/submittals/register`);
+    return this.json<SubmittalRegister>(`/projects/${pid}/submittals/register`);
   }
   /** specSubmittalLog — required submittals per spec section vs logged, with missing gaps. */
   specSubmittalLog(pid: string) {

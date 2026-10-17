@@ -829,7 +829,21 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // four numbers, and an equality cannot separate two equal things.
   // `submittals.register` — the status distribution. `open_count` and `overdue_count` are declared;
   // the distribution they came out of is not.
-  "GET /projects/{}/submittals/register": ["by_status"],
+  // **CLOSED 2026-10-17 under SUBMITTAL-RETURNED, and `by_status` was the smallest part of it.**
+  // The breakdown was computed and discarded, which is TM-UNBILLED's shape — but the live defect
+  // was in two keys that were both DECLARED. `submittals.CLOSED_STATES` was hand-written as
+  // `("returned", "closed")`, and `returned` is not terminal: the shipped workflow gives it two
+  // outgoing transitions, `close` and `revise_resubmit`. So a submittal the A/E sent back marked
+  // "Revise & Resubmit" counted as CLOSED — out of `open_count`, and unable to be overdue at all,
+  // because the overdue test read `state not in CLOSED_STATES`. Measured, one such row six weeks
+  // past its required-on-site date: `0 open, 0 overdue`, and a GREEN tile on `projecthealth`.
+  // *The derivation is the argument*: "a state no transition leaves" reproduces
+  // `rfi.CLOSED_STATES == ("closed", "void")` exactly — hand-written in a sibling module, by
+  // somebody else, and right — and returns `("closed",)` for submittals. Two keys this gate could
+  // not fault were also over unstated populations: `overdue_count` only counts a row carrying a
+  // required-on-site date (40 in review with none gave `0 overdue`), and `avg_turnaround_days`
+  // only one carrying both review dates (3.5 d over 2 of 40). See
+  // `portal/panels/submittalCoverage.ts`.
   // `tm.summarize` — `billed_total` beside the declared `unbilled_total`, and the status
   // distribution. A T&M screen showing only the unbilled half cannot show what share that is.
   // **CLOSED 2026-10-15 under TM-UNBILLED, and `by_status` was the load-bearing one.**

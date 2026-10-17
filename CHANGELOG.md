@@ -6,6 +6,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### SUBMITTAL-RETURNED — a rejected submittal six weeks late read as closed, and two counts hid their populations
+
+`submittals.CLOSED_STATES` was hand-written as `("returned", "closed")`. `returned` is **not** a
+terminal state: the shipped `submittal` workflow gives it two outgoing transitions, `close` and
+`revise_resubmit`. So a submittal the A/E sent back marked *"Revise & Resubmit"* counted as closed —
+out of `open_count`, and **unable to be overdue at all**, because the overdue test read
+`state not in CLOSED_STATES`. Measured, one such submittal six weeks past its required-on-site date:
+
+| | `Revise & Resubmit` | `Approved` |
+|---|---|---|
+| `open_count` | 0 → **1** | 0 → 1 |
+| `overdue_count` | 0 → **1** | 0 → 1 |
+| `avg_turnaround_days` | 9.0 | 9.0 |
+| `needs_resubmittal_count` | — → **1** | — → 0 |
+
+**The derivation is the argument for deriving it.** A state is terminal when no transition leaves
+it. Run against `rfi/module.json` that reproduces `rfi.CLOSED_STATES == ("closed", "void")` exactly
+— a tuple hand-written in a sibling module, by somebody else, and right. Run against
+`submittal/module.json` it returns `("closed",)` alone. *Two siblings hardcoded the same kind of
+list; the rule says which one drifted.* It resolves through `workflow_config.effective`, so a
+project that replaced the workflow gets its own terminal states, published as `closed_states` with
+`workflow_overridden` beside it — the contract `tm_summary` states for `accepted_states`.
+
+The corrected counts still agree between the two rows above — both are `returned`, both are late —
+so `needs_resubmittal_count` is what separates them. *A state says where the record is; the
+disposition says which way it is going.*
+
+Two more counts were over populations the response never stated:
+
+- `overdue_count` can only count a submittal carrying a `required_on_site` date. **40 submittals in
+  A/E review with none recorded returned `overdue_count: 0`**, which reads as *nothing is late*.
+  `dated_count` / `undated_count` state it; EXPIRY-UNDATED is the same shape one register over.
+- `avg_turnaround_days` averages only the rows carrying both review dates — **3.5 days over 2 of
+  40**, the same number a fully-dated 2-row register returns. `turnaround_count` states it.
+
+Both reached past the one card. `projecthealth` turned `overdue_count` into a red/amber/green tile,
+so the rejected submittal above made **Submittals green**; its verdict is now
+`projecthealth.submittal_status`, which also goes amber on an open register where nothing is
+assessable — *a count that cannot be taken is not a count of zero*. And
+`report_builders.construction` printed `Open` / `Overdue` / `Avg turnaround` as KPIs on an exported
+register; each now carries its population, plus the engine's `coverage_note` as `Basis` and a
+`RESUBMIT` marker per row.
+
+Client: the inline response type became the named `SubmittalRegister` / `SubmittalRow` (the card was
+reading rows through `(r: any)`), with `apps/web/src/portal/panels/submittalCoverage.ts` + test and
+the `reportCenter.ts` card rendering the headline, the turnaround basis, the coverage note, the
+resubmittal list and the workflow caveat. `overdueCell` renders a row with no required-on-site date
+as `—` rather than as on time. New backend suite `services/api/test_submittals.py`.
+
+**24 mutations proved red** — 13 on the server, 11 on the client. One is worth recording: the first
+version of the health-tile fix put the verdict inline and the test asserted the new keys appeared in
+the file; the mutation reverting the verdict to `overdue_count` alone **stayed green**, because the
+tile's *headline* reads the same keys. *Reading a value and ruling on it are two different
+questions, and a substring over a file cannot tell them apart.* The verdict is a named function now,
+so a mutation has somewhere to land, and the test asserts its behaviour.
+
+Closes the `GET /projects/{}/submittals/register` entry in
+`apps/web/src/api/responseUndeclared.test.ts` (`by_status` was the smallest part of it — the live
+defect sat in two keys the gate could not fault because both were declared), and lowers the
+`apps/web/src/api/deadFieldTyped.test.ts` ceiling to 5,748 keys / 539 sites.
+
 ### ESTIMATE-ZEROQTY — a mapped class with no takeoff quantity was a $0 priced line, and the estimate showed no denominator
 
 `assemblies.estimate_resource_based` maps each IFC class to an assembly and prices it from the
