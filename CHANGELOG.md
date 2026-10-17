@@ -6,6 +6,86 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## Unreleased
 
+### DASH-TERMINAL — the GC dashboard's headline KPIs ran on two hardcoded state sets across 139 module workflows
+
+`dashboard.build` held `terminal_states = {"closed","answered","verified","done"}` and
+`open_states = {open,submitted,draft,issued,scheduled,investigating,applied,agenda,proposed,pending}`
+and applied both to **every** module. Both were wrong in both directions.
+
+**The one-line demonstration:** three voided RFIs, all past their due date, nothing else on the
+project. The portal's `overdue` **KPI** said **3**; the overdue **queue** rendered directly below it
+said **0**. `rfi.RFI_WITHDRAWN` exists precisely to say *"a voided RFI was retracted: it carries no
+cost or schedule exposure"* — and the KPI counted all three as late work.
+
+The two numbers disagreed because they were computed two different ways, and **the correct
+derivation was already in the tree three times**: `modules._terminal_states` (which feeds
+`due_feed`, the queue), `workflow_config.validate`'s inline `shipped_dead` — whose own comment read
+*"a genuinely terminal state SHOULD have no exit"* — and `submittals.terminal_states`.
+`dashboard.build` derived nothing. There is one definition now,
+`workflow_config.terminal_states`, and the other three delegate to it.
+
+**The two directions are not the same size, and the first draft of this finding got that wrong in
+the flattering direction.** Structurally 74 (module, state) pairs are terminal in their own module
+and absent from the literal — but the overdue loop only scans modules carrying a due-date field,
+which is **16 of 139**, so 69 of those pairs can never reach the KPI. Measured exposure:
+
+| | |
+|---|---|
+| `overdue` inflated by finished work | **5 pairs** — `decision.superseded`, `due_diligence.cleared`, `rfi.void`, `risk.accepted`, `selection.approved` |
+| `overdue` hiding a late record | **1** — `rfi.answered`, which the literal called finished |
+| open KPIs missing live work | **140 pairs, 76 of 139 modules** — the large half |
+
+Five of the six headline open KPIs undercounted by name: `pending_change_orders` missed `approved`
+CORs, `open_issues` missed `resolved`/`assigned`, `open_quality` missed `dispositioned` NCRs and
+`corrected` deficiencies, `open_safety` missed `assigned`/`corrected` observations, `open_punchlist`
+missed `ready`. `live_states` is the **complement** of terminal rather than a second allowlist,
+because the allowlist is the half that went stale: a state is live or finished, with no third set to
+forget.
+
+Both sets are resolved per module from the workflow **in force**, so a project that overrode its
+workflow gets its own answer — asserted through the route: the same RFI in the same `answered`
+state, past due, is open on one project and finished on another purely because of the transitions
+saved against each. `kpi_basis` publishes that per-module split, since the client cannot derive it.
+A third disagreeing site, the CEP report's "Open RFIs" KPI, now reads `rfi.CLOSED_STATES` instead of
+its own literal.
+
+**And this item shipped its own defect one layer along, which `test_trunc_counted` caught.** The
+first version took `open` from the module's DECLARED live states. But `state_counts_all` reports the
+states the DATA holds, and those are not the same set: a record sitting in a state the workflow no
+longer declares — written before a workflow change, or imported — fell into neither half and so
+vanished from every open KPI. *Exactly the shape this item exists to fix.* `terminal` stays declared
+(it is the one question a workflow can answer) and `open` is the complement over the OBSERVED
+states, which also fails in the safe direction: an unrecognised state shows up as work rather than
+disappearing. A module with no workflow at all then has nothing terminal, so all of it is open —
+the right answer, not merely the convenient one. The asymmetry is documented on `kpi_basis` rather
+than left as a trap.
+
+**And a second gate then found the consequence from the opposite direction.** With the dashboard no
+longer calling it, `workflow_config.live_states` had tests and no production caller, which
+`test_tested_but_unwired` reports by name. It is **deleted**, not frozen — that gate's own header
+says the frozen list "is NOT an allowlist of things to ignore", and a declared-live helper sitting
+in the shared module is where the next reader would reach for an "open" set and reintroduce exactly
+this defect. `terminal_states` now carries a note saying why it has no companion, and the test keeps
+a local `declared_live` stand-in whose job is to demonstrate that the derivation is *wrong* for this
+question. *Two gates, one defect, from opposite directions — the one that caught the behaviour and
+the one that caught the leftover.*
+
+**12 mutations proved red, three of them only after a second pass.** `workflow_config.validate`'s
+carve-out for a shipped-terminal state turned out to be **unasserted before this change** —
+`shipped_dead = set()` passed `test_workflow_config.py` — so the extraction inherited a coverage
+gap rather than creating one; it is pinned now with a project holding a record in `closed`. And the
+override mutation passed because the test called `workflow_config.effective` directly instead of
+going through the dashboard: *asserting a helper is not asserting its caller*, which is the same
+slip this session made on `projecthealth.submittal_status` hours earlier. New backend suite
+`services/api/test_dash_terminal.py`.
+
+**A clean negative worth keeping:** a tree-wide sweep for *phantom* state literals — a name no
+module declares, so the filter silently never matches — found **0** across 24 distinct literals and
+66 sites. And the `in (...)` direction of the terminal rule is noise, since `in (states)` can mean
+"is open" as readily as "is done"; only `not in (...)` claims every listed state is finished, and
+restricting to it cut 8 candidates to the 2 real ones. *A rule that needs an exemption list is a
+rule whose population is wrong.*
+
 ### SUBMITTAL-RETURNED — a rejected submittal six weeks late read as closed, and two counts hid their populations
 
 `submittals.CLOSED_STATES` was hand-written as `("returned", "closed")`. `returned` is **not** a

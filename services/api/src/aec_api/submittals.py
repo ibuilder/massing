@@ -69,14 +69,14 @@ def _parse(s: Any) -> date | None:
 def terminal_states(mod: dict) -> list[str]:
     """The workflow's own definition of "nothing left to do": a state no transition leaves.
 
-    Structural, not inferred from the order states are declared in -- COURT-SPLIT measured that
-    order and found it alphabetical in at least one module, so reading a progression out of it is
-    wrong. An outgoing edge is a fact about the graph.
+    DELEGATES to `workflow_config.terminal_states`, which is the one definition. This function was
+    the second copy of that computation when it was written for this item; DASH-TERMINAL found the
+    first (inline in `workflow_config.validate` as `shipped_dead`) and moved it there, because
+    `dashboard.build` needed a third and a third copy is how two of them start disagreeing. Kept as
+    a name here because this module's callers and its test read it.
     """
-    wf = mod.get("workflow") or {}
-    states = [str(s) for s in wf.get("states") or []]
-    leaves = {str(t["from"]) for t in wf.get("transitions") or [] if t.get("from")}
-    return sorted(s for s in states if s not in leaves)
+    from . import workflow_config
+    return workflow_config.terminal_states(mod)
 
 
 def effective_closed(pid: str) -> tuple[list[str] | None, bool]:

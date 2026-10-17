@@ -60,6 +60,42 @@ def _states(mod: dict) -> list[str]:
     return list((mod.get("workflow") or {}).get("states") or [])
 
 
+def terminal_states(mod: dict) -> list[str]:
+    """The workflow's own definition of "nothing left to do": a state no transition leaves.
+
+    THE ONE DEFINITION. This computation existed twice before DASH-TERMINAL — inline in `validate`
+    below as `shipped_dead`, whose comment already said *"a genuinely terminal state SHOULD have no
+    exit"*, and in `submittals.terminal_states` — and `dashboard.build` was about to be a third
+    place, except it did not compute it at all: it hardcoded
+    `{"closed", "answered", "verified", "done"}` and applied that one set to all 139 modules. The
+    sweep measured 74 (module, state) pairs terminal in their own module and absent from that set,
+    and 140 pairs live in their module and in neither of the dashboard's two hardcoded sets.
+
+    Structural, not inferred from the order states are DECLARED in: COURT-SPLIT measured that order
+    and found `action_item.states == ['done', 'open']` — alphabetical, not a progression — so
+    reading a direction out of it is measurably wrong. An outgoing edge is a fact about the graph.
+
+    Pass the module through `effective()` first when a project may have overridden its workflow:
+    terminal-ness is a property of the transitions in force, not of the shipped ones.
+
+    **THERE IS DELIBERATELY NO `live_states()` COMPANION, and the absence is the finding.**
+    DASH-TERMINAL shipped one and `dashboard.build` used it as its open set — which reintroduced
+    the very defect that item exists to fix. `state_counts_all` reports the states the DATA holds;
+    a declared helper reports what the module DECLARES. A record sitting in a state the workflow no
+    longer declares (written before a workflow change, or imported) is in neither half, so it
+    vanished from every open KPI. `test_trunc_counted` caught that, and `test_tested_but_unwired`
+    then reported the now-callerless helper — *two gates, one defect, from opposite directions.*
+
+    So terminal-ness is DECLARED, because that is the question a workflow can answer. "Open" is the
+    complement over whatever states the caller actually OBSERVED, and the caller takes it itself:
+    `{s for s in observed if s not in terminal_states(mod)}`. One line, it fails in the safe
+    direction, and it cannot be handed the wrong population.
+    """
+    wf = mod.get("workflow") or {}
+    leaves = {str(t["from"]) for t in wf.get("transitions") or [] if t.get("from")}
+    return sorted(s for s in map(str, _states(mod)) if s not in leaves)
+
+
 def _norm(mod: dict, transitions: list[dict]) -> list[dict]:
     """Validate + normalise a transition list against the module's declared states."""
     if not isinstance(transitions, list) or not transitions:
@@ -135,8 +171,7 @@ def validate(db: Session, pid: str, key: str, transitions: list[dict]) -> dict[s
     counts = me.state_counts(db, key, pid)
     # a state is only a problem if it (a) has no way out AND (b) is not terminal in the shipped
     # workflow — a genuinely terminal state SHOULD have no exit
-    shipped_dead = {s for s in _states(mod)
-                    if not any(t["from"] == s for t in (mod.get("workflow") or {}).get("transitions") or [])}
+    shipped_dead = set(terminal_states(mod))
     stranding = {s: counts.get(s, 0) for s in dead
                  if s not in shipped_dead and counts.get(s, 0) > 0}
     if stranding:

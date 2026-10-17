@@ -345,7 +345,14 @@ def _cep(db: Session, pid: str, name: str) -> Report:
     r.kpi("Schedule activities", len(acts))
     r.kpi("Permits", len(perms))
     r.kpi("Submittals", len(subm))
-    r.kpi("Open RFIs", sum(1 for x in rfi if x.get("workflow_state") not in ("closed", "answered", "void")))
+    # DASH-TERMINAL. This read `not in ("closed", "answered", "void")`, which counts an
+    # answered-but-unaccepted RFI as finished. The `rfi` workflow has BOTH
+    # `answered -> closed | accept [GC]` and `answered -> open | reopen [GC]`, so `answered` is not
+    # terminal and `rfi.COURT["answered"]` is "GC (accept)" -- the ball is with the GC.
+    # `rfi.CLOSED_STATES` is ("closed", "void") and `rfi.rfi_register`'s own `open_count` has always
+    # honoured it, so this KPI and that register disagreed about one question. One source now.
+    from .. import rfi as rfi_engine
+    r.kpi("Open RFIs", sum(1 for x in rfi if x.get("workflow_state") not in rfi_engine.CLOSED_STATES))
     if saf.get("incidents"):
         r.kpi("Safety incidents", saf["incidents"].get("incident_count", 0))
     if clo.get("punchlist"):

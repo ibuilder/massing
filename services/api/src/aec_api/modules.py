@@ -1164,10 +1164,22 @@ def _due_field_name(mod: dict) -> str | None:
 
 
 def _terminal_states(mod: dict) -> set[str]:
-    """States with no outgoing transition — a record there is done (closed/void/executed/…)."""
-    wf = mod.get("workflow", {})
-    froms = {t["from"] for t in wf.get("transitions", [])}
-    return {s for s in wf.get("states", []) if s not in froms}
+    """States with no outgoing transition — a record there is done (closed/void/executed/…).
+
+    DELEGATES to `workflow_config.terminal_states`, the one definition. DASH-TERMINAL found this
+    computation written out FOUR times: here (correct, and feeding `due_feed`), inline in
+    `workflow_config.validate` as `shipped_dead` (correct), in `submittals.terminal_states`
+    (correct), and NOT AT ALL in `dashboard.build`, which hardcoded
+    `{"closed", "answered", "verified", "done"}` for all 139 modules and was wrong in both
+    directions. *The correct derivation was already in this very file, and the dashboard's own
+    overdue KPI did not use it* — so the portal showed an `overdue` KPI from `dashboard.build`
+    beside an overdue QUEUE from `due_feed` below, computed two different ways.
+
+    Also fixes a latent `KeyError`: the old body read `t["from"]` with no guard, so a transition
+    list carrying an entry without a `from` raised rather than being skipped.
+    """
+    from . import workflow_config
+    return set(workflow_config.terminal_states(mod))
 
 
 def due_feed(db: Session, project_id: str, soon_days: int = 7) -> dict:

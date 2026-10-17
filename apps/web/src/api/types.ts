@@ -678,6 +678,29 @@ export interface Dashboard {
   action_items: { module: string; module_name: string; id: string; ref: string; title: string | null; state: string; actions: string[] }[];
   action_item_count: number;
   by_module: { key: string; name: string; section: string; count: number; by_state: Record<string, number> }[];
+  /** DASH-TERMINAL — which states each module counts as open and which as finished, keyed by
+   *  module, resolved from the workflow IN FORCE for this project.
+   *
+   *  **The two halves are asymmetric on purpose.** `terminal` is DECLARED — "no transition leaves
+   *  this state" is the one question a workflow can answer. `open` is OBSERVED: the states this
+   *  project's records actually sit in, minus the terminal ones. Taking `open` from the declared
+   *  live states instead was a defect this item shipped and `test_trunc_counted` caught: a record
+   *  in a state the workflow no longer declares (written before a workflow change, or imported)
+   *  fell into neither half and so vanished from every open KPI — this item's own defect, one
+   *  layer along. The complement over the observed set fails in the safe direction instead: an
+   *  unrecognised state shows up as work rather than disappearing.
+   *
+   *  The KPIs above used to run on two sets hardcoded in `dashboard.build` and applied to all 139
+   *  modules, and both were wrong in both directions: 74 (module, state) pairs were terminal in
+   *  their own module and missing from the terminal set — so a `rejected` COR or an `expired`
+   *  lease with a past due date inflated `overdue` — and 140 pairs were live and in neither set,
+   *  so no KPI counted them (76 of 139 modules affected; `pending_change_orders` missed `approved`
+   *  CORs, `open_punchlist` missed `ready`, and so on).
+   *
+   *  On the wire because this side cannot derive it: a project may replace a module's transitions,
+   *  and terminal-ness is a property of the transitions, not of the state names. Only the modules
+   *  that contributed a record are listed, so it is the same population as `by_module`. */
+  kpi_basis: Record<string, { open: string[]; terminal: string[] }>;
 }
 
 export interface RespRow {
